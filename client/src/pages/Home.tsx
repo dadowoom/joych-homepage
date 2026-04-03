@@ -7,6 +7,7 @@
 import { useState, useEffect, useRef } from "react";
 
 const HERO_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-church-XWJBwHDycyRoBg9dY4aj5r.webp";
+const HERO_VIDEO = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-video_024001ab.mp4";
 const WORSHIP_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-worship-T2iXn7ztKCKRDJ4xwAbyC9.webp";
 const VISION_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/vision-bg-XcGUzFoKsWgmCYbAZZCnsA.webp";
 
@@ -182,15 +183,17 @@ export default function Home() {
 
       {/* ===== 히어로 섹션 ===== */}
       <section className="relative h-screen min-h-[600px] flex items-center overflow-hidden">
-        {/* 배경 이미지 */}
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage: `url(${HERO_IMAGE})`,
-            animation: "heroZoom 14s ease-in-out infinite alternate",
-          }}
+        {/* 배경 영상 */}
+        <video
+          className="absolute inset-0 w-full h-full object-cover"
+          src={HERO_VIDEO}
+          autoPlay
+          muted
+          loop
+          playsInline
+          poster={HERO_IMAGE}
         />
-        {/* 오버레이 */}
+        {/* 영상 위 오버레이 — 글씨 가독성 확보 */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-black/10" />
 
         {/* 콘텐츠 */}
