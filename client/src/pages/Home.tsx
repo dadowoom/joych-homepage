@@ -13,25 +13,25 @@ const WORSHIP_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/
 const VISION_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/vision-bg-XcGUzFoKsWgmCYbAZZCnsA.webp";
 
 const NAV_ITEMS = [
-  { label: "교회소개", sub: ["담임목사 인사말", "교회 역사", "교회 비전", "오시는 길"] },
-  { label: "조이풀TV", sub: ["실시간 예배", "설교 영상", "찬양 영상"] },
-  { label: "양육/훈련", sub: ["새가족 교육", "제자훈련", "성경공부"] },
-  { label: "사역/선교", sub: ["국내 선교", "해외 선교", "봉사 활동", "선교보고"], subHref: { "선교보고": "/mission" } },
-  { label: "교회학교", sub: ["유아부", "유치부", "초등부", "중고등부"] },
-  { label: "커뮤니티", sub: ["교회 소식", "기도 요청", "나눔 게시판"] },
-  { label: "행정지원", sub: ["주보 보기", "헌금 안내", "차량 운행"] },
+  { label: "교회소개", sub: ["담임목사 인사말", "교회 역사", "교회 비전", "오시는 길"], subHref: { "담임목사 인사말": "/about/pastor", "교회 역사": "/about/history", "교회 비전": "/about/vision", "오시는 길": "/about/directions" } },
+  { label: "조이풀TV", sub: ["실시간 예배", "설교 영상", "찬양 영상"], subHref: { "실시간 예배": "/worship/tv", "설교 영상": "/worship/tv", "찬양 영상": "/worship/tv" } },
+  { label: "양육/훈련", sub: ["새가족 교육", "제자훈련", "성경공부"], subHref: { "새가족 교육": "/education/new-member", "제자훈련": "/education/disciple", "성경공부": "/education/bible" } },
+  { label: "사역/선교", sub: ["국내 선교", "해외 선교", "봉사 활동", "선교보고"], subHref: { "국내 선교": "/mission-work/domestic", "해외 선교": "/mission-work/overseas", "봉사 활동": "/mission-work/volunteer", "선교보고": "/mission" } },
+  { label: "교회학교", sub: ["유아부", "유치부", "초등부", "중고등부"], subHref: { "유아부": "/school/infant", "유치부": "/school/kinder", "초등부": "/school/elementary", "중고등부": "/school/youth" } },
+  { label: "커뮤니티", sub: ["교회 소식", "기도 요청", "나눔 게시판"], subHref: { "교회 소식": "/community/news", "기도 요청": "/community/prayer", "나눔 게시판": "/community/prayer" } },
+  { label: "행정지원", sub: ["주보 보기", "헌금 안내", "차량 운행"], subHref: { "주보 보기": "/worship/bulletin", "헌금 안내": "/admin/offering", "차량 운행": "/admin/vehicle" } },
 ];
 
 const QUICK_MENUS = [
-  { icon: "fa-user-tie", label: "담임목사 인사" },
-  { icon: "fa-hands-praying", label: "손보고서" },
-  { icon: "fa-newspaper", label: "주보 보기" },
-  { icon: "fa-clock", label: "예배시간 안내" },
+  { icon: "fa-user-tie", label: "담임목사 인사", href: "/about/pastor" },
+  { icon: "fa-hands-praying", label: "선교보고서", href: "/mission" },
+  { icon: "fa-newspaper", label: "주보 보기", href: "/worship/bulletin" },
+  { icon: "fa-clock", label: "예배시간 안내", href: "/worship/schedule" },
   { icon: "fa-building", label: "시설사용예약", href: "/facility" },
-  { icon: "fa-store", label: "조이플스토어" },
-  { icon: "fa-user-plus", label: "새가족 안내" },
-  { icon: "fa-bus", label: "차량운행 안내" },
-  { icon: "fa-map-marker-alt", label: "오시는 길" },
+  { icon: "fa-store", label: "조이플스토어", href: "/admin/store" },
+  { icon: "fa-user-plus", label: "새가족 안내", href: "/admin/new-member" },
+  { icon: "fa-bus", label: "차량운행 안내", href: "/admin/vehicle" },
+  { icon: "fa-map-marker-alt", label: "오시는 길", href: "/about/directions" },
 ];
 
 const SERMONS = [
@@ -49,7 +49,7 @@ const NEWS = [
 ];
 
 const AFFILIATES = [
-  { icon: "fa-hands-helping", label: "기름의복지재단" },
+  { icon: "fa-hands-helping", label: "기쁨의복지재단" },
   { icon: "fa-building", label: "창포종합사회복지관" },
   { icon: "fa-tree", label: "조이플빌리지" },
   { icon: "fa-graduation-cap", label: "조이아카데미 문화강좌" },
@@ -149,7 +149,7 @@ export default function Home() {
                   {activeNav === i && (
                     <ul className="absolute top-[72px] left-0 bg-white border-t-2 border-[#1B5E20] shadow-xl min-w-[150px] z-50 py-1">
                       {item.sub.map((s, j) => {
-                        const href = (item as { subHref?: Record<string, string> }).subHref?.[s];
+                        const href = (item as { subHref?: Record<string, string | undefined> }).subHref?.[s];
                         const cls = "block px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0";
                         return (
                           <li key={j}>
