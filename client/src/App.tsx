@@ -8,6 +8,8 @@ import Home from "./pages/Home";
 import FacilityList from "./pages/FacilityList";
 import FacilityDetail from "./pages/FacilityDetail";
 import FacilityApply from "./pages/FacilityApply";
+import MissionList from "./pages/MissionList";
+import MissionDetail from "./pages/MissionDetail";
 
 
 function Router() {
@@ -17,6 +19,8 @@ function Router() {
       <Route path="/facility" component={FacilityList} />
       <Route path="/facility/:id/apply" component={FacilityApply} />
       <Route path="/facility/:id" component={FacilityDetail} />
+      <Route path="/mission/:id" component={MissionDetail} />
+      <Route path="/mission" component={MissionList} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

@@ -16,7 +16,7 @@ const NAV_ITEMS = [
   { label: "교회소개", sub: ["담임목사 인사말", "교회 역사", "교회 비전", "오시는 길"] },
   { label: "조이풀TV", sub: ["실시간 예배", "설교 영상", "찬양 영상"] },
   { label: "양육/훈련", sub: ["새가족 교육", "제자훈련", "성경공부"] },
-  { label: "사역/선교", sub: ["국내 선교", "해외 선교", "봉사 활동"] },
+  { label: "사역/선교", sub: ["국내 선교", "해외 선교", "봉사 활동", "선교보고"], subHref: { "선교보고": "/mission" } },
   { label: "교회학교", sub: ["유아부", "유치부", "초등부", "중고등부"] },
   { label: "커뮤니티", sub: ["교회 소식", "기도 요청", "나눔 게시판"] },
   { label: "행정지원", sub: ["주보 보기", "헌금 안내", "차량 운행"] },
@@ -148,13 +148,19 @@ export default function Home() {
                   </a>
                   {activeNav === i && (
                     <ul className="absolute top-[72px] left-0 bg-white border-t-2 border-[#1B5E20] shadow-xl min-w-[150px] z-50 py-1">
-                      {item.sub.map((s, j) => (
-                        <li key={j}>
-                          <a href="#" className="block px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0">
-                            {s}
-                          </a>
-                        </li>
-                      ))}
+                      {item.sub.map((s, j) => {
+                        const href = (item as { subHref?: Record<string, string> }).subHref?.[s];
+                        const cls = "block px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0";
+                        return (
+                          <li key={j}>
+                            {href ? (
+                              <Link href={href} className={cls}>{s}</Link>
+                            ) : (
+                              <a href="#" className={cls}>{s}</a>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
                 </li>
