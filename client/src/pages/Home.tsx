@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
+import { Link } from "wouter";
 
 const HERO_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-church-XWJBwHDycyRoBg9dY4aj5r.webp";
 const HERO_VIDEO = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-video_024001ab.mp4";
@@ -26,6 +27,7 @@ const QUICK_MENUS = [
   { icon: "fa-hands-praying", label: "손보고서" },
   { icon: "fa-newspaper", label: "주보 보기" },
   { icon: "fa-clock", label: "예배시간 안내" },
+  { icon: "fa-building", label: "시설사용예약", href: "/facility" },
   { icon: "fa-store", label: "조이플스토어" },
   { icon: "fa-user-plus", label: "새가족 안내" },
   { icon: "fa-bus", label: "차량운행 안내" },
@@ -239,20 +241,27 @@ export default function Home() {
       {/* ===== 퀵 메뉴 ===== */}
       <section className="bg-white shadow-md relative z-10">
         <div className="container">
-          <ul className="grid grid-cols-4 md:grid-cols-8">
-            {QUICK_MENUS.map((item, i) => (
-              <li key={i}>
-                <a
-                  href="#"
-                  className="flex flex-col items-center gap-2.5 py-5 px-2 border-r border-gray-100 last:border-0 hover:bg-[#F1F8E9] transition-colors group"
-                >
+          <ul className="grid grid-cols-3 md:grid-cols-9">
+            {QUICK_MENUS.map((item, i) => {
+              const inner = (
+                <>
                   <div className="w-12 h-12 rounded-full bg-[#E8F5E9] flex items-center justify-center text-[#1B5E20] text-lg group-hover:bg-[#1B5E20] group-hover:text-white transition-colors">
                     <i className={`fas ${item.icon}`}></i>
                   </div>
                   <span className="text-xs text-gray-600 text-center leading-tight">{item.label}</span>
-                </a>
-              </li>
-            ))}
+                </>
+              );
+              const cls = "flex flex-col items-center gap-2.5 py-5 px-2 border-r border-gray-100 last:border-0 hover:bg-[#F1F8E9] transition-colors group";
+              return (
+                <li key={i}>
+                  {(item as { href?: string }).href ? (
+                    <Link href={(item as { href?: string }).href!} className={cls}>{inner}</Link>
+                  ) : (
+                    <a href="#" className={cls}>{inner}</a>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       </section>
