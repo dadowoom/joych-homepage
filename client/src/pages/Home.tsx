@@ -13,13 +13,101 @@ const WORSHIP_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/
 const VISION_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/vision-bg-XcGUzFoKsWgmCYbAZZCnsA.webp";
 
 const NAV_ITEMS = [
-  { label: "교회소개", sub: ["담임목사 인사말", "교회 역사", "교회 비전", "오시는 길"], subHref: { "담임목사 인사말": "/about/pastor", "교회 역사": "/about/history", "교회 비전": "/about/vision", "오시는 길": "/about/directions" } },
-  { label: "조이풀TV", sub: ["실시간 예배", "설교 영상", "찬양 영상"], subHref: { "실시간 예배": "/worship/tv", "설교 영상": "/worship/tv", "찬양 영상": "/worship/tv" } },
-  { label: "양육/훈련", sub: ["새가족 교육", "제자훈련", "성경공부"], subHref: { "새가족 교육": "/education/new-member", "제자훈련": "/education/disciple", "성경공부": "/education/bible" } },
-  { label: "사역/선교", sub: ["국내 선교", "해외 선교", "봉사 활동", "선교보고"], subHref: { "국내 선교": "/mission-work/domestic", "해외 선교": "/mission-work/overseas", "봉사 활동": "/mission-work/volunteer", "선교보고": "/mission" } },
-  { label: "교회학교", sub: ["유아부", "유치부", "초등부", "중고등부"], subHref: { "유아부": "/school/infant", "유치부": "/school/kinder", "초등부": "/school/elementary", "중고등부": "/school/youth" } },
-  { label: "커뮤니티", sub: ["교회 소식", "기도 요청", "나눔 게시판"], subHref: { "교회 소식": "/community/news", "기도 요청": "/community/prayer", "나눔 게시판": "/community/prayer" } },
-  { label: "행정지원", sub: ["주보 보기", "헌금 안내", "차량 운행"], subHref: { "주보 보기": "/worship/bulletin", "헌금 안내": "/admin/offering", "차량 운행": "/admin/vehicle" } },
+  {
+    label: "교회소개",
+    sub: ["담임목사 소개", "예배안내", "섬기는 분", "교회백서", "사역원리", "CI", "시설물 안내", "오시는 길", "셔틀버스"],
+    subHref: {
+      "담임목사 소개": "/about/pastor",
+      "예배안내": "/worship/schedule",
+      "섬기는 분": "/about/staff",
+      "교회백서": "/about/whitebook",
+      "사역원리": "/about/principle",
+      "CI": "/about/ci",
+      "시설물 안내": "/facility",
+      "오시는 길": "/about/directions",
+      "셔틀버스": "/about/shuttle",
+    }
+  },
+  {
+    label: "조이풀TV",
+    sub: ["실시간 예배영상", "주일예배", "헤브론 수요예배", "쉐키나 금요기도회", "새벽 글로리아 성서학당", "박진석 목사 시리즈설교", "하영인 새벽기도회 설교", "특별예배", "특집", "간증", "찬양"],
+    subHref: {
+      "실시간 예배영상": "/worship/tv",
+      "주일예배": "/worship/tv/sunday",
+      "헤브론 수요예배": "/worship/tv/hebron",
+      "쉐키나 금요기도회": "/worship/tv/shekhinah",
+      "새벽 글로리아 성서학당": "/worship/tv/gloria",
+      "박진석 목사 시리즈설교": "/worship/tv/pastor-series",
+      "하영인 새벽기도회 설교": "/worship/tv/hayoungin",
+      "특별예배": "/worship/tv/special",
+      "특집": "/worship/tv/feature",
+      "간증": "/worship/tv/testimony",
+      "찬양": "/worship/tv/praise",
+    }
+  },
+  {
+    label: "양육/훈련",
+    sub: ["헤세드아시아포재팬", "제자훈련", "장로훈련", "일대일 양육", "선생님학교", "생선 컨퍼런스", "세계선교", "전도", "기도사역", "복지사역", "비전대학교", "조이랩"],
+    subHref: {
+      "헤세드아시아포재팬": "/education/hesed",
+      "제자훈련": "/education/disciple2",
+      "장로훈련": "/education/elder",
+      "일대일 양육": "/education/one-on-one",
+      "선생님학교": "/education/sunseumschool",
+      "생선 컨퍼런스": "/education/saengseon",
+      "세계선교": "/ministry/world-mission",
+      "전도": "/ministry/evangelism",
+      "기도사역": "/ministry/prayer",
+      "복지사역": "/ministry/welfare",
+      "비전대학교": "/ministry/vision-univ",
+      "조이랩": "/ministry/joylab",
+    }
+  },
+  {
+    label: "교회학교",
+    sub: ["영아부", "유아부", "유치부", "초등부", "중고등부", "청년부", "AWANA"],
+    subHref: {
+      "영아부": "/school/infant",
+      "유아부": "/school/infant",
+      "유치부": "/school/kinder",
+      "초등부": "/school/elementary",
+      "중고등부": "/school/youth",
+      "청년부": "/school/young-adult",
+      "AWANA": "/school/awana",
+    }
+  },
+  {
+    label: "선교보고",
+    sub: ["선교보고 목록"],
+    subHref: {
+      "선교보고 목록": "/mission",
+    }
+  },
+  {
+    label: "커뮤니티",
+    sub: ["순모임", "자치기관", "동호회", "사진", "기쁨톡", "HOT NEWS", "공지사항"],
+    subHref: {
+      "순모임": "/community/soon",
+      "자치기관": "/community/organization",
+      "동호회": "/community/club",
+      "사진": "/community/photo",
+      "기쁨톡": "/community/joytalk",
+      "HOT NEWS": "/community/news",
+      "공지사항": "/community/news",
+    }
+  },
+  {
+    label: "행정지원",
+    sub: ["주보", "자막 신청", "온라인사무국", "탐방신청", "조이풀빌리지", "기부금 영수증"],
+    subHref: {
+      "주보": "/worship/bulletin",
+      "자막 신청": "/admin/subtitle",
+      "온라인사무국": "/admin/office",
+      "탐방신청": "/admin/tour",
+      "조이풀빌리지": "/admin/store",
+      "기부금 영수증": "/admin/donation",
+    }
+  },
 ];
 
 const QUICK_MENUS = [
