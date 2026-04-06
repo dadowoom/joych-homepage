@@ -50,41 +50,114 @@ const ABOUT_NAV = [
 ];
 
 // ── 담임목사 인사말 ──────────────────────────────────────────────
+const PASTOR_CAREER = [
+  { icon: "fa-graduation-cap", text: "장로회신학대학교 신학과 졸업" },
+  { icon: "fa-graduation-cap", text: "장로회신학대학교 신학대학원 졸업 (M.Div)" },
+  { icon: "fa-graduation-cap", text: "미국 풀러신학교 목회학박사 (D.Min)" },
+  { icon: "fa-church", text: "서울 강남교회 부목사 (1998~2004)" },
+  { icon: "fa-church", text: "기쁨의교회 담임목사 (2005~현재)" },
+  { icon: "fa-book", text: "저서: 《기쁨으로 걷는 길》 외 3권" },
+];
+
 export function PastorGreeting() {
   return (
     <div className="min-h-screen bg-[#F7F7F5]">
       <PageHeader title="담임목사 인사말" breadcrumb={["교회소개", "담임목사 인사말"]} />
       <SubNav items={ABOUT_NAV} />
-      <div className="max-w-5xl mx-auto px-4 py-14">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 items-start">
-          {/* 프로필 */}
-          <div className="md:col-span-1 flex flex-col items-center text-center">
-            <div className="w-48 h-48 rounded-full overflow-hidden border-4 border-[#E8F5E9] shadow-lg mb-5">
-              <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=80" alt="담임목사" className="w-full h-full object-cover" />
+
+      {/* ── 목사 프로필 히어로 ── */}
+      <div className="bg-white border-b border-gray-100">
+        <div className="max-w-5xl mx-auto px-4 py-12">
+          <div className="flex flex-col md:flex-row gap-10 items-center md:items-start">
+            {/* 사진 */}
+            <div className="flex-shrink-0">
+              <div className="w-56 h-72 md:w-64 md:h-80 rounded-2xl overflow-hidden shadow-xl border border-gray-100">
+                <img
+                  src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/pastor-profile-SHmmue3n8kmYgQNtz5BYwT.webp"
+                  alt="담임목사 홍길동"
+                  className="w-full h-full object-cover object-top"
+                />
+              </div>
             </div>
-            <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: "'Noto Serif KR', serif" }}>홍길동 목사</h2>
-            <p className="text-[#1B5E20] text-sm font-medium mt-1">기쁨의교회 담임목사</p>
-            <div className="mt-5 w-full bg-white rounded-xl p-5 shadow-sm text-left space-y-2 text-sm text-gray-600">
-              <div className="flex gap-3"><i className="fas fa-graduation-cap text-[#1B5E20] w-4 mt-0.5"></i><span>장로회신학대학교 신학과 졸업</span></div>
-              <div className="flex gap-3"><i className="fas fa-graduation-cap text-[#1B5E20] w-4 mt-0.5"></i><span>장로회신학대학교 신학대학원 졸업 (M.Div)</span></div>
-              <div className="flex gap-3"><i className="fas fa-church text-[#1B5E20] w-4 mt-0.5"></i><span>기쁨의교회 담임목사 (2005~현재)</span></div>
+            {/* 기본 정보 */}
+            <div className="flex-1">
+              <p className="text-[#1B5E20] text-sm font-semibold tracking-widest uppercase mb-2">Senior Pastor</p>
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-1" style={{ fontFamily: "'Noto Serif KR', serif" }}>홍길동 목사</h2>
+              <p className="text-gray-500 text-base mb-6">기쁨의교회 제2대 담임목사</p>
+              <div className="w-12 h-0.5 bg-[#1B5E20] mb-6"></div>
+              <ul className="space-y-3">
+                {PASTOR_CAREER.map((item, i) => (
+                  <li key={i} className="flex items-start gap-3 text-sm text-gray-600">
+                    <i className={`fas ${item.icon} text-[#1B5E20] w-4 mt-0.5 flex-shrink-0`}></i>
+                    <span>{item.text}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
-          {/* 인사말 본문 */}
-          <div className="md:col-span-2">
-            <div className="bg-[#E8F5E9] border-l-4 border-[#1B5E20] rounded-r-xl p-6 mb-8">
-              <p className="text-[#1B5E20] font-medium text-base leading-relaxed" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-                "처음 익은 열매로 여호와를 공경하라" — 잠언 3장 9절
-              </p>
-            </div>
-            <div className="bg-white rounded-2xl p-8 shadow-sm space-y-5 text-gray-700 leading-8 text-[15px]">
-              <p>기쁨의교회 홈페이지를 방문해 주신 여러분을 진심으로 환영합니다.</p>
-              <p>우리 기쁨의교회는 1985년 창립 이래 40여 년간 하나님의 은혜 가운데 성장해 왔습니다. 말씀 위에 굳게 서서, 기도로 하나 되고, 이웃을 섬기는 교회로 이 땅에서 빛과 소금의 역할을 감당하고자 합니다.</p>
-              <p>우리 교회는 "깊이 있는 성장, 위대한 교회"라는 비전 아래, 성도 한 사람 한 사람이 하나님 앞에서 온전히 세워지고, 가정과 사회 속에서 그리스도의 향기를 발하는 삶을 살아가도록 돕고 있습니다.</p>
-              <p>새가족으로 오시는 분들, 믿음의 여정을 함께하고 싶으신 분들 모두를 따뜻하게 맞이합니다. 기쁨의교회가 여러분의 영적 가정이 되기를 소망합니다.</p>
-              <p className="text-right font-medium text-gray-800 pt-4" style={{ fontFamily: "'Noto Serif KR', serif" }}>기쁨의교회 담임목사 홍길동</p>
-            </div>
+        </div>
+      </div>
+
+      {/* ── 인사말 본문 ── */}
+      <div className="max-w-4xl mx-auto px-4 py-14">
+        {/* 대표 말씀 */}
+        <div className="relative bg-[#1B5E20] text-white rounded-2xl p-8 mb-10 overflow-hidden">
+          <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2"></div>
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2"></div>
+          <i className="fas fa-quote-left text-3xl text-green-300 mb-4 block"></i>
+          <p className="text-xl md:text-2xl font-medium leading-relaxed relative z-10" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+            처음 익은 열매로 여호와를 공경하라
+          </p>
+          <p className="text-green-200 text-sm mt-3 relative z-10">잠언 3장 9절 — 2025년 기쁨의교회 표어 말씀</p>
+        </div>
+
+        {/* 인사말 본문 */}
+        <div className="bg-white rounded-2xl shadow-sm p-8 md:p-12 space-y-6 text-gray-700 leading-9 text-[15.5px]" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+          <p className="text-lg font-semibold text-gray-800">기쁨의교회 홈페이지를 방문해 주신 여러분을 진심으로 환영합니다.</p>
+          <p>
+            우리 기쁨의교회는 1985년 창립 이래 40여 년간 하나님의 은혜 가운데 성장해 왔습니다.
+            말씀 위에 굳게 서서, 기도로 하나 되고, 이웃을 섬기는 교회로 이 땅에서 빛과 소금의 역할을 감당하고자 합니다.
+          </p>
+          <p>
+            우리 교회는 <span className="text-[#1B5E20] font-semibold">"깊이 있는 성장, 위대한 교회"</span>라는 비전 아래,
+            성도 한 사람 한 사람이 하나님 앞에서 온전히 세워지고, 가정과 사회 속에서 그리스도의 향기를 발하는 삶을 살아가도록 돕고 있습니다.
+          </p>
+          <p>
+            예배가 살아있고, 말씀이 선포되며, 성령의 역사가 일어나는 교회. 그것이 우리 기쁨의교회가 추구하는 모습입니다.
+            성도 여러분 한 분 한 분이 이 공동체 안에서 하나님을 깊이 만나고, 삶이 변화되는 은혜를 경험하시기를 소망합니다.
+          </p>
+          <p>
+            새가족으로 오시는 분들, 믿음의 여정을 함께하고 싶으신 분들 모두를 따뜻하게 맞이합니다.
+            기쁨의교회가 여러분의 영적 가정이 되기를 소망합니다.
+          </p>
+          <div className="pt-6 border-t border-gray-100 flex flex-col items-end gap-1">
+            <img
+              src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/pastor-profile-SHmmue3n8kmYgQNtz5BYwT.webp"
+              alt=""
+              className="w-12 h-12 rounded-full object-cover object-top mb-2"
+            />
+            <p className="font-bold text-gray-800 text-base">홍길동 목사</p>
+            <p className="text-[#1B5E20] text-sm">기쁨의교회 담임목사</p>
           </div>
+        </div>
+
+        {/* 하단 사역 소개 카드 */}
+        <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-5">
+          {[
+            { icon: "fa-microphone", title: "주일 설교", desc: "매주일 오전 9시, 11시 강해 설교" },
+            { icon: "fa-book-open", title: "성경 강좌", desc: "매월 첫째 주 수요일 심층 성경 강의" },
+            { icon: "fa-hands-praying", title: "새벽기도", desc: "월~토 오전 5시 30분 새벽기도회" },
+          ].map((item, i) => (
+            <div key={i} className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex gap-4 items-start">
+              <div className="w-10 h-10 rounded-full bg-[#E8F5E9] flex items-center justify-center flex-shrink-0">
+                <i className={`fas ${item.icon} text-[#1B5E20] text-sm`}></i>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-800 text-sm mb-1">{item.title}</p>
+                <p className="text-gray-500 text-xs leading-relaxed">{item.desc}</p>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
