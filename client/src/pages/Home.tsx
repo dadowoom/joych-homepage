@@ -147,10 +147,11 @@ const NEWS = [
 ];
 
 const AFFILIATES = [
-  { icon: "fa-hands-helping", label: "기쁘의복지재단" },
-  { icon: "fa-building", label: "창포종합사회복지관" },
-  { icon: "fa-tree", label: "조이플빌리지" },
-  { icon: "fa-graduation-cap", label: "조이아카데미 문화강좌" },
+  { icon: "fa-hands-helping", label: "기쁘의복지재단", href: "#" },
+  { icon: "fa-building", label: "창포종합사회복지관", href: "#" },
+  { icon: "fa-tree", label: "조이플빌리지", href: "#" },
+  { icon: "fa-graduation-cap", label: "조이아카데미 문화강좌", href: "#" },
+  { icon: "fa-heart", label: "기쁘이 있는곳", href: "https://gippeum-arc-oawnrvau.manus.space/" },
 ];
 
 const GALLERY = [
@@ -590,11 +591,13 @@ export default function Home() {
           <FadeIn>
             <h2 className="text-center text-2xl font-bold text-gray-900 mb-10" style={{ fontFamily: "'Noto Serif KR', serif" }}>관련 기관</h2>
           </FadeIn>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {AFFILIATES.map((a, i) => (
               <FadeIn key={i} delay={i * 80}>
                 <a
-                  href="#"
+                  href={a.href}
+                  target={a.href !== "#" ? "_blank" : undefined}
+                  rel={a.href !== "#" ? "noopener noreferrer" : undefined}
                   className="flex flex-col items-center gap-3 py-8 px-4 bg-white border border-gray-100 rounded-xl text-center hover:border-[#1B5E20] hover:text-[#1B5E20] hover:-translate-y-1 transition-all duration-200 shadow-sm"
                 >
                   <div className="text-[#1B5E20] text-3xl"><i className={`fas ${a.icon}`}></i></div>
