@@ -147,10 +147,19 @@ const NEWS = [
 ];
 
 const AFFILIATES = [
-  { icon: "fa-hands-helping", label: "기쁨의복지재단" },
+  { icon: "fa-hands-helping", label: "기쁘의복지재단" },
   { icon: "fa-building", label: "창포종합사회복지관" },
   { icon: "fa-tree", label: "조이플빌리지" },
   { icon: "fa-graduation-cap", label: "조이아카데미 문화강좌" },
+];
+
+const GALLERY = [
+  { src: "https://images.unsplash.com/photo-1438032005730-c779502df39b?w=800&q=80", alt: "교회 예배당", span: "col-span-2 row-span-2" },
+  { src: "https://images.unsplash.com/photo-1529070538774-1843cb3265df?w=600&q=80", alt: "찬양 예배", span: "col-span-1 row-span-1" },
+  { src: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80", alt: "찬양대", span: "col-span-1 row-span-1" },
+  { src: "https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=600&q=80", alt: "교회 행사", span: "col-span-1 row-span-1" },
+  { src: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=600&q=80", alt: "컨퍼런스", span: "col-span-1 row-span-1" },
+  { src: "https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=800&q=80", alt: "수련회", span: "col-span-2 row-span-1" },
 ];
 
 // 스크롤 애니메이션 훅
@@ -534,6 +543,44 @@ export default function Home() {
               </div>
             </div>
           </FadeIn>
+        </div>
+      </section>
+
+      {/* ===== 갤러리 ===== */}
+      <section className="py-16 bg-white">
+        <div className="container">
+          <FadeIn>
+            <div className="flex items-end justify-between mb-10">
+              <div>
+                <p className="text-xs tracking-[0.25em] text-[#1B5E20] font-semibold mb-2 uppercase">Photo Gallery</p>
+                <h2 className="text-2xl md:text-3xl font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>교회 갤러리</h2>
+              </div>
+              <a href="#" className="text-sm text-gray-400 hover:text-[#1B5E20] flex items-center gap-1 transition-colors">
+                전체보기 <i className="fas fa-arrow-right text-[10px]"></i>
+              </a>
+            </div>
+          </FadeIn>
+
+          {/* 매거진 그리드 */}
+          <div className="grid grid-cols-2 md:grid-cols-4 auto-rows-[180px] md:auto-rows-[220px] gap-3">
+            {GALLERY.map((item, i) => (
+              <FadeIn key={i} delay={i * 60} className={item.span}>
+                <div className="group relative w-full h-full overflow-hidden rounded-xl cursor-pointer">
+                  <img
+                    src={item.src}
+                    alt={item.alt}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
+                  {/* 호버 오버레이 */}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/35 transition-all duration-300 flex items-end p-4">
+                    <span className="text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-y-2 group-hover:translate-y-0">
+                      {item.alt}
+                    </span>
+                  </div>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
         </div>
       </section>
 
