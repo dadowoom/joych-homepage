@@ -147,11 +147,11 @@ const NEWS = [
 ];
 
 const AFFILIATES = [
-  { icon: "fa-hands-helping", label: "기쁘의복지재단", href: "#" },
+  { icon: "fa-hands-helping", label: "기쁨의복지재단", href: "#" },
   { icon: "fa-building", label: "창포종합사회복지관", href: "#" },
   { icon: "fa-tree", label: "조이플빌리지", href: "#" },
   { icon: "fa-graduation-cap", label: "조이아카데미 문화강좌", href: "#" },
-  { icon: "fa-heart", label: "기쁘이 있는곳", href: "https://gippeum-arc-oawnrvau.manus.space/" },
+  { icon: "fa-heart", label: "기쁨이 있는 곳", href: "https://gippeum-arc-oawnrvau.manus.space/" },
 ];
 
 const GALLERY = [
