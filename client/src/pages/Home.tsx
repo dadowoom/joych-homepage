@@ -8,7 +8,21 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 
 const HERO_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-church-XWJBwHDycyRoBg9dY4aj5r.webp";
-const HERO_VIDEO = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-video_024001ab.mp4";
+
+const HERO_SLIDES = [
+  {
+    video: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-video_024001ab.mp4",
+    poster: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-church-XWJBwHDycyRoBg9dY4aj5r.webp",
+  },
+  {
+    video: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-video-2_9d9fb792.mp4",
+    poster: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-church-XWJBwHDycyRoBg9dY4aj5r.webp",
+  },
+  {
+    video: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-video-3_1b86687f.mp4",
+    poster: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-church-XWJBwHDycyRoBg9dY4aj5r.webp",
+  },
+];
 const WORSHIP_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-worship-T2iXn7ztKCKRDJ4xwAbyC9.webp";
 const VISION_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/vision-bg-XcGUzFoKsWgmCYbAZZCnsA.webp";
 
@@ -180,6 +194,21 @@ export default function Home() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeNav, setActiveNav] = useState<number | null>(null);
+  const [heroIndex, setHeroIndex] = useState(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // 영상이 끝나면 다음 슬라이드로 전환
+  const handleVideoEnded = () => {
+    setHeroIndex((prev) => (prev + 1) % HERO_SLIDES.length);
+  };
+
+  // 슬라이드 변경 시 영상 재생
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.load();
+      videoRef.current.play().catch(() => {});
+    }
+  }, [heroIndex]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60);
@@ -279,15 +308,17 @@ export default function Home() {
 
       {/* ===== 히어로 섹션 ===== */}
       <section className="relative h-screen min-h-[600px] flex items-center overflow-hidden">
-        {/* 배경 영상 */}
+        {/* 배경 영상 슬라이드 */}
         <video
+          ref={videoRef}
+          key={heroIndex}
           className="absolute inset-0 w-full h-full object-cover"
-          src={HERO_VIDEO}
+          src={HERO_SLIDES[heroIndex].video}
           autoPlay
           muted
-          loop
           playsInline
-          poster={HERO_IMAGE}
+          poster={HERO_SLIDES[heroIndex].poster}
+          onEnded={handleVideoEnded}
         />
         {/* 영상 위 오버레이 — 글씨 가독성 확보 */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-black/10" />
@@ -323,6 +354,19 @@ export default function Home() {
               </a>
             </div>
           </div>
+        </div>
+
+        {/* 슬라이드 인디케이터 (하단 점) */}
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10 flex gap-2">
+          {HERO_SLIDES.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setHeroIndex(i)}
+              className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                i === heroIndex ? "bg-white w-6" : "bg-white/40"
+              }`}
+            />
+          ))}
         </div>
 
         {/* 스크롤 인디케이터 */}
