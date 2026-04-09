@@ -11,10 +11,6 @@ const HERO_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KAS
 
 const HERO_SLIDES = [
   {
-    video: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-video_024001ab.mp4",
-    poster: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-church-XWJBwHDycyRoBg9dY4aj5r.webp",
-  },
-  {
     video: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-video-2_9d9fb792.mp4",
     poster: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-church-XWJBwHDycyRoBg9dY4aj5r.webp",
   },
