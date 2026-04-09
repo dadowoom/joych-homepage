@@ -362,8 +362,8 @@ export default function Home() {
           </div>
         </div>
 
-        {/* 슬라이드 인디케이터 (하단 점) */}
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10 flex gap-2">
+        {/* 슬라이드 인디케이터 (하단 점) - SCROLL 위에 배치 */}
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 flex gap-2">
           {HERO_SLIDES.map((_, i) => (
             <button
               key={i}
@@ -376,7 +376,7 @@ export default function Home() {
         </div>
 
         {/* 스크롤 인디케이터 */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-1">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex-col items-center gap-1 hidden md:flex">
           <span className="text-white/50 text-xs tracking-widest">SCROLL</span>
           <div className="w-px h-10 bg-gradient-to-b from-white/60 to-transparent" style={{ animation: "scrollPulse 2s ease-in-out infinite" }} />
         </div>
