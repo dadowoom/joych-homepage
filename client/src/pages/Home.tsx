@@ -323,29 +323,29 @@ export default function Home() {
         <div className="container relative z-10">
           <div className="max-w-xl text-white">
             <p
-              className="text-sm tracking-[0.3em] text-[#A5D6A7] mb-4 font-medium"
+              className="text-xs md:text-sm tracking-[0.3em] text-[#A5D6A7] mb-3 md:mb-4 font-medium"
               style={{ animation: "fadeUp 0.8s ease 0.2s both" }}
             >
               2026 JOYFUL
             </p>
             <h1
-              className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-5"
+              className="text-2xl md:text-5xl lg:text-6xl font-bold leading-tight mb-3 md:mb-5"
               style={{ fontFamily: "'Noto Serif KR', serif", animation: "fadeUp 0.8s ease 0.4s both" }}
             >
               처음 익은 열매로<br />여호와를 공경하라
             </h1>
             <p
-              className="text-white/75 text-base leading-relaxed mb-8"
+              className="text-white/75 text-sm md:text-base leading-relaxed mb-6 md:mb-8"
               style={{ animation: "fadeUp 0.8s ease 0.6s both" }}
             >
               네 재물과 네 소산물의 처음 익은 열매로 여호와를 공경하라<br />
-              <span className="text-[#A5D6A7] text-sm">— 잠언 3장 9절</span>
+              <span className="text-[#A5D6A7] text-xs md:text-sm">— 잠언 3장 9절</span>
             </p>
-            <div style={{ animation: "fadeUp 0.8s ease 0.8s both" }} className="flex gap-3 flex-wrap">
-              <a href="#" className="px-7 py-3 bg-[#1B5E20] hover:bg-[#2E7D32] text-white text-sm font-medium rounded transition-colors">
+            <div style={{ animation: "fadeUp 0.8s ease 0.8s both" }} className="flex gap-2 md:gap-3 flex-wrap">
+              <a href="#" className="px-5 md:px-7 py-2.5 md:py-3 bg-[#1B5E20] hover:bg-[#2E7D32] text-white text-xs md:text-sm font-medium rounded transition-colors">
                 새가족 등록
               </a>
-              <a href="#" className="px-7 py-3 border-2 border-white/80 hover:bg-white/15 text-white text-sm font-medium rounded transition-colors">
+              <a href="#" className="px-5 md:px-7 py-2.5 md:py-3 border-2 border-white/80 hover:bg-white/15 text-white text-xs md:text-sm font-medium rounded transition-colors">
                 예배 안내
               </a>
             </div>
