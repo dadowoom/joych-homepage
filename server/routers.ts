@@ -1,8 +1,11 @@
 import { z } from "zod";
-import { COOKIE_NAME } from "@shared/const";
+import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, adminProcedure, router } from "./_core/trpc";
+import { sdk } from "./_core/sdk";
+import { TRPCError } from "@trpc/server";
+import * as db from "./db";
 import {
   getPublishedNotices,
   getVisibleAffiliates,
@@ -25,7 +28,7 @@ import {
 export const appRouter = router({
   system: systemRouter,
 
-  // ─── 인증 ───────────────────────────────────
+  // ─── 인증 ───────────────────────────────────────────
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -33,9 +36,57 @@ export const appRouter = router({
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
+    /** 관리자 전용 아이디/비밀번호 로그인 */
+    adminLogin: publicProcedure
+      .input(z.object({ username: z.string(), password: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        // 하드코딩된 관리자 자격증명 확인
+        const ADMIN_USERNAME = "joyfulchurch";
+        const ADMIN_PASSWORD = "joyfulchurch1!";
+        const ADMIN_OPEN_ID = "admin_joyfulchurch";
+
+        if (input.username !== ADMIN_USERNAME || input.password !== ADMIN_PASSWORD) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "아이디 또는 비밀번호가 올바르지 않습니다.",
+          });
+        }
+
+        // 관리자 사용자가 DB에 없으면 생성
+        let user = await db.getUserByOpenId(ADMIN_OPEN_ID);
+        if (!user) {
+          await db.upsertUser({
+            openId: ADMIN_OPEN_ID,
+            name: "기쁜의교회 관리자",
+            email: null,
+            loginMethod: "password",
+            lastSignedIn: new Date(),
+          });
+          // role을 admin으로 업데이트
+          await db.setUserRole(ADMIN_OPEN_ID, "admin");
+          user = await db.getUserByOpenId(ADMIN_OPEN_ID);
+        }
+
+        // 마지막 로그인 시간 업데이트
+        await db.upsertUser({ openId: ADMIN_OPEN_ID, lastSignedIn: new Date() });
+
+        // 세션 토큰 발급
+        const sessionToken = await sdk.signSession(
+          { openId: ADMIN_OPEN_ID, appId: "admin", name: "관리자" },
+          { expiresInMs: ONE_YEAR_MS }
+        );
+
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, sessionToken, {
+          ...cookieOptions,
+          maxAge: ONE_YEAR_MS,
+        });
+
+        return { success: true, user };
+      }),
   }),
 
-  // ─── 홈페이지 공개 데이터 ────────────────────
+  // ─── 홈페이지 공개 데이터 ────────────
   home: router({
     /** 히어로 슬라이드 */
     heroSlides: publicProcedure.query(() => getVisibleHeroSlides()),

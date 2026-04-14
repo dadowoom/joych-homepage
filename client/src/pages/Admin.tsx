@@ -520,6 +520,19 @@ function SettingsTab() {
 export default function AdminPage() {
   const { user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("notices");
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+
+  const adminLoginMutation = trpc.auth.adminLogin.useMutation({
+    onSuccess: () => {
+      // 로그인 성공 → 페이지 새로고침으로 세션 적용
+      window.location.reload();
+    },
+    onError: (err) => {
+      setLoginError(err.message || "로그인에 실패했습니다.");
+    },
+  });
 
   // 로딩 중
   if (loading) {
@@ -533,23 +546,72 @@ export default function AdminPage() {
     );
   }
 
-  // 로그인 안 된 경우
+  // 로그인 안 된 경우 → 아이디/비밀번호 폼 표시
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center max-w-sm mx-auto p-8">
-          <div className="text-[#1B5E20] text-5xl mb-4">
-            <i className="fas fa-lock"></i>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
+        <div className="bg-white rounded-2xl shadow-lg max-w-sm w-full mx-4 p-8">
+          {/* 로고 */}
+          <div className="text-center mb-8">
+            <div className="text-[#1B5E20] text-4xl mb-3">
+              <i className="fas fa-church"></i>
+            </div>
+            <h1 className="text-xl font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>기쁜의교회</h1>
+            <p className="text-sm text-gray-500 mt-1">관리자 로그인</p>
           </div>
-          <h2 className="text-xl font-bold text-gray-800 mb-2">관리자 로그인 필요</h2>
-          <p className="text-gray-500 text-sm mb-6">이 페이지는 관리자만 접근할 수 있습니다.</p>
-          <a
-            href={getLoginUrl()}
-            className="inline-block px-6 py-3 bg-[#1B5E20] text-white rounded-lg hover:bg-[#2E7D32] transition-colors"
+
+          {/* 로그인 폼 */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setLoginError("");
+              adminLoginMutation.mutate({ username: loginUsername, password: loginPassword });
+            }}
+            className="space-y-4"
           >
-            관리자 로그인
-          </a>
-          <div className="mt-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">아이디</label>
+              <input
+                type="text"
+                value={loginUsername}
+                onChange={(e) => setLoginUsername(e.target.value)}
+                placeholder="아이디를 입력하세요"
+                required
+                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20] focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">비밀번호</label>
+              <input
+                type="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                placeholder="비밀번호를 입력하세요"
+                required
+                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20] focus:border-transparent"
+              />
+            </div>
+
+            {/* 에러 메시지 */}
+            {loginError && (
+              <p className="text-red-500 text-sm text-center">{loginError}</p>
+            )}
+
+            <button
+              type="submit"
+              disabled={adminLoginMutation.isPending}
+              className="w-full py-3 bg-[#1B5E20] text-white rounded-lg font-medium hover:bg-[#2E7D32] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {adminLoginMutation.isPending ? (
+                <span className="flex items-center justify-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  로그인 중...
+                </span>
+              ) : "로그인"}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
             <Link href="/" className="text-sm text-gray-400 hover:text-gray-600">← 홈페이지로 돌아가기</Link>
           </div>
         </div>
@@ -596,6 +658,19 @@ export default function AdminPage() {
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-400">{user.name ?? user.email ?? "관리자"}</span>
           <span className="text-xs bg-[#1B5E20] px-2 py-0.5 rounded">admin</span>
+          <button
+            onClick={() => {
+              fetch("/api/trpc/auth.logout", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ "0": { json: null } }),
+              }).then(() => { window.location.reload(); });
+            }}
+            className="text-xs text-gray-400 hover:text-red-400 transition-colors px-2 py-1 rounded hover:bg-white/10"
+          >
+            로그아웃
+          </button>
         </div>
       </header>
 

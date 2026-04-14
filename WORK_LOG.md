@@ -98,6 +98,26 @@
 
 ---
 
+### 6단계: 관리자 로그인 방식 교체 (2026-04-14)
+- 완료일: 2026-04-14
+- 내용:
+  - server/routers.ts: `auth.adminLogin` 뮤테이션 추가 (아이디/비밀번호 검증 + 세션 쿠키 발급)
+  - server/db.ts: `setUserRole` 함수 추가
+  - client/src/pages/Admin.tsx: 로그인 화면을 아이디/비밀번호 폼으로 교체
+  - 관리자 대시보드 헤더에 로그아웃 버튼 추가
+  - **동작 확인 완료**: 로그아웃 → 로그인 폼 표시 → joyfulchurch/joyfulchurch1! 입력 → 관리자 대시보드 접근 성공
+
+**관리자 계정 정보:**
+- 아이디: `joyfulchurch`
+- 비밀번호: `joyfulchurch1!`
+- DB openId: `admin_joyfulchurch`
+
+**주의사항:**
+- 관리자 자격증명은 server/routers.ts에 하드코딩됨 (보안상 나중에 환경변수로 이동 권장)
+- Manus OAuth 세션이 남아있으면 자동으로 관리자 페이지 접근 가능 (별도 처리 필요시 추가 작업)
+
+---
+
 ## 다음 작업 예정
 
 - [ ] 갤러리 관리 탭 추가 (Admin.tsx) - 사진 표시/숨김, 캡션 수정
