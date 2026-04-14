@@ -194,6 +194,20 @@ export async function deleteNotice(id: number) {
   await db.delete(notices).where(eq(notices.id, id));
 }
 
+/** 히어로 슬라이드 전체 목록 (관리자용) */
+export async function getAllHeroSlides() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(heroSlides).orderBy(asc(heroSlides.sortOrder));
+}
+
+/** 히어로 슬라이드 수정 */
+export async function updateHeroSlide(id: number, data: Partial<typeof heroSlides.$inferInsert>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(heroSlides).set(data).where(eq(heroSlides.id, id));
+}
+
 /** 관련 기관 전체 목록 (관리자용) */
 export async function getAllAffiliates() {
   const db = await getDb();

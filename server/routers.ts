@@ -18,6 +18,8 @@ import {
   updateAffiliate,
   updateGalleryItem,
   upsertSiteSetting,
+  getAllHeroSlides,
+  updateHeroSlide,
 } from "./db";
 
 export const appRouter = router({
@@ -100,6 +102,28 @@ export const appRouter = router({
         .mutation(({ input }) => {
           const { id, ...data } = input;
           return updateAffiliate(id, data);
+        }),
+    }),
+
+    // 히어로 슬라이드 관리
+    heroSlides: router({
+      list: adminProcedure.query(() => getAllHeroSlides()),
+      update: adminProcedure
+        .input(z.object({
+          id: z.number(),
+          yearLabel: z.string().optional(),
+          mainTitle: z.string().optional(),
+          subTitle: z.string().optional(),
+          bibleRef: z.string().optional(),
+          btn1Text: z.string().optional(),
+          btn1Href: z.string().optional(),
+          btn2Text: z.string().optional(),
+          btn2Href: z.string().optional(),
+          isVisible: z.boolean().optional(),
+        }))
+        .mutation(({ input }) => {
+          const { id, ...data } = input;
+          return updateHeroSlide(id, data);
         }),
     }),
 

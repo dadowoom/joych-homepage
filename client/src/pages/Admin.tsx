@@ -12,7 +12,149 @@ import { getLoginUrl } from "@/const";
 import { toast } from "sonner";
 
 // ─── 탭 타입 ───────────────────────────────────
-type Tab = "notices" | "affiliates" | "settings";
+type Tab = "notices" | "affiliates" | "settings" | "hero";
+
+// ─── 히어로 슬라이드 관리 탭 ─────────────────────
+function HeroSlidesTab() {
+  const utils = trpc.useUtils();
+  const { data: slides, isLoading } = trpc.cms.heroSlides.list.useQuery();
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editData, setEditData] = useState<{
+    yearLabel: string;
+    mainTitle: string;
+    subTitle: string;
+    bibleRef: string;
+    btn1Text: string;
+    btn1Href: string;
+    btn2Text: string;
+    btn2Href: string;
+  }>({
+    yearLabel: "", mainTitle: "", subTitle: "", bibleRef: "",
+    btn1Text: "", btn1Href: "", btn2Text: "", btn2Href: "",
+  });
+
+  const updateMutation = trpc.cms.heroSlides.update.useMutation({
+    onSuccess: () => {
+      utils.cms.heroSlides.list.invalidate();
+      utils.home.heroSlides.invalidate();
+      setEditingId(null);
+      toast.success("슬라이드가 수정됐습니다.");
+    },
+    onError: () => toast.error("수정에 실패했습니다."),
+  });
+
+  const toggleMutation = trpc.cms.heroSlides.update.useMutation({
+    onSuccess: () => {
+      utils.cms.heroSlides.list.invalidate();
+      utils.home.heroSlides.invalidate();
+      toast.success("슬라이드 표시 여부가 변경됐습니다.");
+    },
+  });
+
+  if (isLoading) return <p className="text-gray-500 py-8 text-center">불러오는 중...</p>;
+
+  return (
+    <div>
+      <h3 className="text-lg font-bold text-gray-800 mb-1">히어로 슬라이드 관리</h3>
+      <p className="text-sm text-gray-500 mb-4">홈페이지 상단 영상 위에 표시되는 문구를 수정합니다.</p>
+      <div className="space-y-4">
+        {slides?.map((slide, idx) => (
+          <div key={slide.id} className="border border-gray-200 rounded-lg overflow-hidden">
+            {/* 슬라이드 헤더 */}
+            <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
+              <span className="text-sm font-semibold text-gray-700">슬라이드 {idx + 1}</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => toggleMutation.mutate({ id: slide.id, isVisible: !slide.isVisible })}
+                  className={`text-xs px-3 py-1 rounded-full font-medium transition-colors ${
+                    slide.isVisible
+                      ? "bg-green-100 text-green-700 hover:bg-green-200"
+                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  }`}
+                >
+                  {slide.isVisible ? "표시 중" : "숨김"}
+                </button>
+                {editingId === slide.id ? (
+                  <>
+                    <button
+                      onClick={() => updateMutation.mutate({ id: slide.id, ...editData })}
+                      disabled={updateMutation.isPending}
+                      className="text-xs px-3 py-1 bg-[#1B5E20] text-white rounded hover:bg-[#2E7D32] disabled:opacity-50"
+                    >
+                      저장
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="text-xs px-3 py-1 border border-gray-300 rounded hover:bg-gray-100"
+                    >
+                      취소
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setEditingId(slide.id);
+                      setEditData({
+                        yearLabel: slide.yearLabel ?? "",
+                        mainTitle: slide.mainTitle ?? "",
+                        subTitle: slide.subTitle ?? "",
+                        bibleRef: slide.bibleRef ?? "",
+                        btn1Text: slide.btn1Text ?? "",
+                        btn1Href: slide.btn1Href ?? "",
+                        btn2Text: slide.btn2Text ?? "",
+                        btn2Href: slide.btn2Href ?? "",
+                      });
+                    }}
+                    className="text-xs px-3 py-1 border border-gray-300 rounded hover:bg-gray-100"
+                  >
+                    수정
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* 슬라이드 내용 */}
+            <div className="p-4">
+              {editingId === slide.id ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {([
+                    ["yearLabel", "연도 라벨 (예: 2026 JOYFUL)"],
+                    ["mainTitle", "메인 제목 (줄바꿈: \\n)"],
+                    ["subTitle", "부제목"],
+                    ["bibleRef", "성경 구절 출처 (예: 잠언 3장 9절)"],
+                    ["btn1Text", "버튼1 텍스트"],
+                    ["btn1Href", "버튼1 링크"],
+                    ["btn2Text", "버튼2 텍스트"],
+                    ["btn2Href", "버튼2 링크"],
+                  ] as [keyof typeof editData, string][]).map(([field, label]) => (
+                    <div key={field}>
+                      <label className="block text-xs text-gray-500 mb-1">{label}</label>
+                      <input
+                        type="text"
+                        value={editData[field]}
+                        onChange={(e) => setEditData(prev => ({ ...prev, [field]: e.target.value }))}
+                        className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-gray-400 text-xs">연도 라벨</span><p className="text-gray-700">{slide.yearLabel || "-"}</p></div>
+                  <div><span className="text-gray-400 text-xs">성경 구절 출처</span><p className="text-gray-700">{slide.bibleRef || "-"}</p></div>
+                  <div className="md:col-span-2"><span className="text-gray-400 text-xs">메인 제목</span><p className="text-gray-700 whitespace-pre-line">{slide.mainTitle || "-"}</p></div>
+                  <div className="md:col-span-2"><span className="text-gray-400 text-xs">부제목</span><p className="text-gray-700">{slide.subTitle || "-"}</p></div>
+                  <div><span className="text-gray-400 text-xs">버튼1</span><p className="text-gray-700">{slide.btn1Text} → {slide.btn1Href}</p></div>
+                  <div><span className="text-gray-400 text-xs">버튼2</span><p className="text-gray-700">{slide.btn2Text} → {slide.btn2Href}</p></div>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // ─── 교회 소식 관리 탭 ─────────────────────────
 function NoticesTab() {
@@ -435,6 +577,7 @@ export default function AdminPage() {
     { id: "notices", label: "교회 소식", icon: "fa-newspaper" },
     { id: "affiliates", label: "관련 기관", icon: "fa-building" },
     { id: "settings", label: "기본 정보", icon: "fa-cog" },
+    { id: "hero", label: "히어로 슬라이드", icon: "fa-film" },
   ];
 
   return (
@@ -488,6 +631,7 @@ export default function AdminPage() {
           {activeTab === "notices" && <NoticesTab />}
           {activeTab === "affiliates" && <AffiliatesTab />}
           {activeTab === "settings" && <SettingsTab />}
+          {activeTab === "hero" && <HeroSlidesTab />}
         </div>
       </div>
     </div>
