@@ -23,6 +23,15 @@ import {
   upsertSiteSetting,
   getAllHeroSlides,
   updateHeroSlide,
+  getVisibleMenus,
+  getAllMenus,
+  updateMenu,
+  createMenuItem,
+  updateMenuItem,
+  deleteMenuItem,
+  createMenu,
+  deleteMenu,
+  reorderMenus,
 } from "./db";
 
 export const appRouter = router({
@@ -100,6 +109,8 @@ export const appRouter = router({
     gallery: publicProcedure.query(() => getVisibleGalleryItems()),
     /** 사이트 설정 (교회명, 주소 등) */
     settings: publicProcedure.query(() => getSiteSettings()),
+    /** 상단 네비게이션 메뉴 (서브메뉴 포함) */
+    menus: publicProcedure.query(() => getVisibleMenus()),
   }),
 
   // ─── 관리자 전용 CMS API ─────────────────────
@@ -201,6 +212,63 @@ export const appRouter = router({
           value: z.string(),
         }))
         .mutation(({ input }) => upsertSiteSetting(input.key, input.value)),
+    }),
+
+    // 메뉴 관리
+    menus: router({
+      list: adminProcedure.query(() => getAllMenus()),
+      update: adminProcedure
+        .input(z.object({
+          id: z.number(),
+          label: z.string().optional(),
+          href: z.string().nullable().optional(),
+          sortOrder: z.number().optional(),
+          isVisible: z.boolean().optional(),
+        }))
+        .mutation(({ input }) => {
+          const { id, ...data } = input;
+          return updateMenu(id, data);
+        }),
+      // 서브메뉴 관리
+      createItem: adminProcedure
+        .input(z.object({
+          menuId: z.number(),
+          label: z.string(),
+          href: z.string().optional(),
+          sortOrder: z.number().optional(),
+        }))
+        .mutation(({ input }) => createMenuItem(input)),
+      updateItem: adminProcedure
+        .input(z.object({
+          id: z.number(),
+          label: z.string().optional(),
+          href: z.string().nullable().optional(),
+          sortOrder: z.number().optional(),
+          isVisible: z.boolean().optional(),
+        }))
+        .mutation(({ input }) => {
+          const { id, ...data } = input;
+          return updateMenuItem(id, data);
+        }),
+      deleteItem: adminProcedure
+        .input(z.object({ id: z.number() }))
+        .mutation(({ input }) => deleteMenuItem(input.id)),
+      // 상위 메뉴 생성
+      create: adminProcedure
+        .input(z.object({
+          label: z.string().min(1),
+          href: z.string().nullable().optional(),
+          sortOrder: z.number().optional(),
+        }))
+        .mutation(({ input }) => createMenu(input)),
+      // 상위 메뉴 삭제
+      delete: adminProcedure
+        .input(z.object({ id: z.number() }))
+        .mutation(({ input }) => deleteMenu(input.id)),
+      // 순서 일괄 변경
+      reorder: adminProcedure
+        .input(z.array(z.object({ id: z.number(), sortOrder: z.number() })))
+        .mutation(({ input }) => reorderMenus(input)),
     }),
   }),
 });

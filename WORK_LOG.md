@@ -132,3 +132,20 @@
 2. seed 스크립트 재실행 금지 (중복 데이터 발생) — 데이터 수정 시 UPDATE 쿼리 사용
 3. TypeScript 에러 13개는 환경 이슈 (lib.esnext.d.ts 누락), 실제 코드 에러 아님
 4. 작업 완료 시 이 문서(WORK_LOG.md)와 todo.md 반드시 업데이트
+
+### 7단계: 메뉴 슬라이드 패널 편집 기능 구현 (2026-04-14)
+- 완료일: 2026-04-14
+- 내용:
+  - dnd-kit 설치 (@dnd-kit/core, @dnd-kit/sortable, @dnd-kit/utilities)
+  - client/src/components/MenuEditPanel.tsx 컴포넌트 작성
+    - 드래그 앤 드롭으로 메뉴 순서 변경
+    - 메뉴 이름/링크 수정
+    - 메뉴 추가/삭제/숨기기
+    - 변경 즉시 GNB에 실시간 반영
+  - server/db.ts: createMenu, deleteMenu, reorderMenus 함수 추가
+  - server/routers.ts: cms.menus.create, cms.menus.delete, cms.menus.reorder API 추가
+  - Home.tsx 상단에 관리자 편집 바 추가 (관리자 로그인 시만 표시)
+    - "메뉴 편집" 버튼 → 오른쪽 슬라이드 패널 열림
+    - "관리자 대시보드" 버튼 → /admin 이동
+  - **동작 확인 완료**: 메뉴 편집 버튼 클릭 → 패널 열림 → 수정/저장 → GNB 실시간 반영
+

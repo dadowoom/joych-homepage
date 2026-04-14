@@ -9,6 +9,7 @@ import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
+import MenuEditPanel from "@/components/MenuEditPanel";
 
 // 폴백(fallback) 데이터: DB 로딩 전 또는 DB 오류 시 표시
 const FALLBACK_HERO_SLIDES = [
@@ -222,16 +223,22 @@ export default function Home() {
   const { data: dbAffiliates } = trpc.home.affiliates.useQuery();
   const { data: dbGallery } = trpc.home.gallery.useQuery();
   const { data: dbSettings } = trpc.home.settings.useQuery();
+  const { data: dbMenus, refetch: refetchMenus } = trpc.home.menus.useQuery();
 
   // DB 데이터 또는 폴백 데이터 사용
   const heroSlides = (dbHeroSlides && dbHeroSlides.length > 0) ? dbHeroSlides : FALLBACK_HERO_SLIDES;
   const quickMenus = (dbQuickMenus && dbQuickMenus.length > 0) ? dbQuickMenus : FALLBACK_QUICK_MENUS;
   const affiliates = (dbAffiliates && dbAffiliates.length > 0) ? dbAffiliates : FALLBACK_AFFILIATES;
   const gallery = (dbGallery && dbGallery.length > 0) ? dbGallery : FALLBACK_GALLERY;
+  const navMenus = (dbMenus && dbMenus.length > 0) ? dbMenus : null;
 
   // 관리자 여부 확인 (편집 모드용)
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+
+  // 메뉴 슬라이드 패널 상태
+  const [menuPanelOpen, setMenuPanelOpen] = useState(false);
+  const utils = trpc.useUtils();
 
   // 영상이 끝나면 다음 슬라이드로 전환
   const handleVideoEnded = () => {
@@ -254,6 +261,36 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#FAFAF8]" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
+
+      {/* ===== 관리자 편집 바 (isAdmin일 때만 표시) ===== */}
+      {isAdmin && (
+        <div className="bg-[#1B5E20] text-white text-xs py-2 px-4 flex items-center justify-between sticky top-0 z-[100]">
+          <span className="font-semibold tracking-wide">✏️ 편집 모드</span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setMenuPanelOpen(true)}
+              className="bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-1 rounded transition-colors"
+            >
+              메뉴 편집
+            </button>
+            <a
+              href="/admin"
+              className="bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-1 rounded transition-colors"
+            >
+              관리자 대시보드
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* 메뉴 편집 슬라이드 패널 */}
+      <MenuEditPanel
+        open={menuPanelOpen}
+        onClose={() => {
+          setMenuPanelOpen(false);
+          utils.home.menus.invalidate();
+        }}
+      />
 
       {/* ===== 상단 유틸 바 ===== */}
       <div className="bg-[#0F172A] text-gray-400 text-xs py-2 hidden md:block">
@@ -288,31 +325,32 @@ export default function Home() {
           {/* PC 메뉴 */}
           <nav className="hidden md:block">
             <ul className="flex">
-              {NAV_ITEMS.map((item, i) => (
+              {(navMenus ?? NAV_ITEMS.map((item, i) => ({ id: i + 1, label: item.label, href: item.href ?? null, items: item.sub.map((s, j) => ({ id: j + 1, label: s, href: (item as { subHref?: Record<string, string | undefined> }).subHref?.[s] ?? null })) }))).map((item, i) => (
                 <li
-                  key={i}
+                  key={item.id}
                   className="relative group"
                   onMouseEnter={() => setActiveNav(i)}
                   onMouseLeave={() => setActiveNav(null)}
                 >
-                  <a
-                    href="#"
-                    className="flex items-center h-[72px] px-4 text-sm font-medium text-gray-700 hover:text-[#1B5E20] transition-colors relative"
-                  >
-                    {item.label}
+                  <div className="flex items-center h-[72px] px-4 relative">
+                    <a
+                      href={item.href ?? '#'}
+                      className="text-sm font-medium text-gray-700 hover:text-[#1B5E20] transition-colors"
+                    >
+                      {item.label}
+                    </a>
                     <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#1B5E20] scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left"></span>
-                  </a>
+                  </div>
                   {activeNav === i && (
                     <ul className="absolute top-[72px] left-0 bg-white border-t-2 border-[#1B5E20] shadow-xl min-w-[150px] z-50 py-1">
-                      {item.sub.map((s, j) => {
-                        const href = (item as { subHref?: Record<string, string | undefined> }).subHref?.[s];
+                      {(item.items ?? []).map((s, j) => {
                         const cls = "block px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0";
                         return (
                           <li key={j}>
-                            {href ? (
-                              <Link href={href} className={cls}>{s}</Link>
+                            {s.href ? (
+                              <Link href={s.href} className={cls}>{s.label}</Link>
                             ) : (
-                              <a href="#" className={cls}>{s}</a>
+                              <a href="#" className={cls}>{s.label}</a>
                             )}
                           </li>
                         );

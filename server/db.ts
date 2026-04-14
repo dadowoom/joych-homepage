@@ -235,6 +235,62 @@ export async function updateGalleryItem(id: number, data: Partial<InsertGalleryI
   await db.update(galleryItems).set(data).where(eq(galleryItems.id, id));
 }
 
+/** 메뉴 전체 목록 (서브메뉴 포함, 공개용) */
+export async function getVisibleMenus() {
+  const db = await getDb();
+  if (!db) return [];
+  const menuList = await db.select().from(menus)
+    .where(eq(menus.isVisible, true))
+    .orderBy(asc(menus.sortOrder));
+  const itemList = await db.select().from(menuItems)
+    .where(eq(menuItems.isVisible, true))
+    .orderBy(asc(menuItems.sortOrder));
+  return menuList.map(m => ({
+    ...m,
+    items: itemList.filter(item => item.menuId === m.id),
+  }));
+}
+
+/** 메뉴 전체 목록 (관리자용, 숨김 포함) */
+export async function getAllMenus() {
+  const db = await getDb();
+  if (!db) return [];
+  const menuList = await db.select().from(menus).orderBy(asc(menus.sortOrder));
+  const itemList = await db.select().from(menuItems).orderBy(asc(menuItems.sortOrder));
+  return menuList.map(m => ({
+    ...m,
+    items: itemList.filter(item => item.menuId === m.id),
+  }));
+}
+
+/** 메뉴 수정 */
+export async function updateMenu(id: number, data: Partial<typeof menus.$inferInsert>) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.update(menus).set(data).where(eq(menus.id, id));
+}
+
+/** 서브메뉴 항목 추가 */
+export async function createMenuItem(data: typeof menuItems.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.insert(menuItems).values(data);
+}
+
+/** 서브메뉴 항목 수정 */
+export async function updateMenuItem(id: number, data: Partial<typeof menuItems.$inferInsert>) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.update(menuItems).set(data).where(eq(menuItems.id, id));
+}
+
+/** 서브메뉴 항목 삭제 */
+export async function deleteMenuItem(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.delete(menuItems).where(eq(menuItems.id, id));
+}
+
 /** 사이트 설정 저장 (upsert) */
 export async function upsertSiteSetting(key: string, value: string) {
   const db = await getDb();
@@ -242,4 +298,37 @@ export async function upsertSiteSetting(key: string, value: string) {
   await db.insert(siteSettings)
     .values({ settingKey: key, settingValue: value })
     .onDuplicateKeyUpdate({ set: { settingValue: value } });
+}
+
+/** 상위 메뉴 생성 */
+export async function createMenu(data: { label: string; href?: string | null; sortOrder?: number }) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const [result] = await db.insert(menus).values({
+    label: data.label,
+    href: data.href ?? null,
+    sortOrder: data.sortOrder ?? 0,
+    isVisible: true,
+  });
+  return result;
+}
+
+/** 상위 메뉴 삭제 */
+export async function deleteMenu(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  // 서브메뉴도 함께 삭제
+  await db.delete(menuItems).where(eq(menuItems.menuId, id));
+  await db.delete(menus).where(eq(menus.id, id));
+}
+
+/** 메뉴 순서 일괄 변경 */
+export async function reorderMenus(items: { id: number; sortOrder: number }[]) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await Promise.all(
+    items.map(item =>
+      db.update(menus).set({ sortOrder: item.sortOrder }).where(eq(menus.id, item.id))
+    )
+  );
 }
