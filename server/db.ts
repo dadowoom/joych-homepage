@@ -332,3 +332,28 @@ export async function reorderMenus(items: { id: number; sortOrder: number }[]) {
     )
   );
 }
+
+/** 퀵 메뉴 전체 목록 (관리자용, 숨김 포함) */
+export async function getAllQuickMenus() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(quickMenus).orderBy(asc(quickMenus.sortOrder));
+}
+
+/** 퀵 메뉴 수정 */
+export async function updateQuickMenu(id: number, data: Partial<typeof quickMenus.$inferInsert>) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.update(quickMenus).set(data).where(eq(quickMenus.id, id));
+}
+
+/** 퀵 메뉴 순서 일괄 변경 */
+export async function reorderQuickMenus(items: { id: number; sortOrder: number }[]) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await Promise.all(
+    items.map(item =>
+      db.update(quickMenus).set({ sortOrder: item.sortOrder }).where(eq(quickMenus.id, item.id))
+    )
+  );
+}

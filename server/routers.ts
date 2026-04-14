@@ -32,6 +32,9 @@ import {
   createMenu,
   deleteMenu,
   reorderMenus,
+  getAllQuickMenus,
+  updateQuickMenu,
+  reorderQuickMenus,
 } from "./db";
 
 export const appRouter = router({
@@ -269,6 +272,27 @@ export const appRouter = router({
       reorder: adminProcedure
         .input(z.array(z.object({ id: z.number(), sortOrder: z.number() })))
         .mutation(({ input }) => reorderMenus(input)),
+    }),
+
+    // 퀵 메뉴 관리
+    quickMenus: router({
+      list: adminProcedure.query(() => getAllQuickMenus()),
+      update: adminProcedure
+        .input(z.object({
+          id: z.number(),
+          icon: z.string().optional(),
+          label: z.string().optional(),
+          href: z.string().nullable().optional(),
+          sortOrder: z.number().optional(),
+          isVisible: z.boolean().optional(),
+        }))
+        .mutation(({ input }) => {
+          const { id, ...data } = input;
+          return updateQuickMenu(id, data);
+        }),
+      reorder: adminProcedure
+        .input(z.array(z.object({ id: z.number(), sortOrder: z.number() })))
+        .mutation(({ input }) => reorderQuickMenus(input)),
     }),
   }),
 });

@@ -10,6 +10,10 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import MenuEditPanel from "@/components/MenuEditPanel";
+import NoticeEditPanel from "@/components/NoticeEditPanel";
+import HeroEditPanel from "@/components/HeroEditPanel";
+import QuickMenuEditPanel from "@/components/QuickMenuEditPanel";
+import AffiliateEditPanel from "@/components/AffiliateEditPanel";
 
 // 폴백(fallback) 데이터: DB 로딩 전 또는 DB 오류 시 표시
 const FALLBACK_HERO_SLIDES = [
@@ -236,9 +240,20 @@ export default function Home() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
-  // 메뉴 슬라이드 패널 상태
+  // 슬라이드 패널 상태
   const [menuPanelOpen, setMenuPanelOpen] = useState(false);
+  const [noticePanelOpen, setNoticePanelOpen] = useState(false);
+  const [heroPanelOpen, setHeroPanelOpen] = useState(false);
+  const [quickMenuPanelOpen, setQuickMenuPanelOpen] = useState(false);
+  const [affiliatePanelOpen, setAffiliatePanelOpen] = useState(false);
   const utils = trpc.useUtils();
+
+  // 로그아웃 mutation
+  const logoutMutation = trpc.auth.logout.useMutation({
+    onSuccess: () => {
+      window.location.reload();
+    },
+  });
 
   // 영상이 끝나면 다음 슬라이드로 전환
   const handleVideoEnded = () => {
@@ -273,12 +288,43 @@ export default function Home() {
             >
               메뉴 편집
             </button>
+            <button
+              onClick={() => setNoticePanelOpen(true)}
+              className="bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-1 rounded transition-colors"
+            >
+              교회 소식 편집
+            </button>
+            <button
+              onClick={() => setHeroPanelOpen(true)}
+              className="bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-1 rounded transition-colors"
+            >
+              슬라이드 편집
+            </button>
+            <button
+              onClick={() => setQuickMenuPanelOpen(true)}
+              className="bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-1 rounded transition-colors"
+            >
+              퀵메뉴 편집
+            </button>
+            <button
+              onClick={() => setAffiliatePanelOpen(true)}
+              className="bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-1 rounded transition-colors"
+            >
+              관련기관 편집
+            </button>
             <a
               href="/admin"
               className="bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-1 rounded transition-colors"
             >
               관리자 대시보드
             </a>
+            <button
+              onClick={() => logoutMutation.mutate()}
+              disabled={logoutMutation.isPending}
+              className="bg-red-500/70 hover:bg-red-500 text-white text-xs px-3 py-1 rounded transition-colors disabled:opacity-60"
+            >
+              {logoutMutation.isPending ? '로그아웃 중...' : '로그아웃'}
+            </button>
           </div>
         </div>
       )}
@@ -289,6 +335,42 @@ export default function Home() {
         onClose={() => {
           setMenuPanelOpen(false);
           utils.home.menus.invalidate();
+        }}
+      />
+
+      {/* 교회 소식 편집 슬라이드 패널 */}
+      <NoticeEditPanel
+        open={noticePanelOpen}
+        onClose={() => {
+          setNoticePanelOpen(false);
+          utils.home.notices.invalidate();
+        }}
+      />
+
+      {/* 히어로 슬라이드 편집 패널 */}
+      <HeroEditPanel
+        open={heroPanelOpen}
+        onClose={() => {
+          setHeroPanelOpen(false);
+          utils.home.heroSlides.invalidate();
+        }}
+      />
+
+      {/* 퀵메뉴 편집 패널 */}
+      <QuickMenuEditPanel
+        open={quickMenuPanelOpen}
+        onClose={() => {
+          setQuickMenuPanelOpen(false);
+          utils.home.quickMenus.invalidate();
+        }}
+      />
+
+      {/* 관련 기관 편집 패널 */}
+      <AffiliateEditPanel
+        open={affiliatePanelOpen}
+        onClose={() => {
+          setAffiliatePanelOpen(false);
+          utils.home.affiliates.invalidate();
         }}
       />
 
