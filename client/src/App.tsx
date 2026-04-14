@@ -83,8 +83,8 @@ const ElementaryDept = () => <SundaySchool dept="초등부" />;
 const YouthDept = () => <SundaySchool dept="중고등부" />;
 const AwanaDept = () => <SundaySchool dept="AWANA" />;
 const YoungAdultDept = () => <SundaySchool dept="청년부" />;
-
 function Router() {
+  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
       {/* 메인 */}
