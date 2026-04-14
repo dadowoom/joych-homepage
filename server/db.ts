@@ -1,6 +1,13 @@
-import { eq } from "drizzle-orm";
+import { eq, asc, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import {
+  InsertUser, users,
+  notices, affiliates, siteSettings,
+  heroSlides, galleryItems, quickMenus,
+  menus, menuItems, sections,
+  InsertNotice, InsertAffiliate, InsertSiteSetting,
+  InsertGalleryItem,
+} from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +96,130 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// ─────────────────────────────────────────────
+// CMS: 공개 데이터 조회 (홈페이지에서 사용)
+// ─────────────────────────────────────────────
+
+/** 교회 소식 목록 (최신순, 최대 5개) */
+export async function getPublishedNotices(limit = 5) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(notices)
+    .where(eq(notices.isPublished, true))
+    .orderBy(desc(notices.createdAt))
+    .limit(limit);
+}
+
+/** 관련 기관 목록 (정렬순) */
+export async function getVisibleAffiliates() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(affiliates)
+    .where(eq(affiliates.isVisible, true))
+    .orderBy(asc(affiliates.sortOrder));
+}
+
+/** 히어로 슬라이드 목록 (정렬순) */
+export async function getVisibleHeroSlides() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(heroSlides)
+    .where(eq(heroSlides.isVisible, true))
+    .orderBy(asc(heroSlides.sortOrder));
+}
+
+/** 갤러리 사진 목록 (정렬순) */
+export async function getVisibleGalleryItems() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(galleryItems)
+    .where(eq(galleryItems.isVisible, true))
+    .orderBy(asc(galleryItems.sortOrder));
+}
+
+/** 퀵 메뉴 목록 (정렬순) */
+export async function getVisibleQuickMenus() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(quickMenus)
+    .where(eq(quickMenus.isVisible, true))
+    .orderBy(asc(quickMenus.sortOrder));
+}
+
+/** 사이트 설정 전체 (key-value 맵으로 반환) */
+export async function getSiteSettings() {
+  const db = await getDb();
+  if (!db) return {} as Record<string, string>;
+  const rows = await db.select().from(siteSettings);
+  return Object.fromEntries(rows.map(r => [r.settingKey, r.settingValue ?? ""]));
+}
+
+/** 특정 사이트 설정 값 조회 */
+export async function getSiteSetting(key: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select().from(siteSettings).where(eq(siteSettings.settingKey, key)).limit(1);
+  return result.length > 0 ? result[0].settingValue : null;
+}
+
+// ─────────────────────────────────────────────
+// CMS: 관리자 전용 CRUD
+// ─────────────────────────────────────────────
+
+/** 교회 소식 전체 목록 (관리자용) */
+export async function getAllNotices() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(notices).orderBy(desc(notices.createdAt));
+}
+
+/** 교회 소식 생성 */
+export async function createNotice(data: InsertNotice) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(notices).values(data);
+}
+
+/** 교회 소식 수정 */
+export async function updateNotice(id: number, data: Partial<InsertNotice>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(notices).set(data).where(eq(notices.id, id));
+}
+
+/** 교회 소식 삭제 */
+export async function deleteNotice(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(notices).where(eq(notices.id, id));
+}
+
+/** 관련 기관 전체 목록 (관리자용) */
+export async function getAllAffiliates() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(affiliates).orderBy(asc(affiliates.sortOrder));
+}
+
+/** 관련 기관 수정 */
+export async function updateAffiliate(id: number, data: Partial<InsertAffiliate>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(affiliates).set(data).where(eq(affiliates.id, id));
+}
+
+/** 갤러리 사진 수정 */
+export async function updateGalleryItem(id: number, data: Partial<InsertGalleryItem>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(galleryItems).set(data).where(eq(galleryItems.id, id));
+}
+
+/** 사이트 설정 저장 (upsert) */
+export async function upsertSiteSetting(key: string, value: string) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(siteSettings)
+    .values({ settingKey: key, settingValue: value })
+    .onDuplicateKeyUpdate({ set: { settingValue: value } });
+}

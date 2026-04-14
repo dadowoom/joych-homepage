@@ -6,17 +6,31 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
+import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { getLoginUrl } from "@/const";
 
-const HERO_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-church-XWJBwHDycyRoBg9dY4aj5r.webp";
-
-const HERO_SLIDES = [
+// 폴백(fallback) 데이터: DB 로딩 전 또는 DB 오류 시 표시
+const FALLBACK_HERO_SLIDES = [
   {
-    video: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-video-2_9d9fb792.mp4",
-    poster: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-church-XWJBwHDycyRoBg9dY4aj5r.webp",
+    videoUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-video-2_9d9fb792.mp4",
+    posterUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-church-XWJBwHDycyRoBg9dY4aj5r.webp",
+    yearLabel: "2026 JOYFUL",
+    mainTitle: "처음 익은 열매로\n여호와를 공경하라",
+    subTitle: "네 재물과 네 소산물의 처음 익은 열매로 여호와를 공경하라",
+    bibleRef: "잠언 3장 9절",
+    btn1Text: "새가족 등록", btn1Href: "#",
+    btn2Text: "예배 안내", btn2Href: "#",
   },
   {
-    video: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-video-3_1b86687f.mp4",
-    poster: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-church-XWJBwHDycyRoBg9dY4aj5r.webp",
+    videoUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-video-3_1b86687f.mp4",
+    posterUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-church-XWJBwHDycyRoBg9dY4aj5r.webp",
+    yearLabel: "2026 JOYFUL",
+    mainTitle: "처음 익은 열매로\n여호와를 공경하라",
+    subTitle: "네 재물과 네 소산물의 처음 익은 열매로 여호와를 공경하라",
+    bibleRef: "잠언 3장 9절",
+    btn1Text: "새가족 등록", btn1Href: "#",
+    btn2Text: "예배 안내", btn2Href: "#",
   },
 ];
 const WORSHIP_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-worship-T2iXn7ztKCKRDJ4xwAbyC9.webp";
@@ -120,7 +134,7 @@ const NAV_ITEMS = [
   },
 ];
 
-const QUICK_MENUS = [
+const FALLBACK_QUICK_MENUS = [
   { icon: "fa-user-tie", label: "담임목사 인사", href: "/about/pastor" },
   { icon: "fa-hands-praying", label: "선교보고서", href: "/mission" },
   { icon: "fa-newspaper", label: "주보 보기", href: "/worship/bulletin" },
@@ -138,15 +152,13 @@ const SERMONS = [
   { badge: "새벽기도", title: "하나님의 은혜가 넘치는 곳", date: "2026.03.25" },
 ];
 
-const NEWS = [
-  { badge: "공지", badgeColor: "bg-blue-100 text-blue-700", title: "3월 18일 장학금 수여식 안내", date: "2026.03.18", img: "https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=120&q=70" },
-  { badge: "행사", badgeColor: "bg-amber-100 text-amber-700", title: "2026년 3월 12일~16일 히브리서 특별 강좌", date: "2026.03.12", img: "https://images.unsplash.com/photo-1529070538774-1843cb3265df?w=120&q=70" },
-  { badge: "행사", badgeColor: "bg-amber-100 text-amber-700", title: "2026년 3월 4일~6일 전교인 수련회", date: "2026.03.04", img: "https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=120&q=70" },
-  { badge: "행사", badgeColor: "bg-amber-100 text-amber-700", title: "2026 리더십 성장 컨퍼런스", date: "2026.02.20", img: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=120&q=70" },
-  { badge: "찬양", badgeColor: "bg-green-100 text-green-700", title: "제5회 24시간 찬양기도회", date: "2026.01.24", img: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=120&q=70" },
-];
+const BADGE_COLORS: Record<string, string> = {
+  "공지": "bg-blue-100 text-blue-700",
+  "행사": "bg-amber-100 text-amber-700",
+  "찬양": "bg-green-100 text-green-700",
+};
 
-const AFFILIATES = [
+const FALLBACK_AFFILIATES = [
   { icon: "fa-hands-helping", label: "기쁨의복지재단", href: "#" },
   { icon: "fa-building", label: "창포종합사회복지관", href: "#" },
   { icon: "fa-tree", label: "조이플빌리지", href: "#" },
@@ -154,13 +166,13 @@ const AFFILIATES = [
   { icon: "fa-heart", label: "기쁨이 있는 곳", href: "https://gippeum-arc-oawnrvau.manus.space/" },
 ];
 
-const GALLERY = [
-  { src: "https://images.unsplash.com/photo-1438032005730-c779502df39b?w=800&q=80", alt: "교회 예배당", span: "col-span-2 row-span-2" },
-  { src: "https://images.unsplash.com/photo-1529070538774-1843cb3265df?w=600&q=80", alt: "찬양 예배", span: "col-span-1 row-span-1" },
-  { src: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80", alt: "찬양대", span: "col-span-1 row-span-1" },
-  { src: "https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=600&q=80", alt: "교회 행사", span: "col-span-1 row-span-1" },
-  { src: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=600&q=80", alt: "컨퍼런스", span: "col-span-1 row-span-1" },
-  { src: "https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=800&q=80", alt: "수련회", span: "col-span-2 row-span-1" },
+const FALLBACK_GALLERY = [
+  { imageUrl: "https://images.unsplash.com/photo-1438032005730-c779502df39b?w=800&q=80", caption: "교회 예배당", gridSpan: "col-span-2 row-span-2" },
+  { imageUrl: "https://images.unsplash.com/photo-1529070538774-1843cb3265df?w=600&q=80", caption: "찬양 예배", gridSpan: "col-span-1 row-span-1" },
+  { imageUrl: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80", caption: "찬양대", gridSpan: "col-span-1 row-span-1" },
+  { imageUrl: "https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=600&q=80", caption: "교회 행사", gridSpan: "col-span-1 row-span-1" },
+  { imageUrl: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=600&q=80", caption: "컨퍼런스", gridSpan: "col-span-1 row-span-1" },
+  { imageUrl: "https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=800&q=80", caption: "수련회", gridSpan: "col-span-2 row-span-1" },
 ];
 
 // 스크롤 애니메이션 훅
@@ -203,9 +215,27 @@ export default function Home() {
   const [heroIndex, setHeroIndex] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // DB에서 데이터 불러오기
+  const { data: dbHeroSlides } = trpc.home.heroSlides.useQuery();
+  const { data: dbQuickMenus } = trpc.home.quickMenus.useQuery();
+  const { data: dbNotices } = trpc.home.notices.useQuery();
+  const { data: dbAffiliates } = trpc.home.affiliates.useQuery();
+  const { data: dbGallery } = trpc.home.gallery.useQuery();
+  const { data: dbSettings } = trpc.home.settings.useQuery();
+
+  // DB 데이터 또는 폴백 데이터 사용
+  const heroSlides = (dbHeroSlides && dbHeroSlides.length > 0) ? dbHeroSlides : FALLBACK_HERO_SLIDES;
+  const quickMenus = (dbQuickMenus && dbQuickMenus.length > 0) ? dbQuickMenus : FALLBACK_QUICK_MENUS;
+  const affiliates = (dbAffiliates && dbAffiliates.length > 0) ? dbAffiliates : FALLBACK_AFFILIATES;
+  const gallery = (dbGallery && dbGallery.length > 0) ? dbGallery : FALLBACK_GALLERY;
+
+  // 관리자 여부 확인 (편집 모드용)
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   // 영상이 끝나면 다음 슬라이드로 전환
   const handleVideoEnded = () => {
-    setHeroIndex((prev) => (prev + 1) % HERO_SLIDES.length);
+    setHeroIndex((prev) => (prev + 1) % heroSlides.length);
   };
 
   // 슬라이드 변경 시 영상 재생
@@ -230,8 +260,11 @@ export default function Home() {
         <div className="container flex justify-between items-center">
           <span className="tracking-wide">깊이있는 성장, 위대한 교회</span>
           <div className="flex gap-4 items-center">
-            <a href="#" className="hover:text-white transition-colors">로그인</a>
-            <a href="#" className="hover:text-white transition-colors">회원가입</a>
+            {isAdmin ? (
+              <Link href="/admin" className="hover:text-white transition-colors text-[#A5D6A7] font-medium">관리자 페이지</Link>
+            ) : (
+              <a href={getLoginUrl()} className="hover:text-white transition-colors">관리자 로그인</a>
+            )}
             <div className="flex gap-3 ml-2">
               <a href="#" className="hover:text-white transition-colors"><i className="fab fa-youtube"></i></a>
               <a href="#" className="hover:text-white transition-colors"><i className="fab fa-facebook-f"></i></a>
@@ -319,11 +352,11 @@ export default function Home() {
           ref={videoRef}
           key={heroIndex}
           className="absolute inset-0 w-full h-full object-cover"
-          src={HERO_SLIDES[heroIndex].video}
+          src={heroSlides[heroIndex]?.videoUrl ?? ""}
           autoPlay
           muted
           playsInline
-          poster={HERO_SLIDES[heroIndex].poster}
+          poster={heroSlides[heroIndex]?.posterUrl ?? ""}
           onEnded={handleVideoEnded}
         />
         {/* 영상 위 오버레이 — 글씨 가독성 확보 */}
@@ -336,27 +369,29 @@ export default function Home() {
               className="text-xs md:text-sm tracking-[0.3em] text-[#A5D6A7] mb-3 md:mb-4 font-medium"
               style={{ animation: "fadeUp 0.8s ease 0.2s both" }}
             >
-              2026 JOYFUL
+              {heroSlides[heroIndex]?.yearLabel ?? "2026 JOYFUL"}
             </p>
             <h1
               className="text-2xl md:text-5xl lg:text-6xl font-bold leading-tight mb-3 md:mb-5"
               style={{ fontFamily: "'Noto Serif KR', serif", animation: "fadeUp 0.8s ease 0.4s both" }}
             >
-              처음 익은 열매로<br />여호와를 공경하라
+              {(heroSlides[heroIndex]?.mainTitle ?? "처음 익은 열매로\n여호와를 공경하라").split("\n").map((line, i) => (
+                <span key={i}>{line}{i === 0 && <br />}</span>
+              ))}
             </h1>
             <p
               className="text-white/75 text-sm md:text-base leading-relaxed mb-6 md:mb-8"
               style={{ animation: "fadeUp 0.8s ease 0.6s both" }}
             >
-              네 재물과 네 소산물의 처음 익은 열매로 여호와를 공경하라<br />
-              <span className="text-[#A5D6A7] text-xs md:text-sm">— 잠언 3장 9절</span>
+              {heroSlides[heroIndex]?.subTitle ?? ""}<br />
+              <span className="text-[#A5D6A7] text-xs md:text-sm">— {heroSlides[heroIndex]?.bibleRef ?? ""}</span>
             </p>
             <div style={{ animation: "fadeUp 0.8s ease 0.8s both" }} className="flex gap-2 md:gap-3 flex-wrap">
-              <a href="#" className="px-5 md:px-7 py-2.5 md:py-3 bg-[#1B5E20] hover:bg-[#2E7D32] text-white text-xs md:text-sm font-medium rounded transition-colors">
-                새가족 등록
+              <a href={heroSlides[heroIndex]?.btn1Href ?? "#"} className="px-5 md:px-7 py-2.5 md:py-3 bg-[#1B5E20] hover:bg-[#2E7D32] text-white text-xs md:text-sm font-medium rounded transition-colors">
+                {heroSlides[heroIndex]?.btn1Text ?? "새가족 등록"}
               </a>
-              <a href="#" className="px-5 md:px-7 py-2.5 md:py-3 border-2 border-white/80 hover:bg-white/15 text-white text-xs md:text-sm font-medium rounded transition-colors">
-                예배 안내
+              <a href={heroSlides[heroIndex]?.btn2Href ?? "#"} className="px-5 md:px-7 py-2.5 md:py-3 border-2 border-white/80 hover:bg-white/15 text-white text-xs md:text-sm font-medium rounded transition-colors">
+                {heroSlides[heroIndex]?.btn2Text ?? "예배 안내"}
               </a>
             </div>
           </div>
@@ -364,7 +399,7 @@ export default function Home() {
 
         {/* 슬라이드 인디케이터 (하단 점) - SCROLL 위에 배치 */}
         <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 flex gap-2">
-          {HERO_SLIDES.map((_, i) => (
+          {heroSlides.map((_, i) => (
             <button
               key={i}
               onClick={() => setHeroIndex(i)}
@@ -386,7 +421,7 @@ export default function Home() {
       <section className="bg-white shadow-md relative z-10">
         <div className="container">
           <ul className="grid grid-cols-3 md:grid-cols-9">
-            {QUICK_MENUS.map((item, i) => {
+            {quickMenus.map((item, i) => {
               const inner = (
                 <>
                   <div className="w-12 h-12 rounded-full bg-[#E8F5E9] flex items-center justify-center text-[#1B5E20] text-lg group-hover:bg-[#1B5E20] group-hover:text-white transition-colors">
@@ -460,16 +495,18 @@ export default function Home() {
                   </a>
                 </div>
                 <div className="divide-y divide-gray-50">
-                  {NEWS.map((n, i) => (
+                  {(dbNotices && dbNotices.length > 0 ? dbNotices : []).map((n, i) => (
                     <a key={i} href="#" className="flex items-center gap-3 py-3 hover:text-[#1B5E20] transition-colors group">
-                      <div
-                        className="w-16 h-12 rounded-md bg-cover bg-center shrink-0"
-                        style={{ backgroundImage: `url(${n.img})` }}
-                      />
+                      {n.thumbnailUrl && (
+                        <div
+                          className="w-16 h-12 rounded-md bg-cover bg-center shrink-0"
+                          style={{ backgroundImage: `url(${n.thumbnailUrl})` }}
+                        />
+                      )}
                       <div className="flex-1 min-w-0">
-                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${n.badgeColor} inline-block mb-1`}>{n.badge}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${BADGE_COLORS[n.category] ?? "bg-gray-100 text-gray-700"} inline-block mb-1`}>{n.category}</span>
                         <p className="text-sm text-gray-700 truncate group-hover:text-[#1B5E20]">{n.title}</p>
-                        <span className="text-xs text-gray-400">{n.date}</span>
+                        <span className="text-xs text-gray-400">{new Date(n.createdAt).toLocaleDateString("ko-KR")}</span>
                       </div>
                     </a>
                   ))}
@@ -564,18 +601,18 @@ export default function Home() {
 
           {/* 매거진 그리드 */}
           <div className="grid grid-cols-2 md:grid-cols-4 auto-rows-[180px] md:auto-rows-[220px] gap-3">
-            {GALLERY.map((item, i) => (
-              <FadeIn key={i} delay={i * 60} className={item.span}>
+            {gallery.map((item, i) => (
+              <FadeIn key={i} delay={i * 60} className={item.gridSpan ?? "col-span-1 row-span-1"}>
                 <div className="group relative w-full h-full overflow-hidden rounded-xl cursor-pointer">
                   <img
-                    src={item.src}
-                    alt={item.alt}
+                    src={item.imageUrl}
+                    alt={item.caption ?? ""}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                   {/* 호버 오버레이 */}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/35 transition-all duration-300 flex items-end p-4">
                     <span className="text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-y-2 group-hover:translate-y-0">
-                      {item.alt}
+                      {item.caption}
                     </span>
                   </div>
                 </div>
@@ -592,12 +629,12 @@ export default function Home() {
             <h2 className="text-center text-2xl font-bold text-gray-900 mb-10" style={{ fontFamily: "'Noto Serif KR', serif" }}>관련 기관</h2>
           </FadeIn>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {AFFILIATES.map((a, i) => (
+            {affiliates.map((a, i) => (
               <FadeIn key={i} delay={i * 80}>
                 <a
-                  href={a.href}
-                  target={a.href !== "#" ? "_blank" : undefined}
-                  rel={a.href !== "#" ? "noopener noreferrer" : undefined}
+                  href={a.href ?? "#"}
+                  target={a.href && a.href !== "#" ? "_blank" : undefined}
+                  rel={a.href && a.href !== "#" ? "noopener noreferrer" : undefined}
                   className="flex flex-col items-center gap-3 py-8 px-4 bg-white border border-gray-100 rounded-xl text-center hover:border-[#1B5E20] hover:text-[#1B5E20] hover:-translate-y-1 transition-all duration-200 shadow-sm"
                 >
                   <div className="text-[#1B5E20] text-3xl"><i className={`fas ${a.icon}`}></i></div>
@@ -623,11 +660,11 @@ export default function Home() {
             <div className="space-y-2 text-sm">
               <p className="flex items-center gap-2">
                 <i className="fas fa-map-marker-alt text-[#4CAF50] w-4"></i>
-                경북 포항시 북구 상통로 411
+                {dbSettings?.address ?? "경북 포항시 북구 상통로 411"}
               </p>
               <p className="flex items-center gap-2">
                 <i className="fas fa-phone text-[#4CAF50] w-4"></i>
-                TEL : 054) 270-1000 &nbsp;|&nbsp; FAX : 054) 270-1005
+                TEL : {dbSettings?.tel ?? "054) 270-1000"} &nbsp;|&nbsp; FAX : {dbSettings?.fax ?? "054) 270-1005"}
               </p>
               <p className="text-xs text-gray-600 mt-3">
                 Copyright &copy; {new Date().getFullYear()} 기쁨의교회 All rights reserved.

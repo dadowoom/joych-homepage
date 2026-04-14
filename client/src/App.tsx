@@ -5,6 +5,7 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
+import AdminPage from "./pages/Admin";
 
 // 시설 예약
 import FacilityList from "./pages/FacilityList";
@@ -173,6 +174,9 @@ function Router() {
       <Route path="/facility" component={FacilityList} />
       <Route path="/facility/:id/apply" component={FacilityApply} />
       <Route path="/facility/:id" component={FacilityDetail} />
+
+      {/* 관리자 */}
+      <Route path="/admin" component={AdminPage} />
 
       {/* 404 */}
       <Route path="/404" component={NotFound} />
