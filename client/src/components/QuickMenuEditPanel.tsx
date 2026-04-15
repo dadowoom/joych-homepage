@@ -86,7 +86,7 @@ export default function QuickMenuEditPanel({ open, onClose }: QuickMenuEditPanel
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent side="right" className="w-[400px] sm:w-[460px] overflow-y-auto">
+      <SheetContent side="right" className="w-[400px] sm:w-[460px] overflow-y-auto bg-white" style={{ top: "144px", height: "calc(100vh - 144px)" }}>
         <SheetHeader className="mb-4">
           <SheetTitle>퀵메뉴 편집</SheetTitle>
           <SheetDescription>홈페이지 상단 퀵메뉴 항목의 이름, 링크, 아이콘을 수정할 수 있습니다.</SheetDescription>

@@ -141,7 +141,7 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent side="right" className="w-[420px] sm:w-[480px] overflow-y-auto">
+      <SheetContent side="right" className="w-[420px] sm:w-[480px] overflow-y-auto bg-white" style={{ top: "144px", height: "calc(100vh - 144px)" }}>
         <SheetHeader className="mb-4">
           <SheetTitle>교회 소식 편집</SheetTitle>
           <SheetDescription>소식을 추가, 수정, 삭제하거나 게시 여부를 변경할 수 있습니다.</SheetDescription>

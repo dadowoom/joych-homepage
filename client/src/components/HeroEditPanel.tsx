@@ -228,7 +228,7 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent side="right" className="w-[440px] sm:w-[520px] overflow-y-auto">
+      <SheetContent side="right" className="w-[440px] sm:w-[520px] overflow-y-auto bg-white" style={{ top: "144px", height: "calc(100vh - 144px)" }}>
         <SheetHeader className="mb-4">
           <SheetTitle>히어로 슬라이드 편집</SheetTitle>
           <SheetDescription>홈페이지 상단 영상 슬라이드의 텍스트, 버튼, 영상을 수정하거나 새 슬라이드를 추가할 수 있습니다.</SheetDescription>
