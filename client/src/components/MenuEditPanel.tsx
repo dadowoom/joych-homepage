@@ -469,8 +469,8 @@ export default function MenuEditPanel({
         side="right"
         className="p-0 flex flex-col overflow-hidden bg-white"
         style={{
-          top: "112px",
-          height: "calc(100vh - 112px)",
+          top: "144px",
+          height: "calc(100vh - 144px)",
           width: "100vw",
           maxWidth: "100vw",
           boxShadow: "-4px 0 20px rgba(0,0,0,0.15)",
