@@ -23,6 +23,8 @@ import {
   upsertSiteSetting,
   getAllHeroSlides,
   updateHeroSlide,
+  createHeroSlide,
+  deleteHeroSlide,
   getVisibleMenus,
   getAllMenus,
   updateMenu,
@@ -184,12 +186,31 @@ export const appRouter = router({
           btn1Href: z.string().optional(),
           btn2Text: z.string().optional(),
           btn2Href: z.string().optional(),
+          videoUrl: z.string().optional(),
+          posterUrl: z.string().optional(),
           isVisible: z.boolean().optional(),
         }))
         .mutation(({ input }) => {
           const { id, ...data } = input;
           return updateHeroSlide(id, data);
         }),
+      create: adminProcedure
+        .input(z.object({
+          videoUrl: z.string().optional(),
+          posterUrl: z.string().optional(),
+          yearLabel: z.string().optional(),
+          mainTitle: z.string().optional(),
+          subTitle: z.string().optional(),
+          bibleRef: z.string().optional(),
+          btn1Text: z.string().optional(),
+          btn1Href: z.string().optional(),
+          btn2Text: z.string().optional(),
+          btn2Href: z.string().optional(),
+        }))
+        .mutation(({ input }) => createHeroSlide(input)),
+      delete: adminProcedure
+        .input(z.object({ id: z.number() }))
+        .mutation(({ input }) => deleteHeroSlide(input.id)),
     }),
 
     // 갤러리 관리

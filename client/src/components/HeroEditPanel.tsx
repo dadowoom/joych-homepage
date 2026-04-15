@@ -1,7 +1,7 @@
 /**
  * 히어로 슬라이드 편집 슬라이드 패널
  * - 관리자 로그인 시 홈페이지 우측에서 슬라이드로 열림
- * - 히어로 슬라이드의 텍스트/링크 수정, 표시/숨기기 기능
+ * - 히어로 슬라이드의 텍스트/링크 수정, 표시/숨기기, 추가/삭제 기능
  */
 import { useState } from "react";
 import {
@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { Pencil, Check, X, Eye, EyeOff } from "lucide-react";
+import { Pencil, Check, X, Eye, EyeOff, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 type HeroSlideRow = {
@@ -27,6 +27,8 @@ type HeroSlideRow = {
   btn1Href: string | null;
   btn2Text: string | null;
   btn2Href: string | null;
+  videoUrl: string | null;
+  posterUrl: string | null;
   isVisible: boolean;
   sortOrder: number;
 };
@@ -40,6 +42,14 @@ type EditState = {
   btn1Href: string;
   btn2Text: string;
   btn2Href: string;
+  videoUrl: string;
+  posterUrl: string;
+};
+
+const EMPTY_EDIT: EditState = {
+  yearLabel: "", mainTitle: "", subTitle: "", bibleRef: "",
+  btn1Text: "", btn1Href: "", btn2Text: "", btn2Href: "",
+  videoUrl: "", posterUrl: "",
 };
 
 interface HeroEditPanelProps {
@@ -55,27 +65,51 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
   });
 
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editState, setEditState] = useState<EditState>({
-    yearLabel: "", mainTitle: "", subTitle: "", bibleRef: "",
-    btn1Text: "", btn1Href: "", btn2Text: "", btn2Href: "",
-  });
+  const [editState, setEditState] = useState<EditState>(EMPTY_EDIT);
+
+  // 새 슬라이드 추가 폼 표시 여부
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newSlide, setNewSlide] = useState<EditState>(EMPTY_EDIT);
+
+  // 삭제 확인 중인 슬라이드 ID
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
+  const invalidateAll = () => {
+    utils.cms.heroSlides.list.invalidate();
+    utils.home.heroSlides.invalidate();
+  };
 
   const updateMutation = trpc.cms.heroSlides.update.useMutation({
     onSuccess: () => {
       toast.success("슬라이드가 수정됐습니다.");
       setEditingId(null);
-      utils.cms.heroSlides.list.invalidate();
-      utils.home.heroSlides.invalidate();
+      invalidateAll();
     },
     onError: (e) => toast.error("수정 실패: " + e.message),
   });
 
   const toggleMutation = trpc.cms.heroSlides.update.useMutation({
-    onSuccess: () => {
-      utils.cms.heroSlides.list.invalidate();
-      utils.home.heroSlides.invalidate();
-    },
+    onSuccess: () => invalidateAll(),
     onError: (e) => toast.error("변경 실패: " + e.message),
+  });
+
+  const createMutation = trpc.cms.heroSlides.create.useMutation({
+    onSuccess: () => {
+      toast.success("새 슬라이드가 추가됐습니다.");
+      setShowAddForm(false);
+      setNewSlide(EMPTY_EDIT);
+      invalidateAll();
+    },
+    onError: (e) => toast.error("추가 실패: " + e.message),
+  });
+
+  const deleteMutation = trpc.cms.heroSlides.delete.useMutation({
+    onSuccess: () => {
+      toast.success("슬라이드가 삭제됐습니다.");
+      setConfirmDeleteId(null);
+      invalidateAll();
+    },
+    onError: (e) => toast.error("삭제 실패: " + e.message),
   });
 
   const startEdit = (slide: HeroSlideRow) => {
@@ -89,6 +123,8 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
       btn1Href: slide.btn1Href ?? "",
       btn2Text: slide.btn2Text ?? "",
       btn2Href: slide.btn2Href ?? "",
+      videoUrl: slide.videoUrl ?? "",
+      posterUrl: slide.posterUrl ?? "",
     });
   };
 
@@ -104,16 +140,124 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
       btn1Href: editState.btn1Href || undefined,
       btn2Text: editState.btn2Text || undefined,
       btn2Href: editState.btn2Href || undefined,
+      videoUrl: editState.videoUrl || undefined,
+      posterUrl: editState.posterUrl || undefined,
     });
   };
 
+  const saveNewSlide = () => {
+    createMutation.mutate({
+      yearLabel: newSlide.yearLabel || undefined,
+      mainTitle: newSlide.mainTitle || undefined,
+      subTitle: newSlide.subTitle || undefined,
+      bibleRef: newSlide.bibleRef || undefined,
+      btn1Text: newSlide.btn1Text || undefined,
+      btn1Href: newSlide.btn1Href || undefined,
+      btn2Text: newSlide.btn2Text || undefined,
+      btn2Href: newSlide.btn2Href || undefined,
+      videoUrl: newSlide.videoUrl || undefined,
+      posterUrl: newSlide.posterUrl || undefined,
+    });
+  };
+
+  // 편집 폼 공통 렌더링
+  const renderEditFields = (
+    state: EditState,
+    setState: (s: EditState) => void,
+    label: string,
+    onSave: () => void,
+    onCancel: () => void,
+    isPending: boolean
+  ) => (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold text-gray-500 mb-2">{label}</p>
+      <div>
+        <label className="text-xs text-gray-500 mb-1 block">연도 레이블</label>
+        <Input value={state.yearLabel} onChange={(e) => setState({ ...state, yearLabel: e.target.value })} placeholder="예: 2026 JOYFUL" className="text-sm" />
+      </div>
+      <div>
+        <label className="text-xs text-gray-500 mb-1 block">메인 제목</label>
+        <Input value={state.mainTitle} onChange={(e) => setState({ ...state, mainTitle: e.target.value })} placeholder="메인 제목" className="text-sm" />
+      </div>
+      <div>
+        <label className="text-xs text-gray-500 mb-1 block">부제목</label>
+        <Input value={state.subTitle} onChange={(e) => setState({ ...state, subTitle: e.target.value })} placeholder="부제목 / 성경 구절" className="text-sm" />
+      </div>
+      <div>
+        <label className="text-xs text-gray-500 mb-1 block">성경 구절 출처</label>
+        <Input value={state.bibleRef} onChange={(e) => setState({ ...state, bibleRef: e.target.value })} placeholder="예: 잠언 3장 9절" className="text-sm" />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block">버튼1 텍스트</label>
+          <Input value={state.btn1Text} onChange={(e) => setState({ ...state, btn1Text: e.target.value })} placeholder="새가족 등록" className="text-sm" />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block">버튼1 링크</label>
+          <Input value={state.btn1Href} onChange={(e) => setState({ ...state, btn1Href: e.target.value })} placeholder="/new-member" className="text-sm" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block">버튼2 텍스트</label>
+          <Input value={state.btn2Text} onChange={(e) => setState({ ...state, btn2Text: e.target.value })} placeholder="예배 안내" className="text-sm" />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block">버튼2 링크</label>
+          <Input value={state.btn2Href} onChange={(e) => setState({ ...state, btn2Href: e.target.value })} placeholder="/worship" className="text-sm" />
+        </div>
+      </div>
+      <div>
+        <label className="text-xs text-gray-500 mb-1 block">영상 URL (CDN)</label>
+        <Input value={state.videoUrl} onChange={(e) => setState({ ...state, videoUrl: e.target.value })} placeholder="https://cdn.example.com/video.mp4" className="text-sm font-mono" />
+      </div>
+      <div>
+        <label className="text-xs text-gray-500 mb-1 block">포스터 이미지 URL</label>
+        <Input value={state.posterUrl} onChange={(e) => setState({ ...state, posterUrl: e.target.value })} placeholder="https://cdn.example.com/poster.webp" className="text-sm font-mono" />
+      </div>
+      <div className="flex gap-2 pt-1">
+        <Button size="sm" className="bg-[#1B5E20] hover:bg-[#2E7D32] text-white" onClick={onSave} disabled={isPending}>
+          <Check className="w-3 h-3 mr-1" /> {isPending ? "저장 중..." : "저장"}
+        </Button>
+        <Button size="sm" variant="outline" onClick={onCancel}>
+          <X className="w-3 h-3 mr-1" /> 취소
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent side="right" className="w-[420px] sm:w-[500px] overflow-y-auto">
+      <SheetContent side="right" className="w-[440px] sm:w-[520px] overflow-y-auto">
         <SheetHeader className="mb-4">
           <SheetTitle>히어로 슬라이드 편집</SheetTitle>
-          <SheetDescription>홈페이지 상단 영상 슬라이드의 텍스트와 버튼을 수정할 수 있습니다.</SheetDescription>
+          <SheetDescription>홈페이지 상단 영상 슬라이드의 텍스트, 버튼, 영상을 수정하거나 새 슬라이드를 추가할 수 있습니다.</SheetDescription>
         </SheetHeader>
+
+        {/* 슬라이드 추가 버튼 */}
+        {!showAddForm && (
+          <Button
+            size="sm"
+            className="w-full mb-4 bg-[#1B5E20] hover:bg-[#2E7D32] text-white"
+            onClick={() => { setShowAddForm(true); setEditingId(null); }}
+          >
+            <Plus className="w-4 h-4 mr-1" /> 새 슬라이드 추가
+          </Button>
+        )}
+
+        {/* 새 슬라이드 추가 폼 */}
+        {showAddForm && (
+          <div className="border-2 border-dashed border-[#1B5E20] rounded-lg p-3 mb-4 bg-green-50">
+            {renderEditFields(
+              newSlide,
+              setNewSlide,
+              "새 슬라이드",
+              saveNewSlide,
+              () => { setShowAddForm(false); setNewSlide(EMPTY_EDIT); },
+              createMutation.isPending
+            )}
+          </div>
+        )}
 
         {isLoading ? (
           <div className="text-center text-gray-400 py-8 text-sm">불러오는 중...</div>
@@ -125,96 +269,30 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
                 className={`border rounded-lg p-3 ${!slide.isVisible ? "opacity-50 bg-gray-50" : "bg-white"}`}
               >
                 {editingId === slide.id ? (
-                  /* 편집 모드 */
+                  renderEditFields(
+                    editState,
+                    setEditState,
+                    `슬라이드 ${index + 1} 편집`,
+                    saveEdit,
+                    () => setEditingId(null),
+                    updateMutation.isPending
+                  )
+                ) : confirmDeleteId === slide.id ? (
+                  /* 삭제 확인 */
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold text-gray-500 mb-2">슬라이드 {index + 1} 편집</p>
-                    <div>
-                      <label className="text-xs text-gray-500 mb-1 block">연도 레이블</label>
-                      <Input
-                        value={editState.yearLabel}
-                        onChange={(e) => setEditState({ ...editState, yearLabel: e.target.value })}
-                        placeholder="예: 2026 JOYFUL"
-                        className="text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500 mb-1 block">메인 제목</label>
-                      <Input
-                        value={editState.mainTitle}
-                        onChange={(e) => setEditState({ ...editState, mainTitle: e.target.value })}
-                        placeholder="메인 제목"
-                        className="text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500 mb-1 block">부제목</label>
-                      <Input
-                        value={editState.subTitle}
-                        onChange={(e) => setEditState({ ...editState, subTitle: e.target.value })}
-                        placeholder="부제목 / 성경 구절"
-                        className="text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500 mb-1 block">성경 구절 출처</label>
-                      <Input
-                        value={editState.bibleRef}
-                        onChange={(e) => setEditState({ ...editState, bibleRef: e.target.value })}
-                        placeholder="예: 잠언 3장 9절"
-                        className="text-sm"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">버튼1 텍스트</label>
-                        <Input
-                          value={editState.btn1Text}
-                          onChange={(e) => setEditState({ ...editState, btn1Text: e.target.value })}
-                          placeholder="새가족 등록"
-                          className="text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">버튼1 링크</label>
-                        <Input
-                          value={editState.btn1Href}
-                          onChange={(e) => setEditState({ ...editState, btn1Href: e.target.value })}
-                          placeholder="/new-member"
-                          className="text-sm"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">버튼2 텍스트</label>
-                        <Input
-                          value={editState.btn2Text}
-                          onChange={(e) => setEditState({ ...editState, btn2Text: e.target.value })}
-                          placeholder="예배 안내"
-                          className="text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">버튼2 링크</label>
-                        <Input
-                          value={editState.btn2Href}
-                          onChange={(e) => setEditState({ ...editState, btn2Href: e.target.value })}
-                          placeholder="/worship"
-                          className="text-sm"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex gap-2 pt-1">
+                    <p className="text-sm font-medium text-red-600">정말 삭제하시겠습니까?</p>
+                    <p className="text-xs text-gray-500">"{slide.mainTitle}" 슬라이드가 영구적으로 삭제됩니다.</p>
+                    <div className="flex gap-2">
                       <Button
                         size="sm"
-                        className="bg-[#1B5E20] hover:bg-[#2E7D32] text-white"
-                        onClick={saveEdit}
-                        disabled={updateMutation.isPending}
+                        variant="destructive"
+                        onClick={() => deleteMutation.mutate({ id: slide.id })}
+                        disabled={deleteMutation.isPending}
                       >
-                        <Check className="w-3 h-3 mr-1" /> {updateMutation.isPending ? "저장 중..." : "저장"}
+                        <Trash2 className="w-3 h-3 mr-1" /> {deleteMutation.isPending ? "삭제 중..." : "삭제 확인"}
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>
-                        <X className="w-3 h-3 mr-1" /> 취소
+                      <Button size="sm" variant="outline" onClick={() => setConfirmDeleteId(null)}>
+                        취소
                       </Button>
                     </div>
                   </div>
@@ -252,10 +330,17 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
                       </button>
                       <button
                         title="수정"
-                        onClick={() => startEdit(slide)}
+                        onClick={() => { startEdit(slide); setShowAddForm(false); }}
                         className="p-1.5 rounded hover:bg-blue-50 text-blue-500 hover:text-blue-700 transition-colors"
                       >
                         <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        title="삭제"
+                        onClick={() => setConfirmDeleteId(slide.id)}
+                        className="p-1.5 rounded hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -263,7 +348,7 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
               </div>
             ))}
             {(slides ?? []).length === 0 && (
-              <div className="text-center text-gray-400 py-8 text-sm">등록된 슬라이드가 없습니다.</div>
+              <div className="text-center text-gray-400 py-8 text-sm">등록된 슬라이드가 없습니다.<br />위의 버튼으로 새 슬라이드를 추가해 보세요.</div>
             )}
           </div>
         )}

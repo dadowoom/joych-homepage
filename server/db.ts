@@ -357,3 +357,38 @@ export async function reorderQuickMenus(items: { id: number; sortOrder: number }
     )
   );
 }
+
+/** 히어로 슬라이드 추가 */
+export async function createHeroSlide(data: {
+  videoUrl?: string;
+  posterUrl?: string;
+  yearLabel?: string;
+  mainTitle?: string;
+  subTitle?: string;
+  bibleRef?: string;
+  btn1Text?: string;
+  btn1Href?: string;
+  btn2Text?: string;
+  btn2Href?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  // 현재 가장 큰 sortOrder + 1
+  const existing = await db.select({ sortOrder: heroSlides.sortOrder })
+    .from(heroSlides)
+    .orderBy(desc(heroSlides.sortOrder))
+    .limit(1);
+  const nextOrder = existing.length > 0 ? (existing[0].sortOrder ?? 0) + 1 : 1;
+  await db.insert(heroSlides).values({
+    ...data,
+    sortOrder: nextOrder,
+    isVisible: true,
+  });
+}
+
+/** 히어로 슬라이드 삭제 */
+export async function deleteHeroSlide(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.delete(heroSlides).where(eq(heroSlides.id, id));
+}
