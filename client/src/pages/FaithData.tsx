@@ -26,6 +26,20 @@ interface SearchUser {
   monthlyLightOfWorldCount: number;
 }
 
+interface FaithType {
+  faith_type: string;
+  faith_type_code: string;
+  bible_score: number;
+  prayer_score: number;
+  worship_score: number;
+  light_score: number;
+  salt_score: number;
+  ai_analysis: string | null;
+  ai_advice: string | null;
+  recommended_verse: string | null;
+  year_month: string;
+}
+
 interface ProfileData {
   profile: {
     userId: number;
@@ -47,7 +61,7 @@ interface ProfileData {
     monthlyPrayerSec: number;
   };
   rank: number | null;
-  faithType: string | null;
+  faithType: FaithType | string | null;
   faithHistory: { date: string; type: string; description: string }[];
   recentActivities: { date: string; type: string; description: string; points: number }[];
   bibleProgress: { booksRead: number; chaptersRead: number };
@@ -303,11 +317,17 @@ export default function FaithData() {
                 <div className="flex-1 min-w-0">
                   <h2 className="text-xl font-bold">{selectedUser.profile.displayName}</h2>
                   <p className="text-[#A5D6A7] text-sm">{selectedUser.profile.churchName || "교회 미등록"}</p>
-                  {selectedUser.faithType && (
-                    <span className="inline-block mt-1 px-2 py-0.5 bg-white/20 rounded-full text-xs">
-                      {FAITH_TYPE_LABEL[selectedUser.faithType] ?? selectedUser.faithType}
-                    </span>
-                  )}
+                  {selectedUser.faithType && (() => {
+                    const ft = selectedUser.faithType;
+                    const label = typeof ft === 'object' && ft !== null
+                      ? (FAITH_TYPE_LABEL[ft.faith_type_code] ?? ft.faith_type)
+                      : (FAITH_TYPE_LABEL[ft as string] ?? ft as string);
+                    return (
+                      <span className="inline-block mt-1 px-2 py-0.5 bg-white/20 rounded-full text-xs">
+                        {label}
+                      </span>
+                    );
+                  })()}
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-2xl font-bold">{selectedUser.profile.totalScore.toLocaleString()}</p>
