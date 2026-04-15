@@ -412,9 +412,12 @@ export default function Home() {
       >
         <div className="container flex items-center justify-between h-16 md:h-[72px]">
           {/* 로고 */}
-          <a href="#" className="flex flex-col leading-tight">
-            <span className="text-xl md:text-2xl font-bold text-[#1B5E20] tracking-tight" style={{ fontFamily: "'Noto Serif KR', serif" }}>기쁨의교회</span>
-            <span className="text-[10px] text-gray-400 tracking-widest uppercase">The Joyful Church</span>
+          <a href="#" className="flex items-center">
+            <img
+              src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-logo_35c62cc5.jpg"
+              alt="기쁨의교회"
+              className="h-10 md:h-12 w-auto object-contain"
+            />
           </a>
 
           {/* 신앙 데이터 검색창 — PC */}
@@ -650,17 +653,20 @@ export default function Home() {
                     전체보기 <i className="fas fa-arrow-right text-[10px]"></i>
                   </a>
                 </div>
-                {/* 유튜브 임베드 */}
+                {/* 유튜브 임베드 - 최신 설교 영상 */}
                 <div className="relative mb-4 rounded-lg overflow-hidden bg-gray-900">
-                  <div className="aspect-video flex items-center justify-center bg-gray-800">
-                    <div className="text-center text-white/60">
-                      <i className="fab fa-youtube text-5xl text-red-500 mb-3 block"></i>
-                      <p className="text-sm">실시간 예배 영상</p>
-                      <p className="text-xs mt-1 text-white/40">유튜브 채널 ID 연결 후 활성화됩니다</p>
-                    </div>
+                  <div className="aspect-video">
+                    <iframe
+                      className="w-full h-full"
+                      src="https://www.youtube.com/embed/WmFzWf5uEzI?rel=0"
+                      title="조이풀TV 최신 설교 영상"
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
                   </div>
                   <div className="absolute top-3 left-3 bg-red-600 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
-                    <i className="fab fa-youtube"></i> 실시간 예배
+                    <i className="fab fa-youtube"></i> 최신 설교
                   </div>
                 </div>
                 {/* 설교 목록 */}
@@ -843,8 +849,11 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
             {/* 로고 */}
             <div>
-              <div className="text-white text-xl font-bold mb-1" style={{ fontFamily: "'Noto Serif KR', serif" }}>기쁨의교회</div>
-              <div className="text-gray-500 text-xs tracking-widest mb-2">THE JOYFUL CHURCH</div>
+              <img
+                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-logo_35c62cc5.jpg"
+                alt="기쁨의교회"
+                className="h-10 w-auto object-contain mb-2 brightness-0 invert"
+              />
               <p className="text-xs text-gray-600">since 1946 대한예수교장로회</p>
             </div>
             {/* 연락처 */}
