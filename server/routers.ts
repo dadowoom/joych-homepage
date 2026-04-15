@@ -260,6 +260,8 @@ export const appRouter = router({
           label: z.string(),
           href: z.string().optional(),
           sortOrder: z.number().optional(),
+          pageType: z.enum(["image", "gallery", "board", "youtube", "editor"]).optional(),
+          pageImageUrl: z.string().nullable().optional(),
         }))
         .mutation(({ input }) => createMenuItem(input)),
       updateItem: adminProcedure
@@ -269,6 +271,8 @@ export const appRouter = router({
           href: z.string().nullable().optional(),
           sortOrder: z.number().optional(),
           isVisible: z.boolean().optional(),
+          pageType: z.enum(["image", "gallery", "board", "youtube", "editor"]).optional(),
+          pageImageUrl: z.string().nullable().optional(),
         }))
         .mutation(({ input }) => {
           const { id, ...data } = input;

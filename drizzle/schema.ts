@@ -79,6 +79,10 @@ export const menuItems = mysqlTable("menu_items", {
   href: varchar("href", { length: 256 }),
   sortOrder: int("sortOrder").notNull().default(0),
   isVisible: boolean("isVisible").notNull().default(true),
+  /** 페이지 표시 타입: image(이미지 전체화면) / gallery(갤러리) / board(게시판) / youtube(유튜브 목록) / editor(텍스트+이미지) */
+  pageType: mysqlEnum("pageType", ["image", "gallery", "board", "youtube", "editor"]).default("image").notNull(),
+  /** 이미지 타입일 때 표시할 이미지 URL */
+  pageImageUrl: text("pageImageUrl"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
