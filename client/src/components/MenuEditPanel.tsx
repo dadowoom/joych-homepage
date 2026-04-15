@@ -188,7 +188,7 @@ function SortableMenuRow({
         >
           <GripVertical size={14} />
         </button>
-        <span className={`flex-1 text-sm font-medium truncate ${!menu.isVisible ? "line-through" : ""}`}>
+        <span className={`flex-1 text-sm font-medium min-w-0 ${!menu.isVisible ? "line-through" : ""}`} style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
           {menu.label}
         </span>
         {menu.items.length > 0 && (
@@ -467,7 +467,7 @@ export default function MenuEditPanel({
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent
         side="right"
-        className="w-[95vw] max-w-[780px] p-0 flex flex-col overflow-hidden"
+        className="w-[95vw] max-w-[900px] p-0 flex flex-col overflow-hidden"
       >
         {/* 헤더 */}
         <SheetHeader className="px-4 pt-4 pb-3 border-b bg-white shrink-0">
@@ -475,11 +475,10 @@ export default function MenuEditPanel({
             메뉴 편집
             {isSavingOrder && <span className="text-xs text-green-500 font-normal animate-pulse">순서 저장 중...</span>}
           </SheetTitle>
-          <div className="flex items-center gap-3 text-[11px] text-gray-500 mt-1">
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#1B5E20] inline-block" /> 1단 상위 메뉴</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /> 2단 하위 메뉴</span>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-500 mt-1">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#1B5E20] inline-block" /> 1단 상위 메뉴 클릭 → 2단 표시</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /> 2단 하위 메뉴 클릭 → 3단 표시</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400 inline-block" /> 3단 세부 메뉴</span>
-            <span className="ml-auto text-[10px] text-gray-400">← 클릭하면 해당 단계 메뉴 표시</span>
           </div>
         </SheetHeader>
 
@@ -489,7 +488,7 @@ export default function MenuEditPanel({
           <div className="flex flex-1 overflow-hidden">
 
             {/* ── 컬럼 1: 1단 상위 메뉴 ── */}
-            <div className="w-[200px] shrink-0 border-r flex flex-col bg-gray-50">
+            <div className="w-[240px] shrink-0 border-r flex flex-col bg-gray-50">
               <div className="px-3 py-2 border-b bg-[#1B5E20]/5">
                 <p className="text-[11px] font-semibold text-[#1B5E20]">1단 메뉴</p>
               </div>
@@ -558,7 +557,7 @@ export default function MenuEditPanel({
             </div>
 
             {/* ── 컬럼 2: 2단 하위 메뉴 ── */}
-            <div className="w-[240px] shrink-0 border-r flex flex-col bg-white">
+            <div className="w-[260px] shrink-0 border-r flex flex-col bg-white">
               <div className="px-3 py-2 border-b bg-blue-50">
                 <p className="text-[11px] font-semibold text-blue-700">
                   2단 메뉴 {selectedMenu ? `— ${selectedMenu.label}` : ""}
