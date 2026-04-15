@@ -467,7 +467,14 @@ export default function MenuEditPanel({
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent
         side="right"
-        className="w-[95vw] max-w-[900px] p-0 flex flex-col overflow-hidden"
+        className="p-0 flex flex-col overflow-hidden bg-white"
+        style={{
+          top: "112px",
+          height: "calc(100vh - 112px)",
+          width: "100vw",
+          maxWidth: "100vw",
+          boxShadow: "-4px 0 20px rgba(0,0,0,0.15)",
+        }}
       >
         {/* 헤더 */}
         <SheetHeader className="px-4 pt-4 pb-3 border-b bg-white shrink-0">
