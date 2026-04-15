@@ -217,6 +217,16 @@ export default function Home() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeNav, setActiveNav] = useState<number | null>(null);
+  // 신앙 데이터 검색
+  const [searchName, setSearchName] = useState("");
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+
+  const handleSearch = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = searchName.trim();
+    if (!trimmed) return;
+    window.location.href = `/faith-data?name=${encodeURIComponent(trimmed)}`;
+  };
   const [heroIndex, setHeroIndex] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -404,6 +414,28 @@ export default function Home() {
             <span className="text-[10px] text-gray-400 tracking-widest uppercase">The Joyful Church</span>
           </a>
 
+          {/* 신앙 데이터 검색창 — PC */}
+          <form
+            onSubmit={handleSearch}
+            className="hidden md:flex items-center gap-0 mx-4 flex-1 max-w-[320px]"
+          >
+            <div className="relative w-full">
+              <input
+                type="text"
+                value={searchName}
+                onChange={(e) => setSearchName(e.target.value)}
+                placeholder="이름으로 신앙 데이터 검색"
+                className="w-full h-9 pl-4 pr-10 text-sm rounded-full border-2 border-[#1B5E20]/30 bg-[#F1F8E9] text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#1B5E20] focus:bg-white transition-all duration-200"
+              />
+              <button
+                type="submit"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-[#1B5E20] hover:text-[#2E7D32] transition-colors"
+              >
+                <i className="fas fa-search text-sm"></i>
+              </button>
+            </div>
+          </form>
+
           {/* PC 메뉴 */}
           <nav className="hidden md:block">
             <ul className="flex">
@@ -444,14 +476,50 @@ export default function Home() {
             </ul>
           </nav>
 
-          {/* 모바일 햄버거 */}
-          <button
-            className="md:hidden p-2 text-gray-700"
-            onClick={() => setMobileOpen(!mobileOpen)}
-          >
-            <i className={`fas ${mobileOpen ? "fa-times" : "fa-bars"} text-xl`}></i>
-          </button>
+          {/* 모바일 오른쪽 버튼 그룹 */}
+          <div className="md:hidden flex items-center gap-1">
+            {/* 검색 아이콘 버튼 */}
+            <button
+              className="p-2 text-[#1B5E20]"
+              onClick={() => { setMobileSearchOpen(!mobileSearchOpen); setMobileOpen(false); }}
+              aria-label="신앙 데이터 검색"
+            >
+              <i className={`fas ${mobileSearchOpen ? "fa-times" : "fa-search"} text-lg`}></i>
+            </button>
+            {/* 햄버거 버튼 */}
+            <button
+              className="p-2 text-gray-700"
+              onClick={() => { setMobileOpen(!mobileOpen); setMobileSearchOpen(false); }}
+            >
+              <i className={`fas ${mobileOpen ? "fa-times" : "fa-bars"} text-xl`}></i>
+            </button>
+          </div>
         </div>
+
+        {/* 모바일 검색창 패널 */}
+        {mobileSearchOpen && (
+          <div className="md:hidden bg-[#F1F8E9] border-t border-[#1B5E20]/20 px-4 py-3">
+            <form onSubmit={handleSearch} className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={searchName}
+                  onChange={(e) => setSearchName(e.target.value)}
+                  placeholder="이름으로 신앙 데이터 검색"
+                  autoFocus
+                  className="w-full h-11 pl-4 pr-4 text-base rounded-full border-2 border-[#1B5E20]/40 bg-white text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#1B5E20] transition-all duration-200"
+                />
+              </div>
+              <button
+                type="submit"
+                className="h-11 px-5 rounded-full bg-[#1B5E20] text-white text-sm font-medium hover:bg-[#2E7D32] transition-colors shrink-0"
+              >
+                검색
+              </button>
+            </form>
+            <p className="text-xs text-gray-400 mt-2 pl-1">성도 이름을 입력하면 신앙 데이터 페이지로 이동합니다.</p>
+          </div>
+        )}
 
         {/* 모바일 메뉴 */}
         {mobileOpen && (
