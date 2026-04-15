@@ -73,7 +73,7 @@ export function PastorGreeting() {
             <div className="flex-shrink-0">
               <div className="w-56 h-72 md:w-64 md:h-80 rounded-2xl overflow-hidden shadow-xl border border-gray-100">
                 <img
-src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/pastor-profile_171293b9.jpg"
+src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/pastor-profile-new_c659c67e.jpg"
                    alt="담임목사 박진석"
                   className="w-full h-full object-cover object-top"
                 />
@@ -111,32 +111,20 @@ src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekr
           <p className="text-green-200 text-sm mt-3 relative z-10">잠언 3장 9절 — 2025년 기쁨의교회 표어 말씀</p>
         </div>
 
-        {/* 인사말 본문 */}
-        <div className="bg-white rounded-2xl shadow-sm p-8 md:p-12 space-y-6 text-gray-700 leading-9 text-[15.5px]" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-          <p className="text-lg font-semibold text-gray-800">기쁨의교회 홈페이지를 방문해 주신 여러분을 진심으로 환영합니다.</p>
-          <p>
-            우리 기쁨의교회는 1985년 창립 이래 40여 년간 하나님의 은혜 가운데 성장해 왔습니다.
-            말씀 위에 굳게 서서, 기도로 하나 되고, 이웃을 섬기는 교회로 이 땅에서 빛과 소금의 역할을 감당하고자 합니다.
-          </p>
-          <p>
-            우리 교회는 <span className="text-[#1B5E20] font-semibold">"깊이 있는 성장, 위대한 교회"</span>라는 비전 아래,
-            성도 한 사람 한 사람이 하나님 앞에서 온전히 세워지고, 가정과 사회 속에서 그리스도의 향기를 발하는 삶을 살아가도록 돕고 있습니다.
-          </p>
-          <p>
-            예배가 살아있고, 말씀이 선포되며, 성령의 역사가 일어나는 교회. 그것이 우리 기쁨의교회가 추구하는 모습입니다.
-            성도 여러분 한 분 한 분이 이 공동체 안에서 하나님을 깊이 만나고, 삶이 변화되는 은혜를 경험하시기를 소망합니다.
-          </p>
-          <p>
-            새가족으로 오시는 분들, 믿음의 여정을 함께하고 싶으신 분들 모두를 따뜻하게 맞이합니다.
-            기쁨의교회가 여러분의 영적 가정이 되기를 소망합니다.
-          </p>
-          <div className="pt-6 border-t border-gray-100 flex flex-col items-end gap-1">
-            <img
-              src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/pastor-profile_171293b9.jpg"
-              alt=""
-              className="w-12 h-12 rounded-full object-cover object-top mb-2"
-            />
-            <p className="font-bold text-gray-800 text-base">박진석 목사</p>
+        {/* 인사말 본문 — 이미지 */}
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div className="flex flex-col md:flex-row gap-0">
+            {/* 인사말 텍스트 이미지 */}
+            <div className="flex-1">
+              <img
+                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/pastor-greeting-new_efa2dd2a.jpg"
+                alt="담임목사 인사말"
+                className="w-full h-auto block"
+              />
+            </div>
+          </div>
+          <div className="px-8 pb-6 flex flex-col items-end gap-1 border-t border-gray-100">
+            <p className="font-bold text-gray-800 text-base mt-4">박진석 목사</p>
             <p className="text-[#1B5E20] text-sm">기쁨의교회 담임목사</p>
           </div>
         </div>
