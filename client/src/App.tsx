@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import AdminPage from "./pages/Admin";
 import { DynamicMenuItemPage, DynamicMenuSubItemPage } from "./pages/DynamicPage";
+import Sitemap from "./pages/Sitemap";
 import FaithData from "./pages/FaithData";
 import ChurchDirectory from "./pages/ChurchDirectory";
 
@@ -179,6 +180,9 @@ function Router() {
       <Route path="/facility" component={FacilityList} />
       <Route path="/facility/:id/apply" component={FacilityApply} />
       <Route path="/facility/:id" component={FacilityDetail} />
+
+      {/* 사이트맵 */}
+      <Route path="/sitemap" component={Sitemap} />
 
       {/* 동적 메뉴 페이지 (pageType에 따라 다른 UI 표시) */}
       <Route path="/page/item/:id" component={DynamicMenuItemPage} />

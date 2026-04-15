@@ -891,6 +891,13 @@ export default function Home() {
               <p className="text-xs text-gray-600 mt-3">
                 Copyright &copy; {new Date().getFullYear()} 기쁨의교회 All rights reserved.
               </p>
+              <div className="flex gap-3 mt-3 text-xs">
+                <Link href="/sitemap" className="text-gray-500 hover:text-[#4CAF50] transition-colors underline underline-offset-2">사이트맵</Link>
+                <span className="text-gray-700">|</span>
+                <Link href="/about/directions" className="text-gray-500 hover:text-[#4CAF50] transition-colors underline underline-offset-2">오시는 길</Link>
+                <span className="text-gray-700">|</span>
+                <Link href="/admin/new-member" className="text-gray-500 hover:text-[#4CAF50] transition-colors underline underline-offset-2">새가족 안내</Link>
+              </div>
             </div>
             {/* SNS */}
             <div className="flex gap-3 md:justify-end">
