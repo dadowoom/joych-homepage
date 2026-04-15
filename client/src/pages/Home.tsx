@@ -225,7 +225,10 @@ export default function Home() {
     if (e) e.preventDefault();
     const trimmed = searchName.trim();
     if (!trimmed) return;
-    window.location.href = `/faith-data?name=${encodeURIComponent(trimmed)}`;
+    window.open(
+      `https://faithplus.co.kr/search?name=${encodeURIComponent(trimmed)}`,
+      '_blank'
+    );
   };
   const [heroIndex, setHeroIndex] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
