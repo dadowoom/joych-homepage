@@ -84,3 +84,9 @@
 - [x] DB menu_items 테이블에 pageType 컨럼 추가 (image/gallery/board/youtube/editor, 기본값 image)
 - [x] 서버 API updateItem에 pageType 필드 추가
 - [x] 편집 모드에 하위 메뉴 2단 편집 패널 구현 (왼쪽: 상위 메뉴 목록, 오른쪽: 하위 메뉴 추가/수정/삭제/타입 선택)
+
+## 3단 메뉴 구조 확장
+- [ ] DB에 menu_sub_items 테이블 추가 (menu_item_id 외래키, 이름/링크/순서/표시여부/pageType)
+- [ ] 서버 API에 3단 메뉴 CRUD 추가 (getSubItems, createSubItem, updateSubItem, deleteSubItem)
+- [ ] 헤더 GNB에 3단 드롭다운 표시 (2단 hover 시 3단 옆으로 펼쳐지게)
+- [ ] 편집 모드 메뉴 편집 패널을 3단 구조로 확장 (2단 항목 클릭 시 3단 편집 가능)

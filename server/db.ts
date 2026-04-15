@@ -4,7 +4,7 @@ import {
   InsertUser, users,
   notices, affiliates, siteSettings,
   heroSlides, galleryItems, quickMenus,
-  menus, menuItems, sections,
+  menus, menuItems, menuSubItems, sections,
   InsertNotice, InsertAffiliate, InsertSiteSetting,
   InsertGalleryItem,
 } from "../drizzle/schema";
@@ -235,7 +235,7 @@ export async function updateGalleryItem(id: number, data: Partial<InsertGalleryI
   await db.update(galleryItems).set(data).where(eq(galleryItems.id, id));
 }
 
-/** 메뉴 전체 목록 (서브메뉴 포함, 공개용) */
+/** 메뉴 전체 목록 (서브메뉴 + 3단 포함, 공개용) */
 export async function getVisibleMenus() {
   const db = await getDb();
   if (!db) return [];
@@ -245,21 +245,31 @@ export async function getVisibleMenus() {
   const itemList = await db.select().from(menuItems)
     .where(eq(menuItems.isVisible, true))
     .orderBy(asc(menuItems.sortOrder));
+  const subItemList = await db.select().from(menuSubItems)
+    .where(eq(menuSubItems.isVisible, true))
+    .orderBy(asc(menuSubItems.sortOrder));
   return menuList.map(m => ({
     ...m,
-    items: itemList.filter(item => item.menuId === m.id),
+    items: itemList.filter(item => item.menuId === m.id).map(item => ({
+      ...item,
+      subItems: subItemList.filter(sub => sub.menuItemId === item.id),
+    })),
   }));
 }
 
-/** 메뉴 전체 목록 (관리자용, 숨김 포함) */
+/** 메뉴 전체 목록 (관리자용, 숨김 포함, 3단 포함) */
 export async function getAllMenus() {
   const db = await getDb();
   if (!db) return [];
   const menuList = await db.select().from(menus).orderBy(asc(menus.sortOrder));
   const itemList = await db.select().from(menuItems).orderBy(asc(menuItems.sortOrder));
+  const subItemList = await db.select().from(menuSubItems).orderBy(asc(menuSubItems.sortOrder));
   return menuList.map(m => ({
     ...m,
-    items: itemList.filter(item => item.menuId === m.id),
+    items: itemList.filter(item => item.menuId === m.id).map(item => ({
+      ...item,
+      subItems: subItemList.filter(sub => sub.menuItemId === item.id),
+    })),
   }));
 }
 
@@ -317,9 +327,43 @@ export async function createMenu(data: { label: string; href?: string | null; so
 export async function deleteMenu(id: number) {
   const db = await getDb();
   if (!db) throw new Error('DB not available');
-  // 서브메뉴도 함께 삭제
+  // 2단 서브메뉴 ID 목록 조회
+  const items = await db.select({ id: menuItems.id }).from(menuItems).where(eq(menuItems.menuId, id));
+  // 3단 서브메뉴도 함께 삭제
+  for (const item of items) {
+    await db.delete(menuSubItems).where(eq(menuSubItems.menuItemId, item.id));
+  }
   await db.delete(menuItems).where(eq(menuItems.menuId, id));
   await db.delete(menus).where(eq(menus.id, id));
+}
+
+/** 3단 메뉴 항목 추가 */
+export async function createMenuSubItem(data: typeof menuSubItems.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.insert(menuSubItems).values(data);
+}
+
+/** 3단 메뉴 항목 수정 */
+export async function updateMenuSubItem(id: number, data: Partial<typeof menuSubItems.$inferInsert>) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.update(menuSubItems).set(data).where(eq(menuSubItems.id, id));
+}
+
+/** 3단 메뉴 항목 삭제 */
+export async function deleteMenuSubItem(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.delete(menuSubItems).where(eq(menuSubItems.id, id));
+}
+
+/** 2단 메뉴 항목 삭제 (3단도 함께 삭제) */
+export async function deleteMenuItemWithSubs(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.delete(menuSubItems).where(eq(menuSubItems.menuItemId, id));
+  await db.delete(menuItems).where(eq(menuItems.id, id));
 }
 
 /** 메뉴 순서 일괄 변경 */

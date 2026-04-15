@@ -91,6 +91,28 @@ export type MenuItem = typeof menuItems.$inferSelect;
 export type InsertMenuItem = typeof menuItems.$inferInsert;
 
 // ─────────────────────────────────────────────
+// CMS: 메뉴 3단 항목 (2단 하위의 세부 항목)
+// ─────────────────────────────────────────────
+export const menuSubItems = mysqlTable("menu_sub_items", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 상위 2단 메뉴 ID (menu_items.id 참조) */
+  menuItemId: int("menuItemId").notNull(),
+  label: varchar("label", { length: 64 }).notNull(),
+  href: varchar("href", { length: 256 }),
+  sortOrder: int("sortOrder").notNull().default(0),
+  isVisible: boolean("isVisible").notNull().default(true),
+  /** 페이지 표시 타입 */
+  pageType: mysqlEnum("pageType", ["image", "gallery", "board", "youtube", "editor"]).default("image").notNull(),
+  /** 이미지 타입일 때 표시할 이미지 URL */
+  pageImageUrl: text("pageImageUrl"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MenuSubItem = typeof menuSubItems.$inferSelect;
+export type InsertMenuSubItem = typeof menuSubItems.$inferInsert;
+
+// ─────────────────────────────────────────────
 // CMS: 퀵 메뉴 (히어로 아래 아이콘 버튼들)
 // ─────────────────────────────────────────────
 export const quickMenus = mysqlTable("quick_menus", {

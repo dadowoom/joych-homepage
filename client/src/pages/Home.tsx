@@ -459,15 +459,40 @@ export default function Home() {
                     <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#1B5E20] scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left"></span>
                   </div>
                   {(item.items ?? []).length > 0 && (
-                    <ul className="absolute top-[72px] left-0 bg-white border-t-2 border-[#1B5E20] shadow-xl min-w-[150px] z-[200] py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150">
+                    <ul className="absolute top-[72px] left-0 bg-white border-t-2 border-[#1B5E20] shadow-xl min-w-[160px] z-[200] py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150">
                       {(item.items ?? []).map((s, j) => {
-                        const cls = "block px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
+                        const hasSubItems = (s as { subItems?: { id: number; label: string; href?: string | null }[] }).subItems && (s as { subItems?: { id: number; label: string; href?: string | null }[] }).subItems!.length > 0;
+                        const subItems = (s as { subItems?: { id: number; label: string; href?: string | null }[] }).subItems ?? [];
+                        const cls = "flex items-center justify-between px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
                         return (
-                          <li key={j}>
+                          <li key={j} className="relative group/sub">
                             {s.href ? (
-                              <Link href={s.href} className={cls}>{s.label}</Link>
+                              <Link href={s.href} className={cls}>
+                                <span>{s.label}</span>
+                                {hasSubItems && <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>}
+                              </Link>
                             ) : (
-                              <a href="#" className={cls}>{s.label}</a>
+                              <a href="#" className={cls}>
+                                <span>{s.label}</span>
+                                {hasSubItems && <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>}
+                              </a>
+                            )}
+                            {/* 3단 드롭다운 */}
+                            {hasSubItems && (
+                              <ul className="absolute left-full top-0 bg-white border-l-2 border-[#1B5E20] shadow-xl min-w-[150px] z-[300] py-1 opacity-0 invisible group-hover/sub:opacity-100 group-hover/sub:visible transition-all duration-150">
+                                {subItems.map((sub, k) => {
+                                  const subCls = "block px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
+                                  return (
+                                    <li key={k}>
+                                      {sub.href ? (
+                                        <Link href={sub.href} className={subCls}>{sub.label}</Link>
+                                      ) : (
+                                        <a href="#" className={subCls}>{sub.label}</a>
+                                      )}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
                             )}
                           </li>
                         );

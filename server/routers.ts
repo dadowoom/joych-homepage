@@ -37,6 +37,10 @@ import {
   getAllQuickMenus,
   updateQuickMenu,
   reorderQuickMenus,
+  createMenuSubItem,
+  updateMenuSubItem,
+  deleteMenuSubItem,
+  deleteMenuItemWithSubs,
 } from "./db";
 
 export const appRouter = router({
@@ -280,7 +284,35 @@ export const appRouter = router({
         }),
       deleteItem: adminProcedure
         .input(z.object({ id: z.number() }))
-        .mutation(({ input }) => deleteMenuItem(input.id)),
+        .mutation(({ input }) => deleteMenuItemWithSubs(input.id)),
+      // 3단 메뉴 관리
+      createSubItem: adminProcedure
+        .input(z.object({
+          menuItemId: z.number(),
+          label: z.string(),
+          href: z.string().optional(),
+          sortOrder: z.number().optional(),
+          pageType: z.enum(["image", "gallery", "board", "youtube", "editor"]).optional(),
+          pageImageUrl: z.string().nullable().optional(),
+        }))
+        .mutation(({ input }) => createMenuSubItem(input)),
+      updateSubItem: adminProcedure
+        .input(z.object({
+          id: z.number(),
+          label: z.string().optional(),
+          href: z.string().nullable().optional(),
+          sortOrder: z.number().optional(),
+          isVisible: z.boolean().optional(),
+          pageType: z.enum(["image", "gallery", "board", "youtube", "editor"]).optional(),
+          pageImageUrl: z.string().nullable().optional(),
+        }))
+        .mutation(({ input }) => {
+          const { id, ...data } = input;
+          return updateMenuSubItem(id, data);
+        }),
+      deleteSubItem: adminProcedure
+        .input(z.object({ id: z.number() }))
+        .mutation(({ input }) => deleteMenuSubItem(input.id)),
       // 상위 메뉴 생성
       create: adminProcedure
         .input(z.object({

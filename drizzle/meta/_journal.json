@@ -29,6 +29,13 @@
       "when": 1776266022545,
       "tag": "0003_strange_shadow_king",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1776266525505,
+      "tag": "0004_old_mauler",
+      "breakpoints": true
     }
   ]
 }

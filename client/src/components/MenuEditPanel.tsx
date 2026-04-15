@@ -3,7 +3,8 @@
  * - 관리자 로그인 시 홈페이지 우측에서 슬라이드로 열림
  * - dnd-kit으로 드래그 순서 변경
  * - 상위 메뉴: 이름/링크 수정, 추가, 삭제, 표시/숨김
- * - 하위 메뉴: 상위 메뉴 클릭 시 펼침, 추가/수정/삭제/페이지타입 선택 가능
+ * - 하위 메뉴(2단): 상위 메뉴 클릭 시 펼침, 추가/수정/삭제/페이지타입 선택 가능
+ * - 3단 메뉴: 하위 메뉴 클릭 시 펼침, 추가/수정/삭제 가능
  * - 저장 즉시 GNB에 실시간 반영
  */
 import { useState, useEffect } from "react";
@@ -51,6 +52,17 @@ const PAGE_TYPE_OPTIONS: { value: PageType; label: string; desc: string; icon: R
   { value: "editor",  label: "텍스트+이미지",    desc: "자유롭게 편집 가능한 페이지",            icon: <Type size={14} /> },
 ];
 
+type MenuSubItemRow = {
+  id: number;
+  menuItemId: number;
+  label: string;
+  href: string | null;
+  sortOrder: number;
+  isVisible: boolean;
+  pageType: PageType;
+  pageImageUrl: string | null;
+};
+
 type MenuItemRow = {
   id: number;
   menuId: number;
@@ -60,6 +72,7 @@ type MenuItemRow = {
   isVisible: boolean;
   pageType: PageType;
   pageImageUrl: string | null;
+  subItems: MenuSubItemRow[];
 };
 
 type MenuRow = {
@@ -106,29 +119,23 @@ function PageTypeSelector({
   );
 }
 
-// ─── 하위 메뉴 아이템 행 ─────────────────────────────
-function SubMenuItem({
+// ─── 3단 메뉴 아이템 행 ─────────────────────────────
+function SubSubMenuItem({
   item,
   onEdit,
   onDelete,
   onToggleVisible,
 }: {
-  item: MenuItemRow;
-  onEdit: (item: MenuItemRow) => void;
+  item: MenuSubItemRow;
+  onEdit: (item: MenuSubItemRow) => void;
   onDelete: (id: number) => void;
   onToggleVisible: (id: number, visible: boolean) => void;
 }) {
-  const typeOpt = PAGE_TYPE_OPTIONS.find((o) => o.value === item.pageType);
   return (
-    <div className={`flex items-center gap-2 px-2 py-1.5 rounded border bg-gray-50 ${!item.isVisible ? "opacity-50" : ""}`}>
+    <div className={`flex items-center gap-2 px-2 py-1.5 rounded border bg-purple-50/50 ${!item.isVisible ? "opacity-50" : ""}`}>
       <span className="w-3" />
-      <span className={`flex-1 text-xs ${!item.isVisible ? "line-through text-gray-400" : "text-gray-700"}`}>
+      <span className={`flex-1 text-xs ${!item.isVisible ? "line-through text-gray-400" : "text-purple-700"}`}>
         {item.label}
-      </span>
-      {/* 페이지 타입 뱃지 */}
-      <span className="flex items-center gap-0.5 text-[9px] text-gray-400 bg-gray-100 rounded px-1 py-0.5">
-        {typeOpt?.icon}
-        <span>{typeOpt?.label ?? item.pageType}</span>
       </span>
       {item.href && (
         <span className="text-[10px] text-gray-400 truncate max-w-[50px]">{item.href}</span>
@@ -154,6 +161,221 @@ function SubMenuItem({
       >
         <Trash2 size={12} />
       </button>
+    </div>
+  );
+}
+
+// ─── 3단 메뉴 수정 폼 ───────────────────────────────
+function EditSubSubMenuForm({
+  item,
+  onSave,
+  onCancel,
+}: {
+  item: MenuSubItemRow;
+  onSave: (id: number, label: string, href: string | null, pageType: PageType) => void;
+  onCancel: () => void;
+}) {
+  const [label, setLabel] = useState(item.label);
+  const [href, setHref] = useState(item.href ?? "");
+  const [pageType, setPageType] = useState<PageType>(item.pageType ?? "image");
+
+  return (
+    <div className="p-2 rounded border-2 border-purple-200 bg-purple-50 space-y-2 ml-4">
+      <p className="text-[10px] font-semibold text-purple-700">3단 메뉴 수정</p>
+      <Input
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        className="h-7 text-xs"
+        placeholder="메뉴 이름"
+        autoFocus
+      />
+      <Input
+        value={href}
+        onChange={(e) => setHref(e.target.value)}
+        className="h-7 text-xs"
+        placeholder="/about/pastor/detail"
+      />
+      <PageTypeSelector value={pageType} onChange={setPageType} />
+      <div className="flex gap-1">
+        <Button size="sm" className="h-6 text-[10px] bg-purple-700 hover:bg-purple-800 px-2"
+          onClick={() => onSave(item.id, label, href || null, pageType)}>
+          <Check size={10} className="mr-1" /> 저장
+        </Button>
+        <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={onCancel}>
+          취소
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── 3단 메뉴 추가 폼 ───────────────────────────────
+function AddSubSubMenuForm({
+  onAdd,
+  onCancel,
+}: {
+  onAdd: (label: string, href: string | null, pageType: PageType) => void;
+  onCancel: () => void;
+}) {
+  const [label, setLabel] = useState("");
+  const [href, setHref] = useState("");
+  const [pageType, setPageType] = useState<PageType>("image");
+
+  return (
+    <div className="p-2 rounded border-2 border-purple-200 bg-purple-50 space-y-2 ml-4">
+      <p className="text-[10px] font-semibold text-purple-700">3단 메뉴 추가</p>
+      <Input
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        className="h-7 text-xs"
+        placeholder="예: 2000년대"
+        autoFocus
+      />
+      <Input
+        value={href}
+        onChange={(e) => setHref(e.target.value)}
+        className="h-7 text-xs"
+        placeholder="/about/history/2000s"
+      />
+      <PageTypeSelector value={pageType} onChange={setPageType} />
+      <div className="flex gap-1">
+        <Button
+          size="sm"
+          className="h-6 text-[10px] bg-purple-700 hover:bg-purple-800 px-2"
+          onClick={() => { if (label.trim()) onAdd(label.trim(), href || null, pageType); }}
+          disabled={!label.trim()}
+        >
+          <Plus size={10} className="mr-1" /> 추가
+        </Button>
+        <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={onCancel}>
+          취소
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── 하위 메뉴 아이템 행 (2단, 3단 포함) ─────────────────────────────
+function SubMenuItem({
+  item,
+  onEdit,
+  onDelete,
+  onToggleVisible,
+  onAddSubSubMenu,
+  onEditSubSubMenu,
+  onDeleteSubSubMenu,
+  onToggleSubSubVisible,
+}: {
+  item: MenuItemRow;
+  onEdit: (item: MenuItemRow) => void;
+  onDelete: (id: number) => void;
+  onToggleVisible: (id: number, visible: boolean) => void;
+  onAddSubSubMenu: (menuItemId: number, label: string, href: string | null, pageType: PageType) => void;
+  onEditSubSubMenu: (id: number, label: string, href: string | null, pageType: PageType) => void;
+  onDeleteSubSubMenu: (id: number, menuItemId: number) => void;
+  onToggleSubSubVisible: (id: number, menuItemId: number, visible: boolean) => void;
+}) {
+  const typeOpt = PAGE_TYPE_OPTIONS.find((o) => o.value === item.pageType);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [editingSubSubId, setEditingSubSubId] = useState<number | null>(null);
+  const [showAddSubSubForm, setShowAddSubSubForm] = useState(false);
+  const hasSubItems = item.subItems && item.subItems.length > 0;
+
+  return (
+    <div>
+      <div className={`flex items-center gap-2 px-2 py-1.5 rounded border bg-gray-50 ${!item.isVisible ? "opacity-50" : ""}`}>
+        {/* 3단 펼치기 버튼 */}
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className={`p-0.5 transition-colors ${hasSubItems ? "text-purple-400 hover:text-purple-600" : "text-gray-200"}`}
+          title={hasSubItems ? (isExpanded ? "3단 메뉴 접기" : "3단 메뉴 보기") : "3단 메뉴 없음"}
+        >
+          {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        </button>
+        <span className={`flex-1 text-xs ${!item.isVisible ? "line-through text-gray-400" : "text-gray-700"}`}>
+          {item.label}
+          {hasSubItems && (
+            <span className="ml-1 text-[9px] text-purple-400">({item.subItems.length})</span>
+          )}
+        </span>
+        {/* 페이지 타입 뱃지 */}
+        <span className="flex items-center gap-0.5 text-[9px] text-gray-400 bg-gray-100 rounded px-1 py-0.5">
+          {typeOpt?.icon}
+          <span>{typeOpt?.label ?? item.pageType}</span>
+        </span>
+        {item.href && (
+          <span className="text-[10px] text-gray-400 truncate max-w-[50px]">{item.href}</span>
+        )}
+        <button
+          onClick={() => onToggleVisible(item.id, !item.isVisible)}
+          className="p-0.5 text-gray-400 hover:text-gray-600"
+          title={item.isVisible ? "숨기기" : "표시"}
+        >
+          {item.isVisible ? <Eye size={12} /> : <EyeOff size={12} />}
+        </button>
+        <button
+          onClick={() => onEdit(item)}
+          className="p-0.5 text-blue-400 hover:text-blue-600"
+          title="수정"
+        >
+          <Pencil size={12} />
+        </button>
+        <button
+          onClick={() => onDelete(item.id)}
+          className="p-0.5 text-red-300 hover:text-red-500"
+          title="삭제"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
+
+      {/* 3단 메뉴 영역 */}
+      {isExpanded && (
+        <div className="ml-6 mt-1 space-y-1 pb-1">
+          {(item.subItems ?? []).map((sub) => (
+            <div key={sub.id}>
+              {editingSubSubId === sub.id ? (
+                <EditSubSubMenuForm
+                  item={sub}
+                  onSave={(id, label, href, pageType) => {
+                    onEditSubSubMenu(id, label, href, pageType);
+                    setEditingSubSubId(null);
+                  }}
+                  onCancel={() => setEditingSubSubId(null)}
+                />
+              ) : (
+                <SubSubMenuItem
+                  item={sub}
+                  onEdit={(s) => setEditingSubSubId(s.id)}
+                  onDelete={(id) => {
+                    if (confirm(`"${sub.label}" 3단 메뉴를 삭제하시겠습니까?`)) {
+                      onDeleteSubSubMenu(id, item.id);
+                    }
+                  }}
+                  onToggleVisible={(id, visible) => onToggleSubSubVisible(id, item.id, visible)}
+                />
+              )}
+            </div>
+          ))}
+
+          {showAddSubSubForm ? (
+            <AddSubSubMenuForm
+              onAdd={(label, href, pageType) => {
+                onAddSubSubMenu(item.id, label, href, pageType);
+                setShowAddSubSubForm(false);
+              }}
+              onCancel={() => setShowAddSubSubForm(false)}
+            />
+          ) : (
+            <button
+              onClick={() => setShowAddSubSubForm(true)}
+              className="w-full text-left text-[11px] text-purple-600 hover:text-purple-800 px-2 py-1 rounded border border-dashed border-purple-300 hover:bg-purple-50 flex items-center gap-1"
+            >
+              <Plus size={10} /> 3단 메뉴 추가
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -260,6 +482,10 @@ function SortableMenuItem({
   onEditSubMenu,
   onDeleteSubMenu,
   onToggleSubVisible,
+  onAddSubSubMenu,
+  onEditSubSubMenu,
+  onDeleteSubSubMenu,
+  onToggleSubSubVisible,
 }: {
   menu: MenuRow;
   onEdit: (menu: MenuRow) => void;
@@ -271,6 +497,10 @@ function SortableMenuItem({
   onEditSubMenu: (id: number, label: string, href: string | null, pageType: PageType) => void;
   onDeleteSubMenu: (id: number, menuId: number) => void;
   onToggleSubVisible: (id: number, menuId: number, visible: boolean) => void;
+  onAddSubSubMenu: (menuItemId: number, label: string, href: string | null, pageType: PageType) => void;
+  onEditSubSubMenu: (id: number, menuItemId: number, label: string, href: string | null, pageType: PageType) => void;
+  onDeleteSubSubMenu: (id: number, menuItemId: number, menuId: number) => void;
+  onToggleSubSubVisible: (id: number, menuItemId: number, menuId: number, visible: boolean) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: menu.id });
@@ -358,6 +588,18 @@ function SortableMenuItem({
                     }
                   }}
                   onToggleVisible={(id, visible) => onToggleSubVisible(id, menu.id, visible)}
+                  onAddSubSubMenu={(menuItemId, label, href, pageType) =>
+                    onAddSubSubMenu(menuItemId, label, href, pageType)
+                  }
+                  onEditSubSubMenu={(id, label, href, pageType) =>
+                    onEditSubSubMenu(id, item.id, label, href, pageType)
+                  }
+                  onDeleteSubSubMenu={(id, menuItemId) =>
+                    onDeleteSubSubMenu(id, menuItemId, menu.id)
+                  }
+                  onToggleSubSubVisible={(id, menuItemId, visible) =>
+                    onToggleSubSubVisible(id, menuItemId, menu.id, visible)
+                  }
                 />
               )}
             </div>
@@ -497,6 +739,11 @@ export default function MenuEditPanel({
               ...item,
               pageType: (item.pageType ?? "image") as PageType,
               pageImageUrl: item.pageImageUrl ?? null,
+              subItems: [...((item as { subItems?: MenuSubItemRow[] }).subItems ?? [])].sort((a, b) => a.sortOrder - b.sortOrder).map((sub) => ({
+                ...sub,
+                pageType: (sub.pageType ?? "image") as PageType,
+                pageImageUrl: sub.pageImageUrl ?? null,
+              })),
             })),
           }))
       );
@@ -543,6 +790,22 @@ export default function MenuEditPanel({
     onError: (e) => toast.error("삭제 실패: " + e.message),
   });
 
+  // 3단 메뉴 mutations
+  const createSubItem = trpc.cms.menus.createSubItem.useMutation({
+    onSuccess: () => { invalidate(); toast.success("3단 메뉴가 추가됐습니다."); },
+    onError: (e) => toast.error("추가 실패: " + e.message),
+  });
+
+  const updateSubItem = trpc.cms.menus.updateSubItem.useMutation({
+    onSuccess: () => { invalidate(); toast.success("3단 메뉴가 수정됐습니다."); },
+    onError: (e) => toast.error("수정 실패: " + e.message),
+  });
+
+  const deleteSubItem = trpc.cms.menus.deleteSubItem.useMutation({
+    onSuccess: () => { invalidate(); toast.success("3단 메뉴가 삭제됐습니다."); },
+    onError: (e) => toast.error("삭제 실패: " + e.message),
+  });
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -582,14 +845,20 @@ export default function MenuEditPanel({
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent side="right" className="w-[400px] sm:w-[440px] overflow-y-auto p-4">
+      <SheetContent side="right" className="w-[420px] sm:w-[460px] overflow-y-auto p-4">
         <SheetHeader className="mb-4">
           <SheetTitle className="text-[#1B5E20] flex items-center gap-2">
             메뉴 편집
           </SheetTitle>
           <SheetDescription className="text-xs text-gray-500">
-            드래그로 순서 변경 · ▶ 클릭으로 하위 메뉴 펼침 · ✏️ 수정 시 페이지 표시 방식 선택 가능
+            드래그로 순서 변경 · ▶ 클릭으로 하위 메뉴 펼침 · 3단 메뉴는 하위 메뉴의 ▶ 클릭
           </SheetDescription>
+          {/* 범례 */}
+          <div className="flex gap-2 mt-1 flex-wrap">
+            <span className="text-[10px] px-2 py-0.5 rounded bg-white border border-gray-200 text-gray-600">● 1단 상위 메뉴</span>
+            <span className="text-[10px] px-2 py-0.5 rounded bg-gray-50 border border-gray-200 text-gray-600">● 2단 하위 메뉴</span>
+            <span className="text-[10px] px-2 py-0.5 rounded bg-purple-50 border border-purple-200 text-purple-600">● 3단 세부 메뉴</span>
+          </div>
         </SheetHeader>
 
         {isLoading ? (
@@ -685,6 +954,62 @@ export default function MenuEditPanel({
                                   }
                                 : m
                             )
+                          );
+                        }}
+                        onAddSubSubMenu={(menuItemId, label, href, pageType) => {
+                          const allItems = localMenus.flatMap(m => m.items);
+                          const currentSubs = allItems.find(i => i.id === menuItemId)?.subItems ?? [];
+                          createSubItem.mutate({
+                            menuItemId,
+                            label,
+                            href: href ?? undefined,
+                            sortOrder: currentSubs.length + 1,
+                            pageType,
+                          });
+                        }}
+                        onEditSubSubMenu={(id, _menuItemId, label, href, pageType) => {
+                          updateSubItem.mutate({ id, label, href, pageType });
+                          setLocalMenus((prev) =>
+                            prev.map((m) => ({
+                              ...m,
+                              items: m.items.map((item) => ({
+                                ...item,
+                                subItems: item.subItems.map((sub) =>
+                                  sub.id === id ? { ...sub, label, href, pageType } : sub
+                                ),
+                              })),
+                            }))
+                          );
+                        }}
+                        onDeleteSubSubMenu={(id, menuItemId, _menuId) => {
+                          deleteSubItem.mutate({ id });
+                          setLocalMenus((prev) =>
+                            prev.map((m) => ({
+                              ...m,
+                              items: m.items.map((item) =>
+                                item.id === menuItemId
+                                  ? { ...item, subItems: item.subItems.filter((sub) => sub.id !== id) }
+                                  : item
+                              ),
+                            }))
+                          );
+                        }}
+                        onToggleSubSubVisible={(id, menuItemId, _menuId, visible) => {
+                          updateSubItem.mutate({ id, isVisible: visible });
+                          setLocalMenus((prev) =>
+                            prev.map((m) => ({
+                              ...m,
+                              items: m.items.map((item) =>
+                                item.id === menuItemId
+                                  ? {
+                                      ...item,
+                                      subItems: item.subItems.map((sub) =>
+                                        sub.id === id ? { ...sub, isVisible: visible } : sub
+                                      ),
+                                    }
+                                  : item
+                              ),
+                            }))
                           );
                         }}
                       />
