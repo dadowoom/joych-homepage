@@ -15,6 +15,13 @@
       "when": 1776142203693,
       "tag": "0001_magenta_lily_hollister",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1776259948678,
+      "tag": "0002_deep_switch",
+      "breakpoints": true
     }
   ]
 }

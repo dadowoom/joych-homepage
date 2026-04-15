@@ -241,3 +241,38 @@ export const siteSettings = mysqlTable("site_settings", {
 
 export type SiteSetting = typeof siteSettings.$inferSelect;
 export type InsertSiteSetting = typeof siteSettings.$inferInsert;
+
+// ─────────────────────────────────────────────
+// 교적부: 교회 성도 정보
+// 관리자가 등록하며, 믿음PLUS 유저ID 연동 가능
+// ─────────────────────────────────────────────
+export const churchMembers = mysqlTable("church_members", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 성도 이름 */
+  name: varchar("name", { length: 64 }).notNull(),
+  /** 나이 */
+  age: int("age"),
+  /** 성별 (남/여) */
+  gender: varchar("gender", { length: 8 }),
+  /** 교구 (예: 영덕교구) */
+  district: varchar("district", { length: 64 }),
+  /** 직분 (예: 집사, 권사, 장로) */
+  position: varchar("position", { length: 32 }),
+  /** 봉사 부서/역할 (예: 아동부 교사) */
+  ministry: varchar("ministry", { length: 128 }),
+  /** 연락처 */
+  phone: varchar("phone", { length: 32 }),
+  /** 주소 */
+  address: varchar("address", { length: 256 }),
+  /** 교회 등록일 */
+  registeredAt: varchar("registeredAt", { length: 16 }),
+  /** 믿음PLUS 앱 유저 ID (연동용) */
+  faithPlusUserId: int("faithPlusUserId"),
+  /** 활성 여부 */
+  isActive: boolean("isActive").notNull().default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ChurchMember = typeof churchMembers.$inferSelect;
+export type InsertChurchMember = typeof churchMembers.$inferInsert;

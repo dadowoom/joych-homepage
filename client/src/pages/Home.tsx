@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
@@ -221,14 +221,14 @@ export default function Home() {
   const [searchName, setSearchName] = useState("");
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
+  const [, setLocation] = useLocation();
+
   const handleSearch = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const trimmed = searchName.trim();
     if (!trimmed) return;
-    window.open(
-      `https://faithplus.co.kr/search?name=${encodeURIComponent(trimmed)}`,
-      '_blank'
-    );
+    setMobileSearchOpen(false);
+    setLocation(`/church-directory?name=${encodeURIComponent(trimmed)}`);
   };
   const [heroIndex, setHeroIndex] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);

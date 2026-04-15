@@ -56,3 +56,10 @@
 - [x] 헤더 GNB에 신앙 데이터 검색창 추가 (로고와 메뉴 사이, PC/모바일 반응형)
 - [x] /faith-data 페이지 제작 (faithplus API 연동, 성도 검색 결과 + 상세 신앙 데이터 표시)
 - [x] /church-directory 교적부 페이지 제작 (성도 카드 + 신앙 데이터 상세, 하드코딩 → 추후 DB 연동)
+
+## 교적부 시스템 완성 (진행 중)
+- [ ] DB에 성도(members) 테이블 추가 및 마이그레이션
+- [ ] 서버 API에 성도 CRUD 추가 (db.ts + routers.ts)
+- [ ] 헤더 검색창을 /church-directory?name=이름 으로 변경
+- [ ] 교적부 페이지 DB 연동 + 카드 클릭 시 faithplus 랭킹 이동
+- [ ] 관리자 대시보드에 성도 등록/수정/삭제 탭 추가
