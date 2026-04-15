@@ -117,7 +117,7 @@ src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekr
             {/* 인사말 텍스트 이미지 */}
             <div className="flex-1">
               <img
-                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/pastor-greeting-new_efa2dd2a.jpg"
+                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/pastor-greeting_dbd99752.png"
                 alt="담임목사 인사말"
                 className="w-full h-auto block"
               />
