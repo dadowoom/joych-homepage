@@ -6,6 +6,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import AdminPage from "./pages/Admin";
+import FaithData from "./pages/FaithData";
 
 // 시설 예약
 import FacilityList from "./pages/FacilityList";
@@ -90,6 +91,7 @@ function Router() {
     <Switch>
       {/* 메인 */}
       <Route path="/" component={Home} />
+      <Route path="/faith-data" component={FaithData} />
 
       {/* 교회소개 */}
       <Route path="/about/pastor" component={PastorGreeting} />
