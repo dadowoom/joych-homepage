@@ -280,11 +280,28 @@ export async function updateMenu(id: number, data: Partial<typeof menus.$inferIn
   await db.update(menus).set(data).where(eq(menus.id, id));
 }
 
+/** 2단 메뉴 항목 단건 조회 */
+export async function getMenuItemById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(menuItems).where(eq(menuItems.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
+/** 3단 메뉴 항목 단건 조회 */
+export async function getMenuSubItemById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(menuSubItems).where(eq(menuSubItems.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
 /** 서브메뉴 항목 추가 */
 export async function createMenuItem(data: typeof menuItems.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error('DB not available');
-  await db.insert(menuItems).values(data);
+  const [result] = await db.insert(menuItems).values(data);
+  return result as { insertId: number };
 }
 
 /** 서브메뉴 항목 수정 */
@@ -341,7 +358,8 @@ export async function deleteMenu(id: number) {
 export async function createMenuSubItem(data: typeof menuSubItems.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error('DB not available');
-  await db.insert(menuSubItems).values(data);
+  const [result] = await db.insert(menuSubItems).values(data);
+  return result as { insertId: number };
 }
 
 /** 3단 메뉴 항목 수정 */

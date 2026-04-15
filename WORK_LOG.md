@@ -239,3 +239,94 @@ Manus OAuth 방식에서 아이디/비밀번호 방식으로 관리자 로그인
 4. 작업 완료 시 이 문서(WORK_LOG.md)와 todo.md를 반드시 업데이트합니다.
 5. 큰 작업 전에는 반드시 체크포인트를 저장합니다.
 6. 문제가 발생하면 즉시 이전 체크포인트로 롤백하고 원인을 파악한 뒤 진행합니다.
+
+---
+
+## 9단계: 메뉴 편집 패널 3단 구조 확장 + 버그 수정
+
+완료일: 2026-04-15
+
+**변경 내용:**
+- DB에 `menu_sub_items` 테이블 추가 (3단 메뉴 지원)
+- 서버 API에 3단 메뉴 CRUD 추가 (getSubItems, createSubItem, updateSubItem, deleteSubItem)
+- 헤더 GNB에 3단 드롭다운 표시 (2단 hover 시 3단 옆으로 펼쳐짐)
+- 편집 모드 메뉴 편집 패널을 3단 구조로 확장 (3컬럼 나란히 배치)
+- 각 메뉴 항목에 `pageType` 설정 가능 (image/gallery/board/youtube/editor)
+- DB `menu_items` 테이블에 `pageType` 컬럼 추가
+
+**버그 수정:**
+- 메뉴 편집 패널 화면 넘침 문제 해결 (3컬럼 나란히 배치, 고정 높이 스크롤)
+- 메뉴 편집 패널 1단 이름 잘림 수정
+- 헤더 GNB 드롭다운 하위 메뉴 안 보이는 문제 수정 (opacity/visibility 방식으로 CSS 변경)
+
+---
+
+## 10단계: 콘텐츠 교체 + 신앙 데이터 기능
+
+완료일: 2026-04-15
+
+**변경 내용:**
+- 히어로 영상 4개 교체 (CDN 업로드: church-video-01~04.mp4)
+- 조이풀TV 섹션 유튜브 영상 연결 (https://www.youtube.com/watch?v=WmFzWf5uEzI)
+- 헤더 로고 이미지 교체 (베이직-심볼로고조합수정.jpg)
+- 파비콘 교체 (01.ico)
+- 갤러리 사진 5장 추가 (전경 3장 + 내부 2장)
+- 비전 섹션 배경 사진 교체 (_MG_1172.webp)
+- 담임목사 프로필 사진 교체 (KakaoTalk_20250804_163350120_25.jpg)
+- 헤더 GNB에 신앙 데이터 검색창 추가 (로고와 메뉴 사이, PC/모바일 반응형)
+- /faith-data 페이지 제작 (faithplus API 연동)
+- /church-directory 교적부 페이지 제작
+
+---
+
+## 11단계: 모든 편집 패널 헤더 겹침 문제 수정
+
+완료일: 2026-04-16 | 체크포인트: 53f57de1
+
+**문제:** 모든 편집 패널이 헤더(편집바+헤더)에 겹쳐서 상단 내용이 가려지는 문제
+
+**원인 분석:**
+- 편집바 높이: 40px (position: sticky, z-index: 100)
+- 헤더 높이: 72px (position: sticky, top: 0, z-index: 150)
+- 헤더는 sticky top-0이므로 편집바 아래 72px 지점에서 시작
+- 실제 헤더 하단 위치: 40 + 32(sticky offset) + 72 = 144px
+- 기존 패널 top 값: 112px → 헤더에 32px 가려짐
+
+**수정 내용:**
+- 모든 편집 패널 SheetContent에 `top: 144px`, `height: calc(100vh - 144px)` 일괄 적용
+  - MenuEditPanel.tsx (메뉴 편집)
+  - NoticeEditPanel.tsx (교회 소식 편집)
+  - HeroEditPanel.tsx (슬라이드 편집)
+  - QuickMenuEditPanel.tsx (퀵메뉴 편집)
+  - AffiliateEditPanel.tsx (관련기관 편집)
+
+---
+
+## 다음 단계 작업 계획 (2026-04-16 기준)
+
+### 단계 1: 히어로 영상 파일 업로드 기능 (진행 예정)
+- 서버에 영상 파일 업로드 API 추가 (S3 storagePut 연동, multipart/form-data)
+- HeroEditPanel에 파일 선택 버튼 + 업로드 진행률 표시 UI 추가
+- 업로드 완료 후 hero_slides DB의 videoUrl 자동 갱신
+
+### 단계 2: 교회소식 썸네일 이미지 파일 업로드 기능 (진행 예정)
+- NoticeEditPanel에 이미지 파일 선택 버튼 + 미리보기 UI 추가
+- 업로드 완료 후 notices DB의 thumbnailUrl 자동 갱신
+
+### 단계 3: 하위메뉴 클릭 시 실제 페이지 표시 (진행 예정)
+- pageType별 페이지 컴포넌트 구현 (image/gallery/board/youtube/editor)
+- 하위메뉴 링크 클릭 시 `/page/:menuId` 형태로 라우팅
+- 각 페이지에서 menuId로 DB 조회 → pageType에 맞는 UI 렌더링
+
+---
+
+## 패널 top 값 기준 (중요)
+
+편집바(40px) + 헤더 sticky offset(32px) + 헤더 높이(72px) = **144px**
+
+모든 편집 패널의 SheetContent에 반드시 아래 스타일을 적용해야 합니다:
+```tsx
+style={{ top: "144px", height: "calc(100vh - 144px)" }}
+```
+
+새 편집 패널을 추가할 때도 동일하게 적용해야 합니다.

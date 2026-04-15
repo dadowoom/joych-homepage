@@ -2,8 +2,9 @@
  * 히어로 슬라이드 편집 슬라이드 패널
  * - 관리자 로그인 시 홈페이지 우측에서 슬라이드로 열림
  * - 히어로 슬라이드의 텍스트/링크 수정, 표시/숨기기, 추가/삭제 기능
+ * - 영상 파일 직접 업로드 (S3 연동)
  */
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Sheet,
   SheetContent,
@@ -14,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { Pencil, Check, X, Eye, EyeOff, Trash2, Plus } from "lucide-react";
+import { Pencil, Check, X, Eye, EyeOff, Trash2, Plus, Upload, Video } from "lucide-react";
 import { toast } from "sonner";
 
 type HeroSlideRow = {
@@ -73,6 +74,20 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
 
   // 삭제 확인 중인 슬라이드 ID
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
+  // 영상 업로드 진행 상태
+  const [uploadingFor, setUploadingFor] = useState<"edit" | "new" | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<string>("");
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const newVideoInputRef = useRef<HTMLInputElement>(null);
+
+  const uploadVideoMutation = trpc.cms.upload.video.useMutation({
+    onError: (e) => {
+      toast.error("영상 업로드 실패: " + e.message);
+      setUploadingFor(null);
+      setUploadProgress("");
+    },
+  });
 
   const invalidateAll = () => {
     utils.cms.heroSlides.list.invalidate();
@@ -160,6 +175,138 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
     });
   };
 
+  /**
+   * 영상 파일을 선택하면 Base64로 변환 후 서버에 업로드합니다.
+   * 업로드 완료 시 반환된 CDN URL을 videoUrl 필드에 자동으로 채웁니다.
+   */
+  const handleVideoFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    target: "edit" | "new"
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // 파일 크기 제한: 50MB
+    const MAX_SIZE = 50 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      toast.error("파일 크기가 너무 큽니다. 50MB 이하의 영상 파일을 선택해 주세요.");
+      return;
+    }
+
+    setUploadingFor(target);
+    setUploadProgress("파일 읽는 중...");
+
+    try {
+      // 파일을 Base64 문자열로 변환
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          // "data:video/mp4;base64,XXXX" 형태에서 실제 base64 부분만 추출
+          const base64Data = result.split(",")[1];
+          resolve(base64Data);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      setUploadProgress("서버에 업로드 중...");
+
+      const { url } = await uploadVideoMutation.mutateAsync({
+        base64,
+        fileName: file.name,
+        mimeType: file.type || "video/mp4",
+      });
+
+      // 업로드된 CDN URL을 해당 폼의 videoUrl에 자동 입력
+      if (target === "edit") {
+        setEditState((prev) => ({ ...prev, videoUrl: url }));
+      } else {
+        setNewSlide((prev) => ({ ...prev, videoUrl: url }));
+      }
+
+      toast.success("영상 업로드 완료! 저장 버튼을 눌러 적용하세요.");
+    } catch (err) {
+      // 에러는 useMutation의 onError에서 처리됨
+    } finally {
+      setUploadingFor(null);
+      setUploadProgress("");
+      // 파일 입력 초기화 (같은 파일 재선택 가능하도록)
+      e.target.value = "";
+    }
+  };
+
+  // 영상 업로드 버튼 + URL 입력 필드 렌더링
+  const renderVideoUploadField = (
+    state: EditState,
+    setState: (s: EditState) => void,
+    target: "edit" | "new",
+    inputRef: React.RefObject<HTMLInputElement | null>
+  ) => {
+    const isUploading = uploadingFor === target;
+    return (
+      <div>
+        <label className="text-xs text-gray-500 mb-1 block">배경 영상</label>
+        <div className="space-y-2">
+          {/* 파일 업로드 버튼 */}
+          <div className="flex gap-2 items-center">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="flex-1 border-dashed border-[#1B5E20] text-[#1B5E20] hover:bg-green-50"
+              disabled={isUploading}
+              onClick={() => inputRef.current?.click()}
+            >
+              {isUploading ? (
+                <>
+                  <Upload className="w-3 h-3 mr-1 animate-bounce" />
+                  {uploadProgress}
+                </>
+              ) : (
+                <>
+                  <Upload className="w-3 h-3 mr-1" />
+                  영상 파일 선택 (최대 50MB)
+                </>
+              )}
+            </Button>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="video/mp4,video/webm,video/ogg"
+              className="hidden"
+              onChange={(e) => handleVideoFileChange(e, target)}
+            />
+          </div>
+          {/* 업로드된 영상 미리보기 */}
+          {state.videoUrl && (
+            <div className="flex items-center gap-2 p-2 bg-green-50 rounded border border-green-200">
+              <Video className="w-4 h-4 text-green-600 shrink-0" />
+              <span className="text-xs text-green-700 truncate flex-1">{state.videoUrl.split("/").pop()}</span>
+              <button
+                type="button"
+                className="text-xs text-red-400 hover:text-red-600 shrink-0"
+                onClick={() => setState({ ...state, videoUrl: "" })}
+              >
+                제거
+              </button>
+            </div>
+          )}
+          {/* 직접 URL 입력 (고급 사용자용) */}
+          <details className="text-xs">
+            <summary className="text-gray-400 cursor-pointer hover:text-gray-600">직접 URL 입력 (고급)</summary>
+            <Input
+              value={state.videoUrl}
+              onChange={(e) => setState({ ...state, videoUrl: e.target.value })}
+              placeholder="https://cdn.example.com/video.mp4"
+              className="text-xs font-mono mt-1"
+            />
+          </details>
+        </div>
+      </div>
+    );
+  };
+
   // 편집 폼 공통 렌더링
   const renderEditFields = (
     state: EditState,
@@ -167,7 +314,9 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
     label: string,
     onSave: () => void,
     onCancel: () => void,
-    isPending: boolean
+    isPending: boolean,
+    target: "edit" | "new",
+    inputRef: React.RefObject<HTMLInputElement | null>
   ) => (
     <div className="space-y-2">
       <p className="text-xs font-semibold text-gray-500 mb-2">{label}</p>
@@ -207,16 +356,16 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
           <Input value={state.btn2Href} onChange={(e) => setState({ ...state, btn2Href: e.target.value })} placeholder="/worship" className="text-sm" />
         </div>
       </div>
+
+      {/* 영상 업로드 필드 */}
+      {renderVideoUploadField(state, setState, target, inputRef)}
+
       <div>
-        <label className="text-xs text-gray-500 mb-1 block">영상 URL (CDN)</label>
-        <Input value={state.videoUrl} onChange={(e) => setState({ ...state, videoUrl: e.target.value })} placeholder="https://cdn.example.com/video.mp4" className="text-sm font-mono" />
-      </div>
-      <div>
-        <label className="text-xs text-gray-500 mb-1 block">포스터 이미지 URL</label>
+        <label className="text-xs text-gray-500 mb-1 block">포스터 이미지 URL (영상 로딩 전 표시)</label>
         <Input value={state.posterUrl} onChange={(e) => setState({ ...state, posterUrl: e.target.value })} placeholder="https://cdn.example.com/poster.webp" className="text-sm font-mono" />
       </div>
       <div className="flex gap-2 pt-1">
-        <Button size="sm" className="bg-[#1B5E20] hover:bg-[#2E7D32] text-white" onClick={onSave} disabled={isPending}>
+        <Button size="sm" className="bg-[#1B5E20] hover:bg-[#2E7D32] text-white" onClick={onSave} disabled={isPending || uploadingFor !== null}>
           <Check className="w-3 h-3 mr-1" /> {isPending ? "저장 중..." : "저장"}
         </Button>
         <Button size="sm" variant="outline" onClick={onCancel}>
@@ -254,7 +403,9 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
               "새 슬라이드",
               saveNewSlide,
               () => { setShowAddForm(false); setNewSlide(EMPTY_EDIT); },
-              createMutation.isPending
+              createMutation.isPending,
+              "new",
+              newVideoInputRef
             )}
           </div>
         )}
@@ -275,7 +426,9 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
                     `슬라이드 ${index + 1} 편집`,
                     saveEdit,
                     () => setEditingId(null),
-                    updateMutation.isPending
+                    updateMutation.isPending,
+                    "edit",
+                    videoInputRef
                   )
                 ) : confirmDeleteId === slide.id ? (
                   /* 삭제 확인 */
@@ -310,6 +463,13 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
                       <p className="text-sm font-medium text-gray-800 truncate">{slide.mainTitle}</p>
                       {slide.subTitle && (
                         <p className="text-xs text-gray-500 truncate mt-0.5">{slide.subTitle}</p>
+                      )}
+                      {/* 영상 파일 표시 */}
+                      {slide.videoUrl && (
+                        <div className="flex items-center gap-1 mt-1">
+                          <Video className="w-3 h-3 text-gray-400" />
+                          <span className="text-xs text-gray-400 truncate">{slide.videoUrl.split("/").pop()}</span>
+                        </div>
                       )}
                       <div className="flex gap-2 mt-1">
                         {slide.btn1Text && (

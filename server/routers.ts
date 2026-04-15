@@ -6,7 +6,10 @@ import { publicProcedure, protectedProcedure, adminProcedure, router } from "./_
 import { sdk } from "./_core/sdk";
 import { TRPCError } from "@trpc/server";
 import * as db from "./db";
+import { storagePut } from "./storage";
 import {
+  getMenuItemById,
+  getMenuSubItemById,
   getPublishedNotices,
   getVisibleAffiliates,
   getVisibleHeroSlides,
@@ -120,6 +123,14 @@ export const appRouter = router({
     settings: publicProcedure.query(() => getSiteSettings()),
     /** 상단 네비게이션 메뉴 (서브메뉴 포함) */
     menus: publicProcedure.query(() => getVisibleMenus()),
+    /** 2단 메뉴 단건 조회 (동적 페이지용) */
+    menuItem: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(({ input }) => getMenuItemById(input.id)),
+    /** 3단 메뉴 단건 조회 (동적 페이지용) */
+    menuSubItem: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(({ input }) => getMenuSubItemById(input.id)),
   }),
 
   // ─── 관리자 전용 CMS API ─────────────────────
@@ -267,7 +278,15 @@ export const appRouter = router({
           pageType: z.enum(["image", "gallery", "board", "youtube", "editor"]).optional(),
           pageImageUrl: z.string().nullable().optional(),
         }))
-        .mutation(({ input }) => createMenuItem(input)),
+        .mutation(async ({ input }) => {
+          const result = await createMenuItem(input);
+          const newId = result?.insertId;
+          // href가 없으면 동적 페이지 URL 자동 설정
+          if (newId && !input.href) {
+            await updateMenuItem(newId, { href: `/page/item/${newId}` });
+          }
+          return { insertId: newId };
+        }),
       updateItem: adminProcedure
         .input(z.object({
           id: z.number(),
@@ -295,7 +314,15 @@ export const appRouter = router({
           pageType: z.enum(["image", "gallery", "board", "youtube", "editor"]).optional(),
           pageImageUrl: z.string().nullable().optional(),
         }))
-        .mutation(({ input }) => createMenuSubItem(input)),
+        .mutation(async ({ input }) => {
+          const result = await createMenuSubItem(input);
+          const newId = result?.insertId;
+          // href가 없으면 동적 페이지 URL 자동 설정
+          if (newId && !input.href) {
+            await updateMenuSubItem(newId, { href: `/page/sub/${newId}` });
+          }
+          return { insertId: newId };
+        }),
       updateSubItem: adminProcedure
         .input(z.object({
           id: z.number(),
@@ -331,7 +358,39 @@ export const appRouter = router({
         .mutation(({ input }) => reorderMenus(input)),
     }),
 
-    // 퀵 메뉴 관리
+    // 파일 업로드 (영상/이미지 → S3)
+    upload: router({
+      /** 영상 파일 업로드 (히어로 슬라이드용) */
+      video: adminProcedure
+        .input(z.object({
+          base64: z.string(),        // base64로 인코딩된 파일 내용
+          fileName: z.string(),      // 원본 파일명 (예: church-video.mp4)
+          mimeType: z.string(),      // MIME 타입 (예: video/mp4)
+        }))
+        .mutation(async ({ input }) => {
+          const buffer = Buffer.from(input.base64, "base64");
+          const ext = input.fileName.split(".").pop() || "mp4";
+          const key = `hero-videos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+          const { url } = await storagePut(key, buffer, input.mimeType);
+          return { url };
+        }),
+      /** 이미지 파일 업로드 (교회 소식 썸네일용) */
+      image: adminProcedure
+        .input(z.object({
+          base64: z.string(),        // base64로 인코딩된 파일 내용
+          fileName: z.string(),      // 원본 파일명 (예: notice.jpg)
+          mimeType: z.string(),      // MIME 타입 (예: image/jpeg)
+        }))
+        .mutation(async ({ input }) => {
+          const buffer = Buffer.from(input.base64, "base64");
+          const ext = input.fileName.split(".").pop() || "jpg";
+          const key = `notice-images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+          const { url } = await storagePut(key, buffer, input.mimeType);
+          return { url };
+        }),
+    }),
+
+    // 퀝 메뉴 관리
     quickMenus: router({
       list: adminProcedure.query(() => getAllQuickMenus()),
       update: adminProcedure
