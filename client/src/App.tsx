@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import AdminPage from "./pages/Admin";
 import FaithData from "./pages/FaithData";
+import ChurchDirectory from "./pages/ChurchDirectory";
 
 // 시설 예약
 import FacilityList from "./pages/FacilityList";
@@ -92,6 +93,7 @@ function Router() {
       {/* 메인 */}
       <Route path="/" component={Home} />
       <Route path="/faith-data" component={FaithData} />
+      <Route path="/church-directory" component={ChurchDirectory} />
 
       {/* 교회소개 */}
       <Route path="/about/pastor" component={PastorGreeting} />
