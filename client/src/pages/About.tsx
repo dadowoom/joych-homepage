@@ -73,8 +73,8 @@ export function PastorGreeting() {
             <div className="flex-shrink-0">
               <div className="w-56 h-72 md:w-64 md:h-80 rounded-2xl overflow-hidden shadow-xl border border-gray-100">
                 <img
-                  src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/pastor-profile_d6051ff8.jpg"
-                  alt="담임목사 박진석"
+src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/pastor-profile_171293b9.jpg"
+                   alt="담임목사 박진석"
                   className="w-full h-full object-cover object-top"
                 />
               </div>
@@ -132,7 +132,7 @@ export function PastorGreeting() {
           </p>
           <div className="pt-6 border-t border-gray-100 flex flex-col items-end gap-1">
             <img
-              src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/pastor-profile_d6051ff8.jpg"
+              src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/pastor-profile_171293b9.jpg"
               alt=""
               className="w-12 h-12 rounded-full object-cover object-top mb-2"
             />

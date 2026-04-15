@@ -407,7 +407,7 @@ export default function Home() {
 
       {/* ===== 헤더 & GNB ===== */}
       <header
-        className={`sticky top-0 z-50 bg-white transition-shadow duration-300 ${scrolled ? "shadow-lg" : "shadow-sm"}`}
+        className={`sticky top-0 z-[150] bg-white transition-shadow duration-300 ${scrolled ? "shadow-lg" : "shadow-sm"}`}
       >
         <div className="container flex items-center justify-between h-16 md:h-[72px]">
           {/* 로고 */}
@@ -448,8 +448,6 @@ export default function Home() {
                 <li
                   key={item.id}
                   className="relative group"
-                  onMouseEnter={() => setActiveNav(i)}
-                  onMouseLeave={() => setActiveNav(null)}
                 >
                   <div className="flex items-center h-[72px] px-4 relative">
                     <a
@@ -460,10 +458,10 @@ export default function Home() {
                     </a>
                     <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#1B5E20] scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left"></span>
                   </div>
-                  {activeNav === i && (
-                    <ul className="absolute top-[72px] left-0 bg-white border-t-2 border-[#1B5E20] shadow-xl min-w-[150px] z-50 py-1">
+                  {(item.items ?? []).length > 0 && (
+                    <ul className="absolute top-[72px] left-0 bg-white border-t-2 border-[#1B5E20] shadow-xl min-w-[150px] z-[200] py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150">
                       {(item.items ?? []).map((s, j) => {
-                        const cls = "block px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0";
+                        const cls = "block px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
                         return (
                           <li key={j}>
                             {s.href ? (
