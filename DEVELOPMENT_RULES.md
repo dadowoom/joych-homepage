@@ -435,6 +435,7 @@ const AdminPage = lazy(() => import('./pages/admin/AdminDashboard'));
 | 날짜 | 버전 | 변경 내용 |
 | :--- | :--- | :--- |
 | 2026.04.05 | v1.0 | 최초 작성 |
+| 2026.04.15 | v1.1 | 인라인 편집 패널 구현 완료 반영, 실제 기술 스택 정정 (MySQL/tRPC 기반) |
 
 ---
 

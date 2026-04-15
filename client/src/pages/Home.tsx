@@ -407,7 +407,7 @@ export default function Home() {
           {/* PC 메뉴 */}
           <nav className="hidden md:block">
             <ul className="flex">
-              {(navMenus ?? NAV_ITEMS.map((item, i) => ({ id: i + 1, label: item.label, href: item.href ?? null, items: item.sub.map((s, j) => ({ id: j + 1, label: s, href: (item as { subHref?: Record<string, string | undefined> }).subHref?.[s] ?? null })) }))).map((item, i) => (
+              {(navMenus ?? NAV_ITEMS.map((item, i) => ({ id: i + 1, label: item.label, href: (item as { href?: string }).href ?? null, items: item.sub.map((s, j) => ({ id: j + 1, label: s, href: (item as { subHref?: Record<string, string | undefined> }).subHref?.[s] ?? null })) }))).map((item, i) => (
                 <li
                   key={item.id}
                   className="relative group"

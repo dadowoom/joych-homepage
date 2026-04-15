@@ -80,7 +80,7 @@ export default function AffiliateEditPanel({ open, onClose }: AffiliateEditPanel
       id: editingId,
       icon: editState.icon || undefined,
       label: editState.label || undefined,
-      href: editState.href || null,
+      href: editState.href || undefined,
     });
   };
 
