@@ -110,3 +110,14 @@
 - [x] pageType별 페이지 컴포넌트 구현 (image/gallery/board/youtube/editor)
 - [x] 하위메뉴 링크 클릭 시 해당 pageType 페이지로 라우팅 연결
 - [x] 각 페이지에서 메뉴 이름/타입 DB에서 읽어 동적 표시
+
+## 동적 페이지 완성 (진행 중)
+- [x] [BUG] href=null인 menu_sub_items DB 업데이트 완료 (담임목사님 저서 → /page/sub/1)
+- [x] 공통 SubPageLayout 컴포넌트 제작 (헤더+GNB+푸터+브레드크럼+사이드메뉴)
+- [x] DynamicPage.tsx에 SubPageLayout 적용
+- [x] pageType별 완성도 향상 (image/gallery/board/youtube/editor)
+
+## 청년 피드백 반영 항목 (추후 처리)
+- [ ] 사이트맵 페이지 추가 — 전체 메뉴 구조를 한눈에 볼 수 있는 페이지 (예: /sitemap)
+- [ ] GNB 메뉴명 일치 여부 전수 검토 — 홈 퀵메뉴/섹션 이름과 GNB 메뉴명이 다른 항목 정리 (예: "시설사용예약" vs "시설물 안내")
+- [ ] GNB에 노출 안 된 메뉴 항목 검토 — 홈에는 있지만 GNB에 없는 항목 파악 및 추가 여부 논의
