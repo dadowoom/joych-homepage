@@ -73,8 +73,8 @@ export function PastorGreeting() {
             <div className="flex-shrink-0">
               <div className="w-56 h-72 md:w-64 md:h-80 rounded-2xl overflow-hidden shadow-xl border border-gray-100">
                 <img
-                  src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/pastor-profile-SHmmue3n8kmYgQNtz5BYwT.webp"
-                  alt="담임목사 홍길동"
+                  src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/pastor-profile_d6051ff8.jpg"
+                  alt="담임목사 박진석"
                   className="w-full h-full object-cover object-top"
                 />
               </div>
@@ -82,8 +82,8 @@ export function PastorGreeting() {
             {/* 기본 정보 */}
             <div className="flex-1">
               <p className="text-[#1B5E20] text-sm font-semibold tracking-widest uppercase mb-2">Senior Pastor</p>
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-1" style={{ fontFamily: "'Noto Serif KR', serif" }}>홍길동 목사</h2>
-              <p className="text-gray-500 text-base mb-6">기쁨의교회 제2대 담임목사</p>
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-1" style={{ fontFamily: "'Noto Serif KR', serif" }}>박진석 목사</h2>
+              <p className="text-gray-500 text-base mb-6">기쁨의교회 담임목사</p>
               <div className="w-12 h-0.5 bg-[#1B5E20] mb-6"></div>
               <ul className="space-y-3">
                 {PASTOR_CAREER.map((item, i) => (
@@ -132,11 +132,11 @@ export function PastorGreeting() {
           </p>
           <div className="pt-6 border-t border-gray-100 flex flex-col items-end gap-1">
             <img
-              src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/pastor-profile-SHmmue3n8kmYgQNtz5BYwT.webp"
+              src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/pastor-profile_d6051ff8.jpg"
               alt=""
               className="w-12 h-12 rounded-full object-cover object-top mb-2"
             />
-            <p className="font-bold text-gray-800 text-base">홍길동 목사</p>
+            <p className="font-bold text-gray-800 text-base">박진석 목사</p>
             <p className="text-[#1B5E20] text-sm">기쁨의교회 담임목사</p>
           </div>
         </div>

@@ -38,8 +38,8 @@ const FALLBACK_HERO_SLIDES = [
     btn2Text: "예배 안내", btn2Href: "#",
   },
 ];
-const WORSHIP_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-worship-T2iXn7ztKCKRDJ4xwAbyC9.webp";
-const VISION_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/vision-bg-XcGUzFoKsWgmCYbAZZCnsA.webp";
+const WORSHIP_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-worship-1_39ea085d.webp";
+const VISION_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-vision-bg_0cd6097b.webp";
 
 const NAV_ITEMS = [
   {
@@ -172,12 +172,11 @@ const FALLBACK_AFFILIATES = [
 ];
 
 const FALLBACK_GALLERY = [
-  { imageUrl: "https://images.unsplash.com/photo-1438032005730-c779502df39b?w=800&q=80", caption: "교회 예배당", gridSpan: "col-span-2 row-span-2" },
-  { imageUrl: "https://images.unsplash.com/photo-1529070538774-1843cb3265df?w=600&q=80", caption: "찬양 예배", gridSpan: "col-span-1 row-span-1" },
-  { imageUrl: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80", caption: "찬양대", gridSpan: "col-span-1 row-span-1" },
-  { imageUrl: "https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=600&q=80", caption: "교회 행사", gridSpan: "col-span-1 row-span-1" },
-  { imageUrl: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=600&q=80", caption: "컨퍼런스", gridSpan: "col-span-1 row-span-1" },
-  { imageUrl: "https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=800&q=80", caption: "수련회", gridSpan: "col-span-2 row-span-1" },
+  { imageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-exterior-3_82fdf499.jpg", caption: "기쁨의교회 야경", gridSpan: "col-span-2 row-span-2" },
+  { imageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-worship-praise_d34c61eb.webp", caption: "찬양 집회", gridSpan: "col-span-1 row-span-1" },
+  { imageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-worship-sunday_f599f896.jpg", caption: "주일예배", gridSpan: "col-span-1 row-span-1" },
+  { imageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-exterior-1_eb2be3e7.webp", caption: "교회 전경 (야경)", gridSpan: "col-span-1 row-span-1" },
+  { imageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-exterior-2_b3093207.jpg", caption: "교회 전경 (주간)", gridSpan: "col-span-1 row-span-1" },
 ];
 
 // 스크롤 애니메이션 훅
