@@ -1,0 +1,1 @@
+ALTER TABLE `reservations` ADD `department` varchar(128);

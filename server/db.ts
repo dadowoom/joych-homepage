@@ -7,6 +7,8 @@ import {
   menus, menuItems, menuSubItems, sections,
   InsertNotice, InsertAffiliate, InsertSiteSetting,
   InsertGalleryItem,
+  facilities, facilityImages, facilityHours, facilityBlockedDates, reservations,
+  InsertFacility, InsertFacilityImage, InsertFacilityHour, InsertFacilityBlockedDate, InsertReservation,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -453,4 +455,210 @@ export async function deleteHeroSlide(id: number) {
   const db = await getDb();
   if (!db) throw new Error('DB not available');
   await db.delete(heroSlides).where(eq(heroSlides.id, id));
+}
+
+// ─────────────────────────────────────────────
+// 시설 예약 시스템 DB 헬퍼 함수
+// ─────────────────────────────────────────────
+
+/** 전체 시설 목록 조회 (isVisible=true만, 정렬 순서대로) */
+export async function getFacilities(onlyVisible = true) {
+  const db = await getDb();
+  if (!db) return [];
+  const query = db.select().from(facilities).orderBy(asc(facilities.sortOrder));
+  if (onlyVisible) {
+    return await db.select().from(facilities).where(eq(facilities.isVisible, true)).orderBy(asc(facilities.sortOrder));
+  }
+  return await query;
+}
+
+/** 시설 단건 조회 */
+export async function getFacilityById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(facilities).where(eq(facilities.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
+/** 시설 생성 */
+export async function createFacility(data: Omit<InsertFacility, 'id' | 'createdAt' | 'updatedAt'>) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const result = await db.insert(facilities).values(data);
+  return result[0].insertId as number;
+}
+
+/** 시설 수정 */
+export async function updateFacility(id: number, data: Partial<InsertFacility>) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.update(facilities).set(data).where(eq(facilities.id, id));
+}
+
+/** 시설 삭제 */
+export async function deleteFacility(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.delete(facilities).where(eq(facilities.id, id));
+}
+
+/** 시설 사진 목록 조회 */
+export async function getFacilityImages(facilityId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(facilityImages)
+    .where(eq(facilityImages.facilityId, facilityId))
+    .orderBy(asc(facilityImages.sortOrder));
+}
+
+/** 시설 사진 추가 */
+export async function addFacilityImage(data: Omit<InsertFacilityImage, 'id' | 'createdAt'>) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const result = await db.insert(facilityImages).values(data);
+  return result[0].insertId as number;
+}
+
+/** 시설 사진 삭제 */
+export async function deleteFacilityImage(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.delete(facilityImages).where(eq(facilityImages.id, id));
+}
+
+/** 시설 운영 시간 조회 (7개 요일) */
+export async function getFacilityHours(facilityId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(facilityHours)
+    .where(eq(facilityHours.facilityId, facilityId))
+    .orderBy(asc(facilityHours.dayOfWeek));
+}
+
+/** 시설 운영 시간 upsert (요일별) */
+export async function upsertFacilityHour(data: Omit<InsertFacilityHour, 'id' | 'createdAt' | 'updatedAt'>) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  // 기존 레코드 확인
+  const existing = await db.select().from(facilityHours)
+    .where(eq(facilityHours.facilityId, data.facilityId))
+    .limit(100);
+  const found = existing.find(h => h.dayOfWeek === data.dayOfWeek);
+  if (found) {
+    await db.update(facilityHours).set(data).where(eq(facilityHours.id, found.id));
+  } else {
+    await db.insert(facilityHours).values(data);
+  }
+}
+
+/** 특정 날짜 차단 목록 조회 */
+export async function getBlockedDates(facilityId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  if (facilityId !== undefined) {
+    return await db.select().from(facilityBlockedDates)
+      .where(eq(facilityBlockedDates.facilityId, facilityId));
+  }
+  return await db.select().from(facilityBlockedDates);
+}
+
+/** 특정 날짜 차단 추가 */
+export async function addBlockedDate(data: Omit<InsertFacilityBlockedDate, 'id' | 'createdAt'>) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const result = await db.insert(facilityBlockedDates).values(data);
+  return result[0].insertId as number;
+}
+
+/** 특정 날짜 차단 삭제 */
+export async function deleteBlockedDate(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.delete(facilityBlockedDates).where(eq(facilityBlockedDates.id, id));
+}
+
+/** 예약 목록 조회 (관리자용 - 전체, 시설명 JOIN 포함) */
+export async function getAllReservations(facilityId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const query = db
+    .select({
+      id: reservations.id,
+      facilityId: reservations.facilityId,
+      facilityName: facilities.name,
+      userId: reservations.userId,
+      reserverName: reservations.reserverName,
+      reserverPhone: reservations.reserverPhone,
+      reservationDate: reservations.reservationDate,
+      startTime: reservations.startTime,
+      endTime: reservations.endTime,
+      purpose: reservations.purpose,
+      department: reservations.department,
+      attendees: reservations.attendees,
+      notes: reservations.notes,
+      status: reservations.status,
+      adminComment: reservations.adminComment,
+      processedBy: reservations.processedBy,
+      processedAt: reservations.processedAt,
+      createdAt: reservations.createdAt,
+      updatedAt: reservations.updatedAt,
+    })
+    .from(reservations)
+    .leftJoin(facilities, eq(reservations.facilityId, facilities.id))
+    .orderBy(desc(reservations.createdAt));
+  if (facilityId !== undefined) {
+    return await query.where(eq(reservations.facilityId, facilityId));
+  }
+  return await query;
+}
+
+/** 내 예약 목록 조회 (성도용) */
+export async function getMyReservations(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(reservations)
+    .where(eq(reservations.userId, userId))
+    .orderBy(desc(reservations.createdAt));
+}
+
+/** 특정 날짜의 시설 예약 목록 조회 (시간 충돌 확인용) */
+export async function getReservationsByDate(facilityId: number, date: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(reservations)
+    .where(eq(reservations.facilityId, facilityId))
+    .orderBy(asc(reservations.startTime));
+}
+
+/** 예약 생성 */
+export async function createReservation(data: Omit<InsertReservation, 'id' | 'createdAt' | 'updatedAt'>) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const result = await db.insert(reservations).values(data);
+  return result[0].insertId as number;
+}
+
+/** 예약 상태 업데이트 (승인/거절/취소) */
+export async function updateReservationStatus(
+  id: number,
+  status: 'approved' | 'rejected' | 'cancelled',
+  adminComment?: string,
+  processedBy?: number,
+) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.update(reservations).set({
+    status,
+    adminComment: adminComment ?? null,
+    processedBy: processedBy ?? null,
+    processedAt: new Date(),
+  }).where(eq(reservations.id, id));
+}
+
+/** 예약 단건 조회 */
+export async function getReservationById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(reservations).where(eq(reservations.id, id)).limit(1);
+  return rows[0] ?? null;
 }

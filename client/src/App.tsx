@@ -15,6 +15,7 @@ import ChurchDirectory from "./pages/ChurchDirectory";
 import FacilityList from "./pages/FacilityList";
 import FacilityDetail from "./pages/FacilityDetail";
 import FacilityApply from "./pages/FacilityApply";
+import MyReservations from "./pages/MyReservations";
 
 // 선교보고
 import MissionList from "./pages/MissionList";
@@ -178,6 +179,7 @@ function Router() {
 
       {/* 시설 예약 */}
       <Route path="/facility" component={FacilityList} />
+      <Route path="/facility/my-reservations" component={MyReservations} />
       <Route path="/facility/:id/apply" component={FacilityApply} />
       <Route path="/facility/:id" component={FacilityDetail} />
 

@@ -44,6 +44,25 @@ import {
   updateMenuSubItem,
   deleteMenuSubItem,
   deleteMenuItemWithSubs,
+  getFacilities,
+  getFacilityById,
+  createFacility,
+  updateFacility,
+  deleteFacility,
+  getFacilityImages,
+  addFacilityImage,
+  deleteFacilityImage,
+  getFacilityHours,
+  upsertFacilityHour,
+  getBlockedDates,
+  addBlockedDate,
+  deleteBlockedDate,
+  getAllReservations,
+  getMyReservations,
+  getReservationsByDate,
+  createReservation,
+  updateReservationStatus,
+  getReservationById,
 } from "./db";
 
 export const appRouter = router({
@@ -131,6 +150,64 @@ export const appRouter = router({
     menuSubItem: publicProcedure
       .input(z.object({ id: z.number() }))
       .query(({ input }) => getMenuSubItemById(input.id)),
+    /** 시설 목록 (성도용 - 공개된 시설만) */
+    facilities: publicProcedure.query(() => getFacilities(true)),
+    /** 시설 단건 조회 (성도용) */
+    facility: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(({ input }) => getFacilityById(input.id)),
+    /** 시설 사진 목록 (성도용) */
+    facilityImages: publicProcedure
+      .input(z.object({ facilityId: z.number() }))
+      .query(({ input }) => getFacilityImages(input.facilityId)),
+    /** 시설 운영 시간 (성도용) */
+    facilityHours: publicProcedure
+      .input(z.object({ facilityId: z.number() }))
+      .query(({ input }) => getFacilityHours(input.facilityId)),
+    /** 특정 날짜 차단 목록 (성도용) */
+    facilityBlockedDates: publicProcedure
+      .input(z.object({ facilityId: z.number() }))
+      .query(({ input }) => getBlockedDates(input.facilityId)),
+    /** 특정 날짜 예약 목록 (시간 선택용) */
+    facilityReservationsByDate: publicProcedure
+      .input(z.object({ facilityId: z.number(), date: z.string() }))
+      .query(({ input }) => getReservationsByDate(input.facilityId, input.date)),
+    /** 예약 신청 (로그인 필요) */
+    createReservation: protectedProcedure
+      .input(z.object({
+        facilityId: z.number(),
+        reserverName: z.string(),
+        reserverPhone: z.string().optional(),
+        reservationDate: z.string(),
+        startTime: z.string(),
+        endTime: z.string(),
+        purpose: z.string(),
+        department: z.string().optional(),
+        attendees: z.number().default(1),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const facility = await getFacilityById(input.facilityId);
+        if (!facility) throw new TRPCError({ code: 'NOT_FOUND', message: '시설을 찾을 수 없습니다.' });
+        if (!facility.isReservable) throw new TRPCError({ code: 'BAD_REQUEST', message: '현재 예약이 불가능한 시설입니다.' });
+        const status = facility.approvalType === 'auto' ? 'approved' : 'pending';
+        const id = await createReservation({ ...input, userId: ctx.user.id, status });
+        return { id, status };
+      }),
+    /** 내 예약 목록 (로그인 필요) */
+    myReservations: protectedProcedure
+      .query(({ ctx }) => getMyReservations(ctx.user.id)),
+    /** 예약 취소 (본인만 가능) */
+    cancelReservation: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const reservation = await getReservationById(input.id);
+        if (!reservation) throw new TRPCError({ code: 'NOT_FOUND', message: '예약을 찾을 수 없습니다.' });
+        if (reservation.userId !== ctx.user.id) throw new TRPCError({ code: 'FORBIDDEN', message: '본인의 예약만 취소할 수 있습니다.' });
+        if (reservation.status === 'approved') throw new TRPCError({ code: 'BAD_REQUEST', message: '이미 승인된 예약은 취소할 수 없습니다. 관리자에게 문의하세요.' });
+        await updateReservationStatus(input.id, 'cancelled');
+        return { success: true };
+      }),
   }),
 
   // ─── 관리자 전용 CMS API ─────────────────────
@@ -390,6 +467,156 @@ export const appRouter = router({
         }),
     }),
 
+    // 시설 예약 관리 (관리자)
+    facilities: router({
+      list: adminProcedure.query(() => getFacilities(false)),
+      get: adminProcedure
+        .input(z.object({ id: z.number() }))
+        .query(({ input }) => getFacilityById(input.id)),
+      create: adminProcedure
+        .input(z.object({
+          name: z.string(),
+          description: z.string().optional(),
+          location: z.string().optional(),
+          capacity: z.number().default(10),
+          pricePerHour: z.number().default(0),
+          slotMinutes: z.number().default(60),
+          minSlots: z.number().default(1),
+          maxSlots: z.number().default(8),
+          approvalType: z.enum(['auto', 'manual']).default('manual'),
+          isReservable: z.boolean().default(true),
+          isVisible: z.boolean().default(true),
+          notice: z.string().optional(),
+          caution: z.string().optional(),
+          sortOrder: z.number().default(0),
+        }))
+        .mutation(({ input }) => createFacility(input)),
+      update: adminProcedure
+        .input(z.object({
+          id: z.number(),
+          name: z.string().optional(),
+          description: z.string().optional(),
+          location: z.string().optional(),
+          capacity: z.number().optional(),
+          pricePerHour: z.number().optional(),
+          slotMinutes: z.number().optional(),
+          minSlots: z.number().optional(),
+          maxSlots: z.number().optional(),
+          approvalType: z.enum(['auto', 'manual']).optional(),
+          isReservable: z.boolean().optional(),
+          isVisible: z.boolean().optional(),
+          notice: z.string().optional(),
+          caution: z.string().optional(),
+          sortOrder: z.number().optional(),
+        }))
+        .mutation(({ input }) => {
+          const { id, ...data } = input;
+          return updateFacility(id, data);
+        }),
+      delete: adminProcedure
+        .input(z.object({ id: z.number() }))
+        .mutation(({ input }) => deleteFacility(input.id)),
+      // 시설 사진
+      images: router({
+        list: publicProcedure
+          .input(z.object({ facilityId: z.number() }))
+          .query(({ input }) => getFacilityImages(input.facilityId)),
+        upload: adminProcedure
+          .input(z.object({
+            facilityId: z.number(),
+            base64: z.string(),
+            mimeType: z.string(),
+            caption: z.string().optional(),
+            isThumbnail: z.boolean().default(false),
+          }))
+          .mutation(async ({ input }) => {
+            const buffer = Buffer.from(input.base64, 'base64');
+            const ext = input.mimeType.split('/')[1] ?? 'jpg';
+            const key = `facility-images/${input.facilityId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+            const { url } = await storagePut(key, buffer, input.mimeType);
+            const id = await addFacilityImage({
+              facilityId: input.facilityId,
+              imageUrl: url,
+              fileKey: key,
+              caption: input.caption,
+              isThumbnail: input.isThumbnail,
+              sortOrder: 0,
+            });
+            return { id, url };
+          }),
+        delete: adminProcedure
+          .input(z.object({ id: z.number() }))
+          .mutation(({ input }) => deleteFacilityImage(input.id)),
+        setThumbnail: adminProcedure
+          .input(z.object({ facilityId: z.number(), imageId: z.number() }))
+          .mutation(async ({ input }) => {
+            // 모든 이미지 isThumbnail=false로 초기화 후 선택 이미지만 true
+            const { getDb } = await import('./db');
+            const { facilityImages } = await import('../drizzle/schema');
+            const { eq } = await import('drizzle-orm');
+            const db = await getDb();
+            if (!db) throw new Error('DB not available');
+            await db.update(facilityImages)
+              .set({ isThumbnail: false })
+              .where(eq(facilityImages.facilityId, input.facilityId));
+            await db.update(facilityImages)
+              .set({ isThumbnail: true })
+              .where(eq(facilityImages.id, input.imageId));
+            return { success: true };
+          }),
+      }),
+      // 운영 시간
+      hours: router({
+        list: publicProcedure
+          .input(z.object({ facilityId: z.number() }))
+          .query(({ input }) => getFacilityHours(input.facilityId)),
+        upsert: adminProcedure
+          .input(z.object({
+            facilityId: z.number(),
+            dayOfWeek: z.number().min(0).max(6),
+            isOpen: z.boolean(),
+            openTime: z.string(),
+            closeTime: z.string(),
+            breakStart: z.string().nullable().optional(),
+            breakEnd: z.string().nullable().optional(),
+          }))
+          .mutation(({ input }) => upsertFacilityHour(input)),
+      }),
+      // 차단 날짜
+      blockedDates: router({
+        list: publicProcedure
+          .input(z.object({ facilityId: z.number().optional() }))
+          .query(({ input }) => getBlockedDates(input.facilityId)),
+        add: adminProcedure
+          .input(z.object({
+            facilityId: z.number().nullable().optional(),
+            blockedDate: z.string(),
+            reason: z.string().optional(),
+            isPartialBlock: z.boolean().default(false),
+            blockStart: z.string().nullable().optional(),
+            blockEnd: z.string().nullable().optional(),
+          }))
+          .mutation(({ input }) => addBlockedDate(input)),
+        delete: adminProcedure
+          .input(z.object({ id: z.number() }))
+          .mutation(({ input }) => deleteBlockedDate(input.id)),
+      }),
+    }),
+    // 예약 관리 (관리자)
+    reservations: router({
+      list: adminProcedure
+        .input(z.object({ facilityId: z.number().optional() }))
+        .query(({ input }) => getAllReservations(input.facilityId)),
+      get: adminProcedure
+        .input(z.object({ id: z.number() }))
+        .query(({ input }) => getReservationById(input.id)),
+      approve: adminProcedure
+        .input(z.object({ id: z.number(), comment: z.string().optional() }))
+        .mutation(({ input, ctx }) => updateReservationStatus(input.id, 'approved', input.comment, ctx.user.id)),
+      reject: adminProcedure
+        .input(z.object({ id: z.number(), comment: z.string() }))
+        .mutation(({ input, ctx }) => updateReservationStatus(input.id, 'rejected', input.comment, ctx.user.id)),
+    }),
     // 퀝 메뉴 관리
     quickMenus: router({
       list: adminProcedure.query(() => getAllQuickMenus()),

@@ -36,6 +36,20 @@
       "when": 1776266525505,
       "tag": "0004_old_mauler",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1776274663917,
+      "tag": "0005_needy_shriek",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1776276533810,
+      "tag": "0006_cuddly_odin",
+      "breakpoints": true
     }
   ]
 }

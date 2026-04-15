@@ -1,11 +1,13 @@
 /**
  * 시설 사용 예약 — 목록 페이지 (/facility)
- * 규칙: 컴포넌트 역할 분리, 타입 안전, 나중에 API 훅으로 교체 가능한 구조
+ * 실제 DB API 연결 버전
  */
 
-import { useState } from "react";
 import { Link } from "wouter";
-import { MOCK_FACILITIES, CATEGORY_LABELS, type Facility } from "@/lib/facilityData";
+import { trpc } from "@/lib/trpc";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Users, Clock, MapPin, CalendarCheck, Phone } from "lucide-react";
 
 // ── 상단 배너 ──────────────────────────────────────────────
 function FacilityHero() {
@@ -24,7 +26,6 @@ function FacilityHero() {
           기쁨의교회의 다양한 공간을 예약하여 사용하실 수 있습니다.
           원하시는 시설을 선택하고 예약 신청서를 작성해 주세요.
         </p>
-        {/* 빵 부스러기 네비게이션 */}
         <nav className="mt-5 flex items-center gap-2 text-xs text-green-200">
           <Link href="/" className="hover:text-white transition-colors">홈</Link>
           <i className="fas fa-chevron-right text-[10px]"></i>
@@ -56,9 +57,6 @@ function FacilityGuide() {
                 <p className="text-xs font-bold text-gray-800">{s.title}</p>
                 <p className="text-xs text-gray-500">{s.desc}</p>
               </div>
-              {i < steps.length - 1 && (
-                <i className="fas fa-arrow-right text-green-300 text-xs ml-auto hidden md:block"></i>
-              )}
             </div>
           ))}
         </div>
@@ -67,148 +65,127 @@ function FacilityGuide() {
   );
 }
 
-// ── 카테고리 필터 탭 ───────────────────────────────────────
-type CategoryFilter = "all" | Facility["category"];
-
-function CategoryTabs({
-  active,
-  onChange,
-}: {
-  active: CategoryFilter;
-  onChange: (c: CategoryFilter) => void;
-}) {
-  const tabs: { value: CategoryFilter; label: string }[] = [
-    { value: "all", label: "전체" },
-    { value: "worship", label: "예배공간" },
-    { value: "education", label: "교육공간" },
-    { value: "fellowship", label: "친교공간" },
-    { value: "other", label: "기타" },
-  ];
-  return (
-    <div className="flex gap-2 flex-wrap">
-      {tabs.map((t) => (
-        <button
-          key={t.value}
-          onClick={() => onChange(t.value)}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors border ${
-            active === t.value
-              ? "bg-[#1B5E20] text-white border-[#1B5E20]"
-              : "bg-white text-gray-600 border-gray-200 hover:border-[#1B5E20] hover:text-[#1B5E20]"
-          }`}
-        >
-          {t.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 // ── 시설 카드 ──────────────────────────────────────────────
-function FacilityCard({ facility }: { facility: Facility }) {
+function FacilityCard({ facility }: { facility: any }) {
+  const { data: images } = trpc.home.facilityImages.useQuery({ facilityId: facility.id });
+  const thumbnail = images?.find((img: any) => img.isThumbnail) ?? images?.[0];
+
   return (
-    <Link href={`/facility/${facility.id}`}>
-      <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md hover:-translate-y-1 transition-all duration-200 cursor-pointer group">
-        {/* 이미지 */}
-        <div className="relative h-48 overflow-hidden">
+    <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md hover:-translate-y-1 transition-all duration-200 group">
+      {/* 이미지 */}
+      <div className="relative h-48 overflow-hidden bg-gray-100">
+        {thumbnail ? (
           <img
-            src={facility.imageUrl}
+            src={thumbnail.imageUrl}
             alt={facility.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             loading="lazy"
           />
-          <div className="absolute top-3 left-3">
-            <span className="bg-[#1B5E20] text-white text-xs px-2.5 py-1 rounded-full font-medium">
-              {CATEGORY_LABELS[facility.category]}
-            </span>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-gray-300">
+            <CalendarCheck size={48} />
           </div>
-          <div className="absolute top-3 right-3">
-            <span className="bg-white/90 text-gray-700 text-xs px-2.5 py-1 rounded-full font-medium">
-              <i className="fas fa-users mr-1 text-[#1B5E20]"></i>
-              최대 {facility.capacity.toLocaleString()}명
-            </span>
-          </div>
-        </div>
-        {/* 정보 */}
-        <div className="p-5">
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <h3 className="font-bold text-gray-900 text-base" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-              {facility.name}
-            </h3>
-            <span className="text-xs text-gray-400 shrink-0 mt-0.5">
-              <i className="fas fa-map-marker-alt mr-1"></i>{facility.floor}
-            </span>
-          </div>
-          <p className="text-sm text-gray-500 leading-relaxed line-clamp-2 mb-4">
-            {facility.description}
-          </p>
-          {/* 장비 태그 (최대 3개) */}
-          <div className="flex gap-1.5 flex-wrap mb-4">
-            {facility.equipment.slice(0, 3).map((eq, i) => (
-              <span key={i} className="text-xs bg-[#F1F8E9] text-[#1B5E20] px-2 py-0.5 rounded">
-                <i className={`fas ${eq.icon} mr-1`}></i>{eq.name}
-              </span>
-            ))}
-            {facility.equipment.length > 3 && (
-              <span className="text-xs text-gray-400">+{facility.equipment.length - 3}개</span>
-            )}
-          </div>
-          {/* 예약 버튼 */}
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-400">
-              <i className="fas fa-clock mr-1"></i>{facility.availableHours}
-            </span>
-            <span className="text-xs font-semibold text-[#1B5E20] group-hover:underline">
-              자세히 보기 <i className="fas fa-arrow-right ml-1"></i>
-            </span>
-          </div>
+        )}
+        <div className="absolute top-3 right-3">
+          {facility.isReservable ? (
+            <Badge className="bg-green-600 text-white text-xs">예약 가능</Badge>
+          ) : (
+            <Badge className="bg-gray-500 text-white text-xs">예약 불가</Badge>
+          )}
         </div>
       </div>
-    </Link>
+
+      {/* 정보 */}
+      <div className="p-5">
+        <h3 className="font-bold text-gray-900 text-base mb-2" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+          {facility.name}
+        </h3>
+        {facility.description && (
+          <p className="text-sm text-gray-500 leading-relaxed line-clamp-2 mb-4">{facility.description}</p>
+        )}
+
+        <div className="space-y-1.5 mb-4">
+          {facility.location && (
+            <div className="flex items-center gap-2 text-xs text-gray-600">
+              <MapPin size={12} className="text-green-600 shrink-0" />
+              <span>{facility.location}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-2 text-xs text-gray-600">
+            <Users size={12} className="text-green-600 shrink-0" />
+            <span>최대 {facility.capacity}명</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-gray-600">
+            <Clock size={12} className="text-green-600 shrink-0" />
+            <span>{facility.slotMinutes}분 단위 · 최소 {facility.minSlots}시간 ~ 최대 {facility.maxSlots}시간</span>
+          </div>
+          {facility.pricePerHour > 0 && (
+            <div className="flex items-center gap-2 text-xs text-gray-600">
+              <span className="text-green-600 font-bold text-xs">₩</span>
+              <span>시간당 {facility.pricePerHour.toLocaleString()}원</span>
+            </div>
+          )}
+        </div>
+
+        <Link href={`/facility/${facility.id}`}>
+          <Button
+            className="w-full bg-[#1B5E20] hover:bg-[#2E7D32] text-white"
+            disabled={!facility.isReservable}
+          >
+            {facility.isReservable ? "자세히 보기 / 예약하기" : "예약 불가"}
+          </Button>
+        </Link>
+      </div>
+    </div>
   );
 }
 
 // ── 메인 페이지 컴포넌트 ───────────────────────────────────
 export default function FacilityList() {
-  const [activeCategory, setActiveCategory] = useState<CategoryFilter>("all");
-
-  const filtered = MOCK_FACILITIES.filter(
-    (f) => f.isActive && (activeCategory === "all" || f.category === activeCategory)
-  );
+  const { data: facilities, isLoading } = trpc.home.facilities.useQuery();
 
   return (
     <div className="min-h-screen bg-[#F7F7F5]">
       <FacilityHero />
       <FacilityGuide />
 
-      {/* 목록 본문 */}
       <section className="py-12">
         <div className="container">
-          {/* 필터 + 건수 */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-            <CategoryTabs active={activeCategory} onChange={setActiveCategory} />
-            <p className="text-sm text-gray-500">
-              총 <span className="font-bold text-[#1B5E20]">{filtered.length}</span>개의 시설
-            </p>
+          {/* 내 예약 현황 링크 */}
+          <div className="flex justify-end mb-6">
+            <Link href="/facility/my-reservations">
+              <Button variant="outline" className="border-[#1B5E20] text-[#1B5E20] hover:bg-green-50">
+                <CalendarCheck size={16} className="mr-2" />
+                내 예약 현황
+              </Button>
+            </Link>
           </div>
 
           {/* 카드 그리드 */}
-          {filtered.length > 0 ? (
+          {isLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filtered.map((f) => (
-                <FacilityCard key={f.id} facility={f} />
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-64 bg-gray-100 rounded-xl animate-pulse" />
               ))}
             </div>
-          ) : (
+          ) : !facilities || facilities.length === 0 ? (
             <div className="text-center py-20 text-gray-400">
-              <i className="fas fa-building text-4xl mb-3 block"></i>
-              <p>해당 카테고리의 시설이 없습니다.</p>
+              <CalendarCheck size={48} className="mx-auto mb-4 opacity-30" />
+              <p className="text-lg">등록된 시설이 없습니다.</p>
+              <p className="text-sm mt-2">관리자에게 문의해 주세요.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {facilities.map((f: any) => (
+                <FacilityCard key={f.id} facility={f} />
+              ))}
             </div>
           )}
 
           {/* 문의 안내 */}
           <div className="mt-12 bg-white rounded-xl p-6 border border-gray-100 flex flex-col sm:flex-row items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-[#E8F5E9] flex items-center justify-center text-[#1B5E20] text-xl shrink-0">
-              <i className="fas fa-phone-alt"></i>
+            <div className="w-12 h-12 rounded-full bg-[#E8F5E9] flex items-center justify-center text-[#1B5E20] shrink-0">
+              <Phone size={20} />
             </div>
             <div className="text-center sm:text-left">
               <p className="font-bold text-gray-800 mb-0.5">시설 사용 문의</p>

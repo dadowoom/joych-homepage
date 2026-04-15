@@ -1,88 +1,79 @@
 /**
  * 시설 사용 예약 — 상세 페이지 (/facility/:id)
- * 규칙: 컴포넌트 역할 분리, 타입 안전, 나중에 API 훅으로 교체 가능한 구조
+ * 실제 DB API 연결 버전 — 달력 예약 현황, 운영 시간, 이미지 갤러리 포함
  */
 
-import { useState } from "react";
-import { Link, useParams } from "wouter";
-import { MOCK_FACILITIES, CATEGORY_LABELS } from "@/lib/facilityData";
+import { useState, useMemo } from "react";
+import { Link, useParams, useLocation } from "wouter";
+import { trpc } from "@/lib/trpc";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Users, MapPin, Clock, ChevronLeft, ChevronRight, Phone, AlertCircle, CalendarCheck } from "lucide-react";
 
-// ── 예약 현황 달력 (더미 데이터) ──────────────────────────
-const BOOKED_DATES = ["2026-04-08", "2026-04-12", "2026-04-15", "2026-04-19", "2026-04-22"];
+const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
-function ReservationCalendar() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-  const monthLabel = `${year}년 ${month + 1}월`;
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const days: (number | null)[] = [
-    ...Array(firstDay).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-
-  function toDateStr(day: number) {
-    return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  }
+// ── 운영 시간 표시 ──────────────────────────────────────────
+function HoursTable({ facilityId }: { facilityId: number }) {
+  const { data: hours } = trpc.home.facilityHours.useQuery({ facilityId });
+  if (!hours || hours.length === 0) return null;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-bold text-gray-800 text-sm">{monthLabel} 예약 현황</h3>
-        <div className="flex gap-3 text-xs text-gray-500">
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-100 border border-red-300 inline-block"></span>예약됨</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-100 border border-green-300 inline-block"></span>예약가능</span>
-        </div>
-      </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-xs mb-1">
-        {["일", "월", "화", "수", "목", "금", "토"].map((d) => (
-          <div key={d} className="text-gray-400 font-medium py-1">{d}</div>
+    <div className="bg-white rounded-xl p-6 border border-gray-100">
+      <h2 className="font-bold text-gray-900 mb-4 text-base" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+        운영 시간
+      </h2>
+      <div className="space-y-2">
+        {hours.map((h: any) => (
+          <div key={h.dayOfWeek} className="flex items-center justify-between text-sm">
+            <span className={`font-medium w-8 ${h.dayOfWeek === 0 ? "text-red-500" : h.dayOfWeek === 6 ? "text-blue-500" : "text-gray-700"}`}>
+              {DAY_LABELS[h.dayOfWeek]}
+            </span>
+            {h.isOpen ? (
+              <span className="text-gray-600">
+                {h.openTime} ~ {h.closeTime}
+                {h.breakStart && h.breakEnd && (
+                  <span className="text-gray-400 text-xs ml-2">(휴식 {h.breakStart}~{h.breakEnd})</span>
+                )}
+              </span>
+            ) : (
+              <span className="text-gray-400">휴무</span>
+            )}
+          </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-xs">
-        {days.map((day, i) => {
-          if (!day) return <div key={i} />;
-          const dateStr = toDateStr(day);
-          const isBooked = BOOKED_DATES.includes(dateStr);
-          const isPast = new Date(dateStr) < new Date(today.toDateString());
-          return (
-            <div
-              key={i}
-              className={`rounded-full w-8 h-8 flex items-center justify-center mx-auto font-medium
-                ${isPast ? "text-gray-300" : isBooked ? "bg-red-100 text-red-500 border border-red-200" : "bg-green-50 text-green-700 border border-green-200"}`}
-            >
-              {day}
-            </div>
-          );
-        })}
-      </div>
-      <p className="text-xs text-gray-400 mt-3 text-center">
-        * 실제 예약 현황은 신청 후 담당자 확인을 통해 안내됩니다.
-      </p>
     </div>
   );
 }
 
 // ── 이미지 갤러리 ──────────────────────────────────────────
-function ImageGallery({ images, name }: { images: string[]; name: string }) {
+function ImageGallery({ facilityId, name }: { facilityId: number; name: string }) {
   const [active, setActive] = useState(0);
+  const { data: images } = trpc.home.facilityImages.useQuery({ facilityId });
+
+  if (!images || images.length === 0) {
+    return (
+      <div className="rounded-xl overflow-hidden aspect-video bg-gray-100 flex items-center justify-center text-gray-300">
+        <CalendarCheck size={64} />
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="rounded-xl overflow-hidden mb-2 aspect-video">
-        <img src={images[active]} alt={name} className="w-full h-full object-cover" />
+        <img src={images[active]?.imageUrl} alt={name} className="w-full h-full object-cover" />
       </div>
       {images.length > 1 && (
-        <div className="flex gap-2">
-          {images.map((img, i) => (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {images.map((img: any, i: number) => (
             <button
               key={i}
               onClick={() => setActive(i)}
-              className={`w-16 h-12 rounded-lg overflow-hidden border-2 transition-colors ${
+              className={`w-16 h-12 rounded-lg overflow-hidden border-2 transition-colors shrink-0 ${
                 active === i ? "border-[#1B5E20]" : "border-transparent"
               }`}
             >
-              <img src={img} alt="" className="w-full h-full object-cover" />
+              <img src={img.imageUrl} alt="" className="w-full h-full object-cover" />
             </button>
           ))}
         </div>
@@ -91,16 +82,133 @@ function ImageGallery({ images, name }: { images: string[]; name: string }) {
   );
 }
 
+// ── 예약 달력 ──────────────────────────────────────────────
+function ReservationCalendar({
+  facilityId,
+  selectedDate,
+  onSelectDate,
+}: {
+  facilityId: number;
+  selectedDate: string;
+  onSelectDate: (date: string) => void;
+}) {
+  const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
+  const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
+
+  const { data: blockedDates } = trpc.home.facilityBlockedDates.useQuery({ facilityId });
+  const { data: hours } = trpc.home.facilityHours.useQuery({ facilityId });
+
+  const blockedSet = useMemo(() => {
+    return new Set((blockedDates ?? []).map((b: any) => b.blockedDate));
+  }, [blockedDates]);
+
+  const closedDays = useMemo(() => {
+    if (!hours) return new Set<number>();
+    return new Set(hours.filter((h: any) => !h.isOpen).map((h: any) => h.dayOfWeek));
+  }, [hours]);
+
+  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const days: (number | null)[] = [
+    ...Array(firstDay).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  function toDateStr(day: number) {
+    return `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
+
+  function prevMonth() {
+    if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11); }
+    else setViewMonth(m => m - 1);
+  }
+  function nextMonth() {
+    if (viewMonth === 11) { setViewYear(y => y + 1); setViewMonth(0); }
+    else setViewMonth(m => m + 1);
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5">
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={prevMonth} className="p-1 hover:bg-gray-100 rounded-full">
+          <ChevronLeft size={16} />
+        </button>
+        <h3 className="font-bold text-gray-800 text-sm">{viewYear}년 {viewMonth + 1}월</h3>
+        <button onClick={nextMonth} className="p-1 hover:bg-gray-100 rounded-full">
+          <ChevronRight size={16} />
+        </button>
+      </div>
+      <div className="flex gap-3 text-xs text-gray-500 mb-3 justify-center">
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-100 border border-green-300 inline-block"></span>예약가능</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-100 border border-red-300 inline-block"></span>예약불가</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-[#1B5E20] inline-block"></span>선택됨</span>
+      </div>
+      <div className="grid grid-cols-7 gap-1 text-center text-xs mb-1">
+        {DAY_LABELS.map((d, i) => (
+          <div key={d} className={`font-medium py-1 ${i === 0 ? "text-red-400" : i === 6 ? "text-blue-400" : "text-gray-400"}`}>{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1 text-center text-xs">
+        {days.map((day, i) => {
+          if (!day) return <div key={i} />;
+          const dateStr = toDateStr(day);
+          const date = new Date(dateStr);
+          const isPast = date < today;
+          const isBlocked = blockedSet.has(dateStr);
+          const isClosed = closedDays.has(date.getDay());
+          const isSelected = selectedDate === dateStr;
+          const isUnavailable = isPast || isBlocked || isClosed;
+
+          return (
+            <button
+              key={i}
+              disabled={isUnavailable}
+              onClick={() => onSelectDate(dateStr)}
+              className={`rounded-full w-8 h-8 flex items-center justify-center mx-auto font-medium transition-colors
+                ${isSelected ? "bg-[#1B5E20] text-white" :
+                  isUnavailable ? "text-gray-300 cursor-not-allowed" :
+                  "bg-green-50 text-green-700 border border-green-200 hover:bg-green-200"}`}
+            >
+              {day}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── 메인 상세 페이지 ───────────────────────────────────────
 export default function FacilityDetail() {
   const params = useParams<{ id: string }>();
-  const facility = MOCK_FACILITIES.find((f) => f.id === params.id);
+  const [, navigate] = useLocation();
+  const facilityId = parseInt(params.id ?? "0");
+  const [selectedDate, setSelectedDate] = useState("");
+
+  const { data: facility, isLoading } = trpc.home.facility.useQuery(
+    { id: facilityId },
+    { enabled: !isNaN(facilityId) }
+  );
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F7F7F5]">
+        <div className="text-center text-gray-400">
+          <div className="w-12 h-12 border-4 border-green-200 border-t-green-600 rounded-full animate-spin mx-auto mb-4" />
+          <p>시설 정보를 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!facility) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F7F7F5]">
         <div className="text-center">
-          <i className="fas fa-building text-5xl text-gray-300 mb-4 block"></i>
+          <CalendarCheck size={64} className="text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500 mb-4">시설 정보를 찾을 수 없습니다.</p>
           <Link href="/facility" className="text-[#1B5E20] font-medium hover:underline">
             시설 목록으로 돌아가기
@@ -123,9 +231,11 @@ export default function FacilityDetail() {
             <span className="text-white">{facility.name}</span>
           </nav>
           <div className="flex items-center gap-3">
-            <span className="bg-white/20 text-white text-xs px-3 py-1 rounded-full">
-              {CATEGORY_LABELS[facility.category]}
-            </span>
+            {facility.isReservable ? (
+              <Badge className="bg-white/20 text-white border-white/30">예약 가능</Badge>
+            ) : (
+              <Badge className="bg-red-500/80 text-white">예약 불가</Badge>
+            )}
             <h1 className="text-2xl md:text-3xl font-bold" style={{ fontFamily: "'Noto Serif KR', serif" }}>
               {facility.name}
             </h1>
@@ -140,84 +250,102 @@ export default function FacilityDetail() {
 
             {/* 왼쪽: 이미지 + 상세 정보 */}
             <div className="lg:col-span-2 space-y-6">
-              <ImageGallery images={facility.galleryImages} name={facility.name} />
+              <ImageGallery facilityId={facilityId} name={facility.name} />
 
-              {/* 시설 정보 카드 */}
+              {/* 시설 기본 정보 */}
               <div className="bg-white rounded-xl p-6 border border-gray-100">
                 <h2 className="font-bold text-gray-900 mb-4 text-base" style={{ fontFamily: "'Noto Serif KR', serif" }}>
                   시설 정보
                 </h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-5">
                   <div className="text-center p-3 bg-[#F1F8E9] rounded-lg">
-                    <i className="fas fa-users text-[#1B5E20] text-xl mb-1 block"></i>
+                    <Users className="text-[#1B5E20] mx-auto mb-1" size={20} />
                     <p className="text-xs text-gray-500">수용 인원</p>
-                    <p className="font-bold text-gray-800">{facility.capacity.toLocaleString()}명</p>
+                    <p className="font-bold text-gray-800">{facility.capacity}명</p>
                   </div>
-                  <div className="text-center p-3 bg-[#F1F8E9] rounded-lg">
-                    <i className="fas fa-map-marker-alt text-[#1B5E20] text-xl mb-1 block"></i>
-                    <p className="text-xs text-gray-500">위치</p>
-                    <p className="font-bold text-gray-800">{facility.floor}</p>
-                  </div>
-                  <div className="text-center p-3 bg-[#F1F8E9] rounded-lg col-span-2 sm:col-span-1">
-                    <i className="fas fa-clock text-[#1B5E20] text-xl mb-1 block"></i>
-                    <p className="text-xs text-gray-500">사용 가능 시간</p>
-                    <p className="font-bold text-gray-800 text-sm">{facility.availableHours}</p>
-                  </div>
-                </div>
-                <p className="text-sm text-gray-600 leading-relaxed">{facility.longDescription}</p>
-              </div>
-
-              {/* 구비 장비 */}
-              <div className="bg-white rounded-xl p-6 border border-gray-100">
-                <h2 className="font-bold text-gray-900 mb-4 text-base" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-                  구비 장비
-                </h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {facility.equipment.map((eq, i) => (
-                    <div key={i} className="flex items-center gap-2.5 p-3 bg-[#F7F7F5] rounded-lg">
-                      <div className="w-8 h-8 rounded-full bg-[#E8F5E9] flex items-center justify-center text-[#1B5E20] text-sm shrink-0">
-                        <i className={`fas ${eq.icon}`}></i>
-                      </div>
-                      <span className="text-sm text-gray-700">{eq.name}</span>
+                  {facility.location && (
+                    <div className="text-center p-3 bg-[#F1F8E9] rounded-lg">
+                      <MapPin className="text-[#1B5E20] mx-auto mb-1" size={20} />
+                      <p className="text-xs text-gray-500">위치</p>
+                      <p className="font-bold text-gray-800 text-sm">{facility.location}</p>
                     </div>
-                  ))}
+                  )}
+                  <div className="text-center p-3 bg-[#F1F8E9] rounded-lg">
+                    <Clock className="text-[#1B5E20] mx-auto mb-1" size={20} />
+                    <p className="text-xs text-gray-500">예약 단위</p>
+                    <p className="font-bold text-gray-800 text-sm">{facility.slotMinutes}분 단위</p>
+                  </div>
                 </div>
+                {facility.description && (
+                  <p className="text-sm text-gray-600 leading-relaxed">{facility.description}</p>
+                )}
+                {facility.pricePerHour > 0 && (
+                  <div className="mt-3 p-3 bg-amber-50 rounded-lg text-sm text-amber-800">
+                    <strong>이용 요금:</strong> 시간당 {facility.pricePerHour.toLocaleString()}원
+                  </div>
+                )}
               </div>
 
-              {/* 이용 규정 */}
-              <div className="bg-amber-50 rounded-xl p-6 border border-amber-100">
-                <h2 className="font-bold text-gray-900 mb-3 text-base flex items-center gap-2">
-                  <i className="fas fa-exclamation-circle text-amber-500"></i>
-                  이용 시 주의사항
-                </h2>
-                <ul className="space-y-2">
-                  {facility.notice.map((n, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                      <span className="text-amber-500 mt-0.5 shrink-0">•</span>
-                      {n}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {/* 이용 안내 */}
+              {facility.notice && (
+                <div className="bg-blue-50 rounded-xl p-6 border border-blue-100">
+                  <h2 className="font-bold text-gray-900 mb-3 text-base flex items-center gap-2">
+                    <CalendarCheck className="text-blue-500" size={18} />
+                    이용 안내
+                  </h2>
+                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{facility.notice}</p>
+                </div>
+              )}
+
+              {/* 주의사항 */}
+              {facility.caution && (
+                <div className="bg-amber-50 rounded-xl p-6 border border-amber-100">
+                  <h2 className="font-bold text-gray-900 mb-3 text-base flex items-center gap-2">
+                    <AlertCircle className="text-amber-500" size={18} />
+                    이용 시 주의사항
+                  </h2>
+                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{facility.caution}</p>
+                </div>
+              )}
+
+              {/* 운영 시간 */}
+              <HoursTable facilityId={facilityId} />
             </div>
 
             {/* 오른쪽: 달력 + 예약 버튼 */}
             <div className="space-y-5">
-              <ReservationCalendar />
+              <ReservationCalendar
+                facilityId={facilityId}
+                selectedDate={selectedDate}
+                onSelectDate={setSelectedDate}
+              />
 
               {/* 예약 신청 버튼 */}
-              <Link href={`/facility/${facility.id}/apply`}>
-                <div className="bg-[#1B5E20] text-white rounded-xl p-5 text-center cursor-pointer hover:bg-[#2E7D32] transition-colors">
-                  <i className="fas fa-calendar-plus text-2xl mb-2 block"></i>
-                  <p className="font-bold text-base mb-1">예약 신청하기</p>
-                  <p className="text-green-200 text-xs">신청 후 담당자 확인을 통해 안내드립니다</p>
+              {facility.isReservable ? (
+                <Button
+                  className="w-full bg-[#1B5E20] hover:bg-[#2E7D32] text-white py-6 text-base font-bold rounded-xl"
+                  disabled={!selectedDate}
+                  onClick={() => {
+                    if (selectedDate) {
+                      navigate(`/facility/${facilityId}/apply?date=${selectedDate}`);
+                    }
+                  }}
+                >
+                  <CalendarCheck size={20} className="mr-2" />
+                  {selectedDate ? `${selectedDate} 예약 신청하기` : "날짜를 먼저 선택하세요"}
+                </Button>
+              ) : (
+                <div className="bg-gray-100 text-gray-500 rounded-xl p-5 text-center">
+                  <p className="font-bold mb-1">현재 예약 불가</p>
+                  <p className="text-xs">관리자에게 문의해 주세요.</p>
                 </div>
-              </Link>
+              )}
 
               {/* 문의 */}
               <div className="bg-white rounded-xl p-5 border border-gray-100">
-                <p className="font-bold text-gray-800 text-sm mb-2">
-                  <i className="fas fa-phone-alt text-[#1B5E20] mr-2"></i>시설 문의
+                <p className="font-bold text-gray-800 text-sm mb-2 flex items-center gap-2">
+                  <Phone size={14} className="text-[#1B5E20]" />
+                  시설 문의
                 </p>
                 <p className="text-sm text-gray-500">행정실: <span className="text-[#1B5E20] font-medium">02-000-0000</span></p>
                 <p className="text-xs text-gray-400 mt-1">평일 09:00 ~ 18:00</p>
@@ -225,8 +353,8 @@ export default function FacilityDetail() {
 
               {/* 목록으로 */}
               <Link href="/facility">
-                <div className="text-center text-sm text-gray-400 hover:text-[#1B5E20] transition-colors cursor-pointer py-2">
-                  <i className="fas fa-arrow-left mr-1"></i> 시설 목록으로 돌아가기
+                <div className="text-center text-sm text-gray-400 hover:text-[#1B5E20] transition-colors cursor-pointer py-2 flex items-center justify-center gap-1">
+                  <ChevronLeft size={14} /> 시설 목록으로 돌아가기
                 </div>
               </Link>
             </div>

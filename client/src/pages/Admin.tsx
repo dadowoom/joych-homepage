@@ -10,9 +10,11 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import { toast } from "sonner";
+import AdminFacilitiesTab from "@/components/AdminFacilitiesTab";
+import AdminReservationsTab from "@/components/AdminReservationsTab";
 
 // ─── 탭 타입 ───────────────────────────────────
-type Tab = "notices" | "affiliates" | "settings" | "hero";
+type Tab = "notices" | "affiliates" | "settings" | "hero" | "facilities" | "reservations";
 
 // ─── 히어로 슬라이드 관리 탭 ─────────────────────
 function HeroSlidesTab() {
@@ -640,6 +642,8 @@ export default function AdminPage() {
     { id: "affiliates", label: "관련 기관", icon: "fa-building" },
     { id: "settings", label: "기본 정보", icon: "fa-cog" },
     { id: "hero", label: "히어로 슬라이드", icon: "fa-film" },
+    { id: "facilities", label: "시설 관리", icon: "fa-building" },
+    { id: "reservations", label: "예약 승인", icon: "fa-calendar-check" },
   ];
 
   return (
@@ -707,6 +711,8 @@ export default function AdminPage() {
           {activeTab === "affiliates" && <AffiliatesTab />}
           {activeTab === "settings" && <SettingsTab />}
           {activeTab === "hero" && <HeroSlidesTab />}
+          {activeTab === "facilities" && <AdminFacilitiesTab />}
+          {activeTab === "reservations" && <AdminReservationsTab />}
         </div>
       </div>
     </div>

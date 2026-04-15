@@ -302,3 +302,167 @@ export const churchMembers = mysqlTable("church_members", {
 
 export type ChurchMember = typeof churchMembers.$inferSelect;
 export type InsertChurchMember = typeof churchMembers.$inferInsert;
+
+// ─────────────────────────────────────────────
+// 시설 예약 시스템
+// ─────────────────────────────────────────────
+
+/**
+ * facilities: 시설 마스터 테이블
+ * 교회 내 예약 가능한 시설 정보를 관리합니다.
+ */
+export const facilities = mysqlTable("facilities", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 시설명 (예: 대예배실, 세미나실 A) */
+  name: varchar("name", { length: 128 }).notNull(),
+  /** 시설 설명 */
+  description: text("description"),
+  /** 위치 (예: 본관 3층) */
+  location: varchar("location", { length: 128 }),
+  /** 최대 수용 인원 */
+  capacity: int("capacity").notNull().default(10),
+  /** 사용 요금 (0 = 무료) */
+  pricePerHour: int("pricePerHour").notNull().default(0),
+  /** 예약 단위 (분 단위, 기본 60 = 1시간) */
+  slotMinutes: int("slotMinutes").notNull().default(60),
+  /** 최소 예약 시간 (슬롯 수, 기본 1) */
+  minSlots: int("minSlots").notNull().default(1),
+  /** 최대 예약 시간 (슬롯 수, 기본 8 = 8시간) */
+  maxSlots: int("maxSlots").notNull().default(8),
+  /** 예약 승인 방식: auto(자동승인) / manual(관리자 승인) */
+  approvalType: mysqlEnum("approvalType", ["auto", "manual"]).notNull().default("manual"),
+  /** 예약 가능 여부 (false = 예약 중단) */
+  isReservable: boolean("isReservable").notNull().default(true),
+  /** 노출 여부 */
+  isVisible: boolean("isVisible").notNull().default(true),
+  /** 이용 안내 (마크다운 지원) */
+  notice: text("notice"),
+  /** 예약 시 주의사항 */
+  caution: text("caution"),
+  /** 정렬 순서 */
+  sortOrder: int("sortOrder").notNull().default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Facility = typeof facilities.$inferSelect;
+export type InsertFacility = typeof facilities.$inferInsert;
+
+/**
+ * facility_images: 시설 사진 테이블
+ * 시설당 여러 장의 사진을 등록할 수 있습니다.
+ */
+export const facilityImages = mysqlTable("facility_images", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 시설 ID (facilities.id 참조) */
+  facilityId: int("facilityId").notNull(),
+  /** S3 CDN 이미지 URL */
+  imageUrl: text("imageUrl").notNull(),
+  /** S3 파일 키 */
+  fileKey: varchar("fileKey", { length: 512 }),
+  /** 이미지 설명 (alt 텍스트) */
+  caption: varchar("caption", { length: 128 }),
+  /** 대표 사진 여부 (목록에서 썸네일로 사용) */
+  isThumbnail: boolean("isThumbnail").notNull().default(false),
+  /** 정렬 순서 */
+  sortOrder: int("sortOrder").notNull().default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type FacilityImage = typeof facilityImages.$inferSelect;
+export type InsertFacilityImage = typeof facilityImages.$inferInsert;
+
+/**
+ * facility_hours: 시설 운영 시간 테이블
+ * 요일별 운영 시간을 설정합니다.
+ * dayOfWeek: 0=일요일, 1=월요일, ..., 6=토요일
+ */
+export const facilityHours = mysqlTable("facility_hours", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 시설 ID */
+  facilityId: int("facilityId").notNull(),
+  /** 요일 (0=일, 1=월, 2=화, 3=수, 4=목, 5=금, 6=토) */
+  dayOfWeek: int("dayOfWeek").notNull(),
+  /** 운영 여부 (false = 해당 요일 휴무) */
+  isOpen: boolean("isOpen").notNull().default(true),
+  /** 오픈 시간 (HH:MM 형식, 예: "09:00") */
+  openTime: varchar("openTime", { length: 5 }).notNull().default("09:00"),
+  /** 마감 시간 (HH:MM 형식, 예: "22:00") */
+  closeTime: varchar("closeTime", { length: 5 }).notNull().default("22:00"),
+  /** 점심 휴식 시작 시간 (null = 없음) */
+  breakStart: varchar("breakStart", { length: 5 }),
+  /** 점심 휴식 종료 시간 */
+  breakEnd: varchar("breakEnd", { length: 5 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type FacilityHour = typeof facilityHours.$inferSelect;
+export type InsertFacilityHour = typeof facilityHours.$inferInsert;
+
+/**
+ * facility_blocked_dates: 시설 특정 날짜 차단 테이블
+ * 공휴일, 교회 행사 등 특정 날짜에 예약을 차단합니다.
+ */
+export const facilityBlockedDates = mysqlTable("facility_blocked_dates", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 시설 ID (null = 전체 시설 차단) */
+  facilityId: int("facilityId"),
+  /** 차단 날짜 (YYYY-MM-DD 형식) */
+  blockedDate: varchar("blockedDate", { length: 10 }).notNull(),
+  /** 차단 사유 (예: 전교인 수련회) */
+  reason: varchar("reason", { length: 128 }),
+  /** 특정 시간대만 차단 여부 (false = 하루 전체 차단) */
+  isPartialBlock: boolean("isPartialBlock").notNull().default(false),
+  /** 부분 차단 시작 시간 */
+  blockStart: varchar("blockStart", { length: 5 }),
+  /** 부분 차단 종료 시간 */
+  blockEnd: varchar("blockEnd", { length: 5 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type FacilityBlockedDate = typeof facilityBlockedDates.$inferSelect;
+export type InsertFacilityBlockedDate = typeof facilityBlockedDates.$inferInsert;
+
+/**
+ * reservations: 예약 테이블
+ * 성도의 시설 예약 신청 및 승인 상태를 관리합니다.
+ */
+export const reservations = mysqlTable("reservations", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 시설 ID */
+  facilityId: int("facilityId").notNull(),
+  /** 예약자 ID (users.id 참조) */
+  userId: int("userId").notNull(),
+  /** 예약자 이름 (비로그인 예약 또는 대리 예약 시) */
+  reserverName: varchar("reserverName", { length: 64 }).notNull(),
+  /** 예약자 연락처 */
+  reserverPhone: varchar("reserverPhone", { length: 32 }),
+  /** 예약 날짜 (YYYY-MM-DD) */
+  reservationDate: varchar("reservationDate", { length: 10 }).notNull(),
+  /** 시작 시간 (HH:MM) */
+  startTime: varchar("startTime", { length: 5 }).notNull(),
+  /** 종료 시간 (HH:MM) */
+  endTime: varchar("endTime", { length: 5 }).notNull(),
+  /** 사용 목적 */
+  purpose: varchar("purpose", { length: 256 }).notNull(),
+  /** 소속 부서/단체 (예: 청년부, 영아부 등) */
+  department: varchar("department", { length: 128 }),
+  /** 사용 인원 */
+  attendees: int("attendees").notNull().default(1),
+  /** 추가 요청사항 */
+  notes: text("notes"),
+  /** 예약 상태: pending(대기) / approved(승인) / rejected(거절) / cancelled(취소) */
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "cancelled"]).notNull().default("pending"),
+  /** 승인/거절 사유 (관리자 입력) */
+  adminComment: text("adminComment"),
+  /** 승인/거절 처리한 관리자 ID */
+  processedBy: int("processedBy"),
+  /** 승인/거절 처리 시각 */
+  processedAt: timestamp("processedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Reservation = typeof reservations.$inferSelect;
+export type InsertReservation = typeof reservations.$inferInsert;

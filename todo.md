@@ -126,3 +126,33 @@
 - [x] Sitemap.tsx 페이지 컴포넌트 제작 (DB에서 전체 메뉴 구조 읽어 표시)
 - [x] App.tsx에 /sitemap 라우트 등록
 - [x] 홈 페이지 푸터에 사이트맵 링크 추가
+
+## 시설 예약 시스템 (실제 업체 수준)
+
+### 단계 1: DB 스키마 설계
+- [x] facilities 테이블 (시설명, 설명, 위치, 수용인원, 요금, 예약단위, 최소/최대시간, 승인방식, 상태)
+- [x] facility_images 테이블 (시설 사진 여러 장, 순서, 대표사진 여부)
+- [x] facility_hours 테이블 (요일별 운영시간, 점심휴식, 휴무일)
+- [x] facility_blocked_dates 테이블 (특정 날짜 휴무/차단)
+- [x] reservations 테이블 (예약자, 시설, 날짜, 시작/종료시간, 사용목적, 소속부서, 인원, 상태, 승인/거절사유) — department 컬럼 추가 포함
+- [x] pnpm db:push 실행 (마이그레이션 0006 완료)
+
+### 단계 2: 서버 API 구현
+- [x] db.ts에 시설/예약 관련 쿼리 헬퍼 함수 추가 (getAllReservations에 facilityName JOIN 포함)
+- [x] routers.ts에 home.facilities, home.facility, home.facilityImages, home.facilityHours, home.facilityBlockedDates, home.facilityReservationsByDate 추가
+- [x] routers.ts에 home.createReservation, home.myReservations, home.cancelReservation 추가 (department 필드 포함)
+- [x] routers.ts에 cms.facilities CRUD, cms.reservations (list/approve/reject) 관리자 API 추가
+- [x] 파일 업로드 API — 시설 사진 S3 업로드 (AdminFacilitiesTab에서 사용)
+
+### 단계 3: 성도 측 페이지
+- [x] FacilityList.tsx — 시설 목록 (사진, 수용인원, 운영시간, 예약가능 뱃지)
+- [x] FacilityDetail.tsx — 시설 상세 (사진 갤러리, 설명, 이용안내, 예약 달력)
+- [x] FacilityApply.tsx — 예약 신청 (날짜/시간 선택, 소속 부서 입력, 개인정보 동의)
+- [x] MyReservations.tsx — 내 예약 목록 (상태별 필터, 취소 기능)
+
+### 단계 4: 관리자 측 페이지
+- [x] AdminFacilitiesTab.tsx — 시설 등록/수정/삭제, 사진 업로드, 운영시간/차단일 설정
+- [x] AdminReservationsTab.tsx — 예약 목록/달력 뷰, 승인/거절 + 사유 입력, TypeScript 에러 수정
+- [x] Admin.tsx — 시설 관리(facilities) + 예약 승인(reservations) 탭 추가
+- [ ] Admin 예약 현황 탭 — 월별/주별 달력 (현재 AdminReservationsTab 달력 뷰로 대체)
+- [ ] Admin 휴무일 설정 탭 — 특정 날짜 차단/해제 (현재 AdminFacilitiesTab에서 시설별 차단일 설정 가능)

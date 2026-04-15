@@ -330,3 +330,134 @@ style={{ top: "144px", height: "calc(100vh - 144px)" }}
 ```
 
 새 편집 패널을 추가할 때도 동일하게 적용해야 합니다.
+
+---
+
+## 12단계: 히어로 영상/교회소식 이미지 파일 업로드 + 하위메뉴 동적 페이지 연결
+
+완료일: 2026-04-16 | 체크포인트: ca4d7156
+
+**변경 내용:**
+
+| 항목 | 파일 | 내용 |
+|---|---|---|
+| 영상 업로드 API | server/routers.ts | Base64 방식으로 영상 파일 수신 → S3 업로드 → CDN URL 반환 |
+| 히어로 영상 업로드 UI | HeroEditPanel.tsx | 파일 선택 버튼 + 업로드 진행 표시 + 완료 후 DB 갱신 |
+| 이미지 업로드 UI | NoticeEditPanel.tsx | 이미지 파일 선택 + 미리보기 + 업로드 후 thumbnailUrl 갱신 |
+| 동적 페이지 라우팅 | DynamicPage.tsx | pageType별 페이지 표시 (image/gallery/board/youtube/editor) |
+| 자동 href 생성 | server/routers.ts | 메뉴 추가 시 /page/item/:id 또는 /page/sub/:id 자동 설정 |
+| DB href 일괄 업데이트 | node 스크립트 | href=null인 기존 항목 → /page/sub/:id 형태로 업데이트 |
+
+---
+
+## 13단계: 동적 페이지 공통 레이아웃 (헤더+푸터+사이드메뉴+브레드크럼)
+
+완료일: 2026-04-16 | 체크포인트: 2f46d393
+
+**변경 내용:**
+
+| 항목 | 파일 | 내용 |
+|---|---|---|
+| 공통 레이아웃 | SubPageLayout.tsx | 헤더(로고+GNB+검색)+브레드크럼+사이드메뉴+푸터 |
+| 동적 페이지 개편 | DynamicPage.tsx | SubPageLayout 적용, DB에서 메뉴 구조 읽어 사이드메뉴 자동 구성 |
+
+**SubPageLayout 주요 기능:**
+- 로고 클릭 시 홈으로 이동
+- GNB 드롭다운 메뉴 (DB에서 실시간 로드)
+- 브레드크럼: 홈 > 상위메뉴 > 현재메뉴
+- 좌측 사이드 메뉴: 같은 카테고리 항목 목록, 현재 페이지 강조
+- 푸터: 주소/전화/SNS
+
+---
+
+## 14단계: 사이트맵 페이지 추가
+
+완료일: 2026-04-16 | 체크포인트: e4221045
+
+**변경 내용:**
+- `/sitemap` 페이지 추가 (Sitemap.tsx)
+- DB에서 전체 메뉴 구조 읽어 카드 형태로 표시
+- 홈 푸터에 사이트맵 링크 추가
+- 자주 찾는 페이지 빠른 링크 섹션 추가
+
+---
+
+## 15단계: 시설 예약 시스템 DB 설계 및 서버 API 구현
+
+완료일: 2026-04-16
+
+**DB 스키마 추가 (drizzle/schema.ts):**
+
+| 테이블 | 용도 |
+|---|---|
+| facilities | 시설 기본 정보 (이름, 설명, 수용인원, 위치, 예약단위, 요금 등) |
+| facility_images | 시설 사진 (여러 장, 썸네일 지정) |
+| facility_hours | 요일별 운영 시간 (오픈/마감/휴식시간/휴무일) |
+| facility_blocked_dates | 예약 불가 날짜 (공휴일, 교회 행사 등) |
+| reservations | 예약 신청 (신청자 정보, 날짜, 시간, 상태) |
+| reservation_slots | 예약 시간 슬롯 (1시간 단위) |
+
+**서버 API (routers.ts):**
+- 관리자: 시설 CRUD, 이미지 업로드, 운영시간 설정, 예약 승인/거절/취소
+- 성도: 시설 목록/상세/이미지/운영시간/예약 가능 날짜 조회, 예약 신청
+
+**성도 측 페이지 현황:**
+- FacilityList.tsx — 실제 DB API 연결 완료 ✅
+- FacilityDetail.tsx — 실제 DB API 연결 완료 (달력, 운영시간, 이미지 갤러리) ✅
+- FacilityApply.tsx — ⚠️ 아직 목 데이터 사용 중 (다음 작업)
+- MyReservations.tsx — ⚠️ 미구현
+
+**관리자 측 페이지:**
+- FacilityAdmin.tsx — ⚠️ 미구현
+- ReservationAdmin.tsx — ⚠️ 미구현
+
+---
+
+## 현재 진행 중인 작업 (2026-04-16)
+
+### 시설 예약 시스템 완성
+
+**남은 작업 순서:**
+1. FacilityApply.tsx — 실제 DB API 연결 (시간 슬롯 동적 생성, 예약 신청 저장)
+2. MyReservations.tsx — 내 예약 현황 페이지 (/facility/my-reservations)
+3. 관리자 시설 관리 페이지 — 시설 등록/수정/이미지 업로드/운영시간 설정
+4. 관리자 예약 승인/거절 페이지 — 예약 목록, 달력 현황
+
+---
+
+## 청년 피드백 (미처리 항목)
+
+1. **GNB 메뉴명 일치 검토** — 홈 화면 퀵메뉴와 GNB 메뉴명이 다른 항목 정리
+   - 예: "시설사용예약" (퀵메뉴) vs "시설물 안내" (GNB)
+2. **사이트맵 추가** — ✅ 완료 (14단계)
+
+---
+
+## 주요 파일 구조 (최신)
+
+```
+client/src/
+  pages/
+    Home.tsx              ← 메인 홈페이지
+    DynamicPage.tsx       ← 동적 하위메뉴 페이지 (pageType별)
+    Sitemap.tsx           ← 사이트맵 페이지
+    FacilityList.tsx      ← 시설 목록 (DB 연결 완료)
+    FacilityDetail.tsx    ← 시설 상세+달력 (DB 연결 완료)
+    FacilityApply.tsx     ← 예약 신청 폼 (⚠️ 목 데이터)
+    admin/
+      AdminPage.tsx       ← 관리자 메인 대시보드
+  components/
+    SubPageLayout.tsx     ← 하위 페이지 공통 레이아웃
+    MenuEditPanel.tsx     ← 메뉴 편집 패널
+    HeroEditPanel.tsx     ← 히어로 슬라이드 편집 패널
+    NoticeEditPanel.tsx   ← 교회소식 편집 패널
+    QuickMenuEditPanel.tsx← 퀵메뉴 편집 패널
+    AffiliateEditPanel.tsx← 관련기관 편집 패널
+
+server/
+  routers.ts             ← tRPC API (cms, home, facility, admin 라우터)
+  db.ts                  ← DB 쿼리 헬퍼 함수
+
+drizzle/
+  schema.ts              ← DB 테이블 스키마 전체
+```
