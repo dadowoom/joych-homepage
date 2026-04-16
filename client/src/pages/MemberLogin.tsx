@@ -22,7 +22,7 @@ export default function MemberLogin() {
         return;
       } else {
         toast.success(`${data.member.name}님, 환영합니다!`);
-        navigate("/member/my-page");
+        navigate("/");
       }
     },
     onError: (e) => {

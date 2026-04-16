@@ -485,7 +485,8 @@ export async function createFacility(data: Omit<InsertFacility, 'id' | 'createdA
   const db = await getDb();
   if (!db) throw new Error('DB not available');
   const result = await db.insert(facilities).values(data);
-  return result[0].insertId as number;
+  const id = result[0].insertId as number;
+  return { id };
 }
 
 /** 시설 수정 */
