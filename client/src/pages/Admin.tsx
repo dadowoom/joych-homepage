@@ -16,7 +16,7 @@ import AdminMemberOptionsTab from "@/components/AdminMemberOptionsTab";
 import AdminMembersTab from "@/components/AdminMembersTab";
 
 // ─── 탭 타입 ───────────────────────────────────
-type Tab = "notices" | "affiliates" | "settings" | "hero" | "facilities" | "reservations" | "memberOptions" | "members";
+type Tab = "settings" | "facilities" | "reservations" | "memberOptions" | "members";
 
 // ─── 히어로 슬라이드 관리 탭 ─────────────────────
 function HeroSlidesTab() {
@@ -523,7 +523,7 @@ function SettingsTab() {
 // ─── 메인 관리자 페이지 ─────────────────────────
 export default function AdminPage() {
   const { user, loading } = useAuth();
-  const [activeTab, setActiveTab] = useState<Tab>("notices");
+  const [activeTab, setActiveTab] = useState<Tab>("settings");
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -640,10 +640,7 @@ export default function AdminPage() {
   }
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
-    { id: "notices", label: "교회 소식", icon: "fa-newspaper" },
-    { id: "affiliates", label: "관련 기관", icon: "fa-building" },
     { id: "settings", label: "기본 정보", icon: "fa-cog" },
-    { id: "hero", label: "히어로 슬라이드", icon: "fa-film" },
     { id: "facilities", label: "시설 관리", icon: "fa-building" },
     { id: "reservations", label: "예약 승인", icon: "fa-calendar-check" },
     { id: "memberOptions", label: "선택지 관리", icon: "fa-list-ul" },
@@ -711,10 +708,7 @@ export default function AdminPage() {
 
         {/* 탭 콘텐츠 */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
-          {activeTab === "notices" && <NoticesTab />}
-          {activeTab === "affiliates" && <AffiliatesTab />}
           {activeTab === "settings" && <SettingsTab />}
-          {activeTab === "hero" && <HeroSlidesTab />}
           {activeTab === "facilities" && <AdminFacilitiesTab />}
           {activeTab === "reservations" && <AdminReservationsTab />}
           {activeTab === "memberOptions" && <AdminMemberOptionsTab />}
