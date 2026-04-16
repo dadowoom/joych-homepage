@@ -391,6 +391,10 @@ export default function Home() {
         <div className="container flex justify-between items-center">
           <span className="tracking-wide">깊이있는 성장, 위대한 교회</span>
           <div className="flex gap-4 items-center">
+            {/* 성도 로그인/회원가입 */}
+            <Link href="/member/login" className="hover:text-white transition-colors">로그인</Link>
+            <Link href="/member/register" className="hover:text-white transition-colors">회원가입</Link>
+            <span className="text-gray-600">|</span>
             {isAdmin ? (
               <Link href="/admin" className="hover:text-white transition-colors text-[#A5D6A7] font-medium">관리자 페이지</Link>
             ) : (
