@@ -63,6 +63,19 @@ import {
   createReservation,
   updateReservationStatus,
   getReservationById,
+  // 교회 회원 시스템
+  getMemberFieldOptions,
+  getAllMemberFieldOptions,
+  createMemberFieldOption,
+  updateMemberFieldOption,
+  deleteMemberFieldOption,
+  getMemberByEmail,
+  getMemberById,
+  createMember,
+  updateMemberBasicInfo,
+  updateMemberChurchInfo,
+  getAllMembers,
+  getPendingMembers,
 } from "./db";
 
 export const appRouter = router({
@@ -617,7 +630,7 @@ export const appRouter = router({
         .input(z.object({ id: z.number(), comment: z.string() }))
         .mutation(({ input, ctx }) => updateReservationStatus(input.id, 'rejected', input.comment, ctx.user.id)),
     }),
-    // 퀝 메뉴 관리
+    // 퀴 메뉴 관리
     quickMenus: router({
       list: adminProcedure.query(() => getAllQuickMenus()),
       update: adminProcedure
@@ -637,6 +650,184 @@ export const appRouter = router({
         .input(z.array(z.object({ id: z.number(), sortOrder: z.number() })))
         .mutation(({ input }) => reorderQuickMenus(input)),
     }),
+  }),
+
+  // ─── 교회 회원 시스템 ───────────────────────────────────────────────────────
+  members: router({
+    /** 선택지 목록 조회 (공개 - 회원가입 폼에서 사용) */
+    fieldOptions: publicProcedure
+      .input(z.object({ fieldType: z.string().optional() }))
+      .query(({ input }) => getMemberFieldOptions(input.fieldType)),
+
+    /** 회원가입 */
+    register: publicProcedure
+      .input(z.object({
+        email: z.string().email(),
+        password: z.string().min(8),
+        name: z.string().min(1),
+        phone: z.string().optional(),
+        birthDate: z.string().optional(),
+        gender: z.enum(['남', '여']).optional(),
+        address: z.string().optional(),
+        emergencyPhone: z.string().optional(),
+        joinPath: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const bcrypt = await import('bcryptjs');
+        const existing = await getMemberByEmail(input.email);
+        if (existing) {
+          throw new TRPCError({ code: 'CONFLICT', message: '이미 사용 중인 이메일입니다.' });
+        }
+        const passwordHash = await bcrypt.hash(input.password, 10);
+        const id = await createMember({
+          email: input.email,
+          passwordHash,
+          name: input.name,
+          phone: input.phone,
+          birthDate: input.birthDate,
+          gender: input.gender,
+          address: input.address,
+          emergencyPhone: input.emergencyPhone,
+          joinPath: input.joinPath,
+        });
+        return { success: true, id };
+      }),
+
+    /** 성도 로그인 */
+    login: publicProcedure
+      .input(z.object({
+        email: z.string().email(),
+        password: z.string(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const bcrypt = await import('bcryptjs');
+        const member = await getMemberByEmail(input.email);
+        if (!member || !member.passwordHash) {
+          throw new TRPCError({ code: 'UNAUTHORIZED', message: '이메일 또는 비밀번호가 올바르지 않습니다.' });
+        }
+        const valid = await bcrypt.compare(input.password, member.passwordHash);
+        if (!valid) {
+          throw new TRPCError({ code: 'UNAUTHORIZED', message: '이메일 또는 비밀번호가 올바르지 않습니다.' });
+        }
+        const { SignJWT } = await import('jose');
+        const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? 'fallback-secret');
+        const token = await new SignJWT({
+          memberId: member.id,
+          email: member.email,
+          name: member.name,
+          type: 'church_member',
+        })
+          .setProtectedHeader({ alg: 'HS256' })
+          .setExpirationTime('30d')
+          .sign(secret);
+        ctx.res.cookie('church_member_session', token, {
+          httpOnly: true,
+          sameSite: 'lax',
+          maxAge: 30 * 24 * 60 * 60 * 1000,
+          path: '/',
+        });
+        return {
+          success: true,
+          member: {
+            id: member.id,
+            name: member.name,
+            email: member.email,
+            status: member.status,
+          },
+        };
+      }),
+
+    /** 성도 로그아웃 */
+    logout: publicProcedure
+      .mutation(({ ctx }) => {
+        ctx.res.clearCookie('church_member_session', { path: '/' });
+        return { success: true };
+      }),
+
+    /** 내 정보 조회 (쿠키 기반) */
+    me: publicProcedure
+      .query(async ({ ctx }) => {
+        const token = ctx.req.cookies?.['church_member_session'];
+        if (!token) return null;
+        try {
+          const { jwtVerify } = await import('jose');
+          const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? 'fallback-secret');
+          const { payload } = await jwtVerify(token, secret);
+          if (payload.type !== 'church_member' || !payload.memberId) return null;
+          const member = await getMemberById(payload.memberId as number);
+          if (!member) return null;
+          const { passwordHash: _, ...safeData } = member;
+          return safeData;
+        } catch {
+          return null;
+        }
+      }),
+
+    /** 내 기본 정보 수정 */
+    updateMyInfo: publicProcedure
+      .input(z.object({
+        name: z.string().min(1).optional(),
+        phone: z.string().optional(),
+        birthDate: z.string().optional(),
+        gender: z.enum(['남', '여']).optional(),
+        address: z.string().optional(),
+        emergencyPhone: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const token = ctx.req.cookies?.['church_member_session'];
+        if (!token) throw new TRPCError({ code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' });
+        const { jwtVerify } = await import('jose');
+        const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? 'fallback-secret');
+        const { payload } = await jwtVerify(token, secret);
+        if (payload.type !== 'church_member' || !payload.memberId) {
+          throw new TRPCError({ code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' });
+        }
+        await updateMemberBasicInfo(payload.memberId as number, input);
+        return { success: true };
+      }),
+
+    // ── 관리자 전용 ──────────────────────────────────────────────────────────
+    adminList: adminProcedure.query(() => getAllMembers()),
+    pendingList: adminProcedure.query(() => getPendingMembers()),
+    updateChurchInfo: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        position: z.string().optional(),
+        department: z.string().optional(),
+        district: z.string().optional(),
+        baptismType: z.string().optional(),
+        baptismDate: z.string().optional(),
+        registeredAt: z.string().optional(),
+        pastor: z.string().optional(),
+        adminMemo: z.string().optional(),
+        status: z.enum(['pending', 'approved', 'rejected', 'withdrawn']).optional(),
+      }))
+      .mutation(({ input }) => {
+        const { id, ...data } = input;
+        return updateMemberChurchInfo(id, data);
+      }),
+    adminFieldOptions: adminProcedure.query(() => getAllMemberFieldOptions()),
+    addFieldOption: adminProcedure
+      .input(z.object({
+        fieldType: z.enum(['position', 'department', 'district', 'baptism']),
+        label: z.string().min(1),
+        sortOrder: z.number().optional(),
+      }))
+      .mutation(({ input }) => createMemberFieldOption(input)),
+    updateFieldOption: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        label: z.string().optional(),
+        sortOrder: z.number().optional(),
+        isActive: z.boolean().optional(),
+      }))
+      .mutation(({ input }) => {
+        const { id, ...data } = input;
+        return updateMemberFieldOption(id, data);
+      }),
+    deleteFieldOption: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ input }) => deleteMemberFieldOption(input.id)),
   }),
 });
 

@@ -272,32 +272,79 @@ export type InsertSiteSetting = typeof siteSettings.$inferInsert;
 // 교적부: 교회 성도 정보
 // 관리자가 등록하며, 믿음PLUS 유저ID 연동 가능
 // ─────────────────────────────────────────────
+/**
+ * member_field_options: 관리자가 직접 만드는 선택지 목록
+ * 직분/부서/구역/세례구분 등 교회마다 다른 항목을 자유롭게 관리
+ */
+export const memberFieldOptions = mysqlTable("member_field_options", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 항목 유형: position(직분), department(부서), district(구역/순), baptism(세례구분) */
+  fieldType: varchar("field_type", { length: 32 }).notNull(),
+  /** 선택지 이름 (예: 집사, 아동부1, 1구역) */
+  label: varchar("label", { length: 64 }).notNull(),
+  /** 정렬 순서 */
+  sortOrder: int("sort_order").notNull().default(0),
+  /** 표시 여부 */
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type MemberFieldOption = typeof memberFieldOptions.$inferSelect;
+export type InsertMemberFieldOption = typeof memberFieldOptions.$inferInsert;
+
 export const churchMembers = mysqlTable("church_members", {
   id: int("id").autoincrement().primaryKey(),
+
+  // ── 로그인 정보 (성도 직접 입력) ──────────────────────────
+  /** 로그인 이메일 */
+  email: varchar("email", { length: 128 }).unique(),
+  /** 비밀번호 해시 */
+  passwordHash: varchar("password_hash", { length: 256 }),
+
+  // ── 기본 정보 (성도 직접 입력) ────────────────────────────
   /** 성도 이름 */
   name: varchar("name", { length: 64 }).notNull(),
-  /** 나이 */
-  age: int("age"),
-  /** 성별 (남/여) */
-  gender: varchar("gender", { length: 8 }),
-  /** 교구 (예: 영덕교구) */
-  district: varchar("district", { length: 64 }),
-  /** 직분 (예: 집사, 권사, 장로) */
-  position: varchar("position", { length: 32 }),
-  /** 봉사 부서/역할 (예: 아동부 교사) */
-  ministry: varchar("ministry", { length: 128 }),
   /** 연락처 */
   phone: varchar("phone", { length: 32 }),
+  /** 생년월일 (YYYY-MM-DD) */
+  birthDate: varchar("birth_date", { length: 16 }),
+  /** 성별 (남/여) */
+  gender: varchar("gender", { length: 8 }),
   /** 주소 */
   address: varchar("address", { length: 256 }),
-  /** 교회 등록일 */
-  registeredAt: varchar("registeredAt", { length: 16 }),
+  /** 비상연락처 */
+  emergencyPhone: varchar("emergency_phone", { length: 32 }),
+  /** 가입 경로 */
+  joinPath: varchar("join_path", { length: 64 }),
+
+  // ── 교회 정보 (관리자 입력) ───────────────────────────────
+  /** 직분 (member_field_options.label 참조) */
+  position: varchar("position", { length: 64 }),
+  /** 소속 부서 (member_field_options.label 참조) */
+  department: varchar("department", { length: 64 }),
+  /** 구역/순 (member_field_options.label 참조) */
+  district: varchar("district", { length: 64 }),
+  /** 세례 구분 (member_field_options.label 참조) */
+  baptismType: varchar("baptism_type", { length: 32 }),
+  /** 세례일 (YYYY-MM-DD) */
+  baptismDate: varchar("baptism_date", { length: 16 }),
+  /** 교회 등록일 (YYYY-MM-DD) */
+  registeredAt: varchar("registered_at", { length: 16 }),
+  /** 담당 교역자 */
+  pastor: varchar("pastor", { length: 64 }),
+  /** 관리자 메모 */
+  adminMemo: text("admin_memo"),
+
+  // ── 상태 관리 ─────────────────────────────────────────────
+  /** 가입 승인 상태: pending(대기) / approved(승인) / rejected(거절) / withdrawn(탈퇴) */
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "withdrawn"]).notNull().default("pending"),
+
+  // ── 연동 ──────────────────────────────────────────────────
   /** 믿음PLUS 앱 유저 ID (연동용) */
-  faithPlusUserId: int("faithPlusUserId"),
-  /** 활성 여부 */
-  isActive: boolean("isActive").notNull().default(true),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  faithPlusUserId: int("faith_plus_user_id"),
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type ChurchMember = typeof churchMembers.$inferSelect;

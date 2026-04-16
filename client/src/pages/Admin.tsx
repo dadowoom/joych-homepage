@@ -12,9 +12,10 @@ import { getLoginUrl } from "@/const";
 import { toast } from "sonner";
 import AdminFacilitiesTab from "@/components/AdminFacilitiesTab";
 import AdminReservationsTab from "@/components/AdminReservationsTab";
+import AdminMemberOptionsTab from "@/components/AdminMemberOptionsTab";
 
 // ─── 탭 타입 ───────────────────────────────────
-type Tab = "notices" | "affiliates" | "settings" | "hero" | "facilities" | "reservations";
+type Tab = "notices" | "affiliates" | "settings" | "hero" | "facilities" | "reservations" | "memberOptions";
 
 // ─── 히어로 슬라이드 관리 탭 ─────────────────────
 function HeroSlidesTab() {
@@ -644,6 +645,7 @@ export default function AdminPage() {
     { id: "hero", label: "히어로 슬라이드", icon: "fa-film" },
     { id: "facilities", label: "시설 관리", icon: "fa-building" },
     { id: "reservations", label: "예약 승인", icon: "fa-calendar-check" },
+    { id: "memberOptions", label: "선택지 관리", icon: "fa-list-ul" },
   ];
 
   return (
@@ -713,6 +715,7 @@ export default function AdminPage() {
           {activeTab === "hero" && <HeroSlidesTab />}
           {activeTab === "facilities" && <AdminFacilitiesTab />}
           {activeTab === "reservations" && <AdminReservationsTab />}
+          {activeTab === "memberOptions" && <AdminMemberOptionsTab />}
         </div>
       </div>
     </div>
