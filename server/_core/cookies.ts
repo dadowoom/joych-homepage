@@ -39,10 +39,13 @@ export function getSessionCookieOptions(
   //       ? hostname
   //       : undefined;
 
+  // production 환경에서는 항상 secure:true (sameSite:none은 secure 없이 작동 안 함)
+  const secure = process.env.NODE_ENV === 'production' ? true : isSecureRequest(req);
+
   return {
     httpOnly: true,
     path: "/",
     sameSite: "none",
-    secure: isSecureRequest(req),
+    secure,
   };
 }
