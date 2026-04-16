@@ -251,6 +251,13 @@ export default function Home() {
   // 관리자 여부 확인 (편집 모드용)
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  // 성도 로그인 상태 확인
+  const { data: memberMe, refetch: refetchMemberMe } = trpc.members.me.useQuery();
+  const memberLogoutMutation = trpc.members.logout.useMutation({
+    onSuccess: () => {
+      refetchMemberMe();
+    },
+  });
 
   // 슬라이드 패널 상태
   const [menuPanelOpen, setMenuPanelOpen] = useState(false);
@@ -391,9 +398,22 @@ export default function Home() {
         <div className="container flex justify-between items-center">
           <span className="tracking-wide">깊이있는 성장, 위대한 교회</span>
           <div className="flex gap-4 items-center">
-            {/* 성도 로그인/회원가입 */}
-            <Link href="/member/login" className="hover:text-white transition-colors">로그인</Link>
-            <Link href="/member/register" className="hover:text-white transition-colors">회원가입</Link>
+            {/* 성도 로그인 상태 */}
+            {memberMe ? (
+              <>
+                <span className="text-gray-300">{memberMe.name}님</span>
+                <Link href="/member/my-page" className="hover:text-white transition-colors">내 정보</Link>
+                <button
+                  onClick={() => memberLogoutMutation.mutate()}
+                  className="hover:text-white transition-colors cursor-pointer"
+                >로그아웃</button>
+              </>
+            ) : (
+              <>
+                <Link href="/member/login" className="hover:text-white transition-colors">로그인</Link>
+                <Link href="/member/register" className="hover:text-white transition-colors">회원가입</Link>
+              </>
+            )}
             <span className="text-gray-600">|</span>
             {isAdmin ? (
               <Link href="/admin" className="hover:text-white transition-colors text-[#A5D6A7] font-medium">관리자 페이지</Link>
