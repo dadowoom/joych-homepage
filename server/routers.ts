@@ -829,6 +829,7 @@ export const appRouter = router({
         pastor: z.string().optional(),
         adminMemo: z.string().optional(),
         status: z.enum(['pending', 'approved', 'rejected', 'withdrawn']).optional(),
+        faithPlusUserId: z.string().optional(),
       }))
       .mutation(({ input }) => {
         const { id, ...data } = input;

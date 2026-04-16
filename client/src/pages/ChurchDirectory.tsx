@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from "react";
 import { Link, useSearch } from "wouter";
-import { Search, ChevronLeft, User, Phone, Calendar, MapPin, Heart, Church, ExternalLink } from "lucide-react";
+import { Search, ChevronLeft, User, Phone, Calendar, MapPin, Heart, Church, ExternalLink, Lock } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
 export default function ChurchDirectory() {
@@ -19,10 +19,14 @@ export default function ChurchDirectory() {
   const [submittedQuery, setSubmittedQuery] = useState(nameFromUrl || "");
   const [searched, setSearched] = useState(!!nameFromUrl);
 
-  // tRPC 쿼리 - submittedQuery가 있을 때만 실행
+  // 성도 로그인 상태 확인
+  const { data: currentMember, isLoading: authLoading } = trpc.members.me.useQuery();
+  const isLoggedIn = !authLoading && currentMember !== null && currentMember !== undefined;
+
+  // tRPC 쿼리 - submittedQuery가 있고 로그인된 경우에만 실행
   const { data: searchResult = [], isLoading } = trpc.members.searchByName.useQuery(
     { name: submittedQuery },
-    { enabled: submittedQuery.length > 0 }
+    { enabled: submittedQuery.length > 0 && isLoggedIn }
   );
 
   // URL에 name 파라미터가 있으면 자동 검색
@@ -51,6 +55,65 @@ export default function ChurchDirectory() {
       );
     }
   };
+
+  // 인증 확인 중
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#FAFAF8] flex items-center justify-center" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-[#1B5E20] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-gray-500">확인 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 비로그인 상태 → 안내 화면
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-[#FAFAF8]" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
+        {/* 상단 헤더 */}
+        <header className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-sm">
+          <div className="max-w-4xl mx-auto px-4 h-14 flex items-center gap-3">
+            <Link href="/" className="flex items-center gap-1.5 text-[#1B5E20] hover:opacity-80 transition-opacity">
+              <ChevronLeft className="w-5 h-5" />
+              <span className="text-sm font-medium">홈으로</span>
+            </Link>
+            <div className="w-px h-5 bg-gray-200" />
+            <h1 className="text-base font-bold text-[#1B5E20]" style={{ fontFamily: "'Noto Serif KR', serif" }}>교적부</h1>
+            <span className="text-xs text-gray-400 ml-auto">기쁨의교회</span>
+          </div>
+        </header>
+        {/* 비로그인 안내 */}
+        <main className="max-w-4xl mx-auto px-4 py-20 text-center">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-[#E8F5E9] rounded-full mb-6">
+            <Lock className="w-9 h-9 text-[#1B5E20]" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-800 mb-2" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+            로그인이 필요한 서비스입니다
+          </h2>
+          <p className="text-sm text-gray-500 mb-8 leading-relaxed">
+            교적부는 기쁨의교회 성도만 이용할 수 있습니다.<br />
+            성도 로그인 후 이용해 주세요.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              href="/member/login"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#1B5E20] text-white text-sm font-semibold rounded-lg hover:bg-[#2E7D32] transition-colors"
+            >
+              성도 로그인
+            </Link>
+            <Link
+              href="/member/register"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 border border-[#1B5E20] text-[#1B5E20] text-sm font-semibold rounded-lg hover:bg-[#F1F8E9] transition-colors"
+            >
+              회원가입
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#FAFAF8]" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>

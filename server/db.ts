@@ -781,6 +781,7 @@ export async function updateMemberChurchInfo(id: number, data: Partial<{
   pastor: string;
   adminMemo: string;
   status: 'pending' | 'approved' | 'rejected' | 'withdrawn';
+  faithPlusUserId: string;
 }>) {
   const db = await getDb();
   if (!db) throw new Error('DB not available');

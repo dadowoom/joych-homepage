@@ -33,9 +33,10 @@ export default function AdminMembersTab() {
     pastor: string;
     adminMemo: string;
     status: string;
+    faithPlusUserId: string;
   }>({
     position: "", department: "", district: "", baptismType: "",
-    baptismDate: "", registeredAt: "", pastor: "", adminMemo: "", status: "pending",
+    baptismDate: "", registeredAt: "", pastor: "", adminMemo: "", status: "pending", faithPlusUserId: "",
   });
 
   // 데이터 조회
@@ -82,6 +83,7 @@ export default function AdminMembersTab() {
       pastor: m.pastor ?? "",
       adminMemo: m.adminMemo ?? "",
       status: m.status ?? "pending",
+      faithPlusUserId: m.faithPlusUserId ?? "",
     });
   };
 
@@ -97,6 +99,7 @@ export default function AdminMembersTab() {
       pastor: editData.pastor || undefined,
       adminMemo: editData.adminMemo || undefined,
       status: editData.status as "pending" | "approved" | "rejected" | "withdrawn",
+      faithPlusUserId: editData.faithPlusUserId || undefined,
     });
   };
 
@@ -341,6 +344,20 @@ export default function AdminMembersTab() {
                           value={editData.pastor}
                           onChange={(e) => setEditData(p => ({ ...p, pastor: e.target.value }))}
                           placeholder="예: 박진석 목사"
+                          className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
+                        />
+                      </div>
+                      {/* 믿음PLUS 유저 ID */}
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs text-gray-500 mb-1">
+                          믿음PLUS 유저 ID
+                          <span className="ml-1 text-gray-400">(선택사항 — 연동 시 교적부에서 링크 활성화)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={editData.faithPlusUserId}
+                          onChange={(e) => setEditData(p => ({ ...p, faithPlusUserId: e.target.value }))}
+                          placeholder="예: 370  (믿음PLUS 앱에서 확인)"
                           className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
                         />
                       </div>
