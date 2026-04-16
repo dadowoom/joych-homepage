@@ -40,8 +40,9 @@ export default function MemberRegister() {
   // 회원가입 뮤테이션
   const registerMutation = trpc.members.register.useMutation({
     onSuccess: () => {
-      toast.success("회원가입이 완료됐습니다! 관리자 승인 후 로그인하실 수 있습니다.");
-      navigate("/member/login");
+      toast.success("환영합니다! 기쁜의교회 가족이 되셨습니다.");
+      // 자동 로그인 완료 후 홈으로 이동
+      navigate("/");
     },
     onError: (e) => {
       if (e.message.includes("이미 사용 중인")) {

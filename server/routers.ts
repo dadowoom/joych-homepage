@@ -672,7 +672,7 @@ export const appRouter = router({
         emergencyPhone: z.string().optional(),
         joinPath: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const bcrypt = await import('bcryptjs');
         const existing = await getMemberByEmail(input.email);
         if (existing) {
@@ -690,7 +690,25 @@ export const appRouter = router({
           emergencyPhone: input.emergencyPhone,
           joinPath: input.joinPath,
         });
-        return { success: true, id };
+        // 회원가입 완료 즉시 자동 로그인 (JWT 쿠키 발급)
+        const { SignJWT } = await import('jose');
+        const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? 'fallback-secret');
+        const token = await new SignJWT({
+          memberId: id,
+          email: input.email,
+          name: input.name,
+          type: 'church_member',
+        })
+          .setProtectedHeader({ alg: 'HS256' })
+          .setExpirationTime('30d')
+          .sign(secret);
+        ctx.res.cookie('church_member_session', token, {
+          httpOnly: true,
+          sameSite: 'lax',
+          maxAge: 30 * 24 * 60 * 60 * 1000,
+          path: '/',
+        });
+        return { success: true, id, autoLoggedIn: true };
       }),
 
     /** 성도 로그인 */
