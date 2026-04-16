@@ -28,6 +28,7 @@ export default function MemberRegister() {
     joinPath: "",
     department: "",
     district: "",
+    faithPlusUserId: "",
     agreePrivacy: false,
   });
 
@@ -90,6 +91,7 @@ export default function MemberRegister() {
       address: form.address || undefined,
       emergencyPhone: form.emergencyPhone || undefined,
       joinPath: form.joinPath || undefined,
+      faithPlusUserId: form.faithPlusUserId || undefined,
     });
   };
 
@@ -311,6 +313,24 @@ export default function MemberRegister() {
                 ) : (
                   <p className="text-sm text-gray-400 py-2">등록된 구역이 없습니다. 관리자에게 문의하세요.</p>
                 )}
+              </div>
+
+              {/* 믿음PLUS 유저 ID */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  믿음PLUS 유저 ID
+                  <span className="ml-1 text-xs text-gray-400 font-normal">(선택사항)</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.faithPlusUserId}
+                  onChange={(e) => update("faithPlusUserId", e.target.value)}
+                  placeholder="믿음PLUS 앱에서 확인한 유저 ID를 입력하세요"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  믿음PLUS 앱을 사용하신다면 입력해주세요. 나중에 마이페이지에서도 입력하실 수 있습니다.
+                </p>
               </div>
 
               {/* 가입 경로 */}

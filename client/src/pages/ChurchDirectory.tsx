@@ -1,31 +1,14 @@
 /**
  * 기쁨의교회 교적부 페이지
- * - 이름 검색 → 성도 카드 표시 (기본 정보)
+ * - 이름 검색 → 실제 DB에서 승인된 성도 조회
  * - 카드 클릭 → faithplus.co.kr/search?user=유저ID 새 탭으로 이동
- * - 현재는 하드코딩 데이터, 추후 교회 DB 연동 예정
+ * - faithPlusUserId가 없는 성도는 믿음PLUS 버튼 비활성화
  */
 
 import { useState, useEffect } from "react";
 import { Link, useSearch } from "wouter";
 import { Search, ChevronLeft, User, Phone, Calendar, MapPin, Heart, Church, ExternalLink } from "lucide-react";
-
-// ─── 하드코딩 성도 데이터 (추후 교회 DB 연동) ───────────────────────────
-const MOCK_MEMBERS = [
-  {
-    id: 1,
-    faithplusId: 370,
-    name: "최충만",
-    age: 40,
-    gender: "남",
-    district: "영덕교구",
-    position: "집사",
-    ministry: "아동부 교사",
-    registeredAt: "2012.03.04",
-    phone: "010-3821-5674",
-    address: "서울시 강북구 미아동",
-    profileEmoji: "👨",
-  },
-];
+import { trpc } from "@/lib/trpc";
 
 export default function ChurchDirectory() {
   const searchString = useSearch();
@@ -33,14 +16,19 @@ export default function ChurchDirectory() {
   const nameFromUrl = params.get("name") ?? "";
 
   const [searchQuery, setSearchQuery] = useState(nameFromUrl);
-  const [searchResult, setSearchResult] = useState<typeof MOCK_MEMBERS>([]);
-  const [searched, setSearched] = useState(false);
+  const [submittedQuery, setSubmittedQuery] = useState(nameFromUrl || "");
+  const [searched, setSearched] = useState(!!nameFromUrl);
+
+  // tRPC 쿼리 - submittedQuery가 있을 때만 실행
+  const { data: searchResult = [], isLoading } = trpc.members.searchByName.useQuery(
+    { name: submittedQuery },
+    { enabled: submittedQuery.length > 0 }
+  );
 
   // URL에 name 파라미터가 있으면 자동 검색
   useEffect(() => {
     if (nameFromUrl) {
-      const results = MOCK_MEMBERS.filter((m) => m.name.includes(nameFromUrl));
-      setSearchResult(results);
+      setSubmittedQuery(nameFromUrl);
       setSearched(true);
     }
   }, [nameFromUrl]);
@@ -50,16 +38,15 @@ export default function ChurchDirectory() {
     if (e) e.preventDefault();
     const q = searchQuery.trim();
     if (!q) return;
-    const results = MOCK_MEMBERS.filter((m) => m.name.includes(q));
-    setSearchResult(results);
+    setSubmittedQuery(q);
     setSearched(true);
   };
 
   // 성도 카드 클릭 → faithplus 랭킹 페이지로 새 탭 이동
-  const handleSelectMember = (member: typeof MOCK_MEMBERS[0]) => {
-    if (member.faithplusId) {
+  const handleSelectMember = (member: typeof searchResult[0]) => {
+    if (member.faithPlusUserId) {
       window.open(
-        `https://faithplus.co.kr/search?user=${member.faithplusId}`,
+        `https://faithplus.co.kr/search?user=${member.faithPlusUserId}`,
         "_blank"
       );
     }
@@ -95,7 +82,7 @@ export default function ChurchDirectory() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="이름 입력 (예: 최충만)"
+                placeholder="이름 입력 (예: 홍길동)"
                 className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30 focus:border-[#1B5E20] bg-white"
               />
             </div>
@@ -108,24 +95,37 @@ export default function ChurchDirectory() {
           </form>
         </div>
 
+        {/* ── 로딩 중 ── */}
+        {isLoading && searched && (
+          <div className="text-center py-16 text-gray-400">
+            <div className="w-8 h-8 border-2 border-[#1B5E20] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+            <p className="text-sm">검색 중...</p>
+          </div>
+        )}
+
         {/* ── 검색 결과 없음 ── */}
-        {searched && searchResult.length === 0 && (
+        {searched && !isLoading && searchResult.length === 0 && (
           <div className="text-center py-16 text-gray-400">
             <User className="w-12 h-12 mx-auto mb-3 opacity-30" />
             <p className="text-sm">검색된 성도가 없습니다.</p>
-            <p className="text-xs mt-1">이름을 정확히 입력해 주세요.</p>
+            <p className="text-xs mt-1">이름을 정확히 입력해 주세요.<br />승인된 성도만 검색됩니다.</p>
           </div>
         )}
 
         {/* ── 성도 카드 목록 ── */}
-        {searched && searchResult.length > 0 && (
+        {searched && !isLoading && searchResult.length > 0 && (
           <div className="space-y-4">
             <p className="text-xs text-gray-400">{searchResult.length}명의 성도가 검색됐습니다</p>
             {searchResult.map((member) => (
               <button
                 key={member.id}
                 onClick={() => handleSelectMember(member)}
-                className="w-full text-left bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-[#1B5E20]/30 transition-all duration-200 overflow-hidden group"
+                disabled={!member.faithPlusUserId}
+                className={`w-full text-left bg-white rounded-2xl border border-gray-100 shadow-sm transition-all duration-200 overflow-hidden group ${
+                  member.faithPlusUserId
+                    ? "hover:shadow-md hover:border-[#1B5E20]/30 cursor-pointer"
+                    : "cursor-default opacity-90"
+                }`}
               >
                 {/* 카드 상단 컬러 바 */}
                 <div className="h-1.5 bg-gradient-to-r from-[#1B5E20] to-[#4CAF50]" />
@@ -134,51 +134,72 @@ export default function ChurchDirectory() {
                   {/* 이름 + 직분 배지 + 믿음PLUS 버튼 */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-[#E8F5E9] flex items-center justify-center text-2xl">
-                        {member.profileEmoji}
+                      <div className="w-12 h-12 rounded-full bg-[#E8F5E9] flex items-center justify-center">
+                        <User className="w-6 h-6 text-[#1B5E20]" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="text-lg font-bold text-gray-900">{member.name}</span>
-                          <span className="text-xs px-2 py-0.5 bg-[#1B5E20] text-white rounded-full font-medium">
-                            {member.position}
-                          </span>
+                          {member.position && (
+                            <span className="text-xs px-2 py-0.5 bg-[#1B5E20] text-white rounded-full font-medium">
+                              {member.position}
+                            </span>
+                          )}
                         </div>
-                        <p className="text-sm text-gray-500 mt-0.5">{member.age}세 · {member.gender}</p>
+                        <p className="text-sm text-gray-500 mt-0.5">
+                          {member.gender && `${member.gender}`}
+                          {member.department && ` · ${member.department}`}
+                        </p>
                       </div>
                     </div>
                     {/* 믿음PLUS 신앙 데이터 보기 버튼 */}
-                    <div className="flex items-center gap-1 text-xs text-[#1B5E20] bg-[#E8F5E9] px-2.5 py-1.5 rounded-lg font-medium group-hover:bg-[#1B5E20] group-hover:text-white transition-colors">
-                      <span>믿음PLUS 보기</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </div>
+                    {member.faithPlusUserId ? (
+                      <div className="flex items-center gap-1 text-xs text-[#1B5E20] bg-[#E8F5E9] px-2.5 py-1.5 rounded-lg font-medium group-hover:bg-[#1B5E20] group-hover:text-white transition-colors">
+                        <span>믿음PLUS 보기</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 text-xs text-gray-400 bg-gray-100 px-2.5 py-1.5 rounded-lg font-medium">
+                        <span>미연동</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* 기본 정보 그리드 */}
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <MapPin className="w-4 h-4 text-[#1B5E20] shrink-0" />
-                      <span>{member.district}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Heart className="w-4 h-4 text-[#1B5E20] shrink-0" />
-                      <span>{member.ministry}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Calendar className="w-4 h-4 text-[#1B5E20] shrink-0" />
-                      <span>등록 {member.registeredAt}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Phone className="w-4 h-4 text-[#1B5E20] shrink-0" />
-                      <span>{member.phone}</span>
-                    </div>
+                    {member.district && (
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <MapPin className="w-4 h-4 text-[#1B5E20] shrink-0" />
+                        <span>{member.district}</span>
+                      </div>
+                    )}
+                    {member.phone && (
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Phone className="w-4 h-4 text-[#1B5E20] shrink-0" />
+                        <span>{member.phone}</span>
+                      </div>
+                    )}
+                    {member.registeredAt && (
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Calendar className="w-4 h-4 text-[#1B5E20] shrink-0" />
+                        <span>등록 {member.registeredAt}</span>
+                      </div>
+                    )}
+                    {member.pastor && (
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Heart className="w-4 h-4 text-[#1B5E20] shrink-0" />
+                        <span>{member.pastor} 교역자</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* 주소 */}
-                  <div className="mt-3 flex items-center gap-2 text-sm text-gray-500">
-                    <Church className="w-4 h-4 text-gray-400 shrink-0" />
-                    <span>{member.address}</span>
-                  </div>
+                  {member.address && (
+                    <div className="mt-3 flex items-center gap-2 text-sm text-gray-500">
+                      <Church className="w-4 h-4 text-gray-400 shrink-0" />
+                      <span>{member.address}</span>
+                    </div>
+                  )}
                 </div>
               </button>
             ))}

@@ -369,6 +369,11 @@ export default function AdminMembersTab() {
                       {member.registeredAt && <span>등록일: <span className="text-gray-700">{member.registeredAt}</span></span>}
                       {member.gender && <span>성별: <span className="text-gray-700">{member.gender}</span></span>}
                       {member.birthDate && <span>생년월일: <span className="text-gray-700">{member.birthDate}</span></span>}
+                      {member.faithPlusUserId ? (
+                        <span>믿음PLUS: <a href={`https://faithplus.co.kr/search?user=${member.faithPlusUserId}`} target="_blank" rel="noopener noreferrer" className="text-[#1B5E20] underline">{member.faithPlusUserId}</a></span>
+                      ) : (
+                        <span className="text-gray-300">믿음PLUS 미연동</span>
+                      )}
                       {!member.department && !member.district && !member.baptismType && (
                         <span className="text-gray-300">교회 정보 미입력</span>
                       )}

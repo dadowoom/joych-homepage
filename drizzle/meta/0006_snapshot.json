@@ -157,7 +157,7 @@
         },
         "faithPlusUserId": {
           "name": "faithPlusUserId",
-          "type": "int",
+          "type": "varchar(64)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -1072,7 +1072,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'공지'"
+          "default": "'\uacf5\uc9c0'"
         },
         "title": {
           "name": "title",

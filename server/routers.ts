@@ -654,6 +654,17 @@ export const appRouter = router({
 
   // ─── 교회 회원 시스템 ───────────────────────────────────────────────────────
   members: router({
+    /** 성도 이름 검색 (교적부용 - 승인된 성도만) */
+    searchByName: publicProcedure
+      .input(z.object({ name: z.string().min(1) }))
+      .query(async ({ input }) => {
+        const allMembers = await getAllMembers();
+        // 승인된 성도만 반환, 비밀번호 해시 제외
+        return allMembers
+          .filter(m => m.status === 'approved' && m.name.includes(input.name))
+          .map(({ passwordHash: _, ...m }) => m);
+      }),
+
     /** 선택지 목록 조회 (공개 - 회원가입 폼에서 사용) */
     fieldOptions: publicProcedure
       .input(z.object({ fieldType: z.string().optional() }))
@@ -671,6 +682,7 @@ export const appRouter = router({
         address: z.string().optional(),
         emergencyPhone: z.string().optional(),
         joinPath: z.string().optional(),
+        faithPlusUserId: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         const bcrypt = await import('bcryptjs');
@@ -689,6 +701,7 @@ export const appRouter = router({
           address: input.address,
           emergencyPhone: input.emergencyPhone,
           joinPath: input.joinPath,
+          faithPlusUserId: input.faithPlusUserId,
         });
         // 회원가입 완료 즉시 자동 로그인 (JWT 쿠키 발급)
         const { SignJWT } = await import('jose');
@@ -703,10 +716,8 @@ export const appRouter = router({
           .setExpirationTime('30d')
           .sign(secret);
         ctx.res.cookie('church_member_session', token, {
-          httpOnly: true,
-          sameSite: 'lax',
+          ...getSessionCookieOptions(ctx.req),
           maxAge: 30 * 24 * 60 * 60 * 1000,
-          path: '/',
         });
         return { success: true, id, autoLoggedIn: true };
       }),
@@ -739,10 +750,8 @@ export const appRouter = router({
           .setExpirationTime('30d')
           .sign(secret);
         ctx.res.cookie('church_member_session', token, {
-          httpOnly: true,
-          sameSite: 'lax',
+          ...getSessionCookieOptions(ctx.req),
           maxAge: 30 * 24 * 60 * 60 * 1000,
-          path: '/',
         });
         return {
           success: true,
@@ -788,8 +797,9 @@ export const appRouter = router({
         phone: z.string().optional(),
         birthDate: z.string().optional(),
         gender: z.enum(['남', '여']).optional(),
-        address: z.string().optional(),
-        emergencyPhone: z.string().optional(),
+      address: z.string().optional(),
+      emergencyPhone: z.string().optional(),
+      faithPlusUserId: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         const token = ctx.req.cookies?.['church_member_session'];

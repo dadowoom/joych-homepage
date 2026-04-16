@@ -340,8 +340,8 @@ export const churchMembers = mysqlTable("church_members", {
   status: mysqlEnum("status", ["pending", "approved", "rejected", "withdrawn"]).notNull().default("pending"),
 
   // ── 연동 ──────────────────────────────────────────────────
-  /** 믿음PLUS 앱 유저 ID (연동용) */
-  faithPlusUserId: int("faith_plus_user_id"),
+  /** 믿음PLUS 앱 유저 ID (연동용) - 문자열로 저장 (숫자/영문 혼합 가능) */
+  faithPlusUserId: varchar("faith_plus_user_id", { length: 64 }),
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),

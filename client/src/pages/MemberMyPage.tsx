@@ -1,6 +1,7 @@
 /**
  * MemberMyPage.tsx
  * 성도 마이페이지 — 내 정보 확인 (기본 정보 + 관리자가 입력한 교회 정보)
+ * + 믿음PLUS 유저 ID 수정 기능
  */
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
@@ -9,8 +10,12 @@ import { toast } from "sonner";
 
 export default function MemberMyPage() {
   const [, navigate] = useLocation();
+  const utils = trpc.useUtils();
 
   const { data: me, isLoading, error } = trpc.members.me.useQuery();
+
+  const [editingFaithPlus, setEditingFaithPlus] = useState(false);
+  const [faithPlusInput, setFaithPlusInput] = useState("");
 
   const logoutMutation = trpc.members.logout.useMutation({
     onSuccess: () => {
@@ -18,6 +23,26 @@ export default function MemberMyPage() {
       navigate("/member/login");
     },
   });
+
+  const updateInfoMutation = trpc.members.updateMyInfo.useMutation({
+    onSuccess: () => {
+      toast.success("믿음PLUS 유저 ID가 저장됐습니다.");
+      setEditingFaithPlus(false);
+      utils.members.me.invalidate();
+    },
+    onError: (e) => {
+      toast.error(e.message || "저장에 실패했습니다.");
+    },
+  });
+
+  const handleFaithPlusSave = () => {
+    updateInfoMutation.mutate({ faithPlusUserId: faithPlusInput || undefined });
+  };
+
+  const handleFaithPlusEdit = () => {
+    setFaithPlusInput(me?.faithPlusUserId ?? "");
+    setEditingFaithPlus(true);
+  };
 
   if (isLoading) {
     return (
@@ -137,6 +162,71 @@ export default function MemberMyPage() {
             <InfoRow label="등록일" value={me.registeredAt} placeholder="미입력" />
             <InfoRow label="담당 교역자" value={me.pastor} placeholder="미입력" />
           </div>
+        </div>
+
+        {/* 믿음PLUS 연동 */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-4">
+          <h2 className="text-base font-bold text-gray-800 mb-1 flex items-center gap-2">
+            <i className="fas fa-mobile-alt text-[#1B5E20]"></i>
+            믿음PLUS 연동
+          </h2>
+          <p className="text-xs text-gray-400 mb-4">
+            믿음PLUS 앱을 사용하신다면 유저 ID를 등록해주세요. 교적부에서 프로필 연결에 사용됩니다.
+          </p>
+
+          {editingFaithPlus ? (
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={faithPlusInput}
+                onChange={(e) => setFaithPlusInput(e.target.value)}
+                placeholder="믿음PLUS 앱에서 확인한 유저 ID"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleFaithPlusSave}
+                  disabled={updateInfoMutation.isPending}
+                  className="flex-1 py-2 bg-[#1B5E20] text-white rounded-lg text-sm font-medium hover:bg-[#154a18] disabled:opacity-50"
+                >
+                  {updateInfoMutation.isPending ? "저장 중..." : "저장"}
+                </button>
+                <button
+                  onClick={() => setEditingFaithPlus(false)}
+                  className="flex-1 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50"
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div>
+                {me.faithPlusUserId ? (
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">유저 ID: {me.faithPlusUserId}</p>
+                    <a
+                      href={`https://faithplus.co.kr/search?user=${me.faithPlusUserId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-[#1B5E20] hover:underline mt-0.5 inline-block"
+                    >
+                      믿음PLUS에서 보기 →
+                    </a>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400">등록된 유저 ID가 없습니다.</p>
+                )}
+              </div>
+              <button
+                onClick={handleFaithPlusEdit}
+                className="text-xs text-[#1B5E20] border border-[#1B5E20] rounded-lg px-3 py-1.5 hover:bg-[#E8F5E9] transition-colors"
+              >
+                {me.faithPlusUserId ? "수정" : "등록"}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 하단 링크 */}

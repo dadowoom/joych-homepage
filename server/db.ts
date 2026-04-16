@@ -744,6 +744,7 @@ export async function createMember(data: {
   address?: string;
   emergencyPhone?: string;
   joinPath?: string;
+  faithPlusUserId?: string;
 }) {
   const db = await getDb();
   if (!db) throw new Error('DB not available');
@@ -762,6 +763,7 @@ export async function updateMemberBasicInfo(id: number, data: Partial<{
   gender: string;
   address: string;
   emergencyPhone: string;
+  faithPlusUserId: string;
 }>) {
   const db = await getDb();
   if (!db) throw new Error('DB not available');
