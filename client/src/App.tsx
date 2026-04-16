@@ -11,6 +11,11 @@ import Sitemap from "./pages/Sitemap";
 import FaithData from "./pages/FaithData";
 import ChurchDirectory from "./pages/ChurchDirectory";
 
+// 교회 회원 시스템
+import MemberRegister from "./pages/MemberRegister";
+import MemberLogin from "./pages/MemberLogin";
+import MemberMyPage from "./pages/MemberMyPage";
+
 // 시설 예약
 import FacilityList from "./pages/FacilityList";
 import FacilityDetail from "./pages/FacilityDetail";
@@ -178,6 +183,11 @@ function Router() {
       <Route path="/admin/donation" component={DonationReceiptPage} />
 
       {/* 시설 예약 */}
+      {/* 교회 회원 시스템 */}
+      <Route path="/member/register" component={MemberRegister} />
+      <Route path="/member/login" component={MemberLogin} />
+      <Route path="/member/my-page" component={MemberMyPage} />
+
       <Route path="/facility" component={FacilityList} />
       <Route path="/facility/my-reservations" component={MyReservations} />
       <Route path="/facility/:id/apply" component={FacilityApply} />
