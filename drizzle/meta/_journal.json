@@ -50,6 +50,13 @@
       "when": 1776276533810,
       "tag": "0006_cuddly_odin",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1776428706246,
+      "tag": "0007_dear_apocalypse",
+      "breakpoints": true
     }
   ]
 }

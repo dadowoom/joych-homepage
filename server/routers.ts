@@ -376,6 +376,10 @@ export const appRouter = router({
     // 메뉴 관리
     menus: router({
       list: adminProcedure.query(() => getAllMenus()),
+      /** 2단 메뉴 단건 조회 (playlistId 포함) */
+      getItem: adminProcedure
+        .input(z.object({ id: z.number() }))
+        .query(({ input }) => getMenuItemById(input.id)),
       update: adminProcedure
         .input(z.object({
           id: z.number(),
@@ -401,9 +405,21 @@ export const appRouter = router({
         .mutation(async ({ input }) => {
           const result = await createMenuItem(input);
           const newId = result?.insertId;
+          if (!newId) return { insertId: newId };
+          const updates: Partial<Parameters<typeof updateMenuItem>[1]> = {};
           // href가 없으면 동적 페이지 URL 자동 설정
-          if (newId && !input.href) {
-            await updateMenuItem(newId, { href: `/page/item/${newId}` });
+          if (!input.href) {
+            updates.href = `/page/item/${newId}`;
+          }
+          // youtube 타입이면 동일 이름의 플레이리스트 자동 생성 후 연결
+          if (input.pageType === 'youtube') {
+            const plResult = await createYoutubePlaylist({ title: input.label });
+            if (plResult?.insertId) {
+              updates.playlistId = plResult.insertId;
+            }
+          }
+          if (Object.keys(updates).length > 0) {
+            await updateMenuItem(newId, updates);
           }
           return { insertId: newId };
         }),
@@ -416,9 +432,20 @@ export const appRouter = router({
           isVisible: z.boolean().optional(),
           pageType: z.enum(["image", "gallery", "board", "youtube", "editor"]).optional(),
           pageImageUrl: z.string().nullable().optional(),
+          playlistId: z.number().nullable().optional(),
         }))
-        .mutation(({ input }) => {
+        .mutation(async ({ input }) => {
           const { id, ...data } = input;
+          // youtube 타입으로 변경 시 플레이리스트가 없으면 자동 생성
+          if (data.pageType === 'youtube' && !data.playlistId) {
+            const existing = await getMenuItemById(id);
+            if (existing && !existing.playlistId) {
+              const plResult = await createYoutubePlaylist({ title: existing.label });
+              if (plResult?.insertId) {
+                data.playlistId = plResult.insertId;
+              }
+            }
+          }
           return updateMenuItem(id, data);
         }),
       deleteItem: adminProcedure

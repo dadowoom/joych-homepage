@@ -39,6 +39,167 @@ import { toast } from "sonner";
 
 type PageType = "image" | "gallery" | "board" | "youtube" | "editor";
 
+// ─── 예배영상 관리 인라인 컴포넌트 ─────────────────────
+function YoutubeVideoManager({ menuItemId, label }: { menuItemId: number; label: string }) {
+  const utils = trpc.useUtils();
+  // 메뉴 아이템 정보 (playlistId 포함)
+  const { data: menuItem } = trpc.cms.menus.getItem.useQuery({ id: menuItemId });
+  const playlistId = menuItem?.playlistId ?? null;
+
+  const { data: videos, isLoading } = trpc.youtube.getVideosAdmin.useQuery(
+    { playlistId: playlistId! },
+    { enabled: !!playlistId }
+  );
+
+  const [newUrl, setNewUrl] = useState("");
+  const [newTitle, setNewTitle] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+
+  const addVideo = trpc.youtube.addVideo.useMutation({
+    onSuccess: () => {
+      utils.youtube.getVideosAdmin.invalidate();
+      setNewUrl("");
+      setNewTitle("");
+      setShowAddForm(false);
+      toast.success("영상이 추가됐습니다.");
+    },
+    onError: (e) => toast.error("추가 실패: " + e.message),
+  });
+
+  const deleteVideo = trpc.youtube.deleteVideo.useMutation({
+    onSuccess: () => {
+      utils.youtube.getVideosAdmin.invalidate();
+      toast.success("영상이 삭제됐습니다.");
+    },
+    onError: (e) => toast.error("삭제 실패: " + e.message),
+  });
+
+  // 유튜브 URL에서 videoId 추출
+  function extractVideoId(url: string): string | null {
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    ];
+    for (const p of patterns) {
+      const m = url.match(p);
+      if (m) return m[1];
+    }
+    return null;
+  }
+
+  const handleAdd = async () => {
+    if (!playlistId) return;
+    const videoId = extractVideoId(newUrl);
+    if (!videoId) {
+      toast.error("올바른 유튜브 링크를 입력해주세요.");
+      return;
+    }
+    const title = newTitle.trim() || `영상 ${(videos?.length ?? 0) + 1}`;
+    setAdding(true);
+    try {
+      await addVideo.mutateAsync({
+        playlistId,
+        videoId,
+        title,
+        thumbnailUrl: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+        sortOrder: (videos?.length ?? 0) + 1,
+      });
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  if (!playlistId) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-4 text-center gap-2">
+        <Youtube size={24} className="text-red-400" />
+        <p className="text-xs text-gray-500">플레이리스트 연결 중...</p>
+        <p className="text-[10px] text-gray-400">메뉴를 저장하면 자동으로 연결됩니다.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* 영상 목록 */}
+      <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+        {isLoading && <p className="text-xs text-gray-400 text-center py-4">불러오는 중...</p>}
+        {!isLoading && (!videos || videos.length === 0) && (
+          <div className="flex flex-col items-center justify-center py-8 gap-2">
+            <Youtube size={28} className="text-gray-300" />
+            <p className="text-xs text-gray-400">등록된 영상이 없습니다</p>
+            <p className="text-[10px] text-gray-300">아래 버튼으로 영상을 추가해주세요</p>
+          </div>
+        )}
+        {videos?.map((v) => (
+          <div key={v.id} className="flex items-center gap-2 p-1.5 rounded-lg border border-gray-100 bg-white hover:bg-gray-50">
+            <img
+              src={v.thumbnailUrl ?? `https://img.youtube.com/vi/${v.videoId}/mqdefault.jpg`}
+              alt={v.title}
+              className="w-14 h-10 object-cover rounded flex-shrink-0"
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-medium text-gray-700 truncate">{v.title}</p>
+              <p className="text-[9px] text-gray-400 truncate">{v.videoId}</p>
+            </div>
+            <button
+              onClick={() => {
+                if (confirm(`"${v.title}" 영상을 삭제하시겠습니까?`)) {
+                  deleteVideo.mutate({ id: v.id });
+                }
+              }}
+              className="p-1 text-red-300 hover:text-red-500 flex-shrink-0"
+              title="삭제"
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
+        ))}
+      </div>
+      {/* 영상 추가 */}
+      <div className="p-2 border-t bg-white shrink-0">
+        {showAddForm ? (
+          <div className="space-y-1.5 p-2 rounded-lg border-2 border-red-200 bg-red-50">
+            <Input
+              value={newUrl}
+              onChange={(e) => setNewUrl(e.target.value)}
+              className="h-7 text-xs"
+              placeholder="유튜브 링크 (https://youtu.be/...)"
+              autoFocus
+            />
+            <Input
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              className="h-7 text-xs"
+              placeholder="영상 제목 (선택사항)"
+            />
+            <div className="flex gap-1">
+              <Button
+                size="sm"
+                className="h-6 text-[10px] px-2 bg-red-600 hover:bg-red-700"
+                onClick={handleAdd}
+                disabled={!newUrl.trim() || adding}
+              >
+                <Check size={10} className="mr-0.5" /> 추가
+              </Button>
+              <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => setShowAddForm(false)}>
+                <X size={10} className="mr-0.5" /> 취소
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="w-full text-xs text-red-600 border border-dashed border-red-300 rounded-lg py-1.5 hover:bg-red-50 flex items-center justify-center gap-1"
+          >
+            <Plus size={12} /> 영상 추가
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const PAGE_TYPE_OPTIONS: { value: PageType; label: string; icon: React.ReactNode }[] = [
   { value: "image",   label: "이미지 전체화면", icon: <Image size={12} /> },
   { value: "gallery", label: "갤러리",          icon: <LayoutGrid size={12} /> },
@@ -960,17 +1121,22 @@ export default function MenuEditPanel({
               )}
             </div>
 
-            {/* ── 컬럼 3: 3단 세부 메뉴 ── */}
+            {/* ── 콜럼 3: 3단 세부 메뉴 또는 예배영상 관리 ── */}
             <div className="flex-1 flex flex-col bg-white">
               <div className="px-3 py-2 border-b bg-gray-50">
                 <p className="text-[11px] font-semibold text-gray-600">
-                  3단 메뉴 {selectedItem ? `— ${selectedItem.label}` : ""}
+                  {selectedItem?.pageType === 'youtube'
+                    ? <span className="flex items-center gap-1"><Youtube size={11} className="text-red-500" /> 예배영상 — {selectedItem.label}</span>
+                    : `3단 메뉴 ${selectedItem ? `— ${selectedItem.label}` : ''}`
+                  }
                 </p>
               </div>
               {!selectedItem ? (
                 <div className="flex-1 flex items-center justify-center text-xs text-gray-400 p-4 text-center">
                   가운데에서 하위 메뉴를<br />선택해주세요
                 </div>
+              ) : selectedItem.pageType === 'youtube' ? (
+                <YoutubeVideoManager menuItemId={selectedItem.id} label={selectedItem.label} />
               ) : (
                 <>
                   <div className="flex-1 overflow-y-auto p-2 space-y-1">
