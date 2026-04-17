@@ -581,6 +581,21 @@ export default function Home() {
                 {item.label}
               </a>
             ))}
+            {/* 모바일 로그인/회원가입 */}
+            <div className="border-t border-gray-200 px-5 py-3 flex gap-4">
+              {memberMe ? (
+                <>
+                  <span className="text-sm text-gray-700 font-medium">{memberMe.name}님</span>
+                  <Link href="/member/my-page" className="text-sm text-[#1B5E20] hover:underline">내 정보</Link>
+                  <button onClick={() => memberLogoutMutation.mutate()} className="text-sm text-gray-500 hover:text-red-500">로그아웃</button>
+                </>
+              ) : (
+                <>
+                  <Link href="/member/login" className="text-sm text-[#1B5E20] font-medium hover:underline">로그인</Link>
+                  <Link href="/member/register" className="text-sm text-gray-600 hover:underline">회원가입</Link>
+                </>
+              )}
+            </div>
           </div>
         )}
       </header>
