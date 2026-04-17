@@ -76,10 +76,10 @@ export default function ChurchDirectory() {
         {/* 상단 헤더 */}
         <header className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-sm">
           <div className="max-w-4xl mx-auto px-4 h-14 flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-1.5 text-[#1B5E20] hover:opacity-80 transition-opacity">
+            <button onClick={() => window.history.back()} className="flex items-center gap-1.5 text-[#1B5E20] hover:opacity-80 transition-opacity">
               <ChevronLeft className="w-5 h-5" />
-              <span className="text-sm font-medium">홈으로</span>
-            </Link>
+              <span className="text-sm font-medium">뒤로 가기</span>
+            </button>
             <div className="w-px h-5 bg-gray-200" />
             <h1 className="text-base font-bold text-[#1B5E20]" style={{ fontFamily: "'Noto Serif KR', serif" }}>교적부</h1>
             <span className="text-xs text-gray-400 ml-auto">기쁨의교회</span>
@@ -122,10 +122,10 @@ export default function ChurchDirectory() {
       {/* ── 상단 헤더 ── */}
       <header className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-sm">
         <div className="max-w-4xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-1.5 text-[#1B5E20] hover:opacity-80 transition-opacity">
+          <button onClick={() => window.history.back()} className="flex items-center gap-1.5 text-[#1B5E20] hover:opacity-80 transition-opacity">
             <ChevronLeft className="w-5 h-5" />
-            <span className="text-sm font-medium">홈으로</span>
-          </Link>
+            <span className="text-sm font-medium">뒤로 가기</span>
+          </button>
           <div className="w-px h-5 bg-gray-200" />
           <h1 className="text-base font-bold text-[#1B5E20]" style={{ fontFamily: "'Noto Serif KR', serif" }}>
             교적부

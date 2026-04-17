@@ -10,6 +10,8 @@ import { storagePut } from "./storage";
 import {
   getMenuItemById,
   getMenuSubItemById,
+  getMenuItemByHref,
+  getMenuSubItemByHref,
   getPublishedNotices,
   getVisibleAffiliates,
   getVisibleHeroSlides,
@@ -185,6 +187,14 @@ export const appRouter = router({
     menuSubItem: publicProcedure
       .input(z.object({ id: z.number() }))
       .query(({ input }) => getMenuSubItemById(input.id)),
+    /** href(경로)로 2단 메뉴 조회 (youtube 페이지 playlistId 연결용) */
+    menuItemByHref: publicProcedure
+      .input(z.object({ href: z.string() }))
+      .query(({ input }) => getMenuItemByHref(input.href)),
+    /** href(경로)로 3단 메뉴 조회 (youtube 페이지 playlistId 연결용) */
+    menuSubItemByHref: publicProcedure
+      .input(z.object({ href: z.string() }))
+      .query(({ input }) => getMenuSubItemByHref(input.href)),
     /** 시설 목록 (성도용 - 공개된 시설만) */
     facilities: publicProcedure.query(() => getFacilities(true)),
     /** 시설 단건 조회 (성도용) */

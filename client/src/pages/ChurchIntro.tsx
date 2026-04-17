@@ -23,9 +23,9 @@ function PageWrapper({ title, breadcrumb, children }: { title: string; breadcrum
         </div>
       </div>
       <div className="max-w-6xl mx-auto px-4 py-12">
-        <Link href="/" className="inline-flex items-center gap-2 text-[#2d6a4f] hover:underline mb-8 text-sm">
-          <ArrowLeft className="w-4 h-4" /> 홈으로
-        </Link>
+        <button onClick={() => window.history.back()} className="inline-flex items-center gap-2 text-[#2d6a4f] hover:underline mb-8 text-sm">
+          <ArrowLeft className="w-4 h-4" /> 뒤로 가기
+        </button>
         {children}
       </div>
     </div>

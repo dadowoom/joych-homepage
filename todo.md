@@ -313,3 +313,15 @@
 - [x] 서버: addVideo 프로시저에서 videoUrl 저장 처리
 - [x] 프론트: MenuEditPanel 입력 UI - "유튜브 링크 또는 영상 파일 주소(URL)" 안내로 변경
 - [x] 프론트: YoutubeListPage에서 유튜브 vs 직접 URL 재생 방식 분기 처리
+
+## 메뉴 편집 패널 영상 섹션 제거 (2026-04-17)
+- [x] MenuEditPanel.tsx: YoutubeVideoManager 컴포넌트 제거 (영상 관리는 관리자 대시보드로 통합)
+- [x] 유튜브 목록 타입 메뉴 선택 시 대시보드 안내 메시지로 교체
+- [x] 뒤로 가기 버튼이 페이지 히스토리를 따르도록 수정 (window.history.back)
+- [x] 전체 브라우저 히스토리 기능 - 이미 구현됨 확인
+
+## 조이풀TV 예배영상 DB 연동 (2026-04-17)
+- [x] JoyfulTV.tsx: 하드코딩 더미 데이터 제거 → href 기반 DB 메뉴 조회로 교체
+- [x] server/db.ts: getMenuItemByHref, getMenuSubItemByHref 함수 추가
+- [x] server/routers.ts: home.menuItemByHref, home.menuSubItemByHref API 추가
+- [x] 관리자 대시보드에서 영상 추가 시 조이풀TV 페이지에 즉시 반영

@@ -624,11 +624,9 @@ export default function FacilityDetail() {
               </div>
 
               {/* 목록으로 */}
-              <Link href="/facility">
-                <div className="text-center text-sm text-gray-400 hover:text-[#1B5E20] transition-colors cursor-pointer py-2 flex items-center justify-center gap-1">
-                  <ChevronLeft size={14} /> 시설 목록으로 돌아가기
-                </div>
-              </Link>
+              <button onClick={() => window.history.back()} className="w-full text-center text-sm text-gray-400 hover:text-[#1B5E20] transition-colors cursor-pointer py-2 flex items-center justify-center gap-1">
+                <ChevronLeft size={14} /> 뒤로 가기
+              </button>
             </div>
           </div>
         </div>

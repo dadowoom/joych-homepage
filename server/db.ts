@@ -1078,3 +1078,18 @@ export async function reorderYoutubeVideos(orderedIds: number[]) {
     )
   );
 }
+
+/** href(경로)로 2단 메뉴 항목 조회 (youtube 타입 페이지의 playlistId 연결용) */
+export async function getMenuItemByHref(href: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(menuItems).where(eq(menuItems.href, href)).limit(1);
+  return rows[0] ?? null;
+}
+/** href(경로)로 3단 메뉴 항목 조회 (youtube 타입 페이지의 playlistId 연결용) */
+export async function getMenuSubItemByHref(href: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(menuSubItems).where(eq(menuSubItems.href, href)).limit(1);
+  return rows[0] ?? null;
+}
