@@ -225,6 +225,8 @@ type BlockContent = {
   style?: string;
   fontSize?: number;
   align?: 'left' | 'center' | 'right';
+  thickness?: number;
+  lineStyle?: 'solid' | 'dashed' | 'dotted';
 };
 
 function parseContent(raw: string): BlockContent {
@@ -318,8 +320,19 @@ function BlockRenderer({ block }: { block: { id: number; blockType: string; cont
           </a>
         </div>
       );
-    case 'divider':
-      return <hr className="my-6 border-gray-200" />;
+    case 'divider': {
+      const thickness = c.thickness ?? 1;
+      const lineStyle = c.lineStyle ?? 'solid';
+      return (
+        <div className="my-6">
+          <hr style={{
+            borderTopWidth: `${thickness}px`,
+            borderTopStyle: lineStyle,
+            borderColor: '#d1d5db',
+          }} />
+        </div>
+      );
+    }
     default:
       return null;
   }
@@ -393,6 +406,14 @@ function BlockEditDialog({
     if (!block?.content) return 'left';
     try { const c = JSON.parse(block.content); return c.align ?? 'left'; } catch { return 'left'; }
   });
+  const [dividerThickness, setDividerThickness] = useState<number>(() => {
+    if (!block?.content) return 1;
+    try { const c = JSON.parse(block.content); return c.thickness ?? 1; } catch { return 1; }
+  });
+  const [dividerLineStyle, setDividerLineStyle] = useState<'solid'|'dashed'|'dotted'>(() => {
+    if (!block?.content) return 'solid';
+    try { const c = JSON.parse(block.content); return c.lineStyle ?? 'solid'; } catch { return 'solid'; }
+  });
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -419,6 +440,7 @@ function BlockEditDialog({
     if (blockType.startsWith('image')) return JSON.stringify({ urls, captions });
     if (blockType === 'youtube') return JSON.stringify({ videoId, title: '' });
     if (blockType === 'button') return JSON.stringify({ label: btnLabel, href: btnHref, style: btnStyle });
+    if (blockType === 'divider') return JSON.stringify({ thickness: dividerThickness, lineStyle: dividerLineStyle });
     return '{}';
   };
 
@@ -577,6 +599,61 @@ function BlockEditDialog({
                 <div className="flex gap-2">
                   <button onClick={() => setBtnStyle('solid')} className={`px-3 py-1 rounded text-sm ${btnStyle === 'solid' ? 'bg-green-700 text-white' : 'border border-gray-300 text-gray-600'}`}>스타일 1 (실선)</button>
                   <button onClick={() => setBtnStyle('outline')} className={`px-3 py-1 rounded text-sm ${btnStyle === 'outline' ? 'bg-green-700 text-white' : 'border border-gray-300 text-gray-600'}`}>스타일 2 (선만)</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 구분선 블록 */}
+          {blockType === 'divider' && (
+            <div className="space-y-4">
+              {/* 두께 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  두께: <span className="text-green-700 font-bold">{dividerThickness}px</span>
+                </label>
+                <input
+                  type="range"
+                  min={1}
+                  max={10}
+                  value={dividerThickness}
+                  onChange={e => setDividerThickness(Number(e.target.value))}
+                  className="w-full accent-green-700"
+                />
+                <div className="flex justify-between text-xs text-gray-400 mt-1">
+                  <span>얇게 (1px)</span>
+                  <span>두껍게 (10px)</span>
+                </div>
+              </div>
+              {/* 선 스타일 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">선 스타일</label>
+                <div className="flex gap-2">
+                  {(['solid', 'dashed', 'dotted'] as const).map(s => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setDividerLineStyle(s)}
+                      className={`flex-1 py-2 px-3 rounded border text-sm transition-colors ${
+                        dividerLineStyle === s
+                          ? 'bg-green-700 text-white border-green-700'
+                          : 'border-gray-300 text-gray-600 hover:border-green-400'
+                      }`}
+                    >
+                      {s === 'solid' ? '실선 ——' : s === 'dashed' ? '파선 - - -' : '점선 ···'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* 미리보기 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">미리보기</label>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <hr style={{
+                    borderTopWidth: `${dividerThickness}px`,
+                    borderTopStyle: dividerLineStyle,
+                    borderColor: '#9ca3af',
+                  }} />
                 </div>
               </div>
             </div>
