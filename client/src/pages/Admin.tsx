@@ -5,7 +5,7 @@
  */
 
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useSearch, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
@@ -522,7 +522,13 @@ function SettingsTab() {
 // ─── 메인 관리자 페이지 ─────────────────────────
 export default function AdminPage() {
   const { user, loading } = useAuth();
-  const [activeTab, setActiveTab] = useState<Tab>("settings");
+  const searchString = useSearch();
+  const [, setLocation] = useLocation();
+  const searchParams = new URLSearchParams(searchString);
+  const VALID_TABS: Tab[] = ["settings", "facilities", "reservations", "memberOptions", "members"];
+  const tabFromUrl = searchParams.get("tab") as Tab | null;
+  const activeTab: Tab = tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : "settings";
+  const setActiveTab = (tab: Tab) => setLocation(`/admin?tab=${tab}`);
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
