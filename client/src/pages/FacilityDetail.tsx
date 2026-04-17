@@ -239,7 +239,7 @@ function TimeSlotPanel({
               : `${startTime} ~ ${endTime} 선택됨 — 다시 클릭하면 초기화`}
           </p>
 
-          <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
             {allSlots.map((slot) => {
               const isBooked = bookedSlots.has(slot);
               const isStart = slot === startTime;
@@ -248,22 +248,29 @@ function TimeSlotPanel({
               const isSelected = isStart || isEnd || isInRange;
 
               return (
-                <button
-                  key={slot}
-                  disabled={isBooked}
-                  onClick={() => handleSlotClick(slot)}
-                  className={`text-xs px-2.5 py-1.5 rounded-md font-medium transition-colors ${
-                    isBooked
-                      ? "bg-red-100 text-red-400 line-through cursor-not-allowed"
-                      : isStart || isEnd
-                      ? "bg-[#1B5E20] text-white ring-2 ring-[#1B5E20] ring-offset-1"
-                      : isInRange
-                      ? "bg-[#2E7D32] text-white"
-                      : "bg-green-50 text-green-700 border border-green-200 hover:bg-green-200 cursor-pointer"
-                  }`}
-                >
-                  {slot}
-                </button>
+                <div key={slot} className="relative group">
+                  <button
+                    disabled={isBooked}
+                    onClick={() => handleSlotClick(slot)}
+                    className={`text-xs px-2.5 py-1.5 rounded-md font-medium transition-colors ${
+                      isBooked
+                        ? "bg-red-100 text-red-400 line-through cursor-not-allowed"
+                        : isStart || isEnd
+                        ? "bg-[#1B5E20] text-white ring-2 ring-[#1B5E20] ring-offset-1"
+                        : isInRange
+                        ? "bg-[#2E7D32] text-white"
+                        : "bg-green-50 text-green-700 border border-green-200 hover:bg-green-200 cursor-pointer"
+                    }`}
+                  >
+                    {slot}
+                  </button>
+                  {isBooked && (
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-gray-800 text-white text-[10px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                      예약 불가
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>

@@ -176,23 +176,30 @@ function TimeSlotPicker({
           const isInRange = startTime && endTime && slot > startTime && slot < endTime;
 
           return (
-            <button
-              key={slot}
-              type="button"
-              disabled={isBooked}
-              onClick={() => handleSlotClick(slot)}
-              className={`text-xs px-2.5 py-1.5 rounded-md font-medium transition-all ${
-                isBooked
-                  ? "bg-red-100 text-red-400 line-through cursor-not-allowed"
-                  : isStart || isEnd
-                  ? "bg-[#1B5E20] text-white ring-2 ring-[#1B5E20] ring-offset-1 scale-105"
-                  : isInRange
-                  ? "bg-[#2E7D32] text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-green-100 hover:text-green-700 cursor-pointer"
-              }`}
-            >
-              {slot}
-            </button>
+            <div key={slot} className="relative group">
+              <button
+                type="button"
+                disabled={isBooked}
+                onClick={() => handleSlotClick(slot)}
+                className={`text-xs px-2.5 py-1.5 rounded-md font-medium transition-all ${
+                  isBooked
+                    ? "bg-red-100 text-red-400 line-through cursor-not-allowed"
+                    : isStart || isEnd
+                    ? "bg-[#1B5E20] text-white ring-2 ring-[#1B5E20] ring-offset-1 scale-105"
+                    : isInRange
+                    ? "bg-[#2E7D32] text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-green-100 hover:text-green-700 cursor-pointer"
+                }`}
+              >
+                {slot}
+              </button>
+              {isBooked && (
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-gray-800 text-white text-[10px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                  예약 불가
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
