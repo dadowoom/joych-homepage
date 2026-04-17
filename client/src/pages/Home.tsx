@@ -312,7 +312,7 @@ export default function Home() {
               onClick={() => setYoutubePanelOpen(true)}
               className="bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-1 rounded transition-colors"
             >
-              유튜브 편집
+              예배영상 편집
             </button>
             <a
               href="/admin_joych_2026"

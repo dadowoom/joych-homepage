@@ -13,9 +13,10 @@ import AdminFacilitiesTab from "@/components/AdminFacilitiesTab";
 import AdminReservationsTab from "@/components/AdminReservationsTab";
 import AdminMemberOptionsTab from "@/components/AdminMemberOptionsTab";
 import AdminMembersTab from "@/components/AdminMembersTab";
+import YoutubeAdminTab from "@/components/YoutubeAdminTab";
 
 // ─── 탭 타입 ───────────────────────────────────
-type Tab = "settings" | "facilities" | "reservations" | "memberOptions" | "members";
+type Tab = "settings" | "facilities" | "reservations" | "memberOptions" | "members" | "youtube";
 
 // ─── 히어로 슬라이드 관리 탭 ─────────────────────
 function HeroSlidesTab() {
@@ -525,7 +526,7 @@ export default function AdminPage() {
   const searchString = useSearch();
   const [, setLocation] = useLocation();
   const searchParams = new URLSearchParams(searchString);
-  const VALID_TABS: Tab[] = ["settings", "facilities", "reservations", "memberOptions", "members"];
+  const VALID_TABS: Tab[] = ["settings", "facilities", "reservations", "memberOptions", "members", "youtube"];
   const tabFromUrl = searchParams.get("tab") as Tab | null;
   const activeTab: Tab = tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : "settings";
   const setActiveTab = (tab: Tab) => setLocation(`/admin_joych_2026?tab=${tab}`);
@@ -687,6 +688,7 @@ export default function AdminPage() {
     { id: "reservations", label: "예약 승인", icon: "fa-calendar-check" },
     { id: "memberOptions", label: "선택지 관리", icon: "fa-list-ul" },
     { id: "members", label: "성도 관리", icon: "fa-users" },
+    { id: "youtube", label: "예배영상 관리", icon: "fa-video" },
   ];
 
   return (
@@ -755,6 +757,7 @@ export default function AdminPage() {
           {activeTab === "reservations" && <AdminReservationsTab />}
           {activeTab === "memberOptions" && <AdminMemberOptionsTab />}
           {activeTab === "members" && <AdminMembersTab />}
+          {activeTab === "youtube" && <YoutubeAdminTab />}
         </div>
       </div>
     </div>
