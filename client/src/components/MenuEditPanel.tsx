@@ -79,6 +79,86 @@ type MenuRow = {
   items: MenuItemRow[];
 };
 
+// ─── 내부 페이지 경로 목록 ─────────────────
+const INTERNAL_PAGES = [
+  { group: "교회소개", pages: [
+    { label: "담임목사 인사", path: "/about/pastor" },
+    { label: "교회 역사", path: "/about/history" },
+    { label: "교회 비전", path: "/about/vision" },
+    { label: "섬기는 분", path: "/about/staff" },
+    { label: "교회백서", path: "/about/whitebook" },
+    { label: "사역원리", path: "/about/principle" },
+    { label: "CI", path: "/about/ci" },
+    { label: "셔틀버스", path: "/about/shuttle" },
+    { label: "오시는 길", path: "/about/directions" },
+  ]},
+  { group: "조이풀TV", pages: [
+    { label: "조이풀TV 메인", path: "/worship/tv" },
+    { label: "주일예배", path: "/worship/tv/sunday" },
+    { label: "헤브론 수요예배", path: "/worship/tv/hebron" },
+    { label: "쉐키나 금요기도회", path: "/worship/tv/shekhinah" },
+    { label: "새벽 글로리아 성서학당", path: "/worship/tv/gloria" },
+    { label: "박진석 목사 시리즈설교", path: "/worship/tv/pastor-series" },
+    { label: "하영인 새벽기도회 설교", path: "/worship/tv/hayoungin" },
+    { label: "특별예배", path: "/worship/tv/special" },
+    { label: "특집", path: "/worship/tv/feature" },
+    { label: "간증", path: "/worship/tv/testimony" },
+    { label: "찬양", path: "/worship/tv/praise" },
+    { label: "예배 안내", path: "/worship/schedule" },
+    { label: "주보", path: "/worship/bulletin" },
+  ]},
+  { group: "양육/훈련", pages: [
+    { label: "헤세드아시아포재팬", path: "/education/hesed" },
+    { label: "제자훈련", path: "/education/disciple2" },
+    { label: "장로훈련", path: "/education/elder" },
+    { label: "일대일 양육", path: "/education/one-on-one" },
+    { label: "선생님학교", path: "/education/sunseumschool" },
+    { label: "생선 컨퍼런스", path: "/education/saengseon" },
+    { label: "세계선교", path: "/ministry/world-mission" },
+    { label: "전도", path: "/ministry/evangelism" },
+    { label: "기도사역", path: "/ministry/prayer" },
+    { label: "복지사역", path: "/ministry/welfare" },
+    { label: "비전대학교", path: "/ministry/vision-univ" },
+    { label: "조이랩", path: "/ministry/joylab" },
+  ]},
+  { group: "교회학교", pages: [
+    { label: "영아/유아부", path: "/school/infant" },
+    { label: "유치부", path: "/school/kinder" },
+    { label: "초등부", path: "/school/elementary" },
+    { label: "중고등부", path: "/school/youth" },
+    { label: "AWANA", path: "/school/awana" },
+    { label: "청년부", path: "/school/young-adult" },
+  ]},
+  { group: "선교보고", pages: [
+    { label: "선교보고 목록", path: "/mission" },
+  ]},
+  { group: "커뮤니티", pages: [
+    { label: "교회 소식", path: "/community/news" },
+    { label: "순모임", path: "/community/soon" },
+    { label: "자치기관", path: "/community/organization" },
+    { label: "동호회", path: "/community/club" },
+    { label: "사진", path: "/community/photo" },
+    { label: "기쁨톡", path: "/community/joytalk" },
+  ]},
+  { group: "행정지원", pages: [
+    { label: "주보", path: "/worship/bulletin" },
+    { label: "자막 신청", path: "/admin/subtitle" },
+    { label: "온라인사무국", path: "/admin/office" },
+    { label: "탐방신청", path: "/admin/tour" },
+    { label: "조이플스토어", path: "/admin/store" },
+    { label: "기부금 영수증", path: "/admin/donation" },
+    { label: "시설 예약", path: "/facility" },
+  ]},
+];
+
+function detectLinkType(href: string): 'internal' | 'external' | 'custom' {
+  if (!href) return 'internal';
+  if (href.startsWith('http://') || href.startsWith('https://')) return 'external';
+  const allPaths = INTERNAL_PAGES.flatMap(g => g.pages.map(p => p.path));
+  if (allPaths.includes(href)) return 'internal';
+  return 'custom';
+}
+
 // ─── 인라인 수정 폼 (작은 팝업 형태) ─────────────────
 function InlineEditForm({
   initialLabel,
@@ -100,7 +180,24 @@ function InlineEditForm({
   onCancel: () => void;
 }) {
   const [label, setLabel] = useState(initialLabel);
-  const [href, setHref] = useState(initialHref);
+  const [linkType, setLinkType] = useState<'internal' | 'external' | 'custom'>(() => detectLinkType(initialHref));
+  const [internalPath, setInternalPath] = useState(() => {
+    const allPaths = INTERNAL_PAGES.flatMap(g => g.pages.map(p => p.path));
+    return allPaths.includes(initialHref) ? initialHref : '';
+  });
+  const [externalUrl, setExternalUrl] = useState(() =>
+    (initialHref.startsWith('http://') || initialHref.startsWith('https://')) ? initialHref : 'https://'
+  );
+  const [customHref, setCustomHref] = useState(() => {
+    const allPaths = INTERNAL_PAGES.flatMap(g => g.pages.map(p => p.path));
+    if (allPaths.includes(initialHref) || initialHref.startsWith('http')) return initialHref;
+    return initialHref;
+  });
+
+  // 실제 href 값 계산
+  const href = linkType === 'internal' ? internalPath
+    : linkType === 'external' ? externalUrl
+    : customHref;
   const [pageType, setPageType] = useState<PageType>(initialPageType ?? "image");
   const [pageImageUrl, setPageImageUrl] = useState<string | null>(initialPageImageUrl ?? null);
   const [uploading, setUploading] = useState(false);
@@ -146,12 +243,63 @@ function InlineEditForm({
         placeholder="메뉴 이름"
         autoFocus
       />
-      <Input
-        value={href}
-        onChange={(e) => setHref(e.target.value)}
-        className="h-7 text-xs"
-        placeholder="/경로 (선택)"
-      />
+      {/* 링크 타입 탭 */}
+      <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="flex border-b border-gray-200 bg-gray-50">
+          {(['internal', 'external', 'custom'] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setLinkType(t)}
+              className={`flex-1 text-[10px] py-1 font-medium transition-colors ${
+                linkType === t ? 'bg-white text-green-700 border-b-2 border-green-600' : 'text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              {t === 'internal' ? '기존 페이지' : t === 'external' ? '외부 URL' : '직접 입력'}
+            </button>
+          ))}
+        </div>
+        <div className="p-2">
+          {linkType === 'internal' && (
+            <select
+              value={internalPath}
+              onChange={(e) => setInternalPath(e.target.value)}
+              className="w-full h-7 text-xs border border-gray-200 rounded px-1 bg-white"
+            >
+              <option value="">— 페이지 선택 —</option>
+              {INTERNAL_PAGES.map((group) => (
+                <optgroup key={group.group} label={group.group}>
+                  {group.pages.map((p) => (
+                    <option key={p.path} value={p.path}>{p.label}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          )}
+          {linkType === 'external' && (
+            <div className="space-y-1">
+              <Input
+                value={externalUrl}
+                onChange={(e) => setExternalUrl(e.target.value)}
+                className="h-7 text-xs"
+                placeholder="https://example.com"
+              />
+              <p className="text-[9px] text-blue-500">↗ 새 탭으로 열립니다</p>
+            </div>
+          )}
+          {linkType === 'custom' && (
+            <div className="space-y-1">
+              <Input
+                value={customHref}
+                onChange={(e) => setCustomHref(e.target.value)}
+                className="h-7 text-xs"
+                placeholder="/직접 경로 입력"
+              />
+              <p className="text-[9px] text-gray-400">예: /page/item/12345</p>
+            </div>
+          )}
+        </div>
+      </div>
       {showPageType && (
         <select
           value={pageType}
