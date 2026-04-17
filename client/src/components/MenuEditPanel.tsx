@@ -87,23 +87,45 @@ function YoutubeVideoManager({ menuItemId, label }: { menuItemId: number; label:
     return null;
   }
 
+  // 직접 영상 파일 URL인지 확인 (mp4, webm, ogg 등)
+  function isDirectVideoUrl(url: string): boolean {
+    return /\.(mp4|webm|ogg|mov|avi|mkv)(\?.*)?$/i.test(url) || 
+           (url.startsWith('http') && !url.includes('youtube') && !url.includes('youtu.be'));
+  }
+
   const handleAdd = async () => {
     if (!playlistId) return;
-    const videoId = extractVideoId(newUrl);
-    if (!videoId) {
-      toast.error("올바른 유튜브 링크를 입력해주세요.");
+    const trimmedUrl = newUrl.trim();
+    if (!trimmedUrl) {
+      toast.error("영상 주소를 입력해주세요.");
       return;
     }
     const title = newTitle.trim() || `영상 ${(videos?.length ?? 0) + 1}`;
+    const videoId = extractVideoId(trimmedUrl);
     setAdding(true);
     try {
-      await addVideo.mutateAsync({
-        playlistId,
-        videoId,
-        title,
-        thumbnailUrl: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
-        sortOrder: (videos?.length ?? 0) + 1,
-      });
+      if (videoId) {
+        // 유튜브 링크
+        await addVideo.mutateAsync({
+          playlistId,
+          videoId,
+          title,
+          thumbnailUrl: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+          sortOrder: (videos?.length ?? 0) + 1,
+        });
+      } else if (isDirectVideoUrl(trimmedUrl)) {
+        // 직접 영상 파일 URL (mp4 등)
+        await addVideo.mutateAsync({
+          playlistId,
+          videoId: null,
+          videoUrl: trimmedUrl,
+          title,
+          sortOrder: (videos?.length ?? 0) + 1,
+        });
+      } else {
+        toast.error("올바른 유튜브 링크 또는 영상 파일 주소를 입력해주세요.");
+        return;
+      }
     } finally {
       setAdding(false);
     }

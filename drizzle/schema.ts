@@ -673,8 +673,10 @@ export const youtubeVideos = mysqlTable("youtube_videos", {
   id: int("id").autoincrement().primaryKey(),
   /** 소속 플레이리스트 ID */
   playlistId: int("playlistId").notNull(),
-  /** 유튜브 영상 ID (예: dQw4w9WgXcQ) */
-  videoId: varchar("videoId", { length: 32 }).notNull(),
+  /** 유튜브 영상 ID (예: dQw4w9WgXcQ) — 유튜브 영상일 때만 사용, mp4 직접 URL이면 null */
+  videoId: varchar("videoId", { length: 32 }),
+  /** 직접 영상 파일 URL (예: http://sermon.joych.org/mp4/wed/260415_wed.mp4) — mp4 등 직접 URL일 때 사용 */
+  videoUrl: text("videoUrl"),
   /** 영상 제목 */
   title: varchar("title", { length: 256 }).notNull(),
   /** 썸네일 URL */

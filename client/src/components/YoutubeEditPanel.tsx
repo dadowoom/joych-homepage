@@ -46,7 +46,7 @@ function SortableVideoItem({
   video,
   onDelete,
 }: {
-  video: { id: number; videoId: string; title: string; thumbnailUrl?: string | null };
+  video: { id: number; videoId?: string | null; videoUrl?: string | null; title: string; thumbnailUrl?: string | null };
   onDelete: (id: number) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -75,7 +75,7 @@ function SortableVideoItem({
 
       {/* 썸네일 */}
       <img
-        src={video.thumbnailUrl || `https://img.youtube.com/vi/${video.videoId}/default.jpg`}
+        src={video.thumbnailUrl || (video.videoId ? `https://img.youtube.com/vi/${video.videoId}/default.jpg` : '/video-placeholder.png')}
         alt={video.title}
         className="w-16 h-9 object-cover rounded flex-shrink-0 bg-gray-100"
       />

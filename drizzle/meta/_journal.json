@@ -57,6 +57,13 @@
       "when": 1776428706246,
       "tag": "0007_dear_apocalypse",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1776430124490,
+      "tag": "0008_plain_master_chief",
+      "breakpoints": true
     }
   ]
 }

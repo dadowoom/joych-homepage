@@ -307,3 +307,9 @@
 - [x] Referrer-Policy 헤더 추가 (리퍼러 정보 제한)
 - [x] Permissions-Policy 헤더 추가 (카메라/마이크 등 권한 제한)
 - [x] HTTP → HTTPS 자동 전환 설정 (배포 환경 적용)
+
+## 예배영상 직접 URL(mp4) 지원 (2026-04-17)
+- [x] DB: youtubeVideos 테이블에 videoUrl 콜럼 추가 (mp4 등 직접 URL 저장)
+- [x] 서버: addVideo 프로시저에서 videoUrl 저장 처리
+- [x] 프론트: MenuEditPanel 입력 UI - "유튜브 링크 또는 영상 파일 주소(URL)" 안내로 변경
+- [x] 프론트: YoutubeListPage에서 유튜브 vs 직접 URL 재생 방식 분기 처리

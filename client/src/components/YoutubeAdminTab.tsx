@@ -42,7 +42,7 @@ function SortableVideoItem({
   video,
   onDelete,
 }: {
-  video: { id: number; videoId: string; title: string; thumbnailUrl?: string | null };
+  video: { id: number; videoId?: string | null; videoUrl?: string | null; title: string; thumbnailUrl?: string | null };
   onDelete: (id: number) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -66,7 +66,7 @@ function SortableVideoItem({
         <GripVertical className="w-4 h-4" />
       </button>
       <img
-        src={video.thumbnailUrl || `https://img.youtube.com/vi/${video.videoId}/default.jpg`}
+        src={video.thumbnailUrl || (video.videoId ? `https://img.youtube.com/vi/${video.videoId}/default.jpg` : '/video-placeholder.png')}
         alt={video.title}
         className="w-16 h-9 object-cover rounded flex-shrink-0 bg-gray-100"
       />
@@ -156,13 +156,27 @@ export default function YoutubeAdminTab() {
     });
   }
 
+  function isDirectVideoUrl(url: string): boolean {
+    return /\.(mp4|webm|ogg|mov|avi|mkv)(\?.*)?$/i.test(url) ||
+      (url.startsWith('http') && !url.includes('youtube') && !url.includes('youtu.be'));
+  }
+
   function handleAddVideo() {
     if (!selectedPlaylistId) return toast.error("플레이리스트를 먼저 선택하세요.");
-    const videoId = extractVideoId(videoUrl.trim());
-    if (!videoId) return toast.error("올바른 유튜브 링크를 입력해주세요.");
+    const trimmedUrl = videoUrl.trim();
+    if (!trimmedUrl) return toast.error("영상 주소를 입력해주세요.");
+    const videoId = extractVideoId(trimmedUrl);
     const title = videoTitle.trim() || "제목 없음";
-    const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-    addVideo.mutate({ playlistId: selectedPlaylistId, videoId, title, thumbnailUrl });
+    if (videoId) {
+      // 유튜브
+      const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+      addVideo.mutate({ playlistId: selectedPlaylistId, videoId, title, thumbnailUrl });
+    } else if (isDirectVideoUrl(trimmedUrl)) {
+      // 직접 영상 URL (mp4 등)
+      addVideo.mutate({ playlistId: selectedPlaylistId, videoId: null, videoUrl: trimmedUrl, title });
+    } else {
+      toast.error("올바른 유튜브 링크 또는 영상 파일 주소를 입력해주세요.");
+    }
   }
 
   const selectedPlaylist = playlists.find((p) => p.id === selectedPlaylistId);
@@ -283,11 +297,11 @@ export default function YoutubeAdminTab() {
               {addingVideo && (
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-3 space-y-2">
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">유튜브 링크</label>
+                    <label className="text-xs text-gray-500 mb-1 block">유튜브 링크 또는 영상 파일 주소(URL)</label>
                     <Input
                       value={videoUrl}
                       onChange={(e) => setVideoUrl(e.target.value)}
-                      placeholder="https://www.youtube.com/watch?v=..."
+                      placeholder="https://www.youtube.com/watch?v=... 또는 http://sermon.joych.org/mp4/..."
                       className="text-sm h-8"
                     />
                   </div>

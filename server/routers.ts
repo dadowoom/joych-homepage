@@ -1077,7 +1077,8 @@ export const appRouter = router({
     addVideo: adminProcedure
       .input(z.object({
         playlistId: z.number(),
-        videoId: z.string().min(1),
+        videoId: z.string().optional().nullable(),
+        videoUrl: z.string().optional().nullable(),
         title: z.string().min(1),
         thumbnailUrl: z.string().optional(),
         description: z.string().optional(),

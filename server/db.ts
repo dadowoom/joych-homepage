@@ -1033,7 +1033,8 @@ export async function getVisibleYoutubeVideos(playlistId: number) {
 /** 유튜브 영상 추가 */
 export async function createYoutubeVideo(data: {
   playlistId: number;
-  videoId: string;
+  videoId?: string | null;
+  videoUrl?: string | null;
   title: string;
   thumbnailUrl?: string;
   description?: string;

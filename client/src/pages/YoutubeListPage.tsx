@@ -73,14 +73,25 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
       {activeVideo && (
         <div className="mb-6">
           <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
-            <iframe
-              key={activeVideo.videoId}
-              className="absolute inset-0 w-full h-full rounded-xl shadow-lg"
-              src={`https://www.youtube.com/embed/${activeVideo.videoId}?autoplay=0&rel=0`}
-              title={activeVideo.title}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
+            {activeVideo.videoId ? (
+              <iframe
+                key={activeVideo.videoId}
+                className="absolute inset-0 w-full h-full rounded-xl shadow-lg"
+                src={`https://www.youtube.com/embed/${activeVideo.videoId}?autoplay=0&rel=0`}
+                title={activeVideo.title}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            ) : activeVideo.videoUrl ? (
+              <video
+                key={activeVideo.videoUrl}
+                className="absolute inset-0 w-full h-full rounded-xl shadow-lg bg-black"
+                src={activeVideo.videoUrl}
+                controls
+                playsInline
+                preload="metadata"
+              />
+            ) : null}
           </div>
           <div className="mt-3">
             <h3 className="text-lg font-semibold text-gray-900 leading-tight">{activeVideo.title}</h3>
@@ -122,7 +133,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
                   {/* 썸네일 */}
                   <div className="relative aspect-video bg-gray-100">
                     <img
-                      src={video.thumbnailUrl || `https://img.youtube.com/vi/${video.videoId}/mqdefault.jpg`}
+                      src={video.thumbnailUrl || (video.videoId ? `https://img.youtube.com/vi/${video.videoId}/mqdefault.jpg` : undefined)}
                       alt={video.title}
                       className="w-full h-full object-cover"
                     />
