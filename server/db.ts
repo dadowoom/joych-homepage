@@ -804,3 +804,37 @@ export async function getPendingMembers() {
     .where(eq(churchMembers.status, 'pending'))
     .orderBy(desc(churchMembers.createdAt));
 }
+
+/** 관리자: 성도 전체 정보 수정 (기본정보 + 교회정보 통합) */
+export async function adminUpdateMember(id: number, data: Partial<{
+  name: string;
+  phone: string;
+  birthDate: string;
+  gender: string;
+  address: string;
+  emergencyPhone: string;
+  email: string;
+  position: string;
+  department: string;
+  district: string;
+  baptismType: string;
+  baptismDate: string;
+  registeredAt: string;
+  pastor: string;
+  adminMemo: string;
+  status: 'pending' | 'approved' | 'rejected' | 'withdrawn';
+  faithPlusUserId: string;
+}>) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.update(churchMembers).set({ ...data, updatedAt: new Date() }).where(eq(churchMembers.id, id));
+}
+
+/** 관리자: 성도 비밀번호 초기화 (임시 비밀번호 설정) */
+export async function adminResetMemberPassword(id: number, tempPassword: string) {
+  const bcrypt = await import('bcryptjs');
+  const hash = await bcrypt.hash(tempPassword, 10);
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.update(churchMembers).set({ passwordHash: hash, updatedAt: new Date() }).where(eq(churchMembers.id, id));
+}

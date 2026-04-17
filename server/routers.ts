@@ -74,6 +74,8 @@ import {
   createMember,
   updateMemberBasicInfo,
   updateMemberChurchInfo,
+  adminUpdateMember,
+  adminResetMemberPassword,
   getAllMembers,
   getPendingMembers,
 } from "./db";
@@ -857,6 +859,41 @@ export const appRouter = router({
     deleteFieldOption: adminProcedure
       .input(z.object({ id: z.number() }))
       .mutation(({ input }) => deleteMemberFieldOption(input.id)),
+
+    /** 관리자: 성도 전체 정보 수정 (기본정보 + 교회정보 통합) */
+    adminUpdate: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).optional(),
+        phone: z.string().optional(),
+        birthDate: z.string().optional(),
+        gender: z.enum(['남', '여']).optional(),
+        address: z.string().optional(),
+        emergencyPhone: z.string().optional(),
+        email: z.string().email().optional(),
+        position: z.string().optional(),
+        department: z.string().optional(),
+        district: z.string().optional(),
+        baptismType: z.string().optional(),
+        baptismDate: z.string().optional(),
+        registeredAt: z.string().optional(),
+        pastor: z.string().optional(),
+        adminMemo: z.string().optional(),
+        status: z.enum(['pending', 'approved', 'rejected', 'withdrawn']).optional(),
+        faithPlusUserId: z.string().optional(),
+      }))
+      .mutation(({ input }) => {
+        const { id, ...data } = input;
+        return adminUpdateMember(id, data);
+      }),
+
+    /** 관리자: 성도 비밀번호 초기화 */
+    resetPassword: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        tempPassword: z.string().min(6, '임시 비밀번호는 6자 이상이어야 합니다.'),
+      }))
+      .mutation(({ input }) => adminResetMemberPassword(input.id, input.tempPassword)),
   }),
 });
 
