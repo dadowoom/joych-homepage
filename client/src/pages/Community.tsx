@@ -192,12 +192,12 @@ export function Offering() {
       <div className="max-w-4xl mx-auto px-4 py-14">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           {[
-            { title: "온라인 헌금", icon: "fa-credit-card", color: "border-[#1B5E20] bg-[#E8F5E9]", desc: "아래 계좌로 입금 후 헌금 봉투에 기재해 주세요.", items: ["국민은행 000-000-000000", "예금주: 기쁨의교회"] },
-            { title: "주일 헌금", icon: "fa-church", color: "border-blue-400 bg-blue-50", desc: "예배 시간 헌금 봉투에 이름과 헌금 종류를 기재 후 헌금함에 넣어 주세요.", items: ["헌금 봉투는 안내 데스크에서 수령", "헌금 영수증은 사무실에서 발급"] },
-            { title: "십일조 헌금", icon: "fa-percent", color: "border-amber-400 bg-amber-50", desc: "매월 정기적으로 드리는 십일조 헌금입니다.", items: ["온라인 또는 현장 헌금 모두 가능", "헌금 내역서 연말 발급 가능"] },
-            { title: "특별 헌금", icon: "fa-star", color: "border-purple-400 bg-purple-50", desc: "감사헌금, 건축헌금, 선교헌금 등 특별 목적 헌금입니다.", items: ["헌금 봉투에 목적 명시", "문의: 02-000-0000"] },
+            { title: "온라인 헌금", icon: "fa-credit-card", color: "bg-[#E8F5E9]", desc: "아래 계좌로 입금 후 헌금 봉투에 기재해 주세요.", items: ["국민은행 000-000-000000", "예금주: 기쁨의교회"] },
+            { title: "주일 헌금", icon: "fa-church", color: "bg-blue-50", desc: "예배 시간 헌금 봉투에 이름과 헌금 종류를 기재 후 헌금함에 넣어 주세요.", items: ["헌금 봉투는 안내 데스크에서 수령", "헌금 영수증은 사무실에서 발급"] },
+            { title: "십일조 헌금", icon: "fa-percent", color: "bg-amber-50", desc: "매월 정기적으로 드리는 십일조 헌금입니다.", items: ["온라인 또는 현장 헌금 모두 가능", "헌금 내역서 연말 발급 가능"] },
+            { title: "특별 헌금", icon: "fa-star", color: "bg-purple-50", desc: "감사헌금, 건축헌금, 선교헌금 등 특별 목적 헌금입니다.", items: ["헌금 봉투에 목적 명시", "문의: 02-000-0000"] },
           ].map((o, i) => (
-            <div key={i} className={`bg-white rounded-2xl border-l-4 p-7 shadow-sm ${o.color}`}>
+            <div key={i} className={`rounded-2xl p-7 shadow-sm ${o.color}`}>
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center">
                   <i className={`fas ${o.icon} text-[#1B5E20]`}></i>

@@ -121,7 +121,7 @@ export default function MissionDetail() {
           {/* 오른쪽: 본문 */}
           <main className="lg:col-span-2 space-y-8">
             {/* 요약 */}
-            <div className="bg-[#E8F5E9] border-l-4 border-[#1B5E20] rounded-r-xl p-5">
+            <div className="bg-[#E8F5E9] rounded-xl p-5">
               <p className="text-[#1B5E20] text-sm font-medium leading-relaxed">{report.summary}</p>
             </div>
 

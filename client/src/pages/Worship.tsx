@@ -135,7 +135,7 @@ const WORSHIP_TIMES = [
   {
     name: "주일예배",
     icon: "fa-sun",
-    color: "border-[#1B5E20] bg-[#E8F5E9]",
+    color: "bg-[#E8F5E9]",
     iconColor: "text-[#1B5E20]",
     times: [
       { label: "1부 예배", time: "오전 7:30", note: "본당" },
@@ -148,7 +148,7 @@ const WORSHIP_TIMES = [
   {
     name: "수요예배",
     icon: "fa-church",
-    color: "border-blue-400 bg-blue-50",
+    color: "bg-blue-50",
     iconColor: "text-blue-600",
     times: [
       { label: "수요예배", time: "오전 11:00", note: "본당" },
@@ -158,7 +158,7 @@ const WORSHIP_TIMES = [
   {
     name: "새벽기도회",
     icon: "fa-moon",
-    color: "border-amber-400 bg-amber-50",
+    color: "bg-amber-50",
     iconColor: "text-amber-600",
     times: [
       { label: "새벽기도", time: "오전 5:30", note: "월~토 / 본당" },
@@ -167,7 +167,7 @@ const WORSHIP_TIMES = [
   {
     name: "금요기도회",
     icon: "fa-fire",
-    color: "border-rose-400 bg-rose-50",
+    color: "bg-rose-50",
     iconColor: "text-rose-600",
     times: [
       { label: "금요기도회", time: "오후 8:00", note: "본당" },
@@ -183,7 +183,7 @@ export function WorshipSchedule() {
       <div className="max-w-5xl mx-auto px-4 py-14">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {WORSHIP_TIMES.map((wt, i) => (
-            <div key={i} className={`bg-white rounded-2xl border-l-4 p-7 shadow-sm ${wt.color}`}>
+            <div key={i} className={`rounded-2xl p-7 shadow-sm ${wt.color}`}>
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center">
                   <i className={`fas ${wt.icon} ${wt.iconColor}`}></i>

@@ -278,7 +278,7 @@ export default function SubPageLayout({
                           href={item.href}
                           className={`block px-4 py-3 text-sm border-b border-gray-100 last:border-0 transition-colors ${
                             item.isActive
-                              ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold border-l-4 border-l-[#1B5E20]"
+                              ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
                               : "text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
                           }`}
                         >

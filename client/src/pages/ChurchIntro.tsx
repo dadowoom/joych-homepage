@@ -124,7 +124,7 @@ export function MinistryPrinciplePage() {
               <h3 className="text-xl font-bold text-[#1b4332] font-['Noto_Serif_KR']">{p.title}</h3>
             </div>
             <p className="text-gray-700 text-sm leading-relaxed mb-4">{p.desc}</p>
-            <blockquote className="border-l-4 border-[#2d6a4f] pl-4 text-gray-500 text-sm italic">{p.verse}</blockquote>
+            <blockquote className="bg-[#F1F8E9] rounded-lg px-4 py-3 text-[#2d6a4f] text-sm italic">{p.verse}</blockquote>
           </div>
         ))}
       </div>

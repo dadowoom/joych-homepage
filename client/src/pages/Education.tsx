@@ -115,10 +115,10 @@ export function NewMember() {
 
 // ── 제자훈련 ─────────────────────────────────────────────────────
 const DISCIPLE_COURSES = [
-  { level: "기초", title: "새가족 양육 과정", duration: "4주", target: "새가족", desc: "신앙의 기초를 다지는 입문 과정입니다.", color: "border-green-300 bg-green-50" },
-  { level: "1단계", title: "제자훈련 1단계", duration: "1년", target: "세례 교인", desc: "성경의 핵심 진리와 그리스도인의 삶을 배웁니다.", color: "border-blue-300 bg-blue-50" },
-  { level: "2단계", title: "사역훈련", duration: "1년", target: "제자훈련 이수자", desc: "교회 사역자로 세워지는 심화 훈련 과정입니다.", color: "border-purple-300 bg-purple-50" },
-  { level: "심화", title: "리더십 과정", duration: "6개월", target: "사역훈련 이수자", desc: "목장 리더 및 각 부서 리더를 위한 훈련 과정입니다.", color: "border-amber-300 bg-amber-50" },
+  { level: "기초", title: "새가족 양육 과정", duration: "4주", target: "새가족", desc: "신앙의 기초를 다지는 입문 과정입니다.", color: "bg-green-50" },
+  { level: "1단계", title: "제자훈련 1단계", duration: "1년", target: "세례 교인", desc: "성경의 핵심 진리와 그리스도인의 삶을 배웁니다.", color: "bg-blue-50" },
+  { level: "2단계", title: "사역훈련", duration: "1년", target: "제자훈련 이수자", desc: "교회 사역자로 세워지는 심화 훈련 과정입니다.", color: "bg-purple-50" },
+  { level: "심화", title: "리더십 과정", duration: "6개월", target: "사역훈련 이수자", desc: "목장 리더 및 각 부서 리더를 위한 훈련 과정입니다.", color: "bg-amber-50" },
 ];
 
 export function DiscipleTraining() {
@@ -129,7 +129,7 @@ export function DiscipleTraining() {
       <div className="max-w-5xl mx-auto px-4 py-14">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {DISCIPLE_COURSES.map((c, i) => (
-            <div key={i} className={`bg-white rounded-2xl border-l-4 p-7 shadow-sm ${c.color}`}>
+            <div key={i} className={`rounded-2xl p-7 shadow-sm ${c.color}`}>
               <div className="flex items-center justify-between mb-4">
                 <span className="text-xs font-bold text-[#1B5E20] bg-[#E8F5E9] px-3 py-1 rounded-full">{c.level}</span>
                 <span className="text-xs text-gray-400">{c.duration}</span>
