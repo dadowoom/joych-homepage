@@ -529,8 +529,8 @@ export default function AdminPage() {
 
   const adminLoginMutation = trpc.auth.adminLogin.useMutation({
     onSuccess: () => {
-      // 로그인 성공 → 페이지 새로고침으로 세션 적용
-      window.location.reload();
+      // 로그인 성공 → 메인화면으로 이동
+      window.location.href = "/";
     },
     onError: (err) => {
       setLoginError(err.message || "로그인에 실패했습니다.");
