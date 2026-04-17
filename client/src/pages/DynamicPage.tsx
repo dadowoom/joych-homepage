@@ -203,22 +203,19 @@ function BoardContent() {
   );
 }
 
-function YoutubeContent({ label }: { label?: string }) {
-  // 첫 번째 플레이리스트를 자동으로 사용
-  const { data: playlists = [] } = trpc.youtube.getPlaylists.useQuery();
-  const firstPlaylistId = playlists[0]?.id;
-
-  if (!firstPlaylistId) {
+function YoutubeContent({ label, playlistId }: { label?: string; playlistId?: number | null }) {
+  // 메뉴에 연결된 playlistId가 있으면 해당 플레이리스트 사용
+  if (!playlistId) {
     return (
       <div className="flex flex-col items-center justify-center py-24 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
         <Youtube className="w-12 h-12 text-red-400 mb-3" />
-        <p className="text-gray-500 text-sm font-medium">등록된 유튜브 플레이리스트가 없습니다.</p>
-        <p className="text-gray-400 text-xs mt-1">관리자 패널에서 유튜브 편집 버튼을 눌러 영상을 추가해 주세요.</p>
+        <p className="text-gray-500 text-sm font-medium">아직 영상이 연결되지 않았습니다.</p>
+        <p className="text-gray-400 text-xs mt-1">관리자 패널 → 메뉴 편집에서 이 메뉴를 선택하면 영상을 추가할 수 있습니다.</p>
       </div>
     );
   }
 
-  return <YoutubeListPage playlistId={firstPlaylistId} title={label} />;
+  return <YoutubeListPage playlistId={playlistId} title={label} />;
 }
 
 // ─── 블록 타입별 렌더러 함수 ─────────────────────────────────────────────────────
@@ -854,12 +851,13 @@ function renderContent(
   imageUrl: string | null,
   menuItemId?: number,
   menuSubItemId?: number,
+  playlistId?: number | null,
 ) {
   switch (pageType) {
     case "image":   return <ImageContent label={label} imageUrl={imageUrl} />;
     case "gallery": return <GalleryContent />;
     case "board":   return <BoardContent />;
-    case "youtube": return <YoutubeContent label={label} />;
+    case "youtube": return <YoutubeContent label={label} playlistId={playlistId} />;
     case "editor":  return <EditorContent menuItemId={menuItemId} menuSubItemId={menuSubItemId} />;
     default:        return <ImageContent label={label} imageUrl={imageUrl} />;
   }
@@ -909,7 +907,7 @@ export function DynamicMenuItemPage() {
       parentLabel={parentMenu?.label}
       sideMenuItems={sideItems}
     >
-      {renderContent(item.pageType ?? "image", item.label, item.pageImageUrl ?? null, itemId, undefined)}
+      {renderContent(item.pageType ?? "image", item.label, item.pageImageUrl ?? null, itemId, undefined, (item as { playlistId?: number | null }).playlistId)}
     </SubPageLayout>
   );
 }
@@ -972,7 +970,7 @@ export function DynamicMenuSubItemPage() {
       parentLabel={parentItemLabel ?? grandParentLabel}
       sideMenuItems={sideItems}
     >
-      {renderContent(item.pageType ?? "image", item.label, item.pageImageUrl ?? null, undefined, itemId)}
+      {renderContent(item.pageType ?? "image", item.label, item.pageImageUrl ?? null, undefined, itemId, (item as { playlistId?: number | null }).playlistId)}
     </SubPageLayout>
   );
 }
