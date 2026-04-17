@@ -145,3 +145,8 @@ page_blocks
 | 2026-04-17 | MenuEditPanel InlineEditForm에 이미지 업로드 UI 완성 (pageType=image 선택 시 표시) |
 | 2026-04-17 | trpc.admin → trpc.cms 오류 수정 (appRouter에 admin 키 없음, cms 사용해야 함) |
 | 2026-04-17 | work-rules.md에 다음 작업 계획 상세 기록 (세션 재시작 대비) |
+| 2026-04-17 | 이미지 전체화면 페이지 개선 완료 (라이트박스 추가, 꽉 찾기 이미지) |
+| 2026-04-17 | 블록 에디터 DB 테이블 생성 (page_blocks) |
+| 2026-04-17 | 블록 에디터 서버 API 완료 (home.pageBlocks, cms.blocks CRUD) |
+| 2026-04-17 | 블록 에디터 뷰어 UI 완료 (H1/H2/H3/본문/이미지/유튜브/버튼 렌더링) |
+| 2026-04-17 | 블록 에디터 관리자 편집 UI 완료 (블록 추가/수정/삭제/순서변경/숨김) |

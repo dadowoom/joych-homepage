@@ -215,30 +215,30 @@
 - [x] FacilityApply: URL 파라미터(startTime, endTime) 자동 적용 + 슬롯 클릭으로 수정 가능
 
 ## 이미지 전체화면 페이지 개선 (2026-04-17)
-- [ ] DynamicPage.tsx ImageContent: 이미지를 페이지 너비에 꽉 차게 표시 (object-cover, 가로 100%)
-- [ ] DynamicPage.tsx ImageContent: 이미지 클릭 시 라이트박스(원본 크기 확대 보기) 기능 추가
-- [ ] DynamicPage.tsx ImageContent: 이미지 없을 때 안내 문구 개선
+- [x] DynamicPage.tsx ImageContent: 이미지를 페이지 너비에 꽉 차게 표시 (object-cover, 가로 100%)
+- [x] DynamicPage.tsx ImageContent: 이미지 클릭 시 라이트박스(원본 크기 확대 보기) 기능 추가
+- [x] DynamicPage.tsx ImageContent: 이미지 없을 때 안내 문구 개선
 
 ## 블록 에디터 시스템 구축 (2026-04-17)
 ### 단계 1: DB 설계
-- [ ] page_blocks 테이블 설계 (menu_item_id / menu_sub_item_id, 블록타입, 순서, 내용 JSON)
-- [ ] 블록 타입 정의: text-h1 / text-h2 / text-h3 / text-body / image-single / image-double / image-triple / youtube / button
-- [ ] pnpm db:push 실행 (마이그레이션)
+- [x] page_blocks 테이블 설계 (menu_item_id / menu_sub_item_id, 블록타입, 순서, 내용 JSON)
+- [x] 블록 타입 정의: text-h1 / text-h2 / text-h3 / text-body / image-single / image-double / image-triple / youtube / button
+- [x] pnpm db:push 실행 (마이그레이션) — SQL 직접 실행 방식으로 완료
 
 ### 단계 2: 서버 API
-- [ ] db.ts에 블록 쿼리 헬퍼 추가 (getBlocks, createBlock, updateBlock, deleteBlock, reorderBlocks)
-- [ ] routers.ts에 home.pageBlocks (공개 조회), cms.blocks CRUD (관리자) 추가
+- [x] db.ts에 블록 쿼리 헬퍼 추가 (getBlocks, createBlock, updateBlock, deleteBlock, reorderBlocks)
+- [x] routers.ts에 home.pageBlocks (공개 조회), cms.blocks CRUD (관리자) 추가
 
 ### 단계 3: 뷰어 UI
-- [ ] DynamicPage.tsx EditorContent: 블록 목록 조회 및 타입별 렌더링 구현
-- [ ] 텍스트 블록: H1/H2/H3/본문 스타일 적용
-- [ ] 이미지 블록: 1장/2장 나란히/3장 나란히 레이아웃
-- [ ] 유튜브 블록: iframe 임베드
-- [ ] 버튼 블록: 링크 버튼 표시
+- [x] DynamicPage.tsx EditorContent: 블록 목록 조회 및 타입별 렌더링 구현
+- [x] 텍스트 블록: H1/H2/H3/본문 스타일 적용
+- [x] 이미지 블록: 1장/2장 나란히/3장 나란히 레이아웃
+- [x] 유튜브 블록: iframe 임베드
+- [x] 버튼 블록: 링크 버튼 표시
 
 ### 단계 4: 관리자 편집 UI
-- [ ] 관리자 모드에서 DynamicPage에 편집 버튼 표시
-- [ ] 블록 추가 (타입 선택 → 내용 입력)
-- [ ] 블록 수정 (인라인 편집)
-- [ ] 블록 삭제
-- [ ] 블록 순서 변경 (드래그 앤 드롭)
+- [x] 관리자 모드에서 DynamicPage에 편집 버튼 표시
+- [x] 블록 추가 (타입 선택 → 내용 입력)
+- [x] 블록 수정 (인라인 편집)
+- [x] 블록 삭제
+- [x] 블록 순서 변경 (위/아래 버튼 방식으로 구현)

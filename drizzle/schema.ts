@@ -598,3 +598,48 @@ export const schoolPostFiles = mysqlTable("school_post_files", {
 });
 export type SchoolPostFile = typeof schoolPostFiles.$inferSelect;
 export type InsertSchoolPostFile = typeof schoolPostFiles.$inferInsert;
+
+// ─────────────────────────────────────────────
+// 블록 에디터: 동적 페이지 콘텐츠 블록
+// pageType=editor 인 메뉴 항목의 내용을 블록 단위로 관리합니다.
+// 하나의 페이지(menuItemId 또는 menuSubItemId)에 여러 블록이 순서대로 쌓입니다.
+// ─────────────────────────────────────────────
+export const pageBlocks = mysqlTable("page_blocks", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 2단 메뉴 항목 ID (menu_items.id) — 2단 메뉴 페이지에 속하는 경우 */
+  menuItemId: int("menuItemId"),
+  /** 3단 메뉴 항목 ID (menu_sub_items.id) — 3단 메뉴 페이지에 속하는 경우 */
+  menuSubItemId: int("menuSubItemId"),
+  /**
+   * 블록 종류:
+   *   text-h1       → 큰 제목 (H1)
+   *   text-h2       → 중간 제목 (H2)
+   *   text-h3       → 작은 제목 (H3)
+   *   text-body     → 본문 텍스트 (줄바꿈 지원)
+   *   image-single  → 이미지 1장
+   *   image-double  → 이미지 2장 나란히
+   *   image-triple  → 이미지 3장 나란히
+   *   youtube       → 유튜브 영상 임베드
+   *   button        → 링크 버튼
+   *   divider       → 구분선
+   */
+  blockType: varchar("blockType", { length: 32 }).notNull(),
+  /**
+   * 블록 내용 (JSON 문자열로 저장)
+   * - text 계열:   { "text": "내용" }
+   * - image 계열:  { "urls": ["url1", "url2"], "captions": ["캡션1", "캡션2"] }
+   * - youtube:     { "videoId": "유튜브ID", "title": "영상 제목" }
+   * - button:      { "label": "버튼 이름", "href": "링크 URL", "style": "primary|outline" }
+   * - divider:     {} (내용 없음)
+   */
+  content: text("content").notNull(),
+  /** 페이지 내 표시 순서 (숫자가 작을수록 위에 표시) */
+  sortOrder: int("sortOrder").notNull().default(0),
+  /** 표시 여부 (false = 숨김) */
+  isVisible: boolean("isVisible").notNull().default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PageBlock = typeof pageBlocks.$inferSelect;
+export type InsertPageBlock = typeof pageBlocks.$inferInsert;

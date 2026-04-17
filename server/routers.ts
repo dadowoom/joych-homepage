@@ -78,6 +78,13 @@ import {
   adminResetMemberPassword,
   getAllMembers,
   getPendingMembers,
+  // 블록 에디터
+  getPageBlocks,
+  getAllPageBlocks,
+  createPageBlock,
+  updatePageBlock,
+  deletePageBlock,
+  reorderPageBlocks,
 } from "./db";
 
 export const appRouter = router({
@@ -224,6 +231,13 @@ export const appRouter = router({
         await updateReservationStatus(input.id, 'cancelled');
         return { success: true };
       }),
+    /** 블록 에디터: 페이지 블록 목록 조회 (공개용 — isVisible=true 만) */
+    pageBlocks: publicProcedure
+      .input(z.object({
+        menuItemId: z.number().optional(),
+        menuSubItemId: z.number().optional(),
+      }))
+      .query(({ input }) => getPageBlocks(input)),
   }),
 
   // ─── 관리자 전용 CMS API ─────────────────────
@@ -678,6 +692,61 @@ export const appRouter = router({
       reorder: adminProcedure
         .input(z.array(z.object({ id: z.number(), sortOrder: z.number() })))
         .mutation(({ input }) => reorderQuickMenus(input)),
+    }),
+    // ─── 블록 에디터 관리자 API ───────────────────────────────────────────────
+    blocks: router({
+      /** 페이지 블록 목록 조회 (관리자용 — 숨김 포함) */
+      list: adminProcedure
+        .input(z.object({
+          menuItemId: z.number().optional(),
+          menuSubItemId: z.number().optional(),
+        }))
+        .query(({ input }) => getAllPageBlocks(input)),
+      /** 블록 생성 */
+      create: adminProcedure
+        .input(z.object({
+          menuItemId: z.number().optional(),
+          menuSubItemId: z.number().optional(),
+          blockType: z.string(),
+          content: z.string(),
+          sortOrder: z.number().default(0),
+        }))
+        .mutation(({ input }) => createPageBlock(input)),
+      /** 블록 수정 */
+      update: adminProcedure
+        .input(z.object({
+          id: z.number(),
+          blockType: z.string().optional(),
+          content: z.string().optional(),
+          sortOrder: z.number().optional(),
+          isVisible: z.boolean().optional(),
+        }))
+        .mutation(({ input }) => {
+          const { id, ...data } = input;
+          return updatePageBlock(id, data);
+        }),
+      /** 블록 삭제 */
+      delete: adminProcedure
+        .input(z.object({ id: z.number() }))
+        .mutation(({ input }) => deletePageBlock(input.id)),
+      /** 블록 순서 일괄 변경 */
+      reorder: adminProcedure
+        .input(z.object({ orderedIds: z.array(z.number()) }))
+        .mutation(({ input }) => reorderPageBlocks(input.orderedIds)),
+      /** 블록 이미지 업로드 (S3) */
+      uploadImage: adminProcedure
+        .input(z.object({
+          base64: z.string(),
+          mimeType: z.string(),
+          fileName: z.string().optional(),
+        }))
+        .mutation(async ({ input }) => {
+          const buffer = Buffer.from(input.base64, 'base64');
+          const ext = input.mimeType.split('/')[1] ?? 'jpg';
+          const key = `page-blocks/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+          const { url } = await storagePut(key, buffer, input.mimeType);
+          return { url, key };
+        }),
     }),
   }),
 
