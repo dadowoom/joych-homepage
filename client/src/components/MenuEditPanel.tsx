@@ -3,7 +3,7 @@
  * 왼쪽: 1단 상위 메뉴 | 가운데: 2단 하위 메뉴 | 오른쪽: 3단 세부 메뉴
  * 각 컬럼은 독립적으로 스크롤 가능, 패널 높이 고정
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   DndContext,
   closestCenter,
@@ -84,6 +84,7 @@ function InlineEditForm({
   initialLabel,
   initialHref,
   initialPageType,
+  initialPageImageUrl,
   showPageType,
   colorClass,
   onSave,
@@ -92,14 +93,49 @@ function InlineEditForm({
   initialLabel: string;
   initialHref: string;
   initialPageType?: PageType;
+  initialPageImageUrl?: string | null;
   showPageType?: boolean;
   colorClass: string;
-  onSave: (label: string, href: string, pageType?: PageType) => void;
+  onSave: (label: string, href: string, pageType?: PageType, pageImageUrl?: string | null) => void;
   onCancel: () => void;
 }) {
   const [label, setLabel] = useState(initialLabel);
   const [href, setHref] = useState(initialHref);
   const [pageType, setPageType] = useState<PageType>(initialPageType ?? "image");
+  const [pageImageUrl, setPageImageUrl] = useState<string | null>(initialPageImageUrl ?? null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadMutation = trpc.cms.upload.pageImage.useMutation();
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // 파일 크기 제한: 10MB
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("파일 크기는 10MB 이하여야 합니다.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        const base64 = (ev.target?.result as string).split(",")[1];
+        const result = await uploadMutation.mutateAsync({
+          base64,
+          fileName: file.name,
+          mimeType: file.type,
+          context: "menu-page",
+        });
+        setPageImageUrl(result.url);
+        toast.success("이미지 업로드 완료!");
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      toast.error("이미지 업로드에 실패했습니다.");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
     <div className={`p-2 rounded-lg border-2 ${colorClass} space-y-1.5 mt-1`}>
@@ -127,12 +163,54 @@ function InlineEditForm({
           ))}
         </select>
       )}
+      {/* 이미지 전체화면 타입 선택 시 이미지 업로드 UI 표시 */}
+      {showPageType && pageType === "image" && (
+        <div className="space-y-1">
+          <p className="text-[10px] text-gray-500 font-medium">페이지 이미지</p>
+          {/* 현재 이미지 미리보기 */}
+          {pageImageUrl && (
+            <div className="relative">
+              <img
+                src={pageImageUrl}
+                alt="페이지 이미지"
+                className="w-full h-20 object-cover rounded border border-gray-200"
+              />
+              <button
+                onClick={() => setPageImageUrl(null)}
+                className="absolute top-0.5 right-0.5 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[9px] hover:bg-red-600"
+              >
+                <X size={8} />
+              </button>
+            </div>
+          )}
+          {/* 업로드 버튼 */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="w-full h-7 text-[10px] border border-dashed border-gray-300 rounded px-2 bg-white hover:bg-gray-50 flex items-center justify-center gap-1 disabled:opacity-50"
+          >
+            {uploading ? (
+              <><span className="animate-spin">⏳</span> 업로드 중...</>
+            ) : (
+              <><Image size={10} /> {pageImageUrl ? "이미지 변경" : "이미지 업로드"}</>
+            )}
+          </button>
+          <p className="text-[9px] text-gray-400">권장 크기: 1920 × 1080px · 최대 10MB · JPG/PNG/WEBP</p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+        </div>
+      )}
       <div className="flex gap-1">
         <Button
           size="sm"
           className="h-6 text-[10px] px-2 bg-[#1B5E20] hover:bg-[#2E7D32]"
-          onClick={() => { if (label.trim()) onSave(label.trim(), href, showPageType ? pageType : undefined); }}
-          disabled={!label.trim()}
+          onClick={() => { if (label.trim()) onSave(label.trim(), href, showPageType ? pageType : undefined, showPageType ? pageImageUrl : undefined); }}
+          disabled={!label.trim() || uploading}
         >
           <Check size={10} className="mr-0.5" /> 저장
         </Button>
@@ -587,13 +665,14 @@ export default function MenuEditPanel({
                             initialLabel={item.label}
                             initialHref={item.href ?? ""}
                             initialPageType={item.pageType}
+                            initialPageImageUrl={item.pageImageUrl}
                             showPageType
                             colorClass="border-blue-300 bg-blue-50"
-                            onSave={(label, href, pageType) => {
-                              updateItem.mutate({ id: item.id, label, href: href || null, pageType });
+                            onSave={(label, href, pageType, pageImageUrl) => {
+                              updateItem.mutate({ id: item.id, label, href: href || null, pageType, pageImageUrl: pageImageUrl ?? null });
                               setLocalMenus((prev) => prev.map((m) => ({
                                 ...m,
-                                items: m.items.map((i) => i.id === item.id ? { ...i, label, href: href || null, pageType: pageType ?? i.pageType } : i),
+                                items: m.items.map((i) => i.id === item.id ? { ...i, label, href: href || null, pageType: pageType ?? i.pageType, pageImageUrl: pageImageUrl ?? i.pageImageUrl } : i),
                               })));
                               setEditingItemId(null);
                             }}
@@ -635,13 +714,14 @@ export default function MenuEditPanel({
                         initialPageType="image"
                         showPageType
                         colorClass="border-blue-300 bg-blue-50"
-                        onSave={(label, href, pageType) => {
+                        onSave={(label, href, pageType, pageImageUrl) => {
                           createItem.mutate({
                             menuId: selectedMenu.id,
                             label,
                             href: href || undefined,
                             sortOrder: selectedMenu.items.length + 1,
                             pageType: pageType ?? "image",
+                            pageImageUrl: pageImageUrl ?? undefined,
                           });
                         }}
                         onCancel={() => setShowAddItem(false)}
@@ -683,15 +763,16 @@ export default function MenuEditPanel({
                             initialLabel={sub.label}
                             initialHref={sub.href ?? ""}
                             initialPageType={sub.pageType}
+                            initialPageImageUrl={sub.pageImageUrl}
                             showPageType
                             colorClass="border-gray-300 bg-gray-50"
-                            onSave={(label, href, pageType) => {
-                              updateSubItem.mutate({ id: sub.id, label, href: href || null, pageType });
+                            onSave={(label, href, pageType, pageImageUrl) => {
+                              updateSubItem.mutate({ id: sub.id, label, href: href || null, pageType, pageImageUrl: pageImageUrl ?? null });
                               setLocalMenus((prev) => prev.map((m) => ({
                                 ...m,
                                 items: m.items.map((i) => ({
                                   ...i,
-                                  subItems: i.subItems.map((s) => s.id === sub.id ? { ...s, label, href: href || null, pageType: pageType ?? s.pageType } : s),
+                                  subItems: i.subItems.map((s) => s.id === sub.id ? { ...s, label, href: href || null, pageType: pageType ?? s.pageType, pageImageUrl: pageImageUrl ?? s.pageImageUrl } : s),
                                 })),
                               })));
                               setEditingSubId(null);
@@ -737,13 +818,14 @@ export default function MenuEditPanel({
                         initialPageType="image"
                         showPageType
                         colorClass="border-gray-300 bg-gray-50"
-                        onSave={(label, href, pageType) => {
+                        onSave={(label, href, pageType, pageImageUrl) => {
                           createSubItem.mutate({
                             menuItemId: selectedItem.id,
                             label,
                             href: href || undefined,
                             sortOrder: selectedItem.subItems.length + 1,
                             pageType: pageType ?? "image",
+                            pageImageUrl: pageImageUrl ?? undefined,
                           });
                         }}
                         onCancel={() => setShowAddSub(false)}

@@ -481,6 +481,28 @@ export const appRouter = router({
           const { url } = await storagePut(key, buffer, input.mimeType);
           return { url };
         }),
+      /**
+       * 메뉴 페이지 이미지 업로드
+       * - 이미지 전체화면(pageType=image) 메뉴 페이지용
+       * - 향후 블록 에디터 이미지 블록에서도 재사용
+       * - S3 경로: page-images/{context}/{timestamp}-{random}.{ext}
+       * - 반환: { url, key } — url은 CDN URL, key는 S3 경로(삭제 시 필요)
+       */
+      pageImage: adminProcedure
+        .input(z.object({
+          base64: z.string(),
+          fileName: z.string(),
+          mimeType: z.string(),
+          context: z.string().optional(), // 업로드 맥락 (예: 'menu-page', 'block-editor')
+        }))
+        .mutation(async ({ input }) => {
+          const buffer = Buffer.from(input.base64, "base64");
+          const ext = input.fileName.split(".").pop() || "jpg";
+          const context = input.context ?? "page";
+          const key = `page-images/${context}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+          const { url } = await storagePut(key, buffer, input.mimeType);
+          return { url, key };
+        }),
     }),
 
     // 시설 예약 관리 (관리자)
