@@ -273,7 +273,7 @@ export default function Home() {
 
       {/* ===== 관리자 편집 바 (isAdmin일 때만 표시) ===== */}
       {isAdmin && (
-        <div className="bg-[#1B5E20] text-white text-xs py-2 px-4 flex items-center justify-between sticky top-0 z-[250]">
+        <div className="bg-[#1B5E20] text-white text-xs py-2 px-4 flex items-center justify-between sticky top-0 z-[100]">
           <span className="font-semibold tracking-wide">✏️ 편집 모드</span>
           <div className="flex gap-2">
             <button
