@@ -8,8 +8,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
 import { toast } from "sonner";
 import {
   Loader2, ChevronRight, Calendar, Clock, MapPin, Users,
@@ -39,7 +37,8 @@ function formatDate(dateStr: string) {
 }
 
 export default function MyReservations() {
-  const { user, isAuthenticated, loading } = useAuth();
+  const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery();
+  const isAuthenticated = Boolean(memberMe);
   const [filter, setFilter] = useState("all");
 
   const { data: reservations, isLoading, refetch } = trpc.home.myReservations.useQuery(
@@ -58,7 +57,7 @@ export default function MyReservations() {
   });
 
   // ── 로그인 안내 ───────────────────────────────────────────
-  if (loading) {
+  if (memberLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F7F7F5]">
         <Loader2 className="w-8 h-8 animate-spin text-[#1B5E20]" />
@@ -89,7 +88,7 @@ export default function MyReservations() {
             <h2 className="text-xl font-bold text-gray-700 mb-2">로그인이 필요합니다</h2>
             <p className="text-gray-500 text-sm mb-6">예약 현황은 로그인 후 확인하실 수 있습니다.</p>
             <button
-              onClick={() => window.location.href = getLoginUrl()}
+              onClick={() => window.location.href = '/member/login'}
               className="px-6 py-3 bg-[#1B5E20] text-white rounded-xl font-medium hover:bg-[#2E7D32] transition-colors"
             >
               로그인하기
@@ -130,7 +129,7 @@ export default function MyReservations() {
               <h1 className="text-2xl md:text-3xl font-bold" style={{ fontFamily: "'Noto Serif KR', serif" }}>
                 내 예약 현황
               </h1>
-              <p className="text-green-200 text-sm mt-1">{user?.name}님의 시설 예약 내역</p>
+              <p className="text-green-200 text-sm mt-1">{memberMe?.name}님의 시설 예약 내역</p>
             </div>
             <button
               onClick={() => refetch()}

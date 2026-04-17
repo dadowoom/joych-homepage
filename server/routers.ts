@@ -2,7 +2,7 @@ import { z } from "zod";
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, adminProcedure, router } from "./_core/trpc";
+import { publicProcedure, protectedProcedure, adminProcedure, memberProtectedProcedure, router } from "./_core/trpc";
 import { sdk } from "./_core/sdk";
 import { TRPCError } from "@trpc/server";
 import * as db from "./db";
@@ -187,8 +187,8 @@ export const appRouter = router({
     facilityReservationsByDate: publicProcedure
       .input(z.object({ facilityId: z.number(), date: z.string() }))
       .query(({ input }) => getReservationsByDate(input.facilityId, input.date)),
-    /** 예약 신청 (로그인 필요) */
-    createReservation: protectedProcedure
+    /** 예약 신청 (성도 로그인 필요) */
+    createReservation: memberProtectedProcedure
       .input(z.object({
         facilityId: z.number(),
         reserverName: z.string(),
@@ -206,19 +206,20 @@ export const appRouter = router({
         if (!facility) throw new TRPCError({ code: 'NOT_FOUND', message: '시설을 찾을 수 없습니다.' });
         if (!facility.isReservable) throw new TRPCError({ code: 'BAD_REQUEST', message: '현재 예약이 불가능한 시설입니다.' });
         const status = facility.approvalType === 'auto' ? 'approved' : 'pending';
-        const id = await createReservation({ ...input, userId: ctx.user.id, status });
+        // ctx.memberId = church_members.id (성도 로그인 기반)
+        const id = await createReservation({ ...input, userId: ctx.memberId, status });
         return { id, status };
       }),
-    /** 내 예약 목록 (로그인 필요) */
-    myReservations: protectedProcedure
-      .query(({ ctx }) => getMyReservations(ctx.user.id)),
-    /** 예약 취소 (본인만 가능) */
-    cancelReservation: protectedProcedure
+    /** 내 예약 목록 (성도 로그인 필요) */
+    myReservations: memberProtectedProcedure
+      .query(({ ctx }) => getMyReservations(ctx.memberId)),
+    /** 예약 취소 (성도 본인만 가능) */
+    cancelReservation: memberProtectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
         const reservation = await getReservationById(input.id);
         if (!reservation) throw new TRPCError({ code: 'NOT_FOUND', message: '예약을 찾을 수 없습니다.' });
-        if (reservation.userId !== ctx.user.id) throw new TRPCError({ code: 'FORBIDDEN', message: '본인의 예약만 취소할 수 있습니다.' });
+        if (reservation.userId !== ctx.memberId) throw new TRPCError({ code: 'FORBIDDEN', message: '본인의 예약만 취소할 수 있습니다.' });
         if (reservation.status === 'approved') throw new TRPCError({ code: 'BAD_REQUEST', message: '이미 승인된 예약은 취소할 수 없습니다. 관리자에게 문의하세요.' });
         await updateReservationStatus(input.id, 'cancelled');
         return { success: true };
