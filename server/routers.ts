@@ -719,11 +719,11 @@ export const appRouter = router({
           type: 'church_member',
         })
           .setProtectedHeader({ alg: 'HS256' })
-          .setExpirationTime('30d')
+          .setExpirationTime('24h')
           .sign(secret);
+        // 세션 쿠키: maxAge 없음 → 브라우저 닫으면 자동 삭제
         ctx.res.cookie('church_member_session', token, {
           ...getSessionCookieOptions(ctx.req),
-          maxAge: 30 * 24 * 60 * 60 * 1000,
         });
         return { success: true, id, autoLoggedIn: true };
       }),
@@ -753,11 +753,11 @@ export const appRouter = router({
           type: 'church_member',
         })
           .setProtectedHeader({ alg: 'HS256' })
-          .setExpirationTime('30d')
+          .setExpirationTime('24h')
           .sign(secret);
+        // 세션 쿠키: maxAge 없음 → 브라우저 닫으면 자동 삭제
         ctx.res.cookie('church_member_session', token, {
           ...getSessionCookieOptions(ctx.req),
-          maxAge: 30 * 24 * 60 * 60 * 1000,
         });
         return {
           success: true,

@@ -9,8 +9,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { Link, useParams, useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
 import { toast } from "sonner";
 import { Loader2, ChevronRight, Clock, Users, MapPin, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -235,8 +233,12 @@ function TimeSlotPicker({
 export default function FacilityApply() {
   const params = useParams<{ id: string }>();
   const facilityId = Number(params.id);
-  const { user, isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
+  const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const isAuthenticated = Boolean(memberMe);
 
   // URL 쿼리 파라미터에서 날짜/시간 읽기
   const searchString = useSearch();
@@ -251,7 +253,7 @@ export default function FacilityApply() {
 
   // 폼 상태 — URL에서 날짜/시간 자동 적용
   const [form, setForm] = useState(() => ({
-    reserverName: user?.name ?? "",
+    reserverName: memberMe?.name ?? "",
     reserverPhone: "",
     department: "",
     purpose: "",
@@ -389,7 +391,7 @@ export default function FacilityApply() {
     e.preventDefault();
     if (!isAuthenticated) {
       toast.error("예약 신청은 로그인 후 이용하실 수 있습니다.");
-      window.location.href = getLoginUrl();
+      window.location.href = "/member/login";
       return;
     }
     const error = validate();
@@ -487,8 +489,8 @@ export default function FacilityApply() {
                 </Link>
               </div>
 
-              {/* 로그인 안내 */}
-              {!isAuthenticated && (
+              {/* 로그인 안내 — 로딩 중에는 숨겨서 깜빡임 방지 */}
+              {!memberLoading && !isAuthenticated && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-center gap-3">
                   <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
                   <div className="flex-1">
@@ -499,7 +501,7 @@ export default function FacilityApply() {
                     type="button"
                     size="sm"
                     className="bg-amber-500 hover:bg-amber-600 text-white shrink-0"
-                    onClick={() => { window.location.href = getLoginUrl(); }}>
+                    onClick={() => { window.location.href = "/member/login"; }}>
                     로그인
                   </Button>
                 </div>
