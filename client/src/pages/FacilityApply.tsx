@@ -21,13 +21,15 @@ const PURPOSE_OPTIONS = [
   "찬양 연습", "강의/세미나", "회의", "바자회/전시", "외부 단체 행사", "기타",
 ];
 
-// ── 시간 슬롯 생성 헬퍼 ──────────────────────────────────────
+// // ── 시간 슬롯 생성 헬퍼 ──────────────────────────────────
+// 종료 시간(closeTime)도 슬롯에 포함 (예: 09:00~22:00 시 22:00 버튼도 표시)
 function generateTimeSlots(openTime: string, closeTime: string, unitMinutes: number): string[] {
   const slots: string[] = [];
   const [openH, openM] = openTime.split(":").map(Number);
   const [closeH, closeM] = closeTime.split(":").map(Number);
   let current = openH * 60 + openM;
   const end = closeH * 60 + closeM;
+  // <= 로 종료 시간 포함
   while (current <= end) {
     const h = Math.floor(current / 60).toString().padStart(2, "0");
     const m = (current % 60).toString().padStart(2, "0");
@@ -113,32 +115,49 @@ function TimeSlotPicker({
   startTime,
   endTime,
   onSelect,
+  slotMinutes = 60,
+  maxSlots = 8,
 }: {
   allSlots: string[];
   bookedSlots: Set<string>;
   startTime: string;
   endTime: string;
   onSelect: (start: string, end: string) => void;
+  slotMinutes?: number;
+  maxSlots?: number;
 }) {
+  const lastSlot = allSlots[allSlots.length - 1];
+
   function handleSlotClick(slot: string) {
     if (bookedSlots.has(slot)) return;
 
     // 아무것도 선택 안 됐거나 둘 다 선택된 경우 → 시작 시간 재선택
     if (!startTime || (startTime && endTime)) {
+      // 마지막 슬롯(종료 시간)은 시작 시간으로 선택 불가
+      if (slot === lastSlot) return;
       onSelect(slot, "");
       return;
     }
 
     // 시작 시간만 있는 경우
     if (slot <= startTime) {
-      // 시작 시간보다 앞이면 시작 시간 재선택
+      if (slot === lastSlot) return;
       onSelect(slot, "");
       return;
     }
 
-    // 범위 내 예약 충돌 확인
+    // maxSlots 초과 여부 확인
     const [sh, sm] = startTime.split(":").map(Number);
     const [eh, em] = slot.split(":").map(Number);
+    const diffMinutes = (eh * 60 + em) - (sh * 60 + sm);
+    const selectedSlots = diffMinutes / slotMinutes;
+    if (selectedSlots > maxSlots) {
+      // 최대 예약 시간 초과 시 해당 슬롯을 새 시작 시간으로
+      if (slot !== lastSlot) onSelect(slot, "");
+      return;
+    }
+
+    // 범위 내 예약 충돌 확인
     let cur = sh * 60 + sm;
     const end = eh * 60 + em;
     let hasConflict = false;
@@ -149,11 +168,11 @@ function TimeSlotPicker({
         hasConflict = true;
         break;
       }
-      cur += 30;
+      cur += slotMinutes;
     }
 
     if (hasConflict) {
-      onSelect(slot, "");
+      if (slot !== lastSlot) onSelect(slot, "");
     } else {
       onSelect(startTime, slot);
     }
@@ -581,6 +600,8 @@ export default function FacilityApply() {
                           startTime={form.startTime}
                           endTime={form.endTime}
                           onSelect={handleTimeSelect}
+                          slotMinutes={unitMinutes}
+                          maxSlots={facility.maxSlots ?? 8}
                         />
                       </div>
                     )}

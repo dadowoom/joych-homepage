@@ -86,18 +86,22 @@ function ImageGallery({ facilityId, name }: { facilityId: number; name: string }
 // ── 시간대 현황 + 선택 패널 ─────────────────────────────────
 function TimeSlotPanel({
   facilityId,
+  facility,
   selectedDate,
   startTime,
   endTime,
   onSelectTime,
 }: {
   facilityId: number;
+  facility: any;
   selectedDate: string;
   startTime: string;
   endTime: string;
   onSelectTime: (start: string, end: string) => void;
 }) {
   const dayOfWeek = new Date(selectedDate).getDay();
+  const slotMinutes = facility?.slotMinutes ?? 60;
+  const maxSlots = facility?.maxSlots ?? 8;
 
   const { data: hours } = trpc.home.facilityHours.useQuery({ facilityId });
   const { data: reservations, isLoading } = trpc.home.facilityReservationsByDate.useQuery(
@@ -110,7 +114,7 @@ function TimeSlotPanel({
     return hours.find((h: any) => h.dayOfWeek === dayOfWeek) ?? null;
   }, [hours, dayOfWeek]);
 
-  // 예약된 시간 슬롯 계산
+  // 예약된 시간 슬롯 계산 (slotMinutes 단위)
   const bookedSlots = useMemo(() => {
     const set = new Set<string>();
     if (!reservations) return set;
@@ -124,13 +128,13 @@ function TimeSlotPanel({
         const h = Math.floor(cur / 60);
         const m = cur % 60;
         set.add(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
-        cur += 30;
+        cur += slotMinutes;
       }
     });
     return set;
-  }, [reservations]);
+  }, [reservations, slotMinutes]);
 
-  // 운영 시간 내 30분 단위 슬롯 생성
+  // 운영 시간 내 슬롯 생성 (slotMinutes 단위, 종료 시간 포함)
   const allSlots = useMemo(() => {
     if (!todayHour || !todayHour.isOpen) return [];
     const slots: string[] = [];
@@ -138,14 +142,15 @@ function TimeSlotPanel({
     const [ch, cm] = todayHour.closeTime.split(":").map(Number);
     let cur = oh * 60 + om;
     const end = ch * 60 + cm;
-    while (cur < end) {
+    // 종료 시간(closeTime)도 슬롯에 포함 (<=)
+    while (cur <= end) {
       const h = Math.floor(cur / 60);
       const m = cur % 60;
       slots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
-      cur += 30;
+      cur += slotMinutes;
     }
     return slots;
-  }, [todayHour]);
+  }, [todayHour, slotMinutes]);
 
   // 날짜 포맷 (예: 2026년 4월 18일 (금))
   const dateLabel = useMemo(() => {
@@ -160,18 +165,30 @@ function TimeSlotPanel({
   function handleSlotClick(slot: string) {
     if (bookedSlots.has(slot)) return; // 예약된 슬롯은 클릭 불가
 
+    // 종료 시간(closeTime) 슬롯은 시작 시간으로 선택 불가
+    const lastSlot = allSlots[allSlots.length - 1];
+    
     if (!startTime || (startTime && endTime)) {
-      // 초기화 후 시작 시간 선택
+      // 마지막 슬롯(종료 시간)은 시작 시간으로 선택 불가
+      if (slot === lastSlot) return;
       onSelectTime(slot, "");
     } else {
       // 시작 시간이 있고 종료 시간이 없는 상태
       if (slot <= startTime) {
-        // 시작 시간보다 앞이면 시작 시간 재선택
+        if (slot === lastSlot) return;
         onSelectTime(slot, "");
       } else {
-        // 시작~종료 사이에 예약된 슬롯이 있으면 불가
+        // maxSlots 초과 여부 확인
         const [sh, sm] = startTime.split(":").map(Number);
         const [eh, em] = slot.split(":").map(Number);
+        const diffMinutes = (eh * 60 + em) - (sh * 60 + sm);
+        const selectedSlots = diffMinutes / slotMinutes;
+        if (selectedSlots > maxSlots) {
+          // 최대 예약 시간 초과 시 해당 슬롯을 새 시작 시간으로
+          if (slot !== lastSlot) onSelectTime(slot, "");
+          return;
+        }
+        // 시작~종료 사이에 예약된 슬롯이 있으면 불가
         let cur = sh * 60 + sm;
         const end = eh * 60 + em;
         let hasConflict = false;
@@ -182,11 +199,10 @@ function TimeSlotPanel({
             hasConflict = true;
             break;
           }
-          cur += 30;
+          cur += slotMinutes;
         }
         if (hasConflict) {
-          // 충돌 시 해당 슬롯을 새 시작 시간으로
-          onSelectTime(slot, "");
+          if (slot !== lastSlot) onSelectTime(slot, "");
         } else {
           onSelectTime(startTime, slot);
         }
@@ -572,6 +588,7 @@ export default function FacilityDetail() {
               {selectedDate && (
                 <TimeSlotPanel
                   facilityId={facilityId}
+                  facility={facility}
                   selectedDate={selectedDate}
                   startTime={startTime}
                   endTime={endTime}
