@@ -44,7 +44,7 @@ const PAGE_TYPE_OPTIONS: { value: PageType; label: string; icon: React.ReactNode
   { value: "gallery", label: "갤러리",          icon: <LayoutGrid size={12} /> },
   { value: "board",   label: "게시판",           icon: <FileText size={12} /> },
   { value: "youtube", label: "유튜브 목록",      icon: <Youtube size={12} /> },
-  { value: "editor",  label: "텍스트+이미지",    icon: <Type size={12} /> },
+  { value: "editor",  label: "편집 모드",    icon: <Type size={12} /> },
 ];
 
 type MenuSubItemRow = {

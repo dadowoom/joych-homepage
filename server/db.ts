@@ -10,6 +10,7 @@ import {
   facilities, facilityImages, facilityHours, facilityBlockedDates, reservations,
   InsertFacility, InsertFacilityImage, InsertFacilityHour, InsertFacilityBlockedDate, InsertReservation,
   pageBlocks, PageBlock,
+  youtubePlaylists, youtubeVideos,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -973,6 +974,106 @@ export async function reorderPageBlocks(orderedIds: number[]): Promise<void> {
       db.update(pageBlocks)
         .set({ sortOrder: index, updatedAt: new Date() })
         .where(eq(pageBlocks.id, id))
+    )
+  );
+}
+
+// ─────────────────────────────────────────────
+// 유튜브 플레이리스트 & 영상 관리
+// ─────────────────────────────────────────────
+
+/** 플레이리스트 전체 목록 */
+export async function getAllYoutubePlaylists() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(youtubePlaylists).orderBy(asc(youtubePlaylists.id));
+}
+
+/** 플레이리스트 생성 */
+export async function createYoutubePlaylist(data: { title: string; description?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const [result] = await db.insert(youtubePlaylists).values(data);
+  return result as { insertId: number };
+}
+
+/** 플레이리스트 수정 */
+export async function updateYoutubePlaylist(id: number, data: { title?: string; description?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.update(youtubePlaylists).set(data).where(eq(youtubePlaylists.id, id));
+}
+
+/** 플레이리스트 삭제 (소속 영상도 함께 삭제) */
+export async function deleteYoutubePlaylist(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.delete(youtubeVideos).where(eq(youtubeVideos.playlistId, id));
+  await db.delete(youtubePlaylists).where(eq(youtubePlaylists.id, id));
+}
+
+/** 특정 플레이리스트의 영상 목록 (정렬순) */
+export async function getYoutubeVideosByPlaylist(playlistId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(youtubeVideos)
+    .where(eq(youtubeVideos.playlistId, playlistId))
+    .orderBy(asc(youtubeVideos.sortOrder));
+}
+
+/** 특정 플레이리스트의 공개 영상 목록 (정렬순) */
+export async function getVisibleYoutubeVideos(playlistId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(youtubeVideos)
+    .where(eq(youtubeVideos.playlistId, playlistId))
+    .orderBy(asc(youtubeVideos.sortOrder));
+}
+
+/** 유튜브 영상 추가 */
+export async function createYoutubeVideo(data: {
+  playlistId: number;
+  videoId: string;
+  title: string;
+  thumbnailUrl?: string;
+  description?: string;
+  sortOrder?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const [result] = await db.insert(youtubeVideos).values(data);
+  return result as { insertId: number };
+}
+
+/** 유튜브 영상 수정 */
+export async function updateYoutubeVideo(id: number, data: {
+  title?: string;
+  thumbnailUrl?: string;
+  description?: string;
+  sortOrder?: number;
+  isVisible?: boolean;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.update(youtubeVideos).set(data).where(eq(youtubeVideos.id, id));
+}
+
+/** 유튜브 영상 삭제 */
+export async function deleteYoutubeVideo(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.delete(youtubeVideos).where(eq(youtubeVideos.id, id));
+}
+
+/** 유튜브 영상 순서 일괄 업데이트 */
+export async function reorderYoutubeVideos(orderedIds: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await Promise.all(
+    orderedIds.map((id, index) =>
+      db.update(youtubeVideos)
+        .set({ sortOrder: index, updatedAt: new Date() })
+        .where(eq(youtubeVideos.id, id))
     )
   );
 }

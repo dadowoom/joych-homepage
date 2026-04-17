@@ -87,6 +87,17 @@ import {
   updatePageBlock,
   deletePageBlock,
   reorderPageBlocks,
+  // 유튜브 플레이리스트 & 영상
+  getAllYoutubePlaylists,
+  createYoutubePlaylist,
+  updateYoutubePlaylist,
+  deleteYoutubePlaylist,
+  getYoutubeVideosByPlaylist,
+  getVisibleYoutubeVideos,
+  createYoutubeVideo,
+  updateYoutubeVideo,
+  deleteYoutubeVideo,
+  reorderYoutubeVideos,
 } from "./db";
 
 export const appRouter = router({
@@ -993,7 +1004,7 @@ export const appRouter = router({
         return adminUpdateMember(id, data);
       }),
 
-    /** 관리자: 성도 비밀번호 초기화 */
+     /** 관리자: 성도 비밀번호 초기화 */
     resetPassword: adminProcedure
       .input(z.object({
         id: z.number(),
@@ -1001,6 +1012,76 @@ export const appRouter = router({
       }))
       .mutation(({ input }) => adminResetMemberPassword(input.id, input.tempPassword)),
   }),
-});
 
+  // ─── 유튜브 플레이리스트 & 영상 관리 ─────────────────────────────────────────
+  youtube: router({
+    /** 플레이리스트 전체 목록 (공개/관리자 공통) */
+    getPlaylists: publicProcedure.query(() => getAllYoutubePlaylists()),
+
+    /** 플레이리스트 생성 (관리자) */
+    createPlaylist: adminProcedure
+      .input(z.object({ title: z.string().min(1), description: z.string().optional() }))
+      .mutation(({ input }) => createYoutubePlaylist(input)),
+
+    /** 플레이리스트 수정 (관리자) */
+    updatePlaylist: adminProcedure
+      .input(z.object({ id: z.number(), title: z.string().optional(), description: z.string().optional() }))
+      .mutation(({ input }) => {
+        const { id, ...data } = input;
+        return updateYoutubePlaylist(id, data);
+      }),
+
+    /** 플레이리스트 삭제 (관리자) */
+    deletePlaylist: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ input }) => deleteYoutubePlaylist(input.id)),
+
+    /** 특정 플레이리스트의 영상 목록 (공개) */
+    getVideos: publicProcedure
+      .input(z.object({ playlistId: z.number() }))
+      .query(({ input }) => getVisibleYoutubeVideos(input.playlistId)),
+
+    /** 특정 플레이리스트의 영상 목록 (관리자, 숨김 포함) */
+    getVideosAdmin: adminProcedure
+      .input(z.object({ playlistId: z.number() }))
+      .query(({ input }) => getYoutubeVideosByPlaylist(input.playlistId)),
+
+    /** 유튜브 영상 추가 (관리자) */
+    addVideo: adminProcedure
+      .input(z.object({
+        playlistId: z.number(),
+        videoId: z.string().min(1),
+        title: z.string().min(1),
+        thumbnailUrl: z.string().optional(),
+        description: z.string().optional(),
+        sortOrder: z.number().optional(),
+      }))
+      .mutation(({ input }) => createYoutubeVideo(input)),
+
+    /** 유튜브 영상 수정 (관리자) */
+    updateVideo: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        title: z.string().optional(),
+        thumbnailUrl: z.string().optional(),
+        description: z.string().optional(),
+        sortOrder: z.number().optional(),
+        isVisible: z.boolean().optional(),
+      }))
+      .mutation(({ input }) => {
+        const { id, ...data } = input;
+        return updateYoutubeVideo(id, data);
+      }),
+
+    /** 유튜브 영상 삭제 (관리자) */
+    deleteVideo: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ input }) => deleteYoutubeVideo(input.id)),
+
+    /** 영상 순서 일괄 변경 (관리자) */
+    reorderVideos: adminProcedure
+      .input(z.object({ orderedIds: z.array(z.number()) }))
+      .mutation(({ input }) => reorderYoutubeVideos(input.orderedIds)),
+  }),
+});
 export type AppRouter = typeof appRouter;

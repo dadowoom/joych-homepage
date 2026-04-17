@@ -281,3 +281,11 @@
 
 ## 모바일 메뉴 버그 수정 (2026-04-17)
 - [x] [BUG] 모바일에서 GNB 메뉴 클릭/터치 안 되는 문제 수정 (SiteHeader.tsx 모바일 메뉴 터치 이벤트)
+
+## 유튜브 목록 페이지 구현 (2026-04-17)
+- [x] DB: youtube_playlists, youtube_videos 테이블 추가 및 마이그레이션
+- [x] Server: youtube CRUD 프로시저 추가 (목록 조회/영상 추가/삭제/순서변경)
+- [x] YoutubeListPage.tsx: 최신 영상 크게 + 나머지 카드 슬라이드 표시
+- [x] YoutubeEditPanel.tsx: 관리자 패널 유튜브 영상 관리 UI (링크 추가/삭제/순서변경/썸네일 자동 추출)
+- [x] 메뉴 편집 패널: '유튜브 목록' 페이지 타입 추가 및 라우팅 연결
+- [x] MenuEditPanel.tsx: '텍스트+이미지' → '편집 모드' 이름 변경

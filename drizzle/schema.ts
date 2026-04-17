@@ -643,3 +643,47 @@ export const pageBlocks = mysqlTable("page_blocks", {
 
 export type PageBlock = typeof pageBlocks.$inferSelect;
 export type InsertPageBlock = typeof pageBlocks.$inferInsert;
+
+// ─────────────────────────────────────────────
+// 유튜브 플레이리스트 (영상 그룹)
+// 메뉴 항목의 pageType=youtube 일 때 연결되는 영상 묶음입니다.
+// ─────────────────────────────────────────────
+export const youtubePlaylists = mysqlTable("youtube_playlists", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 플레이리스트 이름 (관리자 구분용) */
+  title: varchar("title", { length: 128 }).notNull(),
+  /** 설명 */
+  description: text("description"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type YoutubePlaylist = typeof youtubePlaylists.$inferSelect;
+export type InsertYoutubePlaylist = typeof youtubePlaylists.$inferInsert;
+
+// ─────────────────────────────────────────────
+// 유튜브 영상 목록
+// 각 플레이리스트에 속하는 영상 항목들입니다.
+// ─────────────────────────────────────────────
+export const youtubeVideos = mysqlTable("youtube_videos", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 소속 플레이리스트 ID */
+  playlistId: int("playlistId").notNull(),
+  /** 유튜브 영상 ID (예: dQw4w9WgXcQ) */
+  videoId: varchar("videoId", { length: 32 }).notNull(),
+  /** 영상 제목 */
+  title: varchar("title", { length: 256 }).notNull(),
+  /** 썸네일 URL */
+  thumbnailUrl: text("thumbnailUrl"),
+  /** 영상 설명 (선택) */
+  description: text("description"),
+  /** 표시 순서 (숫자가 작을수록 위/앞에 표시) */
+  sortOrder: int("sortOrder").notNull().default(0),
+  /** 표시 여부 */
+  isVisible: boolean("isVisible").notNull().default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type YoutubeVideo = typeof youtubeVideos.$inferSelect;
+export type InsertYoutubeVideo = typeof youtubeVideos.$inferInsert;

@@ -15,6 +15,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
+import YoutubeListPage from "@/pages/YoutubeListPage";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -202,14 +203,22 @@ function BoardContent() {
   );
 }
 
-function YoutubeContent() {
-  return (
-    <div className="flex flex-col items-center justify-center py-24 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
-      <Youtube className="w-12 h-12 text-red-400 mb-3" />
-      <p className="text-gray-500 text-sm font-medium">유튜브 영상 목록 페이지</p>
-      <p className="text-gray-400 text-xs mt-1">조이풀TV 유튜브 채널과 연동 예정입니다.</p>
-    </div>
-  );
+function YoutubeContent({ label }: { label?: string }) {
+  // 첫 번째 플레이리스트를 자동으로 사용
+  const { data: playlists = [] } = trpc.youtube.getPlaylists.useQuery();
+  const firstPlaylistId = playlists[0]?.id;
+
+  if (!firstPlaylistId) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+        <Youtube className="w-12 h-12 text-red-400 mb-3" />
+        <p className="text-gray-500 text-sm font-medium">등록된 유튜브 플레이리스트가 없습니다.</p>
+        <p className="text-gray-400 text-xs mt-1">관리자 패널에서 유튜브 편집 버튼을 눌러 영상을 추가해 주세요.</p>
+      </div>
+    );
+  }
+
+  return <YoutubeListPage playlistId={firstPlaylistId} title={label} />;
 }
 
 // ─── 블록 타입별 렌더러 함수 ─────────────────────────────────────────────────────
@@ -850,7 +859,7 @@ function renderContent(
     case "image":   return <ImageContent label={label} imageUrl={imageUrl} />;
     case "gallery": return <GalleryContent />;
     case "board":   return <BoardContent />;
-    case "youtube": return <YoutubeContent />;
+    case "youtube": return <YoutubeContent label={label} />;
     case "editor":  return <EditorContent menuItemId={menuItemId} menuSubItemId={menuSubItemId} />;
     default:        return <ImageContent label={label} imageUrl={imageUrl} />;
   }
