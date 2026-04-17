@@ -181,14 +181,34 @@ export default function YoutubeAdminTab() {
 
   const selectedPlaylist = playlists.find((p) => p.id === selectedPlaylistId);
 
+  const syncAll = trpc.youtube.syncAllToMenus.useMutation({
+    onSuccess: () => toast.success("모든 플레이리스트가 같은 이름의 메뉴와 연결됐습니다."),
+    onError: () => toast.error("연결 중 오류가 발생했습니다."),
+  });
+
   return (
     <div>
-      <div className="flex items-center gap-2 mb-1">
-        <Youtube className="w-5 h-5 text-red-500" />
-        <h3 className="text-lg font-bold text-gray-800">예배영상 관리</h3>
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2">
+          <Youtube className="w-5 h-5 text-red-500" />
+          <h3 className="text-lg font-bold text-gray-800">예배영상 관리</h3>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => syncAll.mutate()}
+          disabled={syncAll.isPending}
+          className="text-xs h-7 border-[#1B5E20] text-[#1B5E20] hover:bg-[#F1F8E9]"
+        >
+          {syncAll.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+          메뉴 자동 연결
+        </Button>
       </div>
-      <p className="text-sm text-gray-500 mb-6">
+      <p className="text-sm text-gray-500 mb-2">
         플레이리스트를 만들고 유튜브 영상 링크를 추가하면 예배영상 페이지에 표시됩니다.
+      </p>
+      <p className="text-xs text-[#1B5E20] bg-[#F1F8E9] rounded px-3 py-2 mb-5">
+        ※ 플레이리스트 이름이 메뉴 이름과 같으면 자동으로 연결됩니다. 기존 플레이리스트는 오른쪽 "메뉴 자동 연결" 버튼을 한 번 눌러주세요.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

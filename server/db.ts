@@ -1093,3 +1093,52 @@ export async function getMenuSubItemByHref(href: string) {
   const rows = await db.select().from(menuSubItems).where(eq(menuSubItems.href, href)).limit(1);
   return rows[0] ?? null;
 }
+
+/** 이름(label)으로 2단 메뉴 항목 조회 */
+export async function getMenuItemByLabel(label: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(menuItems).where(eq(menuItems.label, label)).limit(1);
+  return rows[0] ?? null;
+}
+
+/** 이름(label)으로 3단 메뉴 항목 조회 */
+export async function getMenuSubItemByLabel(label: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(menuSubItems).where(eq(menuSubItems.label, label)).limit(1);
+  return rows[0] ?? null;
+}
+
+/** 플레이리스트 이름과 같은 메뉴 항목에 playlistId 자동 연결 */
+export async function syncPlaylistToMenu(playlistId: number, playlistTitle: string) {
+  const db = await getDb();
+  if (!db) return;
+
+  // 2단 메뉴에서 같은 이름 찾기
+  const menuItem = await getMenuItemByLabel(playlistTitle);
+  if (menuItem) {
+    await db.update(menuItems)
+      .set({ playlistId, updatedAt: new Date() })
+      .where(eq(menuItems.id, menuItem.id));
+    return;
+  }
+
+  // 3단 메뉴에서 같은 이름 찾기
+  const subItem = await getMenuSubItemByLabel(playlistTitle);
+  if (subItem) {
+    await db.update(menuSubItems)
+      .set({ playlistId, updatedAt: new Date() })
+      .where(eq(menuSubItems.id, subItem.id));
+  }
+}
+
+/** 모든 플레이리스트를 같은 이름의 메뉴 항목과 일괄 동기화 */
+export async function syncAllPlaylistsToMenus() {
+  const db = await getDb();
+  if (!db) return;
+  const playlists = await db.select().from(youtubePlaylists);
+  for (const pl of playlists) {
+    await syncPlaylistToMenu(pl.id, pl.title);
+  }
+}
