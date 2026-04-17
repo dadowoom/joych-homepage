@@ -241,10 +241,17 @@ export default function SiteHeader() {
                         return (
                           <li key={j} className="relative group/sub">
                             {s.href ? (
-                              <Link href={s.href} className={cls}>
-                                <span>{s.label}</span>
-                                {hasSubItems && <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>}
-                              </Link>
+                              s.href.startsWith('http://') || s.href.startsWith('https://') ? (
+                                <a href={s.href} target="_blank" rel="noopener noreferrer" className={cls}>
+                                  <span>{s.label}</span>
+                                  {hasSubItems && <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>}
+                                </a>
+                              ) : (
+                                <Link href={s.href} className={cls}>
+                                  <span>{s.label}</span>
+                                  {hasSubItems && <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>}
+                                </Link>
+                              )
                             ) : (
                               <a href="#" className={cls}>
                                 <span>{s.label}</span>
@@ -258,7 +265,11 @@ export default function SiteHeader() {
                                   return (
                                     <li key={k}>
                                       {sub.href ? (
-                                        <Link href={sub.href} className={subCls}>{sub.label}</Link>
+                                        sub.href.startsWith('http://') || sub.href.startsWith('https://') ? (
+                                          <a href={sub.href} target="_blank" rel="noopener noreferrer" className={subCls}>{sub.label}</a>
+                                        ) : (
+                                          <Link href={sub.href} className={subCls}>{sub.label}</Link>
+                                        )
                                       ) : (
                                         <a href="#" className={subCls}>{sub.label}</a>
                                       )}
