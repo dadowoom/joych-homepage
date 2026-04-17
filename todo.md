@@ -299,3 +299,11 @@
 - [x] 서버: 유튜브 목록 타입 메뉴 저장 시 동일 이름 플레이리스트 자동 생성·연결
 - [x] MenuEditPanel.tsx: 유튜브 목록 타입 선택 시 패널 내 영상 추가/관리 섹션 표시
 - [x] 기존 플레이리스트 있으면 중복 생성 방지
+
+## 보안 헤더 추가 (2026-04-17)
+- [x] Content-Security-Policy 헤더 추가 (XSS 방어)
+- [x] X-Frame-Options 헤더 추가 (클릭재킹 방어)
+- [x] X-Content-Type-Options 헤더 추가 (MIME 스니핑 방어)
+- [x] Referrer-Policy 헤더 추가 (리퍼러 정보 제한)
+- [x] Permissions-Policy 헤더 추가 (카메라/마이크 등 권한 제한)
+- [x] HTTP → HTTPS 자동 전환 설정 (배포 환경 적용)
