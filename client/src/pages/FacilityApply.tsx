@@ -1,12 +1,12 @@
 /**
  * 시설 사용 예약 신청 페이지 (/facility/:id/apply)
  * - DB에서 시설 정보, 운영 시간, 예약 현황을 실시간으로 가져옴
- * - 날짜 선택 시 해당 날짜의 예약 가능 시간 슬롯 동적 표시
- * - 이미 예약된 시간은 비활성화
+ * - 날짜/시작시간/종료시간을 URL 파라미터로 자동 적용
+ * - 시간 선택은 슬롯 버튼 클릭 방식 (드롭다운 없음)
  * - 신청 완료 시 DB에 저장 + 관리자 알림
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link, useParams, useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -28,7 +28,7 @@ function generateTimeSlots(openTime: string, closeTime: string, unitMinutes: num
   const [closeH, closeM] = closeTime.split(":").map(Number);
   let current = openH * 60 + openM;
   const end = closeH * 60 + closeM;
-  while (current < end) {
+  while (current <= end) {
     const h = Math.floor(current / 60).toString().padStart(2, "0");
     const m = (current % 60).toString().padStart(2, "0");
     slots.push(`${h}:${m}`);
@@ -106,6 +106,105 @@ function SuccessScreen({ facilityName, status, onReset }: {
   );
 }
 
+// ── 시간 슬롯 선택 컴포넌트 ──────────────────────────────────
+function TimeSlotPicker({
+  allSlots,
+  bookedSlots,
+  startTime,
+  endTime,
+  onSelect,
+}: {
+  allSlots: string[];
+  bookedSlots: Set<string>;
+  startTime: string;
+  endTime: string;
+  onSelect: (start: string, end: string) => void;
+}) {
+  function handleSlotClick(slot: string) {
+    if (bookedSlots.has(slot)) return;
+
+    // 아무것도 선택 안 됐거나 둘 다 선택된 경우 → 시작 시간 재선택
+    if (!startTime || (startTime && endTime)) {
+      onSelect(slot, "");
+      return;
+    }
+
+    // 시작 시간만 있는 경우
+    if (slot <= startTime) {
+      // 시작 시간보다 앞이면 시작 시간 재선택
+      onSelect(slot, "");
+      return;
+    }
+
+    // 범위 내 예약 충돌 확인
+    const [sh, sm] = startTime.split(":").map(Number);
+    const [eh, em] = slot.split(":").map(Number);
+    let cur = sh * 60 + sm;
+    const end = eh * 60 + em;
+    let hasConflict = false;
+    while (cur < end) {
+      const h = Math.floor(cur / 60).toString().padStart(2, "0");
+      const m = (cur % 60).toString().padStart(2, "0");
+      if (bookedSlots.has(`${h}:${m}`)) {
+        hasConflict = true;
+        break;
+      }
+      cur += 30;
+    }
+
+    if (hasConflict) {
+      onSelect(slot, "");
+    } else {
+      onSelect(startTime, slot);
+    }
+  }
+
+  const guideText = !startTime
+    ? "시작 시간을 클릭하세요"
+    : !endTime
+    ? `${startTime} 선택됨 — 종료 시간을 클릭하세요`
+    : `${startTime} ~ ${endTime} 선택됨 — 다시 클릭하면 변경`;
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-medium text-[#1B5E20]">{guideText}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {allSlots.map((slot) => {
+          const isBooked = bookedSlots.has(slot);
+          const isStart = slot === startTime;
+          const isEnd = slot === endTime;
+          const isInRange = startTime && endTime && slot > startTime && slot < endTime;
+
+          return (
+            <button
+              key={slot}
+              type="button"
+              disabled={isBooked}
+              onClick={() => handleSlotClick(slot)}
+              className={`text-xs px-2.5 py-1.5 rounded-md font-medium transition-all ${
+                isBooked
+                  ? "bg-red-100 text-red-400 line-through cursor-not-allowed"
+                  : isStart || isEnd
+                  ? "bg-[#1B5E20] text-white ring-2 ring-[#1B5E20] ring-offset-1 scale-105"
+                  : isInRange
+                  ? "bg-[#2E7D32] text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-green-100 hover:text-green-700 cursor-pointer"
+              }`}
+            >
+              {slot}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap gap-3 text-xs text-gray-400">
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-100 inline-block" /> 예약 가능</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 inline-block" /> 예약됨</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-[#1B5E20] inline-block" /> 선택됨</span>
+      </div>
+    </div>
+  );
+}
+
 // ── 메인 컴포넌트 ────────────────────────────────────────────
 export default function FacilityApply() {
   const params = useParams<{ id: string }>();
@@ -113,28 +212,42 @@ export default function FacilityApply() {
   const { user, isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
 
-  // URL 쿼리 파라미터에서 날짜 읽기 (?date=2026-04-18)
+  // URL 쿼리 파라미터에서 날짜/시간 읽기
   const searchString = useSearch();
-  const urlDate = useMemo(() => {
+  const { urlDate, urlStartTime, urlEndTime } = useMemo(() => {
     const p = new URLSearchParams(searchString);
-    return p.get("date") ?? "";
+    return {
+      urlDate: p.get("date") ?? "",
+      urlStartTime: p.get("startTime") ?? "",
+      urlEndTime: p.get("endTime") ?? "",
+    };
   }, [searchString]);
 
-  // 폼 상태 — URL에서 날짜 자동 적용
+  // 폼 상태 — URL에서 날짜/시간 자동 적용
   const [form, setForm] = useState(() => ({
     reserverName: user?.name ?? "",
     reserverPhone: "",
     department: "",
     purpose: "",
     date: urlDate,
-    startTime: "",
-    endTime: "",
+    startTime: urlStartTime,
+    endTime: urlEndTime,
     attendees: "",
     notes: "",
     agreePrivacy: false,
   }));
   const [submitted, setSubmitted] = useState(false);
   const [reservedStatus, setReservedStatus] = useState<string>("pending");
+
+  // URL 파라미터 변경 시 폼 동기화
+  useEffect(() => {
+    setForm(prev => ({
+      ...prev,
+      date: urlDate || prev.date,
+      startTime: urlStartTime || prev.startTime,
+      endTime: urlEndTime || prev.endTime,
+    }));
+  }, [urlDate, urlStartTime, urlEndTime]);
 
   // ── API 쿼리 ─────────────────────────────────────────────
   const { data: facility, isLoading: loadingFacility } = trpc.home.facility.useQuery(
@@ -198,13 +311,6 @@ export default function FacilityApply() {
     return booked;
   }, [reservationsByDate, unitMinutes]);
 
-  // 선택 가능한 시작 시간 (마지막 슬롯 제외 — 최소 1단위 필요)
-  const availableStartSlots = allTimeSlots.slice(0, -1);
-  // 선택 가능한 종료 시간 (시작 시간 이후)
-  const availableEndSlots = form.startTime
-    ? allTimeSlots.filter(t => t > form.startTime)
-    : [];
-
   // 날짜 비활성화 여부
   const blockedDateSet = useMemo(() => {
     return new Set((blockedDates ?? []).map(b => b.blockedDate));
@@ -218,9 +324,12 @@ export default function FacilityApply() {
       [name]: type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
       // 날짜 변경 시 시간 초기화
       ...(name === "date" ? { startTime: "", endTime: "" } : {}),
-      // 시작 시간 변경 시 종료 시간 초기화
-      ...(name === "startTime" ? { endTime: "" } : {}),
     }));
+  }
+
+  // 시간 슬롯 선택 핸들러
+  function handleTimeSelect(start: string, end: string) {
+    setForm(prev => ({ ...prev, startTime: start, endTime: end }));
   }
 
   function validate(): string | null {
@@ -400,8 +509,8 @@ export default function FacilityApply() {
                   사용 일정
                 </h2>
 
+                {/* 사용 날짜 */}
                 <Field label="사용 날짜" required hint={blockedDates && blockedDates.length > 0 ? ("예약 불가 날짜: " + blockedDates.map((b: any) => b.blockedDate).join(", ")) : undefined}>
-                  {/* URL에서 날짜가 넘어온 경우 읽기 전용으로 표시 */}
                   {urlDate ? (
                     <div className="flex items-center gap-2">
                       <div className={`${inputClass} flex items-center gap-2 bg-gray-50 cursor-default`}>
@@ -437,70 +546,41 @@ export default function FacilityApply() {
                   )}
                 </Field>
 
-                {/* 시간 선택 */}
+                {/* 시간 선택 — 슬롯 버튼 방식 */}
                 {form.date && (!todayHour || todayHour.isOpen) && !blockedDateSet.has(form.date) && (
-                  <>
+                  <Field
+                    label="사용 시간"
+                    required
+                    hint={`${unitMinutes}분 단위 · 시작 시간 클릭 후 종료 시간 클릭`}
+                  >
                     {allTimeSlots.length === 0 ? (
-                      <p className="text-sm text-gray-500 text-center py-4">해당 날짜의 운영 시간 정보가 없습니다.</p>
+                      <p className="text-sm text-gray-500 text-center py-4 bg-gray-50 rounded-lg">
+                        해당 날짜의 운영 시간 정보가 없습니다.
+                      </p>
                     ) : (
-                      <div className="grid grid-cols-2 gap-5">
-                        <Field label="시작 시간" required hint={unitMinutes + "분 단위"}>
-                          <select name="startTime" value={form.startTime} onChange={handleChange} className={inputClass}>
-                            <option value="">선택</option>
-                            {availableStartSlots.map(t => (
-                              <option key={t} value={t} disabled={bookedSlots.has(t)}>
-                                {t} {bookedSlots.has(t) ? "(예약됨)" : ""}
-                              </option>
-                            ))}
-                          </select>
-                        </Field>
-                        <Field label="종료 시간" required>
-                          <select name="endTime" value={form.endTime} onChange={handleChange} className={inputClass} disabled={!form.startTime}>
-                            <option value="">선택</option>
-                            {availableEndSlots.map(t => (
-                              <option key={t} value={t} disabled={bookedSlots.has(t)}>
-                                {t} {bookedSlots.has(t) ? "(예약됨)" : ""}
-                              </option>
-                            ))}
-                          </select>
-                        </Field>
+                      <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                        {/* 선택 결과 표시 */}
+                        {form.startTime && (
+                          <div className="mb-3 px-3 py-2 bg-[#E8F5E9] rounded-lg text-sm text-[#1B5E20] font-medium flex items-center gap-2">
+                            <Clock className="w-4 h-4 shrink-0" />
+                            {form.endTime
+                              ? `선택된 시간: ${form.startTime} ~ ${form.endTime}`
+                              : `시작: ${form.startTime} — 종료 시간을 선택하세요`}
+                          </div>
+                        )}
+                        <TimeSlotPicker
+                          allSlots={allTimeSlots}
+                          bookedSlots={bookedSlots}
+                          startTime={form.startTime}
+                          endTime={form.endTime}
+                          onSelect={handleTimeSelect}
+                        />
                       </div>
                     )}
-
-                    {/* 시간대 예약 현황 시각화 */}
-                    {allTimeSlots.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-gray-600 mb-2">시간대 예약 현황</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {allTimeSlots.slice(0, -1).map(t => {
-                            const isBooked = bookedSlots.has(t);
-                            const isSelected = form.startTime && form.endTime && t >= form.startTime && t < form.endTime;
-                            return (
-                              <span
-                                key={t}
-                                className={`text-xs px-2 py-1 rounded-md font-medium ${
-                                  isBooked
-                                    ? "bg-red-100 text-red-500 line-through"
-                                    : isSelected
-                                    ? "bg-[#1B5E20] text-white"
-                                    : "bg-gray-100 text-gray-600"
-                                }`}
-                              >
-                                {t}
-                              </span>
-                            );
-                          })}
-                        </div>
-                        <div className="flex gap-4 mt-2">
-                          <span className="flex items-center gap-1 text-xs text-gray-400"><span className="w-3 h-3 rounded bg-gray-100 inline-block" /> 예약 가능</span>
-                          <span className="flex items-center gap-1 text-xs text-gray-400"><span className="w-3 h-3 rounded bg-red-100 inline-block" /> 예약됨</span>
-                          <span className="flex items-center gap-1 text-xs text-gray-400"><span className="w-3 h-3 rounded bg-[#1B5E20] inline-block" /> 선택됨</span>
-                        </div>
-                      </div>
-                    )}
-                  </>
+                  </Field>
                 )}
 
+                {/* 예상 인원 */}
                 <Field label="예상 인원" required hint={("최대 수용 인원: " + facility.capacity.toLocaleString() + "명")}>
                   <input
                     type="number"

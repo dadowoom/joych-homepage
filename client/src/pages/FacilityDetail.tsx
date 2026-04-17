@@ -1,7 +1,7 @@
 /**
  * 시설 사용 예약 — 상세 페이지 (/facility/:id)
  * 실제 DB API 연결 버전 — 달력 예약 현황, 운영 시간, 이미지 갤러리 포함
- * 개선: 날짜 클릭 시 해당 날짜의 시간대 현황 패널 즉시 표시
+ * 개선: 날짜 클릭 시 시간대 현황 패널 표시 + 시간 슬롯 클릭으로 시작/종료 선택
  */
 
 import { useState, useMemo } from "react";
@@ -83,13 +83,19 @@ function ImageGallery({ facilityId, name }: { facilityId: number; name: string }
   );
 }
 
-// ── 시간대 현황 패널 ────────────────────────────────────────
+// ── 시간대 현황 + 선택 패널 ─────────────────────────────────
 function TimeSlotPanel({
   facilityId,
   selectedDate,
+  startTime,
+  endTime,
+  onSelectTime,
 }: {
   facilityId: number;
   selectedDate: string;
+  startTime: string;
+  endTime: string;
+  onSelectTime: (start: string, end: string) => void;
 }) {
   const dayOfWeek = new Date(selectedDate).getDay();
 
@@ -147,6 +153,47 @@ function TimeSlotPanel({
     return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${DAY_LABELS[d.getDay()]})`;
   }, [selectedDate]);
 
+  // 슬롯 클릭 핸들러
+  // - 아무것도 선택 안 된 상태 → 시작 시간 선택
+  // - 시작 시간만 선택된 상태 → 종료 시간 선택 (시작보다 뒤여야 함)
+  // - 둘 다 선택된 상태 → 초기화 후 시작 시간 재선택
+  function handleSlotClick(slot: string) {
+    if (bookedSlots.has(slot)) return; // 예약된 슬롯은 클릭 불가
+
+    if (!startTime || (startTime && endTime)) {
+      // 초기화 후 시작 시간 선택
+      onSelectTime(slot, "");
+    } else {
+      // 시작 시간이 있고 종료 시간이 없는 상태
+      if (slot <= startTime) {
+        // 시작 시간보다 앞이면 시작 시간 재선택
+        onSelectTime(slot, "");
+      } else {
+        // 시작~종료 사이에 예약된 슬롯이 있으면 불가
+        const [sh, sm] = startTime.split(":").map(Number);
+        const [eh, em] = slot.split(":").map(Number);
+        let cur = sh * 60 + sm;
+        const end = eh * 60 + em;
+        let hasConflict = false;
+        while (cur < end) {
+          const h = Math.floor(cur / 60);
+          const m = cur % 60;
+          if (bookedSlots.has(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`)) {
+            hasConflict = true;
+            break;
+          }
+          cur += 30;
+        }
+        if (hasConflict) {
+          // 충돌 시 해당 슬롯을 새 시작 시간으로
+          onSelectTime(slot, "");
+        } else {
+          onSelectTime(startTime, slot);
+        }
+      }
+    }
+  }
+
   if (!selectedDate) return null;
 
   return (
@@ -176,31 +223,53 @@ function TimeSlotPanel({
         </div>
       )}
 
-      {/* 시간대 슬롯 표시 */}
+      {/* 시간대 슬롯 선택 */}
       {!isLoading && todayHour && todayHour.isOpen && allSlots.length > 0 && (
         <>
           <p className="text-xs text-gray-500">
             운영 시간: {todayHour.openTime} ~ {todayHour.closeTime}
           </p>
+
+          {/* 선택 안내 */}
+          <p className="text-xs text-[#1B5E20] font-medium">
+            {!startTime
+              ? "시작 시간을 클릭하세요"
+              : !endTime
+              ? `${startTime} 선택됨 — 종료 시간을 클릭하세요`
+              : `${startTime} ~ ${endTime} 선택됨 — 다시 클릭하면 초기화`}
+          </p>
+
           <div className="flex flex-wrap gap-1.5">
             {allSlots.map((slot) => {
               const isBooked = bookedSlots.has(slot);
+              const isStart = slot === startTime;
+              const isEnd = slot === endTime;
+              const isInRange = startTime && endTime && slot > startTime && slot < endTime;
+              const isSelected = isStart || isEnd || isInRange;
+
               return (
-                <span
+                <button
                   key={slot}
-                  className={`text-xs px-2.5 py-1 rounded-md font-medium ${
+                  disabled={isBooked}
+                  onClick={() => handleSlotClick(slot)}
+                  className={`text-xs px-2.5 py-1.5 rounded-md font-medium transition-colors ${
                     isBooked
-                      ? "bg-red-100 text-red-500 line-through"
-                      : "bg-green-50 text-green-700 border border-green-200"
+                      ? "bg-red-100 text-red-400 line-through cursor-not-allowed"
+                      : isStart || isEnd
+                      ? "bg-[#1B5E20] text-white ring-2 ring-[#1B5E20] ring-offset-1"
+                      : isInRange
+                      ? "bg-[#2E7D32] text-white"
+                      : "bg-green-50 text-green-700 border border-green-200 hover:bg-green-200 cursor-pointer"
                   }`}
                 >
                   {slot}
-                </span>
+                </button>
               );
             })}
           </div>
+
           {/* 범례 */}
-          <div className="flex gap-4 text-xs text-gray-400 pt-1">
+          <div className="flex flex-wrap gap-3 text-xs text-gray-400 pt-1">
             <span className="flex items-center gap-1">
               <span className="w-2.5 h-2.5 rounded-sm bg-green-50 border border-green-200 inline-block" />
               예약 가능
@@ -208,6 +277,10 @@ function TimeSlotPanel({
             <span className="flex items-center gap-1">
               <span className="w-2.5 h-2.5 rounded-sm bg-red-100 inline-block" />
               예약됨
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded-sm bg-[#1B5E20] inline-block" />
+              선택됨
             </span>
           </div>
         </>
@@ -282,7 +355,9 @@ function ReservationCalendar({
       </div>
       <div className="grid grid-cols-7 gap-1 text-center text-xs mb-1">
         {DAY_LABELS.map((d, i) => (
-          <div key={d} className={`font-medium py-1 ${i === 0 ? "text-red-400" : i === 6 ? "text-blue-400" : "text-gray-400"}`}>{d}</div>
+          <div key={i} className={`font-medium py-1 ${i === 0 ? "text-red-400" : i === 6 ? "text-blue-400" : "text-gray-500"}`}>
+            {d}
+          </div>
         ))}
       </div>
       <div className="grid grid-cols-7 gap-1 text-center text-xs">
@@ -321,11 +396,43 @@ export default function FacilityDetail() {
   const [, navigate] = useLocation();
   const facilityId = parseInt(params.id ?? "0");
   const [selectedDate, setSelectedDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
 
   const { data: facility, isLoading } = trpc.home.facility.useQuery(
     { id: facilityId },
     { enabled: !isNaN(facilityId) }
   );
+
+  // 날짜 변경 시 시간 초기화
+  function handleSelectDate(date: string) {
+    setSelectedDate(date);
+    setStartTime("");
+    setEndTime("");
+  }
+
+  // 시간 선택 핸들러
+  function handleSelectTime(start: string, end: string) {
+    setStartTime(start);
+    setEndTime(end);
+  }
+
+  // 예약 신청 버튼 클릭
+  function handleApply() {
+    if (!selectedDate) return;
+    let url = `/facility/${facilityId}/apply?date=${selectedDate}`;
+    if (startTime) url += `&startTime=${startTime}`;
+    if (endTime) url += `&endTime=${endTime}`;
+    navigate(url);
+  }
+
+  // 버튼 라벨
+  const applyLabel = useMemo(() => {
+    if (!selectedDate) return "날짜를 먼저 선택하세요";
+    if (!startTime) return `${selectedDate} — 시간을 선택하세요`;
+    if (!endTime) return `${selectedDate} ${startTime} — 종료 시간을 선택하세요`;
+    return `${selectedDate} ${startTime}~${endTime} 예약 신청하기`;
+  }, [selectedDate, startTime, endTime]);
 
   if (isLoading) {
     return (
@@ -451,30 +558,29 @@ export default function FacilityDetail() {
               <ReservationCalendar
                 facilityId={facilityId}
                 selectedDate={selectedDate}
-                onSelectDate={setSelectedDate}
+                onSelectDate={handleSelectDate}
               />
 
-              {/* 날짜 선택 시 시간대 현황 패널 표시 */}
+              {/* 날짜 선택 시 시간대 현황 + 선택 패널 표시 */}
               {selectedDate && (
                 <TimeSlotPanel
                   facilityId={facilityId}
                   selectedDate={selectedDate}
+                  startTime={startTime}
+                  endTime={endTime}
+                  onSelectTime={handleSelectTime}
                 />
               )}
 
               {/* 예약 신청 버튼 */}
               {facility.isReservable ? (
                 <Button
-                  className="w-full bg-[#1B5E20] hover:bg-[#2E7D32] text-white py-6 text-base font-bold rounded-xl"
+                  className="w-full bg-[#1B5E20] hover:bg-[#2E7D32] text-white py-6 text-base font-bold rounded-xl disabled:opacity-50"
                   disabled={!selectedDate}
-                  onClick={() => {
-                    if (selectedDate) {
-                      navigate(`/facility/${facilityId}/apply?date=${selectedDate}`);
-                    }
-                  }}
+                  onClick={handleApply}
                 >
                   <CalendarCheck size={20} className="mr-2" />
-                  {selectedDate ? `${selectedDate} 예약 신청하기` : "날짜를 먼저 선택하세요"}
+                  {applyLabel}
                 </Button>
               ) : (
                 <div className="bg-gray-100 text-gray-500 rounded-xl p-5 text-center">
