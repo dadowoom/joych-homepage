@@ -504,6 +504,8 @@ export const appRouter = router({
           notice: z.string().optional(),
           caution: z.string().optional(),
           sortOrder: z.number().default(0),
+          openTime: z.string().default('09:00'),
+          closeTime: z.string().default('22:00'),
         }))
         .mutation(({ input }) => createFacility(input)),
       update: adminProcedure
@@ -523,6 +525,8 @@ export const appRouter = router({
           notice: z.string().optional(),
           caution: z.string().optional(),
           sortOrder: z.number().optional(),
+          openTime: z.string().optional(),
+          closeTime: z.string().optional(),
         }))
         .mutation(({ input }) => {
           const { id, ...data } = input;

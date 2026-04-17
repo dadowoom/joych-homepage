@@ -388,11 +388,14 @@ export const facilities = mysqlTable("facilities", {
   caution: text("caution"),
   /** 정렬 순서 */
   sortOrder: int("sortOrder").notNull().default(0),
+  /** 운영 시작 시간 (HH:MM 형식, 예: 09:00) */
+  openTime: varchar("openTime", { length: 5 }).notNull().default("09:00"),
+  /** 운영 종료 시간 (HH:MM 형식, 예: 22:00) */
+  closeTime: varchar("closeTime", { length: 5 }).notNull().default("22:00"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
-export type Facility = typeof facilities.$inferSelect;
+export type Facility = typeof facilities.$inferSelect;;
 export type InsertFacility = typeof facilities.$inferInsert;
 
 /**
@@ -513,3 +516,85 @@ export const reservations = mysqlTable("reservations", {
 
 export type Reservation = typeof reservations.$inferSelect;
 export type InsertReservation = typeof reservations.$inferInsert;
+
+// ─────────────────────────────────────────────
+// 교회학교: 부서 테이블
+// ─────────────────────────────────────────────
+export const schoolDepartments = mysqlTable("school_departments", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 부서명 (예: 영아부, 유아부, 청년부 등) */
+  name: varchar("name", { length: 64 }).notNull(),
+  /** 분류: church_school(교회학교) / youth(청년부) */
+  category: mysqlEnum("category", ["church_school", "youth"]).notNull().default("church_school"),
+  /** 대상 연령/설명 (예: 13~30개월, 초등 1~2학년) */
+  ageRange: varchar("ageRange", { length: 64 }),
+  /** 예배 시간 (예: 주일 오전 11시) */
+  worshipTime: varchar("worshipTime", { length: 128 }),
+  /** 예배 장소 (예: 4층 영아부실) */
+  worshipPlace: varchar("worshipPlace", { length: 128 }),
+  /** 부서 소개 텍스트 */
+  description: text("description"),
+  /** 교육 목표 (줄바꿈 구분 텍스트) */
+  educationGoals: text("educationGoals"),
+  /** 기도제목 (줄바꿈 구분 텍스트) */
+  prayerTopics: text("prayerTopics"),
+  /** 섬기는 이들 (JSON 문자열: [{role, name}]) */
+  staffInfo: text("staffInfo"),
+  /** 대표 이미지 URL */
+  imageUrl: varchar("imageUrl", { length: 512 }),
+  /** 표시 순서 */
+  sortOrder: int("sortOrder").notNull().default(0),
+  /** 표시 여부 */
+  isVisible: boolean("isVisible").notNull().default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type SchoolDepartment = typeof schoolDepartments.$inferSelect;
+export type InsertSchoolDepartment = typeof schoolDepartments.$inferInsert;
+
+// ─────────────────────────────────────────────
+// 교회학교: 게시글 테이블
+// ─────────────────────────────────────────────
+export const schoolPosts = mysqlTable("school_posts", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 소속 부서 ID */
+  departmentId: int("departmentId").notNull(),
+  /** 글 제목 */
+  title: varchar("title", { length: 256 }).notNull(),
+  /** 글 내용 */
+  content: text("content"),
+  /** 작성자 이름 */
+  authorName: varchar("authorName", { length: 64 }).notNull(),
+  /** 작성자 church_members ID (로그인 성도) */
+  memberId: int("memberId"),
+  /** 조회수 */
+  viewCount: int("viewCount").notNull().default(0),
+  /** 공지 여부 */
+  isNotice: boolean("isNotice").notNull().default(false),
+  /** 표시 여부 */
+  isVisible: boolean("isVisible").notNull().default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type SchoolPost = typeof schoolPosts.$inferSelect;
+export type InsertSchoolPost = typeof schoolPosts.$inferInsert;
+
+// ─────────────────────────────────────────────
+// 교회학교: 게시글 첨부파일 테이블
+// ─────────────────────────────────────────────
+export const schoolPostFiles = mysqlTable("school_post_files", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 소속 게시글 ID */
+  postId: int("postId").notNull(),
+  /** 파일 원본 이름 */
+  fileName: varchar("fileName", { length: 256 }).notNull(),
+  /** S3 파일 URL */
+  fileUrl: varchar("fileUrl", { length: 512 }).notNull(),
+  /** 파일 크기 (bytes) */
+  fileSize: int("fileSize"),
+  /** MIME 타입 */
+  mimeType: varchar("mimeType", { length: 128 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type SchoolPostFile = typeof schoolPostFiles.$inferSelect;
+export type InsertSchoolPostFile = typeof schoolPostFiles.$inferInsert;

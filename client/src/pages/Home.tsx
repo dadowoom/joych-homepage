@@ -213,22 +213,7 @@ function FadeIn({ children, delay = 0, className = "" }: { children: React.React
 }
 
 export default function Home() {
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-  const [activeNav, setActiveNav] = useState<number | null>(null);
-  // 신앙 데이터 검색
-  const [searchName, setSearchName] = useState("");
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-
-  const [, setLocation] = useLocation();
-
-  const handleSearch = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const trimmed = searchName.trim();
-    if (!trimmed) return;
-    setMobileSearchOpen(false);
-    setLocation(`/church-directory?name=${encodeURIComponent(trimmed)}`);
-  };
+  // 헤더는 SiteHeader 컴포넌트로 분리됨 (App.tsx에서 공통 적용)};
   const [heroIndex, setHeroIndex] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -251,13 +236,7 @@ export default function Home() {
   // 관리자 여부 확인 (편집 모드용)
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
-  // 성도 로그인 상태 확인
-  const { data: memberMe, refetch: refetchMemberMe } = trpc.members.me.useQuery();
-  const memberLogoutMutation = trpc.members.logout.useMutation({
-    onSuccess: () => {
-      refetchMemberMe();
-    },
-  });
+  // 성도 로그인 상태는 SiteHeader에서 관리됨
 
   // 슬라이드 패널 상태
   const [menuPanelOpen, setMenuPanelOpen] = useState(false);
@@ -287,11 +266,7 @@ export default function Home() {
     }
   }, [heroIndex]);
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 60);
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  // scrolled 상태는 SiteHeader에서 관리됨
 
   return (
     <div className="min-h-screen bg-[#FAFAF8]" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
@@ -393,207 +368,6 @@ export default function Home() {
         }}
       />
 
-      {/* ===== 상단 유틸 바 ===== */}
-      <div className="bg-[#0F172A] text-gray-400 text-xs py-2 hidden md:block">
-        <div className="container flex justify-between items-center">
-          <span className="tracking-wide">깊이있는 성장, 위대한 교회</span>
-          <div className="flex gap-4 items-center">
-            {/* 성도 로그인 상태 */}
-            {memberMe ? (
-              <>
-                <span className="text-gray-300">{memberMe.name}님</span>
-                <Link href="/member/my-page" className="hover:text-white transition-colors">내 정보</Link>
-                <button
-                  onClick={() => memberLogoutMutation.mutate()}
-                  className="hover:text-white transition-colors cursor-pointer"
-                >로그아웃</button>
-              </>
-            ) : (
-              <>
-                <Link href="/member/login" className="hover:text-white transition-colors">로그인</Link>
-                <Link href="/member/register" className="hover:text-white transition-colors">회원가입</Link>
-              </>
-            )}
-            {/* 관리자 링크 비공개 - 외부 노출 차단 */}
-            <div className="flex gap-3 ml-2">
-              <a href="#" className="hover:text-white transition-colors"><i className="fab fa-youtube"></i></a>
-              <a href="#" className="hover:text-white transition-colors"><i className="fab fa-facebook-f"></i></a>
-              <a href="#" className="hover:text-white transition-colors"><i className="fab fa-instagram"></i></a>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ===== 헤더 & GNB ===== */}
-      <header
-        className={`sticky top-0 z-[150] bg-white transition-shadow duration-300 ${scrolled ? "shadow-lg" : "shadow-sm"}`}
-      >
-        <div className="container flex items-center justify-between h-16 md:h-[72px]">
-          {/* 로고 */}
-          <a href="#" className="flex items-center">
-            <img
-              src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-logo_35c62cc5.jpg"
-              alt="기쁨의교회"
-              className="h-10 md:h-12 w-auto object-contain"
-            />
-          </a>
-
-          {/* 신앙 데이터 검색창 — PC */}
-          <form
-            onSubmit={handleSearch}
-            className="hidden md:flex items-center gap-0 mx-4 flex-1 max-w-[320px]"
-          >
-            <div className="relative w-full">
-              <input
-                type="text"
-                value={searchName}
-                onChange={(e) => setSearchName(e.target.value)}
-                placeholder="이름으로 신앙 데이터 검색"
-                className="w-full h-9 pl-4 pr-10 text-sm rounded-full border-2 border-[#1B5E20]/30 bg-[#F1F8E9] text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#1B5E20] focus:bg-white transition-all duration-200"
-              />
-              <button
-                type="submit"
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-[#1B5E20] hover:text-[#2E7D32] transition-colors"
-              >
-                <i className="fas fa-search text-sm"></i>
-              </button>
-            </div>
-          </form>
-
-          {/* PC 메뉴 */}
-          <nav className="hidden md:block">
-            <ul className="flex">
-              {(navMenus ?? NAV_ITEMS.map((item, i) => ({ id: i + 1, label: item.label, href: (item as { href?: string }).href ?? null, items: item.sub.map((s, j) => ({ id: j + 1, label: s, href: (item as { subHref?: Record<string, string | undefined> }).subHref?.[s] ?? null })) }))).map((item, i) => (
-                <li
-                  key={item.id}
-                  className="relative group"
-                >
-                  <div className="flex items-center h-[72px] px-4 relative">
-                    <a
-                      href={item.href ?? '#'}
-                      className="text-sm font-medium text-gray-700 hover:text-[#1B5E20] transition-colors"
-                    >
-                      {item.label}
-                    </a>
-                    <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#1B5E20] scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left"></span>
-                  </div>
-                  {(item.items ?? []).length > 0 && (
-                    <ul className="absolute top-[72px] left-0 bg-white border-t-2 border-[#1B5E20] shadow-xl min-w-[160px] z-[200] py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150">
-                      {(item.items ?? []).map((s, j) => {
-                        const hasSubItems = (s as { subItems?: { id: number; label: string; href?: string | null }[] }).subItems && (s as { subItems?: { id: number; label: string; href?: string | null }[] }).subItems!.length > 0;
-                        const subItems = (s as { subItems?: { id: number; label: string; href?: string | null }[] }).subItems ?? [];
-                        const cls = "flex items-center justify-between px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
-                        return (
-                          <li key={j} className="relative group/sub">
-                            {s.href ? (
-                              <Link href={s.href} className={cls}>
-                                <span>{s.label}</span>
-                                {hasSubItems && <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>}
-                              </Link>
-                            ) : (
-                              <a href="#" className={cls}>
-                                <span>{s.label}</span>
-                                {hasSubItems && <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>}
-                              </a>
-                            )}
-                            {/* 3단 드롭다운 */}
-                            {hasSubItems && (
-                              <ul className="absolute left-full top-0 bg-white border-l-2 border-[#1B5E20] shadow-xl min-w-[150px] z-[300] py-1 opacity-0 invisible group-hover/sub:opacity-100 group-hover/sub:visible transition-all duration-150">
-                                {subItems.map((sub, k) => {
-                                  const subCls = "block px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
-                                  return (
-                                    <li key={k}>
-                                      {sub.href ? (
-                                        <Link href={sub.href} className={subCls}>{sub.label}</Link>
-                                      ) : (
-                                        <a href="#" className={subCls}>{sub.label}</a>
-                                      )}
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </nav>
-
-          {/* 모바일 오른쪽 버튼 그룹 */}
-          <div className="md:hidden flex items-center gap-1">
-            {/* 검색 아이콘 버튼 */}
-            <button
-              className="p-2 text-[#1B5E20]"
-              onClick={() => { setMobileSearchOpen(!mobileSearchOpen); setMobileOpen(false); }}
-              aria-label="신앙 데이터 검색"
-            >
-              <i className={`fas ${mobileSearchOpen ? "fa-times" : "fa-search"} text-lg`}></i>
-            </button>
-            {/* 햄버거 버튼 */}
-            <button
-              className="p-2 text-gray-700"
-              onClick={() => { setMobileOpen(!mobileOpen); setMobileSearchOpen(false); }}
-            >
-              <i className={`fas ${mobileOpen ? "fa-times" : "fa-bars"} text-xl`}></i>
-            </button>
-          </div>
-        </div>
-
-        {/* 모바일 검색창 패널 */}
-        {mobileSearchOpen && (
-          <div className="md:hidden bg-[#F1F8E9] border-t border-[#1B5E20]/20 px-4 py-3">
-            <form onSubmit={handleSearch} className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={searchName}
-                  onChange={(e) => setSearchName(e.target.value)}
-                  placeholder="이름으로 신앙 데이터 검색"
-                  autoFocus
-                  className="w-full h-11 pl-4 pr-4 text-base rounded-full border-2 border-[#1B5E20]/40 bg-white text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#1B5E20] transition-all duration-200"
-                />
-              </div>
-              <button
-                type="submit"
-                className="h-11 px-5 rounded-full bg-[#1B5E20] text-white text-sm font-medium hover:bg-[#2E7D32] transition-colors shrink-0"
-              >
-                검색
-              </button>
-            </form>
-            <p className="text-xs text-gray-400 mt-2 pl-1">성도 이름을 입력하면 신앙 데이터 페이지로 이동합니다.</p>
-          </div>
-        )}
-
-        {/* 모바일 메뉴 */}
-        {mobileOpen && (
-          <div className="md:hidden bg-white border-t border-gray-100 shadow-lg">
-            {NAV_ITEMS.map((item, i) => (
-              <a key={i} href="#" className="block px-5 py-3 text-sm text-gray-700 border-b border-gray-50 hover:bg-[#F1F8E9] hover:text-[#1B5E20]">
-                {item.label}
-              </a>
-            ))}
-            {/* 모바일 로그인/회원가입 */}
-            <div className="border-t border-gray-200 px-5 py-3 flex gap-4">
-              {memberMe ? (
-                <>
-                  <span className="text-sm text-gray-700 font-medium">{memberMe.name}님</span>
-                  <Link href="/member/my-page" className="text-sm text-[#1B5E20] hover:underline">내 정보</Link>
-                  <button onClick={() => memberLogoutMutation.mutate()} className="text-sm text-gray-500 hover:text-red-500">로그아웃</button>
-                </>
-              ) : (
-                <>
-                  <Link href="/member/login" className="text-sm text-[#1B5E20] font-medium hover:underline">로그인</Link>
-                  <Link href="/member/register" className="text-sm text-gray-600 hover:underline">회원가입</Link>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-      </header>
 
       {/* ===== 히어로 섹션 ===== */}
       <section className="relative h-screen min-h-[600px] flex items-center overflow-hidden">

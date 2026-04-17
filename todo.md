@@ -181,6 +181,23 @@
 - [x] Home.tsx 상단 유틸 바에 성도 로그인 상태 반영 (로그인 시 이름/마이페이지/로그아웃 표시)
 - [x] 회원가입 완료 시 자동 로그인 (JWT 쿠키 발급 + 홈으로 이동)
 
+## 시설 예약 UX 개선 (2026-04-17)
+- [x] FacilityDetail.tsx: 날짜 클릭 시 해당 날짜 시간대 현황 패널 표시 (가능/예약됨 구분)
+- [x] 헤더: 모든 페이지에서 스크롤해도 상단 고정 (sticky) 처리
+- [x] FacilityApply.tsx: URL ?date= 파라미터 읽어서 날짜 자동 적용
+- [x] FacilityApply.tsx: 날짜 필드 읽기 전용 처리 + 달력으로 돌아가기 링크
+- [x] FacilityApply.tsx: 날짜 자동 적용 시 시간 선택 UI 즉시 표시
+
+## 시설 예약 시스템 완성 (2026-04-17)
+- [x] DB: facilities 테이블에 openTime, closeTime 컬럼 추가
+- [x] DB: 기존 더미 대예배실 3개 데이터 삭제
+- [x] 서버: 시설 CRUD API에 openTime/closeTime 필드 추가
+- [ ] 관리자 대시보드: 시설 등록/수정 폼에 운영 시간 입력 필드 추가
+- [x] FacilityDetail: openTime~closeTime 기준 시간 슬롯 표시 연동
+- [x] FacilityDetail: 요일별 운영시간(facility_hours) 연동하여 시간 슬롯 생성
+- [x] FacilityDetail: 이미 예약된 시간 슬롯 회색 비활성화(클릭 불가) 처리
+- [x] FacilityDetail: 가능/예약됨/선택됨 색상 구분 범례 표시
+
 ## DB 구조 정리 (2026-04-16)
 - [ ] church_members 테이블 중복 컬럼 제거 및 정규화
 - [ ] drizzle/schema.ts와 실제 DB 완전 일치

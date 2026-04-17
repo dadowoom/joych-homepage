@@ -1,6 +1,7 @@
 /**
  * 시설 사용 예약 — 상세 페이지 (/facility/:id)
  * 실제 DB API 연결 버전 — 달력 예약 현황, 운영 시간, 이미지 갤러리 포함
+ * 개선: 날짜 클릭 시 해당 날짜의 시간대 현황 패널 즉시 표시
  */
 
 import { useState, useMemo } from "react";
@@ -8,7 +9,7 @@ import { Link, useParams, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Users, MapPin, Clock, ChevronLeft, ChevronRight, Phone, AlertCircle, CalendarCheck } from "lucide-react";
+import { Users, MapPin, Clock, ChevronLeft, ChevronRight, Phone, AlertCircle, CalendarCheck, Loader2 } from "lucide-react";
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -77,6 +78,139 @@ function ImageGallery({ facilityId, name }: { facilityId: number; name: string }
             </button>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ── 시간대 현황 패널 ────────────────────────────────────────
+function TimeSlotPanel({
+  facilityId,
+  selectedDate,
+}: {
+  facilityId: number;
+  selectedDate: string;
+}) {
+  const dayOfWeek = new Date(selectedDate).getDay();
+
+  const { data: hours } = trpc.home.facilityHours.useQuery({ facilityId });
+  const { data: reservations, isLoading } = trpc.home.facilityReservationsByDate.useQuery(
+    { facilityId, date: selectedDate },
+    { enabled: !!selectedDate }
+  );
+
+  const todayHour = useMemo(() => {
+    if (!hours) return null;
+    return hours.find((h: any) => h.dayOfWeek === dayOfWeek) ?? null;
+  }, [hours, dayOfWeek]);
+
+  // 예약된 시간 슬롯 계산
+  const bookedSlots = useMemo(() => {
+    const set = new Set<string>();
+    if (!reservations) return set;
+    reservations.forEach((r: any) => {
+      if (r.status === "rejected" || r.status === "cancelled") return;
+      const [sh, sm] = r.startTime.split(":").map(Number);
+      const [eh, em] = r.endTime.split(":").map(Number);
+      let cur = sh * 60 + sm;
+      const end = eh * 60 + em;
+      while (cur < end) {
+        const h = Math.floor(cur / 60);
+        const m = cur % 60;
+        set.add(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+        cur += 30;
+      }
+    });
+    return set;
+  }, [reservations]);
+
+  // 운영 시간 내 30분 단위 슬롯 생성
+  const allSlots = useMemo(() => {
+    if (!todayHour || !todayHour.isOpen) return [];
+    const slots: string[] = [];
+    const [oh, om] = todayHour.openTime.split(":").map(Number);
+    const [ch, cm] = todayHour.closeTime.split(":").map(Number);
+    let cur = oh * 60 + om;
+    const end = ch * 60 + cm;
+    while (cur < end) {
+      const h = Math.floor(cur / 60);
+      const m = cur % 60;
+      slots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+      cur += 30;
+    }
+    return slots;
+  }, [todayHour]);
+
+  // 날짜 포맷 (예: 2026년 4월 18일 (금))
+  const dateLabel = useMemo(() => {
+    const d = new Date(selectedDate);
+    return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${DAY_LABELS[d.getDay()]})`;
+  }, [selectedDate]);
+
+  if (!selectedDate) return null;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-3">
+      <div className="flex items-center gap-2">
+        <CalendarCheck size={16} className="text-[#1B5E20]" />
+        <h3 className="font-bold text-gray-800 text-sm">{dateLabel} 예약 현황</h3>
+      </div>
+
+      {/* 휴무일 */}
+      {todayHour && !todayHour.isOpen && (
+        <div className="flex items-center gap-2 text-red-500 text-sm bg-red-50 rounded-lg p-3">
+          <AlertCircle size={14} />
+          <span>이 날은 휴무일입니다.</span>
+        </div>
+      )}
+
+      {/* 운영 시간 없음 */}
+      {!todayHour && (
+        <div className="text-sm text-gray-400 text-center py-2">운영 시간 정보가 없습니다.</div>
+      )}
+
+      {/* 로딩 중 */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 size={18} className="animate-spin text-[#1B5E20]" />
+        </div>
+      )}
+
+      {/* 시간대 슬롯 표시 */}
+      {!isLoading && todayHour && todayHour.isOpen && allSlots.length > 0 && (
+        <>
+          <p className="text-xs text-gray-500">
+            운영 시간: {todayHour.openTime} ~ {todayHour.closeTime}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {allSlots.map((slot) => {
+              const isBooked = bookedSlots.has(slot);
+              return (
+                <span
+                  key={slot}
+                  className={`text-xs px-2.5 py-1 rounded-md font-medium ${
+                    isBooked
+                      ? "bg-red-100 text-red-500 line-through"
+                      : "bg-green-50 text-green-700 border border-green-200"
+                  }`}
+                >
+                  {slot}
+                </span>
+              );
+            })}
+          </div>
+          {/* 범례 */}
+          <div className="flex gap-4 text-xs text-gray-400 pt-1">
+            <span className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded-sm bg-green-50 border border-green-200 inline-block" />
+              예약 가능
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded-sm bg-red-100 inline-block" />
+              예약됨
+            </span>
+          </div>
+        </>
       )}
     </div>
   );
@@ -312,13 +446,21 @@ export default function FacilityDetail() {
               <HoursTable facilityId={facilityId} />
             </div>
 
-            {/* 오른쪽: 달력 + 예약 버튼 */}
+            {/* 오른쪽: 달력 + 시간대 현황 + 예약 버튼 */}
             <div className="space-y-5">
               <ReservationCalendar
                 facilityId={facilityId}
                 selectedDate={selectedDate}
                 onSelectDate={setSelectedDate}
               />
+
+              {/* 날짜 선택 시 시간대 현황 패널 표시 */}
+              {selectedDate && (
+                <TimeSlotPanel
+                  facilityId={facilityId}
+                  selectedDate={selectedDate}
+                />
+              )}
 
               {/* 예약 신청 버튼 */}
               {facility.isReservable ? (

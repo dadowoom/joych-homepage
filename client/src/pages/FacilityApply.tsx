@@ -7,7 +7,7 @@
  */
 
 import { useState, useMemo } from "react";
-import { Link, useParams, useLocation } from "wouter";
+import { Link, useParams, useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
@@ -113,19 +113,26 @@ export default function FacilityApply() {
   const { user, isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
 
-  // 폼 상태
-  const [form, setForm] = useState({
+  // URL 쿼리 파라미터에서 날짜 읽기 (?date=2026-04-18)
+  const searchString = useSearch();
+  const urlDate = useMemo(() => {
+    const p = new URLSearchParams(searchString);
+    return p.get("date") ?? "";
+  }, [searchString]);
+
+  // 폼 상태 — URL에서 날짜 자동 적용
+  const [form, setForm] = useState(() => ({
     reserverName: user?.name ?? "",
     reserverPhone: "",
     department: "",
     purpose: "",
-    date: "",
+    date: urlDate,
     startTime: "",
     endTime: "",
     attendees: "",
     notes: "",
     agreePrivacy: false,
-  });
+  }));
   const [submitted, setSubmitted] = useState(false);
   const [reservedStatus, setReservedStatus] = useState<string>("pending");
 
@@ -394,14 +401,30 @@ export default function FacilityApply() {
                 </h2>
 
                 <Field label="사용 날짜" required hint={blockedDates && blockedDates.length > 0 ? ("예약 불가 날짜: " + blockedDates.map((b: any) => b.blockedDate).join(", ")) : undefined}>
-                  <input
-                    type="date"
-                    name="date"
-                    value={form.date}
-                    onChange={handleChange}
-                    min={new Date().toISOString().split("T")[0]}
-                    className={inputClass}
-                  />
+                  {/* URL에서 날짜가 넘어온 경우 읽기 전용으로 표시 */}
+                  {urlDate ? (
+                    <div className="flex items-center gap-2">
+                      <div className={`${inputClass} flex items-center gap-2 bg-gray-50 cursor-default`}>
+                        <Calendar className="w-4 h-4 text-[#1B5E20] shrink-0" />
+                        <span className="font-medium text-gray-800">{form.date}</span>
+                      </div>
+                      <Link
+                        href={`/facility/${facilityId}`}
+                        className="text-xs text-[#1B5E20] hover:underline shrink-0 whitespace-nowrap"
+                      >
+                        ← 날짜 변경
+                      </Link>
+                    </div>
+                  ) : (
+                    <input
+                      type="date"
+                      name="date"
+                      value={form.date}
+                      onChange={handleChange}
+                      min={new Date().toISOString().split("T")[0]}
+                      className={inputClass}
+                    />
+                  )}
                   {form.date && todayHour && !todayHour.isOpen && (
                     <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" /> 해당 요일은 휴무일입니다.
