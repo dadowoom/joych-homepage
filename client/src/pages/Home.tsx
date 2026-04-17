@@ -418,7 +418,7 @@ export default function Home() {
             {isAdmin ? (
               <Link href="/admin" className="hover:text-white transition-colors text-[#A5D6A7] font-medium">관리자 페이지</Link>
             ) : (
-              <a href={getLoginUrl()} className="hover:text-white transition-colors">관리자 로그인</a>
+              <a href="/admin" className="hover:text-white transition-colors">관리자 로그인</a>
             )}
             <div className="flex gap-3 ml-2">
               <a href="#" className="hover:text-white transition-colors"><i className="fab fa-youtube"></i></a>
