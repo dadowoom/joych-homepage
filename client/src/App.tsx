@@ -200,8 +200,10 @@ function Router() {
       <Route path="/page/item/:id" component={DynamicMenuItemPage} />
       <Route path="/page/sub/:id" component={DynamicMenuSubItemPage} />
 
-      {/* 관리자 */}
-      <Route path="/admin" component={AdminPage} />
+      {/* 관리자 - 비공개 경로 */}
+      <Route path="/admin_joych_2026" component={AdminPage} />
+      {/* /admin 직접 접근 시 404로 처리 (관리자 페이지 존재 힌트 차단) */}
+      <Route path="/admin" component={NotFound} />
 
       {/* 404 */}
       <Route path="/404" component={NotFound} />

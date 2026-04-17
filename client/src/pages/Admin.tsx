@@ -532,14 +532,41 @@ export default function AdminPage() {
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [failCount, setFailCount] = useState(() => {
+    const saved = localStorage.getItem("admin_fail_count");
+    return saved ? parseInt(saved, 10) : 0;
+  });
+  const [lockUntil, setLockUntil] = useState<number | null>(() => {
+    const saved = localStorage.getItem("admin_lock_until");
+    return saved ? parseInt(saved, 10) : null;
+  });
+
+  const isLocked = lockUntil !== null && Date.now() < lockUntil;
+  const lockRemainMin = isLocked ? Math.ceil((lockUntil! - Date.now()) / 60000) : 0;
 
   const adminLoginMutation = trpc.auth.adminLogin.useMutation({
     onSuccess: () => {
-      // 로그인 성공 → 메인화면으로 이동
+      // 로그인 성공 → 실패 카운트 초기화 후 메인화면으로 이동
+      localStorage.removeItem("admin_fail_count");
+      localStorage.removeItem("admin_lock_until");
+      setFailCount(0);
+      setLockUntil(null);
       window.location.href = "/";
     },
     onError: (err) => {
-      setLoginError(err.message || "로그인에 실패했습니다.");
+      const newCount = failCount + 1;
+      setFailCount(newCount);
+      localStorage.setItem("admin_fail_count", String(newCount));
+      if (newCount >= 5) {
+        const until = Date.now() + 30 * 60 * 1000; // 30분 잠금
+        setLockUntil(until);
+        localStorage.setItem("admin_lock_until", String(until));
+        localStorage.setItem("admin_fail_count", "0");
+        setFailCount(0);
+        setLoginError("로그인 시도 횟수를 초과했습니다. 30분 후 다시 시도해 주세요.");
+      } else {
+        setLoginError(`아이디 또는 비밀번호가 올바르지 않습니다. (${newCount}/5회 실패)`);
+      }
     },
   });
 
@@ -573,6 +600,10 @@ export default function AdminPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              if (isLocked) {
+                setLoginError(`로그인이 잠겨 있습니다. ${lockRemainMin}분 후 다시 시도해 주세요.`);
+                return;
+              }
               setLoginError("");
               adminLoginMutation.mutate({ username: loginUsername, password: loginPassword });
             }}
@@ -606,9 +637,15 @@ export default function AdminPage() {
               <p className="text-red-500 text-sm text-center">{loginError}</p>
             )}
 
+            {isLocked && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-center">
+                <p className="text-red-600 text-sm font-medium">로그인 잠금</p>
+                <p className="text-red-500 text-xs mt-1">실패 5회 초과 — {lockRemainMin}분 후 다시 시도하세요</p>
+              </div>
+            )}
             <button
               type="submit"
-              disabled={adminLoginMutation.isPending}
+              disabled={adminLoginMutation.isPending || isLocked}
               className="w-full py-3 bg-[#1B5E20] text-white rounded-lg font-medium hover:bg-[#2E7D32] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {adminLoginMutation.isPending ? (
@@ -616,7 +653,7 @@ export default function AdminPage() {
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   로그인 중...
                 </span>
-              ) : "로그인"}
+              ) : isLocked ? `${lockRemainMin}분 후 재시도` : "로그인"}
             </button>
           </form>
 

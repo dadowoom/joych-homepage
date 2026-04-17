@@ -332,7 +332,7 @@ export default function Home() {
               관련기관 편집
             </button>
             <a
-              href="/admin"
+              href="/admin_joych_2026"
               className="bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-1 rounded transition-colors"
             >
               관리자 대시보드
@@ -414,12 +414,7 @@ export default function Home() {
                 <Link href="/member/register" className="hover:text-white transition-colors">회원가입</Link>
               </>
             )}
-            <span className="text-gray-600">|</span>
-            {isAdmin ? (
-              <Link href="/admin" className="hover:text-white transition-colors text-[#A5D6A7] font-medium">관리자 페이지</Link>
-            ) : (
-              <a href="/admin" className="hover:text-white transition-colors">관리자 로그인</a>
-            )}
+            {/* 관리자 링크 비공개 - 외부 노출 차단 */}
             <div className="flex gap-3 ml-2">
               <a href="#" className="hover:text-white transition-colors"><i className="fab fa-youtube"></i></a>
               <a href="#" className="hover:text-white transition-colors"><i className="fab fa-facebook-f"></i></a>
