@@ -18,6 +18,9 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 
   if (!isUnauthorized) return;
 
+  // /admin 경로는 자체 로그인 폼을 사용하므로 Manus OAuth로 리다이렉트하지 않음
+  if (window.location.pathname.startsWith("/admin")) return;
+
   window.location.href = getLoginUrl();
 };
 
