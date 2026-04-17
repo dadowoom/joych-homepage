@@ -223,6 +223,8 @@ type BlockContent = {
   label?: string;
   href?: string;
   style?: string;
+  fontSize?: number;
+  align?: 'left' | 'center' | 'right';
 };
 
 function parseContent(raw: string): BlockContent {
@@ -233,16 +235,22 @@ function BlockRenderer({ block }: { block: { id: number; blockType: string; cont
   const [imgLightbox, setImgLightbox] = useState<string | null>(null);
   const c = parseContent(block.content);
 
+  // 텍스트 공통 스타일 (fontSize, align 적용)
+  const textStyle: React.CSSProperties = {
+    fontSize: c.fontSize ? `${c.fontSize}px` : undefined,
+    textAlign: (c.align as React.CSSProperties['textAlign']) ?? 'left',
+  };
+
   switch (block.blockType) {
     case 'text-h1':
-      return <h1 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight mt-8 mb-4" style={{ fontFamily: "'Noto Serif KR', serif" }}>{c.text}</h1>;
+      return <h1 className="font-bold text-gray-900 leading-tight mt-8 mb-4" style={{ fontFamily: "'Noto Serif KR', serif", fontSize: c.fontSize ? `${c.fontSize}px` : undefined, textAlign: (c.align as React.CSSProperties['textAlign']) ?? 'left' }}>{c.text}</h1>;
     case 'text-h2':
-      return <h2 className="text-2xl md:text-3xl font-bold text-gray-800 leading-tight mt-6 mb-3 border-b-2 border-green-600 pb-2">{c.text}</h2>;
+      return <h2 className="font-bold text-gray-800 leading-tight mt-6 mb-3 border-b-2 border-green-600 pb-2" style={textStyle}>{c.text}</h2>;
     case 'text-h3':
-      return <h3 className="text-xl font-semibold text-gray-700 mt-5 mb-2">{c.text}</h3>;
+      return <h3 className="font-semibold text-gray-700 mt-5 mb-2" style={textStyle}>{c.text}</h3>;
     case 'text-body':
       return (
-        <p className="text-base text-gray-700 leading-relaxed mb-4 whitespace-pre-wrap">
+        <p className="text-gray-700 leading-relaxed mb-4 whitespace-pre-wrap" style={textStyle}>
           {c.text}
         </p>
       );
@@ -377,6 +385,14 @@ function BlockEditDialog({
     if (!block?.content) return 'solid';
     try { const c = JSON.parse(block.content); return c.style ?? 'solid'; } catch { return 'solid'; }
   });
+  const [fontSize, setFontSize] = useState<number>(() => {
+    if (!block?.content) return 16;
+    try { const c = JSON.parse(block.content); return c.fontSize ?? 16; } catch { return 16; }
+  });
+  const [align, setAlign] = useState<'left'|'center'|'right'>(() => {
+    if (!block?.content) return 'left';
+    try { const c = JSON.parse(block.content); return c.align ?? 'left'; } catch { return 'left'; }
+  });
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -399,7 +415,7 @@ function BlockEditDialog({
   };
 
   const buildContent = () => {
-    if (blockType.startsWith('text')) return JSON.stringify({ text });
+    if (blockType.startsWith('text')) return JSON.stringify({ text, fontSize, align });
     if (blockType.startsWith('image')) return JSON.stringify({ urls, captions });
     if (blockType === 'youtube') return JSON.stringify({ videoId, title: '' });
     if (blockType === 'button') return JSON.stringify({ label: btnLabel, href: btnHref, style: btnStyle });
@@ -429,14 +445,54 @@ function BlockEditDialog({
 
           {/* 텍스트 블록 */}
           {blockType.startsWith('text') && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">내용</label>
-              <textarea
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm min-h-[120px] resize-y"
-                value={text}
-                onChange={e => setText(e.target.value)}
-                placeholder={blockType === 'text-body' ? '본문 내용을 입력하세요...' : '제목을 입력하세요'}
-              />
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">내용</label>
+                <textarea
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm min-h-[120px] resize-y"
+                  value={text}
+                  onChange={e => setText(e.target.value)}
+                  placeholder={blockType === 'text-body' ? '본문 내용을 입력하세요...' : '제목을 입력하세요'}
+                />
+              </div>
+              {/* 글씨 크기 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">글씨 크기 (10~100)</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range" min={10} max={100} value={fontSize}
+                    onChange={e => setFontSize(Number(e.target.value))}
+                    className="flex-1 h-2 accent-green-700"
+                  />
+                  <input
+                    type="number" min={10} max={100} value={fontSize}
+                    onChange={e => setFontSize(Math.min(100, Math.max(10, Number(e.target.value))))}
+                    className="w-16 border border-gray-300 rounded px-2 py-1 text-sm text-center"
+                  />
+                  <span className="text-xs text-gray-400">px</span>
+                </div>
+                {/* 미리보기 */}
+                <p className="mt-2 text-gray-500 border border-dashed border-gray-200 rounded p-2 truncate" style={{ fontSize: `${fontSize}px` }}>
+                  {text || '미리보기'}
+                </p>
+              </div>
+              {/* 정렬 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">정렬</label>
+                <div className="flex gap-2">
+                  {(['left','center','right'] as const).map(a => (
+                    <button
+                      key={a}
+                      onClick={() => setAlign(a)}
+                      className={`flex-1 py-1.5 rounded text-sm border transition-colors ${
+                        align === a ? 'bg-green-700 text-white border-green-700' : 'border-gray-300 text-gray-600 hover:border-green-400'
+                      }`}
+                    >
+                      {a === 'left' ? '◀ 왼쪽' : a === 'center' ? '▶◀ 가운데' : '오른쪽 ▶'}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
@@ -569,7 +625,7 @@ function EditorContent({ menuItemId, menuSubItemId }: { menuItemId?: number; men
 
   // 뮣에이션
   const createMut = trpc.cms.blocks.create.useMutation({
-    onSuccess: () => utils.home.pageBlocks.invalidate(),
+    onSuccess: () => { utils.home.pageBlocks.invalidate(); utils.cms.blocks.list.invalidate(); },
   });
   const updateMut = trpc.cms.blocks.update.useMutation({
     onSuccess: () => { utils.home.pageBlocks.invalidate(); utils.cms.blocks.list.invalidate(); },

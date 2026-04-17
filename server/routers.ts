@@ -37,6 +37,8 @@ import {
   createMenu,
   deleteMenu,
   reorderMenus,
+  reorderMenuItems,
+  reorderMenuSubItems,
   getAllQuickMenus,
   updateQuickMenu,
   reorderQuickMenus,
@@ -447,6 +449,14 @@ export const appRouter = router({
       deleteSubItem: adminProcedure
         .input(z.object({ id: z.number() }))
         .mutation(({ input }) => deleteMenuSubItem(input.id)),
+      // 2단 메뉴 순서 일괄 변경
+      reorderItems: adminProcedure
+        .input(z.array(z.object({ id: z.number(), sortOrder: z.number() })))
+        .mutation(({ input }) => reorderMenuItems(input)),
+      // 3단 메뉴 순서 일괄 변경
+      reorderSubItems: adminProcedure
+        .input(z.array(z.object({ id: z.number(), sortOrder: z.number() })))
+        .mutation(({ input }) => reorderMenuSubItems(input)),
       // 상위 메뉴 생성
       create: adminProcedure
         .input(z.object({

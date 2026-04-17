@@ -301,7 +301,7 @@ function SortableMenuRow({
   );
 }
 
-// ─── 2단 메뉴 행 ────────────────────────────────────
+// ─── 2단 메뉴 행 (드래그 가능) ─────────────────────
 function SubMenuRow({
   item,
   isSelected,
@@ -318,8 +318,12 @@ function SubMenuRow({
   onToggleVisible: (id: number, visible: boolean) => void;
 }) {
   const typeOpt = PAGE_TYPE_OPTIONS.find((o) => o.value === item.pageType);
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
 
   return (
+    <div ref={setNodeRef} style={style}>
     <div
       className={`flex items-center gap-1 px-2 py-2 rounded-lg cursor-pointer transition-colors border ${
         isSelected
@@ -328,6 +332,15 @@ function SubMenuRow({
       } ${!item.isVisible ? "opacity-50" : ""}`}
       onClick={() => onSelect(item.id)}
     >
+      <button
+        {...attributes}
+        {...listeners}
+        className={`p-0.5 touch-none ${isSelected ? "text-white/60 hover:text-white" : "text-gray-300 hover:text-gray-500"}`}
+        onClick={(e) => e.stopPropagation()}
+        title="드래그해서 순서 변경"
+      >
+        <GripVertical size={12} />
+      </button>
       <span className={`flex-1 text-xs font-medium truncate ${!item.isVisible ? "line-through" : ""}`}>
         {item.label}
       </span>
@@ -362,10 +375,11 @@ function SubMenuRow({
         <Trash2 size={11} />
       </button>
     </div>
+    </div>
   );
 }
 
-// ─── 3단 메뉴 행 ────────────────────────────────────
+// ─── 3단 메뉴 행 (드래그 가능) ─────────────────────
 function SubSubMenuRow({
   item,
   onEdit,
@@ -378,9 +392,21 @@ function SubSubMenuRow({
   onToggleVisible: (id: number, visible: boolean) => void;
 }) {
   const typeOpt = PAGE_TYPE_OPTIONS.find((o) => o.value === item.pageType);
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
 
   return (
-    <div className={`flex items-center gap-1 px-2 py-2 rounded-lg border bg-white border-gray-200 ${!item.isVisible ? "opacity-50" : ""}`}>
+    <div ref={setNodeRef} style={style}>
+    <div className={`flex items-center gap-1 px-2 py-2 rounded-lg border bg-white border-gray-200 ${!item.isVisible ? "opacity-50" : ""}`}>      
+      <button
+        {...attributes}
+        {...listeners}
+        className="p-0.5 touch-none text-gray-300 hover:text-gray-500"
+        title="드래그해서 순서 변경"
+      >
+        <GripVertical size={12} />
+      </button>
       <span className={`flex-1 text-xs font-medium truncate ${!item.isVisible ? "line-through text-gray-400" : "text-gray-700"}`}>
         {item.label}
       </span>
@@ -408,6 +434,7 @@ function SubSubMenuRow({
       >
         <Trash2 size={11} />
       </button>
+    </div>
     </div>
   );
 }
@@ -491,6 +518,12 @@ export default function MenuEditPanel({
   const reorderMenus = trpc.cms.menus.reorder.useMutation({
     onError: (e) => toast.error("순서 저장 실패: " + e.message),
   });
+  const reorderItems = trpc.cms.menus.reorderItems.useMutation({
+    onError: (e) => toast.error("2단 순서 저장 실패: " + e.message),
+  });
+  const reorderSubItems = trpc.cms.menus.reorderSubItems.useMutation({
+    onError: (e) => toast.error("3단 순서 저장 실패: " + e.message),
+  });
   const createItem = trpc.cms.menus.createItem.useMutation({
     onSuccess: () => { invalidate(); setShowAddItem(false); toast.success("하위 메뉴가 추가됐습니다."); },
     onError: (e) => toast.error("추가 실패: " + e.message),
@@ -535,6 +568,42 @@ export default function MenuEditPanel({
     } finally {
       setIsSavingOrder(false);
     }
+  };
+
+  // 2단 메뉴 드래그 순서 변경
+  const handleItemDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !selectedMenuId) return;
+    setLocalMenus(prev => prev.map(m => {
+      if (m.id !== selectedMenuId) return m;
+      const oldIndex = m.items.findIndex(i => i.id === active.id);
+      const newIndex = m.items.findIndex(i => i.id === over.id);
+      const reordered = arrayMove(m.items, oldIndex, newIndex).map((item, idx) => ({ ...item, sortOrder: idx + 1 }));
+      reorderItems.mutate(reordered.map(i => ({ id: i.id, sortOrder: i.sortOrder })));
+      toast.success("2단 메뉴 순서가 저장됐습니다.");
+      return { ...m, items: reordered };
+    }));
+  };
+
+  // 3단 메뉴 드래그 순서 변경
+  const handleSubItemDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !selectedMenuId || !selectedItemId) return;
+    setLocalMenus(prev => prev.map(m => {
+      if (m.id !== selectedMenuId) return m;
+      return {
+        ...m,
+        items: m.items.map(item => {
+          if (item.id !== selectedItemId) return item;
+          const oldIndex = item.subItems.findIndex(s => s.id === active.id);
+          const newIndex = item.subItems.findIndex(s => s.id === over.id);
+          const reordered = arrayMove(item.subItems, oldIndex, newIndex).map((s, idx) => ({ ...s, sortOrder: idx + 1 }));
+          reorderSubItems.mutate(reordered.map(s => ({ id: s.id, sortOrder: s.sortOrder })));
+          toast.success("3단 메뉴 순서가 저장됐습니다.");
+          return { ...item, subItems: reordered };
+        }),
+      };
+    }));
   };
 
   // 선택된 데이터
@@ -658,53 +727,57 @@ export default function MenuEditPanel({
                     {selectedMenu.items.length === 0 && (
                       <p className="text-xs text-gray-400 text-center py-4">하위 메뉴가 없습니다</p>
                     )}
-                    {selectedMenu.items.map((item) => (
-                      <div key={item.id}>
-                        {editingItemId === item.id ? (
-                          <InlineEditForm
-                            initialLabel={item.label}
-                            initialHref={item.href ?? ""}
-                            initialPageType={item.pageType}
-                            initialPageImageUrl={item.pageImageUrl}
-                            showPageType
-                            colorClass="border-blue-300 bg-blue-50"
-                            onSave={(label, href, pageType, pageImageUrl) => {
-                              updateItem.mutate({ id: item.id, label, href: href || null, pageType, pageImageUrl: pageImageUrl ?? null });
-                              setLocalMenus((prev) => prev.map((m) => ({
-                                ...m,
-                                items: m.items.map((i) => i.id === item.id ? { ...i, label, href: href || null, pageType: pageType ?? i.pageType, pageImageUrl: pageImageUrl ?? i.pageImageUrl } : i),
-                              })));
-                              setEditingItemId(null);
-                            }}
-                            onCancel={() => setEditingItemId(null)}
-                          />
-                        ) : (
-                          <SubMenuRow
-                            item={item}
-                            isSelected={selectedItemId === item.id}
-                            onSelect={(id) => { setSelectedItemId(id); setEditingSubId(null); setShowAddSub(false); }}
-                            onEdit={(i) => setEditingItemId(i.id)}
-                            onDelete={(id) => {
-                              if (confirm(`"${item.label}" 하위 메뉴를 삭제하시겠습니까?`)) {
-                                deleteItem.mutate({ id });
-                                setLocalMenus((prev) => prev.map((m) => ({
-                                  ...m,
-                                  items: m.items.filter((i) => i.id !== id),
-                                })));
-                                if (selectedItemId === id) setSelectedItemId(null);
-                              }
-                            }}
-                            onToggleVisible={(id, visible) => {
-                              updateItem.mutate({ id, isVisible: visible });
-                              setLocalMenus((prev) => prev.map((m) => ({
-                                ...m,
-                                items: m.items.map((i) => i.id === id ? { ...i, isVisible: visible } : i),
-                              })));
-                            }}
-                          />
-                        )}
-                      </div>
-                    ))}
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleItemDragEnd}>
+                      <SortableContext items={selectedMenu.items.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                        {selectedMenu.items.map((item) => (
+                          <div key={item.id}>
+                            {editingItemId === item.id ? (
+                              <InlineEditForm
+                                initialLabel={item.label}
+                                initialHref={item.href ?? ""}
+                                initialPageType={item.pageType}
+                                initialPageImageUrl={item.pageImageUrl}
+                                showPageType
+                                colorClass="border-blue-300 bg-blue-50"
+                                onSave={(label, href, pageType, pageImageUrl) => {
+                                  updateItem.mutate({ id: item.id, label, href: href || null, pageType, pageImageUrl: pageImageUrl ?? null });
+                                  setLocalMenus((prev) => prev.map((m) => ({
+                                    ...m,
+                                    items: m.items.map((i) => i.id === item.id ? { ...i, label, href: href || null, pageType: pageType ?? i.pageType, pageImageUrl: pageImageUrl ?? i.pageImageUrl } : i),
+                                  })));
+                                  setEditingItemId(null);
+                                }}
+                                onCancel={() => setEditingItemId(null)}
+                              />
+                            ) : (
+                              <SubMenuRow
+                                item={item}
+                                isSelected={selectedItemId === item.id}
+                                onSelect={(id) => { setSelectedItemId(id); setEditingSubId(null); setShowAddSub(false); }}
+                                onEdit={(i) => setEditingItemId(i.id)}
+                                onDelete={(id) => {
+                                  if (confirm(`"${item.label}" 하위 메뉴를 삭제하시겠습니까?`)) {
+                                    deleteItem.mutate({ id });
+                                    setLocalMenus((prev) => prev.map((m) => ({
+                                      ...m,
+                                      items: m.items.filter((i) => i.id !== id),
+                                    })));
+                                    if (selectedItemId === id) setSelectedItemId(null);
+                                  }
+                                }}
+                                onToggleVisible={(id, visible) => {
+                                  updateItem.mutate({ id, isVisible: visible });
+                                  setLocalMenus((prev) => prev.map((m) => ({
+                                    ...m,
+                                    items: m.items.map((i) => i.id === id ? { ...i, isVisible: visible } : i),
+                                  })));
+                                }}
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </SortableContext>
+                    </DndContext>
                   </div>
                   <div className="p-2 border-t bg-white shrink-0">
                     {showAddItem ? (
@@ -756,59 +829,63 @@ export default function MenuEditPanel({
                     {selectedItem.subItems.length === 0 && (
                       <p className="text-xs text-gray-400 text-center py-4">3단 메뉴가 없습니다</p>
                     )}
-                    {selectedItem.subItems.map((sub) => (
-                      <div key={sub.id}>
-                        {editingSubId === sub.id ? (
-                          <InlineEditForm
-                            initialLabel={sub.label}
-                            initialHref={sub.href ?? ""}
-                            initialPageType={sub.pageType}
-                            initialPageImageUrl={sub.pageImageUrl}
-                            showPageType
-                            colorClass="border-gray-300 bg-gray-50"
-                            onSave={(label, href, pageType, pageImageUrl) => {
-                              updateSubItem.mutate({ id: sub.id, label, href: href || null, pageType, pageImageUrl: pageImageUrl ?? null });
-                              setLocalMenus((prev) => prev.map((m) => ({
-                                ...m,
-                                items: m.items.map((i) => ({
-                                  ...i,
-                                  subItems: i.subItems.map((s) => s.id === sub.id ? { ...s, label, href: href || null, pageType: pageType ?? s.pageType, pageImageUrl: pageImageUrl ?? s.pageImageUrl } : s),
-                                })),
-                              })));
-                              setEditingSubId(null);
-                            }}
-                            onCancel={() => setEditingSubId(null)}
-                          />
-                        ) : (
-                          <SubSubMenuRow
-                            item={sub}
-                            onEdit={(s) => setEditingSubId(s.id)}
-                            onDelete={(id) => {
-                              if (confirm(`"${sub.label}" 3단 메뉴를 삭제하시겠습니까?`)) {
-                                deleteSubItem.mutate({ id });
-                                setLocalMenus((prev) => prev.map((m) => ({
-                                  ...m,
-                                  items: m.items.map((i) => ({
-                                    ...i,
-                                    subItems: i.subItems.filter((s) => s.id !== id),
-                                  })),
-                                })));
-                              }
-                            }}
-                            onToggleVisible={(id, visible) => {
-                              updateSubItem.mutate({ id, isVisible: visible });
-                              setLocalMenus((prev) => prev.map((m) => ({
-                                ...m,
-                                items: m.items.map((i) => ({
-                                  ...i,
-                                  subItems: i.subItems.map((s) => s.id === id ? { ...s, isVisible: visible } : s),
-                                })),
-                              })));
-                            }}
-                          />
-                        )}
-                      </div>
-                    ))}
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleSubItemDragEnd}>
+                      <SortableContext items={selectedItem.subItems.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                        {selectedItem.subItems.map((sub) => (
+                          <div key={sub.id}>
+                            {editingSubId === sub.id ? (
+                              <InlineEditForm
+                                initialLabel={sub.label}
+                                initialHref={sub.href ?? ""}
+                                initialPageType={sub.pageType}
+                                initialPageImageUrl={sub.pageImageUrl}
+                                showPageType
+                                colorClass="border-gray-300 bg-gray-50"
+                                onSave={(label, href, pageType, pageImageUrl) => {
+                                  updateSubItem.mutate({ id: sub.id, label, href: href || null, pageType, pageImageUrl: pageImageUrl ?? null });
+                                  setLocalMenus((prev) => prev.map((m) => ({
+                                    ...m,
+                                    items: m.items.map((i) => ({
+                                      ...i,
+                                      subItems: i.subItems.map((s) => s.id === sub.id ? { ...s, label, href: href || null, pageType: pageType ?? s.pageType, pageImageUrl: pageImageUrl ?? s.pageImageUrl } : s),
+                                    })),
+                                  })));
+                                  setEditingSubId(null);
+                                }}
+                                onCancel={() => setEditingSubId(null)}
+                              />
+                            ) : (
+                              <SubSubMenuRow
+                                item={sub}
+                                onEdit={(s) => setEditingSubId(s.id)}
+                                onDelete={(id) => {
+                                  if (confirm(`"${sub.label}" 3단 메뉴를 삭제하시겠습니까?`)) {
+                                    deleteSubItem.mutate({ id });
+                                    setLocalMenus((prev) => prev.map((m) => ({
+                                      ...m,
+                                      items: m.items.map((i) => ({
+                                        ...i,
+                                        subItems: i.subItems.filter((s) => s.id !== id),
+                                      })),
+                                    })));
+                                  }
+                                }}
+                                onToggleVisible={(id, visible) => {
+                                  updateSubItem.mutate({ id, isVisible: visible });
+                                  setLocalMenus((prev) => prev.map((m) => ({
+                                    ...m,
+                                    items: m.items.map((i) => ({
+                                      ...i,
+                                      subItems: i.subItems.map((s) => s.id === id ? { ...s, isVisible: visible } : s),
+                                    })),
+                                  })));
+                                }}
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </SortableContext>
+                    </DndContext>
                   </div>
                   <div className="p-2 border-t bg-white shrink-0">
                     {showAddSub ? (
