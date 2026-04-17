@@ -528,7 +528,7 @@ export default function AdminPage() {
   const VALID_TABS: Tab[] = ["settings", "facilities", "reservations", "memberOptions", "members"];
   const tabFromUrl = searchParams.get("tab") as Tab | null;
   const activeTab: Tab = tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : "settings";
-  const setActiveTab = (tab: Tab) => setLocation(`/admin?tab=${tab}`);
+  const setActiveTab = (tab: Tab) => setLocation(`/admin_joych_2026?tab=${tab}`);
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
