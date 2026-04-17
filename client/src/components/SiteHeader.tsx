@@ -112,6 +112,8 @@ export default function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
   const [searchName, setSearchName] = useState("");
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [mobileExpandedId, setMobileExpandedId] = useState<number | null>(null);
+  const [mobileExpandedSubId, setMobileExpandedSubId] = useState<number | null>(null);
   const [, setLocation] = useLocation();
 
   const { data: memberMe, refetch: refetchMemberMe } = trpc.members.me.useQuery();
@@ -333,11 +335,92 @@ export default function SiteHeader() {
 
         {/* 모바일 메뉴 */}
         {mobileOpen && (
-          <div className="md:hidden bg-white border-t border-gray-100 shadow-lg">
-            {NAV_ITEMS.map((item, i) => (
-              <a key={i} href="#" className="block px-5 py-3 text-sm text-gray-700 border-b border-gray-50 hover:bg-[#F1F8E9] hover:text-[#1B5E20]">
-                {item.label}
-              </a>
+          <div className="md:hidden bg-white border-t border-gray-100 shadow-lg max-h-[70vh] overflow-y-auto">
+            {(navMenus ?? NAV_ITEMS.map((item, i) => ({
+              id: i + 1,
+              label: item.label,
+              href: null,
+              items: item.sub.map((s, j) => ({
+                id: j + 1,
+                label: s,
+                href: (item as { subHref?: Record<string, string | undefined> }).subHref?.[s] ?? null,
+                subItems: [],
+              }))
+            }))).map((menu) => (
+              <div key={menu.id} className="border-b border-gray-100">
+                {/* 1단 메뉴 */}
+                <button
+                  className="w-full flex items-center justify-between px-5 py-3 text-sm font-medium text-gray-700 hover:bg-[#F1F8E9] hover:text-[#1B5E20] text-left"
+                  onClick={() => {
+                    setMobileExpandedId(mobileExpandedId === menu.id ? null : menu.id);
+                    setMobileExpandedSubId(null);
+                  }}
+                >
+                  <span>{menu.label}</span>
+                  {(menu.items ?? []).length > 0 && (
+                    <i className={`fas fa-chevron-${mobileExpandedId === menu.id ? 'up' : 'down'} text-[10px] text-gray-400`}></i>
+                  )}
+                </button>
+                {/* 2단 메뉴 */}
+                {mobileExpandedId === menu.id && (menu.items ?? []).length > 0 && (
+                  <div className="bg-gray-50">
+                    {(menu.items ?? []).map((item) => {
+                      const hasSubItems = (item as { subItems?: unknown[] }).subItems && (item as { subItems?: unknown[] }).subItems!.length > 0;
+                      const subItems = (item as { subItems?: { id: number; label: string; href?: string | null }[] }).subItems ?? [];
+                      return (
+                        <div key={item.id}>
+                          {hasSubItems ? (
+                            // 3단 있으면 아코디언
+                            <button
+                              className="w-full flex items-center justify-between pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] text-left"
+                              onClick={() => setMobileExpandedSubId(mobileExpandedSubId === item.id ? null : item.id)}
+                            >
+                              <span>{item.label}</span>
+                              <i className={`fas fa-chevron-${mobileExpandedSubId === item.id ? 'up' : 'down'} text-[10px] text-gray-400`}></i>
+                            </button>
+                          ) : item.href ? (
+                            item.href.startsWith('http://') || item.href.startsWith('https://') ? (
+                              <a href={item.href} target="_blank" rel="noopener noreferrer"
+                                className="block pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                onClick={() => setMobileOpen(false)}
+                              >{item.label}</a>
+                            ) : (
+                              <Link href={item.href}
+                                className="block pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                onClick={() => setMobileOpen(false)}
+                              >{item.label}</Link>
+                            )
+                          ) : (
+                            <span className="block pl-8 pr-5 py-2.5 text-sm text-gray-400">{item.label}</span>
+                          )}
+                          {/* 3단 메뉴 */}
+                          {hasSubItems && mobileExpandedSubId === item.id && (
+                            <div className="bg-white">
+                              {subItems.map((sub) => (
+                                sub.href ? (
+                                  sub.href.startsWith('http://') || sub.href.startsWith('https://') ? (
+                                    <a key={sub.id} href={sub.href} target="_blank" rel="noopener noreferrer"
+                                      className="block pl-12 pr-5 py-2 text-sm text-gray-500 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                      onClick={() => setMobileOpen(false)}
+                                    >{sub.label}</a>
+                                  ) : (
+                                    <Link key={sub.id} href={sub.href}
+                                      className="block pl-12 pr-5 py-2 text-sm text-gray-500 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                      onClick={() => setMobileOpen(false)}
+                                    >{sub.label}</Link>
+                                  )
+                                ) : (
+                                  <span key={sub.id} className="block pl-12 pr-5 py-2 text-sm text-gray-400">{sub.label}</span>
+                                )
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             ))}
             <div className="border-t border-gray-200 px-5 py-3 flex gap-4">
               {memberMe ? (
