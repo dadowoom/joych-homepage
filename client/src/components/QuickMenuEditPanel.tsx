@@ -40,26 +40,26 @@ interface QuickMenuEditPanelProps {
 export default function QuickMenuEditPanel({ open, onClose }: QuickMenuEditPanelProps) {
   const utils = trpc.useUtils();
 
-  const { data: menus, isLoading } = trpc.cms.quickMenus.list.useQuery(undefined, {
+  const { data: menus, isLoading } = trpc.cms.content.quickMenus.list.useQuery(undefined, {
     enabled: open,
   });
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editState, setEditState] = useState<EditState>({ icon: "", label: "", href: "" });
 
-  const updateMutation = trpc.cms.quickMenus.update.useMutation({
+  const updateMutation = trpc.cms.content.quickMenus.update.useMutation({
     onSuccess: () => {
       toast.success("퀵메뉴가 수정됐습니다.");
       setEditingId(null);
-      utils.cms.quickMenus.list.invalidate();
+      utils.cms.content.quickMenus.list.invalidate();
       utils.home.quickMenus.invalidate();
     },
     onError: (e) => toast.error("수정 실패: " + e.message),
   });
 
-  const toggleMutation = trpc.cms.quickMenus.update.useMutation({
+  const toggleMutation = trpc.cms.content.quickMenus.update.useMutation({
     onSuccess: () => {
-      utils.cms.quickMenus.list.invalidate();
+      utils.cms.content.quickMenus.list.invalidate();
       utils.home.quickMenus.invalidate();
     },
     onError: (e) => toast.error("변경 실패: " + e.message),

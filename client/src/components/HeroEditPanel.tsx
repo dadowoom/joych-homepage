@@ -61,7 +61,7 @@ interface HeroEditPanelProps {
 export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
   const utils = trpc.useUtils();
 
-  const { data: slides, isLoading } = trpc.cms.heroSlides.list.useQuery(undefined, {
+  const { data: slides, isLoading } = trpc.cms.content.heroSlides.list.useQuery(undefined, {
     enabled: open,
   });
 
@@ -90,11 +90,11 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
   });
 
   const invalidateAll = () => {
-    utils.cms.heroSlides.list.invalidate();
+    utils.cms.content.heroSlides.list.invalidate();
     utils.home.heroSlides.invalidate();
   };
 
-  const updateMutation = trpc.cms.heroSlides.update.useMutation({
+  const updateMutation = trpc.cms.content.heroSlides.update.useMutation({
     onSuccess: () => {
       toast.success("슬라이드가 수정됐습니다.");
       setEditingId(null);
@@ -103,12 +103,12 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
     onError: (e) => toast.error("수정 실패: " + e.message),
   });
 
-  const toggleMutation = trpc.cms.heroSlides.update.useMutation({
+  const toggleMutation = trpc.cms.content.heroSlides.update.useMutation({
     onSuccess: () => invalidateAll(),
     onError: (e) => toast.error("변경 실패: " + e.message),
   });
 
-  const createMutation = trpc.cms.heroSlides.create.useMutation({
+  const createMutation = trpc.cms.content.heroSlides.create.useMutation({
     onSuccess: () => {
       toast.success("새 슬라이드가 추가됐습니다.");
       setShowAddForm(false);
@@ -118,7 +118,7 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
     onError: (e) => toast.error("추가 실패: " + e.message),
   });
 
-  const deleteMutation = trpc.cms.heroSlides.delete.useMutation({
+  const deleteMutation = trpc.cms.content.heroSlides.delete.useMutation({
     onSuccess: () => {
       toast.success("슬라이드가 삭제됐습니다.");
       setConfirmDeleteId(null);

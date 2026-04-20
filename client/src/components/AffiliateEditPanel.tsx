@@ -40,26 +40,26 @@ interface AffiliateEditPanelProps {
 export default function AffiliateEditPanel({ open, onClose }: AffiliateEditPanelProps) {
   const utils = trpc.useUtils();
 
-  const { data: affiliates, isLoading } = trpc.cms.affiliates.list.useQuery(undefined, {
+  const { data: affiliates, isLoading } = trpc.cms.content.affiliates.list.useQuery(undefined, {
     enabled: open,
   });
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editState, setEditState] = useState<EditState>({ icon: "", label: "", href: "" });
 
-  const updateMutation = trpc.cms.affiliates.update.useMutation({
+  const updateMutation = trpc.cms.content.affiliates.update.useMutation({
     onSuccess: () => {
       toast.success("관련 기관이 수정됐습니다.");
       setEditingId(null);
-      utils.cms.affiliates.list.invalidate();
+      utils.cms.content.affiliates.list.invalidate();
       utils.home.affiliates.invalidate();
     },
     onError: (e) => toast.error("수정 실패: " + e.message),
   });
 
-  const toggleMutation = trpc.cms.affiliates.update.useMutation({
+  const toggleMutation = trpc.cms.content.affiliates.update.useMutation({
     onSuccess: () => {
-      utils.cms.affiliates.list.invalidate();
+      utils.cms.content.affiliates.list.invalidate();
       utils.home.affiliates.invalidate();
     },
     onError: (e) => toast.error("변경 실패: " + e.message),

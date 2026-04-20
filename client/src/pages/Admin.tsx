@@ -21,7 +21,7 @@ type Tab = "settings" | "facilities" | "reservations" | "memberOptions" | "membe
 // ─── 히어로 슬라이드 관리 탭 ─────────────────────
 function HeroSlidesTab() {
   const utils = trpc.useUtils();
-  const { data: slides, isLoading } = trpc.cms.heroSlides.list.useQuery();
+  const { data: slides, isLoading } = trpc.cms.content.heroSlides.list.useQuery();
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editData, setEditData] = useState<{
     yearLabel: string;
@@ -37,9 +37,9 @@ function HeroSlidesTab() {
     btn1Text: "", btn1Href: "", btn2Text: "", btn2Href: "",
   });
 
-  const updateMutation = trpc.cms.heroSlides.update.useMutation({
+  const updateMutation = trpc.cms.content.heroSlides.update.useMutation({
     onSuccess: () => {
-      utils.cms.heroSlides.list.invalidate();
+      utils.cms.content.heroSlides.list.invalidate();
       utils.home.heroSlides.invalidate();
       setEditingId(null);
       toast.success("슬라이드가 수정됐습니다.");
@@ -47,9 +47,9 @@ function HeroSlidesTab() {
     onError: () => toast.error("수정에 실패했습니다."),
   });
 
-  const toggleMutation = trpc.cms.heroSlides.update.useMutation({
+  const toggleMutation = trpc.cms.content.heroSlides.update.useMutation({
     onSuccess: () => {
-      utils.cms.heroSlides.list.invalidate();
+      utils.cms.content.heroSlides.list.invalidate();
       utils.home.heroSlides.invalidate();
       toast.success("슬라이드 표시 여부가 변경됐습니다.");
     },
@@ -350,14 +350,14 @@ function NoticesTab() {
 // ─── 관련 기관 관리 탭 ─────────────────────────
 function AffiliatesTab() {
   const utils = trpc.useUtils();
-  const { data: affiliates, isLoading } = trpc.cms.affiliates.list.useQuery();
+  const { data: affiliates, isLoading } = trpc.cms.content.affiliates.list.useQuery();
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [editHref, setEditHref] = useState("");
 
-  const updateMutation = trpc.cms.affiliates.update.useMutation({
+  const updateMutation = trpc.cms.content.affiliates.update.useMutation({
     onSuccess: () => {
-      utils.cms.affiliates.list.invalidate();
+      utils.cms.content.affiliates.list.invalidate();
       utils.home.affiliates.invalidate();
       setEditingId(null);
       toast.success("관련 기관 정보가 수정됐습니다.");
@@ -442,7 +442,7 @@ function SettingsTab() {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
-  const updateMutation = trpc.cms.settings.update.useMutation({
+  const updateMutation = trpc.cms.content.settings.update.useMutation({
     onSuccess: () => {
       utils.home.settings.invalidate();
       setEditingKey(null);
@@ -501,11 +501,11 @@ function SettingsTab() {
             ) : (
               <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-500 w-32 shrink-0">{label}</span>
-                <span className="flex-1 text-sm text-gray-800">{settings?.[key] || <span className="text-gray-400 italic">미설정</span>}</span>
+                <span className="flex-1 text-sm text-gray-800">{(settings as Record<string, string>)?.[key] || <span className="text-gray-400 italic">미설정</span>}</span>
                 <button
                   onClick={() => {
                     setEditingKey(key);
-                    setEditValue(settings?.[key] ?? "");
+                    setEditValue((settings as Record<string, string>)?.[key] ?? "");
                   }}
                   className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50 shrink-0"
                 >
