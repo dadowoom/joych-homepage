@@ -124,15 +124,20 @@ joych-homepage/
 │   ├── types.ts
 │   └── const.ts
 │
-├── docs/                           # 추가 문서
+├── docs/                           # 참고 문서 (상세 설계/규칙)
+│   ├── DEVELOPMENT_RULES.md        # 개발 규칙 및 코딩 컨벤션
+│   ├── DEPLOYMENT.md               # 외부 서버 이전 단계별 가이드
+│   ├── ENV_SETUP.md                # 환경변수 설정 가이드
+│   ├── DB_DESIGN.md                # DB 설계 문서
+│   ├── CMS_DESIGN.md               # CMS 설계 문서
+│   ├── REFACTOR_GUIDE.md           # 리팩토링 가이드
 │   ├── auth-system.md              # 인증 시스템 상세 설명
-│   └── work-rules.md               # 작업 규칙 (구버전, DEVELOPMENT_RULES.md 참조)
+│   └── work-rules.md               # 작업 규칙 (구버전)
 │
-├── README.md                       # 이 파일
-├── DEVELOPMENT_RULES.md            # 개발 규칙 (코드 작성 기준)
-├── DB_DESIGN.md                    # DB 설계 문서
-├── HANDOVER.md                     # 인수인계 문서 (미완료 기능, 알려진 이슈)
-├── CMS_DESIGN.md                   # CMS 설계 문서
+├── README.md                       # 이 파일 (첫 번째로 읽어야 함)
+├── WORK_SESSION.md                 # 세션 인수인계 (다음 작업자용)
+├── PROJECT_DIRECTION.md            # 방향성 및 기능 현황
+├── HANDOVER.md                     # 외부 업체 인수인계 전용
 ├── todo.md                         # 작업 현황 (완료/미완료 목록)
 ├── drizzle.config.ts               # Drizzle 설정
 ├── vite.config.ts                  # Vite 설정
@@ -334,10 +339,10 @@ pnpm build
 
 | 기능 | 우선순위 |
 |---|---|
-| 관리자 자격증명 환경변수 이전 | 높음 (보안) |
 | 카카오 소셜 로그인 | 중간 |
 | 성도 비밀번호 찾기/재설정 | 중간 |
-| 블록 에디터 고급 기능 (정렬, 색상, 표 등) | 낮음 |
+| 파일 업로드 서버 검증 추가 | 높음 (보안) |
+| 블록 에디터 고급 기능 (정렬, 색상, 표 등) | 낙음 |
 
 ---
 
