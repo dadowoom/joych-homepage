@@ -7,6 +7,7 @@
 import { useState, useMemo } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import type { Facility, FacilityHour, FacilityImage, FacilityBlockedDate } from "../../../drizzle/schema";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Users, MapPin, Clock, ChevronLeft, ChevronRight, Phone, AlertCircle, CalendarCheck, Loader2 } from "lucide-react";
@@ -24,7 +25,7 @@ function HoursTable({ facilityId }: { facilityId: number }) {
         운영 시간
       </h2>
       <div className="space-y-2">
-        {hours.map((h: any) => (
+        {hours.map((h: FacilityHour) => (
           <div key={h.dayOfWeek} className="flex items-center justify-between text-sm">
             <span className={`font-medium w-8 ${h.dayOfWeek === 0 ? "text-red-500" : h.dayOfWeek === 6 ? "text-blue-500" : "text-gray-700"}`}>
               {DAY_LABELS[h.dayOfWeek]}
@@ -66,7 +67,7 @@ function ImageGallery({ facilityId, name }: { facilityId: number; name: string }
       </div>
       {images.length > 1 && (
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {images.map((img: any, i: number) => (
+          {images.map((img: FacilityImage, i: number) => (
             <button
               key={i}
               onClick={() => setActive(i)}
@@ -93,7 +94,7 @@ function TimeSlotPanel({
   onSelectTime,
 }: {
   facilityId: number;
-  facility: any;
+  facility: Facility | null | undefined;
   selectedDate: string;
   startTime: string;
   endTime: string;
@@ -111,14 +112,14 @@ function TimeSlotPanel({
 
   const todayHour = useMemo(() => {
     if (!hours) return null;
-    return hours.find((h: any) => h.dayOfWeek === dayOfWeek) ?? null;
+    return hours.find((h: FacilityHour) => h.dayOfWeek === dayOfWeek) ?? null;
   }, [hours, dayOfWeek]);
 
   // 예약된 시간 슬롯 계산 (slotMinutes 단위)
   const bookedSlots = useMemo(() => {
     const set = new Set<string>();
     if (!reservations) return set;
-    reservations.forEach((r: any) => {
+    reservations.forEach((r) => {
       if (r.status === "rejected" || r.status === "cancelled") return;
       const [sh, sm] = r.startTime.split(":").map(Number);
       const [eh, em] = r.endTime.split(":").map(Number);
@@ -329,12 +330,12 @@ function ReservationCalendar({
   const { data: hours } = trpc.home.facilityHours.useQuery({ facilityId });
 
   const blockedSet = useMemo(() => {
-    return new Set((blockedDates ?? []).map((b: any) => b.blockedDate));
+    return new Set((blockedDates ?? []).map((b: FacilityBlockedDate) => b.blockedDate));
   }, [blockedDates]);
 
   const closedDays = useMemo(() => {
     if (!hours) return new Set<number>();
-    return new Set(hours.filter((h: any) => !h.isOpen).map((h: any) => h.dayOfWeek));
+    return new Set(hours.filter((h: FacilityHour) => !h.isOpen).map((h: FacilityHour) => h.dayOfWeek));
   }, [hours]);
 
   const firstDay = new Date(viewYear, viewMonth, 1).getDay();

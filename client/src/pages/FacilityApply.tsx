@@ -9,6 +9,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Link, useParams, useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
+import type { FacilityBlockedDate } from "../../../drizzle/schema";
 import { toast } from "sonner";
 import { Loader2, ChevronRight, Clock, Users, MapPin, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -538,7 +539,7 @@ export default function FacilityApply() {
                 </h2>
 
                 {/* 사용 날짜 */}
-                <Field label="사용 날짜" required hint={blockedDates && blockedDates.length > 0 ? ("예약 불가 날짜: " + blockedDates.map((b: any) => b.blockedDate).join(", ")) : undefined}>
+                <Field label="사용 날짜" required hint={blockedDates && blockedDates.length > 0 ? ("예약 불가 날짜: " + blockedDates.map((b: FacilityBlockedDate) => b.blockedDate).join(", ")) : undefined}>
                   {urlDate ? (
                     <div className="flex items-center gap-2">
                       <div className={`${inputClass} flex items-center gap-2 bg-gray-50 cursor-default`}>

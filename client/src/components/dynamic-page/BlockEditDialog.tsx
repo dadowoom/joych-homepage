@@ -132,6 +132,7 @@ export function BlockEditDialog({
   });
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputIdxRef = useRef<number>(0);
 
   const uploadMutation = trpc.cms.blocks.uploadImage.useMutation();
 
@@ -310,8 +311,8 @@ export function BlockEditDialog({
                     <button
                       className="w-full h-24 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-400 hover:border-green-400 hover:text-green-500 transition-colors"
                       onClick={() => {
+                        fileInputIdxRef.current = i;
                         fileInputRef.current?.click();
-                        (fileInputRef.current as any)._idx = i;
                       }}
                       disabled={uploading}
                     >
@@ -342,7 +343,7 @@ export function BlockEditDialog({
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-                  const idx = (e.target as any)._idx ?? 0;
+                  const idx = fileInputIdxRef.current ?? 0;
                   if (file) handleImageUpload(idx, file);
                   e.target.value = "";
                 }}

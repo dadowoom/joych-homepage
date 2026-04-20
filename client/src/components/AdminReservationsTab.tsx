@@ -10,6 +10,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import type { Reservation, Facility } from "../../../drizzle/schema";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, Clock, AlertCircle, Calendar, List, ChevronDown } from "lucide-react";
 
@@ -280,10 +281,16 @@ export default function AdminReservationsTab() {
 }
 
 // ── 달력 뷰 컴포넌트 ──────────────────────────────────────────
+type ReservationRow = Pick<Reservation, 'id' | 'facilityId' | 'reservationDate' | 'status'> & {
+  reserverName: string;
+  facilityName?: string | null;
+  userEmail?: string | null;
+};
+
 function CalendarView({ reservations, facilityFilter, facilities }: {
-  reservations: any[];
+  reservations: ReservationRow[];
   facilityFilter: number | undefined;
-  facilities: any[];
+  facilities: Facility[];
 }) {
   const [currentDate, setCurrentDate] = useState(new Date());
 

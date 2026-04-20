@@ -5,6 +5,7 @@
 
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
+import type { Facility, FacilityImage } from "../../../drizzle/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Users, Clock, MapPin, CalendarCheck, Phone } from "lucide-react";
@@ -66,9 +67,9 @@ function FacilityGuide() {
 }
 
 // ── 시설 카드 ──────────────────────────────────────────────
-function FacilityCard({ facility }: { facility: any }) {
+function FacilityCard({ facility }: { facility: Facility }) {
   const { data: images } = trpc.home.facilityImages.useQuery({ facilityId: facility.id });
-  const thumbnail = images?.find((img: any) => img.isThumbnail) ?? images?.[0];
+  const thumbnail = images?.find((img: FacilityImage) => img.isThumbnail) ?? images?.[0];
 
   return (
     <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md hover:-translate-y-1 transition-all duration-200 group">
@@ -176,7 +177,7 @@ export default function FacilityList() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {facilities.map((f: any) => (
+              {facilities.map((f: Facility) => (
                 <FacilityCard key={f.id} facility={f} />
               ))}
             </div>

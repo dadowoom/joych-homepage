@@ -18,6 +18,7 @@
 import { useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import type { Facility, FacilityBlockedDate } from "../../../drizzle/schema";
 import {
   Plus, Pencil, Trash2, Loader2, ChevronDown, ChevronUp,
   Upload, X, Clock, Calendar, Users, CheckCircle2,
@@ -183,7 +184,7 @@ export default function AdminFacilitiesTab() {
       // 운영 시간 저장
       for (const h of hours) {
         await upsertHour.mutateAsync({
-          facilityId: (newFacility as any).id,
+          facilityId: (newFacility as number),
           dayOfWeek: h.dayOfWeek,
           isOpen: h.isOpen,
           openTime: h.openTime,
@@ -265,7 +266,7 @@ export default function AdminFacilitiesTab() {
       } else {
         // 등록 모드: 로컬 미리보기만 (저장 시 업로드)
         const localUrl = URL.createObjectURL(file);
-        setImages(prev => [...prev, { imageUrl: localUrl, isThumbnail: prev.length === 0, _file: file } as any]);
+        setImages(prev => [...prev, { imageUrl: localUrl, isThumbnail: prev.length === 0 }]);
       }
     } catch {
       toast.error("이미지 업로드에 실패했습니다.");
@@ -305,7 +306,7 @@ export default function AdminFacilitiesTab() {
       approvalType: f.approvalType as "auto" | "manual",
       notice: f.notice ?? "",
     });
-    setImages((f as any).images ?? []);
+    setImages([]);
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -494,8 +495,8 @@ export default function AdminFacilitiesTab() {
             <div key={f.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
               {/* 시설 헤더 행 */}
               <div className="flex items-center gap-3 p-4">
-                {(f as any).thumbnailUrl ? (
-                  <img src={(f as any).thumbnailUrl} alt={f.name} className="w-14 h-14 rounded-lg object-cover shrink-0" />
+                {(f as Facility & { thumbnailUrl?: string }).thumbnailUrl ? (
+                  <img src={(f as Facility & { thumbnailUrl?: string }).thumbnailUrl!} alt={f.name} className="w-14 h-14 rounded-lg object-cover shrink-0" />
                 ) : (
                   <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
                     <ImageIcon className="w-6 h-6 text-gray-300" />
@@ -570,7 +571,7 @@ export default function AdminFacilitiesTab() {
                     <p className="text-xs text-gray-400 py-2">설정된 예약 불가 날짜가 없습니다.</p>
                   ) : (
                     <div className="space-y-1.5">
-                      {(blockedDates ?? []).map((bd: any) => (
+                      {(blockedDates ?? []).map((bd: FacilityBlockedDate) => (
                         <div key={bd.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
                           <div className="flex items-center gap-2 text-sm">
                             <Calendar className="w-3.5 h-3.5 text-red-400" />

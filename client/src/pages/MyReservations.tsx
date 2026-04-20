@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
+import type { Reservation } from "../../../drizzle/schema";
 import { toast } from "sonner";
 import {
   Loader2, ChevronRight, Calendar, Clock, MapPin, Users,
@@ -212,7 +213,7 @@ export default function MyReservations() {
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div className="flex-1 min-w-0">
                         <p className="font-bold text-gray-900 text-base truncate" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-                          {(r as any).facilityName ?? `시설 #${r.facilityId}`}
+                          {`시설 #${r.facilityId}`}
                         </p>
                         <p className="text-xs text-gray-400 mt-0.5">예약번호 #{r.id}</p>
                       </div>
@@ -243,12 +244,12 @@ export default function MyReservations() {
                     </div>
 
                     {/* 거절 사유 */}
-                    {r.status === "rejected" && (r as any).rejectionReason && (
+                    {r.status === "rejected" && r.adminComment && (
                       <div className="mt-3 bg-red-50 rounded-lg px-3 py-2.5 text-sm text-red-600 flex items-start gap-2">
                         <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
                         <div>
                           <span className="font-medium">거절 사유: </span>
-                          {(r as any).rejectionReason}
+                          {r.adminComment}
                         </div>
                       </div>
                     )}

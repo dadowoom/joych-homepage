@@ -57,7 +57,7 @@ function toFormData(
   const blob =
     typeof data === "string"
       ? new Blob([data], { type: contentType })
-      : new Blob([data as any], { type: contentType });
+      : new Blob([data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer], { type: contentType });
   const form = new FormData();
   form.append("file", blob, fileName || "file");
   return form;

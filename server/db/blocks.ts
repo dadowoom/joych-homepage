@@ -13,6 +13,7 @@
  */
 
 import { eq, asc } from "drizzle-orm";
+import type { ResultSetHeader } from "mysql2";
 import { pageBlocks, PageBlock } from "../../drizzle/schema";
 import { getDb } from "./connection";
 
@@ -87,7 +88,7 @@ export async function createPageBlock(data: {
     sortOrder: data.sortOrder,
     isVisible: true,
   });
-  return (result as any).insertId as number;
+  return (result as ResultSetHeader).insertId;
 }
 
 /** 블록 내용 수정 */

@@ -10,6 +10,7 @@
  */
 
 import { eq, asc, desc } from "drizzle-orm";
+import type { ResultSetHeader } from "mysql2";
 import { churchMembers, memberFieldOptions } from "../../drizzle/schema";
 import { getDb } from "./connection";
 
@@ -45,7 +46,7 @@ export async function createMemberFieldOption(data: { fieldType: string; label: 
     label: data.label,
     sortOrder: data.sortOrder ?? 0,
   });
-  return (result as any).insertId as number;
+  return (result as ResultSetHeader).insertId;
 }
 
 /** 선택지 수정 */
@@ -117,7 +118,7 @@ export async function createMember(data: {
     ...data,
     status: 'pending',
   });
-  return (result as any).insertId as number;
+  return (result as ResultSetHeader).insertId;
 }
 
 /** 성도 기본 정보 수정 (성도 본인) */
