@@ -100,8 +100,6 @@ import {
   updateYoutubeVideo,
   deleteYoutubeVideo,
   reorderYoutubeVideos,
-  syncPlaylistToMenu,
-  syncAllPlaylistsToMenus,
 } from "./db";
 
 export const appRouter = router({
@@ -1057,26 +1055,17 @@ export const appRouter = router({
     /** 플레이리스트 전체 목록 (공개/관리자 공통) */
     getPlaylists: publicProcedure.query(() => getAllYoutubePlaylists()),
 
-    /** 플레이리스트 생성 (관리자) — 같은 이름의 메뉴 항목에 playlistId 자동 연결 */
+    /** 플레이리스트 생성 (관리자) */
     createPlaylist: adminProcedure
       .input(z.object({ title: z.string().min(1), description: z.string().optional() }))
-      .mutation(async ({ input }) => {
-        const result = await createYoutubePlaylist(input);
-        // 같은 이름의 메뉴 항목에 playlistId 자동 연결
-        await syncPlaylistToMenu(result.insertId, input.title);
-        return result;
-      }),
-    /** 플레이리스트 수정 (관리자) — 이름 변경 시 메뉴 연결도 갱신 */
+      .mutation(({ input }) => createYoutubePlaylist(input)),
+
+    /** 플레이리스트 수정 (관리자) */
     updatePlaylist: adminProcedure
       .input(z.object({ id: z.number(), title: z.string().optional(), description: z.string().optional() }))
-      .mutation(async ({ input }) => {
+      .mutation(({ input }) => {
         const { id, ...data } = input;
-        await updateYoutubePlaylist(id, data);
-        // 이름이 변경됐으면 새 이름으로 메뉴 연결 갱신
-        if (data.title) {
-          await syncPlaylistToMenu(id, data.title);
-        }
-        return { success: true };
+        return updateYoutubePlaylist(id, data);
       }),
 
     /** 플레이리스트 삭제 (관리자) */
@@ -1131,9 +1120,6 @@ export const appRouter = router({
     reorderVideos: adminProcedure
       .input(z.object({ orderedIds: z.array(z.number()) }))
       .mutation(({ input }) => reorderYoutubeVideos(input.orderedIds)),
-    /** 모든 플레이리스트를 같은 이름의 메뉴 항목과 일괄 동기화 (관리자) */
-    syncAllToMenus: adminProcedure
-      .mutation(() => syncAllPlaylistsToMenus()),
   }),
 });
 export type AppRouter = typeof appRouter;
