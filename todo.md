@@ -368,4 +368,5 @@
 
 ## 코드 품질 개선 (2026-04-20)
 - [x] as any 34개 제거 → 실제 Drizzle 타입으로 교체
+- [x] [BUG] 관리자 대시보드에서 감춰 메뉴가 GNB에 다시 표시되는 문제 수정 (getVisibleMenus에 2단/3단 isVisible 필터 추가)
 - [ ] 블록 에디터 저장 후 자동 갱신 버그 수정 (invalidate 처리)

@@ -11,7 +11,7 @@
  *   - getMenuItemByHref / getMenuSubItemByHref: href로 메뉴 조회 (페이지 연결용)
  */
 
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and } from "drizzle-orm";
 import { menus, menuItems, menuSubItems } from "../../drizzle/schema";
 import { getDb } from "./connection";
 
@@ -27,22 +27,20 @@ export async function getVisibleMenus() {
   const menuList = await db.select().from(menus)
     .where(eq(menus.isVisible, true))
     .orderBy(asc(menus.sortOrder));
-
   const result = await Promise.all(menuList.map(async (menu) => {
+    // 2단 메뉴도 isVisible=true인 것만 가져옵니다
     const items = await db.select().from(menuItems)
-      .where(eq(menuItems.menuId, menu.id))
+      .where(and(eq(menuItems.menuId, menu.id), eq(menuItems.isVisible, true)))
       .orderBy(asc(menuItems.sortOrder));
-
     const itemsWithSubs = await Promise.all(items.map(async (item) => {
+      // 3단 메뉴도 isVisible=true인 것만 가져옵니다
       const subItems = await db.select().from(menuSubItems)
-        .where(eq(menuSubItems.menuItemId, item.id))
+        .where(and(eq(menuSubItems.menuItemId, item.id), eq(menuSubItems.isVisible, true)))
         .orderBy(asc(menuSubItems.sortOrder));
       return { ...item, subItems };
     }));
-
     return { ...menu, items: itemsWithSubs };
   }));
-
   return result;
 }
 
