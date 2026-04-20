@@ -15,6 +15,7 @@ import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { publicProcedure, router } from "../_core/trpc";
 import { sdk } from "../_core/sdk";
+import { ENV } from "../_core/env";
 import * as db from "../db";
 
 export const authRouter = router({
@@ -38,14 +39,17 @@ export const authRouter = router({
    * 관리자 전용 ID/PW 로그인
    * Manus OAuth와 별개로 동작하는 자체 관리자 인증 방식
    * 인증 성공 시 세션 쿠키를 발급하고 사용자 정보를 반환
+   *
+   * 자격증명은 환경변수(ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_OPEN_ID)에서 로드됩니다.
+   * 외부 서버 이전 시 반드시 해당 환경변수를 설정해야 합니다.
    */
   adminLogin: publicProcedure
     .input(z.object({ username: z.string(), password: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      // ── 관리자 자격증명 검증 ──────────────────────────────────────────────
-      const ADMIN_USERNAME = "joyfulchurch";
-      const ADMIN_PASSWORD = "joyfulchurch1!";
-      const ADMIN_OPEN_ID = "admin_joyfulchurch";
+      // ── 관리자 자격증명 검증 (환경변수에서 로드) ──────────────────────────
+      const ADMIN_USERNAME = ENV.adminUsername;
+      const ADMIN_PASSWORD = ENV.adminPassword;
+      const ADMIN_OPEN_ID = ENV.adminOpenId;
 
       if (input.username !== ADMIN_USERNAME || input.password !== ADMIN_PASSWORD) {
         throw new TRPCError({

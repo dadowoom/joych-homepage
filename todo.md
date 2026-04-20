@@ -1,9 +1,30 @@
-# 기쁨의교회 홈페이지 개발 TODO
+# 기쁨의교회 홈페이지 — 작업 현황 (TODO)
 
-> 마지막 업데이트: 2026년 4월 15일
+> 마지막 업데이트: 2026년 4월 20일
 
 ---
 
+## 현황 요약 (외부 업체 인수인계용)
+
+| 항목 | 완료 | 미완료 |
+|---|---|---|
+| 전체 작업 | 176개 ✅ | 41개 ⬜ |
+| 알려진 버그 | 9개 수정 ✅ | 2개 미해결 ⚠️ |
+
+### 즉시 처리 필요 (보안)
+- ⚠️ `server/routers/auth.ts` 46~48번 줄 — 관리자 ID/PW 하드코딩 → 환경변수 이전 필요
+
+### 미해결 버그
+- ⚠️ 갤러리 사진 교체 안 됨 (CDN URL 확인 필요)
+- ⚠️ 블록 에디터 저장 후 자동 갱신 안 됨 (invalidate 처리 필요)
+
+### 주요 미완료 기능
+- 카카오 소셜 로그인, 성도 비밀번호 찾기/재설정, 성도 회원탈퇴
+- 블록 에디터 고급 기능 (텍스트 정렬, 색상, 표 블록 등)
+- 갤러리/비전/사이트설정 편집 패널
+- DB 스키마 정합성 검증 (church_members 중복 컬럼 정리)
+
+---
 ## 완료된 작업
 
 ### 기초 구축
@@ -325,3 +346,22 @@
 - [x] server/db.ts: getMenuItemByHref, getMenuSubItemByHref 함수 추가
 - [x] server/routers.ts: home.menuItemByHref, home.menuSubItemByHref API 추가
 - [x] 관리자 대시보드에서 영상 추가 시 조이풀TV 페이지에 즉시 반영
+
+## 코드베이스 정비 (2026-04-20)
+- [x] server/db/ 폴더 분리 완료 (9개 파일로 기능별 분리)
+- [x] TypeScript 오류 0개 달성
+- [x] README.md 신규 작성 (외부 업체 인수인계용)
+- [x] HANDOVER.md 신규 작성 (미완료 기능, 알려진 이슈, 보안 주의사항)
+- [x] DEVELOPMENT_RULES.md 폴더 구조 섹션 최신화
+- [x] todo.md 현황 요약 섹션 추가
+- [x] ComponentShowcase.tsx → docs/ 폴더로 이동 (라우팅에서 제거)
+- [x] MenuEditPanel.tsx 컴포넌트 분리 (1,113줄 → 542줄 + components/menu-edit/ 6개 파일)
+- [x] DynamicPage.tsx 컴포넌트 분리 (976줄 → 203줄 + components/dynamic-page/ 7개 파일)
+- [x] Admin.tsx 탭 컴포넌트 분리 (765줄 → 338줄 + components/admin/SettingsTab.tsx)
+
+## 외부 서버/DB 이전 준비 (2026-04-20)
+- [x] 관리자 ID/PW 하드코딩 → 환경변수 이전 (ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_OPEN_ID)
+- [x] .env.example 파일 생성 (이전 시 필요한 모든 환경변수 목록)
+- [x] ENV_SETUP.md 작성 (환경변수 설정 가이드)
+- [x] DEPLOYMENT.md 작성 (외부 서버 이전 단계별 가이드)
+- [ ] S3 스토리지 설정을 외부 S3(AWS/Cloudflare R2)로 교체 가능하도록 문서화 (추후 진행)

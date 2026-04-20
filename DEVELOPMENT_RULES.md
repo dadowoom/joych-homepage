@@ -47,7 +47,7 @@
 | **스타일링** | Tailwind CSS 4 | 빠른 UI 작성, 일관된 디자인 토큰 |
 | **UI 컴포넌트** | shadcn/ui | 접근성 보장, 커스터마이징 용이 |
 | **백엔드 서버** | Express.js (Node.js) | 가볍고 빠른 API 서버 |
-| **데이터베이스** | PostgreSQL | 안정성, 관계형 데이터 처리 |
+| **데이터베이스** | MySQL (TiDB 호환) | 안정성, 관계형 데이터 처리 |
 | **ORM** (DB 접근 도구) | Drizzle ORM | 타입 안전, 가벼운 쿼리 |
 | **인증** | JWT (JSON Web Token) | 무상태 인증, 확장성 |
 | **파일 저장** | CDN (manus-upload) | 서버 부하 분산 |
@@ -61,40 +61,48 @@
 
 ```
 joych-homepage/
-├── client/                     # 방문자 홈페이지 (프론트엔드)
+├── client/                         # 프론트엔드 (React)
 │   └── src/
-│       ├── pages/              # 페이지 단위 컴포넌트
-│       │   ├── Home.tsx        # 메인 홈페이지
-│       │   └── admin/          # 관리자 페이지 (하위 폴더)
-│       ├── components/         # 재사용 가능한 UI 컴포넌트
-│       │   ├── ui/             # shadcn/ui 기본 컴포넌트
-│       │   └── church/         # 교회 전용 컴포넌트
-│       ├── hooks/              # 커스텀 훅 (데이터 불러오기 등)
-│       ├── lib/                # 유틸리티 함수
-│       │   ├── api.ts          # API 호출 함수 모음
-│       │   └── auth.ts         # 인증 관련 함수
-│       └── index.css           # 전역 스타일 (색상 변수 등)
-├── server/                     # 백엔드 API 서버
-│   ├── index.ts                # 서버 진입점
-│   ├── routes/                 # API 라우트 (기능별 분리)
-│   │   ├── auth.ts             # 로그인/인증 API
-│   │   ├── settings.ts         # 사이트 설정 API
-│   │   ├── popups.ts           # 팝업 관리 API
-│   │   ├── banners.ts          # 배너 관리 API
-│   │   ├── menus.ts            # 메뉴 관리 API
-│   │   ├── sermons.ts          # 설교 영상 API
-│   │   ├── news.ts             # 교회 소식 API
-│   │   ├── members.ts          # 새가족 등록 API
-│   │   └── affiliates.ts       # 관련 기관 API
-│   ├── middleware/             # 공통 처리 로직
-│   │   ├── auth.ts             # 인증 확인 미들웨어
-│   │   └── validate.ts         # 입력값 검증 미들웨어
-│   └── db/                     # 데이터베이스 관련
-│       ├── schema.ts           # DB 테이블 구조 정의
-│       └── index.ts            # DB 연결 설정
-├── shared/                     # 프론트엔드·백엔드 공통 타입
-│   └── types.ts                # 공통 TypeScript 타입 정의
-└── DEVELOPMENT_RULES.md        # 이 문서
+│       ├── App.tsx                 # 전체 라우팅 구조
+│       ├── main.tsx                # 앱 진입점 (tRPC 클라이언트 설정)
+│       ├── index.css               # 전역 스타일 (CSS 변수, 테마)
+│       ├── const.ts                # 공통 상수
+│       ├── pages/                  # 페이지 컴포넌트 (라우트 1:1 대응)
+│       ├── components/             # 재사용 UI 컴포넌트
+│       │   └── ui/                 # shadcn/ui 기본 컴포넌트 (수정 금지)
+│       ├── contexts/               # React Context (테마 등)
+│       ├── hooks/                  # 커스텀 훅
+│       └── lib/                    # 유틸리티 함수 및 정적 데이터
+├── server/                         # 백엔드 (Express + tRPC)
+│   ├── _core/                      # 프레임워크 코어 (절대 수정 금지)
+│   ├── routers/                    # tRPC 라우터 (기능별 분리)
+│   │   ├── index.ts                # AppRouter 통합
+│   │   ├── auth.ts                 # 관리자 로그인/로그아웃
+│   │   ├── home.ts                 # 홈페이지 공개 데이터
+│   │   ├── members.ts              # 성도 회원 시스템
+│   │   ├── youtube.ts              # 예배영상 관리
+│   │   └── cms/                    # 관리자 전용 CMS API
+│   │       ├── index.ts            # CMS 라우터 통합
+│   │       ├── notices.ts          # 공지사항
+│   │       ├── content.ts          # 슬라이드/갤러리/퀵메뉴/설정
+│   │       ├── menus.ts            # 메뉴 구조 관리
+│   │       ├── facilities.ts       # 시설 관리
+│   │       ├── reservations.ts     # 예약 승인/거절
+│   │       ├── blocks.ts           # 블록 에디터
+│   │       └── upload.ts           # 파일 업로드 (S3)
+│   ├── db/                         # DB 쿼리 헬퍼 (기능별 분리)
+│   │   ├── index.ts                # 전체 DB 함수 통합 export
+│   │   ├── connection.ts           # DB 연결
+│   │   ├── user.ts / notice.ts / content.ts / menu.ts
+│   │   ├── facility.ts / member.ts / blocks.ts / youtube.ts
+│   ├── db.ts                       # db/index.ts re-export (하위 호환)
+│   ├── routers.ts                  # routers/index.ts re-export (하위 호환)
+│   └── storage.ts                  # S3 파일 업로드 헬퍼
+├── drizzle/                        # 데이터베이스
+│   ├── schema.ts                   # 전체 테이블 스키마 정의
+│   └── migrations/                 # 마이그레이션 파일
+├── shared/                         # 프론트/백 공유 타입 및 상수
+└── DEVELOPMENT_RULES.md            # 이 문서
 ```
 
 **파일 명명 규칙:**
