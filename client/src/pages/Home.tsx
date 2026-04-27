@@ -458,6 +458,74 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ===== 배너 카드 (생선간증 / 선교보고 / 플레이그라운드) ===== */}
+      <section className="w-full">
+        <div className="flex flex-col md:flex-row w-full" style={{ height: "320px" }}>
+          {/* 카드 1: 생선 간증 */}
+          <a
+            href="/education/saengseon"
+            className="relative flex-1 overflow-hidden group cursor-pointer"
+          >
+            <div
+              className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
+              style={{ backgroundImage: `url('https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-worship-praise_d34c61eb.webp')` }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 to-black/10 group-hover:from-black/60 transition-all duration-300" />
+            <div className="absolute inset-0 flex flex-col justify-end p-8">
+              <p className="text-[#A5D6A7] text-xs tracking-[0.25em] uppercase mb-2 font-medium">SAENGSEON CONFERENCE</p>
+              <h3 className="text-white text-2xl md:text-3xl font-bold mb-2" style={{ fontFamily: "'Noto Serif KR', serif" }}>생선 간증</h3>
+              <p className="text-white/70 text-sm leading-relaxed">생선제자훈련 수료자들의 은혜로운 간증을 나눕니다</p>
+              <div className="mt-4 flex items-center gap-2 text-[#A5D6A7] text-sm font-medium">
+                <span>자세히 보기</span>
+                <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>
+              </div>
+            </div>
+          </a>
+
+          {/* 카드 2: 선교보고 */}
+          <a
+            href="/mission"
+            className="relative flex-1 overflow-hidden group cursor-pointer"
+          >
+            <div
+              className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
+              style={{ backgroundImage: `url('https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-worship-sunday_f599f896.jpg')` }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 to-black/10 group-hover:from-black/60 transition-all duration-300" />
+            <div className="absolute inset-0 flex flex-col justify-end p-8">
+              <p className="text-[#A5D6A7] text-xs tracking-[0.25em] uppercase mb-2 font-medium">MISSION REPORT</p>
+              <h3 className="text-white text-2xl md:text-3xl font-bold mb-2" style={{ fontFamily: "'Noto Serif KR', serif" }}>선교보고</h3>
+              <p className="text-white/70 text-sm leading-relaxed">세계 곳곳에서 전해오는 선교 현장의 이야기</p>
+              <div className="mt-4 flex items-center gap-2 text-[#A5D6A7] text-sm font-medium">
+                <span>자세히 보기</span>
+                <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>
+              </div>
+            </div>
+          </a>
+
+          {/* 카드 3: 플레이 그라운드 */}
+          <a
+            href="/community/playground"
+            className="relative flex-1 overflow-hidden group cursor-pointer"
+          >
+            <div
+              className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
+              style={{ backgroundImage: `url('https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-exterior-3_82fdf499.jpg')` }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 to-black/10 group-hover:from-black/60 transition-all duration-300" />
+            <div className="absolute inset-0 flex flex-col justify-end p-8">
+              <p className="text-[#A5D6A7] text-xs tracking-[0.25em] uppercase mb-2 font-medium">PLAY GROUND</p>
+              <h3 className="text-white text-2xl md:text-3xl font-bold mb-2" style={{ fontFamily: "'Noto Serif KR', serif" }}>플레이 그라운드</h3>
+              <p className="text-white/70 text-sm leading-relaxed">함께 뛰고 웃는 기쁨의교회 커뮤니티 공간</p>
+              <div className="mt-4 flex items-center gap-2 text-[#A5D6A7] text-sm font-medium">
+                <span>자세히 보기</span>
+                <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>
+              </div>
+            </div>
+          </a>
+        </div>
+      </section>
+
       {/* ===== 퀵 메뉴 ===== */}
       <section className="bg-white shadow-md relative z-10">
         <div className="container">
