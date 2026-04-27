@@ -12,9 +12,10 @@ export default function MemberLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const utils = trpc.useUtils();
 
   const loginMutation = trpc.members.login.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       if (data.member.status === "pending") {
         toast.info("회원가입 신청이 접수됐습니다. 관리자 승인 후 이용하실 수 있습니다.");
       } else if (data.member.status === "rejected") {
@@ -22,6 +23,8 @@ export default function MemberLogin() {
         return;
       } else {
         toast.success(`${data.member.name}님, 환영합니다!`);
+        // 로그인 후 memberMe 쿼리 즉시 갱신 → 상단 바에 이름 바로 표시
+        await utils.members.me.invalidate();
         navigate("/");
       }
     },

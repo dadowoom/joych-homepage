@@ -33,6 +33,7 @@ export default function MemberRegister() {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const utils = trpc.useUtils();
 
   // 선택지 불러오기
   const { data: deptOptions = [] } = trpc.members.fieldOptions.useQuery({ fieldType: "department" });
@@ -40,9 +41,10 @@ export default function MemberRegister() {
 
   // 회원가입 뮤테이션
   const registerMutation = trpc.members.register.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("환영합니다! 기쁜의교회 가족이 되셨습니다.");
-      // 자동 로그인 완료 후 홈으로 이동
+      // 자동 로그인 후 memberMe 쿼리 즉시 갱신 → 상단 바에 이름 바로 표시
+      await utils.members.me.invalidate();
       navigate("/");
     },
     onError: (e) => {
