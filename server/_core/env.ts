@@ -1,8 +1,12 @@
 /**
  * 환경변수 검증 및 내보내기
  *
- * 운영 환경(NODE_ENV=production)에서 필수 환경변수가 없거나
- * JWT_SECRET이 32자 미만이면 서버가 시작되지 않습니다.
+ * 운영 환경(NODE_ENV=production)에서 JWT_SECRET이 없거나 32자 미만이면 서버가 시작되지 않습니다.
+ *
+ * ⚠️ ADMIN_USERNAME / ADMIN_PASSWORD는 "선택적 필수" 처리:
+ *   - 설정되어 있으면 해당 값을 사용합니다.
+ *   - 설정되어 있지 않으면 경고를 출력하고 관리자 로그인 기능이 비활성화됩니다.
+ *   - Manus 시크릿 설정에서 등록하면 즉시 활성화됩니다.
  */
 
 function requireEnv(key: string): string {
@@ -19,15 +23,26 @@ function validateEnv() {
   const isProduction = process.env.NODE_ENV === "production";
 
   if (isProduction) {
-    // 운영 환경에서는 필수 환경변수가 없으면 즉시 종료
-    requireEnv("ADMIN_USERNAME");
-    requireEnv("ADMIN_PASSWORD");
+    // 운영 환경에서는 JWT_SECRET만 필수 (서버 보안의 핵심)
     requireEnv("JWT_SECRET");
-
     const jwtSecret = process.env.JWT_SECRET ?? "";
     if (jwtSecret.length < 32) {
       throw new Error(
         `[ENV ERROR] JWT_SECRET은 32자 이상이어야 합니다. 현재 ${jwtSecret.length}자입니다.`
+      );
+    }
+
+    // ADMIN_USERNAME / ADMIN_PASSWORD는 미설정 시 경고만 출력 (서버 시작은 허용)
+    if (!process.env.ADMIN_USERNAME) {
+      console.warn(
+        "[ENV WARN] ADMIN_USERNAME이 설정되지 않았습니다. 관리자 로그인 기능이 비활성화됩니다. " +
+        "Manus 시크릿 설정에서 ADMIN_USERNAME을 등록해 주세요."
+      );
+    }
+    if (!process.env.ADMIN_PASSWORD) {
+      console.warn(
+        "[ENV WARN] ADMIN_PASSWORD가 설정되지 않았습니다. 관리자 로그인 기능이 비활성화됩니다. " +
+        "Manus 시크릿 설정에서 ADMIN_PASSWORD를 등록해 주세요."
       );
     }
   } else {
