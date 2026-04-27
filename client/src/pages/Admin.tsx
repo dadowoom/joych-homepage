@@ -76,8 +76,10 @@ export default function AdminPage() {
       localStorage.removeItem("admin_lock_until");
       setFailCount(0);
       setLockUntil(null);
-      // 로그인 성공 후 대시보드로 이동 (홈이 아닌 관리자 페이지)
-      window.location.reload();
+      // 쿠키가 브라우저에 저장된 후 홈으로 이동 (즉시 이동하면 세션 인식 실패)
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 300);
     },
     onError: () => {
       const newCount = failCount + 1;
