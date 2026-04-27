@@ -2,6 +2,7 @@
  * 퀵메뉴 편집 슬라이드 패널
  * - 관리자 로그인 시 홈페이지 우측에서 슬라이드로 열림
  * - 퀵메뉴 항목의 레이블, 링크, 아이콘 수정, 표시/숨기기 기능
+ * - 아이콘은 IconPicker로 시각적 선택 가능
  */
 import { useState } from "react";
 import {
@@ -14,8 +15,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { Pencil, Check, X, Eye, EyeOff } from "lucide-react";
+import { Pencil, Check, X, Eye, EyeOff, Smile } from "lucide-react";
 import { toast } from "sonner";
+import IconPicker from "@/components/IconPicker";
 
 type QuickMenuRow = {
   id: number;
@@ -46,11 +48,13 @@ export default function QuickMenuEditPanel({ open, onClose }: QuickMenuEditPanel
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editState, setEditState] = useState<EditState>({ icon: "", label: "", href: "" });
+  const [showIconPicker, setShowIconPicker] = useState(false);
 
   const updateMutation = trpc.cms.content.quickMenus.update.useMutation({
     onSuccess: () => {
       toast.success("퀵메뉴가 수정됐습니다.");
       setEditingId(null);
+      setShowIconPicker(false);
       utils.cms.content.quickMenus.list.invalidate();
       utils.home.quickMenus.invalidate();
     },
@@ -67,6 +71,7 @@ export default function QuickMenuEditPanel({ open, onClose }: QuickMenuEditPanel
 
   const startEdit = (menu: QuickMenuRow) => {
     setEditingId(menu.id);
+    setShowIconPicker(false);
     setEditState({
       icon: menu.icon,
       label: menu.label,
@@ -86,15 +91,11 @@ export default function QuickMenuEditPanel({ open, onClose }: QuickMenuEditPanel
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent side="right" className="w-[400px] sm:w-[460px] overflow-y-auto bg-white" style={{ top: "144px", height: "calc(100vh - 144px)" }}>
+      <SheetContent side="right" className="w-[420px] sm:w-[480px] overflow-y-auto bg-white" style={{ top: "144px", height: "calc(100vh - 144px)" }}>
         <SheetHeader className="mb-4">
           <SheetTitle>퀵메뉴 편집</SheetTitle>
           <SheetDescription>홈페이지 상단 퀵메뉴 항목의 이름, 링크, 아이콘을 수정할 수 있습니다.</SheetDescription>
         </SheetHeader>
-
-        <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
-          💡 아이콘은 Font Awesome 클래스명을 사용합니다. (예: fa-user-tie, fa-church)
-        </div>
 
         {isLoading ? (
           <div className="text-center text-gray-400 py-8 text-sm">불러오는 중...</div>
@@ -108,15 +109,44 @@ export default function QuickMenuEditPanel({ open, onClose }: QuickMenuEditPanel
                 {editingId === menu.id ? (
                   /* 편집 모드 */
                   <div className="space-y-2">
+                    {/* 아이콘 선택 */}
                     <div>
-                      <label className="text-xs text-gray-500 mb-1 block">아이콘 클래스</label>
-                      <Input
-                        value={editState.icon}
-                        onChange={(e) => setEditState({ ...editState, icon: e.target.value })}
-                        placeholder="fa-user-tie"
-                        className="text-sm font-mono"
-                      />
+                      <label className="text-xs text-gray-500 mb-1 block">아이콘</label>
+                      <div className="flex items-center gap-2">
+                        {/* 현재 선택된 아이콘 미리보기 */}
+                        <div className="w-9 h-9 rounded-full bg-[#E8F5E9] flex items-center justify-center text-[#1B5E20] shrink-0 border border-[#C8E6C9]">
+                          {editState.icon
+                            ? <i className={`fas ${editState.icon} text-sm`}></i>
+                            : <span className="text-gray-300 text-xs">?</span>
+                          }
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="text-xs h-8 flex-1"
+                          onClick={() => setShowIconPicker((v) => !v)}
+                        >
+                          <Smile className="w-3.5 h-3.5 mr-1.5" />
+                          {showIconPicker ? "닫기" : "아이콘 선택하기"}
+                        </Button>
+                      </div>
+                      {/* 아이콘 피커 */}
+                      {showIconPicker && (
+                        <div className="mt-2">
+                          <IconPicker
+                            value={editState.icon}
+                            onChange={(cls) => {
+                              setEditState({ ...editState, icon: cls });
+                              setShowIconPicker(false);
+                            }}
+                            onClose={() => setShowIconPicker(false)}
+                          />
+                        </div>
+                      )}
                     </div>
+
+                    {/* 메뉴 이름 */}
                     <div>
                       <label className="text-xs text-gray-500 mb-1 block">메뉴 이름</label>
                       <Input
@@ -126,6 +156,8 @@ export default function QuickMenuEditPanel({ open, onClose }: QuickMenuEditPanel
                         className="text-sm"
                       />
                     </div>
+
+                    {/* 링크 URL */}
                     <div>
                       <label className="text-xs text-gray-500 mb-1 block">링크 URL</label>
                       <Input
@@ -135,6 +167,7 @@ export default function QuickMenuEditPanel({ open, onClose }: QuickMenuEditPanel
                         className="text-sm"
                       />
                     </div>
+
                     <div className="flex gap-2 pt-1">
                       <Button
                         size="sm"
@@ -144,7 +177,7 @@ export default function QuickMenuEditPanel({ open, onClose }: QuickMenuEditPanel
                       >
                         <Check className="w-3 h-3 mr-1" /> {updateMutation.isPending ? "저장 중..." : "저장"}
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>
+                      <Button size="sm" variant="outline" onClick={() => { setEditingId(null); setShowIconPicker(false); }}>
                         <X className="w-3 h-3 mr-1" /> 취소
                       </Button>
                     </div>

@@ -401,3 +401,22 @@
 - [ ] 기존 DB 데이터 이전 (Manus DB → CloudDB)
 - [ ] Nginx에 dadowoomtest.co.kr 도메인 연결 및 SSL 인증서 발급
 - [ ] 최종 동작 확인
+
+## 외부 서버 이전 작업 (2026-04-27)
+- [ ] Manus OAuth 버튼(상단 로그인/회원가입) 제거
+- [ ] 코드에서 Manus OAuth 의존 부분 정리 (VITE_OAUTH_PORTAL_URL 등)
+- [ ] faithplus.sldb.iwinv.net에 joych_homepage DB 생성 및 스키마 마이그레이션
+- [ ] 파일 저장소 전환: Manus S3 → iwinv 서버 로컬 저장소 (/var/www/uploads)
+- [ ] storage.ts 수정: storagePut/storageGet → 로컬 파일시스템 저장
+- [ ] 115.68.224.123 서버에 Node.js 22, PM2, Nginx 설치
+- [ ] 소스코드 빌드 및 서버 배포 (rsync/scp)
+- [ ] 서버 환경변수(.env) 설정
+- [ ] PM2로 서버 실행 (포트 3000)
+- [ ] Nginx 리버스 프록시 설정 (dadowoomtest.co.kr → localhost:3000)
+- [ ] Let's Encrypt SSL 인증서 발급 (certbot)
+- [ ] 전체 동작 확인 (로그인, 성도 검색, 파일 업로드)
+
+## 자동 배포 스크립트 (2026-04-27)
+- [x] deploy.sh 작성 (빌드 → 파일 전송 → PM2 재시작 → 배포 확인 5단계 자동화)
+- [x] deploy.sh 실행 테스트 완료 (HTTP 200 확인)
+- [x] PM2 설정 저장 (서버 재부팅 후에도 자동 실행)

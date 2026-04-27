@@ -1,102 +1,59 @@
-// Preconfigured storage helpers for Manus WebDev templates
-// Uses the Biz-provided storage proxy (Authorization: Bearer <token>)
+// 로컬 파일시스템 기반 스토리지 헬퍼
+// 외부 서버(iwinv) 배포 시 사용: /var/www/joych-homepage/uploads/ 에 저장
+// 외부 접근 URL: https://dadowoomtest.co.kr/uploads/파일명
 
-import { ENV } from './_core/env';
+import fs from "fs";
+import path from "path";
 
-type StorageConfig = { baseUrl: string; apiKey: string };
+// 업로드 디렉토리: 환경변수 UPLOAD_DIR 또는 기본값
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), "uploads");
+// 공개 URL 베이스: 환경변수 PUBLIC_URL_BASE 또는 기본값
+const PUBLIC_URL_BASE = process.env.PUBLIC_URL_BASE || "http://localhost:3000";
 
-function getStorageConfig(): StorageConfig {
-  const baseUrl = ENV.forgeApiUrl;
-  const apiKey = ENV.forgeApiKey;
-
-  if (!baseUrl || !apiKey) {
-    throw new Error(
-      "Storage proxy credentials missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY"
-    );
+/**
+ * 업로드 디렉토리 초기화 (없으면 생성)
+ */
+function ensureUploadDir(relKey: string): string {
+  const filePath = path.join(UPLOAD_DIR, relKey);
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
   }
-
-  return { baseUrl: baseUrl.replace(/\/+$/, ""), apiKey };
+  return filePath;
 }
 
-function buildUploadUrl(baseUrl: string, relKey: string): URL {
-  const url = new URL("v1/storage/upload", ensureTrailingSlash(baseUrl));
-  url.searchParams.set("path", normalizeKey(relKey));
-  return url;
-}
-
-async function buildDownloadUrl(
-  baseUrl: string,
-  relKey: string,
-  apiKey: string
-): Promise<string> {
-  const downloadApiUrl = new URL(
-    "v1/storage/downloadUrl",
-    ensureTrailingSlash(baseUrl)
-  );
-  downloadApiUrl.searchParams.set("path", normalizeKey(relKey));
-  const response = await fetch(downloadApiUrl, {
-    method: "GET",
-    headers: buildAuthHeaders(apiKey),
-  });
-  return (await response.json()).url;
-}
-
-function ensureTrailingSlash(value: string): string {
-  return value.endsWith("/") ? value : `${value}/`;
-}
-
-function normalizeKey(relKey: string): string {
-  return relKey.replace(/^\/+/, "");
-}
-
-function toFormData(
-  data: Buffer | Uint8Array | string,
-  contentType: string,
-  fileName: string
-): FormData {
-  const blob =
-    typeof data === "string"
-      ? new Blob([data], { type: contentType })
-      : new Blob([data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer], { type: contentType });
-  const form = new FormData();
-  form.append("file", blob, fileName || "file");
-  return form;
-}
-
-function buildAuthHeaders(apiKey: string): HeadersInit {
-  return { Authorization: `Bearer ${apiKey}` };
-}
-
+/**
+ * 파일을 로컬 저장소에 업로드
+ * @param relKey 상대 경로 (예: "hero/video-abc123.mp4")
+ * @param data 파일 데이터 (Buffer | Uint8Array | string)
+ * @param contentType MIME 타입 (사용하지 않지만 인터페이스 호환용)
+ * @returns { key, url } — key는 상대 경로, url은 공개 접근 URL
+ */
 export async function storagePut(
   relKey: string,
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream"
 ): Promise<{ key: string; url: string }> {
-  const { baseUrl, apiKey } = getStorageConfig();
-  const key = normalizeKey(relKey);
-  const uploadUrl = buildUploadUrl(baseUrl, key);
-  const formData = toFormData(data, contentType, key.split("/").pop() ?? key);
-  const response = await fetch(uploadUrl, {
-    method: "POST",
-    headers: buildAuthHeaders(apiKey),
-    body: formData,
-  });
+  const key = relKey.replace(/^\/+/, "");
+  const filePath = ensureUploadDir(key);
 
-  if (!response.ok) {
-    const message = await response.text().catch(() => response.statusText);
-    throw new Error(
-      `Storage upload failed (${response.status} ${response.statusText}): ${message}`
-    );
+  if (typeof data === "string") {
+    fs.writeFileSync(filePath, data, "utf-8");
+  } else {
+    fs.writeFileSync(filePath, Buffer.from(data));
   }
-  const url = (await response.json()).url;
+
+  const url = `${PUBLIC_URL_BASE.replace(/\/+$/, "")}/uploads/${key}`;
   return { key, url };
 }
 
-export async function storageGet(relKey: string): Promise<{ key: string; url: string; }> {
-  const { baseUrl, apiKey } = getStorageConfig();
-  const key = normalizeKey(relKey);
-  return {
-    key,
-    url: await buildDownloadUrl(baseUrl, key, apiKey),
-  };
+/**
+ * 파일의 공개 접근 URL 반환
+ * @param relKey 상대 경로
+ * @returns { key, url }
+ */
+export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
+  const key = relKey.replace(/^\/+/, "");
+  const url = `${PUBLIC_URL_BASE.replace(/\/+$/, "")}/uploads/${key}`;
+  return { key, url };
 }
