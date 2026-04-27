@@ -76,7 +76,8 @@ export default function AdminPage() {
       localStorage.removeItem("admin_lock_until");
       setFailCount(0);
       setLockUntil(null);
-      window.location.href = "/";
+      // 로그인 성공 후 대시보드로 이동 (홈이 아닌 관리자 페이지)
+      window.location.reload();
     },
     onError: () => {
       const newCount = failCount + 1;
