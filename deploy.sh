@@ -66,7 +66,7 @@ ok "package.json 전송 완료"
 
 # ── 4단계: PM2 재시작 ────────────────────────────────────────
 step "4단계: 서버 재시작 중..."
-eval "$SSH \"pm2 restart ${PM2_APP} && pm2 save\"" \
+eval "$SSH \"pm2 restart ${PM2_APP} --update-env && pm2 save\"" \
   || fail "PM2 재시작 실패"
 ok "서버 재시작 완료"
 

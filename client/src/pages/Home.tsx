@@ -461,7 +461,7 @@ export default function Home() {
       {/* ===== 퀵 메뉴 ===== */}
       <section className="bg-white shadow-md relative z-10">
         <div className="container">
-          <ul className="grid grid-cols-3 md:grid-cols-9">
+          <ul className="flex flex-wrap justify-center">
             {quickMenus.map((item, i) => {
               const inner = (
                 <>
@@ -471,7 +471,7 @@ export default function Home() {
                   <span className="text-xs text-gray-600 text-center leading-tight">{item.label}</span>
                 </>
               );
-              const cls = "flex flex-col items-center gap-2.5 py-5 px-2 border-r border-gray-100 last:border-0 hover:bg-[#F1F8E9] transition-colors group";
+              const cls = "flex flex-col items-center gap-2.5 py-5 px-4 w-28 hover:bg-[#F1F8E9] transition-colors group";
               return (
                 <li key={i}>
                   {(item as { href?: string }).href ? (
