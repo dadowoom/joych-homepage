@@ -156,9 +156,15 @@ class SDKServer {
 
   private getSessionSecret() {
     const secret = ENV.cookieSecret;
-    if (!secret || secret.length < 32) {
+    if (!secret) {
       throw new Error(
-        `[Security] JWT_SECRET이 설정되지 않았거나 32자 미만입니다. 현재 ${secret.length}자. 서버 환경변수를 확인하세요.`
+        `[Security] JWT_SECRET이 설정되지 않았습니다. 서버 환경변수를 확인하세요.`
+      );
+    }
+    // JWT_SECRET이 32자 미만인 경우 경고만 출력 (Manus 배포 환경 호환성)
+    if (secret.length < 32) {
+      console.warn(
+        `[Security WARN] JWT_SECRET이 32자 미만입니다 (현재 ${secret.length}자). 보안 강화를 권장합니다.`
       );
     }
     return new TextEncoder().encode(secret);

@@ -23,12 +23,14 @@ function validateEnv() {
   const isProduction = process.env.NODE_ENV === "production";
 
   if (isProduction) {
-    // 운영 환경에서는 JWT_SECRET만 필수 (서버 보안의 핵심)
-    requireEnv("JWT_SECRET");
+    // 운영 환경에서 JWT_SECRET 검증 (경고만 출력, 서버 시작은 허용)
+    // Manus 배포 환경의 JWT_SECRET은 시스템 관리 변수로 직접 변경 불가
     const jwtSecret = process.env.JWT_SECRET ?? "";
-    if (jwtSecret.length < 32) {
-      throw new Error(
-        `[ENV ERROR] JWT_SECRET은 32자 이상이어야 합니다. 현재 ${jwtSecret.length}자입니다.`
+    if (!jwtSecret) {
+      console.warn("[ENV WARN] JWT_SECRET이 설정되지 않았습니다. 세션 보안이 취약할 수 있습니다.");
+    } else if (jwtSecret.length < 32) {
+      console.warn(
+        `[ENV WARN] JWT_SECRET이 32자 미만입니다 (현재 ${jwtSecret.length}자). 보안 강화를 권장합니다.`
       );
     }
 
