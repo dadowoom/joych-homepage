@@ -474,7 +474,7 @@ export default function Home() {
             {/* 카드 1: 생선 간증 */}
             <a href="/education/saengseon" className="group block rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-300 bg-white">
               {/* 이미지 영역 */}
-              <div className="relative h-52 overflow-hidden">
+              <div className="relative h-96 overflow-hidden">
                 <div
                   className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
                   style={{ backgroundImage: `url('https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-worship-praise_d34c61eb.webp')` }}
@@ -498,7 +498,7 @@ export default function Home() {
 
             {/* 카드 2: 선교보고 */}
             <a href="/mission" className="group block rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-300 bg-white">
-              <div className="relative h-52 overflow-hidden">
+              <div className="relative h-96 overflow-hidden">
                 <div
                   className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
                   style={{ backgroundImage: `url('https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-worship-sunday_f599f896.jpg')` }}
@@ -521,7 +521,7 @@ export default function Home() {
 
             {/* 카드 3: 플레이 그라운드 */}
             <a href="/community/playground" className="group block rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-300 bg-white">
-              <div className="relative h-52 overflow-hidden">
+              <div className="relative h-96 overflow-hidden">
                 <div
                   className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
                   style={{ backgroundImage: `url('https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-exterior-3_82fdf499.jpg')` }}
