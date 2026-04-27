@@ -14,6 +14,7 @@ import NoticeEditPanel from "@/components/NoticeEditPanel";
 import HeroEditPanel from "@/components/HeroEditPanel";
 import QuickMenuEditPanel from "@/components/QuickMenuEditPanel";
 import AffiliateEditPanel from "@/components/AffiliateEditPanel";
+import GalleryEditPanel from "@/components/GalleryEditPanel";
 
 // 폴백(fallback) 데이터: DB 로딩 전 또는 DB 오류 시 표시
 const FALLBACK_HERO_SLIDES = [
@@ -244,6 +245,7 @@ export default function Home() {
   const [heroPanelOpen, setHeroPanelOpen] = useState(false);
   const [quickMenuPanelOpen, setQuickMenuPanelOpen] = useState(false);
   const [affiliatePanelOpen, setAffiliatePanelOpen] = useState(false);
+  const [galleryPanelOpen, setGalleryPanelOpen] = useState(false);
   const utils = trpc.useUtils();
 
   // 로그아웃 mutation
@@ -306,6 +308,12 @@ export default function Home() {
             >
               관련기관 편집
             </button>
+            <button
+              onClick={() => setGalleryPanelOpen(true)}
+              className="bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-1 rounded transition-colors"
+            >
+              갤러리 편집
+            </button>
             <a
               href="/admin_joych_2026"
               className="bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-1 rounded transition-colors"
@@ -365,6 +373,15 @@ export default function Home() {
         onClose={() => {
           setAffiliatePanelOpen(false);
           utils.home.affiliates.invalidate();
+        }}
+      />
+
+      {/* 갤러리 편집 패널 */}
+      <GalleryEditPanel
+        open={galleryPanelOpen}
+        onClose={() => {
+          setGalleryPanelOpen(false);
+          utils.home.gallery.invalidate();
         }}
       />
 

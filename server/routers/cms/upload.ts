@@ -106,6 +106,24 @@ export const uploadRouter = router({
       return { url };
     }),
   /**
+   * 갤러리 이미지 업로드
+   * - S3 경로: gallery-images/{timestamp}-{random}.{ext}
+   * - 허용: jpg, png, webp, gif / 최대 10MB
+   */
+  galleryImage: adminProcedure
+    .input(z.object({
+      base64: z.string(),
+      fileName: z.string(),
+      mimeType: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const { buffer, ext } = validateImage(input.base64, input.mimeType);
+      sanitizeFileName(input.fileName);
+      const key = `gallery-images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { url } = await storagePut(key, buffer, input.mimeType);
+      return { url };
+    }),
+  /**
    * 메뉴 페이지 이미지 업로드
    * - 이미지 전체화면(pageType=image) 메뉴 페이지용
    * - 블록 에디터 이미지 블록에서도 재사용 가능

@@ -221,3 +221,29 @@ export async function deleteAffiliate(id: number) {
   if (!db) return;
   await db.delete(affiliates).where(eq(affiliates.id, id));
 }
+
+// ─── 갤러리 추가/삭제 ────────────────────────────────────────────────────────
+/** 갤러리 전체 목록 (관리자용, 숨김 포함) */
+export async function getAllGalleryItems() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(galleryItems).orderBy(asc(galleryItems.sortOrder));
+}
+/** 갤러리 새 항목 추가 */
+export async function createGalleryItem(data: { imageUrl: string; caption?: string; gridSpan?: string; sortOrder?: number }) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(galleryItems).values({
+    imageUrl: data.imageUrl,
+    caption: data.caption ?? null,
+    gridSpan: data.gridSpan ?? "col-span-1 row-span-1",
+    sortOrder: data.sortOrder ?? 999,
+    isVisible: true,
+  });
+}
+/** 갤러리 항목 삭제 */
+export async function deleteGalleryItem(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(galleryItems).where(eq(galleryItems.id, id));
+}

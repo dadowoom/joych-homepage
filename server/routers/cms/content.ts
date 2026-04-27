@@ -4,9 +4,9 @@
  * 담당 기능:
  *   - affiliates: 관련기관 관리 (목록, 추가, 수정, 삭제)
  *   - heroSlides: 히어로 슬라이드 관리
- *   - gallery: 갤러리 관리
+ *   - gallery: 갤러리 관리 (목록, 추가, 수정, 삭제)
  *   - settings: 사이트 설정 관리
- *   - quickMenus: 퀵메뉴 관리 (목록, 추가, 수정, 삭제)
+ *   - quickMenus: 퀵메뉴 관리 (목록, 추가, 수정, 삭제, 순서변경)
  *
  * 접근 권한: 모두 adminProcedure (관리자만 접근 가능)
  */
@@ -21,7 +21,10 @@ import {
   updateHeroSlide,
   createHeroSlide,
   deleteHeroSlide,
+  getAllGalleryItems,
   updateGalleryItem,
+  createGalleryItem,
+  deleteGalleryItem,
   upsertSiteSetting,
   getAllQuickMenus,
   updateQuickMenu,
@@ -33,9 +36,7 @@ import {
 export const contentRouter = router({
   // ─── 관련기관 관리 ──────────────────────────────────────────────────────────
   affiliates: router({
-    /** 관련기관 전체 목록 */
     list: adminProcedure.query(() => getAllAffiliates()),
-    /** 관련기관 새 항목 추가 */
     create: adminProcedure
       .input(z.object({
         icon: z.string().min(1),
@@ -43,7 +44,6 @@ export const contentRouter = router({
         href: z.string().optional(),
       }))
       .mutation(({ input }) => createAffiliate(input)),
-    /** 관련기관 정보 수정 (이름, 링크, 아이콘, 순서, 공개 여부) */
     update: adminProcedure
       .input(z.object({
         id: z.number(),
@@ -57,7 +57,6 @@ export const contentRouter = router({
         const { id, ...data } = input;
         return updateAffiliate(id, data);
       }),
-    /** 관련기관 삭제 */
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
       .mutation(({ input }) => deleteAffiliate(input.id)),
@@ -65,9 +64,7 @@ export const contentRouter = router({
 
   // ─── 히어로 슬라이드 관리 ───────────────────────────────────────────────────
   heroSlides: router({
-    /** 히어로 슬라이드 전체 목록 (숨김 포함) */
     list: adminProcedure.query(() => getAllHeroSlides()),
-    /** 히어로 슬라이드 생성 */
     create: adminProcedure
       .input(z.object({
         videoUrl: z.string().optional(),
@@ -82,7 +79,6 @@ export const contentRouter = router({
         btn2Href: z.string().optional(),
       }))
       .mutation(({ input }) => createHeroSlide(input)),
-    /** 히어로 슬라이드 수정 */
     update: adminProcedure
       .input(z.object({
         id: z.number(),
@@ -102,7 +98,6 @@ export const contentRouter = router({
         const { id, ...data } = input;
         return updateHeroSlide(id, data);
       }),
-    /** 히어로 슬라이드 삭제 */
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
       .mutation(({ input }) => deleteHeroSlide(input.id)),
@@ -110,18 +105,33 @@ export const contentRouter = router({
 
   // ─── 갤러리 관리 ────────────────────────────────────────────────────────────
   gallery: router({
-    /** 갤러리 항목 수정 (캡션, 순서, 공개 여부) */
+    /** 갤러리 전체 목록 (관리자용, 숨김 포함) */
+    list: adminProcedure.query(() => getAllGalleryItems()),
+    /** 갤러리 사진 추가 */
+    create: adminProcedure
+      .input(z.object({
+        imageUrl: z.string().min(1),
+        caption: z.string().optional(),
+        gridSpan: z.string().optional(),
+      }))
+      .mutation(({ input }) => createGalleryItem(input)),
+    /** 갤러리 항목 수정 (캡션, 순서, 공개 여부, 그리드 크기) */
     update: adminProcedure
       .input(z.object({
         id: z.number(),
         caption: z.string().optional(),
         sortOrder: z.number().optional(),
         isVisible: z.boolean().optional(),
+        gridSpan: z.string().optional(),
       }))
       .mutation(({ input }) => {
         const { id, ...data } = input;
         return updateGalleryItem(id, data);
       }),
+    /** 갤러리 항목 삭제 */
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ input }) => deleteGalleryItem(input.id)),
   }),
 
   // ─── 사이트 설정 관리 ───────────────────────────────────────────────────────
@@ -136,9 +146,7 @@ export const contentRouter = router({
 
   // ─── 퀵메뉴 관리 ────────────────────────────────────────────────────────────
   quickMenus: router({
-    /** 퀵메뉴 전체 목록 */
     list: adminProcedure.query(() => getAllQuickMenus()),
-    /** 퀵메뉴 새 항목 추가 */
     create: adminProcedure
       .input(z.object({
         icon: z.string().min(1),
@@ -146,7 +154,6 @@ export const contentRouter = router({
         href: z.string().optional(),
       }))
       .mutation(({ input }) => createQuickMenu(input)),
-    /** 퀵메뉴 수정 (아이콘, 이름, 링크, 순서, 공개 여부) */
     update: adminProcedure
       .input(z.object({
         id: z.number(),
@@ -160,7 +167,6 @@ export const contentRouter = router({
         const { id, ...data } = input;
         return updateQuickMenu(id, data);
       }),
-    /** 퀵메뉴 삭제 */
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
       .mutation(({ input }) => deleteQuickMenu(input.id)),
