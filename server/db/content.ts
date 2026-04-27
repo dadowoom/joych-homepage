@@ -151,6 +151,16 @@ export async function reorderQuickMenus(items: { id: number; sortOrder: number }
   );
 }
 
+export async function reorderGalleryItems(items: { id: number; sortOrder: number }[]) {
+  const db = await getDb();
+  if (!db) return;
+  await Promise.all(
+    items.map(item =>
+      db.update(galleryItems).set({ sortOrder: item.sortOrder }).where(eq(galleryItems.id, item.id))
+    )
+  );
+}
+
 // ─── 사이트 설정 ──────────────────────────────────────────────────────────────
 
 /**

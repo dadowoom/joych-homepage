@@ -29,6 +29,7 @@ import {
   getAllQuickMenus,
   updateQuickMenu,
   reorderQuickMenus,
+  reorderGalleryItems,
   createQuickMenu,
   deleteQuickMenu,
 } from "../../db";
@@ -132,6 +133,10 @@ export const contentRouter = router({
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
       .mutation(({ input }) => deleteGalleryItem(input.id)),
+    /** 갤러리 순서 일괄 변경 */
+    reorder: adminProcedure
+      .input(z.array(z.object({ id: z.number(), sortOrder: z.number() })))
+      .mutation(({ input }) => reorderGalleryItems(input)),
   }),
 
   // ─── 사이트 설정 관리 ───────────────────────────────────────────────────────
