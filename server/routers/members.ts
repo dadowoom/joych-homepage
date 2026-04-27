@@ -25,7 +25,8 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { adminProcedure, publicProcedure, router } from "../_core/trpc";
+import { adminProcedure, publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
+import { checkRateLimit, recordFailure, resetFailures, getClientIp } from "../_core/rateLimiter";
 import { getSessionCookieOptions } from "../_core/cookies";
 import {
   getMemberFieldOptions,
@@ -49,9 +50,10 @@ export const membersRouter = router({
 
   /**
    * 성도 이름 검색 (교적부용)
-   * - 승인된 성도만 반환, 비밀번호 해시 제외
+   * ⚠️ 로그인한 성도만 사용 가능 (memberProtectedProcedure) — 외부인 접근 차단
+   * 반환: 비밀번호 해시만 제외, 나머지 교적 정보 전체 허용 (교회 공동체 내 신상 공유)
    */
-  searchByName: publicProcedure
+  searchByName: memberProtectedProcedure
     .input(z.object({ name: z.string().min(1) }))
     .query(async ({ input }) => {
       const allMembers = await getAllMembers();
@@ -135,23 +137,40 @@ export const membersRouter = router({
    * 성도 로그인
    * - 이메일/비밀번호 검증 후 JWT 쿠키 발급
    */
-  login: publicProcedure
+    login: publicProcedure
     .input(z.object({
       email: z.string().email(),
       password: z.string(),
     }))
     .mutation(async ({ input, ctx }) => {
+      // ── Rate Limit: IP 및 계정 기준 실패 횟수 제한 ───────────────────────
+      const clientIp = getClientIp(ctx.req);
+      const ipKey = `ip:${clientIp}`;
+      const accountKey = `account:${input.email}`;
+      try {
+        checkRateLimit(ipKey);
+        checkRateLimit(accountKey);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "로그인 시도가 너무 많습니다.";
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: msg });
+      }
       const bcrypt = await import("bcryptjs");
       const member = await getMemberByEmail(input.email);
-
       if (!member || !member.passwordHash) {
+        // 존재하지 않는 계정도 실패로 기록 (열거 공격 방지)
+        recordFailure(ipKey);
+        recordFailure(accountKey);
         throw new TRPCError({ code: "UNAUTHORIZED", message: "이메일 또는 비밀번호가 올바르지 않습니다." });
       }
-
       const valid = await bcrypt.compare(input.password, member.passwordHash);
       if (!valid) {
+        recordFailure(ipKey);
+        recordFailure(accountKey);
         throw new TRPCError({ code: "UNAUTHORIZED", message: "이메일 또는 비밀번호가 올바르지 않습니다." });
       }
+      // 로그인 성공 시 실패 기록 초기화
+      resetFailures(ipKey);
+      resetFailures(accountKey);
 
       const { SignJWT } = await import("jose");
       const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? "fallback-secret");

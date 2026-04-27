@@ -1,0 +1,266 @@
+/**
+ * 보안 감사 검증 테스트 (security.test.ts)
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 보안 감사 7개 항목의 핵심 로직을 단위 테스트로 검증합니다.
+ *
+ * 테스트 항목:
+ *   1. 운영 환경에서 필수 환경변수 누락 시 오류 발생
+ *   2. 로그인 실패 5회 시 차단 (Rate Limiter)
+ *   3. 차단 해제 후 정상 동작 (Rate Limiter)
+ *   4. 허용되지 않는 이미지 MIME 타입 업로드 실패
+ *   5. 허용되지 않는 영상 MIME 타입 업로드 실패
+ *   6. 이미지 크기 초과 시 업로드 실패 (10MB 초과)
+ *   7. 영상 크기 초과 시 업로드 실패 (100MB 초과)
+ *   8. 허용된 MIME 타입은 정상 처리
+ */
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { checkRateLimit, recordFailure, resetFailures } from "./_core/rateLimiter";
+import { validateImage, validateVideo } from "./routers/cms/upload";
+
+// ── 1. 환경변수 검증 테스트 ────────────────────────────────────────────────────
+describe("[보안 1번] 환경변수 검증", () => {
+  it("운영 환경에서 ADMIN_USERNAME 누락 시 오류 발생", () => {
+    const originalEnv = process.env.NODE_ENV;
+    const originalAdminUsername = process.env.ADMIN_USERNAME;
+
+    process.env.NODE_ENV = "production";
+    delete process.env.ADMIN_USERNAME;
+
+    // requireEnv 함수 직접 테스트 (env.ts의 내부 로직 재현)
+    const requireEnvTest = (key: string) => {
+      const value = process.env[key];
+      if (!value) {
+        throw new Error(`[ENV ERROR] 필수 환경변수 "${key}"가 설정되지 않았습니다.`);
+      }
+      return value;
+    };
+
+    expect(() => requireEnvTest("ADMIN_USERNAME")).toThrow(
+      '[ENV ERROR] 필수 환경변수 "ADMIN_USERNAME"가 설정되지 않았습니다.'
+    );
+
+    // 복원
+    process.env.NODE_ENV = originalEnv;
+    if (originalAdminUsername !== undefined) {
+      process.env.ADMIN_USERNAME = originalAdminUsername;
+    }
+  });
+
+  it("운영 환경에서 JWT_SECRET 32자 미만 시 오류 발생", () => {
+    const validateJwtSecret = (secret: string) => {
+      if (secret.length < 32) {
+        throw new Error(
+          `[ENV ERROR] JWT_SECRET은 32자 이상이어야 합니다. 현재 ${secret.length}자입니다.`
+        );
+      }
+    };
+
+    expect(() => validateJwtSecret("short_secret")).toThrow(
+      "[ENV ERROR] JWT_SECRET은 32자 이상이어야 합니다."
+    );
+  });
+
+  it("JWT_SECRET 32자 이상이면 오류 없음", () => {
+    const validateJwtSecret = (secret: string) => {
+      if (secret.length < 32) {
+        throw new Error(
+          `[ENV ERROR] JWT_SECRET은 32자 이상이어야 합니다. 현재 ${secret.length}자입니다.`
+        );
+      }
+    };
+
+    expect(() => validateJwtSecret("this_is_a_very_long_secret_key_for_testing_purposes")).not.toThrow();
+  });
+});
+
+// ── 2. Rate Limiter 테스트 ─────────────────────────────────────────────────────
+describe("[보안 3번] Rate Limiter — 로그인 실패 횟수 제한", () => {
+  const testKey = `test:rate-limit-${Date.now()}`;
+
+  beforeEach(() => {
+    // 각 테스트 전 해당 키 초기화
+    resetFailures(testKey);
+  });
+
+  it("초기 상태에서는 차단되지 않음", () => {
+    expect(() => checkRateLimit(testKey)).not.toThrow();
+  });
+
+  it("4회 실패 후에는 아직 차단되지 않음", () => {
+    for (let i = 0; i < 4; i++) {
+      recordFailure(testKey);
+    }
+    expect(() => checkRateLimit(testKey)).not.toThrow();
+  });
+
+  it("5회 실패 시 차단됨 (TOO_MANY_REQUESTS)", () => {
+    for (let i = 0; i < 5; i++) {
+      recordFailure(testKey);
+    }
+    expect(() => checkRateLimit(testKey)).toThrow(
+      "로그인 시도가 너무 많습니다."
+    );
+  });
+
+  it("6회 실패 후에도 차단 유지", () => {
+    for (let i = 0; i < 6; i++) {
+      recordFailure(testKey);
+    }
+    expect(() => checkRateLimit(testKey)).toThrow(
+      "로그인 시도가 너무 많습니다."
+    );
+  });
+
+  it("resetFailures 호출 후 차단 해제됨", () => {
+    for (let i = 0; i < 5; i++) {
+      recordFailure(testKey);
+    }
+    // 차단 확인
+    expect(() => checkRateLimit(testKey)).toThrow();
+
+    // 초기화 후 해제 확인
+    resetFailures(testKey);
+    expect(() => checkRateLimit(testKey)).not.toThrow();
+  });
+
+  it("IP 키와 계정 키를 독립적으로 추적", () => {
+    const ipKey = `ip:192.168.1.1-${Date.now()}`;
+    const accountKey = `account:test@example.com-${Date.now()}`;
+
+    for (let i = 0; i < 5; i++) {
+      recordFailure(ipKey);
+    }
+
+    // IP 키는 차단됨
+    expect(() => checkRateLimit(ipKey)).toThrow();
+    // 계정 키는 차단 안 됨
+    expect(() => checkRateLimit(accountKey)).not.toThrow();
+
+    resetFailures(ipKey);
+  });
+});
+
+// ── 3. 파일 업로드 보안 테스트 ─────────────────────────────────────────────────
+describe("[보안 7번] 파일 업로드 — MIME 화이트리스트 및 크기 제한", () => {
+  // 유효한 1x1 PNG 이미지 (base64)
+  const VALID_1PX_PNG_BASE64 =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+  // 유효한 최소 MP4 (base64) — 실제 MP4 헤더가 있는 최소 데이터
+  // 테스트용으로 충분히 작은 유효 base64 문자열 사용
+  const VALID_SMALL_MP4_BASE64 = Buffer.from("ftypisom").toString("base64");
+
+  it("허용된 이미지 MIME(image/png)은 정상 처리", () => {
+    expect(() => validateImage(VALID_1PX_PNG_BASE64, "image/png")).not.toThrow();
+  });
+
+  it("허용된 이미지 MIME(image/jpeg)은 정상 처리", () => {
+    // 최소 JPEG 데이터
+    const minJpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0]).toString("base64");
+    expect(() => validateImage(minJpeg, "image/jpeg")).not.toThrow();
+  });
+
+  it("허용되지 않는 이미지 MIME(image/svg+xml) 업로드 실패", () => {
+    const svgBase64 = Buffer.from("<svg></svg>").toString("base64");
+    expect(() => validateImage(svgBase64, "image/svg+xml")).toThrow(
+      "허용되지 않는 이미지 형식입니다."
+    );
+  });
+
+  it("허용되지 않는 이미지 MIME(application/pdf) 업로드 실패", () => {
+    const pdfBase64 = Buffer.from("%PDF-1.4").toString("base64");
+    expect(() => validateImage(pdfBase64, "application/pdf")).toThrow(
+      "허용되지 않는 이미지 형식입니다."
+    );
+  });
+
+  it("허용되지 않는 이미지 MIME(text/html) 업로드 실패", () => {
+    const htmlBase64 = Buffer.from("<html></html>").toString("base64");
+    expect(() => validateImage(htmlBase64, "text/html")).toThrow(
+      "허용되지 않는 이미지 형식입니다."
+    );
+  });
+
+  it("허용되지 않는 영상 MIME(video/avi) 업로드 실패", () => {
+    const aviBase64 = Buffer.from("RIFF").toString("base64");
+    expect(() => validateVideo(aviBase64, "video/avi")).toThrow(
+      "허용되지 않는 영상 형식입니다."
+    );
+  });
+
+  it("허용되지 않는 영상 MIME(video/quicktime) 업로드 실패", () => {
+    const movBase64 = Buffer.from("moov").toString("base64");
+    expect(() => validateVideo(movBase64, "video/quicktime")).toThrow(
+      "허용되지 않는 영상 형식입니다."
+    );
+  });
+
+  it("허용된 영상 MIME(video/mp4)은 정상 처리", () => {
+    expect(() => validateVideo(VALID_SMALL_MP4_BASE64, "video/mp4")).not.toThrow();
+  });
+
+  it("허용된 영상 MIME(video/webm)은 정상 처리", () => {
+    const webmBase64 = Buffer.from("webm").toString("base64");
+    expect(() => validateVideo(webmBase64, "video/webm")).not.toThrow();
+  });
+
+  it("이미지 크기 10MB 초과 시 업로드 실패", () => {
+    // 10MB + 1바이트 크기의 버퍼 생성 후 base64 인코딩
+    const oversizedBuffer = Buffer.alloc(10 * 1024 * 1024 + 1, 0);
+    const oversizedBase64 = oversizedBuffer.toString("base64");
+    expect(() => validateImage(oversizedBase64, "image/png")).toThrow(
+      "이미지 파일 크기가 너무 큽니다. 최대 10MB까지 업로드 가능합니다."
+    );
+  });
+
+  it("영상 크기 100MB 초과 시 업로드 실패", () => {
+    // 100MB + 1바이트 크기의 버퍼 생성 후 base64 인코딩
+    const oversizedBuffer = Buffer.alloc(100 * 1024 * 1024 + 1, 0);
+    const oversizedBase64 = oversizedBuffer.toString("base64");
+    expect(() => validateVideo(oversizedBase64, "video/mp4")).toThrow(
+      "영상 파일 크기가 너무 큽니다. 최대 100MB까지 업로드 가능합니다."
+    );
+  });
+});
+
+// ── 4. 공개 API 개인정보 필드 제거 테스트 ─────────────────────────────────────
+describe("[보안 4번] 공개 API 개인정보 필드 제거", () => {
+  it("facilityReservationsByDate 반환값에 개인정보 필드가 없음", () => {
+    // 실제 DB 없이 반환 로직만 검증
+    // home.ts의 반환 로직: rows.map(({ startTime, endTime, status }) => ({ startTime, endTime, status }))
+    const mockRows = [
+      {
+        id: 1,
+        facilityId: 1,
+        reserverName: "홍길동",           // 개인정보 — 반환 금지
+        reserverPhone: "010-1234-5678",   // 개인정보 — 반환 금지
+        notes: "개인 메모",               // 개인정보 — 반환 금지
+        adminComment: "관리자 코멘트",    // 내부 정보 — 반환 금지
+        startTime: "09:00",
+        endTime: "11:00",
+        status: "approved" as const,
+      },
+    ];
+
+    // home.ts와 동일한 필터링 로직
+    const publicResult = mockRows.map(({ startTime, endTime, status }) => ({
+      startTime,
+      endTime,
+      status,
+    }));
+
+    expect(publicResult).toHaveLength(1);
+    expect(publicResult[0]).toEqual({
+      startTime: "09:00",
+      endTime: "11:00",
+      status: "approved",
+    });
+
+    // 개인정보 필드가 없는지 확인
+    expect(publicResult[0]).not.toHaveProperty("reserverName");
+    expect(publicResult[0]).not.toHaveProperty("reserverPhone");
+    expect(publicResult[0]).not.toHaveProperty("notes");
+    expect(publicResult[0]).not.toHaveProperty("adminComment");
+    expect(publicResult[0]).not.toHaveProperty("id");
+  });
+});

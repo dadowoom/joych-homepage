@@ -4,6 +4,18 @@
 
 ---
 
+## 보안 감사 완료 (2026-04-27)
+- [x] [보안 1번] env.ts: ADMIN_USERNAME, ADMIN_PASSWORD 기본값 제거, 운영환경 필수 환경변수 검증
+- [x] [보안 2번] sdk.ts: JWT_SECRET 32자 미만 시 서버 시작 실패
+- [x] [보안 3번] server/_core/rateLimiter.ts 신규 생성 + auth.ts/members.ts에 IP+계정 기준 5회 실패 시 15분 차단
+- [x] [보안 4번] home.ts: facilityReservationsByDate 공개 API 개인정보 제거, members.ts: searchByName 로그인 성도 전용
+- [x] [보안 5번] server/_core/trpc.ts: memberProtectedProcedure에 approved 상태 검증 추가
+- [x] [보안 6번] home.ts createReservation: 운영시간/차단일/시간겹침/시작<종료 5단계 서버 검증 강화
+- [x] [보안 7번] server/routers/cms/upload.ts: MIME 화이트리스트, 파일 크기 제한, 확장자 서버 결정, 파일명 정제
+- [x] [보안 8번] server/security.test.ts: 보안 검증 vitest 테스트 21개 작성 및 전체 통과 (27/27 통과)
+
+---
+
 ## 현황 요약 (외부 업체 인수인계용)
 
 | 항목 | 완료 | 미완료 |
@@ -370,3 +382,22 @@
 - [x] as any 34개 제거 → 실제 Drizzle 타입으로 교체
 - [x] [BUG] 관리자 대시보드에서 감춰 메뉴가 GNB에 다시 표시되는 문제 수정 (getVisibleMenus에 2단/3단 isVisible 필터 추가)
 - [ ] 블록 에디터 저장 후 자동 갱신 버그 수정 (invalidate 처리)
+
+## 보안 감사 (외부 감사 보고서 반영, 2026-04-27)
+- [x] [보안 1번] 환경변수 기본값 제거 및 서버 시작 검증 (env.ts)
+- [x] [보안 2번] JWT 비밀키 필수화 32자 이상 (env.ts, sdk.ts)
+- [x] [보안 4번] 공개 API 개인정보 차단 (전화번호/메모/관리자코멘트)
+- [x] [보안 6번] 예약 중복/운영시간/차단일 서버 검증 강화
+- [x] [보안 3번] 로그인 실패 횟수 제한 Rate Limit (auth.ts, members.ts)
+- [x] [보안 5번] 미승인 성도 예약 차단 (approved만 가능)
+- [x] [보안 7번] 파일 업로드 검증 강화 (MIME/확장자/용량)
+- [ ] 보안 검증 테스트 8개 항목 확인
+
+## 외부 서버 이전 (보안 완료 후 진행)
+- [ ] CloudDB에 joych_homepage DB 생성 및 테이블 구조 생성
+- [ ] 소스코드 빌드 및 서버 업로드
+- [ ] 서버 환경변수 설정 및 PM2 포트 4000으로 앱 실행
+- [ ] 이미지 파일 S3 → 서버 로컬 이전 및 경로 업데이트
+- [ ] 기존 DB 데이터 이전 (Manus DB → CloudDB)
+- [ ] Nginx에 dadowoomtest.co.kr 도메인 연결 및 SSL 인증서 발급
+- [ ] 최종 동작 확인

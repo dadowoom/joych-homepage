@@ -111,16 +111,25 @@ export const homeRouter = router({
     .input(z.object({ facilityId: z.number() }))
     .query(({ input }) => getBlockedDates(input.facilityId)),
 
-  /** 특정 날짜의 예약 목록 (시간 선택 시 중복 방지용) */
+  /**
+   * 특정 날짜의 예약 목록 (시간 선택 시 중복 방지용)
+   * ⚠️ 공개 API — 개인정보 최소 노출 원칙 적용
+   * 반환: startTime, endTime, status 만 반환 (예약자 이름/전화번호/메모 등 제외)
+   */
   facilityReservationsByDate: publicProcedure
     .input(z.object({ facilityId: z.number(), date: z.string() }))
-    .query(({ input }) => getReservationsByDate(input.facilityId, input.date)),
+    .query(async ({ input }) => {
+      const rows = await getReservationsByDate(input.facilityId, input.date);
+      // 공개 화면에는 시간대와 상태만 반환 — 개인정보 필드 제거
+      return rows.map(({ startTime, endTime, status }) => ({ startTime, endTime, status }));
+    }),
 
   // ─── 예약 신청 (성도 로그인 필요) ───────────────────────────────────────────
 
   /**
    * 시설 예약 신청
    * - 시설의 승인 방식에 따라 자동 승인(auto) 또는 관리자 승인 대기(pending) 처리
+   * - 서버 측 검증: 시설 존재, 예약 가능 여부, 운영시간, 차단일, 시간 순서, 중복 예약
    */
   createReservation: memberProtectedProcedure
     .input(z.object({
@@ -136,12 +145,64 @@ export const homeRouter = router({
       notes: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      // ① 시설 존재 여부 확인
       const facility = await getFacilityById(input.facilityId);
       if (!facility) {
         throw new TRPCError({ code: "NOT_FOUND", message: "시설을 찾을 수 없습니다." });
       }
+      // ② 예약 가능 여부 확인
       if (!facility.isReservable) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "현재 예약이 불가능한 시설입니다." });
+      }
+      // ③ 시작시간 < 종료시간 확인
+      if (input.startTime >= input.endTime) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "시작 시간은 종료 시간보다 빨라야 합니다." });
+      }
+      // ④ 운영시간 확인 (해당 요일의 운영시간 조회)
+      const reservationDayOfWeek = new Date(input.reservationDate).getDay(); // 0=일, 1=월 ...
+      const hours = await getFacilityHours(input.facilityId);
+      const dayHour = hours.find(h => h.dayOfWeek === reservationDayOfWeek);
+      if (dayHour) {
+        if (!dayHour.isOpen) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "해당 요일은 시설 운영일이 아닙니다." });
+        }
+        if (input.startTime < dayHour.openTime || input.endTime > dayHour.closeTime) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `운영 시간(${dayHour.openTime}~${dayHour.closeTime}) 내에서만 예약 가능합니다.`,
+          });
+        }
+      }
+      // ⑤ 차단일 확인 (전체 차단 또는 해당 시설 차단)
+      const blocked = await getBlockedDates(input.facilityId);
+      for (const b of blocked) {
+        if (b.blockedDate !== input.reservationDate) continue;
+        if (!b.isPartialBlock) {
+          // 하루 전체 차단
+          throw new TRPCError({ code: "BAD_REQUEST", message: `${input.reservationDate}은 예약이 차단된 날입니다.${b.reason ? ` (${b.reason})` : ""}` });
+        }
+        // 부분 차단: 요청 시간대가 차단 시간대와 겹치는지 확인
+        if (b.blockStart && b.blockEnd) {
+          const overlapPartial = input.startTime < b.blockEnd && input.endTime > b.blockStart;
+          if (overlapPartial) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `해당 시간대(${b.blockStart}~${b.blockEnd})는 예약이 차단되어 있습니다.${b.reason ? ` (${b.reason})` : ""}`,
+            });
+          }
+        }
+      }
+      // ⑥ 같은 시설/날짜의 시간대 겹침 확인 (중복 예약 방지)
+      const existing = await getReservationsByDate(input.facilityId, input.reservationDate);
+      const activeReservations = existing.filter(r => r.status !== "cancelled" && r.status !== "rejected");
+      for (const r of activeReservations) {
+        const overlap = input.startTime < r.endTime && input.endTime > r.startTime;
+        if (overlap) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `해당 시간대(${r.startTime}~${r.endTime})에 이미 예약이 있습니다. 다른 시간을 선택해 주세요.`,
+          });
+        }
       }
 
       // 자동 승인 시설은 바로 approved, 그 외는 pending(관리자 검토 필요)

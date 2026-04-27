@@ -17,6 +17,7 @@ import { publicProcedure, router } from "../_core/trpc";
 import { sdk } from "../_core/sdk";
 import { ENV } from "../_core/env";
 import * as db from "../db";
+import { checkRateLimit, recordFailure, resetFailures, getClientIp } from "../_core/rateLimiter";
 
 export const authRouter = router({
   /**
@@ -43,20 +44,35 @@ export const authRouter = router({
    * 자격증명은 환경변수(ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_OPEN_ID)에서 로드됩니다.
    * 외부 서버 이전 시 반드시 해당 환경변수를 설정해야 합니다.
    */
-  adminLogin: publicProcedure
+   adminLogin: publicProcedure
     .input(z.object({ username: z.string(), password: z.string() }))
     .mutation(async ({ input, ctx }) => {
+      // ── Rate Limit: IP 및 계정 기준 실패 횟수 제한 ───────────────────────
+      const clientIp = getClientIp(ctx.req);
+      const ipKey = `ip:${clientIp}`;
+      const accountKey = `account:${input.username}`;
+      try {
+        checkRateLimit(ipKey);
+        checkRateLimit(accountKey);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "로그인 시도가 너무 많습니다.";
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: msg });
+      }
       // ── 관리자 자격증명 검증 (환경변수에서 로드) ──────────────────────────
       const ADMIN_USERNAME = ENV.adminUsername;
       const ADMIN_PASSWORD = ENV.adminPassword;
       const ADMIN_OPEN_ID = ENV.adminOpenId;
-
       if (input.username !== ADMIN_USERNAME || input.password !== ADMIN_PASSWORD) {
+        recordFailure(ipKey);
+        recordFailure(accountKey);
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "아이디 또는 비밀번호가 올바르지 않습니다.",
         });
       }
+      // 로그인 성공 시 실패 기록 초기화
+      resetFailures(ipKey);
+      resetFailures(accountKey);
 
       // ── 관리자 계정이 DB에 없으면 최초 1회 생성 ─────────────────────────
       let user = await db.getUserByOpenId(ADMIN_OPEN_ID);

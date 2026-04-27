@@ -15,8 +15,59 @@
  */
 
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { adminProcedure, router } from "../../_core/trpc";
 import { storagePut } from "../../storage";
+
+// ── 허용 MIME 타입 및 확장자 화이트리스트 ────────────────────────────────────────────
+const ALLOWED_IMAGE_MIMES: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
+
+const ALLOWED_VIDEO_MIMES: Record<string, string> = {
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+};
+
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;  // 10MB
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100MB
+
+/** 파일명에서 위험 문자 제거 (경로 탐색 공격 방지) */
+function sanitizeFileName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9가-힙\-_]/g, "_").replace(/_{2,}/g, "_").slice(0, 100);
+}
+
+/** 이미지 업로드 검증: MIME 기준으로 확장자 결정, 크기 제한 */
+export function validateImage(base64: string, mimeType: string): { buffer: Buffer; ext: string } {
+  const mime = mimeType.toLowerCase().trim();
+  const ext = ALLOWED_IMAGE_MIMES[mime];
+  if (!ext) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: `허용되지 않는 이미지 형식입니다. 허용 형식: jpg, png, webp, gif` });
+  }
+  const buffer = Buffer.from(base64, "base64");
+  if (buffer.length > MAX_IMAGE_BYTES) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: `이미지 파일 크기가 너무 큽니다. 최대 10MB까지 업로드 가능합니다.` });
+  }
+  return { buffer, ext };
+}
+
+/** 영상 업로드 검증: MIME 기준으로 확장자 결정, 크기 제한 */
+export function validateVideo(base64: string, mimeType: string): { buffer: Buffer; ext: string } {
+  const mime = mimeType.toLowerCase().trim();
+  const ext = ALLOWED_VIDEO_MIMES[mime];
+  if (!ext) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: `허용되지 않는 영상 형식입니다. 허용 형식: mp4, webm` });
+  }
+  const buffer = Buffer.from(base64, "base64");
+  if (buffer.length > MAX_VIDEO_BYTES) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: `영상 파일 크기가 너무 큽니다. 최대 100MB까지 업로드 가능합니다.` });
+  }
+  return { buffer, ext };
+}
 
 export const uploadRouter = router({
   /**
@@ -30,16 +81,16 @@ export const uploadRouter = router({
       mimeType: z.string(),      // MIME 타입 (예: video/mp4)
     }))
     .mutation(async ({ input }) => {
-      const buffer = Buffer.from(input.base64, "base64");
-      const ext = input.fileName.split(".").pop() || "mp4";
+      const { buffer, ext } = validateVideo(input.base64, input.mimeType);
+      sanitizeFileName(input.fileName);
       const key = `hero-videos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { url } = await storagePut(key, buffer, input.mimeType);
       return { url };
     }),
-
   /**
    * 이미지 파일 업로드 (공지사항 썸네일용)
    * - S3 경로: notice-images/{timestamp}-{random}.{ext}
+   * - 허용: jpg, png, webp, gif / 최대 10MB
    */
   image: adminProcedure
     .input(z.object({
@@ -47,14 +98,13 @@ export const uploadRouter = router({
       fileName: z.string(),      // 원본 파일명 (예: notice.jpg)
       mimeType: z.string(),      // MIME 타입 (예: image/jpeg)
     }))
-    .mutation(async ({ input }) => {
-      const buffer = Buffer.from(input.base64, "base64");
-      const ext = input.fileName.split(".").pop() || "jpg";
+     .mutation(async ({ input }) => {
+      const { buffer, ext } = validateImage(input.base64, input.mimeType);
+      sanitizeFileName(input.fileName);
       const key = `notice-images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { url } = await storagePut(key, buffer, input.mimeType);
       return { url };
     }),
-
   /**
    * 메뉴 페이지 이미지 업로드
    * - 이미지 전체화면(pageType=image) 메뉴 페이지용
@@ -70,9 +120,9 @@ export const uploadRouter = router({
       context: z.string().optional(), // 업로드 맥락 (예: 'menu-page', 'block-editor')
     }))
     .mutation(async ({ input }) => {
-      const buffer = Buffer.from(input.base64, "base64");
-      const ext = input.fileName.split(".").pop() || "jpg";
-      const context = input.context ?? "page";
+      const { buffer, ext } = validateImage(input.base64, input.mimeType);
+      sanitizeFileName(input.fileName);
+      const context = (input.context ?? "page").replace(/[^a-zA-Z0-9\-_]/g, "_");
       const key = `page-images/${context}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { url } = await storagePut(key, buffer, input.mimeType);
       return { url, key };
