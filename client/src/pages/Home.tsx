@@ -577,11 +577,11 @@ export default function Home() {
       {/* ===== 예배/설교 & 교회 소식 ===== */}
       <section className="py-16 bg-white">
         <div className="container">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
 
             {/* 조이풀 TV */}
-            <FadeIn>
-              <div className="bg-white rounded-xl shadow-sm p-6">
+            <FadeIn className="h-full">
+              <div className="bg-white rounded-xl shadow-sm p-6 h-full">
                 <div className="flex justify-between items-center mb-5 pb-3 border-b-2 border-[#1B5E20]">
                   <h2 className="text-lg font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>조이풀 TV</h2>
                   <a href="#" className="text-xs text-gray-400 hover:text-[#1B5E20] flex items-center gap-1 transition-colors">
@@ -618,8 +618,8 @@ export default function Home() {
             </FadeIn>
 
             {/* 교회 소식 */}
-            <FadeIn delay={100}>
-              <div className="bg-white rounded-xl shadow-sm p-6">
+            <FadeIn delay={100} className="h-full">
+              <div className="bg-white rounded-xl shadow-sm p-6 h-full">
                 <div className="flex justify-between items-center mb-5 pb-3 border-b-2 border-[#1B5E20]">
                   <h2 className="text-lg font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>교회 소식</h2>
                   <a href="#" className="text-xs text-gray-400 hover:text-[#1B5E20] flex items-center gap-1 transition-colors">
