@@ -575,7 +575,7 @@ export default function Home() {
       </section>
 
       {/* ===== 예배/설교 & 교회 소식 ===== */}
-      <section className="py-16 bg-[#F7F7F5]">
+      <section className="py-16 bg-white">
         <div className="container">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
