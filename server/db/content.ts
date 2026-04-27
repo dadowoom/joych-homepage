@@ -181,3 +181,43 @@ export async function upsertSiteSetting(key: string, value: string) {
     .values({ settingKey: key, settingValue: value })
     .onDuplicateKeyUpdate({ set: { settingValue: value } });
 }
+
+// ─── 퀵메뉴 추가/삭제 ────────────────────────────────────────────────────────
+/** 퀵메뉴 새 항목 추가 */
+export async function createQuickMenu(data: { icon: string; label: string; href?: string; sortOrder?: number }) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(quickMenus).values({
+    icon: data.icon,
+    label: data.label,
+    href: data.href ?? null,
+    sortOrder: data.sortOrder ?? 999,
+    isVisible: true,
+  });
+}
+/** 퀵메뉴 삭제 */
+export async function deleteQuickMenu(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(quickMenus).where(eq(quickMenus.id, id));
+}
+
+// ─── 관련기관 추가/삭제 ───────────────────────────────────────────────────────
+/** 관련기관 새 항목 추가 */
+export async function createAffiliate(data: { icon: string; label: string; href?: string; sortOrder?: number }) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(affiliates).values({
+    icon: data.icon,
+    label: data.label,
+    href: data.href ?? null,
+    sortOrder: data.sortOrder ?? 999,
+    isVisible: true,
+  });
+}
+/** 관련기관 삭제 */
+export async function deleteAffiliate(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(affiliates).where(eq(affiliates.id, id));
+}
