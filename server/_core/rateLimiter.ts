@@ -83,3 +83,29 @@ export function getClientIp(req: { ip?: string; headers: Record<string, string |
   }
   return req.ip ?? "unknown";
 }
+
+// ─── 검색 API Rate Limiter (내부 주소록 남용 방지) ────────────────────────────
+const SEARCH_MAX_PER_MIN = 30;   // 분당 최대 30회
+const SEARCH_WINDOW_MS = 60 * 1000; // 1분 윈도우
+
+interface SearchRecord {
+  count: number;
+  windowStart: number;
+}
+const searchStore = new Map<string, SearchRecord>();
+
+/** 검색 API 호출 전 rate limit 확인 */
+export function checkSearchRateLimit(key: string): void {
+  const now = Date.now();
+  const record = searchStore.get(key);
+  if (!record || now - record.windowStart > SEARCH_WINDOW_MS) {
+    searchStore.set(key, { count: 1, windowStart: now });
+    return;
+  }
+  record.count += 1;
+  if (record.count > SEARCH_MAX_PER_MIN) {
+    throw Object.assign(new Error("검색 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."), {
+      code: "TOO_MANY_REQUESTS",
+    });
+  }
+}

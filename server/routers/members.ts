@@ -26,7 +26,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { adminProcedure, publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
-import { checkRateLimit, recordFailure, resetFailures, getClientIp } from "../_core/rateLimiter";
+import { checkRateLimit, recordFailure, resetFailures, getClientIp, checkSearchRateLimit } from "../_core/rateLimiter";
 import { getSessionCookieOptions } from "../_core/cookies";
 import {
   getMemberFieldOptions,
@@ -43,23 +43,42 @@ import {
   adminResetMemberPassword,
   getAllMembers,
   getPendingMembers,
+  searchMembersByName,
 } from "../db";
 
 export const membersRouter = router({
   // ─── 공개 API ────────────────────────────────────────────────────────────────
 
   /**
-   * 성도 이름 검색 (교적부용)
-   * ⚠️ 로그인한 성도만 사용 가능 (memberProtectedProcedure) — 외부인 접근 차단
-   * 반환: 비밀번호 해시만 제외, 나머지 교적 정보 전체 허용 (교회 공동체 내 신상 공유)
+   * 성도 이름 검색 (교회 내부 주소록 전용)
+   *
+   * [보안]
+   * - 비로그인 → 401 UNAUTHORIZED
+   * - pending/rejected 성도 → 403 FORBIDDEN (memberProtectedProcedure)
+   * - approved 성도만 접근 허용
+   *
+   * [제한]
+   * - 검색어 최소 2글자
+   * - 최대 결과 20명
+   * - 분당 30회 rate limit (IP 기준)
+   *
+   * [반환 필드]
+   * - 허용: id, name, phone, email, position, department, district, faithPlusUserId
+   * - 제외: passwordHash, adminMemo, status, birthDate, emergencyPhone,
+   *         baptismDate, baptismType, registeredAt, pastor, gender, address,
+   *         joinPath, createdAt, updatedAt
    */
   searchByName: memberProtectedProcedure
-    .input(z.object({ name: z.string().min(1) }))
-    .query(async ({ input }) => {
-      const allMembers = await getAllMembers();
-      return allMembers
-        .filter(m => m.status === "approved" && m.name.includes(input.name))
-        .map(({ passwordHash: _, ...m }) => m);
+    .input(z.object({
+      name: z.string().min(2, "검색어는 최소 2글자 이상 입력해주세요."),
+    }))
+    .query(async ({ input, ctx }) => {
+      // Rate limit: IP 기준 분당 30회
+      const ip = getClientIp(ctx.req);
+      checkSearchRateLimit(`search:${ip}`);
+
+      // DB 쿼리에서 직접 name LIKE 검색 + limit 20 (전체 목록 가져오기 방지)
+      return searchMembersByName(input.name, 20);
     }),
 
   /**

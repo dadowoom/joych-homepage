@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from "react";
 import { Link, useSearch } from "wouter";
-import { Search, ChevronLeft, User, Phone, Calendar, MapPin, Heart, Church, ExternalLink, Lock } from "lucide-react";
+import { Search, ChevronLeft, User, Phone, MapPin, ExternalLink, Lock } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
 export default function ChurchDirectory() {
@@ -210,10 +210,9 @@ export default function ChurchDirectory() {
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-gray-500 mt-0.5">
-                          {member.gender && `${member.gender}`}
-                          {member.department && ` · ${member.department}`}
-                        </p>
+                        {member.department && (
+                          <p className="text-sm text-gray-500 mt-0.5">{member.department}</p>
+                        )}
                       </div>
                     </div>
                     {/* 믿음PLUS 신앙 데이터 보기 버튼 */}
@@ -243,27 +242,10 @@ export default function ChurchDirectory() {
                         <span>{member.phone}</span>
                       </div>
                     )}
-                    {member.registeredAt && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Calendar className="w-4 h-4 text-[#1B5E20] shrink-0" />
-                        <span>등록 {member.registeredAt}</span>
-                      </div>
-                    )}
-                    {member.pastor && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Heart className="w-4 h-4 text-[#1B5E20] shrink-0" />
-                        <span>{member.pastor} 교역자</span>
-                      </div>
-                    )}
+
                   </div>
 
-                  {/* 주소 */}
-                  {member.address && (
-                    <div className="mt-3 flex items-center gap-2 text-sm text-gray-500">
-                      <Church className="w-4 h-4 text-gray-400 shrink-0" />
-                      <span>{member.address}</span>
-                    </div>
-                  )}
+
                 </div>
               </button>
             ))}

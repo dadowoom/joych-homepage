@@ -189,3 +189,36 @@ export async function adminResetMemberPassword(id: number, tempPassword: string)
   if (!db) throw new Error('DB not available');
   await db.update(churchMembers).set({ passwordHash: hash, updatedAt: new Date() }).where(eq(churchMembers.id, id));
 }
+
+// ─── 성도 검색 (내부 주소록 전용) ─────────────────────────────────────────────
+/**
+ * 이름으로 성도 검색 (DB 쿼리 레벨에서 필터링)
+ * - approved 상태인 성도만 검색
+ * - 최대 20명 반환
+ * - 내부 주소록에 필요한 필드만 반환 (민감 정보 제외)
+ */
+export async function searchMembersByName(name: string, limit = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  const { like, and, eq: eqOp } = await import("drizzle-orm");
+  const results = await db
+    .select({
+      id: churchMembers.id,
+      name: churchMembers.name,
+      phone: churchMembers.phone,
+      email: churchMembers.email,
+      position: churchMembers.position,
+      department: churchMembers.department,
+      district: churchMembers.district,
+      faithPlusUserId: churchMembers.faithPlusUserId,
+    })
+    .from(churchMembers)
+    .where(
+      and(
+        eqOp(churchMembers.status, "approved"),
+        like(churchMembers.name, `%${name}%`)
+      )
+    )
+    .limit(limit);
+  return results;
+}

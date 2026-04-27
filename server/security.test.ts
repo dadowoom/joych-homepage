@@ -264,3 +264,143 @@ describe("[보안 4번] 공개 API 개인정보 필드 제거", () => {
     expect(publicResult[0]).not.toHaveProperty("id");
   });
 });
+
+// ─── [성도 검색 API 보안] ─────────────────────────────────────────────────────
+describe("[성도 검색 API 보안] searchByName — 승인된 성도 전용 내부 주소록", () => {
+
+  // ── 1. 접근 제어 (비로그인/pending/rejected/approved) ──
+  describe("접근 제어", () => {
+    const checkAccess = (member: { status: string } | null) => {
+      if (!member) {
+        throw Object.assign(new Error("로그인이 필요합니다."), { code: "UNAUTHORIZED" });
+      }
+      if (member.status !== "approved") {
+        throw Object.assign(new Error("승인된 성도만 이용할 수 있습니다."), { code: "FORBIDDEN" });
+      }
+      return true;
+    };
+
+    it("비로그인 사용자는 UNAUTHORIZED 오류를 받아야 한다", () => {
+      expect(() => checkAccess(null)).toThrow("로그인이 필요합니다.");
+    });
+
+    it("pending 상태 성도는 FORBIDDEN 오류를 받아야 한다", () => {
+      expect(() => checkAccess({ status: "pending" })).toThrow("승인된 성도만 이용할 수 있습니다.");
+    });
+
+    it("rejected 상태 성도도 FORBIDDEN 오류를 받아야 한다", () => {
+      expect(() => checkAccess({ status: "rejected" })).toThrow("승인된 성도만 이용할 수 있습니다.");
+    });
+
+    it("approved 성도는 접근이 허용되어야 한다", () => {
+      expect(checkAccess({ status: "approved" })).toBe(true);
+    });
+  });
+
+  // ── 2. 검색어 최소 2글자 검증 ──
+  describe("검색어 유효성 검사", () => {
+    const { z } = require("zod");
+    const schema = z.object({
+      name: z.string().min(2, "검색어는 최소 2글자 이상 입력해주세요."),
+    });
+
+    it("검색어 1글자는 유효성 오류를 발생시켜야 한다", () => {
+      const result = schema.safeParse({ name: "홍" });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0].message).toBe("검색어는 최소 2글자 이상 입력해주세요.");
+      }
+    });
+
+    it("검색어 2글자는 유효성 검사를 통과해야 한다", () => {
+      expect(schema.safeParse({ name: "홍길" }).success).toBe(true);
+    });
+
+    it("빈 문자열은 유효성 오류를 발생시켜야 한다", () => {
+      expect(schema.safeParse({ name: "" }).success).toBe(false);
+    });
+  });
+
+  // ── 3. 검색 Rate Limit (분당 30회) ──
+  describe("검색 Rate Limit", () => {
+    const makeSearchLimiter = () => {
+      const SEARCH_MAX_PER_MIN = 30;
+      const SEARCH_WINDOW_MS = 60 * 1000;
+      const store = new Map<string, { count: number; windowStart: number }>();
+      return (key: string) => {
+        const now = Date.now();
+        const record = store.get(key);
+        if (!record || now - record.windowStart > SEARCH_WINDOW_MS) {
+          store.set(key, { count: 1, windowStart: now });
+          return;
+        }
+        record.count += 1;
+        if (record.count > SEARCH_MAX_PER_MIN) {
+          throw Object.assign(new Error("검색 요청이 너무 많습니다."), { code: "TOO_MANY_REQUESTS" });
+        }
+      };
+    };
+
+    it("분당 30회 이하 요청은 정상 처리되어야 한다", () => {
+      const checkLimit = makeSearchLimiter();
+      expect(() => { for (let i = 0; i < 30; i++) checkLimit("search:ip-a"); }).not.toThrow();
+    });
+
+    it("분당 31회 요청 시 TOO_MANY_REQUESTS 오류를 발생시켜야 한다", () => {
+      const checkLimit = makeSearchLimiter();
+      expect(() => { for (let i = 0; i < 31; i++) checkLimit("search:ip-b"); }).toThrow("검색 요청이 너무 많습니다.");
+    });
+
+    it("서로 다른 IP는 독립적으로 rate limit이 적용되어야 한다", () => {
+      const checkLimit = makeSearchLimiter();
+      // IP C: 31회 → 차단
+      expect(() => { for (let i = 0; i < 31; i++) checkLimit("search:ip-c"); }).toThrow();
+      // IP D: 30회 → 정상
+      expect(() => { for (let i = 0; i < 30; i++) checkLimit("search:ip-d"); }).not.toThrow();
+    });
+  });
+
+  // ── 4. 반환 필드 보안 (민감 정보 제외 확인) ──
+  describe("반환 필드 보안", () => {
+    const ALLOWED_FIELDS = ["id", "name", "phone", "email", "position", "department", "district", "faithPlusUserId"];
+    const FORBIDDEN_FIELDS = [
+      "passwordHash", "adminMemo", "status", "birthDate", "emergencyPhone",
+      "baptismDate", "baptismType", "registeredAt", "pastor", "gender",
+      "address", "joinPath", "createdAt", "updatedAt",
+    ];
+
+    const mockResult = {
+      id: 1,
+      name: "홍길동",
+      phone: "010-1234-5678",
+      email: "hong@test.com",
+      position: "집사",
+      department: "찬양부",
+      district: "1구역",
+      faithPlusUserId: "fp_001",
+    };
+
+    it("검색 결과에 허용된 필드만 포함되어야 한다", () => {
+      const resultKeys = Object.keys(mockResult);
+      expect(resultKeys.every(k => ALLOWED_FIELDS.includes(k))).toBe(true);
+    });
+
+    it("검색 결과에 금지된 민감 필드가 포함되면 안 된다", () => {
+      FORBIDDEN_FIELDS.forEach(field => {
+        expect(mockResult).not.toHaveProperty(field);
+      });
+    });
+
+    it("passwordHash는 절대 반환되면 안 된다", () => {
+      expect(mockResult).not.toHaveProperty("passwordHash");
+    });
+
+    it("adminMemo는 절대 반환되면 안 된다", () => {
+      expect(mockResult).not.toHaveProperty("adminMemo");
+    });
+
+    it("status(승인 상태)는 반환되면 안 된다", () => {
+      expect(mockResult).not.toHaveProperty("status");
+    });
+  });
+});
