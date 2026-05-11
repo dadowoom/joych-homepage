@@ -57,12 +57,8 @@ const ADMIN_NAV = [
 
 // ── 교회 소식 ─────────────────────────────────────────────────────
 const NEWS_LIST = [
-  { id: "1", badge: "공지", badgeColor: "bg-red-100 text-red-700", title: "2026년 부활절 연합 예배 안내", date: "2026.03.30", views: 342, summary: "오는 4월 5일(주일) 오전 11시, 부활절 연합 예배가 본당에서 드려집니다. 성도 여러분의 많은 참여를 바랍니다." },
-  { id: "2", badge: "행사", badgeColor: "bg-blue-100 text-blue-700", title: "제5회 24시간 찬양기도회 참가 신청", date: "2026.03.25", views: 218, summary: "오는 4월 10일(금) 오후 8시부터 11일(토) 오후 8시까지 24시간 찬양기도회가 진행됩니다." },
-  { id: "3", badge: "소식", badgeColor: "bg-green-100 text-green-700", title: "2026년 상반기 제자훈련 등록 안내", date: "2026.03.20", views: 156, summary: "2026년 상반기 제자훈련 등록이 시작되었습니다. 교육부 담당자에게 문의해 주세요." },
-  { id: "4", badge: "공지", badgeColor: "bg-red-100 text-red-700", title: "주차 안내 및 교통 통제 공지", date: "2026.03.18", views: 289, summary: "주일 예배 시간 교회 주변 교통 통제 및 주차 안내입니다." },
-  { id: "5", badge: "소식", badgeColor: "bg-green-100 text-green-700", title: "기쁨의복지재단 2026년 봄 자원봉사자 모집", date: "2026.03.15", views: 124, summary: "기쁨의복지재단에서 2026년 봄 자원봉사자를 모집합니다." },
-  { id: "6", badge: "행사", badgeColor: "bg-blue-100 text-blue-700", title: "청년부 MT 참가 신청 안내", date: "2026.03.10", views: 198, summary: "청년부 봄 MT가 4월 18~19일 양일간 진행됩니다. 청년부 담당 전도사에게 신청해 주세요." },
+  { id: "1", badge: "공지", badgeColor: "bg-red-100 text-red-700", title: "교회 소식은 관리자 CMS에서 등록됩니다", date: "공지 예정", views: 0, summary: "기쁨의교회 최신 공지와 행사 안내는 관리자 CMS에 등록된 내용을 기준으로 제공됩니다." },
+  { id: "2", badge: "안내", badgeColor: "bg-blue-100 text-blue-700", title: "예배 및 행사 안내 준비 중", date: "공지 예정", views: 0, summary: "예배 시간 변경, 행사 일정, 교회학교 안내 등은 확정된 공지 기준으로 업데이트됩니다." },
 ];
 
 export function ChurchNews() {
@@ -84,7 +80,7 @@ export function ChurchNews() {
             <p className="text-gray-400 text-sm mb-8">{selectedNews.date} · 조회 {selectedNews.views}</p>
             <div className="prose prose-sm max-w-none text-gray-700 leading-8">
               <p>{selectedNews.summary}</p>
-              <p className="mt-4">자세한 내용은 교회 사무실(02-000-0000)로 문의해 주시거나, 담당 부서에 직접 연락해 주시기 바랍니다.</p>
+              <p className="mt-4">자세한 내용은 교회 사무실(054-270-1000)로 문의해 주시거나, 담당 부서에 직접 연락해 주시기 바랍니다.</p>
               <p className="mt-4">기쁨의교회 성도 여러분의 많은 관심과 참여를 부탁드립니다.</p>
             </div>
           </div>
@@ -192,10 +188,10 @@ export function Offering() {
       <div className="max-w-4xl mx-auto px-4 py-14">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           {[
-            { title: "온라인 헌금", icon: "fa-credit-card", color: "bg-[#E8F5E9]", desc: "아래 계좌로 입금 후 헌금 봉투에 기재해 주세요.", items: ["국민은행 000-000-000000", "예금주: 기쁨의교회"] },
+            { title: "온라인 헌금", icon: "fa-credit-card", color: "bg-[#E8F5E9]", desc: "교회가 안내한 공식 계좌로 입금 후 헌금 내용을 확인해 주세요.", items: ["공식 계좌는 주보 또는 교회 사무실을 통해 확인", "예금주: 기쁨의교회"] },
             { title: "주일 헌금", icon: "fa-church", color: "bg-blue-50", desc: "예배 시간 헌금 봉투에 이름과 헌금 종류를 기재 후 헌금함에 넣어 주세요.", items: ["헌금 봉투는 안내 데스크에서 수령", "헌금 영수증은 사무실에서 발급"] },
             { title: "십일조 헌금", icon: "fa-percent", color: "bg-amber-50", desc: "매월 정기적으로 드리는 십일조 헌금입니다.", items: ["온라인 또는 현장 헌금 모두 가능", "헌금 내역서 연말 발급 가능"] },
-            { title: "특별 헌금", icon: "fa-star", color: "bg-purple-50", desc: "감사헌금, 건축헌금, 선교헌금 등 특별 목적 헌금입니다.", items: ["헌금 봉투에 목적 명시", "문의: 02-000-0000"] },
+            { title: "특별 헌금", icon: "fa-star", color: "bg-purple-50", desc: "감사헌금, 건축헌금, 선교헌금 등 특별 목적 헌금입니다.", items: ["헌금 봉투에 목적 명시", "문의: 054-270-1000"] },
           ].map((o, i) => (
             <div key={i} className={`rounded-2xl p-7 shadow-sm ${o.color}`}>
               <div className="flex items-center gap-3 mb-4">
@@ -217,7 +213,7 @@ export function Offering() {
         </div>
         <div className="bg-[#E8F5E9] rounded-2xl p-6 text-sm text-[#1B5E20]">
           <i className="fas fa-info-circle mr-2"></i>
-          헌금 영수증 발급 및 기타 문의는 교회 사무실(02-000-0000)로 연락해 주세요. 운영시간: 평일 09:00~18:00
+          헌금 영수증 발급 및 기타 문의는 교회 사무실(054-270-1000)로 연락해 주세요. 운영시간: 평일 09:00~18:00
         </div>
       </div>
     </div>
@@ -226,9 +222,9 @@ export function Offering() {
 
 // ── 차량 운행 ─────────────────────────────────────────────────────
 const VEHICLE_ROUTES = [
-  { route: "A노선", area: "강남구 일대", time: "오전 10:20 출발", stops: ["강남역 3번 출구", "역삼역 1번 출구", "선릉역 2번 출구", "교회 도착 10:50"] },
-  { route: "B노선", area: "서초구 일대", time: "오전 10:15 출발", stops: ["방배역 1번 출구", "서초역 5번 출구", "교회 도착 10:50"] },
-  { route: "C노선", area: "송파구 일대", time: "오전 10:00 출발", stops: ["잠실역 2번 출구", "석촌역 1번 출구", "가락시장역 4번 출구", "교회 도착 10:50"] },
+  { route: "1노선", area: "주일 셔틀", time: "예배 전 운행", stops: ["세부 승차 위치는 주보 및 교회 공지 확인", "교회 도착"] },
+  { route: "2노선", area: "주일 셔틀", time: "예배 전 운행", stops: ["세부 승차 위치는 안내 데스크 문의", "교회 도착"] },
+  { route: "3노선", area: "특별 행사", time: "행사별 공지", stops: ["행사 일정에 따라 별도 안내", "교회 도착"] },
 ];
 
 export function VehicleGuide() {
@@ -274,7 +270,7 @@ export function VehicleGuide() {
         </div>
         <div className="mt-6 bg-white rounded-2xl p-6 shadow-sm text-center">
           <p className="text-gray-600 text-sm mb-2">차량 운행 문의</p>
-          <p className="font-bold text-[#1B5E20]"><i className="fas fa-phone mr-2"></i>02-000-0002 (교통부)</p>
+          <p className="font-bold text-[#1B5E20]"><i className="fas fa-phone mr-2"></i>054-270-1000</p>
         </div>
       </div>
     </div>
@@ -315,7 +311,7 @@ export function NewMemberGuide() {
                 { label: "이름", key: "name", placeholder: "성함을 입력해 주세요", type: "text" },
                 { label: "연락처", key: "phone", placeholder: "010-0000-0000", type: "tel" },
                 { label: "나이", key: "age", placeholder: "나이를 입력해 주세요", type: "number" },
-                { label: "거주 지역", key: "address", placeholder: "예: 서울 강남구", type: "text" },
+                { label: "거주 지역", key: "address", placeholder: "예: 포항시 북구", type: "text" },
               ].map((f) => (
                 <div key={f.key}>
                   <label className="block text-sm font-medium text-gray-700 mb-2">{f.label}</label>
@@ -347,7 +343,7 @@ export function NewMemberGuide() {
 // ── 조이플스토어 ──────────────────────────────────────────────────
 const STORE_ITEMS = [
   { id: "1", name: "기쁨의교회 머그컵", price: "12,000원", category: "생활용품", img: "https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?w=300&q=70", badge: "인기" },
-  { id: "2", name: "2026 교회 달력", price: "8,000원", category: "문구", img: "https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=300&q=70", badge: "신상" },
+  { id: "2", name: "교회 달력", price: "문의", category: "문구", img: "https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=300&q=70", badge: "안내" },
   { id: "3", name: "기쁨의교회 에코백", price: "15,000원", category: "생활용품", img: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=300&q=70", badge: "" },
   { id: "4", name: "큐티 노트 (3개월)", price: "6,000원", category: "문구", img: "https://images.unsplash.com/photo-1531346878377-a5be20888e57?w=300&q=70", badge: "" },
   { id: "5", name: "기쁨의교회 티셔츠", price: "20,000원", category: "의류", img: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=300&q=70", badge: "" },
@@ -366,7 +362,7 @@ export function JoyfulStore() {
       <div className="max-w-5xl mx-auto px-4 py-10">
         <div className="bg-[#E8F5E9] rounded-2xl p-5 mb-8 text-sm text-[#1B5E20]">
           <i className="fas fa-info-circle mr-2"></i>
-          구매는 교회 안내 데스크에서 직접 구매하시거나, 전화(02-000-0003)로 문의해 주세요.
+          구매는 교회 안내 데스크에서 직접 구매하시거나, 전화(054-270-1000)로 문의해 주세요.
         </div>
         <div className="flex gap-2 mb-6">
           {categories.map(c => (

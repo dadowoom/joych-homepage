@@ -35,11 +35,6 @@ function PageWrapper({ title, breadcrumb, children }: { title: string; breadcrum
 // ── 섬기는 분 ──
 const staffList = [
   { role: "담임목사", name: "박진석", desc: "기쁨의교회를 이끄는 담임목사님입니다.", img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&q=80" },
-  { role: "부목사", name: "하영인", desc: "성도 돌봄과 양육을 담당하고 있습니다.", img: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&q=80" },
-  { role: "전도사", name: "김사랑", desc: "청년부와 새가족 사역을 담당합니다.", img: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&q=80" },
-  { role: "전도사", name: "이믿음", desc: "교회학교 어린이 사역을 담당합니다.", img: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&q=80" },
-  { role: "전도사", name: "박소망", desc: "선교 및 봉사 사역을 담당합니다.", img: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&q=80" },
-  { role: "간사", name: "최기쁨", desc: "행정 및 교회 운영을 지원합니다.", img: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&q=80" },
 ];
 
 export function StaffPage() {
@@ -203,10 +198,9 @@ export function CIPage() {
 
 // ── 셔틀버스 ──
 const busRoutes = [
-  { route: "1호차", area: "북구 (흥해/청하)", stops: ["흥해 터미널 (7:50)", "흥해 이마트 (7:55)", "청하 파출소 (8:05)", "교회 도착 (8:30)"], driver: "김기사", contact: "010-1234-5678" },
-  { route: "2호차", area: "북구 (양덕/장성)", stops: ["양덕 주공아파트 (8:00)", "장성 현대아파트 (8:10)", "장성 롯데마트 (8:15)", "교회 도착 (8:35)"], driver: "이기사", contact: "010-2345-6789" },
-  { route: "3호차", area: "남구 (오천/구룡포)", stops: ["오천 버스터미널 (7:45)", "구룡포 시장 (8:00)", "오천 주공아파트 (8:15)", "교회 도착 (8:40)"], driver: "박기사", contact: "010-3456-7890" },
-  { route: "4호차", area: "북구 (두호/환호)", stops: ["두호 주공아파트 (8:10)", "환호 공원 입구 (8:20)", "환호 현대아파트 (8:25)", "교회 도착 (8:40)"], driver: "최기사", contact: "010-4567-8901" },
+  { route: "1호차", area: "주일 셔틀", stops: ["세부 승차 위치는 주보 및 교회 공지를 확인해 주세요.", "교회 도착"], driver: "교회 사무실", contact: "054-270-1000" },
+  { route: "2호차", area: "주일 셔틀", stops: ["세부 승차 위치는 안내 데스크로 문의해 주세요.", "교회 도착"], driver: "교회 사무실", contact: "054-270-1000" },
+  { route: "3호차", area: "특별 행사", stops: ["행사 일정에 따라 별도 안내됩니다.", "교회 도착"], driver: "교회 사무실", contact: "054-270-1000" },
 ];
 
 export function ShuttleBusPage() {
@@ -231,7 +225,7 @@ export function ShuttleBusPage() {
                 <div className="w-10 h-10 bg-[#1b4332] text-white rounded-full flex items-center justify-center font-bold text-sm">{bus.route}</div>
                 <div>
                   <h3 className="font-bold text-gray-900">{bus.area}</h3>
-                  <p className="text-xs text-gray-500">기사: {bus.driver}</p>
+              <p className="text-xs text-gray-500">문의: {bus.driver}</p>
                 </div>
               </div>
               <a href={`tel:${bus.contact}`} className="text-[#2d6a4f] text-sm font-semibold hover:underline">{bus.contact}</a>

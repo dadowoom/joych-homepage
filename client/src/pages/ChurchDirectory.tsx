@@ -146,7 +146,7 @@ export default function ChurchDirectory() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="이름 입력 (예: 홍길동)"
+                placeholder="이름을 입력해 주세요"
                 className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30 focus:border-[#1B5E20] bg-white"
               />
             </div>

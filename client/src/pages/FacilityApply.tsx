@@ -516,7 +516,7 @@ export default function FacilityApply() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <Field label="신청자 이름" required>
-                    <input type="text" name="reserverName" value={form.reserverName} onChange={handleChange} placeholder="홍길동" className={inputClass} />
+                    <input type="text" name="reserverName" value={form.reserverName} onChange={handleChange} placeholder="성함을 입력해 주세요" className={inputClass} />
                   </Field>
                   <Field label="연락처" required>
                     <input type="tel" name="reserverPhone" value={form.reserverPhone} onChange={handleChange} placeholder="010-0000-0000" className={inputClass} />

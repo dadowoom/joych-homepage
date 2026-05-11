@@ -291,7 +291,7 @@ export default function MyReservations() {
             <ul className="text-xs text-blue-600 space-y-1 list-disc list-inside">
               <li>승인 대기 중인 예약은 직접 취소하실 수 있습니다.</li>
               <li>이미 승인된 예약의 취소는 교회 사무국에 문의해 주세요.</li>
-              <li>문의: 교회 사무국 (031-000-0000)</li>
+              <li>문의: 교회 사무국 (054-270-1000)</li>
             </ul>
           </div>
         </div>

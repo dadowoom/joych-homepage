@@ -63,12 +63,12 @@ export default function MissionList() {
           <div className="flex gap-8 mt-8">
             <div>
               <p className="text-3xl font-bold">{MISSIONARIES.length}</p>
-              <p className="text-green-200 text-sm mt-1">파송 선교사</p>
+              <p className="text-green-200 text-sm mt-1">선교 협력</p>
             </div>
             <div className="w-px bg-green-400/40"></div>
             <div>
               <p className="text-3xl font-bold">{new Set(MISSIONARIES.map(m => m.region.split(" ")[0])).size}</p>
-              <p className="text-green-200 text-sm mt-1">사역 국가</p>
+              <p className="text-green-200 text-sm mt-1">사역 지역</p>
             </div>
             <div className="w-px bg-green-400/40"></div>
             <div>
@@ -82,7 +82,7 @@ export default function MissionList() {
       {/* ── 선교사 프로필 띠 ── */}
       <section className="bg-white border-b border-gray-200 py-6">
         <div className="max-w-6xl mx-auto px-4">
-          <p className="text-xs text-gray-400 font-medium mb-4 uppercase tracking-wider">파송 선교사</p>
+          <p className="text-xs text-gray-400 font-medium mb-4 uppercase tracking-wider">선교 협력</p>
           <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
             <button
               onClick={() => setSelectedMissionary("all")}

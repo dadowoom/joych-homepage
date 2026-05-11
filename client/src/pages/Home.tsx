@@ -153,9 +153,9 @@ const FALLBACK_QUICK_MENUS = [
 ];
 
 const SERMONS = [
-  { badge: "주일예배", title: "처음 익은 열매로 여호와를 공경하라", date: "2026.03.29" },
-  { badge: "수요예배", title: "믿음으로 나아가는 삶", date: "2026.03.26" },
-  { badge: "새벽기도", title: "하나님의 은혜가 넘치는 곳", date: "2026.03.25" },
+  { badge: "주일예배", title: "주일예배 말씀 영상", date: "조이풀TV" },
+  { badge: "수요예배", title: "수요예배 영상", date: "조이풀TV" },
+  { badge: "새벽기도", title: "새벽기도회 영상", date: "조이풀TV" },
 ];
 
 const BADGE_COLORS: Record<string, string> = {

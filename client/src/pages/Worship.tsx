@@ -52,12 +52,12 @@ const WORSHIP_NAV = [
 
 // ── 조이풀TV (설교 영상) ─────────────────────────────────────────
 const SERMON_VIDEOS = [
-  { id: "1", badge: "주일예배", title: "처음 익은 열매로 여호와를 공경하라", preacher: "홍길동 목사", date: "2026.03.29", duration: "52분", thumb: "https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=400&q=70" },
-  { id: "2", badge: "수요예배", title: "믿음으로 나아가는 삶", preacher: "홍길동 목사", date: "2026.03.26", duration: "38분", thumb: "https://images.unsplash.com/photo-1529070538774-1843cb3265df?w=400&q=70" },
-  { id: "3", badge: "새벽기도", title: "하나님의 은혜가 넘치는 곳", preacher: "홍길동 목사", date: "2026.03.25", duration: "25분", thumb: "https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=400&q=70" },
-  { id: "4", badge: "주일예배", title: "감사하는 삶의 능력", preacher: "홍길동 목사", date: "2026.03.22", duration: "48분", thumb: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=400&q=70" },
-  { id: "5", badge: "특별집회", title: "부흥의 불꽃이 타오르다", preacher: "이요한 목사 (특강)", date: "2026.03.18", duration: "65분", thumb: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&q=70" },
-  { id: "6", badge: "주일예배", title: "새 힘을 얻는 자의 비결", preacher: "홍길동 목사", date: "2026.03.15", duration: "50분", thumb: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=70" },
+  { id: "1", badge: "주일예배", title: "주일예배 설교 영상", preacher: "기쁨의교회", date: "최신 영상", duration: "예배 영상", thumb: "https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=400&q=70" },
+  { id: "2", badge: "수요예배", title: "수요예배 영상", preacher: "기쁨의교회", date: "조이풀TV", duration: "예배 영상", thumb: "https://images.unsplash.com/photo-1529070538774-1843cb3265df?w=400&q=70" },
+  { id: "3", badge: "새벽기도", title: "새벽기도회 영상", preacher: "기쁨의교회", date: "조이풀TV", duration: "예배 영상", thumb: "https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=400&q=70" },
+  { id: "4", badge: "주일예배", title: "주일예배 다시보기", preacher: "기쁨의교회", date: "조이풀TV", duration: "예배 영상", thumb: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=400&q=70" },
+  { id: "5", badge: "특별집회", title: "특별집회 영상", preacher: "기쁨의교회", date: "조이풀TV", duration: "집회 영상", thumb: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&q=70" },
+  { id: "6", badge: "주일예배", title: "주일예배 말씀 영상", preacher: "기쁨의교회", date: "조이풀TV", duration: "예배 영상", thumb: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=70" },
 ];
 
 const BADGE_COLORS: Record<string, string> = {
@@ -215,12 +215,7 @@ export function WorshipSchedule() {
 
 // ── 주보 보기 ─────────────────────────────────────────────────────
 const BULLETINS = [
-  { date: "2026.03.29", title: "2026년 3월 29일 주보", week: "제13주", size: "2.4MB" },
-  { date: "2026.03.22", title: "2026년 3월 22일 주보", week: "제12주", size: "2.1MB" },
-  { date: "2026.03.15", title: "2026년 3월 15일 주보", week: "제11주", size: "2.3MB" },
-  { date: "2026.03.08", title: "2026년 3월 8일 주보", week: "제10주", size: "2.2MB" },
-  { date: "2026.03.01", title: "2026년 3월 1일 주보 (삼일절)", week: "제9주", size: "2.5MB" },
-  { date: "2026.02.22", title: "2026년 2월 22일 주보", week: "제8주", size: "2.0MB" },
+  { date: "공지 예정", title: "주보는 관리자 CMS 등록 후 제공됩니다", week: "안내", size: "-" },
 ];
 
 export function Bulletin() {

@@ -20,7 +20,7 @@ const departments: Record<string, DepartmentInfo> = {
     image: kidsImg,
     schedule: [{ day: "주일", time: "오전 11시", place: "교육관 1층 영아부실" }],
     programs: ["감각 놀이 예배", "부모 교육 프로그램", "영아 찬양", "성경 이야기 (그림책)"],
-    teachers: [{ name: "김사랑", role: "부장" }, { name: "이은혜", role: "교사" }, { name: "박기쁨", role: "교사" }],
+    teachers: [{ name: "부서 담당자", role: "부장" }, { name: "부서 교사", role: "교사" }, { name: "부서 교사", role: "교사" }],
   },
   toddler: {
     name: "유아부",
@@ -30,7 +30,7 @@ const departments: Record<string, DepartmentInfo> = {
     image: kidsImg,
     schedule: [{ day: "주일", time: "오전 11시", place: "교육관 1층 유아부실" }],
     programs: ["율동 찬양 예배", "성경 이야기 (그림)", "만들기 활동", "성경 암송"],
-    teachers: [{ name: "최사랑", role: "부장" }, { name: "정은혜", role: "교사" }, { name: "강기쁨", role: "교사" }, { name: "윤소망", role: "교사" }],
+    teachers: [{ name: "부서 담당자", role: "부장" }, { name: "부서 교사", role: "교사" }, { name: "부서 교사", role: "교사" }, { name: "부서 교사", role: "교사" }],
   },
   kindergarten: {
     name: "유치부",
@@ -40,7 +40,7 @@ const departments: Record<string, DepartmentInfo> = {
     image: kidsImg,
     schedule: [{ day: "주일", time: "오전 11시", place: "교육관 2층 유치부실" }],
     programs: ["어린이 예배", "성경 퀴즈", "찬양 율동", "성경 암송", "미술 활동", "성경 캠프 (여름)"],
-    teachers: [{ name: "한사랑", role: "부장" }, { name: "오은혜", role: "교사" }, { name: "서기쁨", role: "교사" }, { name: "남소망", role: "교사" }],
+    teachers: [{ name: "부서 담당자", role: "부장" }, { name: "부서 교사", role: "교사" }, { name: "부서 교사", role: "교사" }, { name: "부서 교사", role: "교사" }],
   },
   elementary1: {
     name: "유년부",
@@ -50,7 +50,7 @@ const departments: Record<string, DepartmentInfo> = {
     image: kidsImg,
     schedule: [{ day: "주일", time: "오전 11시", place: "교육관 2층 유년부실" }],
     programs: ["어린이 예배", "성경 암송 대회", "소그룹 나눔", "전도 훈련", "여름 성경학교"],
-    teachers: [{ name: "임사랑", role: "부장" }, { name: "장은혜", role: "교사" }, { name: "조기쁨", role: "교사" }],
+    teachers: [{ name: "부서 담당자", role: "부장" }, { name: "부서 교사", role: "교사" }, { name: "부서 교사", role: "교사" }],
   },
   elementary2: {
     name: "초등부",
@@ -60,7 +60,7 @@ const departments: Record<string, DepartmentInfo> = {
     image: kidsImg,
     schedule: [{ day: "주일", time: "오전 11시", place: "교육관 3층 초등부실" }],
     programs: ["어린이 예배", "성경 퀴즈 대회", "찬양팀 활동", "봉사 활동", "여름 캠프"],
-    teachers: [{ name: "권사랑", role: "부장" }, { name: "황은혜", role: "교사" }, { name: "안기쁨", role: "교사" }, { name: "유소망", role: "교사" }],
+    teachers: [{ name: "부서 담당자", role: "부장" }, { name: "부서 교사", role: "교사" }, { name: "부서 교사", role: "교사" }, { name: "부서 교사", role: "교사" }],
   },
   elementary3: {
     name: "소년부",
@@ -70,7 +70,7 @@ const departments: Record<string, DepartmentInfo> = {
     image: youthImg,
     schedule: [{ day: "주일", time: "오전 11시", place: "교육관 3층 소년부실" }],
     programs: ["어린이 예배", "리더십 훈련", "성경 통독", "봉사 프로젝트", "수련회 (여름/겨울)"],
-    teachers: [{ name: "신사랑", role: "부장" }, { name: "배은혜", role: "교사" }, { name: "허기쁨", role: "교사" }],
+    teachers: [{ name: "부서 담당자", role: "부장" }, { name: "부서 교사", role: "교사" }, { name: "부서 교사", role: "교사" }],
   },
   youth: {
     name: "청소년부",
@@ -83,7 +83,7 @@ const departments: Record<string, DepartmentInfo> = {
       { day: "금요일", time: "오후 7시", place: "교육관 4층 청소년부실" },
     ],
     programs: ["청소년 예배", "소그룹 나눔", "제자훈련 기초", "문화 사역 (음악/미디어)", "수련회", "선교 여행"],
-    teachers: [{ name: "문사랑", role: "담당 전도사" }, { name: "표은혜", role: "교사" }, { name: "방기쁨", role: "교사" }, { name: "석소망", role: "교사" }],
+    teachers: [{ name: "부서 담당자", role: "담당" }, { name: "부서 교사", role: "교사" }, { name: "부서 교사", role: "교사" }, { name: "부서 교사", role: "교사" }],
   },
   youngAdult: {
     name: "청년부",
@@ -96,7 +96,7 @@ const departments: Record<string, DepartmentInfo> = {
       { day: "목요일", time: "오후 7시 30분", place: "본관 소예배실" },
     ],
     programs: ["청년 예배", "소그룹 나눔", "제자훈련", "선교 참여", "직장인 모임", "청년 수련회"],
-    teachers: [{ name: "곽사랑", role: "담당 전도사" }, { name: "엄은혜", role: "간사" }, { name: "편기쁨", role: "간사" }],
+    teachers: [{ name: "부서 담당자", role: "담당" }, { name: "부서 간사", role: "간사" }, { name: "부서 간사", role: "간사" }],
   },
   hope: {
     name: "소망부",
@@ -106,7 +106,7 @@ const departments: Record<string, DepartmentInfo> = {
     image: adultImg,
     schedule: [{ day: "주일", time: "오전 11시", place: "교육관 1층 소망부실" }],
     programs: ["특별 예배", "재활 프로그램", "가족 지원 프로그램", "사회 통합 활동"],
-    teachers: [{ name: "진사랑", role: "담당 전도사" }, { name: "채은혜", role: "교사" }, { name: "탁기쁨", role: "교사" }],
+    teachers: [{ name: "부서 담당자", role: "담당" }, { name: "부서 교사", role: "교사" }, { name: "부서 교사", role: "교사" }],
   },
   adult: {
     name: "장년부",
@@ -118,7 +118,7 @@ const departments: Record<string, DepartmentInfo> = {
       { day: "주일", time: "오전 9시 / 11시 / 오후 2시", place: "본관 대예배실" },
     ],
     programs: ["주일 예배", "소그룹 나눔 (순 모임)", "성경 공부", "부부 세미나", "장년 수련회"],
-    teachers: [{ name: "박진석", role: "담임목사" }, { name: "하영인", role: "부목사" }],
+    teachers: [{ name: "담임목사", role: "담당" }, { name: "부서 담당자", role: "담당" }],
   },
   awana: {
     name: "AWANA",
@@ -128,7 +128,7 @@ const departments: Record<string, DepartmentInfo> = {
     image: kidsImg,
     schedule: [{ day: "금요일", time: "오후 7시", place: "교육관 체육관" }],
     programs: ["성경 암송 훈련", "팀 게임 활동", "AWANA 예배", "포인트 시스템", "연말 시상식"],
-    teachers: [{ name: "노사랑", role: "클럽 디렉터" }, { name: "도은혜", role: "교사" }, { name: "모기쁨", role: "교사" }, { name: "보소망", role: "교사" }],
+    teachers: [{ name: "부서 담당자", role: "클럽 디렉터" }, { name: "부서 교사", role: "교사" }, { name: "부서 교사", role: "교사" }, { name: "부서 교사", role: "교사" }],
   },
 };
 

@@ -620,7 +620,7 @@ export default function FacilityDetail() {
                   <Phone size={14} className="text-[#1B5E20]" />
                   시설 문의
                 </p>
-                <p className="text-sm text-gray-500">행정실: <span className="text-[#1B5E20] font-medium">02-000-0000</span></p>
+                <p className="text-sm text-gray-500">행정실: <span className="text-[#1B5E20] font-medium">054-270-1000</span></p>
                 <p className="text-xs text-gray-400 mt-1">평일 09:00 ~ 18:00</p>
               </div>
 

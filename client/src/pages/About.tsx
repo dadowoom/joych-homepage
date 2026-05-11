@@ -46,7 +46,7 @@ const ABOUT_NAV = [
   { label: "담임목사 인사말", href: "/about/pastor" },
   { label: "교회 역사", href: "/about/history" },
   { label: "교회 비전", href: "/about/vision" },
-  { label: "오시는 길", href: "/about/location" },
+  { label: "오시는 길", href: "/about/directions" },
 ];
 
 // ── 담임목사 인사말 ──────────────────────────────────────────────
@@ -54,8 +54,7 @@ const PASTOR_CAREER = [
   { icon: "fa-graduation-cap", text: "장로회신학대학교 신학과 졸업" },
   { icon: "fa-graduation-cap", text: "장로회신학대학교 신학대학원 졸업 (M.Div)" },
   { icon: "fa-graduation-cap", text: "미국 풀러신학교 목회학박사 (D.Min)" },
-  { icon: "fa-church", text: "서울 강남교회 부목사 (1998~2004)" },
-  { icon: "fa-church", text: "기쁨의교회 담임목사 (2005~현재)" },
+  { icon: "fa-church", text: "기쁨의교회 담임목사" },
   { icon: "fa-book", text: "저서: 《기쁨으로 걷는 길》 외 3권" },
 ];
 
@@ -154,15 +153,9 @@ src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekr
 
 // ── 교회 역사 ────────────────────────────────────────────────────
 const HISTORY_ITEMS = [
-  { year: "1985", title: "기쁨의교회 창립", desc: "서울 강남구 소재 작은 예배당에서 30여 명의 성도와 함께 창립 예배를 드리다." },
-  { year: "1990", title: "교육관 건축", desc: "교육관 신축 완공으로 어린이·청소년 사역의 기반을 마련하다." },
-  { year: "1995", title: "창립 10주년 기념", desc: "성도 500명 돌파 및 창립 10주년 감사 예배를 드리다. 해외 선교 파송 시작." },
-  { year: "2000", title: "본당 이전 및 증축", desc: "현재 위치로 본당을 이전하고 1,000석 규모의 예배당을 완공하다." },
-  { year: "2005", title: "2대 담임목사 취임", desc: "홍길동 목사가 2대 담임목사로 취임하다. 지역 사회 복지 사역 확대." },
-  { year: "2010", title: "기쁨의복지재단 설립", desc: "지역 사회 섬김을 위한 기쁨의복지재단을 설립하고 복지관 운영을 시작하다." },
-  { year: "2015", title: "창립 30주년", desc: "성도 3,000명 돌파 및 창립 30주년 기념 감사 예배. 10개국 선교사 파송." },
-  { year: "2020", title: "온라인 예배 시작", desc: "코로나19 상황 속에서도 온라인 예배를 통해 성도들과 함께하다. 조이풀TV 채널 개설." },
-  { year: "2025", title: "창립 40주년", desc: "창립 40주년을 맞이하여 감사 예배와 함께 새로운 비전을 선포하다." },
+  { year: "1946", title: "기쁨의교회 시작", desc: "하나님의 은혜 안에서 예배 공동체로 첫걸음을 내딛다." },
+  { year: "현재", title: "포항 지역을 섬기는 교회", desc: "말씀과 예배, 양육과 선교를 통해 지역 사회와 다음 세대를 섬기고 있습니다." },
+  { year: "다음", title: "깊이 있는 성장, 위대한 교회", desc: "복음의 능력으로 한 사람을 세우고, 가정과 지역과 열방을 섬기는 교회로 나아갑니다." },
 ];
 
 export function ChurchHistory() {
@@ -259,17 +252,15 @@ export function Location() {
               <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
                 <i className="fas fa-map-marker-alt text-[#1B5E20]"></i> 주소
               </h3>
-              <p className="text-gray-600 text-sm">서울특별시 강남구 기쁨로 123 기쁨의교회</p>
-              <p className="text-gray-400 text-xs mt-1">(우편번호: 06000)</p>
+              <p className="text-gray-600 text-sm">경북 포항시 북구 상통로 411 기쁨의교회</p>
             </div>
           </div>
           {/* 교통 안내 */}
           <div className="space-y-5">
             {[
-              { icon: "fa-subway", title: "지하철 이용", color: "bg-blue-50 border-blue-200", items: ["2호선 강남역 3번 출구 도보 10분", "9호선 신논현역 5번 출구 도보 5분"] },
-              { icon: "fa-bus", title: "버스 이용", color: "bg-green-50 border-green-200", items: ["간선버스: 140, 144, 146번 — 기쁨의교회 정류장 하차", "지선버스: 3412, 4412번 — 기쁨의교회 정류장 하차"] },
-              { icon: "fa-car", title: "자가용 이용", color: "bg-amber-50 border-amber-200", items: ["강남대로 → 기쁨로 우회전 → 교회 주차장 진입", "주차 가능 대수: 300대 (지하 3층)"] },
-              { icon: "fa-phone", title: "문의", color: "bg-gray-50 border-gray-200", items: ["전화: 02-000-0000", "이메일: info@joych.org", "운영시간: 평일 09:00~18:00"] },
+              { icon: "fa-bus", title: "셔틀버스 이용", color: "bg-green-50 border-green-200", items: ["셔틀버스 운행 정보는 교회 공지와 안내 데스크를 통해 확인해 주세요."] },
+              { icon: "fa-car", title: "자가용 이용", color: "bg-amber-50 border-amber-200", items: ["내비게이션에서 '기쁨의교회' 또는 '경북 포항시 북구 상통로 411'을 검색해 주세요."] },
+              { icon: "fa-phone", title: "문의", color: "bg-gray-50 border-gray-200", items: ["전화: 054-270-1000", "운영시간: 평일 09:00~18:00"] },
             ].map((section, i) => (
               <div key={i} className={`rounded-2xl border p-6 ${section.color}`}>
                 <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
