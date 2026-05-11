@@ -110,6 +110,8 @@ export async function createMember(data: {
   address?: string;
   emergencyPhone?: string;
   joinPath?: string;
+  department?: string;
+  district?: string;
   faithPlusUserId?: string;
 }) {
   const db = await getDb();

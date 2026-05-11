@@ -3,6 +3,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
 import { getMemberById } from "../db/member";
+import { getJwtSecretKey } from "./jwtSecret";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -63,7 +64,7 @@ export const memberProtectedProcedure = t.procedure.use(
     }
     try {
       const { jwtVerify } = await import('jose');
-      const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? 'fallback-secret');
+      const secret = getJwtSecretKey();
       const { payload } = await jwtVerify(token, secret);
       if (payload.type !== 'church_member' || !payload.memberId) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: '유효하지 않은 로그인 정보입니다.' });

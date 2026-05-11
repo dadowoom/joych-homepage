@@ -370,14 +370,38 @@ export default function SiteHeader() {
                       return (
                         <div key={item.id}>
                           {hasSubItems ? (
-                            // 3단 있으면 아코디언
-                            <button
-                              className="w-full flex items-center justify-between pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] text-left"
-                              onClick={() => setMobileExpandedSubId(mobileExpandedSubId === item.id ? null : item.id)}
-                            >
-                              <span>{item.label}</span>
-                              <i className={`fas fa-chevron-${mobileExpandedSubId === item.id ? 'up' : 'down'} text-[10px] text-gray-400`}></i>
-                            </button>
+                            // 3단이 있어도 2단 페이지 링크와 펼침 버튼을 분리
+                            item.href ? (
+                              <div className="flex items-center">
+                                {item.href.startsWith('http://') || item.href.startsWith('https://') ? (
+                                  <a href={item.href} target="_blank" rel="noopener noreferrer"
+                                    className="flex-1 block pl-8 pr-3 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                    onClick={() => setMobileOpen(false)}
+                                  >{item.label}</a>
+                                ) : (
+                                  <Link href={item.href}
+                                    className="flex-1 block pl-8 pr-3 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                    onClick={() => setMobileOpen(false)}
+                                  >{item.label}</Link>
+                                )}
+                                <button
+                                  type="button"
+                                  aria-label={`${item.label} 하위 메뉴 열기`}
+                                  className="px-5 py-2.5 text-gray-400 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                  onClick={() => setMobileExpandedSubId(mobileExpandedSubId === item.id ? null : item.id)}
+                                >
+                                  <i className={`fas fa-chevron-${mobileExpandedSubId === item.id ? 'up' : 'down'} text-[10px]`}></i>
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                className="w-full flex items-center justify-between pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] text-left"
+                                onClick={() => setMobileExpandedSubId(mobileExpandedSubId === item.id ? null : item.id)}
+                              >
+                                <span>{item.label}</span>
+                                <i className={`fas fa-chevron-${mobileExpandedSubId === item.id ? 'up' : 'down'} text-[10px] text-gray-400`}></i>
+                              </button>
+                            )
                           ) : item.href ? (
                             item.href.startsWith('http://') || item.href.startsWith('https://') ? (
                               <a href={item.href} target="_blank" rel="noopener noreferrer"
