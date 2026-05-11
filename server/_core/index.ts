@@ -10,19 +10,19 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 
-function isPortAvailable(port: number): Promise<boolean> {
+function isPortAvailable(port: number, host?: string): Promise<boolean> {
   return new Promise(resolve => {
     const server = net.createServer();
-    server.listen(port, () => {
+    server.listen(port, host, () => {
       server.close(() => resolve(true));
     });
     server.on("error", () => resolve(false));
   });
 }
 
-async function findAvailablePort(startPort: number = 3000): Promise<number> {
+async function findAvailablePort(startPort: number = 3000, host?: string): Promise<number> {
   for (let port = startPort; port < startPort + 20; port++) {
-    if (await isPortAvailable(port)) {
+    if (await isPortAvailable(port, host)) {
       return port;
     }
   }
@@ -30,8 +30,30 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  const isProduction = process.env.NODE_ENV === "production";
   const app = express();
   const server = createServer(app);
+  app.set("trust proxy", "loopback");
+
+  const scriptSrc = isProduction
+    ? [
+        "'self'",
+        "https://cdnjs.cloudflare.com",
+        "https://www.youtube.com",
+        "https://s.ytimg.com",
+      ]
+    : [
+        "'self'",
+        "'unsafe-inline'",
+        "'unsafe-eval'",
+        "https://cdnjs.cloudflare.com",
+        "https://www.youtube.com",
+        "https://s.ytimg.com",
+      ];
+
+  const connectSrc = isProduction
+    ? ["'self'", "https:"]
+    : ["'self'", "https:", "wss:"];
 
   // ── 보안 헤더 (helmet) ────────────────────────────────────────────────
   app.use(helmet({
@@ -39,14 +61,7 @@ async function startServer() {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: [
-          "'self'",
-          "'unsafe-inline'",   // Vite HMR 및 인라인 스크립트
-          "'unsafe-eval'",     // Vite dev 모드
-          "https://cdnjs.cloudflare.com",
-          "https://www.youtube.com",
-          "https://s.ytimg.com",
-        ],
+        scriptSrc,
         styleSrc: [
           "'self'",
           "'unsafe-inline'",
@@ -74,13 +89,9 @@ async function startServer() {
           "https://www.youtube.com",
           "https://youtube.com",
         ],
-        connectSrc: [
-          "'self'",
-          "https:",
-          "wss:",     // Vite HMR WebSocket
-        ],
+        connectSrc,
         objectSrc: ["'none'"],
-        upgradeInsecureRequests: [],
+        ...(isProduction ? { upgradeInsecureRequests: [] } : {}),
       },
     },
     // X-Frame-Options: SAMEORIGIN (클릭재킹 방어)
@@ -119,8 +130,8 @@ async function startServer() {
   // ─────────────────────────────────────────────────────────────────────
 
   // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.use(express.json({ limit: "150mb" }));
+  app.use(express.urlencoded({ limit: "150mb", extended: true }));
   // 쿠키 파싱 미들웨어 (req.cookies 사용 가능하게)
   app.use(cookieParser());
 
@@ -143,16 +154,25 @@ async function startServer() {
     serveStatic(app);
   }
 
-  const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
+  const preferredPort = parseInt(process.env.PORT || "3000", 10);
+  const host = process.env.HOST || (isProduction ? "127.0.0.1" : "0.0.0.0");
+  const port = isProduction ? preferredPort : await findAvailablePort(preferredPort, host);
 
-  if (port !== preferredPort) {
+  if (!isProduction && port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
-  server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, host, () => {
+      server.off("error", reject);
+      console.log(`Server running on http://${host}:${port}/`);
+      resolve();
+    });
   });
 }
 
-startServer().catch(console.error);
+startServer().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

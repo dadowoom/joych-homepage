@@ -9,7 +9,7 @@
  *   - 관리자 전용: adminUpdateMember, adminResetMemberPassword
  */
 
-import { eq, asc, desc } from "drizzle-orm";
+import { and, eq, asc, desc } from "drizzle-orm";
 import type { ResultSetHeader } from "mysql2";
 import { churchMembers, memberFieldOptions } from "../../drizzle/schema";
 import { getDb } from "./connection";
@@ -22,10 +22,14 @@ export async function getMemberFieldOptions(fieldType?: string) {
   if (!db) return [];
   if (fieldType) {
     return db.select().from(memberFieldOptions)
-      .where(eq(memberFieldOptions.fieldType, fieldType))
+      .where(and(
+        eq(memberFieldOptions.fieldType, fieldType),
+        eq(memberFieldOptions.isActive, true),
+      ))
       .orderBy(asc(memberFieldOptions.sortOrder));
   }
   return db.select().from(memberFieldOptions)
+    .where(eq(memberFieldOptions.isActive, true))
     .orderBy(asc(memberFieldOptions.fieldType), asc(memberFieldOptions.sortOrder));
 }
 
@@ -69,7 +73,8 @@ export async function deleteMemberFieldOption(id: number) {
 export async function getMemberByEmail(email: string) {
   const db = await getDb();
   if (!db) return null;
-  const rows = await db.select().from(churchMembers).where(eq(churchMembers.email, email)).limit(1);
+  const normalizedEmail = email.trim().toLowerCase();
+  const rows = await db.select().from(churchMembers).where(eq(churchMembers.email, normalizedEmail)).limit(1);
   return rows[0] ?? null;
 }
 
@@ -118,6 +123,7 @@ export async function createMember(data: {
   if (!db) throw new Error('DB not available');
   const [result] = await db.insert(churchMembers).values({
     ...data,
+    email: data.email.trim().toLowerCase(),
     status: 'pending',
   });
   return (result as ResultSetHeader).insertId;
@@ -180,7 +186,8 @@ export async function adminUpdateMember(id: number, data: Partial<{
 }>) {
   const db = await getDb();
   if (!db) throw new Error('DB not available');
-  await db.update(churchMembers).set({ ...data, updatedAt: new Date() }).where(eq(churchMembers.id, id));
+  const normalized = data.email ? { ...data, email: data.email.trim().toLowerCase() } : data;
+  await db.update(churchMembers).set({ ...normalized, updatedAt: new Date() }).where(eq(churchMembers.id, id));
 }
 
 /** 관리자: 성도 비밀번호 초기화 (임시 비밀번호 설정) */

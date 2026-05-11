@@ -10,12 +10,31 @@
  *               createReservation, updateReservationStatus, getReservationById
  */
 
-import { eq, asc, desc, and, or, isNull } from "drizzle-orm";
+import { eq, asc, desc, and, or, isNull, lt, gt, sql } from "drizzle-orm";
 import {
   facilities, facilityImages, facilityHours, facilityBlockedDates, reservations, churchMembers,
   InsertFacility, InsertFacilityImage, InsertFacilityHour, InsertFacilityBlockedDate, InsertReservation,
 } from "../../drizzle/schema";
 import { getDb } from "./connection";
+
+export class ReservationOverlapError extends Error {
+  constructor(public readonly startTime: string, public readonly endTime: string) {
+    super(`해당 시간대(${startTime}~${endTime})에 이미 예약이 있습니다. 다른 시간을 선택해 주세요.`);
+  }
+}
+
+export class ReservationLockError extends Error {
+  constructor() {
+    super("예약 처리 중입니다. 잠시 후 다시 시도해주세요.");
+  }
+}
+
+function extractMysqlScalar(result: unknown) {
+  const rows = Array.isArray(result) ? result[0] : result;
+  const firstRow = Array.isArray(rows) ? rows[0] : rows;
+  if (!firstRow || typeof firstRow !== "object") return null;
+  return Object.values(firstRow as Record<string, unknown>)[0] ?? null;
+}
 
 // ─── 시설 CRUD ────────────────────────────────────────────────────────────────
 
@@ -233,6 +252,50 @@ export async function createReservation(data: Omit<InsertReservation, 'id' | 'cr
   if (!db) return null;
   const [result] = await db.insert(reservations).values(data).$returningId();
   return result?.id ?? null;
+}
+
+/** 예약 생성: 같은 시설/날짜에 대한 동시 신청을 DB advisory lock으로 직렬화 */
+export async function createReservationIfAvailable(data: Omit<InsertReservation, 'id' | 'createdAt' | 'updatedAt'>) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const lockKey = `reservation:${data.facilityId}:${data.reservationDate}`;
+
+  return db.transaction(async (tx) => {
+    const lockResult = await tx.execute(sql`SELECT GET_LOCK(${lockKey}, 5) AS locked`);
+    if (Number(extractMysqlScalar(lockResult)) !== 1) {
+      throw new ReservationLockError();
+    }
+
+    try {
+      const overlapping = await tx
+        .select({
+          startTime: reservations.startTime,
+          endTime: reservations.endTime,
+        })
+        .from(reservations)
+        .where(and(
+          eq(reservations.facilityId, data.facilityId),
+          eq(reservations.reservationDate, data.reservationDate),
+          or(
+            eq(reservations.status, "pending"),
+            eq(reservations.status, "approved"),
+          ),
+          lt(reservations.startTime, data.endTime),
+          gt(reservations.endTime, data.startTime),
+        ))
+        .limit(1);
+
+      if (overlapping[0]) {
+        throw new ReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime);
+      }
+
+      const [result] = await tx.insert(reservations).values(data).$returningId();
+      return result?.id ?? null;
+    } finally {
+      await tx.execute(sql`SELECT RELEASE_LOCK(${lockKey})`);
+    }
+  });
 }
 
 /**

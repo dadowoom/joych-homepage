@@ -10,7 +10,7 @@
  *   - 메뉴 자동 연결: syncPlaylistToMenu, syncAllPlaylistsToMenus
  */
 
-import { eq, asc } from "drizzle-orm";
+import { and, eq, asc } from "drizzle-orm";
 import { youtubePlaylists, youtubeVideos, menuItems, menuSubItems } from "../../drizzle/schema";
 import { getDb } from "./connection";
 
@@ -62,7 +62,10 @@ export async function getVisibleYoutubeVideos(playlistId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(youtubeVideos)
-    .where(eq(youtubeVideos.playlistId, playlistId))
+    .where(and(
+      eq(youtubeVideos.playlistId, playlistId),
+      eq(youtubeVideos.isVisible, true),
+    ))
     .orderBy(asc(youtubeVideos.sortOrder));
 }
 

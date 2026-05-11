@@ -12,6 +12,11 @@
 
 import { z } from "zod";
 import { adminProcedure, router } from "../../_core/trpc";
+import {
+  optionalTextSchema,
+  requiredTextSchema,
+  safeAssetUrlSchema,
+} from "../../_core/contentValidation";
 import { getAllNotices, createNotice, updateNotice, deleteNotice } from "../../db";
 
 export const noticesRouter = router({
@@ -24,10 +29,10 @@ export const noticesRouter = router({
    */
   create: adminProcedure
     .input(z.object({
-      category: z.string().default("공지"),
-      title: z.string().min(1, "제목을 입력해주세요."),
-      content: z.string().optional(),
-      thumbnailUrl: z.string().optional(),
+      category: requiredTextSchema(32, "카테고리를 입력해주세요.").default("공지"),
+      title: requiredTextSchema(256, "제목을 입력해주세요."),
+      content: optionalTextSchema(50000),
+      thumbnailUrl: safeAssetUrlSchema.optional(),
       isPublished: z.boolean().default(true),
       isPinned: z.boolean().default(false),
     }))
@@ -41,11 +46,11 @@ export const noticesRouter = router({
    */
   update: adminProcedure
     .input(z.object({
-      id: z.number(),
-      category: z.string().optional(),
-      title: z.string().optional(),
-      content: z.string().optional(),
-      thumbnailUrl: z.string().optional(),
+      id: z.number().int().positive(),
+      category: requiredTextSchema(32, "카테고리를 입력해주세요.").optional(),
+      title: requiredTextSchema(256, "제목을 입력해주세요.").optional(),
+      content: optionalTextSchema(50000),
+      thumbnailUrl: safeAssetUrlSchema.optional(),
       isPublished: z.boolean().optional(),
       isPinned: z.boolean().optional(),
     }))
@@ -56,6 +61,6 @@ export const noticesRouter = router({
 
   /** 공지사항 삭제 */
   delete: adminProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number().int().positive() }))
     .mutation(({ input }) => deleteNotice(input.id)),
 });

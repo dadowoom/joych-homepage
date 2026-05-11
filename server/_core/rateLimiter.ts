@@ -109,3 +109,24 @@ export function checkSearchRateLimit(key: string): void {
     });
   }
 }
+
+// ─── 회원가입 API Rate Limiter (가입 신청 스팸 방지) ────────────────────────
+const REGISTER_MAX_PER_HOUR = 5;
+const REGISTER_WINDOW_MS = 60 * 60 * 1000;
+const registerStore = new Map<string, SearchRecord>();
+
+/** 회원가입 호출 전 rate limit 확인 */
+export function checkRegisterRateLimit(key: string): void {
+  const now = Date.now();
+  const record = registerStore.get(key);
+  if (!record || now - record.windowStart > REGISTER_WINDOW_MS) {
+    registerStore.set(key, { count: 1, windowStart: now });
+    return;
+  }
+  record.count += 1;
+  if (record.count > REGISTER_MAX_PER_HOUR) {
+    throw Object.assign(new Error("회원가입 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."), {
+      code: "TOO_MANY_REQUESTS",
+    });
+  }
+}

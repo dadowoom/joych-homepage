@@ -12,7 +12,7 @@
  *   - reorderPageBlocks: 블록 순서 일괄 변경
  */
 
-import { eq, asc } from "drizzle-orm";
+import { and, eq, asc } from "drizzle-orm";
 import type { ResultSetHeader } from "mysql2";
 import { pageBlocks, PageBlock } from "../../drizzle/schema";
 import { getDb } from "./connection";
@@ -29,12 +29,18 @@ export async function getPageBlocks(params: {
   if (!db) return [];
   if (params.menuItemId !== undefined) {
     return db.select().from(pageBlocks)
-      .where(eq(pageBlocks.menuItemId, params.menuItemId))
+      .where(and(
+        eq(pageBlocks.menuItemId, params.menuItemId),
+        eq(pageBlocks.isVisible, true),
+      ))
       .orderBy(asc(pageBlocks.sortOrder));
   }
   if (params.menuSubItemId !== undefined) {
     return db.select().from(pageBlocks)
-      .where(eq(pageBlocks.menuSubItemId, params.menuSubItemId))
+      .where(and(
+        eq(pageBlocks.menuSubItemId, params.menuSubItemId),
+        eq(pageBlocks.isVisible, true),
+      ))
       .orderBy(asc(pageBlocks.sortOrder));
   }
   return [];

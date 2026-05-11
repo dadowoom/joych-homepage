@@ -33,15 +33,19 @@ import {
   getFacilityHours,
   getBlockedDates,
   getReservationsByDate,
-  createReservation,
+  createReservationIfAvailable,
   getMyReservations,
   getReservationById,
   updateReservationStatus,
   getPageBlocks,
+  ReservationLockError,
+  ReservationOverlapError,
 } from "../db";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;
+const idSchema = z.number().int().positive();
+const hrefLookupSchema = z.string().trim().min(1).max(256);
 
 function toMinutes(time: string): number | null {
   if (!TIME_RE.test(time)) return null;
@@ -82,22 +86,22 @@ export const homeRouter = router({
 
   /** 2단 메뉴 단건 조회 (동적 페이지 렌더링용) */
   menuItem: publicProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: idSchema }))
     .query(({ input }) => getMenuItemById(input.id)),
 
   /** 3단 메뉴 단건 조회 (동적 페이지 렌더링용) */
   menuSubItem: publicProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: idSchema }))
     .query(({ input }) => getMenuSubItemById(input.id)),
 
   /** href(경로)로 2단 메뉴 조회 — 예배영상 페이지의 playlistId 연결에 사용 */
   menuItemByHref: publicProcedure
-    .input(z.object({ href: z.string() }))
+    .input(z.object({ href: hrefLookupSchema }))
     .query(({ input }) => getMenuItemByHref(input.href)),
 
   /** href(경로)로 3단 메뉴 조회 — 예배영상 페이지의 playlistId 연결에 사용 */
   menuSubItemByHref: publicProcedure
-    .input(z.object({ href: z.string() }))
+    .input(z.object({ href: hrefLookupSchema }))
     .query(({ input }) => getMenuSubItemByHref(input.href)),
 
   // ─── 시설 조회 (성도용) ─────────────────────────────────────────────────────
@@ -107,22 +111,22 @@ export const homeRouter = router({
 
   /** 시설 단건 조회 */
   facility: publicProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: idSchema }))
     .query(({ input }) => getFacilityById(input.id)),
 
   /** 시설 사진 목록 */
   facilityImages: publicProcedure
-    .input(z.object({ facilityId: z.number() }))
+    .input(z.object({ facilityId: idSchema }))
     .query(({ input }) => getFacilityImages(input.facilityId)),
 
   /** 시설 운영 시간 */
   facilityHours: publicProcedure
-    .input(z.object({ facilityId: z.number() }))
+    .input(z.object({ facilityId: idSchema }))
     .query(({ input }) => getFacilityHours(input.facilityId)),
 
   /** 시설 차단 날짜 목록 (예약 불가 날짜) */
   facilityBlockedDates: publicProcedure
-    .input(z.object({ facilityId: z.number() }))
+    .input(z.object({ facilityId: idSchema }))
     .query(({ input }) => getBlockedDates(input.facilityId)),
 
   /**
@@ -131,7 +135,10 @@ export const homeRouter = router({
    * 반환: startTime, endTime, status 만 반환 (예약자 이름/전화번호/메모 등 제외)
    */
   facilityReservationsByDate: publicProcedure
-    .input(z.object({ facilityId: z.number(), date: z.string() }))
+    .input(z.object({
+      facilityId: idSchema,
+      date: z.string().regex(DATE_RE, "날짜 형식이 올바르지 않습니다."),
+    }))
     .query(async ({ input }) => {
       const rows = await getReservationsByDate(input.facilityId, input.date);
       // 공개 화면에는 시간대와 상태만 반환 — 개인정보 필드 제거
@@ -148,7 +155,7 @@ export const homeRouter = router({
    */
   createReservation: memberProtectedProcedure
     .input(z.object({
-      facilityId: z.number(),
+      facilityId: idSchema,
       reserverName: z.string().min(1, "예약자 이름을 입력해주세요."),
       reserverPhone: z.string().optional(),
       reservationDate: z.string().regex(DATE_RE, "예약 날짜 형식이 올바르지 않습니다."),
@@ -264,7 +271,18 @@ export const homeRouter = router({
       const status = facility.approvalType === "auto" ? "approved" : "pending";
 
       // ctx.memberId = church_members 테이블의 id (성도 로그인 기반)
-      const id = await createReservation({ ...input, userId: ctx.memberId, status });
+      let id: number | null;
+      try {
+        id = await createReservationIfAvailable({ ...input, userId: ctx.memberId, status });
+      } catch (error) {
+        if (error instanceof ReservationOverlapError) {
+          throw new TRPCError({ code: "CONFLICT", message: error.message });
+        }
+        if (error instanceof ReservationLockError) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: error.message });
+        }
+        throw error;
+      }
       if (!id) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "예약 신청 저장에 실패했습니다." });
       }
@@ -280,7 +298,7 @@ export const homeRouter = router({
    * - 이미 승인된 예약은 취소 불가 (관리자에게 문의 필요)
    */
   cancelReservation: memberProtectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: idSchema }))
     .mutation(async ({ input, ctx }) => {
       const reservation = await getReservationById(input.id);
       if (!reservation) {
@@ -308,8 +326,11 @@ export const homeRouter = router({
    */
   pageBlocks: publicProcedure
     .input(z.object({
-      menuItemId: z.number().optional(),
-      menuSubItemId: z.number().optional(),
-    }))
+      menuItemId: idSchema.optional(),
+      menuSubItemId: idSchema.optional(),
+    }).refine(
+      value => (value.menuItemId !== undefined) !== (value.menuSubItemId !== undefined),
+      "menuItemId 또는 menuSubItemId 중 하나만 입력해주세요.",
+    ))
     .query(({ input }) => getPageBlocks(input)),
 });

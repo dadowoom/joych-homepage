@@ -39,13 +39,14 @@ export function getSessionCookieOptions(
   //       ? hostname
   //       : undefined;
 
-  // production 환경에서는 항상 secure:true (sameSite:none은 secure 없이 작동 안 함)
+  // 같은 사이트 내 관리자/성도 쿠키만 필요하므로 CSRF 표면을 줄이기 위해 Lax를 사용합니다.
+  // OAuth 콜백은 top-level GET 리다이렉트라 SameSite=Lax와 호환됩니다.
   const secure = process.env.NODE_ENV === 'production' ? true : isSecureRequest(req);
 
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
+    sameSite: "lax",
     secure,
   };
 }

@@ -16,6 +16,12 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { checkRateLimit, recordFailure, resetFailures } from "./_core/rateLimiter";
 import { getJwtSecretString } from "./_core/jwtSecret";
+import {
+  extractYoutubeVideoId,
+  isSafeAssetUrl,
+  isSafeHref,
+  normalizeBlockContent,
+} from "./_core/contentValidation";
 import { validateImage, validateVideo } from "./routers/cms/upload";
 
 // ── 1. 환경변수 검증 테스트 ────────────────────────────────────────────────────
@@ -183,9 +189,11 @@ describe("[보안 7번] 파일 업로드 — MIME 화이트리스트 및 크기 
   const VALID_1PX_PNG_BASE64 =
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
-  // 유효한 최소 MP4 (base64) — 실제 MP4 헤더가 있는 최소 데이터
-  // 테스트용으로 충분히 작은 유효 base64 문자열 사용
-  const VALID_SMALL_MP4_BASE64 = Buffer.from("ftypisom").toString("base64");
+  // 유효한 최소 MP4/WebM 헤더
+  const VALID_SMALL_MP4_BASE64 = Buffer.from([
+    0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d,
+  ]).toString("base64");
+  const VALID_SMALL_WEBM_BASE64 = Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x42, 0x86, 0x81, 0x01]).toString("base64");
 
   it("허용된 이미지 MIME(image/png)은 정상 처리", () => {
     expect(() => validateImage(VALID_1PX_PNG_BASE64, "image/png")).not.toThrow();
@@ -237,8 +245,27 @@ describe("[보안 7번] 파일 업로드 — MIME 화이트리스트 및 크기 
   });
 
   it("허용된 영상 MIME(video/webm)은 정상 처리", () => {
-    const webmBase64 = Buffer.from("webm").toString("base64");
-    expect(() => validateVideo(webmBase64, "video/webm")).not.toThrow();
+    expect(() => validateVideo(VALID_SMALL_WEBM_BASE64, "video/webm")).not.toThrow();
+  });
+
+  it("MIME만 PNG이고 실제 내용이 HTML이면 업로드 실패", () => {
+    const htmlBase64 = Buffer.from("<script>alert(1)</script>").toString("base64");
+    expect(() => validateImage(htmlBase64, "image/png")).toThrow(
+      "이미지 파일 내용이 MIME 형식과 일치하지 않습니다."
+    );
+  });
+
+  it("MIME만 MP4이고 실제 내용이 AVI이면 업로드 실패", () => {
+    const aviBase64 = Buffer.from("RIFF....AVI ").toString("base64");
+    expect(() => validateVideo(aviBase64, "video/mp4")).toThrow(
+      "영상 파일 내용이 MIME 형식과 일치하지 않습니다."
+    );
+  });
+
+  it("올바르지 않은 base64 파일 데이터는 업로드 실패", () => {
+    expect(() => validateImage("not valid base64 ***", "image/png")).toThrow(
+      "파일 데이터가 올바른 base64 형식이 아닙니다."
+    );
   });
 
   it("이미지 크기 10MB 초과 시 업로드 실패", () => {
@@ -257,6 +284,41 @@ describe("[보안 7번] 파일 업로드 — MIME 화이트리스트 및 크기 
     expect(() => validateVideo(oversizedBase64, "video/mp4")).toThrow(
       "영상 파일 크기가 너무 큽니다. 최대 100MB까지 업로드 가능합니다."
     );
+  });
+});
+
+// ── 3-1. CMS 공개 콘텐츠 입력값 검증 ────────────────────────────────────────
+describe("[보안 8번] CMS 콘텐츠 — 위험 URL 및 깨진 블록 차단", () => {
+  it("javascript: 링크는 버튼 블록에 저장할 수 없음", () => {
+    expect(() =>
+      normalizeBlockContent("button", JSON.stringify({ label: "이동", href: "javascript:alert(1)" }))
+    ).toThrow("허용되지 않는 버튼 링크 형식입니다.");
+  });
+
+  it("이미지 블록은 안전한 이미지 URL만 허용", () => {
+    expect(() =>
+      normalizeBlockContent("image-single", JSON.stringify({ urls: ["javascript:alert(1)"] }))
+    ).toThrow("이미지 블록에는 올바른 이미지 URL이 필요합니다.");
+  });
+
+  it("유튜브 블록은 11자리 영상 ID만 허용", () => {
+    expect(() =>
+      normalizeBlockContent("youtube", JSON.stringify({ videoId: "bad/id" }))
+    ).toThrow("올바른 유튜브 영상 ID가 필요합니다.");
+  });
+
+  it("유튜브 URL에서 영상 ID를 안전하게 추출", () => {
+    expect(extractYoutubeVideoId("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");
+    expect(extractYoutubeVideoId("https://youtu.be/dQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");
+    expect(extractYoutubeVideoId("https://example.com/watch?v=dQw4w9WgXcQ")).toBeNull();
+  });
+
+  it("공개 링크와 자산 URL은 허용 프로토콜만 통과", () => {
+    expect(isSafeHref("/page/item/1")).toBe(true);
+    expect(isSafeHref("mailto:hello@example.com")).toBe(true);
+    expect(isSafeHref("javascript:alert(1)")).toBe(false);
+    expect(isSafeAssetUrl("/uploads/gallery/image.png")).toBe(true);
+    expect(isSafeAssetUrl("/uploads/../secret")).toBe(false);
   });
 });
 

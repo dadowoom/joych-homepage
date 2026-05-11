@@ -20,7 +20,15 @@
  */
 
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { adminProcedure, publicProcedure, router } from "../_core/trpc";
+import {
+  extractYoutubeVideoId,
+  isSafeAssetUrl,
+  optionalTextSchema,
+  requiredTextSchema,
+  safeAssetUrlSchema,
+} from "../_core/contentValidation";
 import {
   getAllYoutubePlaylists,
   createYoutubePlaylist,
@@ -36,6 +44,31 @@ import {
   syncAllPlaylistsToMenus,
 } from "../db";
 
+function normalizeVideoInput(input: {
+  videoId?: string | null;
+  videoUrl?: string | null;
+}) {
+  const videoId = extractYoutubeVideoId(input.videoId) ?? extractYoutubeVideoId(input.videoUrl);
+  const rawVideoUrl = input.videoUrl?.trim() ?? "";
+
+  if (videoId) {
+    return { videoId, videoUrl: null };
+  }
+  if (!rawVideoUrl) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "유튜브 영상 ID 또는 직접 영상 URL을 입력해주세요.",
+    });
+  }
+  if (!isSafeAssetUrl(rawVideoUrl)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "허용되지 않는 영상 URL 형식입니다.",
+    });
+  }
+  return { videoId: null, videoUrl: rawVideoUrl };
+}
+
 export const youtubeRouter = router({
   // ─── 플레이리스트 관리 ───────────────────────────────────────────────────────
 
@@ -48,8 +81,8 @@ export const youtubeRouter = router({
    */
   createPlaylist: adminProcedure
     .input(z.object({
-      title: z.string().min(1, "플레이리스트 이름을 입력해주세요."),
-      description: z.string().optional(),
+      title: requiredTextSchema(128, "플레이리스트 이름을 입력해주세요."),
+      description: optionalTextSchema(5000),
     }))
     .mutation(async ({ input }) => {
       const result = await createYoutubePlaylist(input);
@@ -69,9 +102,9 @@ export const youtubeRouter = router({
    */
   updatePlaylist: adminProcedure
     .input(z.object({
-      id: z.number(),
-      title: z.string().optional(),
-      description: z.string().optional(),
+      id: z.number().int().positive(),
+      title: requiredTextSchema(128, "플레이리스트 이름을 입력해주세요.").optional(),
+      description: optionalTextSchema(5000),
     }))
     .mutation(async ({ input }) => {
       const { id, ...data } = input;
@@ -87,7 +120,7 @@ export const youtubeRouter = router({
 
   /** 플레이리스트 삭제 (관리자) */
   deletePlaylist: adminProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number().int().positive() }))
     .mutation(({ input }) => deleteYoutubePlaylist(input.id)),
 
   // ─── 영상 관리 ───────────────────────────────────────────────────────────────
@@ -97,7 +130,7 @@ export const youtubeRouter = router({
    * - isVisible=true인 영상만 반환
    */
   getVideos: publicProcedure
-    .input(z.object({ playlistId: z.number() }))
+    .input(z.object({ playlistId: z.number().int().positive() }))
     .query(({ input }) => getVisibleYoutubeVideos(input.playlistId)),
 
   /**
@@ -105,7 +138,7 @@ export const youtubeRouter = router({
    * - 숨김 영상 포함 전체 반환
    */
   getVideosAdmin: adminProcedure
-    .input(z.object({ playlistId: z.number() }))
+    .input(z.object({ playlistId: z.number().int().positive() }))
     .query(({ input }) => getYoutubeVideosByPlaylist(input.playlistId)),
 
   /**
@@ -115,24 +148,27 @@ export const youtubeRouter = router({
    */
   addVideo: adminProcedure
     .input(z.object({
-      playlistId: z.number(),
-      videoId: z.string().optional().nullable(),
-      videoUrl: z.string().optional().nullable(),
-      title: z.string().min(1, "영상 제목을 입력해주세요."),
-      thumbnailUrl: z.string().optional(),
-      description: z.string().optional(),
-      sortOrder: z.number().optional(),
+      playlistId: z.number().int().positive(),
+      videoId: z.string().trim().max(2048).optional().nullable(),
+      videoUrl: z.string().trim().max(2048).optional().nullable(),
+      title: requiredTextSchema(256, "영상 제목을 입력해주세요."),
+      thumbnailUrl: safeAssetUrlSchema.optional(),
+      description: optionalTextSchema(10000),
+      sortOrder: z.number().int().min(0).max(10000).optional(),
     }))
-    .mutation(({ input }) => createYoutubeVideo(input)),
+    .mutation(({ input }) => {
+      const normalized = normalizeVideoInput(input);
+      return createYoutubeVideo({ ...input, ...normalized });
+    }),
 
   /** 유튜브 영상 수정 (관리자) */
   updateVideo: adminProcedure
     .input(z.object({
-      id: z.number(),
-      title: z.string().optional(),
-      thumbnailUrl: z.string().optional(),
-      description: z.string().optional(),
-      sortOrder: z.number().optional(),
+      id: z.number().int().positive(),
+      title: requiredTextSchema(256, "영상 제목을 입력해주세요.").optional(),
+      thumbnailUrl: safeAssetUrlSchema.optional(),
+      description: optionalTextSchema(10000),
+      sortOrder: z.number().int().min(0).max(10000).optional(),
       isVisible: z.boolean().optional(),
     }))
     .mutation(({ input }) => {
@@ -142,7 +178,7 @@ export const youtubeRouter = router({
 
   /** 유튜브 영상 삭제 (관리자) */
   deleteVideo: adminProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number().int().positive() }))
     .mutation(({ input }) => deleteYoutubeVideo(input.id)),
 
   /**
@@ -150,7 +186,9 @@ export const youtubeRouter = router({
    * - orderedIds: 새 순서대로 정렬된 영상 ID 배열
    */
   reorderVideos: adminProcedure
-    .input(z.object({ orderedIds: z.array(z.number()) }))
+    .input(z.object({
+      orderedIds: z.array(z.number().int().positive()).max(500),
+    }))
     .mutation(({ input }) => reorderYoutubeVideos(input.orderedIds)),
 
   // ─── 메뉴 자동 연결 ─────────────────────────────────────────────────────────

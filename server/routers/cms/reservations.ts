@@ -12,11 +12,14 @@
 
 import { z } from "zod";
 import { adminProcedure, router } from "../../_core/trpc";
+import { optionalTextSchema, requiredTextSchema } from "../../_core/contentValidation";
 import {
   getAllReservations,
   getReservationById,
   updateReservationStatus,
 } from "../../db";
+
+const idSchema = z.number().int().positive();
 
 export const reservationsRouter = router({
   /**
@@ -24,12 +27,12 @@ export const reservationsRouter = router({
    * - facilityId 미입력 시 전체 시설 예약 조회
    */
   list: adminProcedure
-    .input(z.object({ facilityId: z.number().optional() }))
+    .input(z.object({ facilityId: idSchema.optional() }))
     .query(({ input }) => getAllReservations(input.facilityId)),
 
   /** 예약 단건 조회 (관리자) */
   get: adminProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: idSchema }))
     .query(({ input }) => getReservationById(input.id)),
 
   /**
@@ -38,8 +41,8 @@ export const reservationsRouter = router({
    */
   approve: adminProcedure
     .input(z.object({
-      id: z.number(),
-      comment: z.string().optional(),
+      id: idSchema,
+      comment: optionalTextSchema(20000),
     }))
     .mutation(({ input, ctx }) =>
       updateReservationStatus(input.id, "approved", input.comment, ctx.user.id)
@@ -51,8 +54,8 @@ export const reservationsRouter = router({
    */
   reject: adminProcedure
     .input(z.object({
-      id: z.number(),
-      comment: z.string().min(1, "거절 사유를 입력해주세요."),
+      id: idSchema,
+      comment: requiredTextSchema(20000, "거절 사유를 입력해주세요."),
     }))
     .mutation(({ input, ctx }) =>
       updateReservationStatus(input.id, "rejected", input.comment, ctx.user.id)

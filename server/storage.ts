@@ -14,7 +14,15 @@ const PUBLIC_URL_BASE = process.env.PUBLIC_URL_BASE || "http://localhost:3000";
  * 업로드 디렉토리 초기화 (없으면 생성)
  */
 function ensureUploadDir(relKey: string): string {
-  const filePath = path.join(UPLOAD_DIR, relKey);
+  const normalizedKey = path.normalize(relKey);
+  if (path.isAbsolute(normalizedKey) || normalizedKey.startsWith("..") || normalizedKey.includes(`${path.sep}..${path.sep}`)) {
+    throw new Error("Invalid upload path");
+  }
+  const uploadRoot = path.resolve(UPLOAD_DIR);
+  const filePath = path.resolve(uploadRoot, normalizedKey);
+  if (!filePath.startsWith(`${uploadRoot}${path.sep}`) && filePath !== uploadRoot) {
+    throw new Error("Invalid upload path");
+  }
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -34,7 +42,7 @@ export async function storagePut(
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream"
 ): Promise<{ key: string; url: string }> {
-  const key = relKey.replace(/^\/+/, "");
+  const key = path.normalize(relKey.replace(/^\/+/, "")).replace(/\\/g, "/");
   const filePath = ensureUploadDir(key);
 
   if (typeof data === "string") {
@@ -53,7 +61,7 @@ export async function storagePut(
  * @returns { key, url }
  */
 export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
-  const key = relKey.replace(/^\/+/, "");
+  const key = path.normalize(relKey.replace(/^\/+/, "")).replace(/\\/g, "/");
   const url = `${PUBLIC_URL_BASE.replace(/\/+$/, "")}/uploads/${key}`;
   return { key, url };
 }
