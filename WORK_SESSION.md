@@ -4,13 +4,13 @@
 >
 > **업데이트 규칙:** 매 작업 세션 종료 전 반드시 이 문서를 갱신한다.
 >
-> **최종 업데이트:** 2026-04-20
+> **최종 업데이트:** 2026-05-11
 
 ---
 
 ## 현재 프로젝트 상태 (한 줄 요약)
 
-> **"기능 구현 70% 완료, 코드 품질 54점. 긴급 개선 항목 3개 남음."**
+> **"기능 구현 80% 완료. 알려진 버그 전체 해결. GitHub 연동 완료. 보안/안정성 이슈 4개 남음."**
 
 ---
 
@@ -102,37 +102,25 @@ drizzle/
 
 ## 다음 세션에서 할 작업 (우선순위 순)
 
-### 🔴 1순위: `as any` 34개 제거 (코드 품질)
+### 🟡 1순위: `as any` 잔존 건 제거 (코드 품질)
 
-**왜 급한가:** TypeScript를 쓰는 의미가 없어진다. 런타임 오류의 온상이다.
+**현황 (2026-05 grep 기준):** `client/src` 내 `as any` 3건 잔존
 
-**방법:**
-```bash
-# 위치 확인
-grep -rn "as any" client/src/ --include="*.tsx" | grep -v "node_modules"
+```
+components/ui/dialog.tsx:107
+components/ui/input.tsx:25
+components/ui/textarea.tsx:24
 ```
 
-주요 위치:
-- `AdminFacilitiesTab.tsx` — `facilities: any[]`, `reservations: any[]`
-- `AdminReservationsTab.tsx` — 예약 데이터 타입 없음
-- `FacilityApply.tsx` — 폼 데이터 타입 없음
+> **참고:** 이전 문서에 기재된 `AdminFacilitiesTab.tsx`, `AdminReservationsTab.tsx`, `FacilityApply.tsx`의 `as any`는 현재 코드에서 확인되지 않음. 위 3건은 shadcn/ui 컴포넌트 내부의 IME 조합 처리용으로, 실제 비즈니스 로직과 무관하나 가능하면 타입 단언 없이 처리하는 것이 바람직함.
 
-**수정 방법:** 각 위치에서 실제 Drizzle 타입(`ChurchMember`, `Reservation`, `Facility` 등)을 import하여 교체.
+**수정 방법:** 각 위치에서 실제 타입으로 교체하거나 타입 가드 적용.
 
-### 🔴 2순위: 파일 업로드 서버 검증 추가 (보안)
+### ✅ ~~2순위: 파일 업로드 서버 검증 추가 (보안)~~ — 완료
 
-**왜 급한가:** 현재 어떤 파일이든 업로드 가능하다.
-
-**위치:** `server/routers/cms/upload.ts`
-
-**수정 방법:**
-```typescript
-// 허용 MIME 타입 검증 추가
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm'];
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
-const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500MB
-```
+**완료 내용:** `server/routers/cms/upload.ts`에 MIME 화이트리스트(`ALLOWED_IMAGE_MIMES`, `ALLOWED_VIDEO_MIMES`) 및 크기 제한이 이미 구현되어 있음.
+- `validateImage()` / `validateVideo()` 함수로 서버 측 검증 처리
+- 이미지: jpeg, png, webp, gif / 영상: mp4, webm 허용
 
 ### 🟡 3순위: 빈 catch 블록 수정 (코드 품질)
 
@@ -143,30 +131,26 @@ grep -rn "catch.*{}" server/ client/src/ --include="*.ts" --include="*.tsx"
 
 **수정 방법:** 최소한 `console.error(e)` 또는 적절한 TRPCError throw로 교체.
 
-### 🟡 4순위: 갤러리 사진 교체 버그 수정
+### ✅ ~~4순위: 갤러리 사진 교체 버그 수정~~ — 완료
 
-**증상:** 관리자 패널에서 갤러리 사진 교체 후 반영이 안 됨.
+**완료 내용:** `client/src/components/GalleryEditPanel.tsx`에 `invalidate()` 함수가 구현되어 있음.
+- `utils.cms.content.gallery.list.invalidate()`
+- `utils.home.gallery.invalidate()`
+- 추가/수정/삭제/순서변경 모든 mutation의 `onSuccess`에서 호출됨
 
-**원인 추정:** `trpc.cms.content.gallery.update` 성공 후 `invalidate` 누락.
+### ✅ ~~5순위: 블록 에디터 저장 후 자동 갱신~~ — 완료
 
-**위치:** `client/src/components/admin/` 또는 `HeroEditPanel.tsx` 관련 갤러리 탭
-
-### 🟡 5순위: 블록 에디터 저장 후 자동 갱신
-
-**증상:** 블록 에디터에서 저장 후 페이지가 자동으로 갱신되지 않음.
-
-**위치:** `client/src/components/dynamic-page/BlockEditDialog.tsx`
-
-**수정 방법:** 저장 성공 후 `utils.home.menuItemByHref.invalidate()` 또는 `utils.home.invalidate()` 호출.
+**완료 내용:** invalidate 처리 완료
 
 ---
 
 ## 알려진 버그 목록
 
-| 번호 | 증상 | 원인 추정 | 위치 | 우선순위 |
-|---|---|---|---|---|
-| BUG-01 | 갤러리 사진 교체 안 됨 | invalidate 누락 | 관리자 갤러리 탭 | 🟡 중요 |
-| BUG-02 | 블록 에디터 저장 후 미갱신 | invalidate 누락 | BlockEditDialog.tsx | 🟡 중요 |
+| 번호 | 증상 | 상태 | 해결 내용 |
+|---|---|---|---|
+| BUG-01 | 갤러리 사진 교체 안 됨 | ✅ 해결 | invalidate 처리 완료 |
+| BUG-02 | 블록 에디터 저장 후 미갱신 | ✅ 해결 | invalidate 처리 완료 |
+| BUG-03 | 로그인 후 상단 바 이름 미표시 | ✅ 해결 | invalidate 처리 완료 |
 
 ---
 
@@ -190,6 +174,9 @@ grep -rn "catch.*{}" server/ client/src/ --include="*.ts" --include="*.tsx"
 | 2026-04-20 | server/db/ 폴더 분리 (9개 파일), TypeScript 오류 13개 수정 | `4657e7d8` |
 | 2026-04-20 | 문서 정비 (README, HANDOVER, DEPLOYMENT, ENV_SETUP), 보안 강화 (관리자 PW 환경변수 이전), 코드 분리 (MenuEditPanel, DynamicPage, Admin) | `6a38ddd9` |
 | 2026-04-20 | PROJECT_DIRECTION.md 작성, WORK_SESSION.md 작성 | (현재 세션) |
+| 2026-05-11 | 로그인 후 상단 바 이름 즉시 표시 버그 해결 (invalidate) | `62079414` |
+| 2026-05-11 | GitHub 연동 (dadowoom/joych-homepage), PR 기반 협업 워크플로우 수립 | - |
+| 2026-05-11 | 문서 최신화 (README, HANDOVER, WORK_SESSION) — Issue #1 | PR 예정 |
 
 ---
 
