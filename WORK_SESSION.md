@@ -102,28 +102,25 @@ drizzle/
 
 ## 다음 세션에서 할 작업 (우선순위 순)
 
-### 🔴 1순위: `as any` 34개 제거 (코드 품질)
+### 🟡 1순위: `as any` 잔존 건 제거 (코드 품질)
 
-**왜 급한가:** TypeScript를 쓰는 의미가 없어진다. 런타임 오류의 온상이다.
+**현황 (2026-05 grep 기준):** `client/src` 내 `as any` 3건 잔존
 
-**방법:**
-```bash
-# 위치 확인
-grep -rn "as any" client/src/ --include="*.tsx" | grep -v "node_modules"
+```
+components/ui/dialog.tsx:107
+components/ui/input.tsx:25
+components/ui/textarea.tsx:24
 ```
 
-주요 위치:
-- `AdminFacilitiesTab.tsx` — `facilities: any[]`, `reservations: any[]`
-- `AdminReservationsTab.tsx` — 예약 데이터 타입 없음
-- `FacilityApply.tsx` — 폼 데이터 타입 없음
+> **참고:** 이전 문서에 기재된 `AdminFacilitiesTab.tsx`, `AdminReservationsTab.tsx`, `FacilityApply.tsx`의 `as any`는 현재 코드에서 확인되지 않음. 위 3건은 shadcn/ui 컴포넌트 내부의 IME 조합 처리용으로, 실제 비즈니스 로직과 무관하나 가능하면 타입 단언 없이 처리하는 것이 바람직함.
 
-**수정 방법:** 각 위치에서 실제 Drizzle 타입(`ChurchMember`, `Reservation`, `Facility` 등)을 import하여 교체.
+**수정 방법:** 각 위치에서 실제 타입으로 교체하거나 타입 가드 적용.
 
 ### ✅ ~~2순위: 파일 업로드 서버 검증 추가 (보안)~~ — 완료
 
 **완료 내용:** `server/routers/cms/upload.ts`에 MIME 화이트리스트(`ALLOWED_IMAGE_MIMES`, `ALLOWED_VIDEO_MIMES`) 및 크기 제한이 이미 구현되어 있음.
 - `validateImage()` / `validateVideo()` 함수로 서버 측 검증 처리
-- 이미지: jpeg, png, webp, gif / 영상: mp4, webm, mov 허용
+- 이미지: jpeg, png, webp, gif / 영상: mp4, webm 허용
 
 ### 🟡 3순위: 빈 catch 블록 수정 (코드 품질)
 
