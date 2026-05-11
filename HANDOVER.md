@@ -130,10 +130,13 @@ ADMIN_OPEN_ID   — Manus OAuth 연동용 관리자 식별자
 ### 인증 시스템 구조
 관리자 인증과 성도 인증은 완전히 별개의 시스템입니다.
 
-| 구분 | 쿠키 이름 | 서명 방식 | 저장 위치 |
-|---|---|---|---|
-| 관리자 | manus_session | Manus OAuth (플랫폼 관리) | Manus 플랫폼 |
-| 성도 | church_member_session | JWT (JWT_SECRET) | church_members 테이블 |
+| 구분 | 쿠키 이름 | 서명 방식 | 구현 위치 | 비고 |
+|---|---|---|---|---|
+| Manus OAuth 관리자 로그인 | `app_session_id` | Manus 플랫폼 서명 (`sdk.signSession`) | `server/_core/oauth.ts` | Manus 계정으로 로그인 시 발급 |
+| 자체 ID/PW 관리자 로그인 | `app_session_id` | Manus 플랫폼 서명 (`sdk.signSession`) | `server/routers/auth.ts` → `adminLogin` | ENV의 ADMIN_USERNAME/ADMIN_PASSWORD 검증 후 발급. `users` 테이블 admin 계정과 연결 |
+| 성도 로그인 | `church_member_session` | JWT (`JWT_SECRET` 환경변수) | `server/routers/members.ts` | `church_members` 테이블 기반 |
+
+> **주의:** 쿠키 이름 `app_session_id`는 `shared/const.ts`의 `COOKIE_NAME` 상수로 관리됩니다. 두 관리자 로그인 방식 모두 동일한 쿠키를 사용하므로, 어느 방식으로 로그인하든 관리자 권한이 부여됩니다.
 
 ### 파일 업로드 보안
 서버에서 MIME 타입 화이트리스트 검증을 수행합니다 (`server/routers/cms/upload.ts`). 허용되지 않은 파일 형식은 업로드가 거부됩니다.
@@ -204,15 +207,15 @@ ADMIN_OPEN_ID   — Manus OAuth 연동용 관리자 식별자
 
 외부 업체가 프로젝트를 인수받을 때 확인해야 할 사항입니다.
 
-- [x] 환경변수 전체 목록 수령 및 확인
-- [x] 관리자 계정 정보 수령 (Manus OAuth 계정)
-- [x] DB 접근 정보 확인 (Manus 관리 UI → Database 탭)
-- [x] S3 파일 스토리지 접근 권한 확인
+- [ ] 환경변수 전체 목록 수령 및 확인
+- [ ] 관리자 계정 정보 수령 (Manus OAuth 계정)
+- [ ] DB 접근 정보 확인 (Manus 관리 UI → Database 탭)
+- [ ] S3 파일 스토리지 접근 권한 확인
 - [x] `server/routers/auth.ts` 하드코딩 자격증명 환경변수 이전 완료
 - [ ] 관리자 비밀번호 강력한 값으로 변경 확인
 - [ ] 전체 기능 동작 테스트 완료
-- [x] `pnpm check` (TypeScript 오류 0개) 확인
-- [x] `pnpm test` (단위 테스트 통과) 확인
+- [ ] `pnpm check` (TypeScript 오류 0개) 확인
+- [ ] `pnpm test` (단위 테스트 통과) 확인
 
 ---
 

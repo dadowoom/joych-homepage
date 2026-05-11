@@ -119,20 +119,11 @@ grep -rn "as any" client/src/ --include="*.tsx" | grep -v "node_modules"
 
 **수정 방법:** 각 위치에서 실제 Drizzle 타입(`ChurchMember`, `Reservation`, `Facility` 등)을 import하여 교체.
 
-### 🔴 2순위: 파일 업로드 서버 검증 추가 (보안)
+### ✅ ~~2순위: 파일 업로드 서버 검증 추가 (보안)~~ — 완료
 
-**왜 급한가:** 현재 어떤 파일이든 업로드 가능하다.
-
-**위치:** `server/routers/cms/upload.ts`
-
-**수정 방법:**
-```typescript
-// 허용 MIME 타입 검증 추가
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm'];
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
-const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500MB
-```
+**완료 내용:** `server/routers/cms/upload.ts`에 MIME 화이트리스트(`ALLOWED_IMAGE_MIMES`, `ALLOWED_VIDEO_MIMES`) 및 크기 제한이 이미 구현되어 있음.
+- `validateImage()` / `validateVideo()` 함수로 서버 측 검증 처리
+- 이미지: jpeg, png, webp, gif / 영상: mp4, webm, mov 허용
 
 ### 🟡 3순위: 빈 catch 블록 수정 (코드 품질)
 
@@ -143,17 +134,16 @@ grep -rn "catch.*{}" server/ client/src/ --include="*.ts" --include="*.tsx"
 
 **수정 방법:** 최소한 `console.error(e)` 또는 적절한 TRPCError throw로 교체.
 
-### 🟡 4순위: 갤러리 사진 교체 버그 수정
+### ✅ ~~4순위: 갤러리 사진 교체 버그 수정~~ — 완료
 
-**증상:** 관리자 패널에서 갤러리 사진 교체 후 반영이 안 됨.
+**완료 내용:** `client/src/components/GalleryEditPanel.tsx`에 `invalidate()` 함수가 구현되어 있음.
+- `utils.cms.content.gallery.list.invalidate()`
+- `utils.home.gallery.invalidate()`
+- 추가/수정/삭제/순서변경 모든 mutation의 `onSuccess`에서 호출됨
 
-**원인 추정:** `trpc.cms.content.gallery.update` 성공 후 `invalidate` 누락.
+### ✅ ~~5순위: 블록 에디터 저장 후 자동 갱신~~ — 완료
 
-**위치:** `client/src/components/admin/` 또는 `HeroEditPanel.tsx` 관련 갤러리 탭
-
-### 후 5순위: 블록 에디터 저장 후 자동 갱신
-
-**✅ 해결 완료** — invalidate 처리 완료
+**완료 내용:** invalidate 처리 완료
 
 ---
 
