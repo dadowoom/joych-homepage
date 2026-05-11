@@ -4,8 +4,13 @@
  * 디자인: 녹색(#2d6a4f) 포인트 + 통일된 레이아웃
  */
 
+import { useState } from "react";
 import { Link } from "wouter";
 import { ArrowLeft, Users, Camera, MessageCircle, FileText, Building, MapPin, Receipt, Subtitles, ChevronRight } from "lucide-react";
+
+function notifyOfficeContact(serviceName: string) {
+  window.alert(`${serviceName} 온라인 접수 기능은 준비 중입니다. 교회 행정실(054-270-1000)로 문의해 주세요.`);
+}
 
 // ── 공통 페이지 래퍼 ──
 function PageWrapper({ title, breadcrumb, children }: { title: string; breadcrumb: string[]; children: React.ReactNode }) {
@@ -163,18 +168,25 @@ const photos = [
 ];
 
 export function PhotoPage() {
+  const [activeCategory, setActiveCategory] = useState("전체");
+  const visiblePhotos = activeCategory === "전체" ? photos : photos.filter((photo) => photo.category === activeCategory);
+
   return (
     <PageWrapper title="사진" breadcrumb={["커뮤니티", "사진"]}>
       <div className="flex gap-2 flex-wrap mb-8">
         {photoCategories.map((cat, i) => (
-          <button key={i} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${i === 0 ? "bg-[#2d6a4f] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+          <button
+            key={i}
+            onClick={() => setActiveCategory(cat)}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeCategory === cat ? "bg-[#2d6a4f] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+          >
             {cat}
           </button>
         ))}
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {photos.map((photo) => (
-          <div key={photo.id} className="group relative overflow-hidden rounded-xl cursor-pointer">
+        {visiblePhotos.map((photo) => (
+          <div key={photo.id} className="group relative overflow-hidden rounded-xl">
             <img src={photo.img} alt={photo.title} className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300" onError={(e) => { (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&q=80"; }} />
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
               <p className="text-white text-sm font-medium">{photo.title}</p>
@@ -196,13 +208,17 @@ export function JoyTalkPage() {
     <PageWrapper title="기쁨톡" breadcrumb={["커뮤니티", "기쁨톡"]}>
       <div className="flex justify-between items-center mb-6">
         <p className="text-gray-600">성도들이 자유롭게 소통하는 공간입니다.</p>
-        <button className="bg-[#2d6a4f] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#1b4332] transition-colors">
+        <button
+          type="button"
+          onClick={() => notifyOfficeContact("기쁨톡 글쓰기")}
+          className="bg-[#2d6a4f] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#1b4332] transition-colors"
+        >
           글쓰기
         </button>
       </div>
       <div className="space-y-4">
         {joyTalkPosts.map((post, i) => (
-          <div key={i} className="border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow cursor-pointer">
+          <div key={i} className="border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-2">
               <h3 className="font-semibold text-gray-900 hover:text-[#2d6a4f]">{post.title}</h3>
               <span className="text-xs text-gray-400 ml-4 whitespace-nowrap">{post.date}</span>
@@ -234,7 +250,13 @@ export function SubtitleRequestPage() {
             <li>• 신청 내용은 담당자 확인 후 승인됩니다.</li>
           </ul>
         </div>
-        <div className="space-y-4">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            notifyOfficeContact("자막 신청");
+          }}
+          className="space-y-4"
+        >
           {[
             { label: "신청자 이름", type: "text", placeholder: "성함을 입력해 주세요" },
             { label: "연락처", type: "tel", placeholder: "010-0000-0000" },
@@ -246,10 +268,10 @@ export function SubtitleRequestPage() {
               <input type={field.type} placeholder={field.placeholder} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]" />
             </div>
           ))}
-          <button className="w-full bg-[#2d6a4f] text-white py-3 rounded-lg font-semibold hover:bg-[#1b4332] transition-colors">
+          <button type="submit" className="w-full bg-[#2d6a4f] text-white py-3 rounded-lg font-semibold hover:bg-[#1b4332] transition-colors">
             자막 신청하기
           </button>
-        </div>
+        </form>
       </div>
     </PageWrapper>
   );
@@ -271,11 +293,16 @@ export function OnlineOfficePage() {
       <p className="text-gray-600 mb-8">온라인으로 교회 행정 서비스를 편리하게 이용하세요.</p>
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         {officeServices.map((service, i) => (
-          <div key={i} className="border border-gray-200 rounded-xl p-6 hover:shadow-md hover:border-[#2d6a4f] transition-all cursor-pointer group">
+          <button
+            key={i}
+            type="button"
+            onClick={() => notifyOfficeContact(service.title)}
+            className="text-left border border-gray-200 rounded-xl p-6 hover:shadow-md hover:border-[#2d6a4f] transition-all cursor-pointer group"
+          >
             <div className="text-3xl mb-3">{service.icon}</div>
             <h3 className="font-bold text-gray-900 mb-2 group-hover:text-[#2d6a4f]">{service.title}</h3>
             <p className="text-gray-600 text-sm">{service.desc}</p>
-          </div>
+          </button>
         ))}
       </div>
       <div className="mt-10 bg-gray-50 rounded-xl p-6">
@@ -304,7 +331,13 @@ export function VisitRequestPage() {
             단체 탐방(10인 이상)의 경우 최소 2주 전에 신청해 주세요.
           </p>
         </div>
-        <div className="space-y-4">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            notifyOfficeContact("탐방 신청");
+          }}
+          className="space-y-4"
+        >
           {[
             { label: "단체/개인명", type: "text", placeholder: "예: OO교회 청년부" },
             { label: "대표자 이름", type: "text", placeholder: "성함을 입력해 주세요" },
@@ -318,10 +351,10 @@ export function VisitRequestPage() {
               <input type={field.type} placeholder={field.placeholder} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]" />
             </div>
           ))}
-          <button className="w-full bg-[#2d6a4f] text-white py-3 rounded-lg font-semibold hover:bg-[#1b4332] transition-colors">
+          <button type="submit" className="w-full bg-[#2d6a4f] text-white py-3 rounded-lg font-semibold hover:bg-[#1b4332] transition-colors">
             탐방 신청하기
           </button>
-        </div>
+        </form>
       </div>
     </PageWrapper>
   );
@@ -343,7 +376,13 @@ export function DonationReceiptPage() {
             <li>• 문의: 054-270-1000 (행정실)</li>
           </ul>
         </div>
-        <div className="space-y-4">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            notifyOfficeContact("기부금 영수증 발급");
+          }}
+          className="space-y-4"
+        >
           {[
             { label: "성명", type: "text", placeholder: "성함을 입력해 주세요" },
             { label: "주민등록번호 앞 6자리", type: "text", placeholder: "000000" },
@@ -356,10 +395,10 @@ export function DonationReceiptPage() {
               <input type={field.type} placeholder={field.placeholder} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]" />
             </div>
           ))}
-          <button className="w-full bg-[#2d6a4f] text-white py-3 rounded-lg font-semibold hover:bg-[#1b4332] transition-colors">
+          <button type="submit" className="w-full bg-[#2d6a4f] text-white py-3 rounded-lg font-semibold hover:bg-[#1b4332] transition-colors">
             영수증 발급 신청
           </button>
-        </div>
+        </form>
       </div>
     </PageWrapper>
   );

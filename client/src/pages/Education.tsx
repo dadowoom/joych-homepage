@@ -43,17 +43,21 @@ function SubNav({ items }: { items: { label: string; href: string }[] }) {
 }
 
 const TRAINING_NAV = [
-  { label: "새가족 교육", href: "/training/new-member" },
-  { label: "제자훈련", href: "/training/disciple" },
-  { label: "성경공부", href: "/training/bible" },
+  { label: "새가족 교육", href: "/education/new-member" },
+  { label: "제자훈련", href: "/education/disciple" },
+  { label: "성경공부", href: "/education/bible" },
 ];
 
 const SCHOOL_NAV = [
   { label: "유아부", href: "/school/infant" },
-  { label: "유치부", href: "/school/kindergarten" },
+  { label: "유치부", href: "/school/kinder" },
   { label: "초등부", href: "/school/elementary" },
   { label: "중고등부", href: "/school/youth" },
 ];
+
+function notifyEducationContact(programName: string) {
+  window.alert(`${programName} 신청 기능은 준비 중입니다. 교회 행정실(054-270-1000)로 문의해 주세요.`);
+}
 
 // ── 새가족 교육 ──────────────────────────────────────────────────
 const NEW_MEMBER_STEPS = [
@@ -104,7 +108,7 @@ export function NewMember() {
         <div className="bg-[#1B5E20] rounded-2xl p-8 text-center text-white">
           <h3 className="text-xl font-bold mb-3" style={{ fontFamily: "'Noto Serif KR', serif" }}>새가족 등록 신청</h3>
           <p className="text-green-100 text-sm mb-6">온라인으로 간편하게 새가족 등록을 하실 수 있습니다.</p>
-          <Link href="/community/new-member" className="inline-block bg-white text-[#1B5E20] font-bold px-8 py-3 rounded-full hover:bg-green-50 transition-colors">
+          <Link href="/admin/new-member" className="inline-block bg-white text-[#1B5E20] font-bold px-8 py-3 rounded-full hover:bg-green-50 transition-colors">
             새가족 등록하기
           </Link>
         </div>
@@ -182,7 +186,11 @@ export function BibleStudy() {
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-400">{c.participants}명 참여 중</span>
-                <button className="bg-[#1B5E20] text-white text-sm px-5 py-2 rounded-full hover:bg-[#2E7D32] transition-colors">
+                <button
+                  type="button"
+                  onClick={() => notifyEducationContact(c.title)}
+                  className="bg-[#1B5E20] text-white text-sm px-5 py-2 rounded-full hover:bg-[#2E7D32] transition-colors"
+                >
                   신청하기
                 </button>
               </div>

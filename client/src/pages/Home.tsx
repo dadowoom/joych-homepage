@@ -25,8 +25,8 @@ const FALLBACK_HERO_SLIDES = [
     mainTitle: "처음 익은 열매로\n여호와를 공경하라",
     subTitle: "네 재물과 네 소산물의 처음 익은 열매로 여호와를 공경하라",
     bibleRef: "잠언 3장 9절",
-    btn1Text: "새가족 등록", btn1Href: "#",
-    btn2Text: "예배 안내", btn2Href: "#",
+    btn1Text: "새가족 등록", btn1Href: "/admin/new-member",
+    btn2Text: "예배 안내", btn2Href: "/worship/schedule",
   },
   {
     videoUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-video-3_1b86687f.mp4",
@@ -35,8 +35,8 @@ const FALLBACK_HERO_SLIDES = [
     mainTitle: "처음 익은 열매로\n여호와를 공경하라",
     subTitle: "네 재물과 네 소산물의 처음 익은 열매로 여호와를 공경하라",
     bibleRef: "잠언 3장 9절",
-    btn1Text: "새가족 등록", btn1Href: "#",
-    btn2Text: "예배 안내", btn2Href: "#",
+    btn1Text: "새가족 등록", btn1Href: "/admin/new-member",
+    btn2Text: "예배 안내", btn2Href: "/worship/schedule",
   },
 ];
 const WORSHIP_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-worship-1_39ea085d.webp";
@@ -153,9 +153,9 @@ const FALLBACK_QUICK_MENUS = [
 ];
 
 const SERMONS = [
-  { badge: "주일예배", title: "주일예배 말씀 영상", date: "조이풀TV" },
-  { badge: "수요예배", title: "수요예배 영상", date: "조이풀TV" },
-  { badge: "새벽기도", title: "새벽기도회 영상", date: "조이풀TV" },
+  { badge: "주일예배", title: "주일예배 말씀 영상", date: "조이풀TV", href: "/worship/tv/sunday" },
+  { badge: "수요예배", title: "수요예배 영상", date: "조이풀TV", href: "/worship/tv/hebron" },
+  { badge: "새벽기도", title: "새벽기도회 영상", date: "조이풀TV", href: "/worship/tv/gloria" },
 ];
 
 const BADGE_COLORS: Record<string, string> = {
@@ -165,10 +165,10 @@ const BADGE_COLORS: Record<string, string> = {
 };
 
 const FALLBACK_AFFILIATES = [
-  { icon: "fa-hands-helping", label: "기쁨의복지재단", href: "#" },
-  { icon: "fa-building", label: "창포종합사회복지관", href: "#" },
-  { icon: "fa-tree", label: "조이플빌리지", href: "#" },
-  { icon: "fa-graduation-cap", label: "조이아카데미 문화강좌", href: "#" },
+  { icon: "fa-hands-helping", label: "기쁨의복지재단", href: null },
+  { icon: "fa-building", label: "창포종합사회복지관", href: null },
+  { icon: "fa-tree", label: "조이플빌리지", href: null },
+  { icon: "fa-graduation-cap", label: "조이아카데미 문화강좌", href: null },
   { icon: "fa-heart", label: "기쁨이 있는 곳", href: "https://gippeum-arc-oawnrvau.manus.space/" },
 ];
 
@@ -213,6 +213,15 @@ function FadeIn({ children, delay = 0, className = "" }: { children: React.React
   );
 }
 
+function getUsableHref(href: string | null | undefined, fallback: string) {
+  const trimmed = href?.trim();
+  return trimmed && trimmed !== "#" ? trimmed : fallback;
+}
+
+function isExternalHref(href: string) {
+  return href.startsWith("http://") || href.startsWith("https://");
+}
+
 export default function Home() {
   // 헤더는 SiteHeader 컴포넌트로 분리됨 (App.tsx에서 공통 적용)};
   const [heroIndex, setHeroIndex] = useState(0);
@@ -233,6 +242,11 @@ export default function Home() {
   const affiliates = (dbAffiliates && dbAffiliates.length > 0) ? dbAffiliates : FALLBACK_AFFILIATES;
   const gallery = (dbGallery && dbGallery.length > 0) ? dbGallery : FALLBACK_GALLERY;
   const navMenus = (dbMenus && dbMenus.length > 0) ? dbMenus : null;
+  const socialLinks = [
+    { icon: "fab fa-youtube", label: "유튜브", href: dbSettings?.youtube_url || "/worship/tv" },
+    { icon: "fab fa-facebook-f", label: "페이스북", href: dbSettings?.facebook_url || null },
+    { icon: "fab fa-instagram", label: "인스타그램", href: dbSettings?.instagram_url || null },
+  ];
 
   // 관리자 여부 확인 (편집 모드용)
   const { user } = useAuth();
@@ -428,10 +442,10 @@ export default function Home() {
               <span className="text-[#A5D6A7] text-xs md:text-sm">— {heroSlides[heroIndex]?.bibleRef ?? ""}</span>
             </p>
             <div style={{ animation: "fadeUp 0.8s ease 0.8s both" }} className="flex gap-2 md:gap-3 flex-wrap">
-              <a href={heroSlides[heroIndex]?.btn1Href ?? "#"} className="px-5 md:px-7 py-2.5 md:py-3 bg-[#1B5E20] hover:bg-[#2E7D32] text-white text-xs md:text-sm font-medium rounded transition-colors">
+              <a href={getUsableHref(heroSlides[heroIndex]?.btn1Href, "/admin/new-member")} className="px-5 md:px-7 py-2.5 md:py-3 bg-[#1B5E20] hover:bg-[#2E7D32] text-white text-xs md:text-sm font-medium rounded transition-colors">
                 {heroSlides[heroIndex]?.btn1Text ?? "새가족 등록"}
               </a>
-              <a href={heroSlides[heroIndex]?.btn2Href ?? "#"} className="px-5 md:px-7 py-2.5 md:py-3 border-2 border-white/80 hover:bg-white/15 text-white text-xs md:text-sm font-medium rounded transition-colors">
+              <a href={getUsableHref(heroSlides[heroIndex]?.btn2Href, "/worship/schedule")} className="px-5 md:px-7 py-2.5 md:py-3 border-2 border-white/80 hover:bg-white/15 text-white text-xs md:text-sm font-medium rounded transition-colors">
                 {heroSlides[heroIndex]?.btn2Text ?? "예배 안내"}
               </a>
             </div>
@@ -520,7 +534,7 @@ export default function Home() {
             </a>
 
             {/* 카드 3: 플레이 그라운드 */}
-            <a href="/community/playground" className="group block rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-300 bg-white">
+            <a href="/community/club" className="group block rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-300 bg-white">
               <div className="relative h-96 overflow-hidden">
                 <div
                   className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
@@ -562,11 +576,15 @@ export default function Home() {
               const cls = "flex flex-col items-center gap-2.5 py-5 px-4 w-28 hover:bg-[#F1F8E9] transition-colors group";
               return (
                 <li key={i}>
-                  {(item as { href?: string }).href ? (
-                    <Link href={(item as { href?: string }).href!} className={cls}>{inner}</Link>
-                  ) : (
-                    <a href="#" className={cls}>{inner}</a>
-                  )}
+                  {(() => {
+                    const href = getUsableHref((item as { href?: string | null }).href, "");
+                    if (!href) return <span className={`${cls} cursor-default`}>{inner}</span>;
+                    return isExternalHref(href) ? (
+                      <a href={href} target="_blank" rel="noopener noreferrer" className={cls}>{inner}</a>
+                    ) : (
+                      <Link href={href} className={cls}>{inner}</Link>
+                    );
+                  })()}
                 </li>
               );
             })}
@@ -584,9 +602,9 @@ export default function Home() {
               <div className="bg-white rounded-xl shadow-sm p-6 h-full">
                 <div className="flex justify-between items-center mb-5 pb-3 border-b-2 border-[#1B5E20]">
                   <h2 className="text-lg font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>조이풀 TV</h2>
-                  <a href="#" className="text-xs text-gray-400 hover:text-[#1B5E20] flex items-center gap-1 transition-colors">
+                  <Link href="/worship/tv" className="text-xs text-gray-400 hover:text-[#1B5E20] flex items-center gap-1 transition-colors">
                     전체보기 <i className="fas fa-arrow-right text-[10px]"></i>
-                  </a>
+                  </Link>
                 </div>
                 {/* 유튜브 임베드 - 최신 설교 영상 */}
                 <div className="relative mb-4 rounded-lg overflow-hidden bg-gray-900">
@@ -607,11 +625,11 @@ export default function Home() {
                 {/* 설교 목록 */}
                 <div className="divide-y divide-gray-50">
                   {SERMONS.map((s, i) => (
-                    <a key={i} href="#" className="flex items-center gap-3 py-3 hover:text-[#1B5E20] transition-colors group">
+                    <Link key={i} href={s.href} className="flex items-center gap-3 py-3 hover:text-[#1B5E20] transition-colors group">
                       <span className="shrink-0 bg-[#E8F5E9] text-[#1B5E20] text-xs px-2 py-0.5 rounded font-medium">{s.badge}</span>
                       <span className="flex-1 text-sm text-gray-700 truncate group-hover:text-[#1B5E20]">{s.title}</span>
                       <span className="shrink-0 text-xs text-gray-400">{s.date}</span>
-                    </a>
+                    </Link>
                   ))}
                 </div>
               </div>
@@ -622,13 +640,13 @@ export default function Home() {
               <div className="bg-white rounded-xl shadow-sm p-6 h-full">
                 <div className="flex justify-between items-center mb-5 pb-3 border-b-2 border-[#1B5E20]">
                   <h2 className="text-lg font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>교회 소식</h2>
-                  <a href="#" className="text-xs text-gray-400 hover:text-[#1B5E20] flex items-center gap-1 transition-colors">
+                  <Link href="/community/news" className="text-xs text-gray-400 hover:text-[#1B5E20] flex items-center gap-1 transition-colors">
                     전체보기 <i className="fas fa-arrow-right text-[10px]"></i>
-                  </a>
+                  </Link>
                 </div>
                 <div className="divide-y divide-gray-50">
                   {(dbNotices && dbNotices.length > 0 ? dbNotices : []).map((n, i) => (
-                    <a key={i} href="#" className="flex items-center gap-3 py-3 hover:text-[#1B5E20] transition-colors group">
+                    <Link key={i} href="/community/news" className="flex items-center gap-3 py-3 hover:text-[#1B5E20] transition-colors group">
                       {n.thumbnailUrl && (
                         <div
                           className="w-16 h-12 rounded-md bg-cover bg-center shrink-0"
@@ -640,7 +658,7 @@ export default function Home() {
                         <p className="text-sm text-gray-700 truncate group-hover:text-[#1B5E20]">{n.title}</p>
                         <span className="text-xs text-gray-400">{new Date(n.createdAt).toLocaleDateString("ko-KR")}</span>
                       </div>
-                    </a>
+                    </Link>
                   ))}
                 </div>
               </div>
@@ -667,9 +685,9 @@ export default function Home() {
                 <p className="text-white/70 leading-relaxed mb-8 text-sm md:text-base">
                   기쁨의교회는 복음의 능력으로 한 사람 한 사람을 세우고, 지역 사회와 열방을 섬기는 교회입니다. 말씀과 기도, 예배와 교제를 통해 그리스도의 몸을 이루어 가고 있습니다.
                 </p>
-                <a href="#" className="inline-block px-7 py-3 bg-[#1B5E20] hover:bg-[#2E7D32] text-white text-sm font-medium rounded transition-colors">
+                <Link href="/about/vision" className="inline-block px-7 py-3 bg-[#1B5E20] hover:bg-[#2E7D32] text-white text-sm font-medium rounded transition-colors">
                   교회 소개 보기
-                </a>
+                </Link>
               </div>
             </FadeIn>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -725,9 +743,9 @@ export default function Home() {
                 <p className="text-xs tracking-[0.25em] text-[#1B5E20] font-semibold mb-2 uppercase">Photo Gallery</p>
                 <h2 className="text-2xl md:text-3xl font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>교회 갤러리</h2>
               </div>
-              <a href="#" className="text-sm text-gray-400 hover:text-[#1B5E20] flex items-center gap-1 transition-colors">
+              <Link href="/community/photo" className="text-sm text-gray-400 hover:text-[#1B5E20] flex items-center gap-1 transition-colors">
                 전체보기 <i className="fas fa-arrow-right text-[10px]"></i>
-              </a>
+              </Link>
             </div>
           </FadeIn>
 
@@ -735,7 +753,7 @@ export default function Home() {
           <div className="grid grid-cols-2 md:grid-cols-4 auto-rows-[180px] md:auto-rows-[220px] gap-3">
             {gallery.map((item, i) => (
               <FadeIn key={i} delay={i * 60} className={item.gridSpan ?? "col-span-1 row-span-1"}>
-                <div className="group relative w-full h-full overflow-hidden rounded-xl cursor-pointer">
+                <div className="group relative w-full h-full overflow-hidden rounded-xl">
                   <img
                     src={item.imageUrl}
                     alt={item.caption ?? ""}
@@ -763,15 +781,22 @@ export default function Home() {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {affiliates.map((a, i) => (
               <FadeIn key={i} delay={i * 80}>
-                <a
-                  href={a.href ?? "#"}
-                  target={a.href && a.href !== "#" ? "_blank" : undefined}
-                  rel={a.href && a.href !== "#" ? "noopener noreferrer" : undefined}
-                  className="flex flex-col items-center gap-3 py-8 px-4 bg-white border border-gray-100 rounded-xl text-center hover:border-[#1B5E20] hover:text-[#1B5E20] hover:-translate-y-1 transition-all duration-200 shadow-sm"
-                >
-                  <div className="text-[#1B5E20] text-3xl"><i className={`fas ${a.icon}`}></i></div>
-                  <span className="text-sm text-gray-600 font-medium">{a.label}</span>
-                </a>
+                {getUsableHref(a.href, "") ? (
+                  <a
+                    href={getUsableHref(a.href, "")}
+                    target={isExternalHref(getUsableHref(a.href, "")) ? "_blank" : undefined}
+                    rel={isExternalHref(getUsableHref(a.href, "")) ? "noopener noreferrer" : undefined}
+                    className="flex flex-col items-center gap-3 py-8 px-4 bg-white border border-gray-100 rounded-xl text-center hover:border-[#1B5E20] hover:text-[#1B5E20] hover:-translate-y-1 transition-all duration-200 shadow-sm"
+                  >
+                    <div className="text-[#1B5E20] text-3xl"><i className={`fas ${a.icon}`}></i></div>
+                    <span className="text-sm text-gray-600 font-medium">{a.label}</span>
+                  </a>
+                ) : (
+                  <span className="flex flex-col items-center gap-3 py-8 px-4 bg-white border border-gray-100 rounded-xl text-center transition-all duration-200 shadow-sm">
+                    <div className="text-[#1B5E20] text-3xl"><i className={`fas ${a.icon}`}></i></div>
+                    <span className="text-sm text-gray-600 font-medium">{a.label}</span>
+                  </span>
+                )}
               </FadeIn>
             ))}
           </div>
@@ -814,18 +839,27 @@ export default function Home() {
             </div>
             {/* SNS */}
             <div className="flex gap-3 md:justify-end">
-              {[
-                { icon: "fab fa-youtube", href: "#" },
-                { icon: "fab fa-facebook-f", href: "#" },
-                { icon: "fab fa-instagram", href: "#" },
-              ].map((s, i) => (
-                <a
-                  key={i}
-                  href={s.href}
-                  className="w-9 h-9 rounded-full border border-gray-700 flex items-center justify-center text-gray-400 hover:bg-[#1B5E20] hover:border-[#1B5E20] hover:text-white transition-colors text-sm"
-                >
-                  <i className={s.icon}></i>
-                </a>
+              {socialLinks.map((s, i) => (
+                s.href ? (
+                  <a
+                    key={i}
+                    href={s.href}
+                    target={s.href.startsWith("http") ? "_blank" : undefined}
+                    rel={s.href.startsWith("http") ? "noopener noreferrer" : undefined}
+                    aria-label={s.label}
+                    className="w-9 h-9 rounded-full border border-gray-700 flex items-center justify-center text-gray-400 hover:bg-[#1B5E20] hover:border-[#1B5E20] hover:text-white transition-colors text-sm"
+                  >
+                    <i className={s.icon}></i>
+                  </a>
+                ) : (
+                  <span
+                    key={i}
+                    aria-label={`${s.label} 링크 미등록`}
+                    className="w-9 h-9 rounded-full border border-gray-700 flex items-center justify-center text-gray-500 transition-colors text-sm"
+                  >
+                    <i className={s.icon}></i>
+                  </span>
+                )
               ))}
             </div>
           </div>
