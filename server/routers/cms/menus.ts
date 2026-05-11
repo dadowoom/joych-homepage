@@ -19,6 +19,11 @@
 import { z } from "zod";
 import { adminProcedure, router } from "../../_core/trpc";
 import {
+  requiredTextSchema,
+  safeAssetUrlSchema,
+  safeHrefSchema,
+} from "../../_core/contentValidation";
+import {
   getAllMenus,
   getMenuItemById,
   createMenuItem,
@@ -39,6 +44,9 @@ import {
 
 /** 메뉴 페이지 타입 목록 */
 const PAGE_TYPE = z.enum(["image", "gallery", "board", "youtube", "editor"]);
+const idSchema = z.number().int().positive();
+const sortOrderSchema = z.number().int().min(0).max(10000).optional();
+const pageImageSchema = safeAssetUrlSchema.nullable().optional();
 
 export const menusRouter = router({
   /** 전체 메뉴 목록 (1단 + 2단 + 3단 포함) */
@@ -46,16 +54,16 @@ export const menusRouter = router({
 
   /** 2단 메뉴 단건 조회 (playlistId 포함) */
   getItem: adminProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: idSchema }))
     .query(({ input }) => getMenuItemById(input.id)),
 
   /** 1단 메뉴 수정 (이름, 링크, 순서, 공개 여부) */
   update: adminProcedure
     .input(z.object({
-      id: z.number(),
-      label: z.string().optional(),
-      href: z.string().nullable().optional(),
-      sortOrder: z.number().optional(),
+      id: idSchema,
+      label: requiredTextSchema(64, "메뉴 이름을 입력해주세요.").optional(),
+      href: safeHrefSchema.nullable().optional(),
+      sortOrder: sortOrderSchema,
       isVisible: z.boolean().optional(),
     }))
     .mutation(({ input }) => {
@@ -72,12 +80,12 @@ export const menusRouter = router({
    */
   createItem: adminProcedure
     .input(z.object({
-      menuId: z.number(),
-      label: z.string().min(1, "메뉴 이름을 입력해주세요."),
-      href: z.string().optional(),
-      sortOrder: z.number().optional(),
+      menuId: idSchema,
+      label: requiredTextSchema(64, "메뉴 이름을 입력해주세요."),
+      href: safeHrefSchema.optional(),
+      sortOrder: sortOrderSchema,
       pageType: PAGE_TYPE.optional(),
-      pageImageUrl: z.string().nullable().optional(),
+      pageImageUrl: pageImageSchema,
     }))
     .mutation(async ({ input }) => {
       const newId = await createMenuItem(input);
@@ -111,14 +119,14 @@ export const menusRouter = router({
    */
   updateItem: adminProcedure
     .input(z.object({
-      id: z.number(),
-      label: z.string().optional(),
-      href: z.string().nullable().optional(),
-      sortOrder: z.number().optional(),
+      id: idSchema,
+      label: requiredTextSchema(64, "메뉴 이름을 입력해주세요.").optional(),
+      href: safeHrefSchema.nullable().optional(),
+      sortOrder: sortOrderSchema,
       isVisible: z.boolean().optional(),
       pageType: PAGE_TYPE.optional(),
-      pageImageUrl: z.string().nullable().optional(),
-      playlistId: z.number().nullable().optional(),
+      pageImageUrl: pageImageSchema,
+      playlistId: idSchema.nullable().optional(),
     }))
     .mutation(async ({ input }) => {
       const { id, ...data } = input;
@@ -139,7 +147,7 @@ export const menusRouter = router({
 
   /** 2단 메뉴 삭제 (하위 3단 메뉴도 함께 삭제) */
   deleteItem: adminProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: idSchema }))
     .mutation(({ input }) => deleteMenuItemWithSubs(input.id)),
 
   // ─── 3단 메뉴 관리 ──────────────────────────────────────────────────────────
@@ -150,12 +158,12 @@ export const menusRouter = router({
    */
   createSubItem: adminProcedure
     .input(z.object({
-      menuItemId: z.number(),
-      label: z.string().min(1, "메뉴 이름을 입력해주세요."),
-      href: z.string().optional(),
-      sortOrder: z.number().optional(),
+      menuItemId: idSchema,
+      label: requiredTextSchema(64, "메뉴 이름을 입력해주세요."),
+      href: safeHrefSchema.optional(),
+      sortOrder: sortOrderSchema,
       pageType: PAGE_TYPE.optional(),
-      pageImageUrl: z.string().nullable().optional(),
+      pageImageUrl: pageImageSchema,
     }))
     .mutation(async ({ input }) => {
       const newId = await createMenuSubItem(input);
@@ -171,13 +179,13 @@ export const menusRouter = router({
   /** 3단 메뉴 수정 */
   updateSubItem: adminProcedure
     .input(z.object({
-      id: z.number(),
-      label: z.string().optional(),
-      href: z.string().nullable().optional(),
-      sortOrder: z.number().optional(),
+      id: idSchema,
+      label: requiredTextSchema(64, "메뉴 이름을 입력해주세요.").optional(),
+      href: safeHrefSchema.nullable().optional(),
+      sortOrder: sortOrderSchema,
       isVisible: z.boolean().optional(),
       pageType: PAGE_TYPE.optional(),
-      pageImageUrl: z.string().nullable().optional(),
+      pageImageUrl: pageImageSchema,
     }))
     .mutation(({ input }) => {
       const { id, ...data } = input;
@@ -186,7 +194,7 @@ export const menusRouter = router({
 
   /** 3단 메뉴 삭제 */
   deleteSubItem: adminProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: idSchema }))
     .mutation(({ input }) => deleteMenuSubItem(input.id)),
 
   // ─── 1단(상위) 메뉴 관리 ────────────────────────────────────────────────────
@@ -194,31 +202,40 @@ export const menusRouter = router({
   /** 1단 메뉴 생성 */
   create: adminProcedure
     .input(z.object({
-      label: z.string().min(1, "메뉴 이름을 입력해주세요."),
-      href: z.string().nullable().optional(),
-      sortOrder: z.number().optional(),
+      label: requiredTextSchema(64, "메뉴 이름을 입력해주세요."),
+      href: safeHrefSchema.nullable().optional(),
+      sortOrder: sortOrderSchema,
     }))
     .mutation(({ input }) => createMenu(input)),
 
   /** 1단 메뉴 삭제 */
   delete: adminProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: idSchema }))
     .mutation(({ input }) => deleteMenu(input.id)),
 
   // ─── 순서 일괄 변경 ─────────────────────────────────────────────────────────
 
   /** 1단 메뉴 순서 일괄 변경 */
   reorder: adminProcedure
-    .input(z.array(z.object({ id: z.number(), sortOrder: z.number() })))
+    .input(z.array(z.object({
+      id: idSchema,
+      sortOrder: z.number().int().min(0).max(10000),
+    })).max(500))
     .mutation(({ input }) => reorderMenus(input)),
 
   /** 2단 메뉴 순서 일괄 변경 */
   reorderItems: adminProcedure
-    .input(z.array(z.object({ id: z.number(), sortOrder: z.number() })))
+    .input(z.array(z.object({
+      id: idSchema,
+      sortOrder: z.number().int().min(0).max(10000),
+    })).max(500))
     .mutation(({ input }) => reorderMenuItems(input)),
 
   /** 3단 메뉴 순서 일괄 변경 */
   reorderSubItems: adminProcedure
-    .input(z.array(z.object({ id: z.number(), sortOrder: z.number() })))
+    .input(z.array(z.object({
+      id: idSchema,
+      sortOrder: z.number().int().min(0).max(10000),
+    })).max(500))
     .mutation(({ input }) => reorderMenuSubItems(input)),
 });

@@ -41,6 +41,45 @@ function sanitizeFileName(name: string): string {
   return name.replace(/[^a-zA-Z0-9가-힙\-_]/g, "_").replace(/_{2,}/g, "_").slice(0, 100);
 }
 
+function decodeBase64File(base64: string): Buffer {
+  const normalized = base64.trim().replace(/^data:[^;]+;base64,/, "");
+  if (!normalized || normalized.length % 4 === 1 || /[^A-Za-z0-9+/=]/.test(normalized)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "파일 데이터가 올바른 base64 형식이 아닙니다." });
+  }
+  const buffer = Buffer.from(normalized, "base64");
+  if (buffer.length === 0) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "빈 파일은 업로드할 수 없습니다." });
+  }
+  return buffer;
+}
+
+function hasSignature(buffer: Buffer, signature: readonly number[], offset = 0) {
+  if (buffer.length < offset + signature.length) return false;
+  return signature.every((byte, index) => buffer[offset + index] === byte);
+}
+
+function assertImageSignature(buffer: Buffer, mime: string) {
+  const isValid =
+    (mime === "image/png" && hasSignature(buffer, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) ||
+    ((mime === "image/jpeg" || mime === "image/jpg") && hasSignature(buffer, [0xff, 0xd8, 0xff])) ||
+    (mime === "image/gif" && (buffer.subarray(0, 6).toString("ascii") === "GIF87a" || buffer.subarray(0, 6).toString("ascii") === "GIF89a")) ||
+    (mime === "image/webp" && buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP");
+
+  if (!isValid) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "이미지 파일 내용이 MIME 형식과 일치하지 않습니다." });
+  }
+}
+
+function assertVideoSignature(buffer: Buffer, mime: string) {
+  const isValid =
+    (mime === "video/mp4" && buffer.subarray(4, 8).toString("ascii") === "ftyp") ||
+    (mime === "video/webm" && hasSignature(buffer, [0x1a, 0x45, 0xdf, 0xa3]));
+
+  if (!isValid) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "영상 파일 내용이 MIME 형식과 일치하지 않습니다." });
+  }
+}
+
 /** 이미지 업로드 검증: MIME 기준으로 확장자 결정, 크기 제한 */
 export function validateImage(base64: string, mimeType: string): { buffer: Buffer; ext: string } {
   const mime = mimeType.toLowerCase().trim();
@@ -48,10 +87,11 @@ export function validateImage(base64: string, mimeType: string): { buffer: Buffe
   if (!ext) {
     throw new TRPCError({ code: "BAD_REQUEST", message: `허용되지 않는 이미지 형식입니다. 허용 형식: jpg, png, webp, gif` });
   }
-  const buffer = Buffer.from(base64, "base64");
+  const buffer = decodeBase64File(base64);
   if (buffer.length > MAX_IMAGE_BYTES) {
     throw new TRPCError({ code: "BAD_REQUEST", message: `이미지 파일 크기가 너무 큽니다. 최대 10MB까지 업로드 가능합니다.` });
   }
+  assertImageSignature(buffer, mime);
   return { buffer, ext };
 }
 
@@ -62,10 +102,11 @@ export function validateVideo(base64: string, mimeType: string): { buffer: Buffe
   if (!ext) {
     throw new TRPCError({ code: "BAD_REQUEST", message: `허용되지 않는 영상 형식입니다. 허용 형식: mp4, webm` });
   }
-  const buffer = Buffer.from(base64, "base64");
+  const buffer = decodeBase64File(base64);
   if (buffer.length > MAX_VIDEO_BYTES) {
     throw new TRPCError({ code: "BAD_REQUEST", message: `영상 파일 크기가 너무 큽니다. 최대 100MB까지 업로드 가능합니다.` });
   }
+  assertVideoSignature(buffer, mime);
   return { buffer, ext };
 }
 

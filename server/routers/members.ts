@@ -19,14 +19,15 @@
  *
  * 인증 방식: church_member_session 쿠키 (JWT)
  * 접근 권한:
- *   - 공개: searchByName, fieldOptions, register, login, logout, me, updateMyInfo
+ *   - 공개: fieldOptions, register, login, logout, me
+ *   - 성도: searchByName, updateMyInfo
  *   - 관리자: adminList, pendingList, updateChurchInfo, adminFieldOptions, 등
  */
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { adminProcedure, publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
-import { checkRateLimit, recordFailure, resetFailures, getClientIp, checkSearchRateLimit } from "../_core/rateLimiter";
+import { checkRateLimit, recordFailure, resetFailures, getClientIp, checkSearchRateLimit, checkRegisterRateLimit } from "../_core/rateLimiter";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { getJwtSecretKey } from "../_core/jwtSecret";
 import {
@@ -46,6 +47,34 @@ import {
   getPendingMembers,
   searchMembersByName,
 } from "../db";
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const idSchema = z.number().int().positive();
+const fieldTypeSchema = z.enum(["position", "department", "district", "baptism"]);
+
+const requiredText = (max: number, message: string) =>
+  z.string().trim().min(1, message).max(max, `${max}자 이하로 입력해주세요.`);
+
+const optionalText = (max: number) =>
+  z.string().trim().max(max, `${max}자 이하로 입력해주세요.`).optional();
+
+const optionalDate = z.string().regex(DATE_RE, "날짜 형식은 YYYY-MM-DD여야 합니다.").optional();
+
+const emailSchema = z.string()
+  .trim()
+  .email("올바른 이메일 형식을 입력해주세요.")
+  .max(254, "이메일은 254자 이하로 입력해주세요.")
+  .transform(email => email.toLowerCase());
+
+function sanitizeMemberForSelf<T extends Record<string, unknown>>(member: T) {
+  const { passwordHash: _passwordHash, adminMemo: _adminMemo, ...safeData } = member;
+  return safeData;
+}
+
+function sanitizeMemberForAdmin<T extends Record<string, unknown>>(member: T) {
+  const { passwordHash: _passwordHash, ...safeData } = member;
+  return safeData;
+}
 
 export const membersRouter = router({
   // ─── 공개 API ────────────────────────────────────────────────────────────────
@@ -71,7 +100,7 @@ export const membersRouter = router({
    */
   searchByName: memberProtectedProcedure
     .input(z.object({
-      name: z.string().min(2, "검색어는 최소 2글자 이상 입력해주세요."),
+      name: requiredText(64, "검색어는 최소 2글자 이상 입력해주세요.").min(2, "검색어는 최소 2글자 이상 입력해주세요."),
     }))
     .query(async ({ input, ctx }) => {
       // Rate limit: IP 기준 분당 30회
@@ -87,7 +116,7 @@ export const membersRouter = router({
    * - fieldType 미입력 시 전체 선택지 반환
    */
   fieldOptions: publicProcedure
-    .input(z.object({ fieldType: z.string().optional() }))
+    .input(z.object({ fieldType: fieldTypeSchema.optional() }))
     .query(({ input }) => getMemberFieldOptions(input.fieldType)),
 
   /**
@@ -97,20 +126,28 @@ export const membersRouter = router({
    */
   register: publicProcedure
     .input(z.object({
-      email: z.string().email("올바른 이메일 형식을 입력해주세요."),
-      password: z.string().min(8, "비밀번호는 8자 이상이어야 합니다."),
-      name: z.string().min(1, "이름을 입력해주세요."),
-      phone: z.string().optional(),
-      birthDate: z.string().optional(),
+      email: emailSchema,
+      password: z.string().min(8, "비밀번호는 8자 이상이어야 합니다.").max(128, "비밀번호는 128자 이하로 입력해주세요."),
+      name: requiredText(64, "이름을 입력해주세요."),
+      phone: optionalText(32),
+      birthDate: optionalDate,
       gender: z.enum(["남", "여"]).optional(),
-      address: z.string().optional(),
-      emergencyPhone: z.string().optional(),
-      joinPath: z.string().optional(),
-      department: z.string().optional(),
-      district: z.string().optional(),
-      faithPlusUserId: z.string().optional(),
+      address: optionalText(255),
+      emergencyPhone: optionalText(32),
+      joinPath: optionalText(64),
+      department: optionalText(64),
+      district: optionalText(64),
+      faithPlusUserId: optionalText(128),
     }))
     .mutation(async ({ input, ctx }) => {
+      const clientIp = getClientIp(ctx.req);
+      try {
+        checkRegisterRateLimit(`register:${clientIp}`);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "회원가입 요청이 너무 많습니다.";
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: msg });
+      }
+
       const bcrypt = await import("bcryptjs");
 
       // 이메일 중복 확인
@@ -137,7 +174,10 @@ export const membersRouter = router({
         faithPlusUserId: input.faithPlusUserId,
       });
 
-      ctx.res.clearCookie("church_member_session", { path: "/" });
+      ctx.res.clearCookie("church_member_session", {
+        ...getSessionCookieOptions(ctx.req),
+        maxAge: -1,
+      });
 
       return { success: true, id, autoLoggedIn: false };
     }),
@@ -148,8 +188,8 @@ export const membersRouter = router({
    */
     login: publicProcedure
     .input(z.object({
-      email: z.string().email(),
-      password: z.string(),
+      email: emailSchema,
+      password: z.string().min(1, "비밀번호를 입력해주세요.").max(128, "비밀번호는 128자 이하로 입력해주세요."),
     }))
     .mutation(async ({ input, ctx }) => {
       // ── Rate Limit: IP 및 계정 기준 실패 횟수 제한 ───────────────────────
@@ -223,7 +263,10 @@ export const membersRouter = router({
   /** 성도 로그아웃 (쿠키 삭제) */
   logout: publicProcedure
     .mutation(({ ctx }) => {
-      ctx.res.clearCookie("church_member_session", { path: "/" });
+      ctx.res.clearCookie("church_member_session", {
+        ...getSessionCookieOptions(ctx.req),
+        maxAge: -1,
+      });
       return { success: true };
     }),
 
@@ -245,10 +288,10 @@ export const membersRouter = router({
 
         const member = await getMemberById(payload.memberId as number);
         if (!member) return null;
+        if (member.status !== "approved") return null;
 
-        // 비밀번호 해시 제외하고 반환
-        const { passwordHash: _, ...safeData } = member;
-        return safeData;
+        // 비밀번호 해시와 관리자 내부 메모 제외
+        return sanitizeMemberForSelf(member);
       } catch {
         return null;
       }
@@ -258,39 +301,28 @@ export const membersRouter = router({
    * 내 기본 정보 수정
    * - 쿠키 없거나 만료 시 UNAUTHORIZED 에러
    */
-  updateMyInfo: publicProcedure
+  updateMyInfo: memberProtectedProcedure
     .input(z.object({
-      name: z.string().min(1).optional(),
-      phone: z.string().optional(),
-      birthDate: z.string().optional(),
+      name: requiredText(64, "이름을 입력해주세요.").optional(),
+      phone: optionalText(32),
+      birthDate: optionalDate,
       gender: z.enum(["남", "여"]).optional(),
-      address: z.string().optional(),
-      emergencyPhone: z.string().optional(),
-      faithPlusUserId: z.string().optional(),
+      address: optionalText(255),
+      emergencyPhone: optionalText(32),
+      faithPlusUserId: optionalText(128),
     }))
     .mutation(async ({ input, ctx }) => {
-      const token = ctx.req.cookies?.["church_member_session"];
-      if (!token) throw new TRPCError({ code: "UNAUTHORIZED", message: "로그인이 필요합니다." });
-
-      const { jwtVerify } = await import("jose");
-      const secret = getJwtSecretKey();
-      const { payload } = await jwtVerify(token, secret);
-
-      if (payload.type !== "church_member" || !payload.memberId) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "로그인이 필요합니다." });
-      }
-
-      await updateMemberBasicInfo(payload.memberId as number, input);
+      await updateMemberBasicInfo(ctx.memberId, input);
       return { success: true };
     }),
 
   // ─── 관리자 전용 API ─────────────────────────────────────────────────────────
 
   /** 전체 성도 목록 (관리자) */
-  adminList: adminProcedure.query(() => getAllMembers()),
+  adminList: adminProcedure.query(async () => (await getAllMembers()).map(sanitizeMemberForAdmin)),
 
   /** 승인 대기 성도 목록 (관리자) */
-  pendingList: adminProcedure.query(() => getPendingMembers()),
+  pendingList: adminProcedure.query(async () => (await getPendingMembers()).map(sanitizeMemberForAdmin)),
 
   /**
    * 성도 교회 정보 수정 (관리자)
@@ -298,17 +330,17 @@ export const membersRouter = router({
    */
   updateChurchInfo: adminProcedure
     .input(z.object({
-      id: z.number(),
-      position: z.string().optional(),
-      department: z.string().optional(),
-      district: z.string().optional(),
-      baptismType: z.string().optional(),
-      baptismDate: z.string().optional(),
-      registeredAt: z.string().optional(),
-      pastor: z.string().optional(),
-      adminMemo: z.string().optional(),
+      id: idSchema,
+      position: optionalText(64),
+      department: optionalText(64),
+      district: optionalText(64),
+      baptismType: optionalText(32),
+      baptismDate: optionalDate,
+      registeredAt: optionalDate,
+      pastor: optionalText(64),
+      adminMemo: optionalText(20000),
       status: z.enum(["pending", "approved", "rejected", "withdrawn"]).optional(),
-      faithPlusUserId: z.string().optional(),
+      faithPlusUserId: optionalText(128),
     }))
     .mutation(({ input }) => {
       const { id, ...data } = input;
@@ -324,18 +356,18 @@ export const membersRouter = router({
    */
   addFieldOption: adminProcedure
     .input(z.object({
-      fieldType: z.enum(["position", "department", "district", "baptism"]),
-      label: z.string().min(1, "선택지 이름을 입력해주세요."),
-      sortOrder: z.number().optional(),
+      fieldType: fieldTypeSchema,
+      label: requiredText(64, "선택지 이름을 입력해주세요."),
+      sortOrder: z.number().int().min(0).max(10000).optional(),
     }))
     .mutation(({ input }) => createMemberFieldOption(input)),
 
   /** 선택지 수정 (관리자) */
   updateFieldOption: adminProcedure
     .input(z.object({
-      id: z.number(),
-      label: z.string().optional(),
-      sortOrder: z.number().optional(),
+      id: idSchema,
+      label: requiredText(64, "선택지 이름을 입력해주세요.").optional(),
+      sortOrder: z.number().int().min(0).max(10000).optional(),
       isActive: z.boolean().optional(),
     }))
     .mutation(({ input }) => {
@@ -345,7 +377,7 @@ export const membersRouter = router({
 
   /** 선택지 삭제 (관리자) */
   deleteFieldOption: adminProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: idSchema }))
     .mutation(({ input }) => deleteMemberFieldOption(input.id)),
 
   /**
@@ -354,24 +386,24 @@ export const membersRouter = router({
    */
   adminUpdate: adminProcedure
     .input(z.object({
-      id: z.number(),
-      name: z.string().min(1).optional(),
-      phone: z.string().optional(),
-      birthDate: z.string().optional(),
+      id: idSchema,
+      name: requiredText(64, "이름을 입력해주세요.").optional(),
+      phone: optionalText(32),
+      birthDate: optionalDate,
       gender: z.enum(["남", "여"]).optional(),
-      address: z.string().optional(),
-      emergencyPhone: z.string().optional(),
-      email: z.string().email().optional(),
-      position: z.string().optional(),
-      department: z.string().optional(),
-      district: z.string().optional(),
-      baptismType: z.string().optional(),
-      baptismDate: z.string().optional(),
-      registeredAt: z.string().optional(),
-      pastor: z.string().optional(),
-      adminMemo: z.string().optional(),
+      address: optionalText(255),
+      emergencyPhone: optionalText(32),
+      email: emailSchema.optional(),
+      position: optionalText(64),
+      department: optionalText(64),
+      district: optionalText(64),
+      baptismType: optionalText(32),
+      baptismDate: optionalDate,
+      registeredAt: optionalDate,
+      pastor: optionalText(64),
+      adminMemo: optionalText(20000),
       status: z.enum(["pending", "approved", "rejected", "withdrawn"]).optional(),
-      faithPlusUserId: z.string().optional(),
+      faithPlusUserId: optionalText(128),
     }))
     .mutation(({ input }) => {
       const { id, ...data } = input;
@@ -385,8 +417,10 @@ export const membersRouter = router({
    */
   resetPassword: adminProcedure
     .input(z.object({
-      id: z.number(),
-      tempPassword: z.string().min(6, "임시 비밀번호는 6자 이상이어야 합니다."),
+      id: idSchema,
+      tempPassword: z.string()
+        .min(6, "임시 비밀번호는 6자 이상이어야 합니다.")
+        .max(128, "임시 비밀번호는 128자 이하로 입력해주세요."),
     }))
     .mutation(({ input }) => adminResetMemberPassword(input.id, input.tempPassword)),
 });

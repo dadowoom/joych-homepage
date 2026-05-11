@@ -19,16 +19,36 @@
  */
 
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { adminProcedure, router } from "../../_core/trpc";
+import { normalizeBlockContent, validateBlockType } from "../../_core/contentValidation";
 import { storagePut } from "../../storage";
 import { validateImage } from "./upload";
 import {
   getAllPageBlocks,
+  getPageBlockById,
   createPageBlock,
   updatePageBlock,
   deletePageBlock,
   reorderPageBlocks,
 } from "../../db";
+
+const pageTargetFields = {
+  menuItemId: z.number().int().positive().optional(),
+  menuSubItemId: z.number().int().positive().optional(),
+};
+
+const pageTargetSchema = z.object(pageTargetFields).refine(
+  value => (value.menuItemId !== undefined) !== (value.menuSubItemId !== undefined),
+  "menuItemId 또는 menuSubItemId 중 하나만 입력해주세요.",
+);
+
+function badBlockRequest(error: unknown): never {
+  throw new TRPCError({
+    code: "BAD_REQUEST",
+    message: error instanceof Error ? error.message : "블록 입력값이 올바르지 않습니다.",
+  });
+}
 
 export const blocksRouter = router({
   /**
@@ -36,10 +56,7 @@ export const blocksRouter = router({
    * - menuItemId 또는 menuSubItemId 중 하나를 입력
    */
   list: adminProcedure
-    .input(z.object({
-      menuItemId: z.number().optional(),
-      menuSubItemId: z.number().optional(),
-    }))
+    .input(pageTargetSchema)
     .query(({ input }) => getAllPageBlocks(input)),
 
   /**
@@ -50,13 +67,25 @@ export const blocksRouter = router({
    */
   create: adminProcedure
     .input(z.object({
-      menuItemId: z.number().optional(),
-      menuSubItemId: z.number().optional(),
-      blockType: z.string(),
+      ...pageTargetFields,
+      blockType: z.string().trim().max(32),
       content: z.string(),
-      sortOrder: z.number().default(0),
-    }))
-    .mutation(({ input }) => createPageBlock(input)),
+      sortOrder: z.number().int().min(0).max(10000).default(0),
+    }).refine(
+      value => (value.menuItemId !== undefined) !== (value.menuSubItemId !== undefined),
+      "menuItemId 또는 menuSubItemId 중 하나만 입력해주세요.",
+    ))
+    .mutation(({ input }) => {
+      try {
+        validateBlockType(input.blockType);
+        return createPageBlock({
+          ...input,
+          content: normalizeBlockContent(input.blockType, input.content),
+        });
+      } catch (error) {
+        badBlockRequest(error);
+      }
+    }),
 
   /**
    * 블록 수정
@@ -65,20 +94,40 @@ export const blocksRouter = router({
    */
   update: adminProcedure
     .input(z.object({
-      id: z.number(),
-      blockType: z.string().optional(),
+      id: z.number().int().positive(),
+      blockType: z.string().trim().max(32).optional(),
       content: z.string().optional(),
-      sortOrder: z.number().optional(),
+      sortOrder: z.number().int().min(0).max(10000).optional(),
       isVisible: z.boolean().optional(),
     }))
-    .mutation(({ input }) => {
+    .mutation(async ({ input }) => {
       const { id, ...data } = input;
+      if (data.blockType) {
+        try {
+          validateBlockType(data.blockType);
+        } catch (error) {
+          badBlockRequest(error);
+        }
+      }
+
+      if (data.content !== undefined) {
+        const blockType = data.blockType ?? (await getPageBlockById(id))?.blockType;
+        if (!blockType) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "블록을 찾을 수 없습니다." });
+        }
+        try {
+          data.content = normalizeBlockContent(blockType, data.content);
+        } catch (error) {
+          badBlockRequest(error);
+        }
+      }
+
       return updatePageBlock(id, data);
     }),
 
   /** 블록 삭제 */
   delete: adminProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number().int().positive() }))
     .mutation(({ input }) => deletePageBlock(input.id)),
 
   /**
@@ -86,7 +135,9 @@ export const blocksRouter = router({
    * - orderedIds: 새 순서대로 정렬된 블록 ID 배열
    */
   reorder: adminProcedure
-    .input(z.object({ orderedIds: z.array(z.number()) }))
+    .input(z.object({
+      orderedIds: z.array(z.number().int().positive()).max(500),
+    }))
     .mutation(({ input }) => reorderPageBlocks(input.orderedIds)),
 
   /**
