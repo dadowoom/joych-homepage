@@ -37,12 +37,12 @@ function PageWrapper({ title, breadcrumb, children }: { title: string; breadcrum
 
 // ── 순모임 ──
 const sunGroups = [
-  { name: "다윗순", leader: "김성실", members: 8, day: "화요일 오후 7시", place: "교육관 301호" },
-  { name: "에스더순", leader: "이믿음", members: 6, day: "목요일 오후 7시 30분", place: "교육관 302호" },
-  { name: "바울순", leader: "박소망", members: 10, day: "수요일 오후 8시", place: "교육관 303호" },
-  { name: "룻순", leader: "최기쁨", members: 7, day: "금요일 오후 7시", place: "교육관 304호" },
-  { name: "요셉순", leader: "정사랑", members: 9, day: "토요일 오전 10시", place: "교육관 305호" },
-  { name: "마리아순", leader: "강은혜", members: 5, day: "화요일 오전 10시", place: "교육관 306호" },
+  { name: "순모임 1", leader: "담당 순장", members: 8, day: "화요일 오후 7시", place: "교육관 301호" },
+  { name: "순모임 2", leader: "담당 순장", members: 6, day: "목요일 오후 7시 30분", place: "교육관 302호" },
+  { name: "순모임 3", leader: "담당 순장", members: 10, day: "수요일 오후 8시", place: "교육관 303호" },
+  { name: "순모임 4", leader: "담당 순장", members: 7, day: "금요일 오후 7시", place: "교육관 304호" },
+  { name: "순모임 5", leader: "담당 순장", members: 9, day: "토요일 오전 10시", place: "교육관 305호" },
+  { name: "순모임 6", leader: "담당 순장", members: 5, day: "화요일 오전 10시", place: "교육관 306호" },
 ];
 
 export function SunMeetingPage() {
@@ -188,11 +188,7 @@ export function PhotoPage() {
 
 // ── 기쁨톡 ──
 const joyTalkPosts = [
-  { author: "김성도", date: "2024.12.15", title: "이번 주 설교 말씀이 너무 은혜로웠어요", content: "목사님의 설교를 듣고 많은 위로를 받았습니다. 특히 요한복음 15장 말씀이 제 마음에 깊이 와닿았어요.", replies: 5 },
-  { author: "이믿음", date: "2024.12.14", title: "새벽기도회 참여 후기", content: "처음으로 새벽기도회에 참석했는데 정말 좋았습니다. 조용한 새벽에 하나님과 단둘이 있는 느낌이랄까요.", replies: 3 },
-  { author: "박소망", date: "2024.12.13", title: "성탄절 행사 기대됩니다!", content: "이번 성탄절 행사 일정이 어떻게 되나요? 가족들을 데려오고 싶어서요.", replies: 8 },
-  { author: "최기쁨", date: "2024.12.12", title: "제자훈련 수료 소감", content: "1년간의 제자훈련을 마쳤습니다. 정말 많이 성장한 것 같아요. 함께한 모든 분들께 감사드립니다.", replies: 12 },
-  { author: "정사랑", date: "2024.12.11", title: "오시는 길 질문", content: "처음 방문하는데 주차 공간이 충분한가요? 가족이 4명이라서요.", replies: 4 },
+  { author: "기쁨의교회", date: "공지 예정", title: "기쁨톡 게시판은 준비 중입니다", content: "성도 나눔 게시판은 운영 정책과 개인정보 보호 기준을 확정한 뒤 제공됩니다.", replies: 0 },
 ];
 
 export function JoyTalkPage() {
@@ -240,7 +236,7 @@ export function SubtitleRequestPage() {
         </div>
         <div className="space-y-4">
           {[
-            { label: "신청자 이름", type: "text", placeholder: "홍길동" },
+            { label: "신청자 이름", type: "text", placeholder: "성함을 입력해 주세요" },
             { label: "연락처", type: "tel", placeholder: "010-0000-0000" },
             { label: "자막 내용", type: "text", placeholder: "예: 김성도 집사님 생일을 축하합니다!" },
             { label: "표시 예배", type: "text", placeholder: "예: 12월 22일 주일 1부 예배" },
@@ -311,7 +307,7 @@ export function VisitRequestPage() {
         <div className="space-y-4">
           {[
             { label: "단체/개인명", type: "text", placeholder: "예: OO교회 청년부" },
-            { label: "대표자 이름", type: "text", placeholder: "홍길동" },
+            { label: "대표자 이름", type: "text", placeholder: "성함을 입력해 주세요" },
             { label: "연락처", type: "tel", placeholder: "010-0000-0000" },
             { label: "방문 인원", type: "number", placeholder: "예: 20" },
             { label: "희망 방문일", type: "date", placeholder: "" },
@@ -349,7 +345,7 @@ export function DonationReceiptPage() {
         </div>
         <div className="space-y-4">
           {[
-            { label: "성명", type: "text", placeholder: "홍길동" },
+            { label: "성명", type: "text", placeholder: "성함을 입력해 주세요" },
             { label: "주민등록번호 앞 6자리", type: "text", placeholder: "000000" },
             { label: "연락처", type: "tel", placeholder: "010-0000-0000" },
             { label: "이메일 (영수증 수신)", type: "email", placeholder: "example@email.com" },

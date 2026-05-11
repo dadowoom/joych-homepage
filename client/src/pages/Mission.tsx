@@ -50,9 +50,9 @@ const MISSION_NAV = [
 
 // ── 국내 선교 ─────────────────────────────────────────────────────
 const DOMESTIC_MISSIONS = [
-  { name: "농어촌 교회 지원", region: "전라남도 신안군", leader: "이사랑 집사", desc: "도서 지역 작은 교회를 방문하여 예배 지원과 생필품을 전달합니다.", schedule: "분기별 1회", img: "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=400&q=70" },
-  { name: "노숙인 사역", region: "서울 영등포구", leader: "박믿음 집사", desc: "매주 토요일 영등포역 일대에서 식사와 복음을 전합니다.", schedule: "매주 토요일", img: "https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=400&q=70" },
-  { name: "탈북민 정착 지원", region: "서울 강남구", leader: "최소망 집사", desc: "탈북민 가정의 정착을 돕고 신앙 공동체로 연결합니다.", schedule: "월 2회", img: "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=400&q=70" },
+  { name: "지역 교회 협력", region: "국내", leader: "선교부", desc: "국내 교회와 사역 현장을 위해 기도와 후원으로 협력합니다.", schedule: "정기 협력", img: "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=400&q=70" },
+  { name: "지역 섬김 사역", region: "포항 지역", leader: "봉사부", desc: "지역 사회의 필요를 살피고 이웃을 섬기는 사역을 이어갑니다.", schedule: "정기 섬김", img: "https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=400&q=70" },
+  { name: "다음 세대 지원", region: "국내", leader: "교육부", desc: "다음 세대가 복음 안에서 건강하게 자라도록 교육과 돌봄으로 섬깁니다.", schedule: "상시", img: "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=400&q=70" },
 ];
 
 export function DomesticMission() {
@@ -81,7 +81,7 @@ export function DomesticMission() {
         </div>
         <div className="mt-8 bg-[#1B5E20] rounded-2xl p-8 text-center text-white">
           <h3 className="text-lg font-bold mb-2" style={{ fontFamily: "'Noto Serif KR', serif" }}>국내 선교에 함께하세요</h3>
-          <p className="text-green-100 text-sm mb-5">선교팀 참여 문의: 02-000-0004 (선교부)</p>
+          <p className="text-green-100 text-sm mb-5">선교팀 참여 문의: 054-270-1000</p>
           <Link href="/community/prayer" className="inline-block bg-white text-[#1B5E20] font-bold px-8 py-3 rounded-full hover:bg-green-50 transition-colors text-sm">
             기도로 함께하기
           </Link>
@@ -93,11 +93,9 @@ export function DomesticMission() {
 
 // ── 해외 선교 ─────────────────────────────────────────────────────
 const OVERSEAS_MISSIONS = [
-  { country: "캄보디아", flag: "🇰🇭", missionary: "김선교 선교사", since: "2010", ministry: "교육 선교 / 학교 운영", img: "https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=400&q=70" },
-  { country: "케냐", flag: "🇰🇪", missionary: "이복음 선교사", since: "2013", ministry: "의료 선교 / 진료소 운영", img: "https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&q=70" },
-  { country: "인도", flag: "🇮🇳", missionary: "박은혜 선교사", since: "2015", ministry: "빈민 사역 / 고아원 지원", img: "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=400&q=70" },
-  { country: "몽골", flag: "🇲🇳", missionary: "최믿음 선교사", since: "2018", ministry: "교회 개척 / 신학교 지원", img: "https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=400&q=70" },
-  { country: "필리핀", flag: "🇵🇭", missionary: "정소망 선교사", since: "2020", ministry: "청소년 사역 / 직업훈련", img: "https://images.unsplash.com/photo-1518509562904-e7ef99cdcc86?w=400&q=70" },
+  { country: "아시아", flag: "🌏", missionary: "협력 선교사", since: "협력 중", ministry: "교육 선교 / 교회 협력", img: "https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=400&q=70" },
+  { country: "아프리카", flag: "🌍", missionary: "협력 선교사", since: "협력 중", ministry: "의료 선교 / 지역 섬김", img: "https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&q=70" },
+  { country: "열방", flag: "✝️", missionary: "협력 선교사", since: "협력 중", ministry: "복음 전파 / 다음 세대 사역", img: "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=400&q=70" },
 ];
 
 export function OverseasMission() {
@@ -138,7 +136,7 @@ export function OverseasMission() {
                 <p className="text-[#1B5E20] text-xs font-medium mb-3">{m.ministry}</p>
                 <div className="flex items-center gap-2 text-xs text-gray-400">
                   <i className="fas fa-calendar"></i>
-                  <span>{m.since}년 파송</span>
+                  <span>{m.since}</span>
                 </div>
               </div>
             </div>
@@ -157,12 +155,12 @@ export function OverseasMission() {
 
 // ── 봉사 활동 ─────────────────────────────────────────────────────
 const VOLUNTEER_LIST = [
-  { title: "주차 봉사팀", icon: "fa-car", schedule: "매주 주일 오전 9:00~오후 2:00", contact: "교통부 (02-000-0002)", desc: "주일 예배 시 교회 주차장 안내 및 교통 정리를 담당합니다.", members: 24 },
-  { title: "안내 봉사팀", icon: "fa-hands-helping", schedule: "매주 주일 오전 9:30~오후 1:30", contact: "행정부 (02-000-0000)", desc: "예배당 입구에서 성도들을 안내하고 새가족을 환영합니다.", members: 18 },
-  { title: "방송 봉사팀", icon: "fa-video", schedule: "매주 주일 오전 8:00~오후 1:00", contact: "방송부 (02-000-0005)", desc: "예배 영상 촬영, 음향, 조명을 담당합니다.", members: 12 },
-  { title: "식당 봉사팀", icon: "fa-utensils", schedule: "매주 주일 오전 10:00~오후 2:00", contact: "친교부 (02-000-0006)", desc: "예배 후 성도들을 위한 식사를 준비하고 제공합니다.", members: 30 },
-  { title: "청소 봉사팀", icon: "fa-broom", schedule: "매주 토요일 오전 9:00~11:00", contact: "관리부 (02-000-0007)", desc: "교회 시설 청소 및 환경 관리를 담당합니다.", members: 20 },
-  { title: "어린이 돌봄팀", icon: "fa-baby", schedule: "매주 주일 오전 10:30~오후 1:00", contact: "교육부 (02-000-0001)", desc: "예배 시간 동안 영아 및 유아를 돌봅니다.", members: 15 },
+  { title: "주차 봉사팀", icon: "fa-car", schedule: "매주 주일", contact: "교회 사무실", desc: "주일 예배 시 교회 주차장 안내 및 교통 정리를 담당합니다.", members: 24 },
+  { title: "안내 봉사팀", icon: "fa-hands-helping", schedule: "매주 주일", contact: "교회 사무실", desc: "예배당 입구에서 성도들을 안내하고 새가족을 환영합니다.", members: 18 },
+  { title: "방송 봉사팀", icon: "fa-video", schedule: "매주 주일", contact: "교회 사무실", desc: "예배 영상 촬영, 음향, 조명을 담당합니다.", members: 12 },
+  { title: "식당 봉사팀", icon: "fa-utensils", schedule: "매주 주일", contact: "교회 사무실", desc: "예배 후 성도들을 위한 식사를 준비하고 제공합니다.", members: 30 },
+  { title: "청소 봉사팀", icon: "fa-broom", schedule: "매주 토요일", contact: "교회 사무실", desc: "교회 시설 청소 및 환경 관리를 담당합니다.", members: 20 },
+  { title: "어린이 돌봄팀", icon: "fa-baby", schedule: "매주 주일", contact: "교회 사무실", desc: "예배 시간 동안 영아 및 유아를 돌봅니다.", members: 15 },
 ];
 
 export function Volunteer() {
@@ -196,8 +194,8 @@ export function Volunteer() {
         <div className="mt-8 bg-[#1B5E20] rounded-2xl p-8 text-center text-white">
           <h3 className="text-lg font-bold mb-2" style={{ fontFamily: "'Noto Serif KR', serif" }}>봉사팀에 참여하고 싶으신가요?</h3>
           <p className="text-green-100 text-sm mb-5">각 봉사팀 담당자에게 직접 연락하시거나 교회 사무실로 문의해 주세요.</p>
-          <a href="tel:02-000-0000" className="inline-block bg-white text-[#1B5E20] font-bold px-8 py-3 rounded-full hover:bg-green-50 transition-colors text-sm">
-            <i className="fas fa-phone mr-2"></i>02-000-0000
+          <a href="tel:054-270-1000" className="inline-block bg-white text-[#1B5E20] font-bold px-8 py-3 rounded-full hover:bg-green-50 transition-colors text-sm">
+            <i className="fas fa-phone mr-2"></i>054-270-1000
           </a>
         </div>
       </div>

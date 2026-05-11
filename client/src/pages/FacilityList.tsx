@@ -192,7 +192,7 @@ export default function FacilityList() {
               <p className="font-bold text-gray-800 mb-0.5">시설 사용 문의</p>
               <p className="text-sm text-gray-500">
                 시설 사용에 관한 문의는 교회 행정실로 연락해 주세요.
-                <span className="ml-2 text-[#1B5E20] font-medium">02-000-0000</span>
+                <span className="ml-2 text-[#1B5E20] font-medium">054-270-1000</span>
               </p>
             </div>
           </div>

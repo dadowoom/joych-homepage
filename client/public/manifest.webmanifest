@@ -1,0 +1,18 @@
+{
+  "name": "기쁨의교회",
+  "short_name": "기쁨의교회",
+  "description": "깊이있는 성장, 위대한 교회. 기쁨의교회 홈페이지입니다.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1B5E20",
+  "lang": "ko-KR",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "16x16 32x32 48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}

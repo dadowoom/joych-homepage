@@ -145,7 +145,7 @@ export function DiscipleTraining() {
         </div>
         <div className="mt-8 bg-white rounded-2xl p-6 shadow-sm text-center">
           <p className="text-gray-600 text-sm mb-4">훈련 등록 및 문의는 교육부 담당자에게 연락해 주세요.</p>
-          <p className="font-medium text-[#1B5E20]"><i className="fas fa-phone mr-2"></i>02-000-0001 (교육부)</p>
+          <p className="font-medium text-[#1B5E20]"><i className="fas fa-phone mr-2"></i>054-270-1000</p>
         </div>
       </div>
     </div>
@@ -154,10 +154,10 @@ export function DiscipleTraining() {
 
 // ── 성경공부 ─────────────────────────────────────────────────────
 const BIBLE_CLASSES = [
-  { title: "히브리서 강해", teacher: "홍길동 목사", schedule: "매주 화요일 오전 10:00", location: "본당 소예배실", participants: 45 },
-  { title: "로마서 심층 연구", teacher: "김은혜 전도사", schedule: "매주 목요일 오후 7:30", location: "교육관 301호", participants: 28 },
-  { title: "구약 개론", teacher: "이믿음 전도사", schedule: "매주 수요일 오전 10:00", location: "교육관 201호", participants: 32 },
-  { title: "신약 인물 연구", teacher: "박소망 전도사", schedule: "매주 금요일 오후 2:00", location: "교육관 202호", participants: 20 },
+  { title: "히브리서 강해", teacher: "담당 목회자", schedule: "매주 화요일 오전 10:00", location: "본당 소예배실", participants: 45 },
+  { title: "로마서 심층 연구", teacher: "담당 목회자", schedule: "매주 목요일 오후 7:30", location: "교육관 301호", participants: 28 },
+  { title: "구약 개론", teacher: "담당 목회자", schedule: "매주 수요일 오전 10:00", location: "교육관 201호", participants: 32 },
+  { title: "신약 인물 연구", teacher: "담당 목회자", schedule: "매주 금요일 오후 2:00", location: "교육관 202호", participants: 20 },
 ];
 
 export function BibleStudy() {
@@ -196,10 +196,10 @@ export function BibleStudy() {
 
 // ── 교회학교 (유아~중고등부 통합) ─────────────────────────────────
 const SCHOOL_DEPTS = [
-  { id: "infant", name: "유아부", age: "0~3세", icon: "fa-baby", color: "bg-pink-50 border-pink-200", iconBg: "bg-pink-100", iconColor: "text-pink-600", teacher: "김사랑 전도사", time: "주일 오전 11:00", room: "교육관 101호", desc: "하나님의 사랑 안에서 건강하게 자라나는 우리 아이들을 위한 예배입니다." },
-  { id: "kindergarten", name: "유치부", age: "4~7세", icon: "fa-child", color: "bg-yellow-50 border-yellow-200", iconBg: "bg-yellow-100", iconColor: "text-yellow-600", teacher: "이기쁨 전도사", time: "주일 오전 11:00", room: "교육관 102호", desc: "찬양과 말씀으로 하나님을 알아가는 유치부 예배입니다." },
-  { id: "elementary", name: "초등부", age: "초등학교 1~6학년", icon: "fa-pencil-alt", color: "bg-blue-50 border-blue-200", iconBg: "bg-blue-100", iconColor: "text-blue-600", teacher: "박믿음 전도사", time: "주일 오전 11:00", room: "교육관 201~203호", desc: "말씀과 친구들과 함께 믿음이 자라는 초등부 예배입니다." },
-  { id: "youth", name: "중고등부", age: "중학교 1학년 ~ 고등학교 3학년", icon: "fa-graduation-cap", color: "bg-purple-50 border-purple-200", iconBg: "bg-purple-100", iconColor: "text-purple-600", teacher: "최소망 전도사", time: "주일 오전 11:00", room: "교육관 301~303호", desc: "다음 세대 리더를 세우는 중고등부 예배입니다." },
+  { id: "infant", name: "유아부", age: "0~3세", icon: "fa-baby", color: "bg-pink-50 border-pink-200", iconBg: "bg-pink-100", iconColor: "text-pink-600", teacher: "부서 담당자", time: "주일 오전 11:00", room: "교육관 101호", desc: "하나님의 사랑 안에서 건강하게 자라나는 우리 아이들을 위한 예배입니다." },
+  { id: "kindergarten", name: "유치부", age: "4~7세", icon: "fa-child", color: "bg-yellow-50 border-yellow-200", iconBg: "bg-yellow-100", iconColor: "text-yellow-600", teacher: "부서 담당자", time: "주일 오전 11:00", room: "교육관 102호", desc: "찬양과 말씀으로 하나님을 알아가는 유치부 예배입니다." },
+  { id: "elementary", name: "초등부", age: "초등학교 1~6학년", icon: "fa-pencil-alt", color: "bg-blue-50 border-blue-200", iconBg: "bg-blue-100", iconColor: "text-blue-600", teacher: "부서 담당자", time: "주일 오전 11:00", room: "교육관 201~203호", desc: "말씀과 친구들과 함께 믿음이 자라는 초등부 예배입니다." },
+  { id: "youth", name: "중고등부", age: "중학교 1학년 ~ 고등학교 3학년", icon: "fa-graduation-cap", color: "bg-purple-50 border-purple-200", iconBg: "bg-purple-100", iconColor: "text-purple-600", teacher: "부서 담당자", time: "주일 오전 11:00", room: "교육관 301~303호", desc: "다음 세대 리더를 세우는 중고등부 예배입니다." },
 ];
 
 export function SundaySchool({ dept }: { dept: string }) {
@@ -242,9 +242,9 @@ export function SundaySchool({ dept }: { dept: string }) {
               <h3 className="font-bold text-gray-800 text-lg mb-5" style={{ fontFamily: "'Noto Serif KR', serif" }}>최근 소식</h3>
               <div className="space-y-4">
                 {[
-                  { title: `${info.name} 여름 성경학교 안내`, date: "2026.06.15" },
-                  { title: `${info.name} 수련회 신청 접수`, date: "2026.05.20" },
-                  { title: `${info.name} 부활절 특별 예배`, date: "2026.04.05" },
+                  { title: `${info.name} 공지사항은 준비 중입니다`, date: "공지 예정" },
+                  { title: `${info.name} 행사 일정은 확정 후 안내됩니다`, date: "공지 예정" },
+                  { title: `${info.name} 문의는 교회 사무실로 연락해 주세요`, date: "054-270-1000" },
                 ].map((n, i) => (
                   <div key={i} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
                     <span className="text-sm text-gray-700">{n.title}</span>

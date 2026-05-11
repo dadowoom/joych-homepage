@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin_joych_2026
+Disallow: /member/
+Disallow: /facility/my-reservations
+
+Sitemap: https://dadowoomtest.co.kr/sitemap.xml

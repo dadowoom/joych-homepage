@@ -96,7 +96,7 @@ export default function MissionDetail() {
                 </div>
                 <div className="flex items-start gap-3">
                   <i className="fas fa-calendar text-[#1B5E20] mt-0.5 w-4 flex-shrink-0"></i>
-                  <span>{report.missionary.sentYear}년 파송</span>
+                  <span>{report.missionary.sentYear}년 시작</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <i className="fas fa-globe text-[#1B5E20] mt-0.5 w-4 flex-shrink-0"></i>
