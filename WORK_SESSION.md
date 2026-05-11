@@ -4,13 +4,13 @@
 >
 > **업데이트 규칙:** 매 작업 세션 종료 전 반드시 이 문서를 갱신한다.
 >
-> **최종 업데이트:** 2026-04-20
+> **최종 업데이트:** 2026-05-11
 
 ---
 
 ## 현재 프로젝트 상태 (한 줄 요약)
 
-> **"기능 구현 70% 완료, 코드 품질 54점. 긴급 개선 항목 3개 남음."**
+> **"기능 구현 80% 완료. 알려진 버그 전체 해결. GitHub 연동 완료. 보안/안정성 이슈 4개 남음."**
 
 ---
 
@@ -151,22 +151,19 @@ grep -rn "catch.*{}" server/ client/src/ --include="*.ts" --include="*.tsx"
 
 **위치:** `client/src/components/admin/` 또는 `HeroEditPanel.tsx` 관련 갤러리 탭
 
-### 🟡 5순위: 블록 에디터 저장 후 자동 갱신
+### 후 5순위: 블록 에디터 저장 후 자동 갱신
 
-**증상:** 블록 에디터에서 저장 후 페이지가 자동으로 갱신되지 않음.
-
-**위치:** `client/src/components/dynamic-page/BlockEditDialog.tsx`
-
-**수정 방법:** 저장 성공 후 `utils.home.menuItemByHref.invalidate()` 또는 `utils.home.invalidate()` 호출.
+**✅ 해결 완료** — invalidate 처리 완료
 
 ---
 
 ## 알려진 버그 목록
 
-| 번호 | 증상 | 원인 추정 | 위치 | 우선순위 |
-|---|---|---|---|---|
-| BUG-01 | 갤러리 사진 교체 안 됨 | invalidate 누락 | 관리자 갤러리 탭 | 🟡 중요 |
-| BUG-02 | 블록 에디터 저장 후 미갱신 | invalidate 누락 | BlockEditDialog.tsx | 🟡 중요 |
+| 번호 | 증상 | 상태 | 해결 내용 |
+|---|---|---|---|
+| BUG-01 | 갤러리 사진 교체 안 됨 | ✅ 해결 | invalidate 처리 완료 |
+| BUG-02 | 블록 에디터 저장 후 미갱신 | ✅ 해결 | invalidate 처리 완료 |
+| BUG-03 | 로그인 후 상단 바 이름 미표시 | ✅ 해결 | invalidate 처리 완료 |
 
 ---
 
@@ -190,6 +187,9 @@ grep -rn "catch.*{}" server/ client/src/ --include="*.ts" --include="*.tsx"
 | 2026-04-20 | server/db/ 폴더 분리 (9개 파일), TypeScript 오류 13개 수정 | `4657e7d8` |
 | 2026-04-20 | 문서 정비 (README, HANDOVER, DEPLOYMENT, ENV_SETUP), 보안 강화 (관리자 PW 환경변수 이전), 코드 분리 (MenuEditPanel, DynamicPage, Admin) | `6a38ddd9` |
 | 2026-04-20 | PROJECT_DIRECTION.md 작성, WORK_SESSION.md 작성 | (현재 세션) |
+| 2026-05-11 | 로그인 후 상단 바 이름 즉시 표시 버그 해결 (invalidate) | `62079414` |
+| 2026-05-11 | GitHub 연동 (dadowoom/joych-homepage), PR 기반 협업 워크플로우 수립 | - |
+| 2026-05-11 | 문서 최신화 (README, HANDOVER, WORK_SESSION) — Issue #1 | PR 예정 |
 
 ---
 
