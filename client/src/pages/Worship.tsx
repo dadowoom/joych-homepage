@@ -43,21 +43,25 @@ function SubNav({ items }: { items: { label: string; href: string }[] }) {
 }
 
 const WORSHIP_NAV = [
-  { label: "실시간 예배", href: "/worship/live" },
-  { label: "설교 영상", href: "/worship/sermon" },
-  { label: "찬양 영상", href: "/worship/praise" },
+  { label: "실시간 예배", href: "/worship/tv" },
+  { label: "설교 영상", href: "/worship/tv/sunday" },
+  { label: "찬양 영상", href: "/worship/tv/praise" },
   { label: "예배시간 안내", href: "/worship/schedule" },
   { label: "주보 보기", href: "/worship/bulletin" },
 ];
 
+function notifyBulletinDownload() {
+  window.alert("주보 PDF는 관리자 CMS 등록 후 다운로드할 수 있습니다. 현재는 교회 사무실(054-270-1000)로 문의해 주세요.");
+}
+
 // ── 조이풀TV (설교 영상) ─────────────────────────────────────────
 const SERMON_VIDEOS = [
-  { id: "1", badge: "주일예배", title: "주일예배 설교 영상", preacher: "기쁨의교회", date: "최신 영상", duration: "예배 영상", thumb: "https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=400&q=70" },
-  { id: "2", badge: "수요예배", title: "수요예배 영상", preacher: "기쁨의교회", date: "조이풀TV", duration: "예배 영상", thumb: "https://images.unsplash.com/photo-1529070538774-1843cb3265df?w=400&q=70" },
-  { id: "3", badge: "새벽기도", title: "새벽기도회 영상", preacher: "기쁨의교회", date: "조이풀TV", duration: "예배 영상", thumb: "https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=400&q=70" },
-  { id: "4", badge: "주일예배", title: "주일예배 다시보기", preacher: "기쁨의교회", date: "조이풀TV", duration: "예배 영상", thumb: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=400&q=70" },
-  { id: "5", badge: "특별집회", title: "특별집회 영상", preacher: "기쁨의교회", date: "조이풀TV", duration: "집회 영상", thumb: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&q=70" },
-  { id: "6", badge: "주일예배", title: "주일예배 말씀 영상", preacher: "기쁨의교회", date: "조이풀TV", duration: "예배 영상", thumb: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=70" },
+  { id: "1", badge: "주일예배", title: "주일예배 설교 영상", preacher: "기쁨의교회", date: "최신 영상", duration: "예배 영상", href: "/worship/tv/sunday", thumb: "https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=400&q=70" },
+  { id: "2", badge: "수요예배", title: "수요예배 영상", preacher: "기쁨의교회", date: "조이풀TV", duration: "예배 영상", href: "/worship/tv/hebron", thumb: "https://images.unsplash.com/photo-1529070538774-1843cb3265df?w=400&q=70" },
+  { id: "3", badge: "새벽기도", title: "새벽기도회 영상", preacher: "기쁨의교회", date: "조이풀TV", duration: "예배 영상", href: "/worship/tv/gloria", thumb: "https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=400&q=70" },
+  { id: "4", badge: "주일예배", title: "주일예배 다시보기", preacher: "기쁨의교회", date: "조이풀TV", duration: "예배 영상", href: "/worship/tv/sunday", thumb: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=400&q=70" },
+  { id: "5", badge: "특별집회", title: "특별집회 영상", preacher: "기쁨의교회", date: "조이풀TV", duration: "집회 영상", href: "/worship/tv/special", thumb: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&q=70" },
+  { id: "6", badge: "주일예배", title: "주일예배 말씀 영상", preacher: "기쁨의교회", date: "조이풀TV", duration: "예배 영상", href: "/worship/tv/sunday", thumb: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=70" },
 ];
 
 const BADGE_COLORS: Record<string, string> = {
@@ -82,9 +86,9 @@ export function JoyfulTV() {
           <div className="relative aspect-video bg-gray-900">
             <img src={SERMON_VIDEOS[0].thumb} alt="최신 설교" className="w-full h-full object-cover opacity-80" />
             <div className="absolute inset-0 flex items-center justify-center">
-              <button className="w-20 h-20 rounded-full bg-white/90 hover:bg-white transition-colors flex items-center justify-center shadow-xl">
+              <Link href={SERMON_VIDEOS[0].href} className="w-20 h-20 rounded-full bg-white/90 hover:bg-white transition-colors flex items-center justify-center shadow-xl">
                 <i className="fas fa-play text-[#1B5E20] text-2xl ml-1"></i>
-              </button>
+              </Link>
             </div>
             <span className={`absolute top-4 left-4 text-xs px-3 py-1.5 rounded-full font-medium ${BADGE_COLORS[SERMON_VIDEOS[0].badge]}`}>
               {SERMON_VIDEOS[0].badge}
@@ -109,7 +113,7 @@ export function JoyfulTV() {
         {/* 영상 목록 */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.map(v => (
-            <div key={v.id} className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow group cursor-pointer">
+            <Link key={v.id} href={v.href} className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow group cursor-pointer">
               <div className="relative aspect-video bg-gray-100">
                 <img src={v.thumb} alt={v.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
@@ -122,7 +126,7 @@ export function JoyfulTV() {
                 <h3 className="font-bold text-gray-800 text-sm leading-snug mb-1.5 line-clamp-2" style={{ fontFamily: "'Noto Serif KR', serif" }}>{v.title}</h3>
                 <p className="text-gray-400 text-xs">{v.preacher} · {v.date}</p>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </div>
@@ -231,7 +235,11 @@ export function Bulletin() {
               <span className="text-green-200 text-xs font-medium">최신 주보</span>
               <h2 className="text-white font-bold mt-0.5" style={{ fontFamily: "'Noto Serif KR', serif" }}>{BULLETINS[0].title}</h2>
             </div>
-            <button className="bg-white text-[#1B5E20] text-sm font-medium px-5 py-2 rounded-full hover:bg-green-50 transition-colors flex items-center gap-2">
+            <button
+              type="button"
+              onClick={notifyBulletinDownload}
+              className="bg-white text-[#1B5E20] text-sm font-medium px-5 py-2 rounded-full hover:bg-green-50 transition-colors flex items-center gap-2"
+            >
               <i className="fas fa-download text-xs"></i> 다운로드
             </button>
           </div>
@@ -261,7 +269,11 @@ export function Bulletin() {
                     <p className="text-gray-400 text-xs mt-0.5">{b.week} · {b.size}</p>
                   </div>
                 </div>
-                <button className="text-[#1B5E20] hover:text-[#2E7D32] transition-colors text-sm flex items-center gap-1.5 font-medium">
+                <button
+                  type="button"
+                  onClick={notifyBulletinDownload}
+                  className="text-[#1B5E20] hover:text-[#2E7D32] transition-colors text-sm flex items-center gap-1.5 font-medium"
+                >
                   <i className="fas fa-download text-xs"></i> 다운로드
                 </button>
               </div>

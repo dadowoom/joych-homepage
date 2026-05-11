@@ -107,6 +107,15 @@ const NAV_ITEMS = [
   },
 ];
 
+function getUsableHref(href?: string | null) {
+  const trimmed = href?.trim();
+  return trimmed && trimmed !== "#" ? trimmed : null;
+}
+
+function isExternalHref(href: string) {
+  return href.startsWith("http://") || href.startsWith("https://");
+}
+
 export default function SiteHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -121,7 +130,13 @@ export default function SiteHeader() {
     onSuccess: () => { refetchMemberMe(); },
   });
   const { data: dbMenus } = trpc.home.menus.useQuery();
+  const { data: dbSettings } = trpc.home.settings.useQuery();
   const navMenus = (dbMenus && dbMenus.length > 0) ? dbMenus : null;
+  const socialLinks = [
+    { icon: "fab fa-youtube", label: "유튜브", href: dbSettings?.youtube_url || "/worship/tv" },
+    { icon: "fab fa-facebook-f", label: "페이스북", href: dbSettings?.facebook_url || null },
+    { icon: "fab fa-instagram", label: "인스타그램", href: dbSettings?.instagram_url || null },
+  ];
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60);
@@ -167,9 +182,24 @@ export default function SiteHeader() {
               </>
             )}
             <div className="flex gap-3 ml-2">
-              <a href="#" className="hover:text-white transition-colors"><i className="fab fa-youtube"></i></a>
-              <a href="#" className="hover:text-white transition-colors"><i className="fab fa-facebook-f"></i></a>
-              <a href="#" className="hover:text-white transition-colors"><i className="fab fa-instagram"></i></a>
+              {socialLinks.map((s) => (
+                s.href ? (
+                  <a
+                    key={s.label}
+                    href={s.href}
+                    target={isExternalHref(s.href) ? "_blank" : undefined}
+                    rel={isExternalHref(s.href) ? "noopener noreferrer" : undefined}
+                    aria-label={s.label}
+                    className="hover:text-white transition-colors"
+                  >
+                    <i className={s.icon}></i>
+                  </a>
+                ) : (
+                  <span key={s.label} aria-label={`${s.label} 링크 미등록`} className="text-gray-600">
+                    <i className={s.icon}></i>
+                  </span>
+                )
+              ))}
             </div>
           </div>
         </div>
@@ -223,15 +253,21 @@ export default function SiteHeader() {
                   label: s,
                   href: (item as { subHref?: Record<string, string | undefined> }).subHref?.[s] ?? null
                 }))
-              }))).map((item) => (
+              }))).map((item) => {
+                const parentHref = getUsableHref(item.href);
+                const parentClassName = "text-sm font-medium text-gray-700 hover:text-[#1B5E20] transition-colors";
+                return (
                 <li key={item.id} className="relative group">
                   <div className="flex items-center h-[72px] px-4 relative">
-                    <a
-                      href={item.href ?? '#'}
-                      className="text-sm font-medium text-gray-700 hover:text-[#1B5E20] transition-colors"
-                    >
-                      {item.label}
-                    </a>
+                    {parentHref ? (
+                      isExternalHref(parentHref) ? (
+                        <a href={parentHref} target="_blank" rel="noopener noreferrer" className={parentClassName}>{item.label}</a>
+                      ) : (
+                        <Link href={parentHref} className={parentClassName}>{item.label}</Link>
+                      )
+                    ) : (
+                      <span className={parentClassName}>{item.label}</span>
+                    )}
                     <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#1B5E20] scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left"></span>
                   </div>
                   {(item.items ?? []).length > 0 && (
@@ -242,23 +278,23 @@ export default function SiteHeader() {
                         const cls = "flex items-center justify-between px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
                         return (
                           <li key={j} className="relative group/sub">
-                            {s.href ? (
-                              s.href.startsWith('http://') || s.href.startsWith('https://') ? (
-                                <a href={s.href} target="_blank" rel="noopener noreferrer" className={cls}>
+                            {getUsableHref(s.href) ? (
+                              isExternalHref(getUsableHref(s.href)!) ? (
+                                <a href={getUsableHref(s.href)!} target="_blank" rel="noopener noreferrer" className={cls}>
                                   <span>{s.label}</span>
                                   {hasSubItems && <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>}
                                 </a>
                               ) : (
-                                <Link href={s.href} className={cls}>
+                                <Link href={getUsableHref(s.href)!} className={cls}>
                                   <span>{s.label}</span>
                                   {hasSubItems && <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>}
                                 </Link>
                               )
                             ) : (
-                              <a href="#" className={cls}>
+                              <span className={`${cls} cursor-default`}>
                                 <span>{s.label}</span>
                                 {hasSubItems && <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>}
-                              </a>
+                              </span>
                             )}
                             {hasSubItems && (
                               <ul className="absolute left-full top-0 bg-white border-l-2 border-[#1B5E20] shadow-xl min-w-[150px] z-[300] py-1 opacity-0 invisible group-hover/sub:opacity-100 group-hover/sub:visible transition-all duration-150">
@@ -266,14 +302,14 @@ export default function SiteHeader() {
                                   const subCls = "block px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
                                   return (
                                     <li key={k}>
-                                      {sub.href ? (
-                                        sub.href.startsWith('http://') || sub.href.startsWith('https://') ? (
-                                          <a href={sub.href} target="_blank" rel="noopener noreferrer" className={subCls}>{sub.label}</a>
+                                      {getUsableHref(sub.href) ? (
+                                        isExternalHref(getUsableHref(sub.href)!) ? (
+                                          <a href={getUsableHref(sub.href)!} target="_blank" rel="noopener noreferrer" className={subCls}>{sub.label}</a>
                                         ) : (
-                                          <Link href={sub.href} className={subCls}>{sub.label}</Link>
+                                          <Link href={getUsableHref(sub.href)!} className={subCls}>{sub.label}</Link>
                                         )
                                       ) : (
-                                        <a href="#" className={subCls}>{sub.label}</a>
+                                        <span className={`${subCls} cursor-default`}>{sub.label}</span>
                                       )}
                                     </li>
                                   );
@@ -286,7 +322,8 @@ export default function SiteHeader() {
                     </ul>
                   )}
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </nav>
 

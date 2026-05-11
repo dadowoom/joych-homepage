@@ -33,6 +33,11 @@ export default function SubPageLayout({
   children,
 }: SubPageLayoutProps) {
   const { data: dbSettings } = trpc.home.settings.useQuery();
+  const socialLinks = [
+    { icon: "fab fa-youtube", label: "유튜브", href: dbSettings?.youtube_url || "/worship/tv" },
+    { icon: "fab fa-facebook-f", label: "페이스북", href: dbSettings?.facebook_url || null },
+    { icon: "fab fa-instagram", label: "인스타그램", href: dbSettings?.instagram_url || null },
+  ];
 
   return (
     <div className="min-h-screen bg-[#FAFAF8] flex flex-col" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
@@ -141,18 +146,27 @@ export default function SubPageLayout({
               </p>
             </div>
             <div className="flex gap-3 md:justify-end">
-              {[
-                { icon: "fab fa-youtube", href: "#" },
-                { icon: "fab fa-facebook-f", href: "#" },
-                { icon: "fab fa-instagram", href: "#" },
-              ].map((s, i) => (
-                <a
-                  key={i}
-                  href={s.href}
-                  className="w-9 h-9 rounded-full border border-gray-700 flex items-center justify-center text-gray-400 hover:bg-[#1B5E20] hover:border-[#1B5E20] hover:text-white transition-colors text-sm"
-                >
-                  <i className={s.icon}></i>
-                </a>
+              {socialLinks.map((s, i) => (
+                s.href ? (
+                  <a
+                    key={i}
+                    href={s.href}
+                    target={s.href.startsWith("http") ? "_blank" : undefined}
+                    rel={s.href.startsWith("http") ? "noopener noreferrer" : undefined}
+                    aria-label={s.label}
+                    className="w-9 h-9 rounded-full border border-gray-700 flex items-center justify-center text-gray-400 hover:bg-[#1B5E20] hover:border-[#1B5E20] hover:text-white transition-colors text-sm"
+                  >
+                    <i className={s.icon}></i>
+                  </a>
+                ) : (
+                  <span
+                    key={i}
+                    aria-label={`${s.label} 링크 미등록`}
+                    className="w-9 h-9 rounded-full border border-gray-700 flex items-center justify-center text-gray-500 transition-colors text-sm"
+                  >
+                    <i className={s.icon}></i>
+                  </span>
+                )
               ))}
             </div>
           </div>

@@ -159,23 +159,33 @@ export function BlockRenderer({
           />
         </div>
       );
-    case "button":
+    case "button": {
+      const buttonClassName =
+        c.style === "outline"
+          ? "inline-block px-6 py-3 border-2 border-green-700 text-green-700 rounded-lg font-medium hover:bg-green-50 transition-colors"
+          : "inline-block px-6 py-3 bg-green-700 text-white rounded-lg font-medium hover:bg-green-800 transition-colors";
+      if (!c.href?.trim()) {
+        return (
+          <div className="my-4">
+            <span className={`${buttonClassName} cursor-default`}>
+              {c.label ?? "링크"}
+            </span>
+          </div>
+        );
+      }
       return (
         <div className="my-4">
           <a
-            href={c.href ?? "#"}
-            target={c.href?.startsWith("http") ? "_blank" : undefined}
-            rel={c.href?.startsWith("http") ? "noopener noreferrer" : undefined}
-            className={
-              c.style === "outline"
-                ? "inline-block px-6 py-3 border-2 border-green-700 text-green-700 rounded-lg font-medium hover:bg-green-50 transition-colors"
-                : "inline-block px-6 py-3 bg-green-700 text-white rounded-lg font-medium hover:bg-green-800 transition-colors"
-            }
+            href={c.href}
+            target={c.href.startsWith("http") ? "_blank" : undefined}
+            rel={c.href.startsWith("http") ? "noopener noreferrer" : undefined}
+            className={buttonClassName}
           >
             {c.label ?? "링크"}
           </a>
         </div>
       );
+    }
     case "divider": {
       const thickness = c.thickness ?? 1;
       const lineStyle = c.lineStyle ?? "solid";
