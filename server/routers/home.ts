@@ -23,10 +23,10 @@ import {
   getVisibleGalleryItems,
   getSiteSettings,
   getVisibleMenus,
-  getMenuItemById,
-  getMenuSubItemById,
-  getMenuItemByHref,
-  getMenuSubItemByHref,
+  getVisibleMenuItemById,
+  getVisibleMenuSubItemById,
+  getVisibleMenuItemByHref,
+  getVisibleMenuSubItemByHref,
   getFacilities,
   getFacilityById,
   getFacilityImages,
@@ -87,22 +87,22 @@ export const homeRouter = router({
   /** 2단 메뉴 단건 조회 (동적 페이지 렌더링용) */
   menuItem: publicProcedure
     .input(z.object({ id: idSchema }))
-    .query(({ input }) => getMenuItemById(input.id)),
+    .query(({ input }) => getVisibleMenuItemById(input.id)),
 
   /** 3단 메뉴 단건 조회 (동적 페이지 렌더링용) */
   menuSubItem: publicProcedure
     .input(z.object({ id: idSchema }))
-    .query(({ input }) => getMenuSubItemById(input.id)),
+    .query(({ input }) => getVisibleMenuSubItemById(input.id)),
 
   /** href(경로)로 2단 메뉴 조회 — 예배영상 페이지의 playlistId 연결에 사용 */
   menuItemByHref: publicProcedure
     .input(z.object({ href: hrefLookupSchema }))
-    .query(({ input }) => getMenuItemByHref(input.href)),
+    .query(({ input }) => getVisibleMenuItemByHref(input.href)),
 
   /** href(경로)로 3단 메뉴 조회 — 예배영상 페이지의 playlistId 연결에 사용 */
   menuSubItemByHref: publicProcedure
     .input(z.object({ href: hrefLookupSchema }))
-    .query(({ input }) => getMenuSubItemByHref(input.href)),
+    .query(({ input }) => getVisibleMenuSubItemByHref(input.href)),
 
   // ─── 시설 조회 (성도용) ─────────────────────────────────────────────────────
 
