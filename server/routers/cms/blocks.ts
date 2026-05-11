@@ -21,6 +21,7 @@
 import { z } from "zod";
 import { adminProcedure, router } from "../../_core/trpc";
 import { storagePut } from "../../storage";
+import { validateImage } from "./upload";
 import {
   getAllPageBlocks,
   createPageBlock,
@@ -100,10 +101,10 @@ export const blocksRouter = router({
       fileName: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
-      const buffer = Buffer.from(input.base64, "base64");
-      const ext = input.mimeType.split("/")[1] ?? "jpg";
+      const { buffer, ext } = validateImage(input.base64, input.mimeType);
+      const mimeType = input.mimeType.toLowerCase().trim();
       const key = `page-blocks/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { url } = await storagePut(key, buffer, input.mimeType);
+      const { url } = await storagePut(key, buffer, mimeType);
       return { url, key };
     }),
 });

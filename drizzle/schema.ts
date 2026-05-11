@@ -486,7 +486,7 @@ export const reservations = mysqlTable("reservations", {
   id: int("id").autoincrement().primaryKey(),
   /** 시설 ID */
   facilityId: int("facilityId").notNull(),
-  /** 예약자 ID (users.id 참조) */
+  /** 예약자 성도 ID (church_members.id 참조) */
   userId: int("userId").notNull(),
   /** 예약자 이름 (비로그인 예약 또는 대리 예약 시) */
   reserverName: varchar("reserverName", { length: 64 }).notNull(),

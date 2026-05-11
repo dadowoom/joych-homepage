@@ -10,9 +10,9 @@
  *               createReservation, updateReservationStatus, getReservationById
  */
 
-import { eq, asc, desc, and } from "drizzle-orm";
+import { eq, asc, desc, and, or, isNull } from "drizzle-orm";
 import {
-  facilities, facilityImages, facilityHours, facilityBlockedDates, reservations, users,
+  facilities, facilityImages, facilityHours, facilityBlockedDates, reservations, churchMembers,
   InsertFacility, InsertFacilityImage, InsertFacilityHour, InsertFacilityBlockedDate, InsertReservation,
 } from "../../drizzle/schema";
 import { getDb } from "./connection";
@@ -120,7 +120,10 @@ export async function getBlockedDates(facilityId?: number) {
   if (!db) return [];
   if (facilityId !== undefined) {
     return db.select().from(facilityBlockedDates)
-      .where(eq(facilityBlockedDates.facilityId, facilityId));
+      .where(or(
+        eq(facilityBlockedDates.facilityId, facilityId),
+        isNull(facilityBlockedDates.facilityId),
+      ));
   }
   return db.select().from(facilityBlockedDates);
 }
@@ -146,7 +149,7 @@ export async function getAllReservations(facilityId?: number) {
   const db = await getDb();
   if (!db) return [];
 
-  // 예약 정보 + 시설 이름 + 예약자 정보를 조인해서 가져옵니다
+  // 예약 정보 + 시설 이름 + 성도 예약자 정보를 조인해서 가져옵니다.
   const rows = await db
     .select({
       id: reservations.id,
@@ -163,14 +166,16 @@ export async function getAllReservations(facilityId?: number) {
       attendees: reservations.attendees,        // ⚠️ attendeeCount가 아닌 attendees
       notes: reservations.notes,
       adminComment: reservations.adminComment,  // ⚠️ adminNotes가 아닌 adminComment
+      processedBy: reservations.processedBy,
+      processedAt: reservations.processedAt,
       createdAt: reservations.createdAt,
       facilityName: facilities.name,
-      userName: users.name,
-      userEmail: users.email,
+      userName: churchMembers.name,
+      userEmail: churchMembers.email,
     })
     .from(reservations)
     .leftJoin(facilities, eq(reservations.facilityId, facilities.id))
-    .leftJoin(users, eq(reservations.userId, users.id))
+    .leftJoin(churchMembers, eq(reservations.userId, churchMembers.id))
     .orderBy(desc(reservations.createdAt));
 
   if (facilityId !== undefined) {
@@ -183,7 +188,30 @@ export async function getAllReservations(facilityId?: number) {
 export async function getMyReservations(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(reservations)
+  return db
+    .select({
+      id: reservations.id,
+      facilityId: reservations.facilityId,
+      userId: reservations.userId,
+      reserverName: reservations.reserverName,
+      reserverPhone: reservations.reserverPhone,
+      reservationDate: reservations.reservationDate,
+      startTime: reservations.startTime,
+      endTime: reservations.endTime,
+      status: reservations.status,
+      purpose: reservations.purpose,
+      department: reservations.department,
+      attendees: reservations.attendees,
+      notes: reservations.notes,
+      adminComment: reservations.adminComment,
+      processedBy: reservations.processedBy,
+      processedAt: reservations.processedAt,
+      createdAt: reservations.createdAt,
+      updatedAt: reservations.updatedAt,
+      facilityName: facilities.name,
+    })
+    .from(reservations)
+    .leftJoin(facilities, eq(reservations.facilityId, facilities.id))
     .where(eq(reservations.userId, userId))
     .orderBy(desc(reservations.createdAt));
 }
@@ -215,12 +243,20 @@ export async function updateReservationStatus(
   id: number,
   status: "pending" | "approved" | "rejected" | "cancelled",
   adminComment?: string,
-  _adminUserId?: number
+  adminUserId?: number
 ) {
   const db = await getDb();
   if (!db) return;
+  const values: Partial<InsertReservation> = {
+    status,
+    adminComment: adminComment ?? null,
+  };
+  if (adminUserId !== undefined) {
+    values.processedBy = adminUserId;
+    values.processedAt = new Date();
+  }
   await db.update(reservations)
-    .set({ status, adminComment: adminComment ?? null })
+    .set(values)
     .where(eq(reservations.id, id));
 }
 
@@ -244,14 +280,16 @@ export async function getReservationById(id: number) {
       attendees: reservations.attendees,        // ⚠️ attendeeCount가 아닌 attendees
       notes: reservations.notes,
       adminComment: reservations.adminComment,  // ⚠️ adminNotes가 아닌 adminComment
+      processedBy: reservations.processedBy,
+      processedAt: reservations.processedAt,
       createdAt: reservations.createdAt,
       facilityName: facilities.name,
-      userName: users.name,
-      userEmail: users.email,
+      userName: churchMembers.name,
+      userEmail: churchMembers.email,
     })
     .from(reservations)
     .leftJoin(facilities, eq(reservations.facilityId, facilities.id))
-    .leftJoin(users, eq(reservations.userId, users.id))
+    .leftJoin(churchMembers, eq(reservations.userId, churchMembers.id))
     .where(eq(reservations.id, id))
     .limit(1);
   return rows[0] ?? null;

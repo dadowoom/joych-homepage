@@ -23,14 +23,12 @@ function validateEnv() {
   const isProduction = process.env.NODE_ENV === "production";
 
   if (isProduction) {
-    // 운영 환경에서 JWT_SECRET 검증 (경고만 출력, 서버 시작은 허용)
-    // Manus 배포 환경의 JWT_SECRET은 시스템 관리 변수로 직접 변경 불가
     const jwtSecret = process.env.JWT_SECRET ?? "";
     if (!jwtSecret) {
-      console.warn("[ENV WARN] JWT_SECRET이 설정되지 않았습니다. 세션 보안이 취약할 수 있습니다.");
+      throw new Error("[ENV ERROR] JWT_SECRET이 설정되지 않았습니다. 서버를 시작할 수 없습니다.");
     } else if (jwtSecret.length < 32) {
-      console.warn(
-        `[ENV WARN] JWT_SECRET이 32자 미만입니다 (현재 ${jwtSecret.length}자). 보안 강화를 권장합니다.`
+      throw new Error(
+        `[ENV ERROR] JWT_SECRET은 32자 이상이어야 합니다. 현재 ${jwtSecret.length}자입니다.`
       );
     }
 
@@ -80,5 +78,5 @@ export const ENV = {
   // 개발 환경에서만 임시 기본값 사용
   adminUsername: process.env.ADMIN_USERNAME ?? (process.env.NODE_ENV !== "production" ? "joyfulchurch_dev" : ""),
   adminPassword: process.env.ADMIN_PASSWORD ?? (process.env.NODE_ENV !== "production" ? "dev_only_password!" : ""),
-  adminOpenId: process.env.ADMIN_OPEN_ID ?? "",
+  adminOpenId: process.env.ADMIN_OPEN_ID ?? (process.env.NODE_ENV !== "production" ? "local-admin" : ""),
 };

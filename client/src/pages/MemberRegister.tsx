@@ -42,10 +42,9 @@ export default function MemberRegister() {
   // 회원가입 뮤테이션
   const registerMutation = trpc.members.register.useMutation({
     onSuccess: async () => {
-      toast.success("환영합니다! 기쁜의교회 가족이 되셨습니다.");
-      // 자동 로그인 후 memberMe 쿼리 즉시 갱신 → 상단 바에 이름 바로 표시
+      toast.success("회원가입 신청이 접수되었습니다. 관리자 승인 후 로그인하실 수 있습니다.");
       await utils.members.me.invalidate();
-      navigate("/");
+      navigate("/member/login");
     },
     onError: (e) => {
       if (e.message.includes("이미 사용 중인")) {
@@ -93,6 +92,8 @@ export default function MemberRegister() {
       address: form.address || undefined,
       emergencyPhone: form.emergencyPhone || undefined,
       joinPath: form.joinPath || undefined,
+      department: form.department || undefined,
+      district: form.district || undefined,
       faithPlusUserId: form.faithPlusUserId || undefined,
     });
   };

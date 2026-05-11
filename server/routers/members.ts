@@ -28,6 +28,7 @@ import { TRPCError } from "@trpc/server";
 import { adminProcedure, publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
 import { checkRateLimit, recordFailure, resetFailures, getClientIp, checkSearchRateLimit } from "../_core/rateLimiter";
 import { getSessionCookieOptions } from "../_core/cookies";
+import { getJwtSecretKey } from "../_core/jwtSecret";
 import {
   getMemberFieldOptions,
   getAllMemberFieldOptions,
@@ -91,7 +92,7 @@ export const membersRouter = router({
 
   /**
    * 성도 회원가입
-   * - 가입 즉시 자동 로그인 (JWT 쿠키 발급)
+   * - 가입 신청 후 관리자 승인 대기
    * - 이메일 중복 시 CONFLICT 에러 반환
    */
   register: publicProcedure
@@ -105,6 +106,8 @@ export const membersRouter = router({
       address: z.string().optional(),
       emergencyPhone: z.string().optional(),
       joinPath: z.string().optional(),
+      department: z.string().optional(),
+      district: z.string().optional(),
       faithPlusUserId: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -129,27 +132,14 @@ export const membersRouter = router({
         address: input.address,
         emergencyPhone: input.emergencyPhone,
         joinPath: input.joinPath,
+        department: input.department,
+        district: input.district,
         faithPlusUserId: input.faithPlusUserId,
       });
 
-      // 가입 즉시 자동 로그인 (JWT 쿠키 발급)
-      const { SignJWT } = await import("jose");
-      const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? "fallback-secret");
-      const token = await new SignJWT({
-        memberId: id,
-        email: input.email,
-        name: input.name,
-        type: "church_member",
-      })
-        .setProtectedHeader({ alg: "HS256" })
-        .setExpirationTime("24h")
-        .sign(secret);
+      ctx.res.clearCookie("church_member_session", { path: "/" });
 
-      ctx.res.cookie("church_member_session", token, {
-        ...getSessionCookieOptions(ctx.req),
-      });
-
-      return { success: true, id, autoLoggedIn: true };
+      return { success: true, id, autoLoggedIn: false };
     }),
 
   /**
@@ -191,8 +181,20 @@ export const membersRouter = router({
       resetFailures(ipKey);
       resetFailures(accountKey);
 
+      if (member.status !== "approved") {
+        const statusMsg: Record<string, string> = {
+          pending: "회원가입 신청이 접수됐습니다. 관리자 승인 후 로그인하실 수 있습니다.",
+          rejected: "가입이 거절됐습니다. 교회 사무국에 문의해주세요.",
+          withdrawn: "탈퇴한 계정입니다. 교회 사무국에 문의해주세요.",
+        };
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: statusMsg[member.status] ?? "로그인 권한이 없습니다.",
+        });
+      }
+
       const { SignJWT } = await import("jose");
-      const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? "fallback-secret");
+      const secret = getJwtSecretKey();
       const token = await new SignJWT({
         memberId: member.id,
         email: member.email,
@@ -236,7 +238,7 @@ export const membersRouter = router({
 
       try {
         const { jwtVerify } = await import("jose");
-        const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? "fallback-secret");
+        const secret = getJwtSecretKey();
         const { payload } = await jwtVerify(token, secret);
 
         if (payload.type !== "church_member" || !payload.memberId) return null;
@@ -271,7 +273,7 @@ export const membersRouter = router({
       if (!token) throw new TRPCError({ code: "UNAUTHORIZED", message: "로그인이 필요합니다." });
 
       const { jwtVerify } = await import("jose");
-      const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? "fallback-secret");
+      const secret = getJwtSecretKey();
       const { payload } = await jwtVerify(token, secret);
 
       if (payload.type !== "church_member" || !payload.memberId) {

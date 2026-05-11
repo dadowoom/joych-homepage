@@ -15,6 +15,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { checkRateLimit, recordFailure, resetFailures } from "./_core/rateLimiter";
+import { getJwtSecretString } from "./_core/jwtSecret";
 import { validateImage, validateVideo } from "./routers/cms/upload";
 
 // ── 1. 환경변수 검증 테스트 ────────────────────────────────────────────────────
@@ -47,29 +48,65 @@ describe("[보안 1번] 환경변수 검증", () => {
   });
 
   it("운영 환경에서 JWT_SECRET 32자 미만 시 오류 발생", () => {
-    const validateJwtSecret = (secret: string) => {
-      if (secret.length < 32) {
-        throw new Error(
-          `[ENV ERROR] JWT_SECRET은 32자 이상이어야 합니다. 현재 ${secret.length}자입니다.`
-        );
-      }
-    };
+    const originalEnv = process.env.NODE_ENV;
+    const originalJwtSecret = process.env.JWT_SECRET;
 
-    expect(() => validateJwtSecret("short_secret")).toThrow(
+    process.env.NODE_ENV = "production";
+    process.env.JWT_SECRET = "short_secret";
+
+    expect(() => getJwtSecretString()).toThrow(
       "[ENV ERROR] JWT_SECRET은 32자 이상이어야 합니다."
     );
+
+    process.env.NODE_ENV = originalEnv;
+    if (originalJwtSecret !== undefined) process.env.JWT_SECRET = originalJwtSecret;
+    else delete process.env.JWT_SECRET;
+  });
+
+  it("운영 환경에서 JWT_SECRET 누락 시 오류 발생", () => {
+    const originalEnv = process.env.NODE_ENV;
+    const originalJwtSecret = process.env.JWT_SECRET;
+
+    process.env.NODE_ENV = "production";
+    delete process.env.JWT_SECRET;
+
+    expect(() => getJwtSecretString()).toThrow(
+      "[ENV ERROR] JWT_SECRET이 설정되지 않았습니다."
+    );
+
+    process.env.NODE_ENV = originalEnv;
+    if (originalJwtSecret !== undefined) process.env.JWT_SECRET = originalJwtSecret;
+    else delete process.env.JWT_SECRET;
   });
 
   it("JWT_SECRET 32자 이상이면 오류 없음", () => {
-    const validateJwtSecret = (secret: string) => {
-      if (secret.length < 32) {
-        throw new Error(
-          `[ENV ERROR] JWT_SECRET은 32자 이상이어야 합니다. 현재 ${secret.length}자입니다.`
-        );
-      }
-    };
+    const originalEnv = process.env.NODE_ENV;
+    const originalJwtSecret = process.env.JWT_SECRET;
 
-    expect(() => validateJwtSecret("this_is_a_very_long_secret_key_for_testing_purposes")).not.toThrow();
+    process.env.NODE_ENV = "production";
+    process.env.JWT_SECRET = "this_is_a_very_long_secret_key_for_testing_purposes";
+
+    expect(() => getJwtSecretString()).not.toThrow();
+
+    process.env.NODE_ENV = originalEnv;
+    if (originalJwtSecret !== undefined) process.env.JWT_SECRET = originalJwtSecret;
+    else delete process.env.JWT_SECRET;
+  });
+
+  it("개발 환경에서 JWT_SECRET이 없어도 고정 fallback-secret을 사용하지 않음", () => {
+    const originalEnv = process.env.NODE_ENV;
+    const originalJwtSecret = process.env.JWT_SECRET;
+
+    process.env.NODE_ENV = "development";
+    delete process.env.JWT_SECRET;
+
+    const secret = getJwtSecretString();
+    expect(secret).not.toBe("fallback-secret");
+    expect(secret.length).toBeGreaterThanOrEqual(32);
+
+    process.env.NODE_ENV = originalEnv;
+    if (originalJwtSecret !== undefined) process.env.JWT_SECRET = originalJwtSecret;
+    else delete process.env.JWT_SECRET;
   });
 });
 

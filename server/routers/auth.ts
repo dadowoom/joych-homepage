@@ -10,6 +10,7 @@
  */
 
 import { z } from "zod";
+import crypto from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { getSessionCookieOptions } from "../_core/cookies";
@@ -18,6 +19,13 @@ import { sdk } from "../_core/sdk";
 import { ENV } from "../_core/env";
 import * as db from "../db";
 import { checkRateLimit, recordFailure, resetFailures, getClientIp } from "../_core/rateLimiter";
+
+function safeEqual(a: string, b: string) {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  if (left.length !== right.length) return false;
+  return crypto.timingSafeEqual(left, right);
+}
 
 export const authRouter = router({
   /**
@@ -45,7 +53,10 @@ export const authRouter = router({
    * 외부 서버 이전 시 반드시 해당 환경변수를 설정해야 합니다.
    */
    adminLogin: publicProcedure
-    .input(z.object({ username: z.string(), password: z.string() }))
+    .input(z.object({
+      username: z.string().trim().min(1, "아이디를 입력해주세요."),
+      password: z.string().min(1, "비밀번호를 입력해주세요."),
+    }))
     .mutation(async ({ input, ctx }) => {
       // ── Rate Limit: IP 및 계정 기준 실패 횟수 제한 ───────────────────────
       const clientIp = getClientIp(ctx.req);
@@ -62,7 +73,13 @@ export const authRouter = router({
       const ADMIN_USERNAME = ENV.adminUsername;
       const ADMIN_PASSWORD = ENV.adminPassword;
       const ADMIN_OPEN_ID = ENV.adminOpenId;
-      if (input.username !== ADMIN_USERNAME || input.password !== ADMIN_PASSWORD) {
+      if (!ADMIN_USERNAME || !ADMIN_PASSWORD || !ADMIN_OPEN_ID) {
+        throw new TRPCError({
+          code: "SERVICE_UNAVAILABLE",
+          message: "관리자 로그인이 설정되지 않았습니다. 서버 환경변수를 확인해주세요.",
+        });
+      }
+      if (!safeEqual(input.username, ADMIN_USERNAME) || !safeEqual(input.password, ADMIN_PASSWORD)) {
         recordFailure(ipKey);
         recordFailure(accountKey);
         throw new TRPCError({

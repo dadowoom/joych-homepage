@@ -17,6 +17,7 @@
 import { z } from "zod";
 import { adminProcedure, publicProcedure, router } from "../../_core/trpc";
 import { storagePut } from "../../storage";
+import { validateImage } from "./upload";
 import {
   getFacilities,
   getFacilityById,
@@ -115,10 +116,10 @@ export const facilitiesRouter = router({
         isThumbnail: z.boolean().default(false),
       }))
       .mutation(async ({ input }) => {
-        const buffer = Buffer.from(input.base64, "base64");
-        const ext = input.mimeType.split("/")[1] ?? "jpg";
+        const { buffer, ext } = validateImage(input.base64, input.mimeType);
+        const mimeType = input.mimeType.toLowerCase().trim();
         const key = `facility-images/${input.facilityId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const { url } = await storagePut(key, buffer, input.mimeType);
+        const { url } = await storagePut(key, buffer, mimeType);
         const id = await addFacilityImage({
           facilityId: input.facilityId,
           imageUrl: url,

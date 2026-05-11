@@ -16,21 +16,16 @@ export default function MemberLogin() {
 
   const loginMutation = trpc.members.login.useMutation({
     onSuccess: async (data) => {
-      if (data.member.status === "pending") {
-        toast.info("회원가입 신청이 접수됐습니다. 관리자 승인 후 이용하실 수 있습니다.");
-      } else if (data.member.status === "rejected") {
-        toast.error("가입이 거절됐습니다. 교회 사무국에 문의해주세요.");
-        return;
-      } else {
-        toast.success(`${data.member.name}님, 환영합니다!`);
-        // 로그인 후 memberMe 쿼리 즉시 갱신 → 상단 바에 이름 바로 표시
-        await utils.members.me.invalidate();
-        navigate("/");
-      }
+      toast.success(`${data.member.name}님, 환영합니다!`);
+      // 로그인 후 memberMe 쿼리 즉시 갱신 → 상단 바에 이름 바로 표시
+      await utils.members.me.invalidate();
+      navigate("/");
     },
     onError: (e) => {
       if (e.message.includes("이메일 또는 비밀번호")) {
         setErrors({ email: "이메일 또는 비밀번호가 올바르지 않습니다." });
+      } else if (e.message.includes("승인")) {
+        toast.info(e.message);
       } else {
         toast.error(e.message);
       }
