@@ -114,6 +114,22 @@ export async function getMenuItemById(id: number) {
   return rows[0] ?? null;
 }
 
+/** 2단 메뉴 단건 조회 (공개용 — 상위 메뉴와 본인이 모두 공개된 경우만) */
+export async function getVisibleMenuItemById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(menuItems)
+    .where(and(eq(menuItems.id, id), eq(menuItems.isVisible, true)))
+    .limit(1);
+  const item = rows[0];
+  if (!item) return null;
+
+  const parentRows = await db.select().from(menus)
+    .where(and(eq(menus.id, item.menuId), eq(menus.isVisible, true)))
+    .limit(1);
+  return parentRows[0] ? item : null;
+}
+
 /** 2단 메뉴 생성 */
 export async function createMenuItem(data: typeof menuItems.$inferInsert) {
   const db = await getDb();
@@ -152,6 +168,28 @@ export async function getMenuSubItemById(id: number) {
   if (!db) return null;
   const rows = await db.select().from(menuSubItems).where(eq(menuSubItems.id, id)).limit(1);
   return rows[0] ?? null;
+}
+
+/** 3단 메뉴 단건 조회 (공개용 — 1/2/3단이 모두 공개된 경우만) */
+export async function getVisibleMenuSubItemById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(menuSubItems)
+    .where(and(eq(menuSubItems.id, id), eq(menuSubItems.isVisible, true)))
+    .limit(1);
+  const subItem = rows[0];
+  if (!subItem) return null;
+
+  const itemRows = await db.select().from(menuItems)
+    .where(and(eq(menuItems.id, subItem.menuItemId), eq(menuItems.isVisible, true)))
+    .limit(1);
+  const item = itemRows[0];
+  if (!item) return null;
+
+  const parentRows = await db.select().from(menus)
+    .where(and(eq(menus.id, item.menuId), eq(menus.isVisible, true)))
+    .limit(1);
+  return parentRows[0] ? subItem : null;
 }
 
 /** 3단 메뉴 생성 */
@@ -219,6 +257,24 @@ export async function getMenuItemByHref(href: string) {
 }
 
 /**
+ * href로 2단 메뉴 조회 (공개용 — 상위 메뉴와 본인이 모두 공개된 경우만)
+ */
+export async function getVisibleMenuItemByHref(href: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(menuItems)
+    .where(and(eq(menuItems.href, href), eq(menuItems.isVisible, true)))
+    .limit(1);
+  const item = rows[0];
+  if (!item) return null;
+
+  const parentRows = await db.select().from(menus)
+    .where(and(eq(menus.id, item.menuId), eq(menus.isVisible, true)))
+    .limit(1);
+  return parentRows[0] ? item : null;
+}
+
+/**
  * href로 3단 메뉴 조회
  * - 예배영상 서브 페이지에서 해당 메뉴의 playlistId를 찾을 때 사용합니다.
  */
@@ -227,4 +283,28 @@ export async function getMenuSubItemByHref(href: string) {
   if (!db) return null;
   const rows = await db.select().from(menuSubItems).where(eq(menuSubItems.href, href)).limit(1);
   return rows[0] ?? null;
+}
+
+/**
+ * href로 3단 메뉴 조회 (공개용 — 1/2/3단이 모두 공개된 경우만)
+ */
+export async function getVisibleMenuSubItemByHref(href: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(menuSubItems)
+    .where(and(eq(menuSubItems.href, href), eq(menuSubItems.isVisible, true)))
+    .limit(1);
+  const subItem = rows[0];
+  if (!subItem) return null;
+
+  const itemRows = await db.select().from(menuItems)
+    .where(and(eq(menuItems.id, subItem.menuItemId), eq(menuItems.isVisible, true)))
+    .limit(1);
+  const item = itemRows[0];
+  if (!item) return null;
+
+  const parentRows = await db.select().from(menus)
+    .where(and(eq(menus.id, item.menuId), eq(menus.isVisible, true)))
+    .limit(1);
+  return parentRows[0] ? subItem : null;
 }
