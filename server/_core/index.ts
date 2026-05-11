@@ -127,6 +127,11 @@ async function startServer() {
     }
     next();
   });
+
+  // Manus development-only endpoints/files must not be exposed in production.
+  app.use("/__manus__", (_req, res) => {
+    res.status(404).type("text/plain").send("Not found");
+  });
   // ─────────────────────────────────────────────────────────────────────
 
   // Configure body parser with larger size limit for file uploads
