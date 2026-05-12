@@ -12,7 +12,7 @@
 | 프로젝트명 | joych-homepage (기쁨의교회 홈페이지) |
 | 경로 | `/home/ubuntu/joych-homepage` |
 | 기술 스택 | React 19 + Tailwind 4 + Express 4 + tRPC 11 + MySQL (Drizzle ORM) |
-| 관리자 계정 | ID: `joyfulchurch` / PW: `joyfulchurch1!` |
+| 관리자 계정 | 운영 환경변수 `ADMIN_USERNAME`, `ADMIN_PASSWORD` 사용 |
 | 도메인 | `dadowoomtest.co.kr`, `joychome-kastcrbz.manus.space` |
 
 ---
@@ -180,6 +180,6 @@ client/src/
 
 - `server/_core/` 폴더는 절대 수정하지 않는다 (프레임워크 코어)
 - `drizzle/schema.ts` 수정 시 반드시 `pnpm db:push` 실행
-- 관리자 로그인은 Manus OAuth가 아닌 자체 ID/PW 방식 (`joyfulchurch` / `joyfulchurch1!`)
+- 관리자 로그인은 Manus OAuth가 아닌 자체 ID/PW 방식이며, 자격증명은 운영 환경변수에서 관리
 - 성도 로그인은 `memberProtectedProcedure` 사용 (ctx.memberId 주입)
 - 환경변수는 절대 코드에 하드코딩하지 않는다 (`server/_core/env.ts` 참조)

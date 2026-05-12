@@ -24,10 +24,10 @@
 | 항목 | 값 |
 |---|---|
 | 아이디 | `joyfulchurch` |
-| 비밀번호 | `joyfulchurch1!` |
+| 비밀번호 | 운영 환경변수 `ADMIN_PASSWORD` 사용 |
 | DB openId | `admin_joyfulchurch` |
 
-> **주의:** 관리자 자격증명은 server/routers.ts에 하드코딩되어 있음. 향후 환경변수로 이동 권장.
+> **주의:** 관리자 자격증명은 운영 환경변수로 관리하며, 실제 값은 문서나 저장소에 기록하지 않는다.
 
 ---
 
