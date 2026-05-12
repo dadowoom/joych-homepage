@@ -73,7 +73,9 @@ async function normalize() {
   console.log(`normalized ${updatedCount} CMS menu href(s)`);
 }
 
-normalize().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+normalize()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
