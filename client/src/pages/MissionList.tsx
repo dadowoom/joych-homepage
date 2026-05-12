@@ -2,12 +2,13 @@
  * 기쁨의교회 선교보고 목록 페이지 — /mission
  * 디자인: Warm Modern Sacred — 녹색 포인트(#1B5E20), Noto Serif KR, 카드 레이아웃
  * 구성: PageBanner → 필터(대륙/선교사) → 보고 카드 목록(최신순)
- * 규칙: 더미 데이터는 missionData.ts에서만 관리, 나중에 API 호출로 교체
+ * 공개 데이터는 mission tRPC API에서 조회하며, 기존 카드 UI는 유지합니다.
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { MOCK_REPORTS, MISSIONARIES, CONTINENT_LABELS, type MissionContinent } from "@/lib/missionData";
+import { trpc } from "@/lib/trpc";
+import { CONTINENT_LABELS, type MissionContinent } from "@/lib/missionData";
 
 // 날짜 포맷 헬퍼 (YYYY-MM-DD → YYYY년 MM월 DD일)
 function formatDate(dateStr: string): string {
@@ -17,14 +18,30 @@ function formatDate(dateStr: string): string {
 
 export default function MissionList() {
   const [selectedContinent, setSelectedContinent] = useState<MissionContinent | "all">("all");
-  const [selectedMissionary, setSelectedMissionary] = useState<string>("all");
+  const [selectedMissionary, setSelectedMissionary] = useState<number | "all">("all");
+
+  const { data: reports = [], isLoading } = trpc.mission.reports.useQuery();
+  const { data: missionaries = [] } = trpc.mission.missionaries.useQuery();
+  const { data: me } = trpc.members.me.useQuery(undefined, { retry: false });
+  const { data: authorGrants = [] } = trpc.mission.myAuthorGrants.useQuery(undefined, {
+    enabled: Boolean(me),
+    retry: false,
+  });
+  const canWriteMissionReport = authorGrants.length > 0;
 
   // 필터 적용
-  const filtered = MOCK_REPORTS.filter((r) => {
+  const filtered = reports.filter((r) => {
     const continentOk = selectedContinent === "all" || r.missionary.continent === selectedContinent;
     const missionaryOk = selectedMissionary === "all" || r.missionaryId === selectedMissionary;
     return continentOk && missionaryOk;
   });
+
+  const activeMissionaries = useMemo(() => {
+    const map = new Map<number, (typeof missionaries)[number]>();
+    missionaries.forEach((missionary) => map.set(missionary.id, missionary));
+    reports.forEach((report) => map.set(report.missionary.id, report.missionary));
+    return Array.from(map.values());
+  }, [missionaries, reports]);
 
   const continents: Array<{ value: MissionContinent | "all"; label: string }> = [
     { value: "all", label: "전체 지역" },
@@ -40,7 +57,15 @@ export default function MissionList() {
             <i className="fas fa-chevron-left text-sm"></i>
             <span className="font-medium text-sm">기쁨의교회 홈</span>
           </Link>
-          <span className="text-gray-400 text-sm">사역/선교 &gt; 선교보고</span>
+          <div className="flex items-center gap-3">
+            {canWriteMissionReport && (
+              <Link href="/mission/write" className="hidden sm:inline-flex items-center gap-1.5 text-xs bg-[#1B5E20] text-white px-3 py-1.5 rounded-full hover:bg-[#2E7D32] transition-colors">
+                <i className="fas fa-pen text-[10px]"></i>
+                선교보고 작성
+              </Link>
+            )}
+            <span className="text-gray-400 text-sm">사역/선교 &gt; 선교보고</span>
+          </div>
         </div>
       </header>
 
@@ -62,17 +87,17 @@ export default function MissionList() {
           {/* 통계 */}
           <div className="flex gap-8 mt-8">
             <div>
-              <p className="text-3xl font-bold">{MISSIONARIES.length}</p>
+              <p className="text-3xl font-bold">{activeMissionaries.length}</p>
               <p className="text-green-200 text-sm mt-1">선교 협력</p>
             </div>
             <div className="w-px bg-green-400/40"></div>
             <div>
-              <p className="text-3xl font-bold">{new Set(MISSIONARIES.map(m => m.region.split(" ")[0])).size}</p>
+              <p className="text-3xl font-bold">{new Set(activeMissionaries.map(m => m.region.split(" ")[0])).size}</p>
               <p className="text-green-200 text-sm mt-1">사역 지역</p>
             </div>
             <div className="w-px bg-green-400/40"></div>
             <div>
-              <p className="text-3xl font-bold">{MOCK_REPORTS.length}</p>
+              <p className="text-3xl font-bold">{reports.length}</p>
               <p className="text-green-200 text-sm mt-1">총 선교보고</p>
             </div>
           </div>
@@ -97,7 +122,7 @@ export default function MissionList() {
               </div>
               <span className="text-xs font-medium whitespace-nowrap">전체</span>
             </button>
-            {MISSIONARIES.map((m) => (
+            {activeMissionaries.map((m) => (
               <button
                 key={m.id}
                 onClick={() => setSelectedMissionary(m.id)}
@@ -108,7 +133,7 @@ export default function MissionList() {
                 }`}
               >
                 <img
-                  src={m.profileImage}
+                  src={m.profileImage ?? "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80"}
                   alt={m.name}
                   className="w-12 h-12 rounded-full object-cover border-2 border-white"
                 />
@@ -145,10 +170,15 @@ export default function MissionList() {
 
       {/* ── 선교보고 카드 목록 ── */}
       <section className="max-w-6xl mx-auto px-4 pb-20">
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <div className="text-center py-24 text-gray-400">
+            <i className="fas fa-spinner fa-spin text-4xl mb-4 block"></i>
+            <p>선교보고를 불러오는 중입니다.</p>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="text-center py-24 text-gray-400">
             <i className="fas fa-search text-4xl mb-4 block"></i>
-            <p>해당 조건의 선교보고가 없습니다.</p>
+            <p>{reports.length === 0 ? "등록된 선교보고가 없습니다." : "해당 조건의 선교보고가 없습니다."}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -158,7 +188,7 @@ export default function MissionList() {
                   {/* 썸네일 */}
                   <div className="relative h-52 overflow-hidden">
                     <img
-                      src={report.thumbnail}
+                      src={report.thumbnailUrl ?? report.images[0] ?? "https://images.unsplash.com/photo-1555636222-cae831e670b3?w=600&q=80"}
                       alt={report.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
@@ -172,7 +202,7 @@ export default function MissionList() {
                     {/* 선교사 정보 */}
                     <div className="flex items-center gap-3 mb-3">
                       <img
-                        src={report.missionary.profileImage}
+                        src={report.missionary.profileImage ?? "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80"}
                         alt={report.missionary.name}
                         className="w-9 h-9 rounded-full object-cover border-2 border-[#E8F5E9]"
                       />
@@ -180,7 +210,7 @@ export default function MissionList() {
                         <p className="text-sm font-semibold text-gray-800">{report.missionary.name}</p>
                         <p className="text-xs text-gray-400">{report.missionary.region}</p>
                       </div>
-                      <span className="ml-auto text-xs text-gray-400">{formatDate(report.date)}</span>
+                      <span className="ml-auto text-xs text-gray-400">{formatDate(report.reportDate)}</span>
                     </div>
                     {/* 제목 */}
                     <h2

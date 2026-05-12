@@ -64,6 +64,13 @@
       "when": 1776430124490,
       "tag": "0008_plain_master_chief",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1778556387397,
+      "tag": "0009_white_eddie_brock",
+      "breakpoints": true
     }
   ]
 }

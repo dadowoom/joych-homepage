@@ -14,6 +14,7 @@
  *   member.ts      - 교회 회원(교적부) DB 함수
  *   blocks.ts      - 블록 에디터 DB 함수
  *   youtube.ts     - 예배영상/플레이리스트 DB 함수
+ *   mission.ts     - 선교보고/작성권한 DB 함수
  */
 
 export * from "./connection";
@@ -25,3 +26,4 @@ export * from "./facility";
 export * from "./member";
 export * from "./blocks";
 export * from "./youtube";
+export * from "./mission";
