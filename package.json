@@ -11,7 +11,8 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
-    "cms:normalize-menu-hrefs": "tsx scripts/normalize-cms-menu-hrefs.ts"
+    "cms:normalize-menu-hrefs": "tsx scripts/normalize-cms-menu-hrefs.ts",
+    "cms:seed-static-pages": "tsx scripts/seed-static-page-content.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
