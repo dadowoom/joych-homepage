@@ -107,12 +107,12 @@
 ```
 파일: server/routers/auth.ts (46~48번 줄)
 
-const ADMIN_USERNAME = "joyfulchurch";      // ← 환경변수로 이전 필요
-const ADMIN_PASSWORD = "joyfulchurch1!";    // ← 환경변수로 이전 필요
-const ADMIN_OPEN_ID = "admin_joyfulchurch"; // ← 환경변수로 이전 필요
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME; // 운영 환경변수에서 로드
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD; // 운영 환경변수에서 로드
+const ADMIN_OPEN_ID = process.env.ADMIN_OPEN_ID;   // 운영 환경변수에서 로드
 ```
 
-위 자격증명을 환경변수(`ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_OPEN_ID`)로 이전하고, 실제 운영 환경에서는 반드시 강력한 비밀번호로 변경해야 합니다.
+위 자격증명은 환경변수(`ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_OPEN_ID`)에서 로드하며, 실제 운영 환경에서는 반드시 강력한 비밀번호로 관리해야 합니다.
 
 ### 관리자 페이지 URL 보안
 

@@ -546,7 +546,7 @@ export default function Home() {
                   생선 간증
                 </h3>
                 <p className="text-gray-500 text-sm leading-relaxed">
-                  생선제자훈련 수료자들의 은혜로운 간증을 나눥니다
+                  생선제자훈련 수료자들의 은혜로운 간증을 나눕니다
                 </p>
                 <div className="mt-4 flex items-center gap-1 text-[#1B5E20] text-sm font-semibold">
                   <span>자세히 보기</span>

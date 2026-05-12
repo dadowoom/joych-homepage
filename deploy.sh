@@ -10,8 +10,7 @@ set -e  # 오류 발생 시 즉시 중단
 
 # ── 설정 ────────────────────────────────────────────────────
 SERVER_IP="115.68.224.123"
-SERVER_USER="root"
-SERVER_PASS="2^RX8D&J"
+SERVER_USER="${SERVER_USER:-root}"
 SERVER_PATH="/var/www/joych-homepage"
 PM2_APP="joych-homepage"
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -30,6 +29,10 @@ fail() { echo -e "${RED}✗ $1${NC}"; exit 1; }
 if ! command -v sshpass &> /dev/null; then
   step "sshpass 설치 중..."
   sudo apt-get install -y sshpass -q || fail "sshpass 설치 실패"
+fi
+
+if [ -z "${SERVER_PASS:-}" ]; then
+  fail "SERVER_PASS 환경변수를 설정한 뒤 실행하세요. 예: SERVER_PASS='...' ./deploy.sh"
 fi
 
 SSH="sshpass -p '${SERVER_PASS}' ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP}"
