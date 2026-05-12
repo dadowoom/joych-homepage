@@ -8,104 +8,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
-
-const NAV_ITEMS = [
-  {
-    label: "교회소개",
-    sub: ["담임목사 소개", "예배안내", "섬기는 분", "교회백서", "사역원리", "CI", "시설물 안내", "오시는 길", "셔틀버스"],
-    subHref: {
-      "담임목사 소개": "/about/pastor",
-      "예배안내": "/worship/schedule",
-      "섬기는 분": "/about/staff",
-      "교회백서": "/about/whitebook",
-      "사역원리": "/about/principle",
-      "CI": "/about/ci",
-      "시설물 안내": "/facility",
-      "오시는 길": "/about/directions",
-      "셔틀버스": "/about/shuttle",
-    }
-  },
-  {
-    label: "조이풀TV",
-    sub: ["실시간 예배영상", "주일예배", "헤브론 수요예배", "쉐키나 금요기도회", "새벽 글로리아 성서학당", "박진석 목사 시리즈설교", "하영인 새벽기도회 설교", "특별예배", "특집", "간증", "찬양"],
-    subHref: {
-      "실시간 예배영상": "/worship/tv",
-      "주일예배": "/worship/tv/sunday",
-      "헤브론 수요예배": "/worship/tv/hebron",
-      "쉐키나 금요기도회": "/worship/tv/shekhinah",
-      "새벽 글로리아 성서학당": "/worship/tv/gloria",
-      "박진석 목사 시리즈설교": "/worship/tv/pastor-series",
-      "하영인 새벽기도회 설교": "/worship/tv/hayoungin",
-      "특별예배": "/worship/tv/special",
-      "특집": "/worship/tv/feature",
-      "간증": "/worship/tv/testimony",
-      "찬양": "/worship/tv/praise",
-    }
-  },
-  {
-    label: "양육/훈련",
-    sub: ["헤세드아시아포재팬", "제자훈련", "장로훈련", "일대일 양육", "선생님학교", "생선 컨퍼런스", "세계선교", "전도", "기도사역", "복지사역", "비전대학교", "조이랩"],
-    subHref: {
-      "헤세드아시아포재팬": "/education/hesed",
-      "제자훈련": "/education/disciple2",
-      "장로훈련": "/education/elder",
-      "일대일 양육": "/education/one-on-one",
-      "선생님학교": "/education/sunseumschool",
-      "생선 컨퍼런스": "/education/saengseon",
-      "세계선교": "/ministry/world-mission",
-      "전도": "/ministry/evangelism",
-      "기도사역": "/ministry/prayer",
-      "복지사역": "/ministry/welfare",
-      "비전대학교": "/ministry/vision-univ",
-      "조이랩": "/ministry/joylab",
-    }
-  },
-  {
-    label: "교회학교",
-    sub: ["영아부", "유아부", "유치부", "초등부", "중고등부", "청년부", "AWANA"],
-    subHref: {
-      "영아부": "/school/infant",
-      "유아부": "/school/infant",
-      "유치부": "/school/kinder",
-      "초등부": "/school/elementary",
-      "중고등부": "/school/youth",
-      "청년부": "/school/young-adult",
-      "AWANA": "/school/awana",
-    }
-  },
-  {
-    label: "선교보고",
-    sub: ["선교보고 목록"],
-    subHref: {
-      "선교보고 목록": "/mission",
-    }
-  },
-  {
-    label: "커뮤니티",
-    sub: ["순모임", "자치기관", "동호회", "사진", "기쁨톡", "HOT NEWS", "공지사항"],
-    subHref: {
-      "순모임": "/community/soon",
-      "자치기관": "/community/organization",
-      "동호회": "/community/club",
-      "사진": "/community/photo",
-      "기쁨톡": "/community/joytalk",
-      "HOT NEWS": "/community/news",
-      "공지사항": "/community/news",
-    }
-  },
-  {
-    label: "행정지원",
-    sub: ["주보", "자막 신청", "온라인사무국", "탐방신청", "조이풀빌리지", "기부금 영수증"],
-    subHref: {
-      "주보": "/worship/bulletin",
-      "자막 신청": "/admin/subtitle",
-      "온라인사무국": "/admin/office",
-      "탐방신청": "/admin/tour",
-      "조이풀빌리지": "/admin/store",
-      "기부금 영수증": "/admin/donation",
-    }
-  },
-];
+import { toFallbackMenuTree } from "@shared/siteNavigation";
 
 function getUsableHref(href?: string | null) {
   const trimmed = href?.trim();
@@ -116,26 +19,46 @@ function isExternalHref(href: string) {
   return href.startsWith("http://") || href.startsWith("https://");
 }
 
+const fallbackMenus = toFallbackMenuTree();
+
 export default function SiteHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [searchName, setSearchName] = useState("");
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [mobileExpandedId, setMobileExpandedId] = useState<number | null>(null);
-  const [mobileExpandedSubId, setMobileExpandedSubId] = useState<number | null>(null);
+  const [mobileExpandedSubId, setMobileExpandedSubId] = useState<number | null>(
+    null
+  );
   const [, setLocation] = useLocation();
 
-  const { data: memberMe, refetch: refetchMemberMe } = trpc.members.me.useQuery();
+  const { data: memberMe, refetch: refetchMemberMe } =
+    trpc.members.me.useQuery();
   const memberLogoutMutation = trpc.members.logout.useMutation({
-    onSuccess: () => { refetchMemberMe(); },
+    onSuccess: () => {
+      refetchMemberMe();
+    },
   });
   const { data: dbMenus } = trpc.home.menus.useQuery();
   const { data: dbSettings } = trpc.home.settings.useQuery();
-  const navMenus = (dbMenus && dbMenus.length > 0) ? dbMenus : null;
+  const navMenus = dbMenus && dbMenus.length > 0 ? dbMenus : null;
+  const displayMenus = navMenus ?? fallbackMenus;
   const socialLinks = [
-    { icon: "fab fa-youtube", label: "유튜브", href: dbSettings?.youtube_url || "/worship/tv" },
-    { icon: "fab fa-facebook-f", label: "페이스북", href: dbSettings?.facebook_url || null },
-    { icon: "fab fa-instagram", label: "인스타그램", href: dbSettings?.instagram_url || null },
+    {
+      icon: "fab fa-youtube",
+      label: "유튜브",
+      href: dbSettings?.youtube_url || "/worship/tv",
+    },
+    {
+      icon: "fab fa-facebook-f",
+      label: "페이스북",
+      href: dbSettings?.facebook_url || null,
+    },
+    {
+      icon: "fab fa-instagram",
+      label: "인스타그램",
+      href: dbSettings?.instagram_url || null,
+    },
   ];
 
   useEffect(() => {
@@ -169,37 +92,60 @@ export default function SiteHeader() {
             {memberMe ? (
               <>
                 <span className="text-gray-300">{memberMe.name}님</span>
-                <Link href="/member/my-page" className="hover:text-white transition-colors">내 정보</Link>
+                <Link
+                  href="/member/my-page"
+                  className="hover:text-white transition-colors"
+                >
+                  내 정보
+                </Link>
                 <button
                   onClick={() => memberLogoutMutation.mutate()}
                   className="hover:text-white transition-colors cursor-pointer"
-                >로그아웃</button>
+                >
+                  로그아웃
+                </button>
               </>
             ) : (
               <>
-                <Link href="/member/login" className="hover:text-white transition-colors">로그인</Link>
-                <Link href="/member/register" className="hover:text-white transition-colors">회원가입</Link>
+                <Link
+                  href="/member/login"
+                  className="hover:text-white transition-colors"
+                >
+                  로그인
+                </Link>
+                <Link
+                  href="/member/register"
+                  className="hover:text-white transition-colors"
+                >
+                  회원가입
+                </Link>
               </>
             )}
             <div className="flex gap-3 ml-2">
-              {socialLinks.map((s) => (
+              {socialLinks.map(s =>
                 s.href ? (
                   <a
                     key={s.label}
                     href={s.href}
                     target={isExternalHref(s.href) ? "_blank" : undefined}
-                    rel={isExternalHref(s.href) ? "noopener noreferrer" : undefined}
+                    rel={
+                      isExternalHref(s.href) ? "noopener noreferrer" : undefined
+                    }
                     aria-label={s.label}
                     className="hover:text-white transition-colors"
                   >
                     <i className={s.icon}></i>
                   </a>
                 ) : (
-                  <span key={s.label} aria-label={`${s.label} 링크 미등록`} className="text-gray-600">
+                  <span
+                    key={s.label}
+                    aria-label={`${s.label} 링크 미등록`}
+                    className="text-gray-600"
+                  >
                     <i className={s.icon}></i>
                   </span>
                 )
-              ))}
+              )}
             </div>
           </div>
         </div>
@@ -228,7 +174,7 @@ export default function SiteHeader() {
               <input
                 type="text"
                 value={searchName}
-                onChange={(e) => setSearchName(e.target.value)}
+                onChange={e => setSearchName(e.target.value)}
                 placeholder="이름으로 신앙 데이터 검색"
                 className="w-full h-10 pl-4 pr-10 text-sm rounded-full border border-gray-200 bg-[#F7F7F5] text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#1B5E20] focus:ring-1 focus:ring-[#1B5E20] transition-all duration-200"
               />
@@ -244,84 +190,146 @@ export default function SiteHeader() {
           {/* PC 메뉴 */}
           <nav className="hidden md:block">
             <ul className="flex">
-              {(navMenus ?? NAV_ITEMS.map((item, i) => ({
-                id: i + 1,
-                label: item.label,
-                href: (item as { href?: string }).href ?? null,
-                items: item.sub.map((s, j) => ({
-                  id: j + 1,
-                  label: s,
-                  href: (item as { subHref?: Record<string, string | undefined> }).subHref?.[s] ?? null
-                }))
-              }))).map((item) => {
+              {displayMenus.map(item => {
                 const parentHref = getUsableHref(item.href);
-                const parentClassName = "text-sm font-medium text-gray-700 hover:text-[#1B5E20] transition-colors";
+                const parentClassName =
+                  "text-sm font-medium text-gray-700 hover:text-[#1B5E20] transition-colors";
                 return (
-                <li key={item.id} className="relative group">
-                  <div className="flex items-center h-[72px] px-4 relative">
-                    {parentHref ? (
-                      isExternalHref(parentHref) ? (
-                        <a href={parentHref} target="_blank" rel="noopener noreferrer" className={parentClassName}>{item.label}</a>
+                  <li key={item.id} className="relative group">
+                    <div className="flex items-center h-[72px] px-4 relative">
+                      {parentHref ? (
+                        isExternalHref(parentHref) ? (
+                          <a
+                            href={parentHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={parentClassName}
+                          >
+                            {item.label}
+                          </a>
+                        ) : (
+                          <Link href={parentHref} className={parentClassName}>
+                            {item.label}
+                          </Link>
+                        )
                       ) : (
-                        <Link href={parentHref} className={parentClassName}>{item.label}</Link>
-                      )
-                    ) : (
-                      <span className={parentClassName}>{item.label}</span>
-                    )}
-                    <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#1B5E20] scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left"></span>
-                  </div>
-                  {(item.items ?? []).length > 0 && (
-                    <ul className="absolute top-[72px] left-0 bg-white border-t-2 border-[#1B5E20] shadow-xl min-w-[160px] z-[200] py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150">
-                      {(item.items ?? []).map((s, j) => {
-                        const hasSubItems = (s as { subItems?: { id: number; label: string; href?: string | null }[] }).subItems && (s as { subItems?: { id: number; label: string; href?: string | null }[] }).subItems!.length > 0;
-                        const subItems = (s as { subItems?: { id: number; label: string; href?: string | null }[] }).subItems ?? [];
-                        const cls = "flex items-center justify-between px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
-                        return (
-                          <li key={j} className="relative group/sub">
-                            {getUsableHref(s.href) ? (
-                              isExternalHref(getUsableHref(s.href)!) ? (
-                                <a href={getUsableHref(s.href)!} target="_blank" rel="noopener noreferrer" className={cls}>
-                                  <span>{s.label}</span>
-                                  {hasSubItems && <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>}
-                                </a>
+                        <span className={parentClassName}>{item.label}</span>
+                      )}
+                      <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#1B5E20] scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left"></span>
+                    </div>
+                    {(item.items ?? []).length > 0 && (
+                      <ul className="absolute top-[72px] left-0 bg-white border-t-2 border-[#1B5E20] shadow-xl min-w-[160px] z-[200] py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150">
+                        {(item.items ?? []).map((s, j) => {
+                          const hasSubItems =
+                            (
+                              s as {
+                                subItems?: {
+                                  id: number;
+                                  label: string;
+                                  href?: string | null;
+                                }[];
+                              }
+                            ).subItems &&
+                            (
+                              s as {
+                                subItems?: {
+                                  id: number;
+                                  label: string;
+                                  href?: string | null;
+                                }[];
+                              }
+                            ).subItems!.length > 0;
+                          const subItems =
+                            (
+                              s as {
+                                subItems?: {
+                                  id: number;
+                                  label: string;
+                                  href?: string | null;
+                                }[];
+                              }
+                            ).subItems ?? [];
+                          const cls =
+                            "flex items-center justify-between px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
+                          return (
+                            <li key={j} className="relative group/sub">
+                              {getUsableHref(s.href) ? (
+                                isExternalHref(getUsableHref(s.href)!) ? (
+                                  <a
+                                    href={getUsableHref(s.href)!}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={cls}
+                                  >
+                                    <span>{s.label}</span>
+                                    {hasSubItems && (
+                                      <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>
+                                    )}
+                                  </a>
+                                ) : (
+                                  <Link
+                                    href={getUsableHref(s.href)!}
+                                    className={cls}
+                                  >
+                                    <span>{s.label}</span>
+                                    {hasSubItems && (
+                                      <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>
+                                    )}
+                                  </Link>
+                                )
                               ) : (
-                                <Link href={getUsableHref(s.href)!} className={cls}>
+                                <span className={`${cls} cursor-default`}>
                                   <span>{s.label}</span>
-                                  {hasSubItems && <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>}
-                                </Link>
-                              )
-                            ) : (
-                              <span className={`${cls} cursor-default`}>
-                                <span>{s.label}</span>
-                                {hasSubItems && <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>}
-                              </span>
-                            )}
-                            {hasSubItems && (
-                              <ul className="absolute left-full top-0 bg-white border-l-2 border-[#1B5E20] shadow-xl min-w-[150px] z-[300] py-1 opacity-0 invisible group-hover/sub:opacity-100 group-hover/sub:visible transition-all duration-150">
-                                {subItems.map((sub, k) => {
-                                  const subCls = "block px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
-                                  return (
-                                    <li key={k}>
-                                      {getUsableHref(sub.href) ? (
-                                        isExternalHref(getUsableHref(sub.href)!) ? (
-                                          <a href={getUsableHref(sub.href)!} target="_blank" rel="noopener noreferrer" className={subCls}>{sub.label}</a>
+                                  {hasSubItems && (
+                                    <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>
+                                  )}
+                                </span>
+                              )}
+                              {hasSubItems && (
+                                <ul className="absolute left-full top-0 bg-white border-l-2 border-[#1B5E20] shadow-xl min-w-[150px] z-[300] py-1 opacity-0 invisible group-hover/sub:opacity-100 group-hover/sub:visible transition-all duration-150">
+                                  {subItems.map((sub, k) => {
+                                    const subCls =
+                                      "block px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
+                                    return (
+                                      <li key={k}>
+                                        {getUsableHref(sub.href) ? (
+                                          isExternalHref(
+                                            getUsableHref(sub.href)!
+                                          ) ? (
+                                            <a
+                                              href={getUsableHref(sub.href)!}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className={subCls}
+                                            >
+                                              {sub.label}
+                                            </a>
+                                          ) : (
+                                            <Link
+                                              href={getUsableHref(sub.href)!}
+                                              className={subCls}
+                                            >
+                                              {sub.label}
+                                            </Link>
+                                          )
                                         ) : (
-                                          <Link href={getUsableHref(sub.href)!} className={subCls}>{sub.label}</Link>
-                                        )
-                                      ) : (
-                                        <span className={`${subCls} cursor-default`}>{sub.label}</span>
-                                      )}
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </li>
+                                          <span
+                                            className={`${subCls} cursor-default`}
+                                          >
+                                            {sub.label}
+                                          </span>
+                                        )}
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </li>
                 );
               })}
             </ul>
@@ -331,16 +339,26 @@ export default function SiteHeader() {
           <div className="md:hidden flex items-center gap-1">
             <button
               className="p-2 text-[#1B5E20]"
-              onClick={() => { setMobileSearchOpen(!mobileSearchOpen); setMobileOpen(false); }}
+              onClick={() => {
+                setMobileSearchOpen(!mobileSearchOpen);
+                setMobileOpen(false);
+              }}
               aria-label="신앙 데이터 검색"
             >
-              <i className={`fas ${mobileSearchOpen ? "fa-times" : "fa-search"} text-lg`}></i>
+              <i
+                className={`fas ${mobileSearchOpen ? "fa-times" : "fa-search"} text-lg`}
+              ></i>
             </button>
             <button
               className="p-2 text-gray-700"
-              onClick={() => { setMobileOpen(!mobileOpen); setMobileSearchOpen(false); }}
+              onClick={() => {
+                setMobileOpen(!mobileOpen);
+                setMobileSearchOpen(false);
+              }}
             >
-              <i className={`fas ${mobileOpen ? "fa-times" : "fa-bars"} text-xl`}></i>
+              <i
+                className={`fas ${mobileOpen ? "fa-times" : "fa-bars"} text-xl`}
+              ></i>
             </button>
           </div>
         </div>
@@ -353,7 +371,7 @@ export default function SiteHeader() {
                 <input
                   type="text"
                   value={searchName}
-                  onChange={(e) => setSearchName(e.target.value)}
+                  onChange={e => setSearchName(e.target.value)}
                   placeholder="이름으로 신앙 데이터 검색"
                   autoFocus
                   className="w-full h-11 pl-4 pr-4 text-base rounded-full border-2 border-[#1B5E20]/40 bg-white text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#1B5E20] transition-all duration-200"
@@ -366,134 +384,217 @@ export default function SiteHeader() {
                 검색
               </button>
             </form>
-            <p className="text-xs text-gray-400 mt-2 pl-1">성도 이름을 입력하면 신앙 데이터 페이지로 이동합니다.</p>
+            <p className="text-xs text-gray-400 mt-2 pl-1">
+              성도 이름을 입력하면 신앙 데이터 페이지로 이동합니다.
+            </p>
           </div>
         )}
 
         {/* 모바일 메뉴 */}
         {mobileOpen && (
           <div className="md:hidden bg-white border-t border-gray-100 shadow-lg max-h-[70vh] overflow-y-auto">
-            {(navMenus ?? NAV_ITEMS.map((item, i) => ({
-              id: i + 1,
-              label: item.label,
-              href: null,
-              items: item.sub.map((s, j) => ({
-                id: j + 1,
-                label: s,
-                href: (item as { subHref?: Record<string, string | undefined> }).subHref?.[s] ?? null,
-                subItems: [],
-              }))
-            }))).map((menu) => (
+            {displayMenus.map(menu => (
               <div key={menu.id} className="border-b border-gray-100">
                 {/* 1단 메뉴 */}
                 <button
                   className="w-full flex items-center justify-between px-5 py-3 text-sm font-medium text-gray-700 hover:bg-[#F1F8E9] hover:text-[#1B5E20] text-left"
                   onClick={() => {
-                    setMobileExpandedId(mobileExpandedId === menu.id ? null : menu.id);
+                    setMobileExpandedId(
+                      mobileExpandedId === menu.id ? null : menu.id
+                    );
                     setMobileExpandedSubId(null);
                   }}
                 >
                   <span>{menu.label}</span>
                   {(menu.items ?? []).length > 0 && (
-                    <i className={`fas fa-chevron-${mobileExpandedId === menu.id ? 'up' : 'down'} text-[10px] text-gray-400`}></i>
+                    <i
+                      className={`fas fa-chevron-${mobileExpandedId === menu.id ? "up" : "down"} text-[10px] text-gray-400`}
+                    ></i>
                   )}
                 </button>
                 {/* 2단 메뉴 */}
-                {mobileExpandedId === menu.id && (menu.items ?? []).length > 0 && (
-                  <div className="bg-gray-50">
-                    {(menu.items ?? []).map((item) => {
-                      const hasSubItems = (item as { subItems?: unknown[] }).subItems && (item as { subItems?: unknown[] }).subItems!.length > 0;
-                      const subItems = (item as { subItems?: { id: number; label: string; href?: string | null }[] }).subItems ?? [];
-                      return (
-                        <div key={item.id}>
-                          {hasSubItems ? (
-                            // 3단이 있어도 2단 페이지 링크와 펼침 버튼을 분리
-                            item.href ? (
-                              <div className="flex items-center">
-                                {item.href.startsWith('http://') || item.href.startsWith('https://') ? (
-                                  <a href={item.href} target="_blank" rel="noopener noreferrer"
-                                    className="flex-1 block pl-8 pr-3 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
-                                    onClick={() => setMobileOpen(false)}
-                                  >{item.label}</a>
-                                ) : (
-                                  <Link href={item.href}
-                                    className="flex-1 block pl-8 pr-3 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
-                                    onClick={() => setMobileOpen(false)}
-                                  >{item.label}</Link>
-                                )}
-                                <button
-                                  type="button"
-                                  aria-label={`${item.label} 하위 메뉴 열기`}
-                                  className="px-5 py-2.5 text-gray-400 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
-                                  onClick={() => setMobileExpandedSubId(mobileExpandedSubId === item.id ? null : item.id)}
-                                >
-                                  <i className={`fas fa-chevron-${mobileExpandedSubId === item.id ? 'up' : 'down'} text-[10px]`}></i>
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                className="w-full flex items-center justify-between pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] text-left"
-                                onClick={() => setMobileExpandedSubId(mobileExpandedSubId === item.id ? null : item.id)}
-                              >
-                                <span>{item.label}</span>
-                                <i className={`fas fa-chevron-${mobileExpandedSubId === item.id ? 'up' : 'down'} text-[10px] text-gray-400`}></i>
-                              </button>
-                            )
-                          ) : item.href ? (
-                            item.href.startsWith('http://') || item.href.startsWith('https://') ? (
-                              <a href={item.href} target="_blank" rel="noopener noreferrer"
-                                className="block pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
-                                onClick={() => setMobileOpen(false)}
-                              >{item.label}</a>
-                            ) : (
-                              <Link href={item.href}
-                                className="block pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
-                                onClick={() => setMobileOpen(false)}
-                              >{item.label}</Link>
-                            )
-                          ) : (
-                            <span className="block pl-8 pr-5 py-2.5 text-sm text-gray-400">{item.label}</span>
-                          )}
-                          {/* 3단 메뉴 */}
-                          {hasSubItems && mobileExpandedSubId === item.id && (
-                            <div className="bg-white">
-                              {subItems.map((sub) => (
-                                sub.href ? (
-                                  sub.href.startsWith('http://') || sub.href.startsWith('https://') ? (
-                                    <a key={sub.id} href={sub.href} target="_blank" rel="noopener noreferrer"
-                                      className="block pl-12 pr-5 py-2 text-sm text-gray-500 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                {mobileExpandedId === menu.id &&
+                  (menu.items ?? []).length > 0 && (
+                    <div className="bg-gray-50">
+                      {(menu.items ?? []).map(item => {
+                        const hasSubItems =
+                          (item as { subItems?: unknown[] }).subItems &&
+                          (item as { subItems?: unknown[] }).subItems!.length >
+                            0;
+                        const subItems =
+                          (
+                            item as {
+                              subItems?: {
+                                id: number;
+                                label: string;
+                                href?: string | null;
+                              }[];
+                            }
+                          ).subItems ?? [];
+                        return (
+                          <div key={item.id}>
+                            {hasSubItems ? (
+                              // 3단이 있어도 2단 페이지 링크와 펼침 버튼을 분리
+                              item.href ? (
+                                <div className="flex items-center">
+                                  {item.href.startsWith("http://") ||
+                                  item.href.startsWith("https://") ? (
+                                    <a
+                                      href={item.href}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex-1 block pl-8 pr-3 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
                                       onClick={() => setMobileOpen(false)}
-                                    >{sub.label}</a>
+                                    >
+                                      {item.label}
+                                    </a>
                                   ) : (
-                                    <Link key={sub.id} href={sub.href}
-                                      className="block pl-12 pr-5 py-2 text-sm text-gray-500 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                    <Link
+                                      href={item.href}
+                                      className="flex-1 block pl-8 pr-3 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
                                       onClick={() => setMobileOpen(false)}
-                                    >{sub.label}</Link>
+                                    >
+                                      {item.label}
+                                    </Link>
+                                  )}
+                                  <button
+                                    type="button"
+                                    aria-label={`${item.label} 하위 메뉴 열기`}
+                                    className="px-5 py-2.5 text-gray-400 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                    onClick={() =>
+                                      setMobileExpandedSubId(
+                                        mobileExpandedSubId === item.id
+                                          ? null
+                                          : item.id
+                                      )
+                                    }
+                                  >
+                                    <i
+                                      className={`fas fa-chevron-${mobileExpandedSubId === item.id ? "up" : "down"} text-[10px]`}
+                                    ></i>
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  className="w-full flex items-center justify-between pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] text-left"
+                                  onClick={() =>
+                                    setMobileExpandedSubId(
+                                      mobileExpandedSubId === item.id
+                                        ? null
+                                        : item.id
+                                    )
+                                  }
+                                >
+                                  <span>{item.label}</span>
+                                  <i
+                                    className={`fas fa-chevron-${mobileExpandedSubId === item.id ? "up" : "down"} text-[10px] text-gray-400`}
+                                  ></i>
+                                </button>
+                              )
+                            ) : item.href ? (
+                              item.href.startsWith("http://") ||
+                              item.href.startsWith("https://") ? (
+                                <a
+                                  href={item.href}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                  onClick={() => setMobileOpen(false)}
+                                >
+                                  {item.label}
+                                </a>
+                              ) : (
+                                <Link
+                                  href={item.href}
+                                  className="block pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                  onClick={() => setMobileOpen(false)}
+                                >
+                                  {item.label}
+                                </Link>
+                              )
+                            ) : (
+                              <span className="block pl-8 pr-5 py-2.5 text-sm text-gray-400">
+                                {item.label}
+                              </span>
+                            )}
+                            {/* 3단 메뉴 */}
+                            {hasSubItems && mobileExpandedSubId === item.id && (
+                              <div className="bg-white">
+                                {subItems.map(sub =>
+                                  sub.href ? (
+                                    sub.href.startsWith("http://") ||
+                                    sub.href.startsWith("https://") ? (
+                                      <a
+                                        key={sub.id}
+                                        href={sub.href}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="block pl-12 pr-5 py-2 text-sm text-gray-500 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                        onClick={() => setMobileOpen(false)}
+                                      >
+                                        {sub.label}
+                                      </a>
+                                    ) : (
+                                      <Link
+                                        key={sub.id}
+                                        href={sub.href}
+                                        className="block pl-12 pr-5 py-2 text-sm text-gray-500 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                        onClick={() => setMobileOpen(false)}
+                                      >
+                                        {sub.label}
+                                      </Link>
+                                    )
+                                  ) : (
+                                    <span
+                                      key={sub.id}
+                                      className="block pl-12 pr-5 py-2 text-sm text-gray-400"
+                                    >
+                                      {sub.label}
+                                    </span>
                                   )
-                                ) : (
-                                  <span key={sub.id} className="block pl-12 pr-5 py-2 text-sm text-gray-400">{sub.label}</span>
-                                )
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
               </div>
             ))}
             <div className="border-t border-gray-200 px-5 py-3 flex gap-4">
               {memberMe ? (
                 <>
-                  <span className="text-sm text-gray-700 font-medium">{memberMe.name}님</span>
-                  <Link href="/member/my-page" className="text-sm text-[#1B5E20] hover:underline">내 정보</Link>
-                  <button onClick={() => memberLogoutMutation.mutate()} className="text-sm text-gray-500 hover:text-red-500">로그아웃</button>
+                  <span className="text-sm text-gray-700 font-medium">
+                    {memberMe.name}님
+                  </span>
+                  <Link
+                    href="/member/my-page"
+                    className="text-sm text-[#1B5E20] hover:underline"
+                  >
+                    내 정보
+                  </Link>
+                  <button
+                    onClick={() => memberLogoutMutation.mutate()}
+                    className="text-sm text-gray-500 hover:text-red-500"
+                  >
+                    로그아웃
+                  </button>
                 </>
               ) : (
                 <>
-                  <Link href="/member/login" className="text-sm text-[#1B5E20] font-medium hover:underline">로그인</Link>
-                  <Link href="/member/register" className="text-sm text-gray-600 hover:underline">회원가입</Link>
+                  <Link
+                    href="/member/login"
+                    className="text-sm text-[#1B5E20] font-medium hover:underline"
+                  >
+                    로그인
+                  </Link>
+                  <Link
+                    href="/member/register"
+                    className="text-sm text-gray-600 hover:underline"
+                  >
+                    회원가입
+                  </Link>
                 </>
               )}
             </div>
