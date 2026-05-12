@@ -23,7 +23,7 @@
  *       └── EditorContent.tsx    — 에디터 콘텐츠 (뷰어 + 관리자 편집 UI)
  */
 
-import { useParams } from "wouter";
+import { useLocation, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
 import { ImageContent } from "@/components/dynamic-page/ImageContent";
@@ -31,6 +31,38 @@ import { GalleryContent } from "@/components/dynamic-page/GalleryContent";
 import { BoardContent } from "@/components/dynamic-page/BoardContent";
 import { YoutubeContent } from "@/components/dynamic-page/YoutubeContent";
 import { EditorContent } from "@/components/dynamic-page/EditorContent";
+
+type DynamicPageItem = {
+  id: number;
+  label: string;
+  href?: string | null;
+  pageType?: string | null;
+  pageImageUrl?: string | null;
+  playlistId?: number | null;
+};
+
+type DynamicPageSubItem = DynamicPageItem & {
+  menuItemId: number;
+};
+
+type DynamicMenuTreeItem = DynamicPageItem & {
+  subItems?: DynamicPageSubItem[];
+};
+
+type DynamicMenuTree = Array<{
+  id: number;
+  label: string;
+  href?: string | null;
+  items?: DynamicMenuTreeItem[];
+}>;
+
+function decodePath(path: string) {
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    return path;
+  }
+}
 
 // ─── 페이지 타입에 따라 알맞은 콘텐츠 컴포넌트를 반환 ────────────────────────
 function renderContent(
@@ -59,47 +91,45 @@ function renderContent(
   }
 }
 
-// ─── 2단 메뉴 동적 페이지 ─────────────────────────────────────────────────────
-export function DynamicMenuItemPage() {
-  const { id } = useParams<{ id: string }>();
-  const itemId = parseInt(id ?? "0", 10);
-
-  const { data: item, isLoading } = trpc.home.menuItem.useQuery(
-    { id: itemId },
-    { enabled: !!itemId }
+function LoadingDynamicPage() {
+  return (
+    <SubPageLayout pageTitle="불러오는 중...">
+      <div className="flex items-center justify-center py-24 text-gray-400">
+        페이지 불러오는 중...
+      </div>
+    </SubPageLayout>
   );
-  const { data: allMenus } = trpc.home.menus.useQuery();
+}
 
-  if (isLoading) {
-    return (
-      <SubPageLayout pageTitle="불러오는 중...">
-        <div className="flex items-center justify-center py-24 text-gray-400">
-          페이지 불러오는 중...
-        </div>
-      </SubPageLayout>
-    );
-  }
+function MissingDynamicPage() {
+  return (
+    <SubPageLayout pageTitle="페이지를 찾을 수 없습니다">
+      <div className="flex flex-col items-center justify-center py-24">
+        <p className="text-gray-500 text-lg mb-4">
+          요청하신 페이지가 존재하지 않습니다.
+        </p>
+      </div>
+    </SubPageLayout>
+  );
+}
 
-  if (!item) {
-    return (
-      <SubPageLayout pageTitle="페이지를 찾을 수 없습니다">
-        <div className="flex flex-col items-center justify-center py-24">
-          <p className="text-gray-500 text-lg mb-4">
-            요청하신 페이지가 존재하지 않습니다.
-          </p>
-        </div>
-      </SubPageLayout>
-    );
-  }
-
+function MenuItemPageContent({
+  item,
+  allMenus,
+  activeHref,
+}: {
+  item: DynamicPageItem;
+  allMenus?: DynamicMenuTree;
+  activeHref?: string;
+}) {
   const parentMenu = (allMenus ?? []).find((m) =>
-    (m.items ?? []).some((s) => s.href === `/page/item/${itemId}`)
+    (m.items ?? []).some((s) => s.id === item.id)
   );
   const sideItems = (parentMenu?.items ?? []).map((s) => ({
     id: s.id,
     label: s.label,
     href: s.href ?? null,
-    isActive: s.href === `/page/item/${itemId}`,
+    isActive: s.id === item.id || decodePath(s.href ?? "") === decodePath(activeHref ?? ""),
   }));
 
   return (
@@ -112,47 +142,23 @@ export function DynamicMenuItemPage() {
         item.pageType ?? "image",
         item.label,
         item.pageImageUrl ?? null,
-        itemId,
+        item.id,
         undefined,
-        (item as { playlistId?: number | null }).playlistId
+        item.playlistId
       )}
     </SubPageLayout>
   );
 }
 
-// ─── 3단 메뉴 동적 페이지 ─────────────────────────────────────────────────────
-export function DynamicMenuSubItemPage() {
-  const { id } = useParams<{ id: string }>();
-  const itemId = parseInt(id ?? "0", 10);
-
-  const { data: item, isLoading } = trpc.home.menuSubItem.useQuery(
-    { id: itemId },
-    { enabled: !!itemId }
-  );
-  const { data: allMenus } = trpc.home.menus.useQuery();
-
-  if (isLoading) {
-    return (
-      <SubPageLayout pageTitle="불러오는 중...">
-        <div className="flex items-center justify-center py-24 text-gray-400">
-          페이지 불러오는 중...
-        </div>
-      </SubPageLayout>
-    );
-  }
-
-  if (!item) {
-    return (
-      <SubPageLayout pageTitle="페이지를 찾을 수 없습니다">
-        <div className="flex flex-col items-center justify-center py-24">
-          <p className="text-gray-500 text-lg mb-4">
-            요청하신 페이지가 존재하지 않습니다.
-          </p>
-        </div>
-      </SubPageLayout>
-    );
-  }
-
+function MenuSubItemPageContent({
+  item,
+  allMenus,
+  activeHref,
+}: {
+  item: DynamicPageSubItem;
+  allMenus?: DynamicMenuTree;
+  activeHref?: string;
+}) {
   let parentItemLabel: string | undefined;
   let grandParentLabel: string | undefined;
   let sideItems: {
@@ -164,19 +170,15 @@ export function DynamicMenuSubItemPage() {
 
   for (const topMenu of allMenus ?? []) {
     for (const midMenu of topMenu.items ?? []) {
-      const subItems = (
-        midMenu as {
-          subItems?: { id: number; label: string; href?: string | null }[];
-        }
-      ).subItems ?? [];
-      if (subItems.some((s) => s.href === `/page/sub/${itemId}`)) {
+      const subItems = midMenu.subItems ?? [];
+      if (subItems.some((s) => s.id === item.id)) {
         parentItemLabel = midMenu.label;
         grandParentLabel = topMenu.label;
         sideItems = subItems.map((s) => ({
           id: s.id,
           label: s.label,
           href: s.href ?? null,
-          isActive: s.href === `/page/sub/${itemId}`,
+          isActive: s.id === item.id || decodePath(s.href ?? "") === decodePath(activeHref ?? ""),
         }));
         break;
       }
@@ -195,9 +197,83 @@ export function DynamicMenuSubItemPage() {
         item.label,
         item.pageImageUrl ?? null,
         undefined,
-        itemId,
-        (item as { playlistId?: number | null }).playlistId
+        item.id,
+        item.playlistId
       )}
     </SubPageLayout>
   );
+}
+
+// ─── 2단 메뉴 동적 페이지 ─────────────────────────────────────────────────────
+export function DynamicMenuItemPage() {
+  const { id } = useParams<{ id: string }>();
+  const itemId = parseInt(id ?? "0", 10);
+
+  const { data: item, isLoading } = trpc.home.menuItem.useQuery(
+    { id: itemId },
+    { enabled: !!itemId }
+  );
+  const { data: allMenus } = trpc.home.menus.useQuery();
+
+  if (isLoading) {
+    return <LoadingDynamicPage />;
+  }
+
+  if (!item) {
+    return <MissingDynamicPage />;
+  }
+
+  return <MenuItemPageContent item={item} allMenus={allMenus} activeHref={`/page/item/${itemId}`} />;
+}
+
+// ─── 3단 메뉴 동적 페이지 ─────────────────────────────────────────────────────
+export function DynamicMenuSubItemPage() {
+  const { id } = useParams<{ id: string }>();
+  const itemId = parseInt(id ?? "0", 10);
+
+  const { data: item, isLoading } = trpc.home.menuSubItem.useQuery(
+    { id: itemId },
+    { enabled: !!itemId }
+  );
+  const { data: allMenus } = trpc.home.menus.useQuery();
+
+  if (isLoading) {
+    return <LoadingDynamicPage />;
+  }
+
+  if (!item) {
+    return <MissingDynamicPage />;
+  }
+
+  return <MenuSubItemPageContent item={item} allMenus={allMenus} activeHref={`/page/sub/${itemId}`} />;
+}
+
+// ─── 깔끔한 CMS 페이지 URL (/page/상위메뉴-메뉴명) ─────────────────────────
+export function DynamicMenuHrefPage() {
+  const [location] = useLocation();
+  const activeHref = decodePath(location);
+
+  const { data: item, isLoading: itemLoading } = trpc.home.menuItemByHref.useQuery(
+    { href: activeHref },
+    { enabled: Boolean(activeHref) }
+  );
+  const { data: subItem, isLoading: subItemLoading } = trpc.home.menuSubItemByHref.useQuery(
+    { href: activeHref },
+    { enabled: Boolean(activeHref) }
+  );
+  const { data: allMenus } = trpc.home.menus.useQuery();
+
+  if (itemLoading || subItemLoading) {
+    return <LoadingDynamicPage />;
+  }
+
+  if (item) {
+    return <MenuItemPageContent item={item} allMenus={allMenus} activeHref={activeHref} />;
+  }
+
+  if (subItem) {
+    return <MenuSubItemPageContent item={subItem} allMenus={allMenus} activeHref={activeHref} />;
+  }
+
+  return <MissingDynamicPage />;
 }

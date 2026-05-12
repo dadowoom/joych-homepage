@@ -7,7 +7,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import AdminPage from "./pages/Admin";
-import { DynamicMenuItemPage, DynamicMenuSubItemPage } from "./pages/DynamicPage";
+import { DynamicMenuHrefPage, DynamicMenuItemPage, DynamicMenuSubItemPage } from "./pages/DynamicPage";
 import Sitemap from "./pages/Sitemap";
 import FaithData from "./pages/FaithData";
 import ChurchDirectory from "./pages/ChurchDirectory";
@@ -203,6 +203,7 @@ function Router() {
       {/* 동적 메뉴 페이지 (pageType에 따라 다른 UI 표시) */}
       <Route path="/page/item/:id" component={DynamicMenuItemPage} />
       <Route path="/page/sub/:id" component={DynamicMenuSubItemPage} />
+      <Route path="/page/:slug" component={DynamicMenuHrefPage} />
 
       {/* 관리자 - 비공개 경로 */}
       <Route path="/admin_joych_2026" component={AdminPage} />

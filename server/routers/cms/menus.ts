@@ -11,7 +11,7 @@
  *
  * 특이사항:
  *   - pageType이 'youtube'인 메뉴 생성 시 동일 이름의 플레이리스트 자동 생성
- *   - href가 없는 메뉴 생성 시 동적 페이지 URL 자동 설정 (/page/item/:id)
+ *   - href가 없는 메뉴 생성 시 사람이 읽을 수 있는 동적 페이지 URL 자동 설정
  *
  * 접근 권한: 모두 adminProcedure (관리자만 접근 가능)
  */
@@ -41,12 +41,45 @@ import {
   deleteMenuSubItem,
   createYoutubePlaylist,
 } from "../../db";
+import {
+  makeUniqueMenuPageHref,
+  type MenuHrefCandidate,
+  type MenuHrefOwner,
+} from "../../_core/menuHref";
 
 /** 메뉴 페이지 타입 목록 */
 const PAGE_TYPE = z.enum(["image", "gallery", "board", "youtube", "editor"]);
 const idSchema = z.number().int().positive();
 const sortOrderSchema = z.number().int().min(0).max(10000).optional();
 const pageImageSchema = safeAssetUrlSchema.nullable().optional();
+
+type MenuTree = Awaited<ReturnType<typeof getAllMenus>>;
+
+function collectMenuHrefs(tree: MenuTree): MenuHrefCandidate[] {
+  return tree.flatMap((menu) => [
+    { href: menu.href },
+    ...(menu.items ?? []).flatMap((item) => [
+      { href: item.href, owner: { kind: "item", id: item.id } as MenuHrefOwner },
+      ...(((item as { subItems?: Array<{ id: number; href?: string | null }> }).subItems ?? [])
+        .map(sub => ({
+          href: sub.href,
+          owner: { kind: "sub", id: sub.id } as MenuHrefOwner,
+        }))),
+    ]),
+  ]);
+}
+
+function findMenuLabel(tree: MenuTree, menuId: number) {
+  return tree.find(menu => menu.id === menuId)?.label;
+}
+
+function findMenuItemPath(tree: MenuTree, itemId: number) {
+  for (const menu of tree) {
+    const item = (menu.items ?? []).find(candidate => candidate.id === itemId);
+    if (item) return { menuLabel: menu.label, itemLabel: item.label };
+  }
+  return null;
+}
 
 export const menusRouter = router({
   /** 전체 메뉴 목록 (1단 + 2단 + 3단 포함) */
@@ -75,7 +108,7 @@ export const menusRouter = router({
 
   /**
    * 2단 메뉴 생성
-   * - href 미입력 시 /page/item/:id 자동 설정
+   * - href 미입력 시 /page/상위메뉴-메뉴명 형식으로 자동 설정
    * - pageType이 'youtube'이면 동일 이름의 플레이리스트 자동 생성 후 연결
    */
   createItem: adminProcedure
@@ -95,7 +128,12 @@ export const menusRouter = router({
 
       // href가 없으면 동적 페이지 URL 자동 설정
       if (!input.href) {
-        updates.href = `/page/item/${newId}`;
+        const tree = await getAllMenus();
+        updates.href = makeUniqueMenuPageHref(
+          [findMenuLabel(tree, input.menuId), input.label],
+          collectMenuHrefs(tree),
+          { kind: "item", id: newId },
+        );
       }
 
       // youtube 타입이면 동일 이름의 플레이리스트 자동 생성 후 연결
@@ -154,7 +192,7 @@ export const menusRouter = router({
 
   /**
    * 3단 메뉴 생성
-   * - href 미입력 시 /page/sub/:id 자동 설정
+   * - href 미입력 시 /page/상위메뉴-하위메뉴-메뉴명 형식으로 자동 설정
    */
   createSubItem: adminProcedure
     .input(z.object({
@@ -170,7 +208,14 @@ export const menusRouter = router({
 
       // href가 없으면 동적 페이지 URL 자동 설정
       if (newId && !input.href) {
-        await updateMenuSubItem(newId, { href: `/page/sub/${newId}` });
+        const tree = await getAllMenus();
+        const parent = findMenuItemPath(tree, input.menuItemId);
+        const href = makeUniqueMenuPageHref(
+          [parent?.menuLabel, parent?.itemLabel, input.label],
+          collectMenuHrefs(tree),
+          { kind: "sub", id: newId },
+        );
+        await updateMenuSubItem(newId, { href });
       }
 
       return { insertId: newId };
