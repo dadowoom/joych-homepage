@@ -26,6 +26,7 @@ import MyReservations from "./pages/MyReservations";
 // 선교보고
 import MissionList from "./pages/MissionList";
 import MissionDetail from "./pages/MissionDetail";
+import MissionReportEditor from "./pages/MissionReportEditor";
 
 // 교회소개 (기존)
 import { PastorGreeting, ChurchHistory, ChurchVision, Location } from "./pages/About";
@@ -161,6 +162,8 @@ function Router() {
       <Route path="/mission-work/domestic" component={DomesticMission} />
       <Route path="/mission-work/overseas" component={OverseasMission} />
       <Route path="/mission-work/volunteer" component={Volunteer} />
+      <Route path="/mission/write" component={MissionReportEditor} />
+      <Route path="/mission/edit/:id" component={MissionReportEditor} />
       <Route path="/mission/:id" component={MissionDetail} />
       <Route path="/mission" component={MissionList} />
 

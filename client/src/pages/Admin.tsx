@@ -20,6 +20,7 @@ import AdminFacilitiesTab from "@/components/AdminFacilitiesTab";
 import AdminReservationsTab from "@/components/AdminReservationsTab";
 import AdminMemberOptionsTab from "@/components/AdminMemberOptionsTab";
 import AdminMembersTab from "@/components/AdminMembersTab";
+import AdminMissionReportsTab from "@/components/AdminMissionReportsTab";
 import YoutubeAdminTab from "@/components/YoutubeAdminTab";
 import { SettingsTab } from "@/components/admin/SettingsTab";
 
@@ -30,6 +31,7 @@ type Tab =
   | "reservations"
   | "memberOptions"
   | "members"
+  | "missionReports"
   | "youtube";
 
 // ─── 메인 관리자 페이지 ───────────────────────────────────────────────────────
@@ -45,6 +47,7 @@ export default function AdminPage() {
     "reservations",
     "memberOptions",
     "members",
+    "missionReports",
     "youtube",
   ];
   const tabFromUrl = searchParams.get("tab") as Tab | null;
@@ -249,6 +252,7 @@ export default function AdminPage() {
     { id: "reservations", label: "예약 승인", icon: "fa-calendar-check" },
     { id: "memberOptions", label: "선택지 관리", icon: "fa-list-ul" },
     { id: "members", label: "성도 관리", icon: "fa-users" },
+    { id: "missionReports", label: "선교보고 관리", icon: "fa-globe-asia" },
     { id: "youtube", label: "예배영상 관리", icon: "fa-video" },
   ];
 
@@ -333,6 +337,7 @@ export default function AdminPage() {
           {activeTab === "reservations" && <AdminReservationsTab />}
           {activeTab === "memberOptions" && <AdminMemberOptionsTab />}
           {activeTab === "members" && <AdminMembersTab />}
+          {activeTab === "missionReports" && <AdminMissionReportsTab />}
           {activeTab === "youtube" && <YoutubeAdminTab />}
         </div>
       </div>

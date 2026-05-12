@@ -522,6 +522,111 @@ export type Reservation = typeof reservations.$inferSelect;
 export type InsertReservation = typeof reservations.$inferInsert;
 
 // ─────────────────────────────────────────────
+// 선교보고 시스템
+// ─────────────────────────────────────────────
+
+export type MissionContinent = "asia" | "africa" | "americas" | "europe" | "oceania";
+
+export const missionaries = mysqlTable("missionaries", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 선교사/사역 이름 */
+  name: varchar("name", { length: 128 }).notNull(),
+  /** 사역 지역 */
+  region: varchar("region", { length: 128 }).notNull(),
+  /** 대륙 분류 */
+  continent: mysqlEnum("continent", ["asia", "africa", "americas", "europe", "oceania"]).notNull().default("asia"),
+  /** 파송/협력 시작 연도 */
+  sentYear: int("sentYear").notNull().default(0),
+  /** 프로필 이미지 URL */
+  profileImage: text("profileImage"),
+  /** 소속 선교단체/기관 */
+  organization: varchar("organization", { length: 128 }),
+  /** 소개 */
+  description: text("description"),
+  /** 노출 여부 */
+  isActive: boolean("isActive").notNull().default(true),
+  /** 표시 순서 */
+  sortOrder: int("sortOrder").notNull().default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Missionary = typeof missionaries.$inferSelect;
+export type InsertMissionary = typeof missionaries.$inferInsert;
+
+export const missionReportAuthors = mysqlTable("mission_report_authors", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 작성 권한을 가진 성도 ID */
+  memberId: int("memberId").notNull(),
+  /** 담당 선교사/사역 ID */
+  missionaryId: int("missionaryId").notNull(),
+  /** 작성 가능 여부 */
+  canWrite: boolean("canWrite").notNull().default(true),
+  /** 권한을 부여한 관리자 ID */
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MissionReportAuthor = typeof missionReportAuthors.$inferSelect;
+export type InsertMissionReportAuthor = typeof missionReportAuthors.$inferInsert;
+
+export const missionReports = mysqlTable("mission_reports", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 연결된 선교사/사역 ID */
+  missionaryId: int("missionaryId").notNull(),
+  /** 작성 성도 ID */
+  authorMemberId: int("authorMemberId"),
+  title: varchar("title", { length: 256 }).notNull(),
+  /** 목록 카드 미리보기 */
+  summary: text("summary"),
+  /** 상세 본문 */
+  content: text("content"),
+  /** 대표 이미지 URL */
+  thumbnailUrl: text("thumbnailUrl"),
+  /** 보고 날짜 (YYYY-MM-DD) */
+  reportDate: varchar("reportDate", { length: 10 }).notNull(),
+  /** draft(임시) / pending(검토대기) / published(공개) / rejected(반려) */
+  status: mysqlEnum("status", ["draft", "pending", "published", "rejected"]).notNull().default("pending"),
+  /** 공개 시각 */
+  publishedAt: timestamp("publishedAt"),
+  /** 검토 관리자 ID */
+  reviewedBy: int("reviewedBy"),
+  /** 검토 시각 */
+  reviewedAt: timestamp("reviewedAt"),
+  /** 검토 의견 */
+  reviewComment: text("reviewComment"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MissionReport = typeof missionReports.$inferSelect;
+export type InsertMissionReport = typeof missionReports.$inferInsert;
+
+export const missionReportImages = mysqlTable("mission_report_images", {
+  id: int("id").autoincrement().primaryKey(),
+  reportId: int("reportId").notNull(),
+  imageUrl: text("imageUrl").notNull(),
+  caption: varchar("caption", { length: 128 }),
+  sortOrder: int("sortOrder").notNull().default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type MissionReportImage = typeof missionReportImages.$inferSelect;
+export type InsertMissionReportImage = typeof missionReportImages.$inferInsert;
+
+export const missionReportPrayerTopics = mysqlTable("mission_report_prayer_topics", {
+  id: int("id").autoincrement().primaryKey(),
+  reportId: int("reportId").notNull(),
+  content: varchar("content", { length: 512 }).notNull(),
+  sortOrder: int("sortOrder").notNull().default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type MissionReportPrayerTopic = typeof missionReportPrayerTopics.$inferSelect;
+export type InsertMissionReportPrayerTopic = typeof missionReportPrayerTopics.$inferInsert;
+
+// ─────────────────────────────────────────────
 // 교회학교: 부서 테이블
 // ─────────────────────────────────────────────
 export const schoolDepartments = mysqlTable("school_departments", {

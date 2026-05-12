@@ -6,7 +6,8 @@
 
 import { useParams, Link } from "wouter";
 import { useState } from "react";
-import { MOCK_REPORTS, CONTINENT_LABELS } from "@/lib/missionData";
+import { trpc } from "@/lib/trpc";
+import { CONTINENT_LABELS } from "@/lib/missionData";
 
 function formatDate(dateStr: string): string {
   const [y, m, d] = dateStr.split("-");
@@ -16,11 +17,25 @@ function formatDate(dateStr: string): string {
 export default function MissionDetail() {
   const { id } = useParams<{ id: string }>();
   const [lightboxImg, setLightboxImg] = useState<string | null>(null);
+  const reportId = Number(id);
 
-  const report = MOCK_REPORTS.find((r) => r.id === id);
-  const currentIndex = MOCK_REPORTS.findIndex((r) => r.id === id);
-  const prevReport = currentIndex > 0 ? MOCK_REPORTS[currentIndex - 1] : null;
-  const nextReport = currentIndex < MOCK_REPORTS.length - 1 ? MOCK_REPORTS[currentIndex + 1] : null;
+  const { data, isLoading } = trpc.mission.report.useQuery(
+    { id: reportId },
+    { enabled: Number.isInteger(reportId) && reportId > 0 }
+  );
+  const report = data?.report ?? null;
+  const prevReport = data?.prevReport ?? null;
+  const nextReport = data?.nextReport ?? null;
+  const relatedReports = data?.related ?? [];
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F7F7F5]">
+        <i className="fas fa-spinner fa-spin text-5xl text-gray-300 mb-4"></i>
+        <p className="text-gray-500">선교보고를 불러오는 중입니다.</p>
+      </div>
+    );
+  }
 
   if (!report) {
     return (
@@ -44,7 +59,7 @@ export default function MissionDetail() {
             <span className="font-medium text-sm">선교보고 목록</span>
           </Link>
           <span className="text-gray-400 text-sm hidden md:block">
-            {report.missionary.region} · {formatDate(report.date)}
+            {report.missionary.region} · {formatDate(report.reportDate)}
           </span>
         </div>
       </header>
@@ -52,7 +67,7 @@ export default function MissionDetail() {
       {/* ── 히어로 이미지 ── */}
       <div className="relative h-72 md:h-96 overflow-hidden">
         <img
-          src={report.thumbnail}
+          src={report.thumbnailUrl ?? report.images[0] ?? "https://images.unsplash.com/photo-1555636222-cae831e670b3?w=600&q=80"}
           alt={report.title}
           className="w-full h-full object-cover"
         />
@@ -69,7 +84,7 @@ export default function MissionDetail() {
           >
             {report.title}
           </h1>
-          <p className="text-gray-300 text-sm mt-2">{formatDate(report.date)}</p>
+          <p className="text-gray-300 text-sm mt-2">{formatDate(report.reportDate)}</p>
         </div>
       </div>
 
@@ -81,7 +96,7 @@ export default function MissionDetail() {
           <aside className="lg:col-span-1">
             <div className="bg-white rounded-2xl p-6 shadow-sm sticky top-24">
               <img
-                src={report.missionary.profileImage}
+                src={report.missionary.profileImage ?? "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80"}
                 alt={report.missionary.name}
                 className="w-20 h-20 rounded-full object-cover border-4 border-[#E8F5E9] mx-auto mb-4"
               />
@@ -106,8 +121,7 @@ export default function MissionDetail() {
               {/* 해당 선교사 다른 보고 */}
               <div className="mt-6 pt-5 border-t border-gray-100">
                 <p className="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wider">다른 선교보고</p>
-                {MOCK_REPORTS.filter(r => r.missionaryId === report.missionaryId && r.id !== report.id)
-                  .slice(0, 2)
+                {relatedReports
                   .map(r => (
                     <Link key={r.id} href={`/mission/${r.id}`} className="block mb-2 text-sm text-gray-600 hover:text-[#1B5E20] transition-colors leading-snug">
                       <i className="fas fa-file-alt text-xs mr-1.5 text-gray-300"></i>
@@ -132,7 +146,7 @@ export default function MissionDetail() {
                 선교보고 원문
               </h3>
               <div className="prose prose-sm max-w-none text-gray-700 leading-8">
-                {report.content.split("\n").map((line, i) =>
+                {(report.content ?? "").split("\n").map((line, i) =>
                   line === "" ? <br key={i} /> : <p key={i} className="mb-3">{line}</p>
                 )}
               </div>

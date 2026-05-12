@@ -11,6 +11,7 @@
  *   - facilities: 시설 관리 (사진, 운영시간, 차단날짜 포함)
  *   - reservations: 예약 관리 (승인/거절)
  *   - blocks: 블록 에디터 관리
+ *   - missionReports: 선교보고/작성권한 관리
  */
 
 import { router } from "../../_core/trpc";
@@ -21,6 +22,7 @@ import { uploadRouter } from "./upload";
 import { facilitiesRouter } from "./facilities";
 import { reservationsRouter } from "./reservations";
 import { blocksRouter } from "./blocks";
+import { missionReportsRouter } from "./missionReports";
 
 export const cmsRouter = router({
   notices: noticesRouter,
@@ -30,4 +32,5 @@ export const cmsRouter = router({
   facilities: facilitiesRouter,
   reservations: reservationsRouter,
   blocks: blocksRouter,
+  missionReports: missionReportsRouter,
 });
