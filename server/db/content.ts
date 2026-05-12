@@ -9,12 +9,14 @@
  *   - 사이트 설정: getSiteSettings, getSiteSetting, upsertSiteSetting
  */
 
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, like } from "drizzle-orm";
 import {
   heroSlides, galleryItems, affiliates, quickMenus, siteSettings,
   InsertAffiliate, InsertGalleryItem,
 } from "../../drizzle/schema";
 import { getDb } from "./connection";
+
+const STATIC_PAGE_SETTING_PREFIX = "static_page:";
 
 // ─── 히어로 슬라이드 ─────────────────────────────────────────────────────────
 
@@ -190,6 +192,52 @@ export async function upsertSiteSetting(key: string, value: string) {
   await db.insert(siteSettings)
     .values({ settingKey: key, settingValue: value })
     .onDuplicateKeyUpdate({ set: { settingValue: value } });
+}
+
+export function getStaticPageSettingKey(href: string) {
+  return `${STATIC_PAGE_SETTING_PREFIX}${href}`;
+}
+
+export async function getStaticPageContentByHref(href: string): Promise<unknown | null> {
+  const row = await getSiteSetting(getStaticPageSettingKey(href));
+  if (!row?.settingValue) return null;
+  try {
+    return JSON.parse(row.settingValue);
+  } catch {
+    return null;
+  }
+}
+
+export async function getAllStaticPageContents() {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select().from(siteSettings)
+    .where(like(siteSettings.settingKey, `${STATIC_PAGE_SETTING_PREFIX}%`))
+    .orderBy(asc(siteSettings.settingKey));
+
+  return rows.map((row) => ({
+    href: row.settingKey.slice(STATIC_PAGE_SETTING_PREFIX.length),
+    content: row.settingValue ?? "",
+    updatedAt: row.updatedAt,
+  }));
+}
+
+export async function upsertStaticPageContent(href: string, content: unknown) {
+  const db = await getDb();
+  if (!db) return;
+  const serialized = JSON.stringify(content);
+  await db.insert(siteSettings)
+    .values({
+      settingKey: getStaticPageSettingKey(href),
+      settingValue: serialized,
+      description: `정적 페이지 CMS 콘텐츠: ${href}`,
+    })
+    .onDuplicateKeyUpdate({
+      set: {
+        settingValue: serialized,
+        description: `정적 페이지 CMS 콘텐츠: ${href}`,
+      },
+    });
 }
 
 // ─── 퀵메뉴 추가/삭제 ────────────────────────────────────────────────────────

@@ -11,6 +11,7 @@
  * 접근 권한: 모두 adminProcedure (관리자만 접근 가능)
  */
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { adminProcedure, router } from "../../_core/trpc";
 import {
   optionalTextSchema,
@@ -18,6 +19,11 @@ import {
   safeAssetUrlSchema,
   safeHrefSchema,
 } from "../../_core/contentValidation";
+import {
+  STATIC_PAGE_SEEDS,
+  getStaticPageSeed,
+  type StaticPageTemplate,
+} from "@shared/staticPageContent";
 import {
   getAllAffiliates,
   updateAffiliate,
@@ -38,6 +44,8 @@ import {
   reorderGalleryItems,
   createQuickMenu,
   deleteQuickMenu,
+  getAllStaticPageContents,
+  upsertStaticPageContent,
 } from "../../db";
 
 const SETTING_KEYS = [
@@ -73,6 +81,53 @@ const gridSpanValueSchema = z.string().refine(
 );
 
 const sortOrderSchema = z.number().int().min(0).max(10000).optional();
+const staticPageHrefSchema = z.string().trim().min(1).max(128).regex(/^\//);
+const staticPageJsonSchema = z.string().max(60000, "페이지 콘텐츠는 60000자 이하로 입력해주세요.");
+
+const ministryContentSchema = z.object({
+  name: requiredTextSchema(100, "페이지 이름을 입력해주세요."),
+  vision: optionalTextSchema(160),
+  description: requiredTextSchema(12000, "본문 설명을 입력해주세요."),
+  image: safeAssetUrlSchema.optional(),
+  activities: z.array(z.object({
+    title: requiredTextSchema(120, "활동 제목을 입력해주세요."),
+    desc: requiredTextSchema(500, "활동 설명을 입력해주세요."),
+    icon: optionalTextSchema(64),
+  })).max(30).optional(),
+  contact: z.array(z.object({
+    label: requiredTextSchema(80, "연락처 라벨을 입력해주세요."),
+    value: requiredTextSchema(300, "연락처 값을 입력해주세요."),
+  })).max(20).optional(),
+  leader: z.object({
+    name: requiredTextSchema(100, "담당자 이름을 입력해주세요."),
+    title: requiredTextSchema(100, "담당자 직책을 입력해주세요."),
+    photo: safeAssetUrlSchema.optional(),
+  }).optional(),
+});
+
+function validateStaticPageContent(template: StaticPageTemplate, content: unknown) {
+  if (template === "ministry") {
+    return ministryContentSchema.parse(content);
+  }
+  return content;
+}
+
+function parseStaticPageJson(template: StaticPageTemplate, content: string) {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "페이지 콘텐츠 JSON 형식이 올바르지 않습니다." });
+  }
+  try {
+    return validateStaticPageContent(template, parsed);
+  } catch (error) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: error instanceof Error ? error.message : "페이지 콘텐츠 입력값이 올바르지 않습니다.",
+    });
+  }
+}
 
 export const contentRouter = router({
   // ─── 관련기관 관리 ──────────────────────────────────────────────────────────
@@ -197,6 +252,50 @@ export const contentRouter = router({
           ? safeHrefSchema.parse(input.value)
           : input.value;
         return upsertSiteSetting(input.key, value);
+      }),
+  }),
+
+  // ─── 코드 기반 페이지 콘텐츠 관리 ─────────────────────────────────────────
+  staticPages: router({
+    list: adminProcedure.query(async () => {
+      const storedRows = await getAllStaticPageContents();
+      const storedByHref = new Map(storedRows.map(row => [row.href, row]));
+      return STATIC_PAGE_SEEDS.map((page) => {
+        const stored = storedByHref.get(page.href);
+        const fallbackContent = JSON.stringify(page.content, null, 2);
+        return {
+          href: page.href,
+          group: page.group,
+          title: page.title,
+          template: page.template,
+          hasDbContent: Boolean(stored),
+          content: stored?.content ?? fallbackContent,
+          fallbackContent,
+          updatedAt: stored?.updatedAt ?? null,
+        };
+      });
+    }),
+    update: adminProcedure
+      .input(z.object({
+        href: staticPageHrefSchema,
+        content: staticPageJsonSchema,
+      }))
+      .mutation(({ input }) => {
+        const page = getStaticPageSeed(input.href);
+        if (!page) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "관리 대상 페이지가 아닙니다." });
+        }
+        const content = parseStaticPageJson(page.template, input.content);
+        return upsertStaticPageContent(input.href, content);
+      }),
+    reset: adminProcedure
+      .input(z.object({ href: staticPageHrefSchema }))
+      .mutation(({ input }) => {
+        const page = getStaticPageSeed(input.href);
+        if (!page) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "관리 대상 페이지가 아닙니다." });
+        }
+        return upsertStaticPageContent(input.href, page.content);
       }),
   }),
 

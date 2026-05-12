@@ -38,14 +38,17 @@ import {
   getReservationById,
   updateReservationStatus,
   getPageBlocks,
+  getStaticPageContentByHref,
   ReservationLockError,
   ReservationOverlapError,
 } from "../db";
+import { getStaticPageSeed } from "@shared/staticPageContent";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;
 const idSchema = z.number().int().positive();
 const hrefLookupSchema = z.string().trim().min(1).max(256);
+const staticPageHrefSchema = z.string().trim().min(1).max(128).regex(/^\//);
 
 function toMinutes(time: string): number | null {
   if (!TIME_RE.test(time)) return null;
@@ -78,6 +81,18 @@ export const homeRouter = router({
 
   /** 사이트 설정 (교회명, 주소, 연락처 등) */
   settings: publicProcedure.query(() => getSiteSettings()),
+
+  /**
+   * 코드 기반 페이지의 CMS 콘텐츠 조회
+   * - 허용된 정적 페이지 href만 조회하여 site_settings의 다른 값 노출을 막습니다.
+   * - DB 값이 없거나 JSON이 깨진 경우 null을 반환하고, 프론트는 코드 기본값을 사용합니다.
+   */
+  staticPageContent: publicProcedure
+    .input(z.object({ href: staticPageHrefSchema }))
+    .query(({ input }) => {
+      if (!getStaticPageSeed(input.href)) return null;
+      return getStaticPageContentByHref(input.href);
+    }),
 
   // ─── 네비게이션 메뉴 ────────────────────────────────────────────────────────
 
