@@ -23,6 +23,7 @@
  *       └── EditorContent.tsx    — 에디터 콘텐츠 (뷰어 + 관리자 편집 UI)
  */
 
+import { useEffect } from "react";
 import { useLocation, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
@@ -62,6 +63,13 @@ function decodePath(path: string) {
   } catch {
     return path;
   }
+}
+
+function getCanonicalInternalHref(href: string | null | undefined, legacyHref: string) {
+  const value = href?.trim();
+  if (!value) return null;
+  if (!value.startsWith("/") || value.startsWith("//")) return null;
+  return decodePath(value) === decodePath(legacyHref) ? null : value;
 }
 
 // ─── 페이지 타입에 따라 알맞은 콘텐츠 컴포넌트를 반환 ────────────────────────
@@ -207,13 +215,22 @@ function MenuSubItemPageContent({
 // ─── 2단 메뉴 동적 페이지 ─────────────────────────────────────────────────────
 export function DynamicMenuItemPage() {
   const { id } = useParams<{ id: string }>();
+  const [, setLocation] = useLocation();
   const itemId = parseInt(id ?? "0", 10);
+  const legacyHref = `/page/item/${itemId}`;
 
   const { data: item, isLoading } = trpc.home.menuItem.useQuery(
     { id: itemId },
     { enabled: !!itemId }
   );
   const { data: allMenus } = trpc.home.menus.useQuery();
+  const canonicalHref = getCanonicalInternalHref(item?.href, legacyHref);
+
+  useEffect(() => {
+    if (canonicalHref) {
+      setLocation(canonicalHref);
+    }
+  }, [canonicalHref, setLocation]);
 
   if (isLoading) {
     return <LoadingDynamicPage />;
@@ -223,19 +240,28 @@ export function DynamicMenuItemPage() {
     return <MissingDynamicPage />;
   }
 
-  return <MenuItemPageContent item={item} allMenus={allMenus} activeHref={`/page/item/${itemId}`} />;
+  return <MenuItemPageContent item={item} allMenus={allMenus} activeHref={legacyHref} />;
 }
 
 // ─── 3단 메뉴 동적 페이지 ─────────────────────────────────────────────────────
 export function DynamicMenuSubItemPage() {
   const { id } = useParams<{ id: string }>();
+  const [, setLocation] = useLocation();
   const itemId = parseInt(id ?? "0", 10);
+  const legacyHref = `/page/sub/${itemId}`;
 
   const { data: item, isLoading } = trpc.home.menuSubItem.useQuery(
     { id: itemId },
     { enabled: !!itemId }
   );
   const { data: allMenus } = trpc.home.menus.useQuery();
+  const canonicalHref = getCanonicalInternalHref(item?.href, legacyHref);
+
+  useEffect(() => {
+    if (canonicalHref) {
+      setLocation(canonicalHref);
+    }
+  }, [canonicalHref, setLocation]);
 
   if (isLoading) {
     return <LoadingDynamicPage />;
@@ -245,7 +271,7 @@ export function DynamicMenuSubItemPage() {
     return <MissingDynamicPage />;
   }
 
-  return <MenuSubItemPageContent item={item} allMenus={allMenus} activeHref={`/page/sub/${itemId}`} />;
+  return <MenuSubItemPageContent item={item} allMenus={allMenus} activeHref={legacyHref} />;
 }
 
 // ─── 깔끔한 CMS 페이지 URL (/page/상위메뉴-메뉴명) ─────────────────────────
