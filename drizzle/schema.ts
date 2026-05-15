@@ -1,10 +1,12 @@
 import {
   boolean,
+  index,
   int,
   mysqlEnum,
   mysqlTable,
   text,
   timestamp,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/mysql-core";
 
@@ -353,6 +355,30 @@ export const churchMembers = mysqlTable("church_members", {
 
 export type ChurchMember = typeof churchMembers.$inferSelect;
 export type InsertChurchMember = typeof churchMembers.$inferInsert;
+
+// ─────────────────────────────────────────────
+// 교적부: 구글/카카오 간편가입 계정 연결
+// ─────────────────────────────────────────────
+export const memberSocialAccounts = mysqlTable("member_social_accounts", {
+  id: int("id").autoincrement().primaryKey(),
+  /** church_members.id */
+  memberId: int("member_id").notNull(),
+  provider: mysqlEnum("provider", ["google", "kakao"]).notNull(),
+  /** Google sub / Kakao id */
+  providerUserId: varchar("provider_user_id", { length: 191 }).notNull(),
+  email: varchar("email", { length: 254 }),
+  displayName: varchar("display_name", { length: 128 }),
+  profileImageUrl: text("profile_image_url"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("member_social_provider_user_unique").on(table.provider, table.providerUserId),
+  uniqueIndex("member_social_member_provider_unique").on(table.memberId, table.provider),
+  index("member_social_member_id_idx").on(table.memberId),
+]);
+
+export type MemberSocialAccount = typeof memberSocialAccounts.$inferSelect;
+export type InsertMemberSocialAccount = typeof memberSocialAccounts.$inferInsert;
 
 // ─────────────────────────────────────────────
 // 시설 예약 시스템

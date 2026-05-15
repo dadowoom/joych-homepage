@@ -11,8 +11,10 @@
 
 import { and, eq, asc, desc } from "drizzle-orm";
 import type { ResultSetHeader } from "mysql2";
-import { churchMembers, memberFieldOptions } from "../../drizzle/schema";
+import { churchMembers, memberFieldOptions, memberSocialAccounts } from "../../drizzle/schema";
 import { getDb } from "./connection";
+
+export type MemberSocialProvider = "google" | "kakao";
 
 // ─── 선택지 관리 (직분, 부서, 구역 등 드롭다운 옵션) ─────────────────────────
 
@@ -86,6 +88,32 @@ export async function getMemberById(id: number) {
   return rows[0] ?? null;
 }
 
+/** 소셜 제공자 계정으로 성도 연결 정보 조회 */
+export async function getMemberSocialAccount(provider: MemberSocialProvider, providerUserId: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(memberSocialAccounts)
+    .where(and(
+      eq(memberSocialAccounts.provider, provider),
+      eq(memberSocialAccounts.providerUserId, providerUserId),
+    ))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** 성도별 소셜 제공자 연결 정보 조회 */
+export async function getMemberSocialAccountByMember(provider: MemberSocialProvider, memberId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(memberSocialAccounts)
+    .where(and(
+      eq(memberSocialAccounts.provider, provider),
+      eq(memberSocialAccounts.memberId, memberId),
+    ))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 /** 전체 성도 목록 조회 (관리자용) */
 export async function getAllMembers() {
   const db = await getDb();
@@ -107,7 +135,7 @@ export async function getPendingMembers() {
 /** 성도 회원가입 */
 export async function createMember(data: {
   email: string;
-  passwordHash: string;
+  passwordHash?: string | null;
   name: string;
   phone?: string;
   birthDate?: string;
@@ -125,6 +153,28 @@ export async function createMember(data: {
     ...data,
     email: data.email.trim().toLowerCase(),
     status: 'pending',
+  });
+  return (result as ResultSetHeader).insertId;
+}
+
+/** 구글/카카오 계정을 성도 계정에 연결 */
+export async function createMemberSocialAccount(data: {
+  memberId: number;
+  provider: MemberSocialProvider;
+  providerUserId: string;
+  email?: string | null;
+  displayName?: string | null;
+  profileImageUrl?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const [result] = await db.insert(memberSocialAccounts).values({
+    memberId: data.memberId,
+    provider: data.provider,
+    providerUserId: data.providerUserId,
+    email: data.email?.trim().toLowerCase() || null,
+    displayName: data.displayName || null,
+    profileImageUrl: data.profileImageUrl || null,
   });
   return (result as ResultSetHeader).insertId;
 }
