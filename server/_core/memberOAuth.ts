@@ -300,13 +300,10 @@ function getBlockedMemberStatus(status: string) {
 }
 
 async function resolveMemberForProfile(profile: NormalizedSocialProfile) {
-  if (!profile.email) {
-    return { member: null, created: false, status: "social_email_required" as const };
-  }
-  if (profile.emailVerified === false) {
+  if (profile.email && profile.emailVerified === false) {
     return { member: null, created: false, status: "social_email_unverified" as const };
   }
-  if (profile.email.length > 128) {
+  if (profile.email && profile.email.length > 128) {
     return { member: null, created: false, status: "social_email_too_long" as const };
   }
 
@@ -319,7 +316,7 @@ async function resolveMemberForProfile(profile: NormalizedSocialProfile) {
     return { member, created: false, status: member ? "ok" as const : "error" as const };
   }
 
-  const existingMember = await getMemberByEmail(profile.email);
+  const existingMember = profile.email ? await getMemberByEmail(profile.email) : null;
   if (existingMember) {
     const existingProviderAccount = await getMemberSocialAccountByMember(
       profile.provider as MemberSocialProvider,
@@ -348,7 +345,7 @@ async function resolveMemberForProfile(profile: NormalizedSocialProfile) {
   const memberId = await createMember({
     email: profile.email,
     passwordHash: null,
-    name: profile.displayName || profile.email.split("@")[0],
+    name: profile.displayName || `${providers[profile.provider].label} 사용자`,
     joinPath: `${providers[profile.provider].label} 간편가입`,
   });
   await createMemberSocialAccount({

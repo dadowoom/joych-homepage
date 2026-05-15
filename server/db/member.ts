@@ -134,7 +134,7 @@ export async function getPendingMembers() {
 
 /** 성도 회원가입 */
 export async function createMember(data: {
-  email: string;
+  email?: string | null;
   passwordHash?: string | null;
   name: string;
   phone?: string;
@@ -151,7 +151,7 @@ export async function createMember(data: {
   if (!db) throw new Error('DB not available');
   const [result] = await db.insert(churchMembers).values({
     ...data,
-    email: data.email.trim().toLowerCase(),
+    email: data.email?.trim().toLowerCase() || null,
     status: 'pending',
   });
   return (result as ResultSetHeader).insertId;
