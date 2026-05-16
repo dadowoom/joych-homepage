@@ -100,6 +100,43 @@ function getBaseUrl(req: Request) {
   return `${protocol || req.protocol}://${host}`;
 }
 
+function getHeaderFirstValue(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
+function getRequestOrigin(req: Request) {
+  const forwardedProto = getHeaderFirstValue(req.headers["x-forwarded-proto"]);
+  const forwardedHost = getHeaderFirstValue(req.headers["x-forwarded-host"]);
+  const protocol = forwardedProto?.split(",")[0]?.trim() || req.protocol;
+  const host = forwardedHost?.split(",")[0]?.trim() || req.get("host");
+  return host ? `${protocol}://${host}` : null;
+}
+
+export function getCanonicalMemberOAuthStartUrl(
+  req: Request,
+  provider: MemberOAuthProvider,
+  mode: MemberOAuthMode
+) {
+  const configured = process.env.PUBLIC_URL_BASE?.trim();
+  if (!configured) return null;
+
+  const requestOrigin = getRequestOrigin(req);
+  if (!requestOrigin) return null;
+
+  try {
+    const canonicalOrigin = new URL(configured).origin;
+    const currentOrigin = new URL(requestOrigin).origin;
+    if (canonicalOrigin === currentOrigin) return null;
+
+    const startUrl = new URL(`/api/member-oauth/${provider}/start`, canonicalOrigin);
+    startUrl.searchParams.set("mode", mode);
+    return startUrl.toString();
+  } catch {
+    return null;
+  }
+}
+
 export function getMemberOAuthRedirectUri(req: Request, provider: MemberOAuthProvider) {
   return `${getBaseUrl(req)}/api/member-oauth/${provider}/callback`;
 }
@@ -377,6 +414,11 @@ export function registerMemberOAuthRoutes(app: Express) {
     }
 
     const mode = getMode(req.query.mode);
+    const canonicalStartUrl = getCanonicalMemberOAuthStartUrl(req, providerParam, mode);
+    if (canonicalStartUrl) {
+      return res.redirect(302, canonicalStartUrl);
+    }
+
     const state = await createOAuthState(providerParam, mode);
     res.cookie(OAUTH_STATE_COOKIE, state, {
       ...getSessionCookieOptions(req),
