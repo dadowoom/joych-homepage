@@ -1,16 +1,21 @@
 import type { Request } from "express";
 import { describe, expect, it, afterEach } from "vitest";
 import {
+  getCanonicalMemberOAuthStartUrl,
   getMemberOAuthProviderStatus,
   getMemberOAuthRedirectUri,
   normalizeGoogleProfile,
   normalizeKakaoProfile,
 } from "./_core/memberOAuth";
 
-function mockRequest(host = "localhost:3000") {
+function mockRequest(
+  host = "localhost:3000",
+  headers: Record<string, string> = {},
+  protocol = "http"
+) {
   return {
-    headers: {},
-    protocol: "http",
+    headers,
+    protocol,
     get: (name: string) => (name.toLowerCase() === "host" ? host : undefined),
   } as unknown as Request;
 }
@@ -30,6 +35,21 @@ describe("member OAuth helpers", () => {
     expect(getMemberOAuthRedirectUri(mockRequest(), "kakao")).toBe(
       "https://dadowoomtest.co.kr/api/member-oauth/kakao/callback"
     );
+  });
+
+  it("PUBLIC_URL_BASE와 다른 주소에서 간편로그인을 시작하면 공식 도메인으로 정규화", () => {
+    process.env.PUBLIC_URL_BASE = "https://dadowoomtest.co.kr/";
+
+    expect(getCanonicalMemberOAuthStartUrl(mockRequest("115.68.224.123:4000"), "kakao", "login")).toBe(
+      "https://dadowoomtest.co.kr/api/member-oauth/kakao/start?mode=login"
+    );
+    expect(
+      getCanonicalMemberOAuthStartUrl(
+        mockRequest("dadowoomtest.co.kr", { "x-forwarded-proto": "https" }),
+        "google",
+        "register"
+      )
+    ).toBeNull();
   });
 
   it("구글은 client id와 secret이 모두 있어야 활성화", () => {
