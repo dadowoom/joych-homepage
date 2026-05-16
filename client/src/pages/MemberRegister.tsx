@@ -9,6 +9,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import MemberSocialAuthButtons from "@/components/MemberSocialAuthButtons";
 
 export default function MemberRegister() {
   const [, navigate] = useLocation();
@@ -124,6 +125,10 @@ export default function MemberRegister() {
           <p className="text-sm text-gray-500 mt-2">
             기쁨의교회 온라인 서비스를 이용하시려면 회원가입이 필요합니다.
           </p>
+        </div>
+
+        <div className="mb-8">
+          <MemberSocialAuthButtons mode="register" />
         </div>
 
         {/* 진행 단계 표시 */}

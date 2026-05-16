@@ -50,6 +50,13 @@
 3. 이후 요청에서 `church_member_session` 쿠키를 직접 파싱하여 성도 정보 추출
 4. `members.me` 쿼리로 프론트엔드에서 로그인 상태 확인
 
+### 구글/카카오 간편가입 흐름
+1. `/api/member-oauth/:provider/start`에서 구글/카카오 인증 화면으로 이동
+2. `/api/member-oauth/:provider/callback`에서 `state`를 검증하고 토큰을 서버에서 교환
+3. 이메일이 기존 성도와 일치하면 소셜 계정을 연결
+4. 신규 이메일이면 `church_members.status = pending`으로 생성
+5. 승인된 성도만 `church_member_session` 쿠키를 발급받아 로그인 완료
+
 ### 쿠키 설정 (2026-04-17 변경)
 - `maxAge` 없음 (세션 쿠키) → 브라우저 닫으면 자동 삭제
 - JWT 만료: 24시간 (열려있는 동안만 유지)
@@ -61,6 +68,8 @@
   - `members.logout` — 성도 로그아웃 (쿠키 삭제)
   - `members.me` — 현재 로그인 성도 정보 조회
   - `members.updateMyInfo` — 내 정보 수정
+- `server/_core/memberOAuth.ts` — 구글/카카오 성도 간편가입 콜백 처리
+- `member_social_accounts` — 성도 계정과 소셜 제공자 계정 연결 테이블
 
 ### 사용 범위 (성도 기능)
 - 헤더 로그인 상태 표시

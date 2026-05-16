@@ -71,6 +71,13 @@
       "when": 1778556387397,
       "tag": "0009_white_eddie_brock",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1778827416594,
+      "tag": "0010_broken_bromley",
+      "breakpoints": true
     }
   ]
 }

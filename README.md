@@ -189,6 +189,11 @@ pnpm dev
 |---|---|---|
 | `DATABASE_URL` | MySQL 연결 문자열 | ✅ 필수 |
 | `JWT_SECRET` | 세션 쿠키 서명 키 | ✅ 필수 |
+| `PUBLIC_URL_BASE` | OAuth 콜백 생성 기준 URL | 운영 필수 |
+| `GOOGLE_OAUTH_CLIENT_ID` | 구글 성도 간편가입 클라이언트 ID | 구글 사용 시 필수 |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | 구글 성도 간편가입 클라이언트 보안 비밀 | 구글 사용 시 필수 |
+| `KAKAO_REST_API_KEY` | 카카오 성도 간편가입 REST API 키 | 카카오 사용 시 필수 |
+| `KAKAO_CLIENT_SECRET` | 카카오 REST API client secret | 설정 ON 시 필수 |
 | `VITE_APP_ID` | Manus OAuth 앱 ID | ✅ 필수 |
 | `OAUTH_SERVER_URL` | Manus OAuth 서버 URL | ✅ 필수 |
 | `VITE_OAUTH_PORTAL_URL` | Manus 로그인 포털 URL | ✅ 필수 |
