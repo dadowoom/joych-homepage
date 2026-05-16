@@ -15,7 +15,9 @@ import {
 
 const MEMBER_SESSION_COOKIE = "church_member_session";
 const OAUTH_STATE_COOKIE = "church_member_oauth_state";
+const SOCIAL_SIGNUP_COOKIE = "church_member_social_signup";
 const STATE_TTL_MS = 10 * 60 * 1000;
+const SOCIAL_SIGNUP_TTL_MS = 20 * 60 * 1000;
 
 const providers = {
   google: {
@@ -57,6 +59,16 @@ type OAuthStatePayload = {
   provider: MemberOAuthProvider;
   mode: MemberOAuthMode;
   nonce: string;
+};
+
+type SocialSignupPayload = {
+  type: "member_social_signup";
+  provider: MemberOAuthProvider;
+  providerUserId: string;
+  email: string | null;
+  emailVerified: boolean | null;
+  displayName: string | null;
+  profileImageUrl: string | null;
 };
 
 type ProviderConfig = (typeof providers)[MemberOAuthProvider] & {
@@ -173,10 +185,73 @@ async function verifyOAuthState(req: Request, provider: MemberOAuthProvider, sta
   return payload as OAuthStatePayload;
 }
 
+async function createSocialSignupState(profile: NormalizedSocialProfile) {
+  return new SignJWT({
+    type: "member_social_signup",
+    provider: profile.provider,
+    providerUserId: profile.providerUserId,
+    email: profile.email,
+    emailVerified: profile.emailVerified,
+    displayName: profile.displayName,
+    profileImageUrl: profile.profileImageUrl,
+  } satisfies SocialSignupPayload)
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("20m")
+    .sign(getJwtSecretKey());
+}
+
+async function verifySocialSignupState(req: Request) {
+  const token = req.cookies?.[SOCIAL_SIGNUP_COOKIE];
+  if (!token) {
+    throw new Error("Social signup state missing");
+  }
+
+  const { payload } = await jwtVerify(token, getJwtSecretKey());
+  const provider = String(payload.provider);
+  if (
+    payload.type !== "member_social_signup" ||
+    !isMemberOAuthProvider(provider) ||
+    typeof payload.providerUserId !== "string" ||
+    !payload.providerUserId
+  ) {
+    throw new Error("Invalid social signup state");
+  }
+
+  return {
+    type: "member_social_signup",
+    provider,
+    providerUserId: payload.providerUserId,
+    email: typeof payload.email === "string" ? payload.email : null,
+    emailVerified: typeof payload.emailVerified === "boolean" ? payload.emailVerified : null,
+    displayName: typeof payload.displayName === "string" ? payload.displayName : null,
+    profileImageUrl: typeof payload.profileImageUrl === "string" ? payload.profileImageUrl : null,
+  } satisfies SocialSignupPayload;
+}
+
 function clearOAuthStateCookie(req: Request, res: Response) {
   res.clearCookie(OAUTH_STATE_COOKIE, {
     ...getSessionCookieOptions(req),
     maxAge: -1,
+  });
+}
+
+function clearSocialSignupCookie(req: Request, res: Response) {
+  res.clearCookie(SOCIAL_SIGNUP_COOKIE, {
+    ...getSessionCookieOptions(req),
+    maxAge: -1,
+  });
+}
+
+async function setSocialSignupCookie(
+  req: Request,
+  res: Response,
+  profile: NormalizedSocialProfile
+) {
+  const token = await createSocialSignupState(profile);
+  res.cookie(SOCIAL_SIGNUP_COOKIE, token, {
+    ...getSessionCookieOptions(req),
+    maxAge: SOCIAL_SIGNUP_TTL_MS,
   });
 }
 
@@ -195,6 +270,29 @@ function assertString(value: unknown, message: string): string {
     throw new Error(message);
   }
   return value.trim();
+}
+
+function sanitizeText(value: unknown, maxLength: number) {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, maxLength);
+}
+
+function sanitizeOptionalEmail(value: unknown) {
+  if (typeof value !== "string") return null;
+  const email = value.trim().toLowerCase();
+  if (!email) return null;
+  if (email.length > 128 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error("invalid_email");
+  }
+  return email;
+}
+
+function sanitizeBirthDate(value: unknown) {
+  const birthDate = sanitizeText(value, 16);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
+    throw new Error("invalid_birth_date");
+  }
+  return birthDate;
 }
 
 async function postForm<T>(url: string, params: URLSearchParams): Promise<T> {
@@ -336,7 +434,7 @@ function getBlockedMemberStatus(status: string) {
   return "forbidden";
 }
 
-async function resolveMemberForProfile(profile: NormalizedSocialProfile) {
+async function resolveExistingMemberForProfile(profile: NormalizedSocialProfile) {
   if (profile.email && profile.emailVerified === false) {
     return { member: null, created: false, status: "social_email_unverified" as const };
   }
@@ -379,26 +477,110 @@ async function resolveMemberForProfile(profile: NormalizedSocialProfile) {
     return { member: existingMember, created: false, status: "ok" as const };
   }
 
+  return { member: null, created: false, status: "needs_signup_details" as const };
+}
+
+async function createMemberFromSocialSignup(
+  profile: SocialSignupPayload,
+  input: {
+    name: string;
+    phone: string;
+    birthDate: string;
+    email: string | null;
+  }
+) {
+  const email = profile.email || input.email;
+  if (email) {
+    const existingMember = await getMemberByEmail(email);
+    if (existingMember) {
+      return { member: null, status: "email_conflict" as const };
+    }
+  }
+
+  const existingSocialAccount = await getMemberSocialAccount(
+    profile.provider as MemberSocialProvider,
+    profile.providerUserId
+  );
+  if (existingSocialAccount) {
+    const member = await getMemberById(existingSocialAccount.memberId);
+    return { member, status: member ? "ok" as const : "error" as const };
+  }
+
   const memberId = await createMember({
-    email: profile.email,
+    email,
     passwordHash: null,
-    name: profile.displayName || `${providers[profile.provider].label} 사용자`,
+    name: input.name,
+    phone: input.phone,
+    birthDate: input.birthDate,
     joinPath: `${providers[profile.provider].label} 간편가입`,
   });
   await createMemberSocialAccount({
     memberId,
     provider: profile.provider as MemberSocialProvider,
     providerUserId: profile.providerUserId,
-    email: profile.email,
+    email,
     displayName: profile.displayName,
     profileImageUrl: profile.profileImageUrl,
   });
 
   const member = await getMemberById(memberId);
-  return { member, created: true, status: member ? "ok" as const : "error" as const };
+  return { member, status: member ? "ok" as const : "error" as const };
 }
 
 export function registerMemberOAuthRoutes(app: Express) {
+  app.get("/api/member-oauth/signup-context", async (req, res) => {
+    try {
+      const signup = await verifySocialSignupState(req);
+      return res.json({
+        provider: signup.provider,
+        providerLabel: providers[signup.provider].label,
+        email: signup.email,
+        displayName: signup.displayName,
+      });
+    } catch {
+      return res.status(401).json({ message: "간편가입 정보가 만료되었습니다. 다시 시도해주세요." });
+    }
+  });
+
+  app.post("/api/member-oauth/complete-signup", async (req, res) => {
+    try {
+      const signup = await verifySocialSignupState(req);
+      const name = sanitizeText(req.body?.name, 64);
+      const phone = sanitizeText(req.body?.phone, 32);
+      const birthDate = sanitizeBirthDate(req.body?.birthDate);
+      const email = signup.email || sanitizeOptionalEmail(req.body?.email);
+
+      if (!name || !phone) {
+        return res.status(400).json({ message: "이름, 연락처, 생년월일을 모두 입력해주세요." });
+      }
+
+      const result = await createMemberFromSocialSignup(signup, {
+        name,
+        phone,
+        birthDate,
+        email,
+      });
+
+      if (result.status === "email_conflict") {
+        return res.status(409).json({ message: "이미 사용 중인 이메일입니다." });
+      }
+      if (!result.member || result.status === "error") {
+        return res.status(500).json({ message: "간편가입 처리 중 문제가 발생했습니다." });
+      }
+
+      clearSocialSignupCookie(req, res);
+      return res.json({ ok: true });
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message === "invalid_email"
+          ? "올바른 이메일 형식을 입력해주세요."
+          : error instanceof Error && error.message === "invalid_birth_date"
+            ? "생년월일을 YYYY-MM-DD 형식으로 입력해주세요."
+            : "간편가입 정보가 만료되었습니다. 다시 시도해주세요.";
+      return res.status(400).json({ message });
+    }
+  });
+
   app.get("/api/member-oauth/:provider/start", async (req, res) => {
     const providerParam = req.params.provider;
     if (!isMemberOAuthProvider(providerParam)) {
@@ -463,7 +645,12 @@ export function registerMemberOAuthRoutes(app: Express) {
       const redirectUri = getMemberOAuthRedirectUri(req, providerParam);
       const accessToken = await exchangeAuthorizationCode(providerParam, config, code, redirectUri);
       const profile = await fetchSocialProfile(providerParam, config, accessToken);
-      const result = await resolveMemberForProfile(profile);
+      const result = await resolveExistingMemberForProfile(profile);
+
+      if (result.status === "needs_signup_details") {
+        await setSocialSignupCookie(req, res, profile);
+        return res.redirect(303, `/member/social-complete?provider=${providerParam}`);
+      }
 
       if (!result.member || result.status !== "ok") {
         return redirectToLogin(res, {
