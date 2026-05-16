@@ -2,17 +2,21 @@
  * AdminMembersTab.tsx
  * 관리자 성도 관리 탭
  * - 전체 성도 목록 조회
- * - 상태별 / 구역별 / 직분별 필터 + 이름/연락처 검색
+ * - 상태별 / 구역별 / 직분별 필터 + 보기 방식 + 이름/연락처 검색
  * - 20명씩 페이징
  * - 가입 승인/거절 (빠른 버튼)
+ * - 성도 삭제(탈퇴 처리)
  * - 수정 버튼 → MemberEditModal 모달 오픈
  */
 import { useState, useMemo } from "react";
+import type { inferRouterOutputs } from "@trpc/server";
+import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import MemberEditModal from "./MemberEditModal";
 
 type StatusFilter = "all" | "pending" | "approved" | "rejected" | "withdrawn";
+type ViewMode = "position" | "list" | "district" | "department";
 
 const STATUS_LABELS: Record<string, { text: string; color: string }> = {
   pending:   { text: "대기",  color: "bg-yellow-100 text-yellow-700" },
@@ -21,9 +25,16 @@ const STATUS_LABELS: Record<string, { text: string; color: string }> = {
   withdrawn: { text: "탈퇴",  color: "bg-gray-100 text-gray-500" },
 };
 
+const VIEW_LABELS: { key: ViewMode; label: string }[] = [
+  { key: "position", label: "직분별" },
+  { key: "list", label: "전체보기" },
+  { key: "district", label: "구역/순별" },
+  { key: "department", label: "부서별" },
+];
+
 const PAGE_SIZE = 20;
 
-type Member = ReturnType<typeof trpc.members.adminList.useQuery>["data"] extends (infer T)[] | undefined ? T : never;
+type Member = inferRouterOutputs<AppRouter>["members"]["adminList"][number];
 
 export default function AdminMembersTab() {
   const utils = trpc.useUtils();
@@ -33,6 +44,7 @@ export default function AdminMembersTab() {
   const [districtFilter, setDistrictFilter] = useState("");
   const [positionFilter, setPositionFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<ViewMode>("position");
 
   // 페이징 상태
   const [page, setPage] = useState(1);
@@ -58,6 +70,15 @@ export default function AdminMembersTab() {
     onError: (e) => toast.error(e.message),
   });
 
+  const deleteMutation = trpc.members.updateChurchInfo.useMutation({
+    onSuccess: () => {
+      utils.members.adminList.invalidate();
+      utils.members.pendingList.invalidate();
+      toast.success("성도를 삭제 처리했습니다. 탈퇴 상태에서 다시 확인할 수 있습니다.");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   // 필터링 (필터 변경 시 페이지 1로 리셋)
   const filtered = useMemo(() => {
     return members.filter((m) => {
@@ -79,13 +100,50 @@ export default function AdminMembersTab() {
     setPage(1);
   };
 
+  const getGroupLabel = (member: Member) => {
+    if (viewMode === "position") return member.position || "직분 미입력";
+    if (viewMode === "district") return member.district || "구역/순 미입력";
+    if (viewMode === "department") return member.department || "부서 미입력";
+    return "";
+  };
+
+  const sortedFiltered = useMemo(() => {
+    if (viewMode === "list") return filtered;
+    return [...filtered].sort((a, b) => {
+      const groupCompare = getGroupLabel(a).localeCompare(getGroupLabel(b), "ko");
+      if (groupCompare !== 0) return groupCompare;
+      return a.name.localeCompare(b.name, "ko");
+    });
+  }, [filtered, viewMode]);
+
   // 페이징 계산
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(sortedFiltered.length / PAGE_SIZE));
   const safePage   = Math.min(page, totalPages);
-  const paginated  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const paginated  = sortedFiltered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const grouped = useMemo(() => {
+    if (viewMode === "list") return [{ label: "", members: paginated }];
+    return paginated.reduce<{ label: string; members: Member[] }[]>((acc, member) => {
+      const label = getGroupLabel(member);
+      const current = acc[acc.length - 1];
+      if (current?.label === label) {
+        current.members.push(member);
+      } else {
+        acc.push({ label, members: [member] });
+      }
+      return acc;
+    }, []);
+  }, [paginated, viewMode]);
 
   const quickApprove = (id: number) => quickMutation.mutate({ id, status: "approved" });
   const quickReject  = (id: number) => quickMutation.mutate({ id, status: "rejected" });
+  const deleteMember = (member: Member) => {
+    const confirmed = window.confirm(
+      `${member.name} 성도를 삭제 처리할까요?\n\n실제 데이터는 탈퇴 상태로 보관되며, 탈퇴 탭에서 다시 확인할 수 있습니다.`
+    );
+    if (!confirmed) return;
+    deleteMutation.mutate({ id: member.id, status: "withdrawn" });
+  };
 
   if (isLoading) return <p className="text-gray-500 py-8 text-center">불러오는 중...</p>;
 
@@ -128,6 +186,22 @@ export default function AdminMembersTab() {
           ))}
         </div>
 
+        <div className="flex flex-wrap gap-1">
+          {VIEW_LABELS.map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => changeFilter(setViewMode)(key)}
+              className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
+                viewMode === key
+                  ? "bg-[#1B5E20] text-white"
+                  : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         {/* 구역 / 직분 / 검색 */}
         <div className="flex flex-col sm:flex-row gap-2">
           <select
@@ -161,13 +235,14 @@ export default function AdminMembersTab() {
           />
 
           {/* 필터 초기화 */}
-          {(statusFilter !== "all" || districtFilter || positionFilter || searchQuery) && (
+          {(statusFilter !== "all" || districtFilter || positionFilter || searchQuery || viewMode !== "position") && (
             <button
               onClick={() => {
                 setStatusFilter("all");
                 setDistrictFilter("");
                 setPositionFilter("");
                 setSearchQuery("");
+                setViewMode("position");
                 setPage(1);
               }}
               className="text-xs text-gray-400 hover:text-gray-600 px-2 whitespace-nowrap"
@@ -186,64 +261,85 @@ export default function AdminMembersTab() {
         </div>
       ) : (
         <div className="space-y-2">
-          {paginated.map((member) => {
-            const status = STATUS_LABELS[member.status ?? "pending"] ?? STATUS_LABELS.pending;
-            return (
-              <div key={member.id} className="border border-gray-200 rounded-xl overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 bg-gray-50">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-[#E8F5E9] rounded-full flex items-center justify-center flex-shrink-0">
-                      <i className="fas fa-user text-[#1B5E20] text-sm"></i>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-gray-800 text-sm">{member.name}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>
-                          {status.text}
-                        </span>
-                        {member.position && (
-                          <span className="text-xs text-[#1B5E20] font-medium">{member.position}</span>
+          {grouped.map((group) => (
+            <div key={group.label || "list"} className="space-y-2">
+              {viewMode !== "list" && (
+                <div className="flex items-center gap-2 pt-2 first:pt-0">
+                  <p className="text-xs font-semibold text-gray-600">{group.label}</p>
+                  <span className="text-[11px] text-gray-400">{group.members.length}명</span>
+                  <div className="h-px bg-gray-200 flex-1" />
+                </div>
+              )}
+              {group.members.map((member) => {
+                const status = STATUS_LABELS[member.status ?? "pending"] ?? STATUS_LABELS.pending;
+                return (
+                  <div key={member.id} className="border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 bg-gray-50">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 bg-[#E8F5E9] rounded-full flex items-center justify-center flex-shrink-0">
+                          <i className="fas fa-user text-[#1B5E20] text-sm"></i>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-gray-800 text-sm">{member.name}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>
+                              {status.text}
+                            </span>
+                            {member.position && (
+                              <span className="text-xs text-[#1B5E20] font-medium">{member.position}</span>
+                            )}
+                            {member.district && (
+                              <span className="text-xs text-gray-400">{member.district}</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {member.phone ?? member.email ?? "-"}
+                            {member.department && ` · ${member.department}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {member.status === "pending" && (
+                          <>
+                            <button
+                              onClick={() => quickApprove(member.id)}
+                              disabled={quickMutation.isPending || deleteMutation.isPending}
+                              className="text-xs px-2.5 py-1 bg-green-100 text-green-700 rounded-full hover:bg-green-200 transition-colors font-medium"
+                            >
+                              승인
+                            </button>
+                            <button
+                              onClick={() => quickReject(member.id)}
+                              disabled={quickMutation.isPending || deleteMutation.isPending}
+                              className="text-xs px-2.5 py-1 bg-red-100 text-red-700 rounded-full hover:bg-red-200 transition-colors font-medium"
+                            >
+                              거절
+                            </button>
+                          </>
                         )}
-                        {member.district && (
-                          <span className="text-xs text-gray-400">{member.district}</span>
+                        <button
+                          onClick={() => setEditingMember(member as Member)}
+                          disabled={deleteMutation.isPending}
+                          className="text-xs px-3 py-1 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                        >
+                          수정
+                        </button>
+                        {member.status !== "withdrawn" && (
+                          <button
+                            onClick={() => deleteMember(member)}
+                            disabled={quickMutation.isPending || deleteMutation.isPending}
+                            className="text-xs px-3 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50 transition-colors"
+                          >
+                            삭제
+                          </button>
                         )}
                       </div>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {member.phone ?? member.email ?? "-"}
-                        {member.department && ` · ${member.department}`}
-                      </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {member.status === "pending" && (
-                      <>
-                        <button
-                          onClick={() => quickApprove(member.id)}
-                          disabled={quickMutation.isPending}
-                          className="text-xs px-2.5 py-1 bg-green-100 text-green-700 rounded-full hover:bg-green-200 transition-colors font-medium"
-                        >
-                          승인
-                        </button>
-                        <button
-                          onClick={() => quickReject(member.id)}
-                          disabled={quickMutation.isPending}
-                          className="text-xs px-2.5 py-1 bg-red-100 text-red-700 rounded-full hover:bg-red-200 transition-colors font-medium"
-                        >
-                          거절
-                        </button>
-                      </>
-                    )}
-                    <button
-                      onClick={() => setEditingMember(member as Member)}
-                      className="text-xs px-3 py-1 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
-                    >
-                      수정
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          ))}
         </div>
       )}
 
