@@ -4,8 +4,8 @@ import { SignJWT, jwtVerify } from "jose";
 import { getSessionCookieOptions } from "./cookies";
 import { getJwtSecretKey } from "./jwtSecret";
 import {
-  createMember,
   createMemberSocialAccount,
+  createMemberWithSocialAccount,
   getMemberByEmail,
   getMemberById,
   getMemberSocialAccount,
@@ -232,14 +232,12 @@ async function verifySocialSignupState(req: Request) {
 function clearOAuthStateCookie(req: Request, res: Response) {
   res.clearCookie(OAUTH_STATE_COOKIE, {
     ...getSessionCookieOptions(req),
-    maxAge: -1,
   });
 }
 
 function clearSocialSignupCookie(req: Request, res: Response) {
   res.clearCookie(SOCIAL_SIGNUP_COOKIE, {
     ...getSessionCookieOptions(req),
-    maxAge: -1,
   });
 }
 
@@ -304,7 +302,7 @@ async function postForm<T>(url: string, params: URLSearchParams): Promise<T> {
 
   const data = await response.json().catch(() => null);
   if (!response.ok || !data) {
-    throw new Error("OAuth token request failed");
+    throw new Error(buildOAuthRequestError("OAuth token request failed", response.status, data));
   }
   return data as T;
 }
@@ -316,9 +314,31 @@ async function getJson<T>(url: string, accessToken: string): Promise<T> {
 
   const data = await response.json().catch(() => null);
   if (!response.ok || !data) {
-    throw new Error("OAuth user info request failed");
+    throw new Error(buildOAuthRequestError("OAuth user info request failed", response.status, data));
   }
   return data as T;
+}
+
+function buildOAuthRequestError(message: string, status: number, data: unknown) {
+  const payload = data as Record<string, unknown> | null;
+  const providerError =
+    typeof payload?.error === "string"
+      ? payload.error
+      : typeof payload?.code === "string"
+        ? payload.code
+        : null;
+  const providerDescription =
+    typeof payload?.error_description === "string"
+      ? payload.error_description
+      : typeof payload?.msg === "string"
+        ? payload.msg
+        : null;
+  return [
+    message,
+    `status=${status}`,
+    providerError ? `error=${providerError}` : null,
+    providerDescription ? `description=${providerDescription.slice(0, 180)}` : null,
+  ].filter(Boolean).join(" ");
 }
 
 type OAuthTokenResponse = {
@@ -434,14 +454,11 @@ function getBlockedMemberStatus(status: string) {
   return "forbidden";
 }
 
-async function resolveExistingMemberForProfile(profile: NormalizedSocialProfile) {
-  if (profile.email && profile.emailVerified === false) {
-    return { member: null, created: false, status: "social_email_unverified" as const };
-  }
-  if (profile.email && profile.email.length > 128) {
-    return { member: null, created: false, status: "social_email_too_long" as const };
-  }
+export function canUseProfileEmailForMemberAutoLink(profile: Pick<NormalizedSocialProfile, "email" | "emailVerified">) {
+  return Boolean(profile.email && profile.emailVerified === true);
+}
 
+async function resolveExistingMemberForProfile(profile: NormalizedSocialProfile) {
   const existingSocialAccount = await getMemberSocialAccount(
     profile.provider as MemberSocialProvider,
     profile.providerUserId
@@ -451,7 +468,13 @@ async function resolveExistingMemberForProfile(profile: NormalizedSocialProfile)
     return { member, created: false, status: member ? "ok" as const : "error" as const };
   }
 
-  const existingMember = profile.email ? await getMemberByEmail(profile.email) : null;
+  if (profile.email && profile.email.length > 128) {
+    return { member: null, created: false, status: "social_email_too_long" as const };
+  }
+
+  const existingMember = canUseProfileEmailForMemberAutoLink(profile)
+    ? await getMemberByEmail(profile.email as string)
+    : null;
   if (existingMember) {
     const existingProviderAccount = await getMemberSocialAccountByMember(
       profile.provider as MemberSocialProvider,
@@ -506,16 +529,14 @@ async function createMemberFromSocialSignup(
     return { member, status: member ? "ok" as const : "error" as const };
   }
 
-  const memberId = await createMember({
+  const memberId = await createMemberWithSocialAccount({
     email,
     passwordHash: null,
     name: input.name,
     phone: input.phone,
     birthDate: input.birthDate,
     joinPath: `${providers[profile.provider].label} 간편가입`,
-  });
-  await createMemberSocialAccount({
-    memberId,
+  }, {
     provider: profile.provider as MemberSocialProvider,
     providerUserId: profile.providerUserId,
     email,
@@ -662,7 +683,6 @@ export function registerMemberOAuthRoutes(app: Express) {
       if (result.member.status !== "approved") {
         res.clearCookie(MEMBER_SESSION_COOKIE, {
           ...getSessionCookieOptions(req),
-          maxAge: -1,
         });
         return redirectToLogin(res, {
           social: result.created ? "registered" : getBlockedMemberStatus(result.member.status),

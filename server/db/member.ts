@@ -179,6 +179,45 @@ export async function createMemberSocialAccount(data: {
   return (result as ResultSetHeader).insertId;
 }
 
+/** 성도 간편가입: 회원 생성과 소셜 계정 연결을 하나의 트랜잭션으로 처리 */
+export async function createMemberWithSocialAccount(memberData: {
+  email?: string | null;
+  passwordHash?: string | null;
+  name: string;
+  phone?: string;
+  birthDate?: string;
+  joinPath?: string;
+}, socialData: {
+  provider: MemberSocialProvider;
+  providerUserId: string;
+  email?: string | null;
+  displayName?: string | null;
+  profileImageUrl?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+
+  return db.transaction(async (tx) => {
+    const [memberResult] = await tx.insert(churchMembers).values({
+      ...memberData,
+      email: memberData.email?.trim().toLowerCase() || null,
+      status: 'pending',
+    });
+    const memberId = (memberResult as ResultSetHeader).insertId;
+
+    await tx.insert(memberSocialAccounts).values({
+      memberId,
+      provider: socialData.provider,
+      providerUserId: socialData.providerUserId,
+      email: socialData.email?.trim().toLowerCase() || null,
+      displayName: socialData.displayName || null,
+      profileImageUrl: socialData.profileImageUrl || null,
+    });
+
+    return memberId;
+  });
+}
+
 /** 성도 기본 정보 수정 (성도 본인) */
 export async function updateMemberBasicInfo(id: number, data: Partial<{
   name: string;

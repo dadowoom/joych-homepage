@@ -1,6 +1,7 @@
 import type { Request } from "express";
 import { describe, expect, it, afterEach } from "vitest";
 import {
+  canUseProfileEmailForMemberAutoLink,
   getCanonicalMemberOAuthStartUrl,
   getMemberOAuthProviderStatus,
   getMemberOAuthRedirectUri,
@@ -96,5 +97,22 @@ describe("member OAuth helpers", () => {
       emailVerified: null,
       displayName: "기쁨성도",
     });
+  });
+
+  it("기존 성도 이메일 자동 연결은 인증된 소셜 이메일만 허용", () => {
+    expect(canUseProfileEmailForMemberAutoLink({
+      email: "member@example.com",
+      emailVerified: true,
+    })).toBe(true);
+
+    expect(canUseProfileEmailForMemberAutoLink({
+      email: "member@example.com",
+      emailVerified: false,
+    })).toBe(false);
+
+    expect(canUseProfileEmailForMemberAutoLink({
+      email: "member@example.com",
+      emailVerified: null,
+    })).toBe(false);
   });
 });
