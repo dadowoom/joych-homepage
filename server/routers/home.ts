@@ -50,6 +50,11 @@ const idSchema = z.number().int().positive();
 const hrefLookupSchema = z.string().trim().min(1).max(256);
 const staticPageHrefSchema = z.string().trim().min(1).max(128).regex(/^\//);
 
+async function getVisibleFacilityById(id: number) {
+  const facility = await getFacilityById(id);
+  return facility?.isVisible ? facility : null;
+}
+
 function toMinutes(time: string): number | null {
   if (!TIME_RE.test(time)) return null;
   const [hour, minute] = time.split(":").map(Number);
@@ -127,22 +132,34 @@ export const homeRouter = router({
   /** 시설 단건 조회 */
   facility: publicProcedure
     .input(z.object({ id: idSchema }))
-    .query(({ input }) => getFacilityById(input.id)),
+    .query(({ input }) => getVisibleFacilityById(input.id)),
 
   /** 시설 사진 목록 */
   facilityImages: publicProcedure
     .input(z.object({ facilityId: idSchema }))
-    .query(({ input }) => getFacilityImages(input.facilityId)),
+    .query(async ({ input }) => {
+      const facility = await getVisibleFacilityById(input.facilityId);
+      if (!facility) return [];
+      return getFacilityImages(input.facilityId);
+    }),
 
   /** 시설 운영 시간 */
   facilityHours: publicProcedure
     .input(z.object({ facilityId: idSchema }))
-    .query(({ input }) => getFacilityHours(input.facilityId)),
+    .query(async ({ input }) => {
+      const facility = await getVisibleFacilityById(input.facilityId);
+      if (!facility) return [];
+      return getFacilityHours(input.facilityId);
+    }),
 
   /** 시설 차단 날짜 목록 (예약 불가 날짜) */
   facilityBlockedDates: publicProcedure
     .input(z.object({ facilityId: idSchema }))
-    .query(({ input }) => getBlockedDates(input.facilityId)),
+    .query(async ({ input }) => {
+      const facility = await getVisibleFacilityById(input.facilityId);
+      if (!facility) return [];
+      return getBlockedDates(input.facilityId);
+    }),
 
   /**
    * 특정 날짜의 예약 목록 (시간 선택 시 중복 방지용)
@@ -155,6 +172,8 @@ export const homeRouter = router({
       date: z.string().regex(DATE_RE, "날짜 형식이 올바르지 않습니다."),
     }))
     .query(async ({ input }) => {
+      const facility = await getVisibleFacilityById(input.facilityId);
+      if (!facility) return [];
       const rows = await getReservationsByDate(input.facilityId, input.date);
       // 공개 화면에는 시간대와 상태만 반환 — 개인정보 필드 제거
       return rows.map(({ startTime, endTime, status }) => ({ startTime, endTime, status }));
@@ -192,7 +211,7 @@ export const homeRouter = router({
       }
       // ① 시설 존재 여부 확인
       const facility = await getFacilityById(input.facilityId);
-      if (!facility) {
+      if (!facility || !facility.isVisible) {
         throw new TRPCError({ code: "NOT_FOUND", message: "시설을 찾을 수 없습니다." });
       }
       // ② 예약 가능 여부 확인

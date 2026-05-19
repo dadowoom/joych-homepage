@@ -22,12 +22,13 @@ import {
 } from "../db";
 import { validateImage } from "./cms/upload";
 import { storagePut } from "../storage";
+import { safeAssetUrlSchema } from "../_core/contentValidation";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const idSchema = z.number().int().positive();
 const optionalText = (max: number) => z.string().trim().max(max).optional();
 const requiredText = (max: number, message: string) => z.string().trim().min(1, message).max(max);
-const safeImageUrl = z.string().trim().max(2048).url().optional();
+const safeImageUrl = safeAssetUrlSchema.optional();
 
 const imageInputSchema = z.object({
   imageUrl: safeImageUrl,

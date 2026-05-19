@@ -11,6 +11,77 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 
+const MB = 1024 * 1024;
+const STANDARD_BODY_LIMIT_BYTES = 5 * MB;
+const UPLOAD_BODY_LIMIT_BYTES = 150 * MB;
+const GENERAL_JSON_LIMIT = "2mb";
+const GENERAL_FORM_LIMIT = "512kb";
+const TRPC_UPLOAD_PROCEDURES = [
+  "cms.upload.video",
+  "cms.upload.image",
+  "cms.upload.galleryImage",
+  "cms.upload.pageImage",
+  "cms.blocks.uploadImage",
+  "cms.facilities.images.upload",
+  "mission.uploadImage",
+];
+
+function getContentLength(req: express.Request) {
+  const value = req.headers["content-length"];
+  if (Array.isArray(value)) return Number(value[0]);
+  return value ? Number(value) : null;
+}
+
+function isTrpcUploadRequest(req: express.Request) {
+  const rawPath = (req.originalUrl || req.url).split("?")[0] ?? "";
+  let path = rawPath;
+  try {
+    path = decodeURIComponent(rawPath);
+  } catch {
+    path = rawPath;
+  }
+  return TRPC_UPLOAD_PROCEDURES.some(procedure => path.includes(procedure));
+}
+
+function requestBodyLimitGuard(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+) {
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+    next();
+    return;
+  }
+
+  const contentLength = getContentLength(req);
+  if (!contentLength || Number.isNaN(contentLength)) {
+    next();
+    return;
+  }
+
+  const isTrpcRequest = req.path === "/api/trpc" || req.path.startsWith("/api/trpc/");
+  const limit = isTrpcRequest && isTrpcUploadRequest(req)
+    ? UPLOAD_BODY_LIMIT_BYTES
+    : STANDARD_BODY_LIMIT_BYTES;
+
+  if (contentLength > limit) {
+    res.status(413).type("text/plain").send("Payload too large");
+    return;
+  }
+
+  next();
+}
+
+function skipTrpcBodyParser(parser: express.RequestHandler): express.RequestHandler {
+  return (req, res, next) => {
+    if (req.path.startsWith("/api/trpc")) {
+      next();
+      return;
+    }
+    parser(req, res, next);
+  };
+}
+
 function isPortAvailable(port: number, host?: string): Promise<boolean> {
   return new Promise(resolve => {
     const server = net.createServer();
@@ -135,9 +206,9 @@ async function startServer() {
   });
   // ─────────────────────────────────────────────────────────────────────
 
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "150mb" }));
-  app.use(express.urlencoded({ limit: "150mb", extended: true }));
+  app.use(requestBodyLimitGuard);
+  app.use(skipTrpcBodyParser(express.json({ limit: GENERAL_JSON_LIMIT })));
+  app.use(skipTrpcBodyParser(express.urlencoded({ limit: GENERAL_FORM_LIMIT, extended: true })));
   // 쿠키 파싱 미들웨어 (req.cookies 사용 가능하게)
   app.use(cookieParser());
 

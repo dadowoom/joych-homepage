@@ -12,7 +12,7 @@
 import { z } from "zod";
 import crypto from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { ADMIN_SESSION_MS, COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { publicProcedure, router } from "../_core/trpc";
 import { sdk } from "../_core/sdk";
@@ -40,7 +40,7 @@ export const authRouter = router({
    */
   logout: publicProcedure.mutation(({ ctx }) => {
     const cookieOptions = getSessionCookieOptions(ctx.req);
-    ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+    ctx.res.clearCookie(COOKIE_NAME, cookieOptions);
     return { success: true } as const;
   }),
 
@@ -111,12 +111,12 @@ export const authRouter = router({
       // ── 세션 토큰 발급 및 쿠키 설정 ─────────────────────────────────────
       const sessionToken = await sdk.signSession(
         { openId: ADMIN_OPEN_ID, appId: "admin", name: "관리자" },
-        { expiresInMs: ONE_YEAR_MS }
+        { expiresInMs: ADMIN_SESSION_MS }
       );
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.cookie(COOKIE_NAME, sessionToken, {
         ...cookieOptions,
-        maxAge: ONE_YEAR_MS,
+        maxAge: ADMIN_SESSION_MS,
       });
 
       return { success: true, user };

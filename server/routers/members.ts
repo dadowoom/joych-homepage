@@ -176,7 +176,6 @@ export const membersRouter = router({
 
       ctx.res.clearCookie("church_member_session", {
         ...getSessionCookieOptions(ctx.req),
-        maxAge: -1,
       });
 
       return { success: true, id, autoLoggedIn: false };
@@ -265,7 +264,6 @@ export const membersRouter = router({
     .mutation(({ ctx }) => {
       ctx.res.clearCookie("church_member_session", {
         ...getSessionCookieOptions(ctx.req),
-        maxAge: -1,
       });
       return { success: true };
     }),
@@ -412,14 +410,14 @@ export const membersRouter = router({
 
   /**
    * 성도 비밀번호 초기화 (관리자)
-   * - 임시 비밀번호 6자 이상 필수
+   * - 임시 비밀번호 8자 이상 필수
    * - 성도에게 임시 비밀번호를 별도로 전달해야 함
    */
   resetPassword: adminProcedure
     .input(z.object({
       id: idSchema,
       tempPassword: z.string()
-        .min(6, "임시 비밀번호는 6자 이상이어야 합니다.")
+        .min(8, "임시 비밀번호는 8자 이상이어야 합니다.")
         .max(128, "임시 비밀번호는 128자 이하로 입력해주세요."),
     }))
     .mutation(({ input }) => adminResetMemberPassword(input.id, input.tempPassword)),
