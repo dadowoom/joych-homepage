@@ -28,7 +28,7 @@ const FALLBACK_HERO_SLIDES = [
     subTitle: "네 재물과 네 소산물의 처음 익은 열매로 여호와를 공경하라",
     bibleRef: "잠언 3장 9절",
     btn1Text: "새가족 등록",
-    btn1Href: "/admin/new-member",
+    btn1Href: "/support/new-member",
     btn2Text: "예배 안내",
     btn2Href: "/worship/schedule",
   },
@@ -42,7 +42,7 @@ const FALLBACK_HERO_SLIDES = [
     subTitle: "네 재물과 네 소산물의 처음 익은 열매로 여호와를 공경하라",
     bibleRef: "잠언 3장 9절",
     btn1Text: "새가족 등록",
-    btn1Href: "/admin/new-member",
+    btn1Href: "/support/new-member",
     btn2Text: "예배 안내",
     btn2Href: "/worship/schedule",
   },
@@ -53,14 +53,14 @@ const VISION_IMAGE =
   "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-vision-bg_0cd6097b.webp";
 
 const FALLBACK_QUICK_MENUS = [
-  { icon: "fa-user-tie", label: "담임목사 인사", href: "/about/pastor" },
+  { icon: "fa-user-tie", label: "담임목사 인사", href: "/page/교회소개-담임목사-소개" },
   { icon: "fa-hands-praying", label: "선교보고서", href: "/mission" },
   { icon: "fa-newspaper", label: "주보 보기", href: "/worship/bulletin" },
   { icon: "fa-clock", label: "예배시간 안내", href: "/worship/schedule" },
   { icon: "fa-building", label: "시설사용예약", href: "/facility" },
-  { icon: "fa-store", label: "조이플스토어", href: "/admin/store" },
-  { icon: "fa-user-plus", label: "새가족 안내", href: "/admin/new-member" },
-  { icon: "fa-bus", label: "차량운행 안내", href: "/admin/vehicle" },
+  { icon: "fa-store", label: "조이플스토어", href: "/support/store" },
+  { icon: "fa-user-plus", label: "새가족 안내", href: "/support/new-member" },
+  { icon: "fa-bus", label: "차량운행 안내", href: "/support/vehicle" },
   { icon: "fa-map-marker-alt", label: "오시는 길", href: "/about/directions" },
 ];
 
@@ -453,7 +453,7 @@ export default function Home() {
               <a
                 href={getUsableHref(
                   heroSlides[heroIndex]?.btn1Href,
-                  "/admin/new-member"
+                  "/support/new-member"
                 )}
                 className="px-5 md:px-7 py-2.5 md:py-3 bg-[#1B5E20] hover:bg-[#2E7D32] text-white text-xs md:text-sm font-medium rounded transition-colors"
               >
@@ -763,7 +763,7 @@ export default function Home() {
                     교회 소식
                   </h2>
                   <Link
-                    href="/community/news"
+                    href="/page/행정지원-공지사항"
                     className="text-xs text-gray-400 hover:text-[#1B5E20] flex items-center gap-1 transition-colors"
                   >
                     전체보기 <i className="fas fa-arrow-right text-[10px]"></i>
@@ -774,7 +774,7 @@ export default function Home() {
                     (n, i) => (
                       <Link
                         key={i}
-                        href="/community/news"
+                        href="/page/행정지원-공지사항"
                         className="flex items-center gap-3 py-3 hover:text-[#1B5E20] transition-colors group"
                       >
                         {n.thumbnailUrl && (
@@ -1072,7 +1072,7 @@ export default function Home() {
                 </Link>
                 <span className="text-gray-700">|</span>
                 <Link
-                  href="/admin/new-member"
+                  href="/support/new-member"
                   className="text-gray-500 hover:text-[#4CAF50] transition-colors underline underline-offset-2"
                 >
                   새가족 안내

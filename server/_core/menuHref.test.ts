@@ -9,7 +9,7 @@ describe("menuHref", () => {
 
   it("does not expose database ids for ordinary new pages", () => {
     const href = makeUniqueMenuPageHref(["커뮤니티", "새 소식"], [
-      { href: "/about/pastor" },
+      { href: "/page/교회소개-담임목사-소개" },
       { href: "/page/커뮤니티-기존" },
     ]);
     expect(href).toBe("/page/커뮤니티-새-소식");

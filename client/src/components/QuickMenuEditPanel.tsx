@@ -157,7 +157,7 @@ function SortableMenuItem({
             <Input
               value={editState.href}
               onChange={(e) => setEditState({ ...editState, href: e.target.value })}
-              placeholder="/about/pastor"
+              placeholder="/page/교회소개-담임목사-소개"
               className="text-sm"
             />
           </div>

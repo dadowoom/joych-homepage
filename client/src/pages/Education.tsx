@@ -108,7 +108,7 @@ export function NewMember() {
         <div className="bg-[#1B5E20] rounded-2xl p-8 text-center text-white">
           <h3 className="text-xl font-bold mb-3" style={{ fontFamily: "'Noto Serif KR', serif" }}>새가족 등록 신청</h3>
           <p className="text-green-100 text-sm mb-6">온라인으로 간편하게 새가족 등록을 하실 수 있습니다.</p>
-          <Link href="/admin/new-member" className="inline-block bg-white text-[#1B5E20] font-bold px-8 py-3 rounded-full hover:bg-green-50 transition-colors">
+          <Link href="/support/new-member" className="inline-block bg-white text-[#1B5E20] font-bold px-8 py-3 rounded-full hover:bg-green-50 transition-colors">
             새가족 등록하기
           </Link>
         </div>

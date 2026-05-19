@@ -178,6 +178,16 @@ function Router() {
       <Route path="/community/joytalk" component={JoyTalkPage} />
 
       {/* 행정지원 */}
+      <Route path="/support/offering" component={Offering} />
+      <Route path="/support/vehicle" component={VehicleGuide} />
+      <Route path="/support/new-member" component={NewMemberGuide} />
+      <Route path="/support/store" component={JoyfulStore} />
+      <Route path="/support/subtitle" component={SubtitleRequestPage} />
+      <Route path="/support/office" component={OnlineOfficePage} />
+      <Route path="/support/tour" component={VisitRequestPage} />
+      <Route path="/support/donation" component={DonationReceiptPage} />
+
+      {/* 행정지원 - 기존 공개 URL 호환 */}
       <Route path="/admin/offering" component={Offering} />
       <Route path="/admin/vehicle" component={VehicleGuide} />
       <Route path="/admin/new-member" component={NewMemberGuide} />

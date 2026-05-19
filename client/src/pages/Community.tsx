@@ -43,16 +43,16 @@ function SubNav({ items }: { items: { label: string; href: string }[] }) {
 }
 
 const COMMUNITY_NAV = [
-  { label: "교회 소식", href: "/community/news" },
+  { label: "교회 소식", href: "/page/행정지원-공지사항" },
   { label: "기도 요청", href: "/community/prayer" },
   { label: "나눔 게시판", href: "/community/joytalk" },
 ];
 
 const ADMIN_NAV = [
-  { label: "헌금 안내", href: "/admin/offering" },
-  { label: "차량 운행", href: "/admin/vehicle" },
-  { label: "새가족 안내", href: "/admin/new-member" },
-  { label: "조이플스토어", href: "/admin/store" },
+  { label: "헌금 안내", href: "/support/offering" },
+  { label: "차량 운행", href: "/support/vehicle" },
+  { label: "새가족 안내", href: "/support/new-member" },
+  { label: "조이플스토어", href: "/support/store" },
 ];
 
 // ── 교회 소식 ─────────────────────────────────────────────────────

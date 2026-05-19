@@ -392,7 +392,7 @@ export function BlockEditDialog({
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                   value={btnHref}
                   onChange={(e) => setBtnHref(e.target.value)}
-                  placeholder="https://... 또는 /page/item/1"
+                  placeholder="https://... 또는 /page/교회소개-담임목사-소개"
                 />
               </div>
               <div>

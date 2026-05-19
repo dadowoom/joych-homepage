@@ -106,10 +106,10 @@ export default function Sitemap() {
               {[
                 { label: "예배 안내", href: "/worship/schedule" },
                 { label: "오시는 길", href: "/about/directions" },
-                { label: "새가족 안내", href: "/admin/new-member" },
+                { label: "새가족 안내", href: "/support/new-member" },
                 { label: "주보 보기", href: "/worship/bulletin" },
                 { label: "조이풀TV", href: "/worship/tv" },
-                { label: "공지사항", href: "/community/news" },
+                { label: "공지사항", href: "/page/행정지원-공지사항" },
                 { label: "신앙 데이터 검색", href: "/church-directory" },
               ].map((item, i) => (
                 <Link

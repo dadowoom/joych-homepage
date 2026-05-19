@@ -43,9 +43,9 @@ function SubNav({ items }: { items: { label: string; href: string }[] }) {
 }
 
 const ABOUT_NAV = [
-  { label: "담임목사 인사말", href: "/about/pastor" },
+  { label: "담임목사 인사말", href: "/page/교회소개-담임목사-소개" },
   { label: "교회 역사", href: "/about/history" },
-  { label: "교회 비전", href: "/about/vision" },
+  { label: "교회 비전", href: "/page/교회소개-3대-비전" },
   { label: "오시는 길", href: "/about/directions" },
 ];
 
