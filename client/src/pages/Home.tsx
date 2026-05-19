@@ -15,6 +15,7 @@ import HeroEditPanel from "@/components/HeroEditPanel";
 import QuickMenuEditPanel from "@/components/QuickMenuEditPanel";
 import AffiliateEditPanel from "@/components/AffiliateEditPanel";
 import GalleryEditPanel from "@/components/GalleryEditPanel";
+import KakaoDirectionsMap from "@/components/KakaoDirectionsMap";
 
 // 폴백(fallback) 데이터: DB 로딩 전 또는 DB 오류 시 표시
 const FALLBACK_HERO_SLIDES = [
@@ -973,6 +974,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <KakaoDirectionsMap />
 
       {/* ===== 관련 기관 ===== */}
       <section className="py-14 bg-[#F7F7F5]">
