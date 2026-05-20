@@ -111,6 +111,8 @@ async function startServer() {
     ? [
         "'self'",
         "https://cdnjs.cloudflare.com",
+        "https://dapi.kakao.com",
+        "https://t1.daumcdn.net",
         "https://www.youtube.com",
         "https://s.ytimg.com",
       ]
@@ -119,6 +121,8 @@ async function startServer() {
         "'unsafe-inline'",
         "'unsafe-eval'",
         "https://cdnjs.cloudflare.com",
+        "https://dapi.kakao.com",
+        "https://t1.daumcdn.net",
         "https://www.youtube.com",
         "https://s.ytimg.com",
       ];
