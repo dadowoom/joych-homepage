@@ -4,6 +4,7 @@ const KAKAO_MAP_SCRIPT_ID = "kakao-map-sdk";
 const DESTINATION = {
   name: "포항기쁨의교회",
   address: "경상북도 포항시 북구 삼흥로 411",
+  coords: { lat: 36.095458253774, lng: 129.37385741342 },
 };
 
 const DIRECTION_MODES = [
@@ -118,10 +119,7 @@ function formatKakaoPoint(label: string, coords: Coords) {
   return `${encodeURIComponent(label)},${coords.lat},${coords.lng}`;
 }
 
-function buildDestinationUrl(destinationCoords: Coords | null) {
-  if (!destinationCoords) {
-    return `https://map.kakao.com/link/search/${encodeURIComponent(DESTINATION.name)}`;
-  }
+function buildDestinationUrl(destinationCoords: Coords = DESTINATION.coords) {
   return `https://map.kakao.com/link/map/${formatKakaoPoint(
     DESTINATION.name,
     destinationCoords
@@ -163,7 +161,7 @@ export default function KakaoDirectionsMap() {
 
         const geocoder = new maps.services.Geocoder();
         geocoderRef.current = geocoder;
-        const coords = await geocodeAddress(maps, geocoder, DESTINATION.address);
+        const coords = DESTINATION.coords;
         if (!mounted) return;
 
         const center = new maps.LatLng(coords.lat, coords.lng);
@@ -175,7 +173,10 @@ export default function KakaoDirectionsMap() {
       })
       .catch(() => {
         if (!mounted) return;
-        setStatusMessage("카카오 지도 키 설정 후 지도가 표시됩니다. 지금은 카카오맵 바로가기를 사용할 수 있습니다.");
+        setDestinationCoords(DESTINATION.coords);
+        setStatusMessage(
+          "카카오 지도 표시가 차단되어 지도 대신 바로가기를 제공합니다. 카카오 개발자센터의 Web 도메인과 카카오맵 사용 설정을 확인해 주세요."
+        );
       });
 
     return () => {
@@ -184,15 +185,13 @@ export default function KakaoDirectionsMap() {
   }, []);
 
   const openDestination = () => {
-    openKakaoUrl(buildDestinationUrl(destinationCoords));
+    openKakaoUrl(buildDestinationUrl(destinationCoords ?? DESTINATION.coords));
   };
 
   const openDirectionsFromCoords = (label: string, coords: Coords) => {
-    if (!destinationCoords) {
-      setStatusMessage("목적지 지도를 준비한 뒤 다시 시도해 주세요.");
-      return;
-    }
-    openKakaoUrl(buildDirectionsUrl(label, coords, destinationCoords, mode));
+    openKakaoUrl(
+      buildDirectionsUrl(label, coords, destinationCoords ?? DESTINATION.coords, mode)
+    );
   };
 
   const handleAddressSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -206,7 +205,9 @@ export default function KakaoDirectionsMap() {
     const maps = mapsRef.current;
     const geocoder = geocoderRef.current;
     if (!maps || !geocoder) {
-      setStatusMessage("카카오맵이 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.");
+      setStatusMessage(
+        "출발지 주소 검색은 카카오 지도 표시가 준비된 뒤 사용할 수 있습니다. 현재 위치 길찾기나 카카오맵에서 보기를 이용해 주세요."
+      );
       return;
     }
 
