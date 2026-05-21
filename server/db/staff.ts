@@ -4,7 +4,7 @@
  * 관리자에서 등록한 목회자·교역자 정보를 홈페이지에 노출합니다.
  */
 
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { churchStaff, type InsertChurchStaff } from "../../drizzle/schema";
 import { getDb } from "./connection";
 
@@ -14,13 +14,23 @@ export async function getVisibleStaffMembers(category?: StaffCategory) {
   const db = await getDb();
   if (!db) return [];
 
+  const visibleOnly = sql`${churchStaff.isVisible} = 1`;
   const where = category
-    ? and(eq(churchStaff.isVisible, true), eq(churchStaff.category, category))
-    : eq(churchStaff.isVisible, true);
+    ? and(visibleOnly, eq(churchStaff.category, category))
+    : visibleOnly;
 
-  return db.select().from(churchStaff)
-    .where(where)
-    .orderBy(asc(churchStaff.category), asc(churchStaff.sortOrder), asc(churchStaff.id));
+  try {
+    return await db.select().from(churchStaff)
+      .where(where)
+      .orderBy(asc(churchStaff.category), asc(churchStaff.sortOrder), asc(churchStaff.id));
+  } catch (error) {
+    const cause = error instanceof Error && "cause" in error ? error.cause : undefined;
+    console.error("[Staff] Failed to fetch visible staff members", {
+      message: error instanceof Error ? error.message : String(error),
+      cause: cause instanceof Error ? cause.message : cause,
+    });
+    throw error;
+  }
 }
 
 export async function getAllStaffMembers() {
