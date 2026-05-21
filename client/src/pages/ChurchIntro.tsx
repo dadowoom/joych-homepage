@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, ChevronRight, Bus, BookOpen, Heart, Palette, UserRound } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import SubPageLayout from "@/components/SubPageLayout";
 
 function PageWrapper({ title, breadcrumb, children }: { title: string; breadcrumb: string[]; children: React.ReactNode }) {
   return (
@@ -48,6 +49,15 @@ const STAFF_CATEGORIES = [
 type StaffCategoryFilter = typeof STAFF_CATEGORIES[number]["value"];
 type StaffCategory = Exclude<StaffCategoryFilter, "all">;
 
+const STAFF_SIDE_MENU_ITEMS = [
+  { id: 1, label: "담임목사 인사말", href: "/page/교회소개-담임목사-소개" },
+  { id: 2, label: "섬기는 분", href: "/page/교회소개-섬기는-분" },
+  { id: 3, label: "부교역자", href: "/page/교회소개-부교역자" },
+  { id: 4, label: "교회 역사", href: "/about/history" },
+  { id: 5, label: "교회 비전", href: "/page/교회소개-3대-비전" },
+  { id: 6, label: "오시는 길", href: "/about/directions" },
+];
+
 function getInitialStaffCategory(location: string): StaffCategoryFilter {
   if (location.includes("/associate") || location.includes("부교역자")) return "associate";
   return "all";
@@ -74,9 +84,17 @@ export function StaffPage() {
   const profileIntro = activeCategory === "associate"
     ? "기쁨의교회를 함께 섬기는 부교역자를 소개합니다."
     : "기쁨의교회를 섬기는 목회자와 사역자들을 소개합니다.";
+  const sideMenuItems = STAFF_SIDE_MENU_ITEMS.map((item) => ({
+    ...item,
+    isActive: item.label === pageTitle,
+  }));
 
   return (
-    <PageWrapper title={pageTitle} breadcrumb={activeCategory === "associate" ? ["교회소개", "섬기는 분", "부교역자"] : ["교회소개", "섬기는 분"]}>
+    <SubPageLayout
+      pageTitle={pageTitle}
+      parentLabel="교회소개"
+      sideMenuItems={sideMenuItems}
+    >
       <p className="text-gray-600 mb-6 text-lg">{profileIntro}</p>
 
       <div className="flex flex-wrap gap-2 mb-10">
@@ -138,7 +156,7 @@ export function StaffPage() {
           })}
         </div>
       )}
-    </PageWrapper>
+    </SubPageLayout>
   );
 }
 
