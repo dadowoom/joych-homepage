@@ -1059,6 +1059,9 @@ export default function Home() {
                 Copyright &copy; {new Date().getFullYear()} 기쁨의교회 All
                 rights reserved.
               </p>
+              <p className="text-xs text-gray-600">
+                홈페이지 제작 및 운영: 다도움컴퍼니
+              </p>
               <div className="flex gap-3 mt-3 text-xs">
                 <Link
                   href="/sitemap"
