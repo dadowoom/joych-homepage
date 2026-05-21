@@ -1,6 +1,8 @@
 import type { Request } from "express";
 import { describe, expect, it, afterEach } from "vitest";
 import {
+  canAutoLinkSocialEmailToMember,
+  canIssueMemberOAuthSession,
   canUseProfileEmailForMemberAutoLink,
   getCanonicalMemberOAuthStartUrl,
   getMemberOAuthProviderStatus,
@@ -114,5 +116,22 @@ describe("member OAuth helpers", () => {
       email: "member@example.com",
       emailVerified: null,
     })).toBe(false);
+  });
+
+  it("간편가입(register) 경로에서는 기존 이메일 자동 연결을 하지 않음", () => {
+    const verifiedEmailProfile = {
+      email: "member@example.com",
+      emailVerified: true,
+    };
+
+    expect(canAutoLinkSocialEmailToMember(verifiedEmailProfile, "login")).toBe(true);
+    expect(canAutoLinkSocialEmailToMember(verifiedEmailProfile, "register")).toBe(false);
+  });
+
+  it("성도 OAuth 세션은 로그인 경로의 승인 계정에만 발급 가능", () => {
+    expect(canIssueMemberOAuthSession("login", "approved")).toBe(true);
+    expect(canIssueMemberOAuthSession("login", "pending")).toBe(false);
+    expect(canIssueMemberOAuthSession("login", "rejected")).toBe(false);
+    expect(canIssueMemberOAuthSession("register", "approved")).toBe(false);
   });
 });

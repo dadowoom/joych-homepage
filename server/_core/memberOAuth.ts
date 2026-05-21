@@ -458,7 +458,21 @@ export function canUseProfileEmailForMemberAutoLink(profile: Pick<NormalizedSoci
   return Boolean(profile.email && profile.emailVerified === true);
 }
 
-async function resolveExistingMemberForProfile(profile: NormalizedSocialProfile) {
+export function canAutoLinkSocialEmailToMember(
+  profile: Pick<NormalizedSocialProfile, "email" | "emailVerified">,
+  mode: MemberOAuthMode
+) {
+  return mode === "login" && canUseProfileEmailForMemberAutoLink(profile);
+}
+
+export function canIssueMemberOAuthSession(mode: MemberOAuthMode, memberStatus: string) {
+  return mode === "login" && memberStatus === "approved";
+}
+
+async function resolveExistingMemberForProfile(
+  profile: NormalizedSocialProfile,
+  mode: MemberOAuthMode
+) {
   const existingSocialAccount = await getMemberSocialAccount(
     profile.provider as MemberSocialProvider,
     profile.providerUserId
@@ -475,6 +489,14 @@ async function resolveExistingMemberForProfile(profile: NormalizedSocialProfile)
   const existingMember = canUseProfileEmailForMemberAutoLink(profile)
     ? await getMemberByEmail(profile.email as string)
     : null;
+
+  if (mode === "register") {
+    if (existingMember) {
+      return { member: existingMember, created: false, status: "email_already_registered" as const };
+    }
+    return { member: null, created: false, status: "needs_signup_details" as const };
+  }
+
   if (existingMember) {
     const existingProviderAccount = await getMemberSocialAccountByMember(
       profile.provider as MemberSocialProvider,
@@ -566,6 +588,9 @@ export function registerMemberOAuthRoutes(app: Express) {
   app.post("/api/member-oauth/complete-signup", async (req, res) => {
     try {
       const signup = await verifySocialSignupState(req);
+      res.clearCookie(MEMBER_SESSION_COOKIE, {
+        ...getSessionCookieOptions(req),
+      });
       const name = sanitizeText(req.body?.name, 64);
       const phone = sanitizeText(req.body?.phone, 32);
       const birthDate = sanitizeBirthDate(req.body?.birthDate);
@@ -617,6 +642,12 @@ export function registerMemberOAuthRoutes(app: Express) {
     }
 
     const mode = getMode(req.query.mode);
+    if (mode === "register") {
+      res.clearCookie(MEMBER_SESSION_COOKIE, {
+        ...getSessionCookieOptions(req),
+      });
+    }
+
     const canonicalStartUrl = getCanonicalMemberOAuthStartUrl(req, providerParam, mode);
     if (canonicalStartUrl) {
       return res.redirect(302, canonicalStartUrl);
@@ -660,13 +691,18 @@ export function registerMemberOAuthRoutes(app: Express) {
     try {
       const state = assertString(req.query.state, "OAuth state missing");
       const code = assertString(req.query.code, "OAuth code missing");
-      await verifyOAuthState(req, providerParam, state);
+      const oauthState = await verifyOAuthState(req, providerParam, state);
       clearOAuthStateCookie(req, res);
+      if (oauthState.mode === "register") {
+        res.clearCookie(MEMBER_SESSION_COOKIE, {
+          ...getSessionCookieOptions(req),
+        });
+      }
 
       const redirectUri = getMemberOAuthRedirectUri(req, providerParam);
       const accessToken = await exchangeAuthorizationCode(providerParam, config, code, redirectUri);
       const profile = await fetchSocialProfile(providerParam, config, accessToken);
-      const result = await resolveExistingMemberForProfile(profile);
+      const result = await resolveExistingMemberForProfile(profile, oauthState.mode);
 
       if (result.status === "needs_signup_details") {
         await setSocialSignupCookie(req, res, profile);
@@ -680,12 +716,17 @@ export function registerMemberOAuthRoutes(app: Express) {
         });
       }
 
-      if (result.member.status !== "approved") {
+      if (!canIssueMemberOAuthSession(oauthState.mode, result.member.status)) {
         res.clearCookie(MEMBER_SESSION_COOKIE, {
           ...getSessionCookieOptions(req),
         });
         return redirectToLogin(res, {
-          social: result.created ? "registered" : getBlockedMemberStatus(result.member.status),
+          social:
+            oauthState.mode === "register" && result.member.status === "approved"
+              ? "already_registered"
+              : result.created
+                ? "registered"
+                : getBlockedMemberStatus(result.member.status),
           provider: providerParam,
         });
       }

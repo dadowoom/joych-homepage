@@ -20,6 +20,14 @@ function getSocialMessage(location: string) {
       tone: "info",
       text: "간편가입 신청이 접수됐습니다. 관리자 승인 후 로그인하실 수 있습니다.",
     },
+    already_registered: {
+      tone: "info",
+      text: "이미 가입된 계정입니다. 로그인 메뉴에서 간편로그인을 이용해주세요.",
+    },
+    email_already_registered: {
+      tone: "error",
+      text: "이미 가입된 이메일입니다. 기존 계정으로 로그인하거나 교회 사무국에 문의해주세요.",
+    },
     pending: {
       tone: "info",
       text: "회원가입 신청이 접수됐습니다. 관리자 승인 후 로그인하실 수 있습니다.",
