@@ -325,7 +325,7 @@ export default function FacilityApply() {
     if (!reservationsByDate) return new Set<string>();
     const booked = new Set<string>();
     reservationsByDate.forEach(r => {
-      if (r.status === 'cancelled') return;
+      if (r.status === 'cancelled' || r.status === 'rejected') return;
       const [sh, sm] = r.startTime.split(":").map(Number);
       const [eh, em] = r.endTime.split(":").map(Number);
       let cur = sh * 60 + sm;

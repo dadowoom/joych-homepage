@@ -9,6 +9,7 @@
  *   - 예약 승인    : components/AdminReservationsTab.tsx
  *   - 선택지 관리  : components/AdminMemberOptionsTab.tsx
  *   - 성도 관리    : components/AdminMembersTab.tsx
+ *   - 섬기는 분 관리: components/AdminStaffTab.tsx
  *   - 예배영상 관리: components/YoutubeAdminTab.tsx
  *   - 페이지 콘텐츠: components/admin/StaticPageContentTab.tsx
  */
@@ -22,6 +23,7 @@ import AdminReservationsTab from "@/components/AdminReservationsTab";
 import AdminMemberOptionsTab from "@/components/AdminMemberOptionsTab";
 import AdminMembersTab from "@/components/AdminMembersTab";
 import AdminMissionReportsTab from "@/components/AdminMissionReportsTab";
+import AdminStaffTab from "@/components/AdminStaffTab";
 import YoutubeAdminTab from "@/components/YoutubeAdminTab";
 import { SettingsTab } from "@/components/admin/SettingsTab";
 import { StaticPageContentTab } from "@/components/admin/StaticPageContentTab";
@@ -33,6 +35,7 @@ type Tab =
   | "reservations"
   | "memberOptions"
   | "members"
+  | "staff"
   | "missionReports"
   | "youtube"
   | "staticPages";
@@ -50,6 +53,7 @@ export default function AdminPage() {
     "reservations",
     "memberOptions",
     "members",
+    "staff",
     "missionReports",
     "youtube",
     "staticPages",
@@ -256,6 +260,7 @@ export default function AdminPage() {
     { id: "reservations", label: "예약 승인", icon: "fa-calendar-check" },
     { id: "memberOptions", label: "선택지 관리", icon: "fa-list-ul" },
     { id: "members", label: "성도 관리", icon: "fa-users" },
+    { id: "staff", label: "섬기는 분 관리", icon: "fa-user-tie" },
     { id: "missionReports", label: "선교보고 관리", icon: "fa-globe-asia" },
     { id: "youtube", label: "예배영상 관리", icon: "fa-video" },
     { id: "staticPages", label: "페이지 콘텐츠", icon: "fa-file-alt" },
@@ -342,6 +347,7 @@ export default function AdminPage() {
           {activeTab === "reservations" && <AdminReservationsTab />}
           {activeTab === "memberOptions" && <AdminMemberOptionsTab />}
           {activeTab === "members" && <AdminMembersTab />}
+          {activeTab === "staff" && <AdminStaffTab />}
           {activeTab === "missionReports" && <AdminMissionReportsTab />}
           {activeTab === "youtube" && <YoutubeAdminTab />}
           {activeTab === "staticPages" && <StaticPageContentTab />}

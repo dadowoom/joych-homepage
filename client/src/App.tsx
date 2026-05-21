@@ -110,7 +110,10 @@ function Router() {
       <Route path="/about/pastor" component={PastorGreeting} />
       <Route path="/about/history" component={ChurchHistory} />
       <Route path="/about/vision" component={ChurchVision} />
+      <Route path="/about/staff/associate" component={StaffPage} />
       <Route path="/about/staff" component={StaffPage} />
+      <Route path="/page/교회소개-섬기는-분" component={StaffPage} />
+      <Route path="/page/교회소개-부교역자" component={StaffPage} />
       <Route path="/about/whitebook" component={WhiteBookPage} />
       <Route path="/about/principle" component={MinistryPrinciplePage} />
       <Route path="/about/ci" component={CIPage} />

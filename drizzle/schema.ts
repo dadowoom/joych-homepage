@@ -275,6 +275,39 @@ export type SiteSetting = typeof siteSettings.$inferSelect;
 export type InsertSiteSetting = typeof siteSettings.$inferInsert;
 
 // ─────────────────────────────────────────────
+// CMS: 섬기는 분 / 교역자 소개
+// 담임목사, 부교역자, 교회학교 담당자 등을 관리자에서 등록해 공개합니다.
+// ─────────────────────────────────────────────
+export const churchStaff = mysqlTable("church_staff", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 분류: 담임목사 / 부교역자 / 교회학교 / 사무행정 / 장로 / 기타 */
+  category: mysqlEnum("category", ["senior", "associate", "education", "office", "elder", "other"]).notNull().default("associate"),
+  /** 이름 */
+  name: varchar("name", { length: 64 }).notNull(),
+  /** 직책/직분 (예: 부목사, 전도사) */
+  title: varchar("title", { length: 64 }).notNull(),
+  /** 담당 사역/부서 */
+  department: varchar("department", { length: 128 }),
+  /** 짧은 소개 */
+  description: text("description"),
+  /** 약력/학력/담당 안내. 줄바꿈 텍스트로 저장 */
+  profile: text("profile"),
+  /** 프로필 사진 URL */
+  imageUrl: text("image_url"),
+  /** 정렬 순서 */
+  sortOrder: int("sort_order").notNull().default(0),
+  /** 홈페이지 노출 여부 */
+  isVisible: boolean("is_visible").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("church_staff_category_visible_sort_idx").on(table.category, table.isVisible, table.sortOrder),
+]);
+
+export type ChurchStaff = typeof churchStaff.$inferSelect;
+export type InsertChurchStaff = typeof churchStaff.$inferInsert;
+
+// ─────────────────────────────────────────────
 // 교적부: 교회 성도 정보
 // 관리자가 등록하며, 믿음PLUS 유저ID 연동 가능
 // ─────────────────────────────────────────────
@@ -475,7 +508,9 @@ export const facilityHours = mysqlTable("facility_hours", {
   breakEnd: varchar("breakEnd", { length: 5 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [
+  uniqueIndex("facility_hours_facility_day_unique").on(table.facilityId, table.dayOfWeek),
+]);
 
 export type FacilityHour = typeof facilityHours.$inferSelect;
 export type InsertFacilityHour = typeof facilityHours.$inferInsert;

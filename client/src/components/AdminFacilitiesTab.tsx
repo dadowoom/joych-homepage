@@ -49,6 +49,14 @@ interface FacilityForm {
   notice: string;
 }
 
+type FacilityImageDraft = {
+  imageUrl: string;
+  isThumbnail: boolean;
+  base64?: string;
+  mimeType?: string;
+  localPreview?: boolean;
+};
+
 const EMPTY_FORM: FacilityForm = {
   name: "",
   description: "",
@@ -121,7 +129,7 @@ function ImageUploadArea({
   onRemove,
   uploading,
 }: {
-  images: { imageUrl: string; isThumbnail: boolean }[];
+  images: FacilityImageDraft[];
   onUpload: (file: File) => void;
   onRemove: (idx: number) => void;
   uploading: boolean;
@@ -163,7 +171,7 @@ export default function AdminFacilitiesTab() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FacilityForm>(EMPTY_FORM);
   const [hours, setHours] = useState([...DEFAULT_HOURS]);
-  const [images, setImages] = useState<{ imageUrl: string; isThumbnail: boolean }[]>([]);
+  const [images, setImages] = useState<FacilityImageDraft[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [newBlockDate, setNewBlockDate] = useState("");
@@ -177,14 +185,27 @@ export default function AdminFacilitiesTab() {
   // ── Mutations ─────────────────────────────────────────
   const createFacility = trpc.cms.facilities.create.useMutation({
     onSuccess: async (newFacility) => {
-      // 이미지 업로드 (생성 후)
-      for (let i = 0; i < images.length; i++) {
-        // 이미 URL이 있으면 이미 업로드된 것 — 별도 처리 필요 없음
+      const facilityId = newFacility as number;
+      let imageUploadFailed = false;
+
+      for (const img of images) {
+        if (!img.base64 || !img.mimeType) continue;
+        try {
+          await uploadImageMutation.mutateAsync({
+            facilityId,
+            base64: img.base64,
+            mimeType: img.mimeType,
+            isThumbnail: img.isThumbnail,
+          });
+        } catch {
+          imageUploadFailed = true;
+        }
       }
+
       // 운영 시간 저장
       for (const h of hours) {
         await upsertHour.mutateAsync({
-          facilityId: (newFacility as number),
+          facilityId,
           dayOfWeek: h.dayOfWeek,
           isOpen: h.isOpen,
           openTime: h.openTime,
@@ -195,7 +216,11 @@ export default function AdminFacilitiesTab() {
       }
       utils.home.facility.invalidate();
       resetForm();
-      toast.success("시설이 등록되었습니다.");
+      if (imageUploadFailed) {
+        toast.error("시설은 등록됐지만 일부 사진 업로드에 실패했습니다. 수정 화면에서 다시 추가해 주세요.");
+      } else {
+        toast.success("시설이 등록되었습니다.");
+      }
     },
     onError: (e) => toast.error(e.message || "등록에 실패했습니다."),
   });
@@ -264,9 +289,15 @@ export default function AdminFacilitiesTab() {
         });
         setImages(prev => [...prev, { imageUrl: result.url, isThumbnail: prev.length === 0 }]);
       } else {
-        // 등록 모드: 로컬 미리보기만 (저장 시 업로드)
+        // 등록 모드: 로컬 미리보기 후 저장 시 서버 업로드
         const localUrl = URL.createObjectURL(file);
-        setImages(prev => [...prev, { imageUrl: localUrl, isThumbnail: prev.length === 0 }]);
+        setImages(prev => [...prev, {
+          imageUrl: localUrl,
+          isThumbnail: prev.length === 0,
+          base64,
+          mimeType: file.type,
+          localPreview: true,
+        }]);
       }
     } catch {
       toast.error("이미지 업로드에 실패했습니다.");
@@ -277,6 +308,8 @@ export default function AdminFacilitiesTab() {
 
   function handleImageRemove(idx: number) {
     setImages(prev => {
+      const removed = prev[idx];
+      if (removed?.localPreview) URL.revokeObjectURL(removed.imageUrl);
       const next = prev.filter((_, i) => i !== idx);
       if (next.length > 0) next[0] = { ...next[0], isThumbnail: true };
       return next;
@@ -285,6 +318,9 @@ export default function AdminFacilitiesTab() {
 
   // ── 폼 초기화 ─────────────────────────────────────────
   function resetForm() {
+    images.forEach(img => {
+      if (img.localPreview) URL.revokeObjectURL(img.imageUrl);
+    });
     setShowForm(false);
     setEditingId(null);
     setForm(EMPTY_FORM);

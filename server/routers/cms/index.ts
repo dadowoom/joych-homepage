@@ -12,6 +12,7 @@
  *   - reservations: 예약 관리 (승인/거절)
  *   - blocks: 블록 에디터 관리
  *   - missionReports: 선교보고/작성권한 관리
+ *   - staff: 섬기는 분/교역자 소개 관리
  */
 
 import { router } from "../../_core/trpc";
@@ -23,6 +24,7 @@ import { facilitiesRouter } from "./facilities";
 import { reservationsRouter } from "./reservations";
 import { blocksRouter } from "./blocks";
 import { missionReportsRouter } from "./missionReports";
+import { staffRouter } from "./staff";
 
 export const cmsRouter = router({
   notices: noticesRouter,
@@ -33,4 +35,5 @@ export const cmsRouter = router({
   reservations: reservationsRouter,
   blocks: blocksRouter,
   missionReports: missionReportsRouter,
+  staff: staffRouter,
 });

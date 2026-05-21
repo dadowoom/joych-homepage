@@ -3,8 +3,10 @@
  * 교회소개 신규 페이지: 섬기는분, 교회백서, 사역원리, CI, 셔틀버스
  */
 
-import { Link } from "wouter";
-import { ArrowLeft, ChevronRight, Bus, BookOpen, Heart, Palette } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "wouter";
+import { ArrowLeft, ChevronRight, Bus, BookOpen, Heart, Palette, UserRound } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 
 function PageWrapper({ title, breadcrumb, children }: { title: string; breadcrumb: string[]; children: React.ReactNode }) {
   return (
@@ -33,26 +35,109 @@ function PageWrapper({ title, breadcrumb, children }: { title: string; breadcrum
 }
 
 // ── 섬기는 분 ──
-const staffList = [
-  { role: "담임목사", name: "박진석", desc: "기쁨의교회를 이끄는 담임목사님입니다.", img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&q=80" },
-];
+const STAFF_CATEGORIES = [
+  { value: "all", label: "전체" },
+  { value: "senior", label: "담임목사" },
+  { value: "associate", label: "부교역자" },
+  { value: "education", label: "교회학교" },
+  { value: "office", label: "사무행정" },
+  { value: "elder", label: "장로" },
+  { value: "other", label: "기타" },
+] as const;
+
+type StaffCategoryFilter = typeof STAFF_CATEGORIES[number]["value"];
+type StaffCategory = Exclude<StaffCategoryFilter, "all">;
+
+function getInitialStaffCategory(location: string): StaffCategoryFilter {
+  if (location.includes("/associate") || location.includes("부교역자")) return "associate";
+  return "all";
+}
+
+function getStaffCategoryLabel(category: string) {
+  return STAFF_CATEGORIES.find((option) => option.value === category)?.label ?? category;
+}
 
 export function StaffPage() {
+  const [location] = useLocation();
+  const [activeCategory, setActiveCategory] = useState<StaffCategoryFilter>(() => getInitialStaffCategory(location));
+
+  useEffect(() => {
+    setActiveCategory(getInitialStaffCategory(location));
+  }, [location]);
+
+  const queryInput = useMemo(
+    () => activeCategory === "all" ? undefined : { category: activeCategory as StaffCategory },
+    [activeCategory],
+  );
+  const { data: staffList = [], isLoading } = trpc.home.staff.useQuery(queryInput);
+  const pageTitle = activeCategory === "associate" ? "부교역자" : "섬기는 분";
+  const profileIntro = activeCategory === "associate"
+    ? "기쁨의교회를 함께 섬기는 부교역자를 소개합니다."
+    : "기쁨의교회를 섬기는 목회자와 사역자들을 소개합니다.";
+
   return (
-    <PageWrapper title="섬기는 분" breadcrumb={["교회소개", "섬기는 분"]}>
-      <p className="text-gray-600 mb-10 text-lg">기쁨의교회를 섬기는 목회자와 사역자들을 소개합니다.</p>
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {staffList.map((staff, i) => (
-          <div key={i} className="text-center group">
-            <div className="relative w-40 h-40 mx-auto mb-4 rounded-full overflow-hidden border-4 border-[#d8f3dc] group-hover:border-[#2d6a4f] transition-colors">
-              <img src={staff.img} alt={staff.name} className="w-full h-full object-cover" />
-            </div>
-            <div className="inline-block bg-[#d8f3dc] text-[#1b4332] text-xs font-semibold px-3 py-1 rounded-full mb-2">{staff.role}</div>
-            <h3 className="text-xl font-bold text-gray-900 mb-1 font-['Noto_Serif_KR']">{staff.name}</h3>
-            <p className="text-gray-600 text-sm">{staff.desc}</p>
-          </div>
+    <PageWrapper title={pageTitle} breadcrumb={activeCategory === "associate" ? ["교회소개", "섬기는 분", "부교역자"] : ["교회소개", "섬기는 분"]}>
+      <p className="text-gray-600 mb-6 text-lg">{profileIntro}</p>
+
+      <div className="flex flex-wrap gap-2 mb-10">
+        {STAFF_CATEGORIES.map((category) => (
+          <button
+            key={category.value}
+            type="button"
+            onClick={() => setActiveCategory(category.value)}
+            className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+              activeCategory === category.value
+                ? "bg-[#1b4332] text-white border-[#1b4332]"
+                : "bg-white text-gray-600 border-gray-200 hover:border-[#2d6a4f] hover:text-[#1b4332]"
+            }`}
+          >
+            {category.label}
+          </button>
         ))}
       </div>
+
+      {isLoading ? (
+        <p className="text-gray-500 py-12 text-center">불러오는 중...</p>
+      ) : staffList.length === 0 ? (
+        <div className="border border-dashed border-gray-200 rounded-xl py-16 text-center">
+          <UserRound className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500">등록된 섬기는 분 정보가 없습니다.</p>
+        </div>
+      ) : (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {staffList.map((staff) => {
+            const profileLines = (staff.profile ?? "").split("\n").map(line => line.trim()).filter(Boolean);
+            return (
+              <div key={staff.id} className="text-center group border border-gray-100 rounded-2xl px-5 py-8 hover:shadow-md transition-shadow">
+                <div className="relative w-40 h-40 mx-auto mb-4 rounded-full overflow-hidden border-4 border-[#d8f3dc] group-hover:border-[#2d6a4f] transition-colors bg-gray-50 flex items-center justify-center">
+                  {staff.imageUrl ? (
+                    <img src={staff.imageUrl} alt={staff.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <UserRound className="w-16 h-16 text-gray-300" />
+                  )}
+                </div>
+                <div className="inline-block bg-[#d8f3dc] text-[#1b4332] text-xs font-semibold px-3 py-1 rounded-full mb-2">
+                  {staff.title}
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-1 font-['Noto_Serif_KR']">{staff.name}</h3>
+                <p className="text-[#2d6a4f] text-sm font-medium mb-2">
+                  {staff.department || getStaffCategoryLabel(staff.category)}
+                </p>
+                {staff.description && (
+                  <p className="text-gray-600 text-sm leading-relaxed">{staff.description}</p>
+                )}
+                {profileLines.length > 0 && (
+                  <ul className="mt-4 pt-4 border-t border-gray-100 text-left text-sm text-gray-600 space-y-1">
+                    {profileLines.map((line, index) => (
+                      <li key={`${staff.id}-${index}`} className="leading-relaxed">· {line}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </PageWrapper>
   );
 }

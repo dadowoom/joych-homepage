@@ -15,6 +15,7 @@
  *   blocks.ts      - 블록 에디터 DB 함수
  *   youtube.ts     - 예배영상/플레이리스트 DB 함수
  *   mission.ts     - 선교보고/작성권한 DB 함수
+ *   staff.ts       - 섬기는 분/교역자 소개 DB 함수
  */
 
 export * from "./connection";
@@ -27,3 +28,4 @@ export * from "./member";
 export * from "./blocks";
 export * from "./youtube";
 export * from "./mission";
+export * from "./staff";

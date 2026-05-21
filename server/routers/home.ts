@@ -39,6 +39,7 @@ import {
   updateReservationStatus,
   getPageBlocks,
   getStaticPageContentByHref,
+  getVisibleStaffMembers,
   ReservationLockError,
   ReservationOverlapError,
 } from "../db";
@@ -49,6 +50,7 @@ const TIME_RE = /^\d{2}:\d{2}$/;
 const idSchema = z.number().int().positive();
 const hrefLookupSchema = z.string().trim().min(1).max(256);
 const staticPageHrefSchema = z.string().trim().min(1).max(128).regex(/^\//);
+const staffCategorySchema = z.enum(["senior", "associate", "education", "office", "elder", "other"]);
 
 async function getVisibleFacilityById(id: number) {
   const facility = await getFacilityById(id);
@@ -86,6 +88,11 @@ export const homeRouter = router({
 
   /** 사이트 설정 (교회명, 주소, 연락처 등) */
   settings: publicProcedure.query(() => getSiteSettings()),
+
+  /** 섬기는 분 / 교역자 소개 목록 */
+  staff: publicProcedure
+    .input(z.object({ category: staffCategorySchema.optional() }).optional())
+    .query(({ input }) => getVisibleStaffMembers(input?.category)),
 
   /**
    * 코드 기반 페이지의 CMS 콘텐츠 조회

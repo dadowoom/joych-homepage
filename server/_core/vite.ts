@@ -32,6 +32,11 @@ const CMS_ROUTE_REDIRECTS: Array<[string, string]> = [
   ["/community/photo", "/page/커뮤니티-최근-행사-사진"],
 ];
 
+const CODE_BACKED_PAGE_ROUTES = new Set([
+  "/page/교회소개-섬기는-분",
+  "/page/교회소개-부교역자",
+]);
+
 const PUBLIC_ROUTE_REDIRECTS = new Map<string, string>([
   ...ADMIN_PUBLIC_ROUTE_REDIRECTS,
   ...CMS_ROUTE_REDIRECTS,
@@ -103,6 +108,10 @@ async function publicRouteGuard(
   }
 
   if (normalizedPath.startsWith("/page/")) {
+    if (CODE_BACKED_PAGE_ROUTES.has(normalizedPath)) {
+      return next();
+    }
+
     const [item, subItem] = await Promise.all([
       getVisibleMenuItemByHref(normalizedPath),
       getVisibleMenuSubItemByHref(normalizedPath),

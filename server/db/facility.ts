@@ -111,23 +111,31 @@ export async function deleteFacilityImage(id: number) {
 export async function getFacilityHours(facilityId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(facilityHours)
+  const rows = await db.select().from(facilityHours)
     .where(eq(facilityHours.facilityId, facilityId))
-    .orderBy(asc(facilityHours.dayOfWeek));
+    .orderBy(asc(facilityHours.dayOfWeek), desc(facilityHours.id));
+  const seen = new Set<number>();
+  return rows.filter((row) => {
+    if (seen.has(row.dayOfWeek)) return false;
+    seen.add(row.dayOfWeek);
+    return true;
+  });
 }
 
 /** 시설 운영 시간 저장 (없으면 생성, 있으면 수정) */
 export async function upsertFacilityHour(data: Omit<InsertFacilityHour, 'id' | 'createdAt' | 'updatedAt'>) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(facilityHours).values(data).onDuplicateKeyUpdate({
-    set: {
-      isOpen: data.isOpen,
-      openTime: data.openTime,
-      closeTime: data.closeTime,
+  await db.transaction(async (tx) => {
+    await tx.delete(facilityHours).where(and(
+      eq(facilityHours.facilityId, data.facilityId),
+      eq(facilityHours.dayOfWeek, data.dayOfWeek),
+    ));
+    await tx.insert(facilityHours).values({
+      ...data,
       breakStart: data.breakStart ?? null,
       breakEnd: data.breakEnd ?? null,
-    },
+    });
   });
 }
 
