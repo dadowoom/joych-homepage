@@ -1060,7 +1060,7 @@ export default function Home() {
                 rights reserved.
               </p>
               <div className="text-xs text-gray-600 leading-relaxed">
-                <p>홈페이지 제작: 주식회사 다도움컴퍼니</p>
+                <p>사이트 운영주체: 주식회사 다도움컴퍼니(Dadowoom Company)</p>
                 <p>대표: 최종만 | 사업자등록번호: 530-86-02411</p>
                 <p>주소: 전라남도 여수시 공화북2길 9-1, 2층(공화동)</p>
                 <p>이메일: contact@dadowoom.com</p>
