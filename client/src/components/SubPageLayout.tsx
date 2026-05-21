@@ -141,14 +141,18 @@ export default function SubPageLayout({
                 <i className="fas fa-phone text-[#4CAF50] w-4"></i>
                 TEL : {dbSettings?.tel ?? "054) 270-1000"} &nbsp;|&nbsp; FAX : {dbSettings?.fax ?? "054) 270-1005"}
               </p>
-              <p className="text-xs text-gray-600 mt-3">
+              <p className="text-xs text-gray-500 mt-3">
                 Copyright &copy; {new Date().getFullYear()} 기쁨의교회 All rights reserved.
               </p>
-              <div className="text-xs text-gray-600 leading-relaxed">
-                <p>사이트 운영주체: 주식회사 다도움컴퍼니(Dadowoom Company)</p>
-                <p>대표: 최종만 | 사업자등록번호: 530-86-02411</p>
+              <div className="mt-4 space-y-1 text-sm leading-relaxed text-gray-300">
+                <p className="font-medium text-gray-100">
+                  본 사이트는 기쁨의교회 안내를 위해 주식회사 다도움컴퍼니가 운영합니다.
+                </p>
+                <p>사이트 운영주체: 주식회사 다도움컴퍼니</p>
+                <p>대표: 최종민</p>
+                <p>사업자등록번호: 530-86-02411</p>
                 <p>주소: 전라남도 여수시 공화북2길 9-1, 2층(공화동)</p>
-                <p>이메일: contact@dadowoom.com</p>
+                <p className="break-words">이메일: contact@dadowoom.com</p>
               </div>
             </div>
             <div className="flex gap-3 md:justify-end">
