@@ -16,6 +16,7 @@
  *   youtube.ts     - 예배영상/플레이리스트 DB 함수
  *   mission.ts     - 선교보고/작성권한 DB 함수
  *   staff.ts       - 섬기는 분/교역자 소개 DB 함수
+ *   popup.ts       - 홈페이지 팝업/공지 배너 DB 함수
  */
 
 export * from "./connection";
@@ -29,3 +30,4 @@ export * from "./blocks";
 export * from "./youtube";
 export * from "./mission";
 export * from "./staff";
+export * from "./popup";

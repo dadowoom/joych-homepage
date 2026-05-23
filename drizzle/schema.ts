@@ -199,6 +199,50 @@ export type Notice = typeof notices.$inferSelect;
 export type InsertNotice = typeof notices.$inferInsert;
 
 // ─────────────────────────────────────────────
+// CMS: 홈페이지 팝업 / 공지 배너
+// 납품 전 긴급공지, 행사 안내, 신청 유도 등을 운영하기 위한 테이블
+// ─────────────────────────────────────────────
+export const noticePopups = mysqlTable("notice_popups", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 팝업 제목 */
+  title: varchar("title", { length: 160 }).notNull(),
+  /** 본문 안내 문구 */
+  content: text("content"),
+  /** 대표 이미지 URL */
+  imageUrl: text("image_url"),
+  /** 버튼 문구 */
+  linkLabel: varchar("link_label", { length: 64 }),
+  /** 버튼 이동 링크 */
+  linkHref: varchar("link_href", { length: 512 }),
+  /** 노출 방식: PC 모달 / 상단 배너 / 모바일 하단 시트 */
+  placement: mysqlEnum("placement", ["modal", "top_banner", "bottom_sheet"]).notNull().default("modal"),
+  /** 대상: 전체 / 비로그인 방문자 / 로그인 성도 */
+  audience: mysqlEnum("audience", ["all", "guest", "member"]).notNull().default("all"),
+  /** 노출 여부 */
+  isActive: boolean("is_active").notNull().default(true),
+  /** 오늘 하루 보지 않기 사용 여부 */
+  isDismissible: boolean("is_dismissible").notNull().default(true),
+  /** 다시 보지 않기 유지 시간 */
+  dismissPeriodHours: int("dismiss_period_hours").notNull().default(24),
+  /** 우선순위: 숫자가 클수록 먼저 노출 */
+  priority: int("priority").notNull().default(0),
+  /** 노출 시작 시각 */
+  startAt: timestamp("start_at"),
+  /** 노출 종료 시각 */
+  endAt: timestamp("end_at"),
+  /** 작성자 (users.id 참조) */
+  authorId: int("author_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("notice_popups_active_schedule_idx").on(table.isActive, table.startAt, table.endAt),
+  index("notice_popups_priority_idx").on(table.priority, table.createdAt),
+]);
+
+export type NoticePopup = typeof noticePopups.$inferSelect;
+export type InsertNoticePopup = typeof noticePopups.$inferInsert;
+
+// ─────────────────────────────────────────────
 // CMS: 갤러리 사진
 // ─────────────────────────────────────────────
 export const galleryItems = mysqlTable("gallery_items", {

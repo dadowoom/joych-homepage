@@ -3,6 +3,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * 담당 기능:
  *   - 히어로 슬라이드, 퀵메뉴, 공지사항, 관련기관, 갤러리, 사이트 설정
+ *   - 홈페이지 팝업/공지 배너
  *   - 상단 네비게이션 메뉴 (서브메뉴 포함)
  *   - 시설 조회 및 예약 신청 (성도 로그인 필요)
  *   - 블록 에디터 페이지 블록 조회
@@ -19,6 +20,7 @@ import {
   getVisibleHeroSlides,
   getVisibleQuickMenus,
   getPublishedNotices,
+  getActiveNoticePopups,
   getVisibleAffiliates,
   getVisibleGalleryItems,
   getSiteSettings,
@@ -79,6 +81,9 @@ export const homeRouter = router({
 
   /** 교회 소식 최신 5개 (공개된 것만) */
   notices: publicProcedure.query(() => getPublishedNotices(5)),
+
+  /** 홈페이지 팝업/공지 배너 (현재 노출 가능한 것만) */
+  popups: publicProcedure.query(() => getActiveNoticePopups(3)),
 
   /** 관련기관 목록 (공개된 것만) */
   affiliates: publicProcedure.query(() => getVisibleAffiliates()),
