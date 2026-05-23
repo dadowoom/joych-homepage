@@ -44,7 +44,7 @@ function SubNav({ items }: { items: { label: string; href: string }[] }) {
 
 const WORSHIP_NAV = [
   { label: "실시간 예배", href: "/worship/tv" },
-  { label: "설교 영상", href: "/worship/tv/sunday" },
+  { label: "설교 영상", href: "/page/조이풀tv-주일예배" },
   { label: "찬양 영상", href: "/worship/tv/praise" },
   { label: "예배시간 안내", href: "/worship/schedule" },
   { label: "주보 보기", href: "/worship/bulletin" },
@@ -56,12 +56,12 @@ function notifyBulletinDownload() {
 
 // ── 조이풀TV (설교 영상) ─────────────────────────────────────────
 const SERMON_VIDEOS = [
-  { id: "1", badge: "주일예배", title: "주일예배 설교 영상", preacher: "기쁨의교회", date: "최신 영상", duration: "예배 영상", href: "/worship/tv/sunday", thumb: "https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=400&q=70" },
+  { id: "1", badge: "주일예배", title: "주일예배 설교 영상", preacher: "기쁨의교회", date: "최신 영상", duration: "예배 영상", href: "/page/조이풀tv-주일예배", thumb: "https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=400&q=70" },
   { id: "2", badge: "수요예배", title: "수요예배 영상", preacher: "기쁨의교회", date: "조이풀TV", duration: "예배 영상", href: "/worship/tv/hebron", thumb: "https://images.unsplash.com/photo-1529070538774-1843cb3265df?w=400&q=70" },
   { id: "3", badge: "새벽기도", title: "새벽기도회 영상", preacher: "기쁨의교회", date: "조이풀TV", duration: "예배 영상", href: "/worship/tv/gloria", thumb: "https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=400&q=70" },
-  { id: "4", badge: "주일예배", title: "주일예배 다시보기", preacher: "기쁨의교회", date: "조이풀TV", duration: "예배 영상", href: "/worship/tv/sunday", thumb: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=400&q=70" },
+  { id: "4", badge: "주일예배", title: "주일예배 다시보기", preacher: "기쁨의교회", date: "조이풀TV", duration: "예배 영상", href: "/page/조이풀tv-주일예배", thumb: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=400&q=70" },
   { id: "5", badge: "특별집회", title: "특별집회 영상", preacher: "기쁨의교회", date: "조이풀TV", duration: "집회 영상", href: "/worship/tv/special", thumb: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&q=70" },
-  { id: "6", badge: "주일예배", title: "주일예배 말씀 영상", preacher: "기쁨의교회", date: "조이풀TV", duration: "예배 영상", href: "/worship/tv/sunday", thumb: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=70" },
+  { id: "6", badge: "주일예배", title: "주일예배 말씀 영상", preacher: "기쁨의교회", date: "조이풀TV", duration: "예배 영상", href: "/page/조이풀tv-주일예배", thumb: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=70" },
 ];
 
 const BADGE_COLORS: Record<string, string> = {

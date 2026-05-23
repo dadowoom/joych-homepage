@@ -33,7 +33,7 @@ export const INTERNAL_PAGES: InternalPageGroup[] = [
     group: "조이풀TV",
     pages: [
       { label: "조이풀TV 메인", path: "/worship/tv" },
-      { label: "주일예배", path: "/worship/tv/sunday" },
+      { label: "주일예배", path: "/page/조이풀tv-주일예배" },
       { label: "헤브론 수요예배", path: "/worship/tv/hebron" },
       { label: "쉐키나 금요기도회", path: "/worship/tv/shekhinah" },
       { label: "새벽 글로리아 성서학당", path: "/worship/tv/gloria" },
@@ -151,7 +151,7 @@ export const FALLBACK_NAV_ITEMS: FallbackNavItem[] = [
     ],
     subHref: {
       "실시간 예배영상": "/worship/tv",
-      주일예배: "/worship/tv/sunday",
+      주일예배: "/page/조이풀tv-주일예배",
       "헤브론 수요예배": "/worship/tv/hebron",
       "쉐키나 금요기도회": "/worship/tv/shekhinah",
       "새벽 글로리아 성서학당": "/worship/tv/gloria",

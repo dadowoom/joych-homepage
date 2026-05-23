@@ -50,11 +50,18 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
 
   if (videos.length === 0) {
     return (
-      <div className="min-h-[300px] flex items-center justify-center">
-        <div className="text-center text-gray-400">
-          <PlayCircle className="w-16 h-16 mx-auto mb-3 opacity-30" />
-          <p className="text-base font-medium">등록된 영상이 없습니다.</p>
-          <p className="text-sm mt-1">관리자 패널에서 영상을 추가해 주세요.</p>
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        {title && (
+          <h2 className="text-2xl font-bold text-[#1B5E20] mb-6" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+            {title}
+          </h2>
+        )}
+        <div className="min-h-[300px] flex items-center justify-center rounded-xl border border-gray-100 bg-white">
+          <div className="text-center text-gray-400">
+            <PlayCircle className="w-16 h-16 mx-auto mb-3 opacity-30" />
+            <p className="text-base font-medium">현재 등록된 영상이 없습니다.</p>
+            <p className="text-sm mt-1">영상이 준비되는 대로 이곳에서 보실 수 있습니다.</p>
+          </div>
         </div>
       </div>
     );

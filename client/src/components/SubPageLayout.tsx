@@ -11,6 +11,15 @@ import { trpc } from "@/lib/trpc";
 import { ChevronRight, Home } from "lucide-react";
 
 const LOGO_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-logo_35c62cc5.jpg";
+const CHURCH_ADDRESS = "경상북도 포항시 북구 삼흥로 411";
+
+function getChurchAddress(address?: string | null) {
+  const value = address?.trim();
+  if (!value || value.includes("상통로 411")) {
+    return CHURCH_ADDRESS;
+  }
+  return value;
+}
 
 interface SubPageLayoutProps {
   /** 현재 페이지 제목 (브레드크럼 마지막 항목) */
@@ -135,7 +144,7 @@ export default function SubPageLayout({
             <div className="space-y-2 text-sm">
               <p className="flex items-center gap-2">
                 <i className="fas fa-map-marker-alt text-[#4CAF50] w-4"></i>
-                {dbSettings?.address ?? "경북 포항시 북구 상통로 411"}
+                {getChurchAddress(dbSettings?.address)}
               </p>
               <p className="flex items-center gap-2">
                 <i className="fas fa-phone text-[#4CAF50] w-4"></i>

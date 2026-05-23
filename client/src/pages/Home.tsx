@@ -52,6 +52,15 @@ const WORSHIP_IMAGE =
   "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-worship-1_39ea085d.webp";
 const VISION_IMAGE =
   "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-vision-bg_0cd6097b.webp";
+const CHURCH_ADDRESS = "경상북도 포항시 북구 삼흥로 411";
+
+function getChurchAddress(address?: string | null) {
+  const value = address?.trim();
+  if (!value || value.includes("상통로 411")) {
+    return CHURCH_ADDRESS;
+  }
+  return value;
+}
 
 const FALLBACK_QUICK_MENUS = [
   { icon: "fa-user-tie", label: "담임목사 인사", href: "/page/교회소개-담임목사-소개" },
@@ -70,7 +79,7 @@ const SERMONS = [
     badge: "주일예배",
     title: "주일예배 말씀 영상",
     date: "조이풀TV",
-    href: "/worship/tv/sunday",
+    href: "/page/조이풀tv-주일예배",
   },
   {
     badge: "수요예배",
@@ -940,7 +949,7 @@ export default function Home() {
                 </h2>
               </div>
               <Link
-                href="/community/photo"
+                href="/page/커뮤니티-최근-행사-사진"
                 className="text-sm text-gray-400 hover:text-[#1B5E20] flex items-center gap-1 transition-colors"
               >
                 전체보기 <i className="fas fa-arrow-right text-[10px]"></i>
@@ -1048,7 +1057,7 @@ export default function Home() {
             <div className="space-y-2 text-sm">
               <p className="flex items-center gap-2">
                 <i className="fas fa-map-marker-alt text-[#4CAF50] w-4"></i>
-                {dbSettings?.address ?? "경북 포항시 북구 상통로 411"}
+                {getChurchAddress(dbSettings?.address)}
               </p>
               <p className="flex items-center gap-2">
                 <i className="fas fa-phone text-[#4CAF50] w-4"></i>

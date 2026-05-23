@@ -4,6 +4,7 @@
  * 포함: PastorGreeting / ChurchHistory / ChurchVision / Location
  */
 
+import KakaoDirectionsMap from "@/components/KakaoDirectionsMap";
 import { Link } from "wouter";
 
 // ── 공통 레이아웃 컴포넌트 ──────────────────────────────────────
@@ -237,47 +238,7 @@ export function Location() {
     <div className="min-h-screen bg-[#F7F7F5]">
       <PageHeader title="오시는 길" subtitle="기쁨의교회로 오시는 방법을 안내해 드립니다" breadcrumb={["교회소개", "오시는 길"]} />
       <SubNav items={ABOUT_NAV} />
-      <div className="max-w-5xl mx-auto px-4 py-14">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* 지도 영역 */}
-          <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
-            <div className="h-72 bg-gradient-to-br from-green-100 to-green-200 flex items-center justify-center">
-              <div className="text-center">
-                <i className="fas fa-map-marker-alt text-5xl text-[#1B5E20] mb-3"></i>
-                <p className="text-[#1B5E20] font-medium text-sm">지도가 여기에 표시됩니다</p>
-                <p className="text-gray-500 text-xs mt-1">(DB 연결 후 구글 지도 삽입 예정)</p>
-              </div>
-            </div>
-            <div className="p-6">
-              <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
-                <i className="fas fa-map-marker-alt text-[#1B5E20]"></i> 주소
-              </h3>
-              <p className="text-gray-600 text-sm">경북 포항시 북구 상통로 411 기쁨의교회</p>
-            </div>
-          </div>
-          {/* 교통 안내 */}
-          <div className="space-y-5">
-            {[
-              { icon: "fa-bus", title: "셔틀버스 이용", color: "bg-green-50 border-green-200", items: ["셔틀버스 운행 정보는 교회 공지와 안내 데스크를 통해 확인해 주세요."] },
-              { icon: "fa-car", title: "자가용 이용", color: "bg-amber-50 border-amber-200", items: ["내비게이션에서 '기쁨의교회' 또는 '경북 포항시 북구 상통로 411'을 검색해 주세요."] },
-              { icon: "fa-phone", title: "문의", color: "bg-gray-50 border-gray-200", items: ["전화: 054-270-1000", "운영시간: 평일 09:00~18:00"] },
-            ].map((section, i) => (
-              <div key={i} className={`rounded-2xl border p-6 ${section.color}`}>
-                <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
-                  <i className={`fas ${section.icon} text-[#1B5E20]`}></i> {section.title}
-                </h3>
-                <ul className="space-y-1.5">
-                  {section.items.map((item, j) => (
-                    <li key={j} className="text-gray-600 text-sm flex items-start gap-2">
-                      <i className="fas fa-check text-[#1B5E20] text-xs mt-1 flex-shrink-0"></i> {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      <KakaoDirectionsMap />
     </div>
   );
 }

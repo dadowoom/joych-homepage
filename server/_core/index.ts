@@ -186,11 +186,11 @@ async function startServer() {
     },
   }));
 
-  // Permissions-Policy 헤더 (카메라/마이크/위치 등 권한 제한)
+  // Permissions-Policy 헤더 (카메라/마이크 등 권한 제한, 길찾기 현재 위치는 허용)
   app.use((_req, res, next) => {
     res.setHeader(
       "Permissions-Policy",
-      "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+      "camera=(), microphone=(), geolocation=(self), payment=(), usb=()"
     );
     next();
   });

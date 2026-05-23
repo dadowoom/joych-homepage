@@ -53,6 +53,8 @@ const SCHOOL_NAV = [
   { label: "유치부", href: "/school/kinder" },
   { label: "초등부", href: "/school/elementary" },
   { label: "중고등부", href: "/school/youth" },
+  { label: "AWANA", href: "/school/awana" },
+  { label: "청년부", href: "/school/young-adult" },
 ];
 
 function notifyEducationContact(programName: string) {
@@ -208,6 +210,8 @@ const SCHOOL_DEPTS = [
   { id: "kindergarten", name: "유치부", age: "4~7세", icon: "fa-child", color: "bg-yellow-50 border-yellow-200", iconBg: "bg-yellow-100", iconColor: "text-yellow-600", teacher: "부서 담당자", time: "주일 오전 11:00", room: "교육관 102호", desc: "찬양과 말씀으로 하나님을 알아가는 유치부 예배입니다." },
   { id: "elementary", name: "초등부", age: "초등학교 1~6학년", icon: "fa-pencil-alt", color: "bg-blue-50 border-blue-200", iconBg: "bg-blue-100", iconColor: "text-blue-600", teacher: "부서 담당자", time: "주일 오전 11:00", room: "교육관 201~203호", desc: "말씀과 친구들과 함께 믿음이 자라는 초등부 예배입니다." },
   { id: "youth", name: "중고등부", age: "중학교 1학년 ~ 고등학교 3학년", icon: "fa-graduation-cap", color: "bg-purple-50 border-purple-200", iconBg: "bg-purple-100", iconColor: "text-purple-600", teacher: "부서 담당자", time: "주일 오전 11:00", room: "교육관 301~303호", desc: "다음 세대 리더를 세우는 중고등부 예배입니다." },
+  { id: "awana", name: "AWANA", age: "어린이 및 청소년", icon: "fa-star", color: "bg-amber-50 border-amber-200", iconBg: "bg-amber-100", iconColor: "text-amber-600", teacher: "부서 담당자", time: "일정 문의", room: "교회 교육 공간", desc: "말씀 암송과 활동을 통해 믿음의 기초를 세우는 다음세대 프로그램입니다." },
+  { id: "young-adult", name: "청년부", age: "청년", icon: "fa-users", color: "bg-emerald-50 border-emerald-200", iconBg: "bg-emerald-100", iconColor: "text-emerald-600", teacher: "부서 담당자", time: "주일 예배 후", room: "청년부 모임 공간", desc: "예배와 말씀, 공동체 안에서 신앙과 삶을 함께 세워가는 청년 공동체입니다." },
 ];
 
 export function SundaySchool({ dept }: { dept: string }) {

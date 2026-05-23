@@ -2,7 +2,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import SiteHeader from "@/components/SiteHeader";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { useEffect } from "react";
+import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
@@ -40,7 +41,6 @@ import { JoyfulTV, WorshipSchedule, Bulletin } from "./pages/Worship";
 
 // 조이풀TV 하위 메뉴
 import {
-  SundayWorshipPage,
   WednesdayWorshipPage,
   FridayPrayerPage,
   DawnBiblePage,
@@ -72,14 +72,13 @@ import {
 } from "./pages/Ministry";
 
 // 커뮤니티/행정 (기존)
-import { ChurchNews, PrayerRequest, Offering, VehicleGuide, NewMemberGuide, JoyfulStore } from "./pages/Community";
+import { PrayerRequest, Offering, VehicleGuide, NewMemberGuide, JoyfulStore } from "./pages/Community";
 
 // 커뮤니티 신규
 import {
   SunMeetingPage,
   OrganizationPage,
   ClubPage,
-  PhotoPage,
   JoyTalkPage,
   SubtitleRequestPage,
   OnlineOfficePage,
@@ -91,12 +90,23 @@ import {
 import { DomesticMission, OverseasMission, Volunteer } from "./pages/Mission";
 
 // 교회학교 래퍼 컴포넌트
-const InfantDept = () => <SundaySchool dept="유아부" />;
-const KinderDept = () => <SundaySchool dept="유치부" />;
-const ElementaryDept = () => <SundaySchool dept="초등부" />;
-const YouthDept = () => <SundaySchool dept="중고등부" />;
-const AwanaDept = () => <SundaySchool dept="AWANA" />;
-const YoungAdultDept = () => <SundaySchool dept="청년부" />;
+const InfantDept = () => <SundaySchool dept="infant" />;
+const KinderDept = () => <SundaySchool dept="kindergarten" />;
+const ElementaryDept = () => <SundaySchool dept="elementary" />;
+const YouthDept = () => <SundaySchool dept="youth" />;
+const AwanaDept = () => <SundaySchool dept="awana" />;
+const YoungAdultDept = () => <SundaySchool dept="young-adult" />;
+
+function LegacyRedirect({ to }: { to: string }) {
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    setLocation(to, { replace: true });
+  }, [setLocation, to]);
+
+  return null;
+}
+
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
@@ -122,7 +132,9 @@ function Router() {
 
       {/* 조이풀TV */}
       <Route path="/worship/tv" component={JoyfulTV} />
-      <Route path="/worship/tv/sunday" component={SundayWorshipPage} />
+      <Route path="/worship/tv/sunday">
+        <LegacyRedirect to="/page/조이풀tv-주일예배" />
+      </Route>
       <Route path="/worship/tv/hebron" component={WednesdayWorshipPage} />
       <Route path="/worship/tv/shekhinah" component={FridayPrayerPage} />
       <Route path="/worship/tv/gloria" component={DawnBiblePage} />
@@ -172,12 +184,16 @@ function Router() {
       <Route path="/mission" component={MissionList} />
 
       {/* 커뮤니티 */}
-      <Route path="/community/news" component={ChurchNews} />
+      <Route path="/community/news">
+        <LegacyRedirect to="/page/행정지원-공지사항" />
+      </Route>
       <Route path="/community/prayer" component={PrayerRequest} />
       <Route path="/community/soon" component={SunMeetingPage} />
       <Route path="/community/organization" component={OrganizationPage} />
       <Route path="/community/club" component={ClubPage} />
-      <Route path="/community/photo" component={PhotoPage} />
+      <Route path="/community/photo">
+        <LegacyRedirect to="/page/커뮤니티-최근-행사-사진" />
+      </Route>
       <Route path="/community/joytalk" component={JoyTalkPage} />
 
       {/* 행정지원 */}
