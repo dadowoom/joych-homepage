@@ -3,9 +3,11 @@
  * 관리자 성도 관리 탭
  * - 전체 성도 목록 조회
  * - 상태별 / 구역별 / 직분별 필터 + 보기 방식 + 이름/연락처 검색
+ * - 기본정보 미입력 성도 빠른 확인
  * - 20명씩 페이징
  * - 가입 승인/거절 (빠른 버튼)
  * - 성도 삭제(탈퇴 처리)
+ * - 탈퇴 처리된 성도 복구
  * - 수정 버튼 → MemberEditModal 모달 오픈
  */
 import { useState, useMemo } from "react";
@@ -43,6 +45,8 @@ export default function AdminMembersTab() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [districtFilter, setDistrictFilter] = useState("");
   const [positionFilter, setPositionFilter] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState("");
+  const [basicMissingOnly, setBasicMissingOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("position");
 
@@ -59,6 +63,7 @@ export default function AdminMembersTab() {
   // 필터 선택지 (활성화된 것만)
   const districtOptions = useMemo(() => fieldOptions.filter(o => o.fieldType === "district" && o.isActive), [fieldOptions]);
   const positionOptions = useMemo(() => fieldOptions.filter(o => o.fieldType === "position" && o.isActive), [fieldOptions]);
+  const departmentOptions = useMemo(() => fieldOptions.filter(o => o.fieldType === "department" && o.isActive), [fieldOptions]);
 
   // 빠른 승인/거절 뮤테이션
   const quickMutation = trpc.members.updateChurchInfo.useMutation({
@@ -81,18 +86,23 @@ export default function AdminMembersTab() {
 
   // 필터링 (필터 변경 시 페이지 1로 리셋)
   const filtered = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    const queryDigits = query.replace(/\D/g, "");
     return members.filter((m) => {
       const matchStatus   = statusFilter === "all" || m.status === statusFilter;
       const matchDistrict = !districtFilter || m.district === districtFilter;
       const matchPosition = !positionFilter || m.position === positionFilter;
+      const matchDepartment = !departmentFilter || m.department === departmentFilter;
+      const matchBasicInfo = !basicMissingOnly || !m.phone || !m.birthDate;
       const matchSearch   =
-        !searchQuery ||
-        m.name.includes(searchQuery) ||
-        (m.phone ?? "").includes(searchQuery) ||
-        (m.email ?? "").includes(searchQuery);
-      return matchStatus && matchDistrict && matchPosition && matchSearch;
+        !query ||
+        m.name.toLowerCase().includes(query) ||
+        (m.phone ?? "").toLowerCase().includes(query) ||
+        (queryDigits.length > 0 && (m.phone ?? "").replace(/\D/g, "").includes(queryDigits)) ||
+        (m.email ?? "").toLowerCase().includes(query);
+      return matchStatus && matchDistrict && matchPosition && matchDepartment && matchBasicInfo && matchSearch;
     });
-  }, [members, statusFilter, districtFilter, positionFilter, searchQuery]);
+  }, [members, statusFilter, districtFilter, positionFilter, departmentFilter, basicMissingOnly, searchQuery]);
 
   // 필터 변경 시 페이지 초기화 헬퍼
   const changeFilter = <T,>(setter: (v: T) => void) => (v: T) => {
@@ -137,6 +147,13 @@ export default function AdminMembersTab() {
 
   const quickApprove = (id: number) => quickMutation.mutate({ id, status: "approved" });
   const quickReject  = (id: number) => quickMutation.mutate({ id, status: "rejected" });
+  const restoreMember = (member: Member) => {
+    const confirmed = window.confirm(
+      `${member.name} 성도를 대기 상태로 복구할까요?\n\n복구 후 다시 승인하거나 정보를 수정할 수 있습니다.`
+    );
+    if (!confirmed) return;
+    quickMutation.mutate({ id: member.id, status: "pending" });
+  };
   const deleteMember = (member: Member) => {
     const confirmed = window.confirm(
       `${member.name} 성도를 삭제 처리할까요?\n\n실제 데이터는 탈퇴 상태로 보관되며, 탈퇴 탭에서 다시 확인할 수 있습니다.`
@@ -148,6 +165,7 @@ export default function AdminMembersTab() {
   if (isLoading) return <p className="text-gray-500 py-8 text-center">불러오는 중...</p>;
 
   const pendingCount = members.filter(m => m.status === "pending").length;
+  const basicMissingCount = members.filter(m => m.status !== "withdrawn" && (!m.phone || !m.birthDate)).length;
 
   return (
     <div>
@@ -162,6 +180,9 @@ export default function AdminMembersTab() {
             )}
             {pendingCount > 0 && (
               <span className="ml-2 text-yellow-600 font-medium">· 승인 대기 {pendingCount}명</span>
+            )}
+            {basicMissingCount > 0 && (
+              <span className="ml-2 text-red-500 font-medium">· 기본정보 미입력 {basicMissingCount}명</span>
             )}
           </p>
         </div>
@@ -202,6 +223,19 @@ export default function AdminMembersTab() {
           ))}
         </div>
 
+        <div className="flex flex-wrap gap-1">
+          <button
+            onClick={() => changeFilter(setBasicMissingOnly)(!basicMissingOnly)}
+            className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
+              basicMissingOnly
+                ? "bg-[#1B5E20] text-white"
+                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            기본정보 미입력
+          </button>
+        </div>
+
         {/* 구역 / 직분 / 검색 */}
         <div className="flex flex-col sm:flex-row gap-2">
           <select
@@ -226,6 +260,17 @@ export default function AdminMembersTab() {
             ))}
           </select>
 
+          <select
+            value={departmentFilter}
+            onChange={(e) => changeFilter(setDepartmentFilter)(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
+          >
+            <option value="">전체 부서</option>
+            {departmentOptions.map(o => (
+              <option key={o.id} value={o.label}>{o.label}</option>
+            ))}
+          </select>
+
           <input
             type="text"
             value={searchQuery}
@@ -235,12 +280,14 @@ export default function AdminMembersTab() {
           />
 
           {/* 필터 초기화 */}
-          {(statusFilter !== "all" || districtFilter || positionFilter || searchQuery || viewMode !== "position") && (
+          {(statusFilter !== "all" || districtFilter || positionFilter || departmentFilter || basicMissingOnly || searchQuery || viewMode !== "position") && (
             <button
               onClick={() => {
                 setStatusFilter("all");
                 setDistrictFilter("");
                 setPositionFilter("");
+                setDepartmentFilter("");
+                setBasicMissingOnly(false);
                 setSearchQuery("");
                 setViewMode("position");
                 setPage(1);
@@ -274,12 +321,12 @@ export default function AdminMembersTab() {
                 const status = STATUS_LABELS[member.status ?? "pending"] ?? STATUS_LABELS.pending;
                 return (
                   <div key={member.id} className="border border-gray-200 rounded-xl overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-3 bg-gray-50">
-                      <div className="flex items-center gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 bg-gray-50">
+                      <div className="flex items-center gap-3 min-w-0">
                         <div className="w-9 h-9 bg-[#E8F5E9] rounded-full flex items-center justify-center flex-shrink-0">
                           <i className="fas fa-user text-[#1B5E20] text-sm"></i>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-semibold text-gray-800 text-sm">{member.name}</span>
                             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>
@@ -292,13 +339,19 @@ export default function AdminMembersTab() {
                               <span className="text-xs text-gray-400">{member.district}</span>
                             )}
                           </div>
-                          <p className="text-xs text-gray-500 mt-0.5">
+                          <p className="text-xs text-gray-500 mt-0.5 break-all">
                             {member.phone ?? member.email ?? "-"}
                             {member.department && ` · ${member.department}`}
+                            {!member.phone && (
+                              <span className="ml-2 text-red-500 font-medium">연락처 미입력</span>
+                            )}
+                            {!member.birthDate && (
+                              <span className="ml-2 text-red-500 font-medium">생년월일 미입력</span>
+                            )}
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap sm:justify-end">
                         {member.status === "pending" && (
                           <>
                             <button
@@ -331,6 +384,15 @@ export default function AdminMembersTab() {
                             className="text-xs px-3 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50 transition-colors"
                           >
                             삭제
+                          </button>
+                        )}
+                        {member.status === "withdrawn" && (
+                          <button
+                            onClick={() => restoreMember(member)}
+                            disabled={quickMutation.isPending || deleteMutation.isPending}
+                            className="text-xs px-3 py-1 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                          >
+                            복구
                           </button>
                         )}
                       </div>

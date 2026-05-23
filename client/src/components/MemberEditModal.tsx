@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -182,6 +183,9 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
           <DialogTitle className="text-lg font-bold text-gray-800">
             성도 정보 수정 — {member.name}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            성도의 기본 정보, 교회 정보, 계정 관리 정보를 수정하는 관리자 전용 창입니다.
+          </DialogDescription>
         </DialogHeader>
 
         {/* 탭 */}
