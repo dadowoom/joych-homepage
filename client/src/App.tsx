@@ -1,5 +1,6 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import NoticePopupLayer from "@/components/NoticePopupLayer";
 import SiteHeader from "@/components/SiteHeader";
 import NotFound from "@/pages/NotFound";
 import { useEffect } from "react";
@@ -256,6 +257,7 @@ function App() {
           <Toaster />
           <SiteHeader />
           <Router />
+          <NoticePopupLayer />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

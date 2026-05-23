@@ -12,6 +12,7 @@
  *   - 섬기는 분 관리: components/AdminStaffTab.tsx
  *   - 예배영상 관리: components/YoutubeAdminTab.tsx
  *   - 페이지 콘텐츠: components/admin/StaticPageContentTab.tsx
+ *   - 팝업 관리    : components/AdminPopupsTab.tsx
  */
 
 import { useState } from "react";
@@ -23,6 +24,7 @@ import AdminReservationsTab from "@/components/AdminReservationsTab";
 import AdminMemberOptionsTab from "@/components/AdminMemberOptionsTab";
 import AdminMembersTab from "@/components/AdminMembersTab";
 import AdminMissionReportsTab from "@/components/AdminMissionReportsTab";
+import AdminPopupsTab from "@/components/AdminPopupsTab";
 import AdminStaffTab from "@/components/AdminStaffTab";
 import YoutubeAdminTab from "@/components/YoutubeAdminTab";
 import { SettingsTab } from "@/components/admin/SettingsTab";
@@ -38,7 +40,8 @@ type Tab =
   | "staff"
   | "missionReports"
   | "youtube"
-  | "staticPages";
+  | "staticPages"
+  | "popups";
 
 // ─── 메인 관리자 페이지 ───────────────────────────────────────────────────────
 export default function AdminPage() {
@@ -57,6 +60,7 @@ export default function AdminPage() {
     "missionReports",
     "youtube",
     "staticPages",
+    "popups",
   ];
   const tabFromUrl = searchParams.get("tab") as Tab | null;
   const activeTab: Tab =
@@ -264,6 +268,7 @@ export default function AdminPage() {
     { id: "missionReports", label: "선교보고 관리", icon: "fa-globe-asia" },
     { id: "youtube", label: "예배영상 관리", icon: "fa-video" },
     { id: "staticPages", label: "페이지 콘텐츠", icon: "fa-file-alt" },
+    { id: "popups", label: "팝업 관리", icon: "fa-bullhorn" },
   ];
 
   return (
@@ -351,6 +356,7 @@ export default function AdminPage() {
           {activeTab === "missionReports" && <AdminMissionReportsTab />}
           {activeTab === "youtube" && <YoutubeAdminTab />}
           {activeTab === "staticPages" && <StaticPageContentTab />}
+          {activeTab === "popups" && <AdminPopupsTab />}
         </div>
       </div>
     </div>
