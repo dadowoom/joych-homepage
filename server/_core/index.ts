@@ -210,6 +210,13 @@ async function startServer() {
   });
   // ─────────────────────────────────────────────────────────────────────
 
+  app.get("/api/public-config", (_req, res) => {
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.json({
+      kakaoJavaScriptKey: process.env.VITE_KAKAO_JAVASCRIPT_KEY ?? "",
+    });
+  });
+
   app.use(requestBodyLimitGuard);
   app.use(skipTrpcBodyParser(express.json({ limit: GENERAL_JSON_LIMIT })));
   app.use(skipTrpcBodyParser(express.urlencoded({ limit: GENERAL_FORM_LIMIT, extended: true })));

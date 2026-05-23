@@ -45,13 +45,29 @@ declare global {
 }
 
 let kakaoMapsPromise: Promise<KakaoMaps> | null = null;
+let kakaoKeyPromise: Promise<string> | null = null;
 
-function getKakaoJavaScriptKey() {
-  return import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY?.trim() ?? "";
+async function getKakaoJavaScriptKey() {
+  const buildTimeKey = import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY?.trim() ?? "";
+  if (buildTimeKey) return buildTimeKey;
+
+  if (!kakaoKeyPromise) {
+    kakaoKeyPromise = fetch("/api/public-config", { credentials: "same-origin" })
+      .then(async (response) => {
+        if (!response.ok) return "";
+        const data = (await response.json()) as { kakaoJavaScriptKey?: unknown };
+        return typeof data.kakaoJavaScriptKey === "string"
+          ? data.kakaoJavaScriptKey.trim()
+          : "";
+      })
+      .catch(() => "");
+  }
+
+  return kakaoKeyPromise;
 }
 
-function loadKakaoMaps() {
-  const appKey = getKakaoJavaScriptKey();
+async function loadKakaoMaps() {
+  const appKey = await getKakaoJavaScriptKey();
   if (!appKey) {
     return Promise.reject(new Error("missing-kakao-key"));
   }
