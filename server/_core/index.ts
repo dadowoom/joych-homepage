@@ -227,14 +227,25 @@ async function startServer() {
   registerOAuthRoutes(app);
   registerMemberOAuthRoutes(app);
 
+  const standardTrpcMiddleware = createExpressMiddleware({
+    router: appRouter,
+    createContext,
+    maxBodySize: STANDARD_BODY_LIMIT_BYTES,
+  });
+  const uploadTrpcMiddleware = createExpressMiddleware({
+    router: appRouter,
+    createContext,
+    maxBodySize: UPLOAD_BODY_LIMIT_BYTES,
+  });
+
   // tRPC API
-  app.use(
-    "/api/trpc",
-    createExpressMiddleware({
-      router: appRouter,
-      createContext,
-    })
-  );
+  // Content-Length가 없는 chunked 요청도 tRPC 파서 단계에서 한 번 더 제한합니다.
+  app.use("/api/trpc", (req, res, next) => {
+    const middleware = isTrpcUploadRequest(req)
+      ? uploadTrpcMiddleware
+      : standardTrpcMiddleware;
+    return middleware(req, res, next);
+  });
 
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
