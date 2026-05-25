@@ -79,7 +79,12 @@ export default function SiteHeader() {
     const trimmed = searchName.trim();
     if (!trimmed) return;
     setMobileSearchOpen(false);
-    setLocation(`/church-directory?name=${encodeURIComponent(trimmed)}`);
+    const searchPath = `/church-directory?name=${encodeURIComponent(trimmed)}`;
+    if (!memberMe) {
+      setLocation(`/member/login?next=${encodeURIComponent(searchPath)}`);
+      return;
+    }
+    setLocation(searchPath);
   };
 
   return (

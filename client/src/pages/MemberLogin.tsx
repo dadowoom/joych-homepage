@@ -72,6 +72,17 @@ function getSocialMessage(location: string) {
   return status ? messages[status] : null;
 }
 
+function getSafeNextPath(location: string) {
+  const search = location.includes("?")
+    ? location.slice(location.indexOf("?"))
+    : typeof window !== "undefined"
+      ? window.location.search
+      : "";
+  const next = new URLSearchParams(search).get("next");
+  if (!next || !next.startsWith("/") || next.startsWith("//")) return "/";
+  return next;
+}
+
 export default function MemberLogin() {
   const [location, navigate] = useLocation();
   const [email, setEmail] = useState("");
@@ -79,13 +90,14 @@ export default function MemberLogin() {
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const utils = trpc.useUtils();
   const socialMessage = getSocialMessage(location);
+  const nextPath = getSafeNextPath(location);
 
   const loginMutation = trpc.members.login.useMutation({
     onSuccess: async (data) => {
       toast.success(`${data.member.name}님, 환영합니다!`);
       // 로그인 후 memberMe 쿼리 즉시 갱신 → 상단 바에 이름 바로 표시
       await utils.members.me.invalidate();
-      navigate("/");
+      navigate(nextPath);
     },
     onError: (e) => {
       if (e.message.includes("이메일 또는 비밀번호")) {
