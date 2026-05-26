@@ -1,9 +1,15 @@
-import express, { type Express, type NextFunction, type Request, type Response } from "express";
+import express, {
+  type Express,
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
 import fs from "fs";
 import { type Server } from "http";
 import { nanoid } from "nanoid";
 import path from "path";
 import { isSafeHref } from "./contentValidation";
+import { injectSeoMeta } from "./seo";
 import {
   getVisibleMenuItemByHref,
   getVisibleMenuItemById,
@@ -57,7 +63,9 @@ function decodeRoutePath(pathname: string) {
 
 function appendOriginalSearch(target: string, originalUrl: string) {
   const searchStart = originalUrl.indexOf("?");
-  return searchStart >= 0 ? `${target}${originalUrl.slice(searchStart)}` : target;
+  return searchStart >= 0
+    ? `${target}${originalUrl.slice(searchStart)}`
+    : target;
 }
 
 function isHtmlNavigation(req: Request) {
@@ -71,6 +79,23 @@ function sendRouteNotFound(res: Response, indexHtmlPath?: string) {
   return res.status(404).type("text/plain").send("Not found");
 }
 
+async function sendIndexHtml(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  indexHtmlPath: string,
+  status = 200
+) {
+  try {
+    const template = await fs.promises.readFile(indexHtmlPath, "utf-8");
+    const page = injectSeoMeta(template, req);
+    res.status(status).type("html").setHeader("Cache-Control", "no-cache");
+    res.send(page);
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function publicRouteGuard(
   req: Request,
   res: Response,
@@ -82,7 +107,10 @@ async function publicRouteGuard(
   const normalizedPath = normalizeRoutePath(decodeRoutePath(req.path));
   const redirectTarget = PUBLIC_ROUTE_REDIRECTS.get(normalizedPath);
   if (redirectTarget) {
-    return res.redirect(301, appendOriginalSearch(redirectTarget, req.originalUrl));
+    return res.redirect(
+      301,
+      appendOriginalSearch(redirectTarget, req.originalUrl)
+    );
   }
 
   if (normalizedPath === "/admin") {
@@ -93,16 +121,24 @@ async function publicRouteGuard(
   if (numericMenuMatch) {
     const item = await getVisibleMenuItemById(Number(numericMenuMatch[1]));
     if (item?.href && isSafeHref(item.href) && item.href.startsWith("/")) {
-      return res.redirect(301, appendOriginalSearch(item.href, req.originalUrl));
+      return res.redirect(
+        301,
+        appendOriginalSearch(item.href, req.originalUrl)
+      );
     }
     return sendRouteNotFound(res, indexHtmlPath);
   }
 
   const numericSubMenuMatch = normalizedPath.match(/^\/page\/sub\/(\d+)$/);
   if (numericSubMenuMatch) {
-    const item = await getVisibleMenuSubItemById(Number(numericSubMenuMatch[1]));
+    const item = await getVisibleMenuSubItemById(
+      Number(numericSubMenuMatch[1])
+    );
     if (item?.href && isSafeHref(item.href) && item.href.startsWith("/")) {
-      return res.redirect(301, appendOriginalSearch(item.href, req.originalUrl));
+      return res.redirect(
+        301,
+        appendOriginalSearch(item.href, req.originalUrl)
+      );
     }
     return sendRouteNotFound(res, indexHtmlPath);
   }
@@ -125,15 +161,17 @@ async function publicRouteGuard(
 }
 
 export async function setupVite(app: Express, server: Server) {
-  const dynamicImport = new Function("specifier", "return import(specifier)") as <T>(
-    specifier: string,
-  ) => Promise<T>;
-  const [{ createServer: createViteServer }, { default: viteConfig }] = await Promise.all([
-    dynamicImport<typeof import("vite")>("vite"),
-    dynamicImport<{ default: typeof import("../../vite.config").default }>(
-      new URL("../../vite.config.ts", import.meta.url).href,
-    ),
-  ]);
+  const dynamicImport = new Function(
+    "specifier",
+    "return import(specifier)"
+  ) as <T>(specifier: string) => Promise<T>;
+  const [{ createServer: createViteServer }, { default: viteConfig }] =
+    await Promise.all([
+      dynamicImport<typeof import("vite")>("vite"),
+      dynamicImport<{ default: typeof import("../../vite.config").default }>(
+        new URL("../../vite.config.ts", import.meta.url).href
+      ),
+    ]);
 
   const serverOptions = {
     middlewareMode: true,
@@ -169,6 +207,7 @@ export async function setupVite(app: Express, server: Server) {
         `src="/src/main.tsx"`,
         `src="/src/main.tsx?v=${nanoid()}"`
       );
+      template = injectSeoMeta(template, req);
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
@@ -193,10 +232,26 @@ export function serveStatic(app: Express) {
   app.use((req, res, next) => {
     publicRouteGuard(req, res, next, indexHtmlPath).catch(next);
   });
-  app.use(express.static(distPath));
+  app.use(
+    express.static(distPath, {
+      index: false,
+      setHeaders(res, filePath) {
+        const normalized = filePath.split(path.sep).join("/");
+        if (normalized.endsWith("/index.html")) {
+          res.setHeader("Cache-Control", "no-cache");
+          return;
+        }
+        if (normalized.includes("/assets/")) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          return;
+        }
+        res.setHeader("Cache-Control", "public, max-age=3600");
+      },
+    })
+  );
 
   // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
-    res.sendFile(indexHtmlPath);
+  app.use("*", (req, res, next) => {
+    sendIndexHtml(req, res, next, indexHtmlPath);
   });
 }

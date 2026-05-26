@@ -4,18 +4,25 @@
  * 구성: TopBar → Header(GNB) → Hero → QuickMenu → Content(TV+News) → Vision → Affiliates → Footer
  */
 
-import { useState, useEffect, useRef } from "react";
+import { lazy, Suspense, useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
-import MenuEditPanel from "@/components/MenuEditPanel";
-import NoticeEditPanel from "@/components/NoticeEditPanel";
-import HeroEditPanel from "@/components/HeroEditPanel";
-import QuickMenuEditPanel from "@/components/QuickMenuEditPanel";
-import AffiliateEditPanel from "@/components/AffiliateEditPanel";
-import GalleryEditPanel from "@/components/GalleryEditPanel";
-import KakaoDirectionsMap from "@/components/KakaoDirectionsMap";
+
+const MenuEditPanel = lazy(() => import("@/components/MenuEditPanel"));
+const NoticeEditPanel = lazy(() => import("@/components/NoticeEditPanel"));
+const HeroEditPanel = lazy(() => import("@/components/HeroEditPanel"));
+const QuickMenuEditPanel = lazy(
+  () => import("@/components/QuickMenuEditPanel")
+);
+const AffiliateEditPanel = lazy(
+  () => import("@/components/AffiliateEditPanel")
+);
+const GalleryEditPanel = lazy(() => import("@/components/GalleryEditPanel"));
+const KakaoDirectionsMap = lazy(
+  () => import("@/components/KakaoDirectionsMap")
+);
 
 // 폴백(fallback) 데이터: DB 로딩 전 또는 DB 오류 시 표시
 const FALLBACK_HERO_SLIDES = [
@@ -63,7 +70,11 @@ function getChurchAddress(address?: string | null) {
 }
 
 const FALLBACK_QUICK_MENUS = [
-  { icon: "fa-user-tie", label: "담임목사 인사", href: "/page/교회소개-담임목사-소개" },
+  {
+    icon: "fa-user-tie",
+    label: "담임목사 인사",
+    href: "/page/교회소개-담임목사-소개",
+  },
   { icon: "fa-hands-praying", label: "선교보고서", href: "/mission" },
   { icon: "fa-newspaper", label: "주보 보기", href: "/worship/bulletin" },
   { icon: "fa-clock", label: "예배시간 안내", href: "/worship/schedule" },
@@ -208,7 +219,13 @@ export default function Home() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // DB에서 데이터 불러오기
-  const { data: dbHeroSlides } = trpc.home.heroSlides.useQuery();
+  const {
+    data: dbHeroSlides,
+    isFetched: heroSlidesFetched,
+    isError: heroSlidesError,
+  } = trpc.home.heroSlides.useQuery(undefined, {
+    refetchOnWindowFocus: true,
+  });
   const { data: dbQuickMenus } = trpc.home.quickMenus.useQuery();
   const { data: dbNotices } = trpc.home.notices.useQuery();
   const { data: dbAffiliates } = trpc.home.affiliates.useQuery();
@@ -216,10 +233,21 @@ export default function Home() {
   const { data: dbSettings } = trpc.home.settings.useQuery();
 
   // DB 데이터 또는 폴백 데이터 사용
+  const shouldUseHeroFallback =
+    (heroSlidesFetched || heroSlidesError) &&
+    (!dbHeroSlides || dbHeroSlides.length === 0);
   const heroSlides =
     dbHeroSlides && dbHeroSlides.length > 0
       ? dbHeroSlides
-      : FALLBACK_HERO_SLIDES;
+      : shouldUseHeroFallback
+        ? FALLBACK_HERO_SLIDES
+        : [];
+  const currentHeroSlide = heroSlides[heroIndex] ?? heroSlides[0] ?? null;
+  const currentHeroVideoUrl = currentHeroSlide?.videoUrl?.trim() ?? "";
+  const currentHeroPosterUrl = currentHeroSlide?.posterUrl?.trim() ?? "";
+  const currentHeroKey = currentHeroSlide
+    ? `${"id" in currentHeroSlide ? currentHeroSlide.id : "fallback"}-${heroIndex}-${currentHeroVideoUrl}`
+    : "hero-loading";
   const quickMenus =
     dbQuickMenus && dbQuickMenus.length > 0
       ? dbQuickMenus
@@ -271,16 +299,24 @@ export default function Home() {
 
   // 영상이 끝나면 다음 슬라이드로 전환
   const handleVideoEnded = () => {
+    if (heroSlides.length <= 1) return;
     setHeroIndex(prev => (prev + 1) % heroSlides.length);
   };
 
-  // 슬라이드 변경 시 영상 재생
+  // 슬라이드 데이터 또는 영상 URL이 바뀌면 기존 미디어 버퍼를 비우고 새 영상을 재생합니다.
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.load();
-      videoRef.current.play().catch(() => {});
+    const video = videoRef.current;
+    if (!video) return;
+    video.load();
+    if (currentHeroVideoUrl) {
+      video.play().catch(() => {});
     }
-  }, [heroIndex]);
+  }, [currentHeroVideoUrl, currentHeroPosterUrl]);
+
+  useEffect(() => {
+    if (heroSlides.length === 0 || heroIndex < heroSlides.length) return;
+    setHeroIndex(0);
+  }, [heroIndex, heroSlides.length]);
 
   // scrolled 상태는 SiteHeader에서 관리됨
 
@@ -347,72 +383,77 @@ export default function Home() {
         </div>
       )}
 
-      {/* 메뉴 편집 슬라이드 패널 */}
-      <MenuEditPanel
-        open={menuPanelOpen}
-        onClose={() => {
-          setMenuPanelOpen(false);
-          utils.home.menus.invalidate();
-        }}
-      />
-
-      {/* 교회 소식 편집 슬라이드 패널 */}
-      <NoticeEditPanel
-        open={noticePanelOpen}
-        onClose={() => {
-          setNoticePanelOpen(false);
-          utils.home.notices.invalidate();
-        }}
-      />
-
-      {/* 히어로 슬라이드 편집 패널 */}
-      <HeroEditPanel
-        open={heroPanelOpen}
-        onClose={() => {
-          setHeroPanelOpen(false);
-          utils.home.heroSlides.invalidate();
-        }}
-      />
-
-      {/* 퀵메뉴 편집 패널 */}
-      <QuickMenuEditPanel
-        open={quickMenuPanelOpen}
-        onClose={() => {
-          setQuickMenuPanelOpen(false);
-          utils.home.quickMenus.invalidate();
-        }}
-      />
-
-      {/* 관련 기관 편집 패널 */}
-      <AffiliateEditPanel
-        open={affiliatePanelOpen}
-        onClose={() => {
-          setAffiliatePanelOpen(false);
-          utils.home.affiliates.invalidate();
-        }}
-      />
-
-      {/* 갤러리 편집 패널 */}
-      <GalleryEditPanel
-        open={galleryPanelOpen}
-        onClose={() => {
-          setGalleryPanelOpen(false);
-          utils.home.gallery.invalidate();
-        }}
-      />
+      {isAdmin && (
+        <Suspense fallback={null}>
+          {menuPanelOpen && (
+            <MenuEditPanel
+              open={menuPanelOpen}
+              onClose={() => {
+                setMenuPanelOpen(false);
+                utils.home.menus.invalidate();
+              }}
+            />
+          )}
+          {noticePanelOpen && (
+            <NoticeEditPanel
+              open={noticePanelOpen}
+              onClose={() => {
+                setNoticePanelOpen(false);
+                utils.home.notices.invalidate();
+              }}
+            />
+          )}
+          {heroPanelOpen && (
+            <HeroEditPanel
+              open={heroPanelOpen}
+              onClose={() => {
+                setHeroPanelOpen(false);
+                utils.home.heroSlides.invalidate();
+              }}
+            />
+          )}
+          {quickMenuPanelOpen && (
+            <QuickMenuEditPanel
+              open={quickMenuPanelOpen}
+              onClose={() => {
+                setQuickMenuPanelOpen(false);
+                utils.home.quickMenus.invalidate();
+              }}
+            />
+          )}
+          {affiliatePanelOpen && (
+            <AffiliateEditPanel
+              open={affiliatePanelOpen}
+              onClose={() => {
+                setAffiliatePanelOpen(false);
+                utils.home.affiliates.invalidate();
+              }}
+            />
+          )}
+          {galleryPanelOpen && (
+            <GalleryEditPanel
+              open={galleryPanelOpen}
+              onClose={() => {
+                setGalleryPanelOpen(false);
+                utils.home.gallery.invalidate();
+              }}
+            />
+          )}
+        </Suspense>
+      )}
 
       {/* ===== 히어로 섹션 ===== */}
       <section className="relative h-screen min-h-[600px] flex items-center overflow-hidden">
         {/* 배경 영상 슬라이드 */}
         <video
           ref={videoRef}
-          key={heroIndex}
+          key={currentHeroKey}
           className="absolute inset-0 w-full h-full object-cover"
-          src={heroSlides[heroIndex]?.videoUrl ?? ""}
+          src={currentHeroVideoUrl}
           autoPlay
           muted
           playsInline
-          poster={heroSlides[heroIndex]?.posterUrl ?? ""}
+          poster={currentHeroPosterUrl}
           onEnded={handleVideoEnded}
         />
         {/* 영상 위 오버레이 — 글씨 가독성 확보 */}
@@ -425,7 +466,7 @@ export default function Home() {
               className="text-xs md:text-sm tracking-[0.3em] text-[#A5D6A7] mb-3 md:mb-4 font-medium"
               style={{ animation: "fadeUp 0.8s ease 0.2s both" }}
             >
-              {heroSlides[heroIndex]?.yearLabel ?? "2026 JOYFUL"}
+              {currentHeroSlide?.yearLabel ?? "2026 JOYFUL"}
             </p>
             <h1
               className="text-2xl md:text-5xl lg:text-6xl font-bold leading-tight mb-3 md:mb-5"
@@ -435,7 +476,7 @@ export default function Home() {
               }}
             >
               {(
-                heroSlides[heroIndex]?.mainTitle ??
+                currentHeroSlide?.mainTitle ??
                 "처음 익은 열매로\n여호와를 공경하라"
               )
                 .split("\n")
@@ -450,10 +491,10 @@ export default function Home() {
               className="text-white/75 text-sm md:text-base leading-relaxed mb-6 md:mb-8"
               style={{ animation: "fadeUp 0.8s ease 0.6s both" }}
             >
-              {heroSlides[heroIndex]?.subTitle ?? ""}
+              {currentHeroSlide?.subTitle ?? ""}
               <br />
               <span className="text-[#A5D6A7] text-xs md:text-sm">
-                — {heroSlides[heroIndex]?.bibleRef ?? ""}
+                — {currentHeroSlide?.bibleRef ?? ""}
               </span>
             </p>
             <div
@@ -462,21 +503,21 @@ export default function Home() {
             >
               <a
                 href={getUsableHref(
-                  heroSlides[heroIndex]?.btn1Href,
+                  currentHeroSlide?.btn1Href,
                   "/support/new-member"
                 )}
                 className="px-5 md:px-7 py-2.5 md:py-3 bg-[#1B5E20] hover:bg-[#2E7D32] text-white text-xs md:text-sm font-medium rounded transition-colors"
               >
-                {heroSlides[heroIndex]?.btn1Text ?? "새가족 등록"}
+                {currentHeroSlide?.btn1Text ?? "새가족 등록"}
               </a>
               <a
                 href={getUsableHref(
-                  heroSlides[heroIndex]?.btn2Href,
+                  currentHeroSlide?.btn2Href,
                   "/worship/schedule"
                 )}
                 className="px-5 md:px-7 py-2.5 md:py-3 border-2 border-white/80 hover:bg-white/15 text-white text-xs md:text-sm font-medium rounded transition-colors"
               >
-                {heroSlides[heroIndex]?.btn2Text ?? "예배 안내"}
+                {currentHeroSlide?.btn2Text ?? "예배 안내"}
               </a>
             </div>
           </div>
@@ -984,7 +1025,9 @@ export default function Home() {
         </div>
       </section>
 
-      <KakaoDirectionsMap />
+      <Suspense fallback={null}>
+        <KakaoDirectionsMap />
+      </Suspense>
 
       {/* ===== 관련 기관 ===== */}
       <section className="py-14 bg-[#F7F7F5]">
@@ -1070,7 +1113,8 @@ export default function Home() {
               </p>
               <div className="mt-4 space-y-1 text-sm leading-relaxed text-gray-300">
                 <p className="font-medium text-gray-100">
-                  본 사이트는 기쁨의교회 안내를 위해 주식회사 다도움컴퍼니가 운영합니다.
+                  본 사이트는 기쁨의교회 안내를 위해 주식회사 다도움컴퍼니가
+                  운영합니다.
                 </p>
                 <p>사이트 운영주체: 주식회사 다도움컴퍼니</p>
                 <p>대표: 최종민</p>

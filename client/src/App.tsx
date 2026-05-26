@@ -3,92 +3,271 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NoticePopupLayer from "@/components/NoticePopupLayer";
 import SiteHeader from "@/components/SiteHeader";
 import NotFound from "@/pages/NotFound";
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
-import AdminPage from "./pages/Admin";
-import { DynamicMenuHrefPage, DynamicMenuItemPage, DynamicMenuSubItemPage } from "./pages/DynamicPage";
-import Sitemap from "./pages/Sitemap";
-import FaithData from "./pages/FaithData";
-import ChurchDirectory from "./pages/ChurchDirectory";
 
-// 교회 회원 시스템
-import MemberRegister from "./pages/MemberRegister";
-import MemberLogin from "./pages/MemberLogin";
-import MemberMyPage from "./pages/MemberMyPage";
-import MemberSocialComplete from "./pages/MemberSocialComplete";
+const AdminPage = lazy(() => import("./pages/Admin"));
+const Sitemap = lazy(() => import("./pages/Sitemap"));
+const FaithData = lazy(() => import("./pages/FaithData"));
+const ChurchDirectory = lazy(() => import("./pages/ChurchDirectory"));
+const MemberRegister = lazy(() => import("./pages/MemberRegister"));
+const MemberLogin = lazy(() => import("./pages/MemberLogin"));
+const MemberMyPage = lazy(() => import("./pages/MemberMyPage"));
+const MemberSocialComplete = lazy(() => import("./pages/MemberSocialComplete"));
+const FacilityList = lazy(() => import("./pages/FacilityList"));
+const FacilityDetail = lazy(() => import("./pages/FacilityDetail"));
+const FacilityApply = lazy(() => import("./pages/FacilityApply"));
+const MyReservations = lazy(() => import("./pages/MyReservations"));
+const MissionList = lazy(() => import("./pages/MissionList"));
+const MissionDetail = lazy(() => import("./pages/MissionDetail"));
+const MissionReportEditor = lazy(() => import("./pages/MissionReportEditor"));
 
-// 시설 예약
-import FacilityList from "./pages/FacilityList";
-import FacilityDetail from "./pages/FacilityDetail";
-import FacilityApply from "./pages/FacilityApply";
-import MyReservations from "./pages/MyReservations";
+const DynamicMenuHrefPage = lazy(() =>
+  import("./pages/DynamicPage").then(module => ({
+    default: module.DynamicMenuHrefPage,
+  }))
+);
+const DynamicMenuItemPage = lazy(() =>
+  import("./pages/DynamicPage").then(module => ({
+    default: module.DynamicMenuItemPage,
+  }))
+);
+const DynamicMenuSubItemPage = lazy(() =>
+  import("./pages/DynamicPage").then(module => ({
+    default: module.DynamicMenuSubItemPage,
+  }))
+);
 
-// 선교보고
-import MissionList from "./pages/MissionList";
-import MissionDetail from "./pages/MissionDetail";
-import MissionReportEditor from "./pages/MissionReportEditor";
+const PastorGreeting = lazy(() =>
+  import("./pages/About").then(module => ({ default: module.PastorGreeting }))
+);
+const ChurchHistory = lazy(() =>
+  import("./pages/About").then(module => ({ default: module.ChurchHistory }))
+);
+const ChurchVision = lazy(() =>
+  import("./pages/About").then(module => ({ default: module.ChurchVision }))
+);
+const Location = lazy(() =>
+  import("./pages/About").then(module => ({ default: module.Location }))
+);
 
-// 교회소개 (기존)
-import { PastorGreeting, ChurchHistory, ChurchVision, Location } from "./pages/About";
+const StaffPage = lazy(() =>
+  import("./pages/ChurchIntro").then(module => ({ default: module.StaffPage }))
+);
+const WhiteBookPage = lazy(() =>
+  import("./pages/ChurchIntro").then(module => ({
+    default: module.WhiteBookPage,
+  }))
+);
+const MinistryPrinciplePage = lazy(() =>
+  import("./pages/ChurchIntro").then(module => ({
+    default: module.MinistryPrinciplePage,
+  }))
+);
+const CIPage = lazy(() =>
+  import("./pages/ChurchIntro").then(module => ({ default: module.CIPage }))
+);
+const ShuttleBusPage = lazy(() =>
+  import("./pages/ChurchIntro").then(module => ({
+    default: module.ShuttleBusPage,
+  }))
+);
 
-// 교회소개 (신규)
-import { StaffPage, WhiteBookPage, MinistryPrinciplePage, CIPage, ShuttleBusPage } from "./pages/ChurchIntro";
+const JoyfulTV = lazy(() =>
+  import("./pages/Worship").then(module => ({ default: module.JoyfulTV }))
+);
+const WorshipSchedule = lazy(() =>
+  import("./pages/Worship").then(module => ({
+    default: module.WorshipSchedule,
+  }))
+);
+const Bulletin = lazy(() =>
+  import("./pages/Worship").then(module => ({ default: module.Bulletin }))
+);
 
-// 예배/미디어
-import { JoyfulTV, WorshipSchedule, Bulletin } from "./pages/Worship";
+const WednesdayWorshipPage = lazy(() =>
+  import("./pages/JoyfulTV").then(module => ({
+    default: module.WednesdayWorshipPage,
+  }))
+);
+const FridayPrayerPage = lazy(() =>
+  import("./pages/JoyfulTV").then(module => ({
+    default: module.FridayPrayerPage,
+  }))
+);
+const DawnBiblePage = lazy(() =>
+  import("./pages/JoyfulTV").then(module => ({ default: module.DawnBiblePage }))
+);
+const PastorSeriesPage = lazy(() =>
+  import("./pages/JoyfulTV").then(module => ({
+    default: module.PastorSeriesPage,
+  }))
+);
+const HaDawnPage = lazy(() =>
+  import("./pages/JoyfulTV").then(module => ({ default: module.HaDawnPage }))
+);
+const SpecialWorshipPage = lazy(() =>
+  import("./pages/JoyfulTV").then(module => ({
+    default: module.SpecialWorshipPage,
+  }))
+);
+const SpecialFeaturePage = lazy(() =>
+  import("./pages/JoyfulTV").then(module => ({
+    default: module.SpecialFeaturePage,
+  }))
+);
+const TestimonyPage = lazy(() =>
+  import("./pages/JoyfulTV").then(module => ({ default: module.TestimonyPage }))
+);
+const PraisePage = lazy(() =>
+  import("./pages/JoyfulTV").then(module => ({ default: module.PraisePage }))
+);
 
-// 조이풀TV 하위 메뉴
-import {
-  WednesdayWorshipPage,
-  FridayPrayerPage,
-  DawnBiblePage,
-  PastorSeriesPage,
-  HaDawnPage,
-  SpecialWorshipPage,
-  SpecialFeaturePage,
-  TestimonyPage,
-  PraisePage,
-} from "./pages/JoyfulTV";
+const NewMember = lazy(() =>
+  import("./pages/Education").then(module => ({ default: module.NewMember }))
+);
+const DiscipleTraining = lazy(() =>
+  import("./pages/Education").then(module => ({
+    default: module.DiscipleTraining,
+  }))
+);
+const BibleStudy = lazy(() =>
+  import("./pages/Education").then(module => ({ default: module.BibleStudy }))
+);
+const SundaySchool = lazy(() =>
+  import("./pages/Education").then(module => ({ default: module.SundaySchool }))
+);
 
-// 양육/훈련
-import { NewMember, DiscipleTraining, BibleStudy, SundaySchool } from "./pages/Education";
+const HesedAsiaPage = lazy(() =>
+  import("./pages/Ministry").then(module => ({ default: module.HesedAsiaPage }))
+);
+const DiscipleTrainingPage = lazy(() =>
+  import("./pages/Ministry").then(module => ({
+    default: module.DiscipleTrainingPage,
+  }))
+);
+const ElderTrainingPage = lazy(() =>
+  import("./pages/Ministry").then(module => ({
+    default: module.ElderTrainingPage,
+  }))
+);
+const OneOnOnePage = lazy(() =>
+  import("./pages/Ministry").then(module => ({ default: module.OneOnOnePage }))
+);
+const SunseumSchoolPage = lazy(() =>
+  import("./pages/Ministry").then(module => ({
+    default: module.SunseumSchoolPage,
+  }))
+);
+const SaengseonConferencePage = lazy(() =>
+  import("./pages/Ministry").then(module => ({
+    default: module.SaengseonConferencePage,
+  }))
+);
+const WorldMissionPage = lazy(() =>
+  import("./pages/Ministry").then(module => ({
+    default: module.WorldMissionPage,
+  }))
+);
+const EvangelismPage = lazy(() =>
+  import("./pages/Ministry").then(module => ({
+    default: module.EvangelismPage,
+  }))
+);
+const PrayerMinistryPage = lazy(() =>
+  import("./pages/Ministry").then(module => ({
+    default: module.PrayerMinistryPage,
+  }))
+);
+const WelfarePage = lazy(() =>
+  import("./pages/Ministry").then(module => ({ default: module.WelfarePage }))
+);
+const VisionUniversityPage = lazy(() =>
+  import("./pages/Ministry").then(module => ({
+    default: module.VisionUniversityPage,
+  }))
+);
+const JoyLabPage = lazy(() =>
+  import("./pages/Ministry").then(module => ({ default: module.JoyLabPage }))
+);
 
-// 양육/훈련 신규
-import {
-  HesedAsiaPage,
-  DiscipleTrainingPage,
-  ElderTrainingPage,
-  OneOnOnePage,
-  SunseumSchoolPage,
-  SaengseonConferencePage,
-  WorldMissionPage,
-  EvangelismPage,
-  PrayerMinistryPage,
-  WelfarePage,
-  VisionUniversityPage,
-  JoyLabPage,
-} from "./pages/Ministry";
+const PrayerRequest = lazy(() =>
+  import("./pages/Community").then(module => ({
+    default: module.PrayerRequest,
+  }))
+);
+const Offering = lazy(() =>
+  import("./pages/Community").then(module => ({ default: module.Offering }))
+);
+const VehicleGuide = lazy(() =>
+  import("./pages/Community").then(module => ({ default: module.VehicleGuide }))
+);
+const NewMemberGuide = lazy(() =>
+  import("./pages/Community").then(module => ({
+    default: module.NewMemberGuide,
+  }))
+);
+const JoyfulStore = lazy(() =>
+  import("./pages/Community").then(module => ({ default: module.JoyfulStore }))
+);
 
-// 커뮤니티/행정 (기존)
-import { PrayerRequest, Offering, VehicleGuide, NewMemberGuide, JoyfulStore } from "./pages/Community";
+const SunMeetingPage = lazy(() =>
+  import("./pages/CommunityExtra").then(module => ({
+    default: module.SunMeetingPage,
+  }))
+);
+const OrganizationPage = lazy(() =>
+  import("./pages/CommunityExtra").then(module => ({
+    default: module.OrganizationPage,
+  }))
+);
+const ClubPage = lazy(() =>
+  import("./pages/CommunityExtra").then(module => ({
+    default: module.ClubPage,
+  }))
+);
+const JoyTalkPage = lazy(() =>
+  import("./pages/CommunityExtra").then(module => ({
+    default: module.JoyTalkPage,
+  }))
+);
+const SubtitleRequestPage = lazy(() =>
+  import("./pages/CommunityExtra").then(module => ({
+    default: module.SubtitleRequestPage,
+  }))
+);
+const OnlineOfficePage = lazy(() =>
+  import("./pages/CommunityExtra").then(module => ({
+    default: module.OnlineOfficePage,
+  }))
+);
+const VisitRequestPage = lazy(() =>
+  import("./pages/CommunityExtra").then(module => ({
+    default: module.VisitRequestPage,
+  }))
+);
+const DonationReceiptPage = lazy(() =>
+  import("./pages/CommunityExtra").then(module => ({
+    default: module.DonationReceiptPage,
+  }))
+);
 
-// 커뮤니티 신규
-import {
-  SunMeetingPage,
-  OrganizationPage,
-  ClubPage,
-  JoyTalkPage,
-  SubtitleRequestPage,
-  OnlineOfficePage,
-  VisitRequestPage,
-  DonationReceiptPage,
-} from "./pages/CommunityExtra";
-
-// 선교 사역
-import { DomesticMission, OverseasMission, Volunteer } from "./pages/Mission";
+const DomesticMission = lazy(() =>
+  import("./pages/Mission").then(module => ({
+    default: module.DomesticMission,
+  }))
+);
+const OverseasMission = lazy(() =>
+  import("./pages/Mission").then(module => ({
+    default: module.OverseasMission,
+  }))
+);
+const Volunteer = lazy(() =>
+  import("./pages/Mission").then(module => ({ default: module.Volunteer }))
+);
 
 // 교회학교 래퍼 컴포넌트
 const InfantDept = () => <SundaySchool dept="infant" />;
@@ -256,7 +435,9 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <SiteHeader />
-          <Router />
+          <Suspense fallback={null}>
+            <Router />
+          </Suspense>
           <NoticePopupLayer />
         </TooltipProvider>
       </ThemeProvider>

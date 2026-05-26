@@ -158,6 +158,7 @@ function openKakaoUrl(url: string) {
 }
 
 export default function KakaoDirectionsMap() {
+  const sectionRef = useRef<HTMLElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapsRef = useRef<KakaoMaps | null>(null);
   const geocoderRef = useRef<KakaoGeocoder | null>(null);
@@ -166,8 +167,30 @@ export default function KakaoDirectionsMap() {
   const [destinationCoords, setDestinationCoords] = useState<Coords | null>(null);
   const [statusMessage, setStatusMessage] = useState("카카오맵을 준비하고 있습니다.");
   const [mapReady, setMapReady] = useState(false);
+  const [shouldLoadMap, setShouldLoadMap] = useState(false);
 
   useEffect(() => {
+    const section = sectionRef.current;
+    if (!section || typeof IntersectionObserver === "undefined") {
+      setShouldLoadMap(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        setShouldLoadMap(true);
+        observer.disconnect();
+      },
+      { rootMargin: "360px 0px" }
+    );
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!shouldLoadMap) return;
+
     let mounted = true;
 
     loadKakaoMaps()
@@ -198,7 +221,7 @@ export default function KakaoDirectionsMap() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [shouldLoadMap]);
 
   const openDestination = () => {
     openKakaoUrl(buildDestinationUrl(destinationCoords ?? DESTINATION.coords));
@@ -260,7 +283,7 @@ export default function KakaoDirectionsMap() {
   };
 
   return (
-    <section className="py-16 bg-white">
+    <section ref={sectionRef} className="py-16 bg-white">
       <div className="container">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
           <div>

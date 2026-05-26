@@ -2,7 +2,8 @@ import "dotenv/config";
 import express from "express";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
-import { createServer } from "http";
+import { randomBytes } from "crypto";
+import { createServer, type IncomingMessage, type ServerResponse } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
@@ -10,6 +11,7 @@ import { registerMemberOAuthRoutes } from "./memberOAuth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { registerSeoUtilityRoutes } from "./seo";
 
 const MB = 1024 * 1024;
 const STANDARD_BODY_LIMIT_BYTES = 5 * MB;
@@ -46,7 +48,7 @@ function isTrpcUploadRequest(req: express.Request) {
 function requestBodyLimitGuard(
   req: express.Request,
   res: express.Response,
-  next: express.NextFunction,
+  next: express.NextFunction
 ) {
   if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
     next();
@@ -59,10 +61,12 @@ function requestBodyLimitGuard(
     return;
   }
 
-  const isTrpcRequest = req.path === "/api/trpc" || req.path.startsWith("/api/trpc/");
-  const limit = isTrpcRequest && isTrpcUploadRequest(req)
-    ? UPLOAD_BODY_LIMIT_BYTES
-    : STANDARD_BODY_LIMIT_BYTES;
+  const isTrpcRequest =
+    req.path === "/api/trpc" || req.path.startsWith("/api/trpc/");
+  const limit =
+    isTrpcRequest && isTrpcUploadRequest(req)
+      ? UPLOAD_BODY_LIMIT_BYTES
+      : STANDARD_BODY_LIMIT_BYTES;
 
   if (contentLength > limit) {
     res.status(413).type("text/plain").send("Payload too large");
@@ -72,7 +76,9 @@ function requestBodyLimitGuard(
   next();
 }
 
-function skipTrpcBodyParser(parser: express.RequestHandler): express.RequestHandler {
+function skipTrpcBodyParser(
+  parser: express.RequestHandler
+): express.RequestHandler {
   return (req, res, next) => {
     if (req.path.startsWith("/api/trpc")) {
       next();
@@ -92,7 +98,10 @@ function isPortAvailable(port: number, host?: string): Promise<boolean> {
   });
 }
 
-async function findAvailablePort(startPort: number = 3000, host?: string): Promise<number> {
+async function findAvailablePort(
+  startPort: number = 3000,
+  host?: string
+): Promise<number> {
   for (let port = startPort; port < startPort + 20; port++) {
     if (await isPortAvailable(port, host)) {
       return port;
@@ -107,9 +116,19 @@ async function startServer() {
   const server = createServer(app);
   app.set("trust proxy", "loopback");
 
+  app.use((req, res, next) => {
+    const nonce = randomBytes(16).toString("base64");
+    (req as express.Request & { cspNonce?: string }).cspNonce = nonce;
+    res.locals.cspNonce = nonce;
+    next();
+  });
+
+  const nonceSource = (_req: IncomingMessage, res: ServerResponse) =>
+    `'nonce-${(res as express.Response).locals.cspNonce}'`;
   const scriptSrc = isProduction
     ? [
         "'self'",
+        nonceSource,
         "https://cdnjs.cloudflare.com",
         "https://dapi.kakao.com",
         "https://t1.daumcdn.net",
@@ -132,59 +151,61 @@ async function startServer() {
     : ["'self'", "https:", "wss:"];
 
   // ── 보안 헤더 (helmet) ────────────────────────────────────────────────
-  app.use(helmet({
-    // Content-Security-Policy: 유튜브 iframe, CDN 이미지, 구글 폰트 허용
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc,
-        styleSrc: [
-          "'self'",
-          "'unsafe-inline'",
-          "https://fonts.googleapis.com",
-          "https://cdnjs.cloudflare.com",
-        ],
-        fontSrc: [
-          "'self'",
-          "https://fonts.gstatic.com",
-          "https://cdnjs.cloudflare.com",
-        ],
-        imgSrc: [
-          "'self'",
-          "data:",
-          "blob:",
-          "https:",   // CDN 이미지 전체 허용
-        ],
-        mediaSrc: [
-          "'self'",
-          "https:",   // S3 / CDN 영상
-          "blob:",
-        ],
-        frameSrc: [
-          "'self'",
-          "https://www.youtube.com",
-          "https://youtube.com",
-        ],
-        connectSrc,
-        objectSrc: ["'none'"],
-        ...(isProduction ? { upgradeInsecureRequests: [] } : {}),
+  app.use(
+    helmet({
+      // Content-Security-Policy: 유튜브 iframe, CDN 이미지, 구글 폰트 허용
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc,
+          styleSrc: [
+            "'self'",
+            "'unsafe-inline'",
+            "https://fonts.googleapis.com",
+            "https://cdnjs.cloudflare.com",
+          ],
+          fontSrc: [
+            "'self'",
+            "https://fonts.gstatic.com",
+            "https://cdnjs.cloudflare.com",
+          ],
+          imgSrc: [
+            "'self'",
+            "data:",
+            "blob:",
+            "https:", // CDN 이미지 전체 허용
+          ],
+          mediaSrc: [
+            "'self'",
+            "https:", // S3 / CDN 영상
+            "blob:",
+          ],
+          frameSrc: [
+            "'self'",
+            "https://www.youtube.com",
+            "https://youtube.com",
+          ],
+          connectSrc,
+          objectSrc: ["'none'"],
+          ...(isProduction ? { upgradeInsecureRequests: [] } : {}),
+        },
       },
-    },
-    // X-Frame-Options: SAMEORIGIN (클릭재킹 방어)
-    frameguard: { action: "sameorigin" },
-    // X-Content-Type-Options: nosniff
-    noSniff: true,
-    // Referrer-Policy
-    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
-    // X-Powered-By 숨기기 (서버 정보 노출 방지)
-    hidePoweredBy: true,
-    // HSTS (배포 환경에서 HTTPS 강제)
-    hsts: {
-      maxAge: 31536000,       // 1년
-      includeSubDomains: true,
-      preload: true,
-    },
-  }));
+      // X-Frame-Options: SAMEORIGIN (클릭재킹 방어)
+      frameguard: { action: "sameorigin" },
+      // X-Content-Type-Options: nosniff
+      noSniff: true,
+      // Referrer-Policy
+      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+      // X-Powered-By 숨기기 (서버 정보 노출 방지)
+      hidePoweredBy: true,
+      // HSTS (배포 환경에서 HTTPS 강제)
+      hsts: {
+        maxAge: 31536000, // 1년
+        includeSubDomains: true,
+        preload: true,
+      },
+    })
+  );
 
   // Permissions-Policy 헤더 (카메라/마이크 등 권한 제한, 길찾기 현재 위치는 허용)
   app.use((_req, res, next) => {
@@ -216,10 +237,15 @@ async function startServer() {
       kakaoJavaScriptKey: process.env.VITE_KAKAO_JAVASCRIPT_KEY ?? "",
     });
   });
+  registerSeoUtilityRoutes(app);
 
   app.use(requestBodyLimitGuard);
   app.use(skipTrpcBodyParser(express.json({ limit: GENERAL_JSON_LIMIT })));
-  app.use(skipTrpcBodyParser(express.urlencoded({ limit: GENERAL_FORM_LIMIT, extended: true })));
+  app.use(
+    skipTrpcBodyParser(
+      express.urlencoded({ limit: GENERAL_FORM_LIMIT, extended: true })
+    )
+  );
   // 쿠키 파싱 미들웨어 (req.cookies 사용 가능하게)
   app.use(cookieParser());
 
@@ -256,7 +282,9 @@ async function startServer() {
 
   const preferredPort = parseInt(process.env.PORT || "3000", 10);
   const host = process.env.HOST || (isProduction ? "127.0.0.1" : "0.0.0.0");
-  const port = isProduction ? preferredPort : await findAvailablePort(preferredPort, host);
+  const port = isProduction
+    ? preferredPort
+    : await findAvailablePort(preferredPort, host);
 
   if (!isProduction && port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
@@ -272,7 +300,7 @@ async function startServer() {
   });
 }
 
-startServer().catch((error) => {
+startServer().catch(error => {
   console.error(error);
   process.exit(1);
 });
