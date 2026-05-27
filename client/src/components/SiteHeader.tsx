@@ -39,10 +39,17 @@ export default function SiteHeader() {
       refetchMemberMe();
     },
   });
-  const { data: dbMenus } = trpc.home.menus.useQuery();
+  const {
+    data: dbMenus,
+    isLoading: menusLoading,
+  } = trpc.home.menus.useQuery(undefined, {
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
   const { data: dbSettings } = trpc.home.settings.useQuery();
   const navMenus = dbMenus && dbMenus.length > 0 ? dbMenus : null;
-  const displayMenus = navMenus ?? fallbackMenus;
+  const displayMenus = navMenus ?? (menusLoading ? [] : fallbackMenus);
   const socialLinks = [
     {
       icon: "fab fa-youtube",
