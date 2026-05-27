@@ -17,6 +17,7 @@
  *   mission.ts     - 선교보고/작성권한 DB 함수
  *   staff.ts       - 섬기는 분/교역자 소개 DB 함수
  *   popup.ts       - 홈페이지 팝업/공지 배너 DB 함수
+ *   support.ts     - 공개 접수(기도 요청/새가족 문의) DB 함수
  */
 
 export * from "./connection";
@@ -31,3 +32,4 @@ export * from "./youtube";
 export * from "./mission";
 export * from "./staff";
 export * from "./popup";
+export * from "./support";

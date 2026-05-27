@@ -458,6 +458,43 @@ export type MemberSocialAccount = typeof memberSocialAccounts.$inferSelect;
 export type InsertMemberSocialAccount = typeof memberSocialAccounts.$inferInsert;
 
 // ─────────────────────────────────────────────
+// 공개 접수: 기도 요청 / 새가족 등록 문의
+// ─────────────────────────────────────────────
+export const prayerRequests = mysqlTable("prayer_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 64 }).notNull(),
+  category: varchar("category", { length: 32 }).notNull(),
+  content: text("content").notNull(),
+  status: mysqlEnum("status", ["new", "reviewed", "archived"]).notNull().default("new"),
+  adminMemo: text("admin_memo"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("prayer_requests_status_created_idx").on(table.status, table.createdAt),
+]);
+
+export type PrayerRequest = typeof prayerRequests.$inferSelect;
+export type InsertPrayerRequest = typeof prayerRequests.$inferInsert;
+
+export const newMemberRequests = mysqlTable("new_member_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 64 }).notNull(),
+  phone: varchar("phone", { length: 32 }).notNull(),
+  age: int("age"),
+  address: varchar("address", { length: 256 }),
+  how: varchar("how", { length: 64 }),
+  status: mysqlEnum("status", ["new", "contacted", "archived"]).notNull().default("new"),
+  adminMemo: text("admin_memo"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("new_member_requests_status_created_idx").on(table.status, table.createdAt),
+]);
+
+export type NewMemberRequest = typeof newMemberRequests.$inferSelect;
+export type InsertNewMemberRequest = typeof newMemberRequests.$inferInsert;
+
+// ─────────────────────────────────────────────
 // 시설 예약 시스템
 // ─────────────────────────────────────────────
 

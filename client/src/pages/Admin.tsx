@@ -13,6 +13,7 @@
  *   - 예배영상 관리: components/YoutubeAdminTab.tsx
  *   - 페이지 콘텐츠: components/admin/StaticPageContentTab.tsx
  *   - 팝업 관리    : components/AdminPopupsTab.tsx
+ *   - 접수 관리    : components/AdminSupportRequestsTab.tsx
  */
 
 import { useState } from "react";
@@ -26,6 +27,7 @@ import AdminMembersTab from "@/components/AdminMembersTab";
 import AdminMissionReportsTab from "@/components/AdminMissionReportsTab";
 import AdminPopupsTab from "@/components/AdminPopupsTab";
 import AdminStaffTab from "@/components/AdminStaffTab";
+import AdminSupportRequestsTab from "@/components/AdminSupportRequestsTab";
 import YoutubeAdminTab from "@/components/YoutubeAdminTab";
 import { SettingsTab } from "@/components/admin/SettingsTab";
 import { StaticPageContentTab } from "@/components/admin/StaticPageContentTab";
@@ -39,6 +41,7 @@ type Tab =
   | "members"
   | "staff"
   | "missionReports"
+  | "supportRequests"
   | "youtube"
   | "staticPages"
   | "popups";
@@ -58,6 +61,7 @@ export default function AdminPage() {
     "members",
     "staff",
     "missionReports",
+    "supportRequests",
     "youtube",
     "staticPages",
     "popups",
@@ -266,6 +270,7 @@ export default function AdminPage() {
     { id: "members", label: "성도 관리", icon: "fa-users" },
     { id: "staff", label: "섬기는 분 관리", icon: "fa-user-tie" },
     { id: "missionReports", label: "선교보고 관리", icon: "fa-globe-asia" },
+    { id: "supportRequests", label: "접수 관리", icon: "fa-inbox" },
     { id: "youtube", label: "예배영상 관리", icon: "fa-video" },
     { id: "staticPages", label: "페이지 콘텐츠", icon: "fa-file-alt" },
     { id: "popups", label: "팝업 관리", icon: "fa-bullhorn" },
@@ -354,6 +359,7 @@ export default function AdminPage() {
           {activeTab === "members" && <AdminMembersTab />}
           {activeTab === "staff" && <AdminStaffTab />}
           {activeTab === "missionReports" && <AdminMissionReportsTab />}
+          {activeTab === "supportRequests" && <AdminSupportRequestsTab />}
           {activeTab === "youtube" && <YoutubeAdminTab />}
           {activeTab === "staticPages" && <StaticPageContentTab />}
           {activeTab === "popups" && <AdminPopupsTab />}

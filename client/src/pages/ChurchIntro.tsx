@@ -35,6 +35,10 @@ function PageWrapper({ title, breadcrumb, children }: { title: string; breadcrum
   );
 }
 
+function alertPendingResource(label: string) {
+  window.alert(`${label} 자료는 현재 준비 중입니다. 자료가 필요하시면 교회 사무실(054-270-1000)로 문의해 주세요.`);
+}
+
 // ── 섬기는 분 ──
 const STAFF_CATEGORIES = [
   { value: "all", label: "전체" },
@@ -190,7 +194,7 @@ export function WhiteBookPage() {
                 <p className="text-gray-400 text-xs mt-1">총 {book.pages}페이지</p>
               </div>
             </div>
-            <button className="bg-[#2d6a4f] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#1b4332] transition-colors whitespace-nowrap">
+            <button type="button" onClick={() => alertPendingResource(book.title)} className="bg-[#2d6a4f] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#1b4332] transition-colors whitespace-nowrap">
               PDF 보기
             </button>
           </div>
@@ -289,7 +293,7 @@ export function CIPage() {
         <h2 className="text-2xl font-bold text-[#1b4332] mb-6 font-['Noto_Serif_KR']">CI 파일 다운로드</h2>
         <div className="grid md:grid-cols-3 gap-4">
           {["로고 AI 파일", "로고 PNG 파일", "CI 가이드라인 PDF"].map((file, i) => (
-            <button key={i} className="border-2 border-[#2d6a4f] text-[#2d6a4f] rounded-xl p-4 hover:bg-[#2d6a4f] hover:text-white transition-colors text-sm font-semibold">
+            <button key={i} type="button" onClick={() => alertPendingResource(file)} className="border-2 border-[#2d6a4f] text-[#2d6a4f] rounded-xl p-4 hover:bg-[#2d6a4f] hover:text-white transition-colors text-sm font-semibold">
               ⬇️ {file}
             </button>
           ))}

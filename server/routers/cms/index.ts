@@ -14,6 +14,7 @@
  *   - missionReports: 선교보고/작성권한 관리
  *   - staff: 섬기는 분/교역자 소개 관리
  *   - popups: 팝업/공지 배너 관리
+ *   - supportRequests: 기도 요청/새가족 접수 관리
  */
 
 import { router } from "../../_core/trpc";
@@ -27,6 +28,7 @@ import { blocksRouter } from "./blocks";
 import { missionReportsRouter } from "./missionReports";
 import { staffRouter } from "./staff";
 import { popupsRouter } from "./popups";
+import { supportRequestsRouter } from "./supportRequests";
 
 export const cmsRouter = router({
   notices: noticesRouter,
@@ -39,4 +41,5 @@ export const cmsRouter = router({
   missionReports: missionReportsRouter,
   staff: staffRouter,
   popups: popupsRouter,
+  supportRequests: supportRequestsRouter,
 });

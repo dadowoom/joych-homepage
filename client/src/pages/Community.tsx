@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 import { Link } from "wouter";
+import { trpc } from "@/lib/trpc";
 
 function PageHeader({ title, subtitle, breadcrumb }: { title: string; subtitle?: string; breadcrumb: string[] }) {
   return (
@@ -119,9 +120,23 @@ export function PrayerRequest() {
   const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState({ name: "", content: "", category: "개인기도" });
 
+  const submitPrayer = trpc.support.submitPrayer.useMutation({
+    onSuccess: () => setSubmitted(true),
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    submitPrayer.mutate({
+      name: form.name,
+      category: form.category as
+        | "개인기도"
+        | "가정기도"
+        | "건강기도"
+        | "사업기도"
+        | "자녀기도"
+        | "기타",
+      content: form.content,
+    });
   };
 
   return (
@@ -168,8 +183,11 @@ export function PrayerRequest() {
                   placeholder="기도 제목을 자유롭게 작성해 주세요" required rows={6}
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30 focus:border-[#1B5E20] resize-none" />
               </div>
-              <button type="submit" className="w-full bg-[#1B5E20] text-white py-3.5 rounded-xl font-medium hover:bg-[#2E7D32] transition-colors">
-                기도 요청 제출
+              {submitPrayer.error && (
+                <p className="text-sm text-red-500 text-center">{submitPrayer.error.message}</p>
+              )}
+              <button type="submit" disabled={submitPrayer.isPending} className="w-full bg-[#1B5E20] text-white py-3.5 rounded-xl font-medium hover:bg-[#2E7D32] transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                {submitPrayer.isPending ? "제출 중..." : "기도 요청 제출"}
               </button>
             </form>
           </div>
@@ -282,9 +300,20 @@ export function NewMemberGuide() {
   const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState({ name: "", phone: "", age: "", address: "", how: "" });
 
+  const submitNewMember = trpc.support.submitNewMember.useMutation({
+    onSuccess: () => setSubmitted(true),
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    const age = form.age.trim() ? Number(form.age) : null;
+    submitNewMember.mutate({
+      name: form.name,
+      phone: form.phone,
+      age: Number.isFinite(age) ? age : null,
+      address: form.address,
+      how: form.how,
+    });
   };
 
   return (
@@ -329,8 +358,11 @@ export function NewMemberGuide() {
                   {["지인 소개", "인터넷 검색", "SNS", "현수막/전단지", "기타"].map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
-              <button type="submit" className="w-full bg-[#1B5E20] text-white py-3.5 rounded-xl font-medium hover:bg-[#2E7D32] transition-colors">
-                등록 신청하기
+              {submitNewMember.error && (
+                <p className="text-sm text-red-500 text-center">{submitNewMember.error.message}</p>
+              )}
+              <button type="submit" disabled={submitNewMember.isPending} className="w-full bg-[#1B5E20] text-white py-3.5 rounded-xl font-medium hover:bg-[#2E7D32] transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                {submitNewMember.isPending ? "접수 중..." : "등록 신청하기"}
               </button>
             </form>
           </div>
