@@ -1,0 +1,98 @@
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: joych-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  JOYCH_APP_DIR: ${{ vars.JOYCH_APP_DIR || '/var/www/joych-homepage' }}
+  JOYCH_PM2_APP: ${{ vars.JOYCH_PM2_APP || 'joych-homepage' }}
+  JOYCH_HEALTHCHECK_URL: ${{ vars.JOYCH_HEALTHCHECK_URL || 'https://dadowoomtest.co.kr/api/public-config' }}
+  JOYCH_SSH_PORT: ${{ secrets.JOYCH_SSH_PORT || '22' }}
+
+jobs:
+  deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm check
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Create deploy artifact
+        run: |
+          ARTIFACT="joych-homepage-${GITHUB_SHA}.tar.gz"
+          tar -czf "${ARTIFACT}" dist package.json pnpm-lock.yaml patches
+          echo "ARTIFACT=${ARTIFACT}" >> "${GITHUB_ENV}"
+
+      - name: Prepare SSH
+        env:
+          SSH_HOST: ${{ secrets.JOYCH_SSH_HOST }}
+          SSH_USER: ${{ secrets.JOYCH_SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.JOYCH_SSH_PRIVATE_KEY }}
+        run: |
+          if [[ -z "${SSH_HOST}" || -z "${SSH_USER}" || -z "${SSH_PRIVATE_KEY}" ]]; then
+            echo "Missing required deployment secrets." >&2
+            echo "Required: JOYCH_SSH_HOST, JOYCH_SSH_USER, JOYCH_SSH_PRIVATE_KEY" >&2
+            exit 1
+          fi
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/joych_deploy_key
+          chmod 600 ~/.ssh/joych_deploy_key
+          ssh-keyscan -p "${JOYCH_SSH_PORT}" "${SSH_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Upload artifact
+        env:
+          SSH_HOST: ${{ secrets.JOYCH_SSH_HOST }}
+          SSH_USER: ${{ secrets.JOYCH_SSH_USER }}
+        run: |
+          scp -i ~/.ssh/joych_deploy_key \
+            -P "${JOYCH_SSH_PORT}" \
+            "${ARTIFACT}" \
+            "${SSH_USER}@${SSH_HOST}:/tmp/${ARTIFACT}"
+
+      - name: Run remote deploy
+        env:
+          SSH_HOST: ${{ secrets.JOYCH_SSH_HOST }}
+          SSH_USER: ${{ secrets.JOYCH_SSH_USER }}
+        run: |
+          ssh -i ~/.ssh/joych_deploy_key \
+            -p "${JOYCH_SSH_PORT}" \
+            "${SSH_USER}@${SSH_HOST}" \
+            "APP_DIR='${JOYCH_APP_DIR}' PM2_APP='${JOYCH_PM2_APP}' ARTIFACT='/tmp/${ARTIFACT}' HEALTHCHECK_URL='${JOYCH_HEALTHCHECK_URL}' bash -s" \
+            < scripts/deploy-production-remote.sh
