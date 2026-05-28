@@ -79,9 +79,9 @@ tar -xzf "${ARTIFACT}" -C "${APP_DIR}"
 
 echo "[deploy] install production dependencies"
 if command -v pnpm >/dev/null 2>&1; then
-  pnpm install --prod --frozen-lockfile
+  CI=true pnpm install --prod --frozen-lockfile
 else
-  npm install --omit=dev
+  CI=true npm install --omit=dev
 fi
 
 echo "[deploy] restart pm2 app"
