@@ -75,6 +75,7 @@ if [[ -f "${APP_DIR}/pnpm-lock.yaml" ]]; then
 fi
 
 echo "[deploy] extract artifact"
+rm -rf "${APP_DIR}/dist"
 tar -xzf "${ARTIFACT}" -C "${APP_DIR}"
 
 echo "[deploy] install production dependencies"
