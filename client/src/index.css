@@ -75,7 +75,7 @@
 
 @layer base {
   html {
-    scrollbar-gutter: stable;
+    overflow-x: clip;
   }
   * {
     @apply border-border outline-ring/50;
@@ -84,6 +84,7 @@
     @apply bg-background text-foreground;
     font-family: 'Noto Sans KR', sans-serif;
     word-break: keep-all;
+    overflow-x: clip;
   }
   h1, h2, h3 {
     font-family: 'Noto Serif KR', serif;
