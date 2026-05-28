@@ -8,6 +8,14 @@ set -Eeuo pipefail
 HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://127.0.0.1:3000/api/public-config}"
 BACKUP_DIR=""
 
+restart_pm2() {
+  if [[ -x /usr/local/bin/joych-pm2-restart ]]; then
+    sudo -n /usr/local/bin/joych-pm2-restart "${PM2_APP}"
+  else
+    pm2 restart "${PM2_APP}" --update-env
+  fi
+}
+
 rollback() {
   if [[ -z "${BACKUP_DIR}" || ! -d "${BACKUP_DIR}" ]]; then
     echo "[deploy] rollback skipped: backup directory was not created"
@@ -26,7 +34,7 @@ rollback() {
     cp "${BACKUP_DIR}/pnpm-lock.yaml" "${APP_DIR}/pnpm-lock.yaml"
   fi
 
-  pm2 restart "${PM2_APP}" --update-env || true
+  restart_pm2 || true
 }
 
 on_error() {
@@ -77,7 +85,7 @@ else
 fi
 
 echo "[deploy] restart pm2 app"
-pm2 restart "${PM2_APP}" --update-env
+restart_pm2
 sleep 4
 
 echo "[deploy] healthcheck: ${HEALTHCHECK_URL}"
