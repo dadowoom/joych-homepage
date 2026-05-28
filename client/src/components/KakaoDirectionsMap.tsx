@@ -18,10 +18,29 @@ type Coords = { lat: number; lng: number };
 type KakaoLatLng = unknown;
 type KakaoMapInstance = unknown;
 type KakaoGeocodeResult = { x: string; y: string; address_name?: string };
+type KakaoPlaceSearchResult = {
+  x: string;
+  y: string;
+  place_name?: string;
+  address_name?: string;
+  road_address_name?: string;
+};
 type KakaoGeocoder = {
   addressSearch: (
     query: string,
     callback: (result: KakaoGeocodeResult[], status: string) => void
+  ) => void;
+};
+type KakaoPlaces = {
+  keywordSearch: (
+    keyword: string,
+    callback: (result: KakaoPlaceSearchResult[], status: string) => void,
+    options?: {
+      location?: KakaoLatLng;
+      radius?: number;
+      sort?: string;
+      size?: number;
+    }
   ) => void;
 };
 type KakaoMaps = {
@@ -33,7 +52,9 @@ type KakaoMaps = {
   Marker: new (options: { position: KakaoLatLng; map: KakaoMapInstance }) => unknown;
   services: {
     Status: { OK: string };
+    SortBy: { ACCURACY: string; DISTANCE: string };
     Geocoder: new () => KakaoGeocoder;
+    Places: new (map?: KakaoMapInstance) => KakaoPlaces;
   };
   load: (callback: () => void) => void;
 };
@@ -131,6 +152,56 @@ function geocodeAddress(maps: KakaoMaps, geocoder: KakaoGeocoder, query: string)
   });
 }
 
+function searchPlaceKeyword(
+  maps: KakaoMaps,
+  places: KakaoPlaces,
+  query: string,
+  options?: Parameters<KakaoPlaces["keywordSearch"]>[2]
+) {
+  return new Promise<{ label: string; coords: Coords }>((resolve, reject) => {
+    places.keywordSearch(
+      query,
+      (result, status) => {
+        const first = result[0];
+        if (status !== maps.services.Status.OK || !first) {
+          reject(new Error("place-not-found"));
+          return;
+        }
+        resolve({
+          label: first.place_name?.trim() || query,
+          coords: { lat: Number(first.y), lng: Number(first.x) },
+        });
+      },
+      options
+    );
+  });
+}
+
+async function resolveOrigin(
+  maps: KakaoMaps,
+  geocoder: KakaoGeocoder,
+  places: KakaoPlaces,
+  query: string
+) {
+  try {
+    const coords = await geocodeAddress(maps, geocoder, query);
+    return { label: query, coords };
+  } catch {
+    // 주소가 아닌 건물명/기관명(예: 포항시청)은 장소 키워드 검색으로 처리한다.
+    const churchCenter = new maps.LatLng(DESTINATION.coords.lat, DESTINATION.coords.lng);
+    try {
+      return await searchPlaceKeyword(maps, places, query, {
+        location: churchCenter,
+        radius: 50000,
+        sort: maps.services.SortBy.DISTANCE,
+        size: 1,
+      });
+    } catch {
+      return searchPlaceKeyword(maps, places, query, { size: 1 });
+    }
+  }
+}
+
 function formatKakaoPoint(label: string, coords: Coords) {
   return `${encodeURIComponent(label)},${coords.lat},${coords.lng}`;
 }
@@ -162,6 +233,7 @@ export default function KakaoDirectionsMap() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapsRef = useRef<KakaoMaps | null>(null);
   const geocoderRef = useRef<KakaoGeocoder | null>(null);
+  const placesRef = useRef<KakaoPlaces | null>(null);
   const [origin, setOrigin] = useState("");
   const [mode, setMode] = useState<DirectionMode>("car");
   const [destinationCoords, setDestinationCoords] = useState<Coords | null>(null);
@@ -206,6 +278,7 @@ export default function KakaoDirectionsMap() {
         const center = new maps.LatLng(coords.lat, coords.lng);
         const map = new maps.Map(mapContainerRef.current, { center, level: 3 });
         new maps.Marker({ position: center, map });
+        placesRef.current = new maps.services.Places(map);
         setDestinationCoords(coords);
         setMapReady(true);
         setStatusMessage("출발지를 입력하거나 현재 위치로 길찾기를 시작하세요.");
@@ -243,7 +316,8 @@ export default function KakaoDirectionsMap() {
 
     const maps = mapsRef.current;
     const geocoder = geocoderRef.current;
-    if (!maps || !geocoder) {
+    const places = placesRef.current;
+    if (!maps || !geocoder || !places) {
       setStatusMessage(
         "출발지 주소 검색은 카카오 지도 표시가 준비된 뒤 사용할 수 있습니다. 현재 위치 길찾기나 카카오맵에서 보기를 이용해 주세요."
       );
@@ -252,8 +326,8 @@ export default function KakaoDirectionsMap() {
 
     try {
       setStatusMessage("출발지를 확인하고 있습니다.");
-      const coords = await geocodeAddress(maps, geocoder, query);
-      openDirectionsFromCoords(query, coords);
+      const resolved = await resolveOrigin(maps, geocoder, places, query);
+      openDirectionsFromCoords(resolved.label, resolved.coords);
       setStatusMessage("카카오맵 길찾기를 새 창으로 열었습니다.");
     } catch {
       setStatusMessage("출발지를 찾지 못했습니다. 도로명 주소나 장소명을 조금 더 정확히 입력해 주세요.");
