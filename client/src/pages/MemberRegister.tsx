@@ -45,7 +45,7 @@ export default function MemberRegister() {
     onSuccess: async () => {
       toast.success("회원가입 신청이 접수되었습니다. 관리자 승인 후 로그인하실 수 있습니다.");
       await utils.members.me.invalidate();
-      navigate("/member/login");
+      navigate("/member/login?social=pending");
     },
     onError: (e) => {
       if (e.message.includes("이미 사용 중인")) {
