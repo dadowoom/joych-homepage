@@ -1112,10 +1112,6 @@ export default function Home() {
                 rights reserved.
               </p>
               <div className="mt-4 space-y-1 text-sm leading-relaxed text-gray-300">
-                <p className="font-medium text-gray-100">
-                  본 사이트는 기쁨의교회 안내를 위해 주식회사 다도움컴퍼니가
-                  운영합니다.
-                </p>
                 <p>사이트 운영주체: 주식회사 다도움컴퍼니</p>
                 <p>대표: 최종민</p>
                 <p>사업자등록번호: 530-86-02411</p>
