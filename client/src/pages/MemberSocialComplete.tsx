@@ -9,6 +9,8 @@ type SignupContext = {
   displayName: string | null;
 };
 
+const EMAIL_MAX_LENGTH = 128;
+
 export default function MemberSocialComplete() {
   const [, navigate] = useLocation();
   const [context, setContext] = useState<SignupContext | null>(null);
@@ -25,7 +27,7 @@ export default function MemberSocialComplete() {
 
   useEffect(() => {
     let active = true;
-    fetch("/api/member-oauth/signup-context")
+    fetch("/api/member-oauth/signup-context", { credentials: "same-origin" })
       .then(async (response) => {
         if (!response.ok) throw new Error("expired");
         return response.json() as Promise<SignupContext>;
@@ -68,6 +70,8 @@ export default function MemberSocialComplete() {
     }
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
       nextErrors.email = "올바른 이메일 형식이 아닙니다.";
+    } else if (form.email.trim().length > EMAIL_MAX_LENGTH) {
+      nextErrors.email = "이메일은 128자 이하로 입력해주세요.";
     }
     if (!form.agreePrivacy) {
       nextErrors.agreePrivacy = "개인정보 수집 및 이용에 동의해주세요.";
@@ -82,6 +86,7 @@ export default function MemberSocialComplete() {
     try {
       const response = await fetch("/api/member-oauth/complete-signup", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: form.name,
@@ -149,6 +154,8 @@ export default function MemberSocialComplete() {
             </label>
             <input
               type="text"
+              autoComplete="name"
+              maxLength={64}
               value={form.name}
               onChange={(e) => update("name", e.target.value)}
               placeholder="실명을 입력해주세요"
@@ -163,6 +170,9 @@ export default function MemberSocialComplete() {
             </label>
             <input
               type="tel"
+              autoComplete="tel"
+              inputMode="tel"
+              maxLength={32}
               value={form.phone}
               onChange={(e) => update("phone", e.target.value)}
               placeholder="010-0000-0000"
@@ -177,6 +187,7 @@ export default function MemberSocialComplete() {
             </label>
             <input
               type="date"
+              autoComplete="bday"
               value={form.birthDate}
               onChange={(e) => update("birthDate", e.target.value)}
               className={inputClass("birthDate")}
@@ -188,6 +199,8 @@ export default function MemberSocialComplete() {
             <label className="block text-sm font-medium text-gray-700 mb-1">이메일</label>
             <input
               type="email"
+              autoComplete="email"
+              maxLength={EMAIL_MAX_LENGTH}
               value={form.email}
               onChange={(e) => update("email", e.target.value)}
               placeholder="example@email.com"

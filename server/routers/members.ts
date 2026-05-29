@@ -31,6 +31,13 @@ import { checkRateLimit, recordFailure, resetFailures, getClientIp, checkSearchR
 import { getSessionCookieOptions } from "../_core/cookies";
 import { getJwtSecretKey } from "../_core/jwtSecret";
 import {
+  memberEmailSchema,
+  memberRegisterInputSchema,
+  optionalDate,
+  optionalText,
+  requiredText,
+} from "../_core/memberValidation";
+import {
   getMemberFieldOptions,
   getAllMemberFieldOptions,
   createMemberFieldOption,
@@ -48,23 +55,8 @@ import {
   searchMembersByName,
 } from "../db";
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const idSchema = z.number().int().positive();
 const fieldTypeSchema = z.enum(["position", "department", "district", "baptism"]);
-
-const requiredText = (max: number, message: string) =>
-  z.string().trim().min(1, message).max(max, `${max}자 이하로 입력해주세요.`);
-
-const optionalText = (max: number) =>
-  z.string().trim().max(max, `${max}자 이하로 입력해주세요.`).optional();
-
-const optionalDate = z.string().regex(DATE_RE, "날짜 형식은 YYYY-MM-DD여야 합니다.").optional();
-
-const emailSchema = z.string()
-  .trim()
-  .email("올바른 이메일 형식을 입력해주세요.")
-  .max(254, "이메일은 254자 이하로 입력해주세요.")
-  .transform(email => email.toLowerCase());
 
 function sanitizeMemberForSelf<T extends Record<string, unknown>>(member: T) {
   const { passwordHash: _passwordHash, adminMemo: _adminMemo, ...safeData } = member;
@@ -125,20 +117,7 @@ export const membersRouter = router({
    * - 이메일 중복 시 CONFLICT 에러 반환
    */
   register: publicProcedure
-    .input(z.object({
-      email: emailSchema,
-      password: z.string().min(8, "비밀번호는 8자 이상이어야 합니다.").max(128, "비밀번호는 128자 이하로 입력해주세요."),
-      name: requiredText(64, "이름을 입력해주세요."),
-      phone: optionalText(32),
-      birthDate: optionalDate,
-      gender: z.enum(["남", "여"]).optional(),
-      address: optionalText(255),
-      emergencyPhone: optionalText(32),
-      joinPath: optionalText(64),
-      department: optionalText(64),
-      district: optionalText(64),
-      faithPlusUserId: optionalText(128),
-    }))
+    .input(memberRegisterInputSchema)
     .mutation(async ({ input, ctx }) => {
       const clientIp = getClientIp(ctx.req);
       try {
@@ -187,7 +166,7 @@ export const membersRouter = router({
    */
     login: publicProcedure
     .input(z.object({
-      email: emailSchema,
+      email: memberEmailSchema,
       password: z.string().min(1, "비밀번호를 입력해주세요.").max(128, "비밀번호는 128자 이하로 입력해주세요."),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -391,7 +370,7 @@ export const membersRouter = router({
       gender: z.enum(["남", "여"]).optional(),
       address: optionalText(255),
       emergencyPhone: optionalText(32),
-      email: emailSchema.optional(),
+      email: memberEmailSchema.optional(),
       position: optionalText(64),
       department: optionalText(64),
       district: optionalText(64),

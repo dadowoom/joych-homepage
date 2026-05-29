@@ -11,6 +11,10 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import MemberSocialAuthButtons from "@/components/MemberSocialAuthButtons";
 
+const PASSWORD_HAS_LETTER = /[A-Za-z]/;
+const PASSWORD_HAS_NUMBER = /\d/;
+const EMAIL_MAX_LENGTH = 128;
+
 export default function MemberRegister() {
   const [, navigate] = useLocation();
   const [step, setStep] = useState<1 | 2>(1); // 1: 기본정보, 2: 교회정보
@@ -66,8 +70,12 @@ export default function MemberRegister() {
     if (!form.name.trim()) newErrors.name = "이름을 입력해주세요.";
     if (!form.email.trim()) newErrors.email = "이메일을 입력해주세요.";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) newErrors.email = "올바른 이메일 형식이 아닙니다.";
+    else if (form.email.trim().length > EMAIL_MAX_LENGTH) newErrors.email = "이메일은 128자 이하로 입력해주세요.";
     if (!form.password) newErrors.password = "비밀번호를 입력해주세요.";
     else if (form.password.length < 8) newErrors.password = "비밀번호는 8자 이상이어야 합니다.";
+    else if (!PASSWORD_HAS_LETTER.test(form.password) || !PASSWORD_HAS_NUMBER.test(form.password)) {
+      newErrors.password = "비밀번호는 영문과 숫자를 모두 포함해야 합니다.";
+    }
     if (form.password !== form.passwordConfirm) newErrors.passwordConfirm = "비밀번호가 일치하지 않습니다.";
     if (!form.phone.trim()) newErrors.phone = "연락처를 입력해주세요.";
     setErrors(newErrors);
@@ -87,7 +95,7 @@ export default function MemberRegister() {
       name: form.name,
       email: form.email,
       password: form.password,
-      phone: form.phone || undefined,
+      phone: form.phone,
       birthDate: form.birthDate || undefined,
       gender: (form.gender as "남" | "여") || undefined,
       address: form.address || undefined,
@@ -160,6 +168,8 @@ export default function MemberRegister() {
                 </label>
                 <input
                   type="text"
+                  autoComplete="name"
+                  maxLength={64}
                   value={form.name}
                   onChange={(e) => update("name", e.target.value)}
                   placeholder="실명을 입력해주세요"
@@ -177,6 +187,8 @@ export default function MemberRegister() {
                 </label>
                 <input
                   type="email"
+                  autoComplete="email"
+                  maxLength={EMAIL_MAX_LENGTH}
                   value={form.email}
                   onChange={(e) => update("email", e.target.value)}
                   placeholder="example@email.com"
@@ -194,9 +206,11 @@ export default function MemberRegister() {
                 </label>
                 <input
                   type="password"
+                  autoComplete="new-password"
+                  maxLength={128}
                   value={form.password}
                   onChange={(e) => update("password", e.target.value)}
-                  placeholder="8자 이상 입력해주세요"
+                  placeholder="8자 이상, 영문과 숫자 포함"
                   className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30 ${
                     errors.password ? "border-red-400" : "border-gray-300"
                   }`}
@@ -211,6 +225,8 @@ export default function MemberRegister() {
                 </label>
                 <input
                   type="password"
+                  autoComplete="new-password"
+                  maxLength={128}
                   value={form.passwordConfirm}
                   onChange={(e) => update("passwordConfirm", e.target.value)}
                   placeholder="비밀번호를 한 번 더 입력해주세요"
@@ -228,6 +244,9 @@ export default function MemberRegister() {
                 </label>
                 <input
                   type="tel"
+                  autoComplete="tel"
+                  inputMode="tel"
+                  maxLength={32}
                   value={form.phone}
                   onChange={(e) => update("phone", e.target.value)}
                   placeholder="010-0000-0000"
@@ -244,6 +263,7 @@ export default function MemberRegister() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">생년월일</label>
                   <input
                     type="date"
+                    autoComplete="bday"
                     value={form.birthDate}
                     onChange={(e) => update("birthDate", e.target.value)}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
@@ -331,6 +351,7 @@ export default function MemberRegister() {
                 </label>
                 <input
                   type="text"
+                  maxLength={128}
                   value={form.faithPlusUserId}
                   onChange={(e) => update("faithPlusUserId", e.target.value)}
                   placeholder="믿음PLUS 앱에서 확인한 유저 ID를 입력하세요"
