@@ -120,7 +120,7 @@ const FALLBACK_AFFILIATES = [
   {
     icon: "fa-heart",
     label: "기쁨이 있는 곳",
-    href: "https://gippeum-arc-oawnrvau.manus.space/",
+    href: "http://115.68.224.123:3070",
   },
 ];
 

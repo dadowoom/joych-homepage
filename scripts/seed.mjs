@@ -112,7 +112,7 @@ await db.execute(`
   ('fa-building',      '창포종합사회복지관',      '#',                                         2, 1),
   ('fa-tree',          '조이플빌리지',            '#',                                         3, 1),
   ('fa-graduation-cap','조이아카데미 문화강좌',   '#',                                         4, 1),
-  ('fa-heart',         '기쁨이 있는 곳',          'https://gippeum-arc-oawnrvau.manus.space/', 5, 1)
+  ('fa-heart',         '기쁨이 있는 곳',          'http://115.68.224.123:3070',               5, 1)
 `);
 console.log("✅ affiliates 입력 완료");
 
