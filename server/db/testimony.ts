@@ -3,7 +3,7 @@
  * 승인된 성도는 자유롭게 간증과 댓글을 남기고, 관리자는 숨김/삭제 처리합니다.
  */
 
-import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import type { ResultSetHeader } from "mysql2";
 import {
   churchMembers,
@@ -38,99 +38,199 @@ export type TestimonyPostDetail = TestimonyPostListRow & {
   comments: TestimonyCommentRow[];
 };
 
-async function getPublishedCommentCount(postId: number) {
-  const db = await getDb();
-  if (!db) return 0;
-  const rows = await db.select({ id: testimonyComments.id })
-    .from(testimonyComments)
-    .where(and(
-      eq(testimonyComments.postId, postId),
-      eq(testimonyComments.status, "published"),
-    ));
-  return rows.length;
+const testimonyPostListSelect = {
+  id: testimonyPosts.id,
+  authorMemberId: testimonyPosts.authorMemberId,
+  title: testimonyPosts.title,
+  content: testimonyPosts.content,
+  thumbnailUrl: testimonyPosts.thumbnailUrl,
+  status: testimonyPosts.status,
+  createdAt: testimonyPosts.createdAt,
+};
+
+const testimonyPostFullSelect = {
+  ...testimonyPostListSelect,
+  viewCount: testimonyPosts.viewCount,
+  isPinned: testimonyPosts.isPinned,
+  updatedAt: testimonyPosts.updatedAt,
+};
+
+type TestimonyPostBaseRow = {
+  id: number;
+  authorMemberId: number;
+  title: string;
+  content: string;
+  thumbnailUrl: string | null;
+  status: TestimonyPostStatus;
+  createdAt: Date;
+  viewCount?: number;
+  isPinned?: boolean;
+  updatedAt?: Date;
+};
+
+function normalizeTestimonyPost(row: TestimonyPostBaseRow): TestimonyPost {
+  return {
+    ...row,
+    viewCount: row.viewCount ?? 0,
+    isPinned: row.isPinned ?? false,
+    updatedAt: row.updatedAt ?? row.createdAt,
+  };
+}
+
+function warnOptionalPostFieldsFallback(error: unknown) {
+  console.warn(
+    "[Testimony] Falling back to minimal post columns:",
+    error instanceof Error ? error.message : String(error),
+  );
 }
 
 async function hydratePosts(rows: TestimonyPost[]): Promise<TestimonyPostListRow[]> {
   const db = await getDb();
   if (!db || rows.length === 0) return [];
 
-  const result: TestimonyPostListRow[] = [];
-  for (const post of rows) {
-    const [author] = await db.select({
+  const postIds = rows.map(post => post.id);
+  const authorIds = Array.from(new Set(rows.map(post => post.authorMemberId)));
+
+  const [authors, images, comments] = await Promise.all([
+    db.select({
+      id: churchMembers.id,
       name: churchMembers.name,
       position: churchMembers.position,
       department: churchMembers.department,
     })
       .from(churchMembers)
-      .where(eq(churchMembers.id, post.authorMemberId))
-      .limit(1);
-
-    const images = await db.select()
+      .where(inArray(churchMembers.id, authorIds)),
+    db.select()
       .from(testimonyPostImages)
-      .where(eq(testimonyPostImages.postId, post.id))
-      .orderBy(asc(testimonyPostImages.sortOrder), asc(testimonyPostImages.id));
+      .where(inArray(testimonyPostImages.postId, postIds))
+      .orderBy(asc(testimonyPostImages.sortOrder), asc(testimonyPostImages.id)),
+    db.select({ postId: testimonyComments.postId })
+      .from(testimonyComments)
+      .where(and(
+        inArray(testimonyComments.postId, postIds),
+        eq(testimonyComments.status, "published"),
+      )),
+  ]);
 
-    result.push({
+  const authorsById = new Map(authors.map(author => [author.id, author]));
+  const imagesByPostId = new Map<number, string[]>();
+  for (const image of images) {
+    const list = imagesByPostId.get(image.postId) ?? [];
+    list.push(image.imageUrl);
+    imagesByPostId.set(image.postId, list);
+  }
+
+  const commentCountsByPostId = new Map<number, number>();
+  for (const comment of comments) {
+    commentCountsByPostId.set(
+      comment.postId,
+      (commentCountsByPostId.get(comment.postId) ?? 0) + 1,
+    );
+  }
+
+  return rows.map(post => {
+    const author = authorsById.get(post.authorMemberId);
+    return {
       ...post,
       authorName: author?.name ?? null,
       authorPosition: author?.position ?? null,
       authorDepartment: author?.department ?? null,
-      images: images.map(image => image.imageUrl),
-      commentCount: await getPublishedCommentCount(post.id),
-    });
-  }
-  return result;
+      images: imagesByPostId.get(post.id) ?? [],
+      commentCount: commentCountsByPostId.get(post.id) ?? 0,
+    };
+  });
 }
 
 export async function getPublishedTestimonyPosts(limit = 100) {
   const db = await getDb();
   if (!db) return [];
-  const rows = await db.select()
-    .from(testimonyPosts)
-    .where(eq(testimonyPosts.status, "published"))
-    .orderBy(desc(testimonyPosts.isPinned), desc(testimonyPosts.createdAt), desc(testimonyPosts.id))
-    .limit(limit);
-  return hydratePosts(rows);
+  let rows: TestimonyPostBaseRow[];
+  try {
+    rows = await db.select(testimonyPostFullSelect)
+      .from(testimonyPosts)
+      .where(eq(testimonyPosts.status, "published"))
+      .orderBy(desc(testimonyPosts.isPinned), desc(testimonyPosts.createdAt), desc(testimonyPosts.id))
+      .limit(limit);
+  } catch (error) {
+    warnOptionalPostFieldsFallback(error);
+    rows = await db.select(testimonyPostListSelect)
+      .from(testimonyPosts)
+      .where(eq(testimonyPosts.status, "published"))
+      .orderBy(desc(testimonyPosts.createdAt), desc(testimonyPosts.id))
+      .limit(limit);
+  }
+  return hydratePosts(rows.map(normalizeTestimonyPost));
 }
 
 export async function getAllTestimonyPosts() {
   const db = await getDb();
   if (!db) return [];
-  const rows = await db.select()
-    .from(testimonyPosts)
-    .where(ne(testimonyPosts.status, "deleted"))
-    .orderBy(desc(testimonyPosts.createdAt), desc(testimonyPosts.id));
-  return hydratePosts(rows);
+  let rows: TestimonyPostBaseRow[];
+  try {
+    rows = await db.select(testimonyPostFullSelect)
+      .from(testimonyPosts)
+      .where(ne(testimonyPosts.status, "deleted"))
+      .orderBy(desc(testimonyPosts.isPinned), desc(testimonyPosts.createdAt), desc(testimonyPosts.id));
+  } catch (error) {
+    warnOptionalPostFieldsFallback(error);
+    rows = await db.select(testimonyPostListSelect)
+      .from(testimonyPosts)
+      .where(ne(testimonyPosts.status, "deleted"))
+      .orderBy(desc(testimonyPosts.createdAt), desc(testimonyPosts.id));
+  }
+  return hydratePosts(rows.map(normalizeTestimonyPost));
 }
 
 export async function getTestimonyPostsByAuthor(memberId: number) {
   const db = await getDb();
   if (!db) return [];
-  const rows = await db.select()
-    .from(testimonyPosts)
-    .where(and(
-      eq(testimonyPosts.authorMemberId, memberId),
-      ne(testimonyPosts.status, "deleted"),
-    ))
-    .orderBy(desc(testimonyPosts.createdAt), desc(testimonyPosts.id));
-  return hydratePosts(rows);
+  let rows: TestimonyPostBaseRow[];
+  try {
+    rows = await db.select(testimonyPostFullSelect)
+      .from(testimonyPosts)
+      .where(and(
+        eq(testimonyPosts.authorMemberId, memberId),
+        ne(testimonyPosts.status, "deleted"),
+      ))
+      .orderBy(desc(testimonyPosts.isPinned), desc(testimonyPosts.createdAt), desc(testimonyPosts.id));
+  } catch (error) {
+    warnOptionalPostFieldsFallback(error);
+    rows = await db.select(testimonyPostListSelect)
+      .from(testimonyPosts)
+      .where(and(
+        eq(testimonyPosts.authorMemberId, memberId),
+        ne(testimonyPosts.status, "deleted"),
+      ))
+      .orderBy(desc(testimonyPosts.createdAt), desc(testimonyPosts.id));
+  }
+  return hydratePosts(rows.map(normalizeTestimonyPost));
 }
 
 export async function getTestimonyPostById(id: number) {
   const db = await getDb();
   if (!db) return null;
-  const [post] = await db.select().from(testimonyPosts).where(eq(testimonyPosts.id, id)).limit(1);
+  let post: TestimonyPostBaseRow | undefined;
+  try {
+    [post] = await db.select(testimonyPostFullSelect).from(testimonyPosts).where(eq(testimonyPosts.id, id)).limit(1);
+  } catch (error) {
+    warnOptionalPostFieldsFallback(error);
+    [post] = await db.select(testimonyPostListSelect).from(testimonyPosts).where(eq(testimonyPosts.id, id)).limit(1);
+  }
   if (!post) return null;
-  const [hydrated] = await hydratePosts([post]);
+  const [hydrated] = await hydratePosts([normalizeTestimonyPost(post)]);
   return hydrated ?? null;
 }
 
 export async function getPublishedTestimonyPostById(id: number) {
   const db = await getDb();
   if (!db) return null;
-  await db.update(testimonyPosts)
-    .set({ viewCount: sql`${testimonyPosts.viewCount} + 1` })
-    .where(and(eq(testimonyPosts.id, id), eq(testimonyPosts.status, "published")));
+  try {
+    await db.update(testimonyPosts)
+      .set({ viewCount: sql`${testimonyPosts.viewCount} + 1` })
+      .where(and(eq(testimonyPosts.id, id), eq(testimonyPosts.status, "published")));
+  } catch (error) {
+    console.warn("[Testimony] Failed to update view count:", error instanceof Error ? error.message : String(error));
+  }
 
   const post = await getTestimonyPostById(id);
   if (!post || post.status !== "published") return null;
@@ -162,37 +262,42 @@ export async function getAllTestimonyComments() {
     .orderBy(desc(testimonyComments.createdAt), desc(testimonyComments.id));
   const hydrated = await hydrateComments(rows);
 
-  const result = [];
-  for (const comment of hydrated) {
-    const [post] = await db.select({ title: testimonyPosts.title })
+  const postIds = Array.from(new Set(hydrated.map(comment => comment.postId)));
+  const posts = postIds.length > 0
+    ? await db.select({ id: testimonyPosts.id, title: testimonyPosts.title })
       .from(testimonyPosts)
-      .where(eq(testimonyPosts.id, comment.postId))
-      .limit(1);
-    result.push({ ...comment, postTitle: post?.title ?? null });
-  }
-  return result;
+      .where(inArray(testimonyPosts.id, postIds))
+    : [];
+  const postsById = new Map(posts.map(post => [post.id, post]));
+
+  return hydrated.map(comment => ({
+    ...comment,
+    postTitle: postsById.get(comment.postId)?.title ?? null,
+  }));
 }
 
 async function hydrateComments(rows: TestimonyComment[]): Promise<TestimonyCommentRow[]> {
   const db = await getDb();
   if (!db || rows.length === 0) return [];
 
-  const result: TestimonyCommentRow[] = [];
-  for (const comment of rows) {
-    const [author] = await db.select({
+  const authorIds = Array.from(new Set(rows.map(comment => comment.authorMemberId)));
+  const authors = await db.select({
+    id: churchMembers.id,
       name: churchMembers.name,
       position: churchMembers.position,
     })
       .from(churchMembers)
-      .where(eq(churchMembers.id, comment.authorMemberId))
-      .limit(1);
-    result.push({
+    .where(inArray(churchMembers.id, authorIds));
+  const authorsById = new Map(authors.map(author => [author.id, author]));
+
+  return rows.map(comment => {
+    const author = authorsById.get(comment.authorMemberId);
+    return {
       ...comment,
       authorName: author?.name ?? null,
       authorPosition: author?.position ?? null,
-    });
-  }
-  return result;
+    };
+  });
 }
 
 export async function createTestimonyPostWithImages(

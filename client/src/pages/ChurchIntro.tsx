@@ -99,23 +99,25 @@ export function StaffPage() {
       parentLabel="교회소개"
       sideMenuItems={sideMenuItems}
     >
-      <p className="text-gray-600 mb-6 text-lg">{profileIntro}</p>
+      <p className="sr-only">{profileIntro}</p>
 
-      <div className="flex flex-wrap gap-2 mb-10">
+      <div className="mb-12 border-y border-gray-200">
+        <div className="flex flex-wrap gap-x-8 gap-y-0">
         {STAFF_CATEGORIES.map((category) => (
           <button
             key={category.value}
             type="button"
             onClick={() => setActiveCategory(category.value)}
-            className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+            className={`border-b-2 px-0 py-4 text-sm transition-colors ${
               activeCategory === category.value
-                ? "bg-[#1b4332] text-white border-[#1b4332]"
-                : "bg-white text-gray-600 border-gray-200 hover:border-[#2d6a4f] hover:text-[#1b4332]"
+                ? "border-gray-900 text-gray-900 font-semibold"
+                : "border-transparent text-gray-400 hover:text-gray-700"
             }`}
           >
             {category.label}
           </button>
         ))}
+        </div>
       </div>
 
       {isLoading ? (
@@ -126,36 +128,44 @@ export function StaffPage() {
           <p className="text-gray-500">등록된 섬기는 분 정보가 없습니다.</p>
         </div>
       ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid gap-x-8 gap-y-16 pt-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {staffList.map((staff) => {
             const profileLines = (staff.profile ?? "").split("\n").map(line => line.trim()).filter(Boolean);
+            const roleParts = [staff.title, staff.department || getStaffCategoryLabel(staff.category)]
+              .map((value) => value?.trim())
+              .filter((value, index, array): value is string => Boolean(value) && array.indexOf(value) === index);
+            const detailLines = [staff.description?.trim(), ...profileLines]
+              .filter((value): value is string => Boolean(value))
+              .slice(0, 3);
             return (
-              <div key={staff.id} className="text-center group border border-gray-100 rounded-2xl px-5 py-8 hover:shadow-md transition-shadow">
-                <div className="relative w-40 h-40 mx-auto mb-4 rounded-full overflow-hidden border-4 border-[#d8f3dc] group-hover:border-[#2d6a4f] transition-colors bg-gray-50 flex items-center justify-center">
+              <article
+                key={staff.id}
+                className="group relative flex min-h-64 flex-col items-center border border-gray-200 bg-white px-4 pb-7 pt-24 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-md"
+              >
+                <div className="absolute -top-9 left-1/2 flex h-40 w-32 -translate-x-1/2 items-center justify-center overflow-hidden bg-gray-50 ring-1 ring-gray-100 transition-transform group-hover:-translate-y-1">
                   {staff.imageUrl ? (
-                    <img src={staff.imageUrl} alt={staff.name} className="w-full h-full object-cover" />
+                    <img
+                      src={staff.imageUrl}
+                      alt={staff.name}
+                      loading="lazy"
+                      className="h-full w-full object-cover object-top"
+                    />
                   ) : (
-                    <UserRound className="w-16 h-16 text-gray-300" />
+                    <UserRound className="h-14 w-14 text-gray-300" />
                   )}
                 </div>
-                <div className="inline-block bg-[#d8f3dc] text-[#1b4332] text-xs font-semibold px-3 py-1 rounded-full mb-2">
-                  {staff.title}
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-1 font-['Noto_Serif_KR']">{staff.name}</h3>
-                <p className="text-[#2d6a4f] text-sm font-medium mb-2">
-                  {staff.department || getStaffCategoryLabel(staff.category)}
+                <h3 className="text-base font-bold text-gray-900">{staff.name}</h3>
+                <p className="mt-3 text-sm leading-6 text-gray-600">
+                  {roleParts.join(" / ")}
                 </p>
-                {staff.description && (
-                  <p className="text-gray-600 text-sm leading-relaxed">{staff.description}</p>
-                )}
-                {profileLines.length > 0 && (
-                  <ul className="mt-4 pt-4 border-t border-gray-100 text-left text-sm text-gray-600 space-y-1">
-                    {profileLines.map((line, index) => (
-                      <li key={`${staff.id}-${index}`} className="leading-relaxed">· {line}</li>
+                {detailLines.length > 0 && (
+                  <ul className="mt-5 w-full border-t border-gray-100 pt-4 text-left text-xs leading-6 text-gray-500">
+                    {detailLines.map((line, index) => (
+                      <li key={`${staff.id}-${index}`}>· {line}</li>
                     ))}
                   </ul>
                 )}
-              </div>
+              </article>
             );
           })}
         </div>

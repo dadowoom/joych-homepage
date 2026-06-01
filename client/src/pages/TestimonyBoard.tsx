@@ -59,8 +59,19 @@ function PageHero({ count }: { count?: number }) {
 }
 
 export default function TestimonyList() {
-  const { data: posts = [], isLoading } = trpc.testimony.posts.useQuery();
+  const {
+    data: posts,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = trpc.testimony.posts.useQuery(undefined, {
+    retry: false,
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
   const { data: me } = trpc.members.me.useQuery(undefined, { retry: false });
+  const visiblePosts = posts ?? [];
 
   return (
     <div className="min-h-screen bg-[#F7F7F5]">
@@ -83,12 +94,18 @@ export default function TestimonyList() {
         </div>
       </header>
 
-      <PageHero count={posts.length} />
+      <PageHero count={posts?.length} />
 
       <section className="max-w-6xl mx-auto px-4 py-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <p className="text-sm text-gray-500">
-            총 <span className="font-semibold text-[#1B5E20]">{posts.length}</span>개의 간증
+            {isLoading ? (
+              "간증을 불러오는 중입니다."
+            ) : (
+              <>
+                총 <span className="font-semibold text-[#1B5E20]">{visiblePosts.length}</span>개의 간증
+              </>
+            )}
           </p>
           <p className="text-xs text-gray-400">승인된 성도만 글쓰기와 댓글 작성이 가능합니다.</p>
         </div>
@@ -100,14 +117,27 @@ export default function TestimonyList() {
             <i className="fas fa-spinner fa-spin text-4xl mb-4 block"></i>
             <p>간증을 불러오는 중입니다.</p>
           </div>
-        ) : posts.length === 0 ? (
+        ) : isError ? (
+          <div className="bg-white rounded-2xl p-12 text-center text-gray-500 border border-gray-100">
+            <i className="fas fa-circle-exclamation text-4xl mb-4 block text-red-300"></i>
+            <p className="font-medium text-gray-700">간증을 불러오지 못했습니다.</p>
+            <p className="mt-2 text-sm text-gray-400">{error?.message ?? "잠시 후 다시 시도해 주세요."}</p>
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              className="mt-5 px-5 py-2.5 rounded-full bg-[#1B5E20] text-white text-sm font-medium hover:bg-[#2E7D32] transition-colors"
+            >
+              다시 불러오기
+            </button>
+          </div>
+        ) : visiblePosts.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center text-gray-400 border border-gray-100">
             <i className="fas fa-seedling text-4xl mb-4 block text-[#1B5E20]/40"></i>
             <p>아직 등록된 간증이 없습니다.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {posts.map((post) => (
+            {visiblePosts.map((post) => (
               <Link key={post.id} href={`/community/testimony/${post.id}`}>
                 <article className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer group h-full flex flex-col">
                   <div className="relative h-52 overflow-hidden bg-[#E8F5E9]">

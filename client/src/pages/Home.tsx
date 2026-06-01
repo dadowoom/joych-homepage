@@ -245,6 +245,8 @@ export default function Home() {
   const currentHeroSlide = heroSlides[heroIndex] ?? heroSlides[0] ?? null;
   const currentHeroVideoUrl = currentHeroSlide?.videoUrl?.trim() ?? "";
   const currentHeroPosterUrl = currentHeroSlide?.posterUrl?.trim() ?? "";
+  const visibleHeroPosterUrl =
+    currentHeroPosterUrl || FALLBACK_HERO_SLIDES[0]?.posterUrl || "";
   const currentHeroKey = currentHeroSlide
     ? `${"id" in currentHeroSlide ? currentHeroSlide.id : "fallback"}-${heroIndex}-${currentHeroVideoUrl}`
     : "hero-loading";
@@ -311,7 +313,7 @@ export default function Home() {
     if (currentHeroVideoUrl) {
       video.play().catch(() => {});
     }
-  }, [currentHeroVideoUrl, currentHeroPosterUrl]);
+  }, [currentHeroVideoUrl, visibleHeroPosterUrl]);
 
   useEffect(() => {
     if (heroSlides.length === 0 || heroIndex < heroSlides.length) return;
@@ -445,17 +447,29 @@ export default function Home() {
       {/* ===== 히어로 섹션 ===== */}
       <section className="relative h-screen min-h-[600px] flex items-center overflow-hidden">
         {/* 배경 영상 슬라이드 */}
-        <video
-          ref={videoRef}
-          key={currentHeroKey}
-          className="absolute inset-0 w-full h-full object-cover"
-          src={currentHeroVideoUrl}
-          autoPlay
-          muted
-          playsInline
-          poster={currentHeroPosterUrl}
-          onEnded={handleVideoEnded}
-        />
+        {visibleHeroPosterUrl && (
+          <img
+            src={visibleHeroPosterUrl}
+            alt=""
+            aria-hidden="true"
+            fetchPriority="high"
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        )}
+        {currentHeroVideoUrl && (
+          <video
+            ref={videoRef}
+            key={currentHeroKey}
+            className="absolute inset-0 w-full h-full object-cover"
+            src={currentHeroVideoUrl}
+            autoPlay
+            muted
+            playsInline
+            preload="metadata"
+            poster={visibleHeroPosterUrl}
+            onEnded={handleVideoEnded}
+          />
+        )}
         {/* 영상 위 오버레이 — 글씨 가독성 확보 */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-black/10" />
 
@@ -771,6 +785,7 @@ export default function Home() {
                       className="w-full h-full"
                       src="https://www.youtube.com/embed/WmFzWf5uEzI?rel=0"
                       title="조이풀TV 최신 설교 영상"
+                      loading="lazy"
                       frameBorder="0"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                       allowFullScreen
@@ -1010,6 +1025,7 @@ export default function Home() {
                   <img
                     src={item.imageUrl}
                     alt={item.caption ?? ""}
+                    loading="lazy"
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                   {/* 호버 오버레이 */}
@@ -1090,6 +1106,7 @@ export default function Home() {
               <img
                 src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-logo_35c62cc5.jpg"
                 alt="기쁨의교회"
+                loading="lazy"
                 className="h-10 w-auto object-contain mb-2 brightness-0 invert"
               />
               <p className="text-xs text-gray-600">

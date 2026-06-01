@@ -101,10 +101,15 @@ export function BlockRenderer({
             {(c.urls ?? []).slice(0, 1).map((url, i) => (
               <div
                 key={i}
-                className="rounded-xl overflow-hidden shadow-md cursor-zoom-in group relative"
+                className="relative mx-auto flex w-full max-w-5xl justify-center overflow-hidden rounded-xl bg-white shadow-md cursor-zoom-in group"
                 onClick={() => setImgLightbox(url)}
               >
-                <img src={url} alt={c.captions?.[i] ?? ""} className="w-full h-auto object-cover" />
+                <img
+                  src={url}
+                  alt={c.captions?.[i] ?? ""}
+                  loading="lazy"
+                  className="block max-h-[72vh] w-auto max-w-full object-contain"
+                />
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                   <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
@@ -134,6 +139,7 @@ export function BlockRenderer({
                 <img
                   src={url}
                   alt={c.captions?.[i] ?? ""}
+                  loading="lazy"
                   className="w-full h-full object-cover aspect-square"
                 />
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">

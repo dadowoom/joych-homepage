@@ -24,24 +24,39 @@ import { getDb } from "./connection";
 export async function getVisibleMenus() {
   const db = await getDb();
   if (!db) return [];
-  const menuList = await db.select().from(menus)
-    .where(eq(menus.isVisible, true))
-    .orderBy(asc(menus.sortOrder));
-  const result = await Promise.all(menuList.map(async (menu) => {
-    // 2단 메뉴도 isVisible=true인 것만 가져옵니다
-    const items = await db.select().from(menuItems)
-      .where(and(eq(menuItems.menuId, menu.id), eq(menuItems.isVisible, true)))
-      .orderBy(asc(menuItems.sortOrder));
-    const itemsWithSubs = await Promise.all(items.map(async (item) => {
-      // 3단 메뉴도 isVisible=true인 것만 가져옵니다
-      const subItems = await db.select().from(menuSubItems)
-        .where(and(eq(menuSubItems.menuItemId, item.id), eq(menuSubItems.isVisible, true)))
-        .orderBy(asc(menuSubItems.sortOrder));
-      return { ...item, subItems };
-    }));
-    return { ...menu, items: itemsWithSubs };
+  const [menuList, visibleItems, visibleSubItems] = await Promise.all([
+    db.select().from(menus)
+      .where(eq(menus.isVisible, true))
+      .orderBy(asc(menus.sortOrder)),
+    db.select().from(menuItems)
+      .where(eq(menuItems.isVisible, true))
+      .orderBy(asc(menuItems.sortOrder)),
+    db.select().from(menuSubItems)
+      .where(eq(menuSubItems.isVisible, true))
+      .orderBy(asc(menuSubItems.sortOrder)),
+  ]);
+
+  const subItemsByItemId = new Map<number, typeof visibleSubItems>();
+  for (const subItem of visibleSubItems) {
+    const list = subItemsByItemId.get(subItem.menuItemId) ?? [];
+    list.push(subItem);
+    subItemsByItemId.set(subItem.menuItemId, list);
+  }
+
+  const itemsByMenuId = new Map<
+    number,
+    Array<(typeof visibleItems)[number] & { subItems: typeof visibleSubItems }>
+  >();
+  for (const item of visibleItems) {
+    const list = itemsByMenuId.get(item.menuId) ?? [];
+    list.push({ ...item, subItems: subItemsByItemId.get(item.id) ?? [] });
+    itemsByMenuId.set(item.menuId, list);
+  }
+
+  return menuList.map(menu => ({
+    ...menu,
+    items: itemsByMenuId.get(menu.id) ?? [],
   }));
-  return result;
 }
 
 /**
@@ -50,24 +65,33 @@ export async function getVisibleMenus() {
 export async function getAllMenus() {
   const db = await getDb();
   if (!db) return [];
-  const menuList = await db.select().from(menus).orderBy(asc(menus.sortOrder));
+  const [menuList, itemList, subItemList] = await Promise.all([
+    db.select().from(menus).orderBy(asc(menus.sortOrder)),
+    db.select().from(menuItems).orderBy(asc(menuItems.sortOrder)),
+    db.select().from(menuSubItems).orderBy(asc(menuSubItems.sortOrder)),
+  ]);
 
-  const result = await Promise.all(menuList.map(async (menu) => {
-    const items = await db.select().from(menuItems)
-      .where(eq(menuItems.menuId, menu.id))
-      .orderBy(asc(menuItems.sortOrder));
+  const subItemsByItemId = new Map<number, typeof subItemList>();
+  for (const subItem of subItemList) {
+    const list = subItemsByItemId.get(subItem.menuItemId) ?? [];
+    list.push(subItem);
+    subItemsByItemId.set(subItem.menuItemId, list);
+  }
 
-    const itemsWithSubs = await Promise.all(items.map(async (item) => {
-      const subItems = await db.select().from(menuSubItems)
-        .where(eq(menuSubItems.menuItemId, item.id))
-        .orderBy(asc(menuSubItems.sortOrder));
-      return { ...item, subItems };
-    }));
+  const itemsByMenuId = new Map<
+    number,
+    Array<(typeof itemList)[number] & { subItems: typeof subItemList }>
+  >();
+  for (const item of itemList) {
+    const list = itemsByMenuId.get(item.menuId) ?? [];
+    list.push({ ...item, subItems: subItemsByItemId.get(item.id) ?? [] });
+    itemsByMenuId.set(item.menuId, list);
+  }
 
-    return { ...menu, items: itemsWithSubs };
+  return menuList.map(menu => ({
+    ...menu,
+    items: itemsByMenuId.get(menu.id) ?? [],
   }));
-
-  return result;
 }
 
 // ─── 1단 메뉴 CRUD ────────────────────────────────────────────────────────────

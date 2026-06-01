@@ -9,7 +9,7 @@
  *   - 사이트 설정: getSiteSettings, getSiteSetting, upsertSiteSetting
  */
 
-import { eq, asc, like } from "drizzle-orm";
+import { eq, asc, like, not } from "drizzle-orm";
 import {
   heroSlides, galleryItems, affiliates, quickMenus, siteSettings,
   InsertAffiliate, InsertGalleryItem,
@@ -173,7 +173,8 @@ export async function reorderGalleryItems(items: { id: number; sortOrder: number
 export async function getSiteSettings(): Promise<Record<string, string>> {
   const db = await getDb();
   if (!db) return {} as Record<string, string>;
-  const rows = await db.select().from(siteSettings);
+  const rows = await db.select().from(siteSettings)
+    .where(not(like(siteSettings.settingKey, `${STATIC_PAGE_SETTING_PREFIX}%`)));
   return Object.fromEntries(rows.map(r => [r.settingKey, r.settingValue ?? ""]));
 }
 
