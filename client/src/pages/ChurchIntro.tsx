@@ -42,7 +42,6 @@ function alertPendingResource(label: string) {
 
 // ── 섬기는 분 ──
 const STAFF_CATEGORIES = [
-  { value: "all", label: "전체" },
   { value: "senior", label: "담임목사" },
   { value: "associate", label: "부교역자" },
   { value: "education", label: "교회학교" },
@@ -52,7 +51,7 @@ const STAFF_CATEGORIES = [
 ] as const;
 
 type StaffCategoryFilter = typeof STAFF_CATEGORIES[number]["value"];
-type StaffCategory = Exclude<StaffCategoryFilter, "all">;
+type StaffCategory = StaffCategoryFilter;
 type StaffMenuTreeItem = {
   id: number;
   label: string;
@@ -76,7 +75,7 @@ const STAFF_SIDE_MENU_ITEMS = [
   { id: 6, label: "오시는 길", href: "/about/directions" },
 ];
 
-function getInitialStaffCategory(location: string, fallback: StaffCategoryFilter = "all"): StaffCategoryFilter {
+function getInitialStaffCategory(location: string, fallback: StaffCategoryFilter = "senior"): StaffCategoryFilter {
   if (location.includes("/associate") || location.includes("부교역자")) return "associate";
   return fallback;
 }
@@ -105,7 +104,7 @@ function getStaffSideMenuItems(menuTree: StaffMenuTree | undefined, pageTitle: s
 }
 
 export function StaffPage({
-  initialCategory = "all",
+  initialCategory = "senior",
 }: StaffPageProps = {}) {
   const [location] = useLocation();
   const [activeCategory, setActiveCategory] = useState<StaffCategoryFilter>(() => getInitialStaffCategory(location, initialCategory));
@@ -115,7 +114,7 @@ export function StaffPage({
   }, [initialCategory, location]);
 
   const queryInput = useMemo(
-    () => activeCategory === "all" ? undefined : { category: activeCategory as StaffCategory },
+    () => ({ category: activeCategory as StaffCategory }),
     [activeCategory],
   );
   const { data: staffList = [], isLoading } = trpc.home.staff.useQuery(queryInput);
