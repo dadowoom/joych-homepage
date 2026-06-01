@@ -11,6 +11,7 @@
  *   - 성도 관리    : components/AdminMembersTab.tsx
  *   - 섬기는 분 관리: components/AdminStaffTab.tsx
  *   - 예배영상 관리: components/YoutubeAdminTab.tsx
+ *   - 생선 간증 관리: components/AdminTestimoniesTab.tsx
  *   - 페이지 콘텐츠: components/admin/StaticPageContentTab.tsx
  *   - 팝업 관리    : components/AdminPopupsTab.tsx
  *   - 접수 관리    : components/AdminSupportRequestsTab.tsx
@@ -28,6 +29,7 @@ import AdminMissionReportsTab from "@/components/AdminMissionReportsTab";
 import AdminPopupsTab from "@/components/AdminPopupsTab";
 import AdminStaffTab from "@/components/AdminStaffTab";
 import AdminSupportRequestsTab from "@/components/AdminSupportRequestsTab";
+import AdminTestimoniesTab from "@/components/AdminTestimoniesTab";
 import YoutubeAdminTab from "@/components/YoutubeAdminTab";
 import { SettingsTab } from "@/components/admin/SettingsTab";
 import { StaticPageContentTab } from "@/components/admin/StaticPageContentTab";
@@ -41,6 +43,7 @@ type Tab =
   | "members"
   | "staff"
   | "missionReports"
+  | "testimonies"
   | "supportRequests"
   | "youtube"
   | "staticPages"
@@ -61,6 +64,7 @@ export default function AdminPage() {
     "members",
     "staff",
     "missionReports",
+    "testimonies",
     "supportRequests",
     "youtube",
     "staticPages",
@@ -270,6 +274,7 @@ export default function AdminPage() {
     { id: "members", label: "성도 관리", icon: "fa-users" },
     { id: "staff", label: "섬기는 분 관리", icon: "fa-user-tie" },
     { id: "missionReports", label: "선교보고 관리", icon: "fa-globe-asia" },
+    { id: "testimonies", label: "생선 간증 관리", icon: "fa-comments" },
     { id: "supportRequests", label: "접수 관리", icon: "fa-inbox" },
     { id: "youtube", label: "예배영상 관리", icon: "fa-video" },
     { id: "staticPages", label: "페이지 콘텐츠", icon: "fa-file-alt" },
@@ -359,6 +364,7 @@ export default function AdminPage() {
           {activeTab === "members" && <AdminMembersTab />}
           {activeTab === "staff" && <AdminStaffTab />}
           {activeTab === "missionReports" && <AdminMissionReportsTab />}
+          {activeTab === "testimonies" && <AdminTestimoniesTab />}
           {activeTab === "supportRequests" && <AdminSupportRequestsTab />}
           {activeTab === "youtube" && <YoutubeAdminTab />}
           {activeTab === "staticPages" && <StaticPageContentTab />}

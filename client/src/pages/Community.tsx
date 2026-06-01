@@ -46,6 +46,7 @@ function SubNav({ items }: { items: { label: string; href: string }[] }) {
 const COMMUNITY_NAV = [
   { label: "교회 소식", href: "/page/행정지원-공지사항" },
   { label: "기도 요청", href: "/community/prayer" },
+  { label: "생선 간증", href: "/community/testimony" },
   { label: "나눔 게시판", href: "/community/joytalk" },
 ];
 

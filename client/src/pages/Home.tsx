@@ -567,7 +567,7 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* 카드 1: 생선 간증 */}
             <a
-              href="/education/saengseon"
+              href="/community/testimony"
               className="group block rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-300 bg-white"
             >
               {/* 이미지 영역 */}

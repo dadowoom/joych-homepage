@@ -12,6 +12,7 @@
  *   members.*   → 교회 성도 회원 시스템 (가입, 로그인, 교적부)
  *   youtube.*   → 예배영상 관리 (플레이리스트, 영상)
  *   mission.*   → 선교보고 공개 조회 및 작성자 기능
+ *   testimony.* → 생선 간증 공개 조회 및 성도 글/댓글 기능
  *   support.*   → 공개 접수(기도 요청/새가족 문의)
  */
 
@@ -24,6 +25,7 @@ import { membersRouter } from "./members";
 import { youtubeRouter } from "./youtube";
 import { missionRouter } from "./mission";
 import { supportRouter } from "./support";
+import { testimonyRouter } from "./testimony";
 
 export const appRouter = router({
   auth: authRouter,
@@ -33,6 +35,7 @@ export const appRouter = router({
   members: membersRouter,
   youtube: youtubeRouter,
   mission: missionRouter,
+  testimony: testimonyRouter,
   support: supportRouter,
 });
 

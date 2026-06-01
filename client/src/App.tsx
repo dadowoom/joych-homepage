@@ -24,6 +24,17 @@ const MyReservations = lazy(() => import("./pages/MyReservations"));
 const MissionList = lazy(() => import("./pages/MissionList"));
 const MissionDetail = lazy(() => import("./pages/MissionDetail"));
 const MissionReportEditor = lazy(() => import("./pages/MissionReportEditor"));
+const TestimonyList = lazy(() => import("./pages/TestimonyBoard"));
+const TestimonyDetail = lazy(() =>
+  import("./pages/TestimonyBoard").then(module => ({
+    default: module.TestimonyDetail,
+  }))
+);
+const TestimonyEditor = lazy(() =>
+  import("./pages/TestimonyBoard").then(module => ({
+    default: module.TestimonyEditor,
+  }))
+);
 
 const DynamicMenuHrefPage = lazy(() =>
   import("./pages/DynamicPage").then(module => ({
@@ -374,6 +385,10 @@ function Router() {
       <Route path="/community/photo">
         <LegacyRedirect to="/page/커뮤니티-최근-행사-사진" />
       </Route>
+      <Route path="/community/testimony/write" component={TestimonyEditor} />
+      <Route path="/community/testimony/edit/:id" component={TestimonyEditor} />
+      <Route path="/community/testimony/:id" component={TestimonyDetail} />
+      <Route path="/community/testimony" component={TestimonyList} />
       <Route path="/community/joytalk" component={JoyTalkPage} />
 
       {/* 행정지원 */}

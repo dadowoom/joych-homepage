@@ -12,6 +12,7 @@
  *   - reservations: 예약 관리 (승인/거절)
  *   - blocks: 블록 에디터 관리
  *   - missionReports: 선교보고/작성권한 관리
+ *   - testimonies: 생선 간증 글/댓글 관리
  *   - staff: 섬기는 분/교역자 소개 관리
  *   - popups: 팝업/공지 배너 관리
  *   - supportRequests: 기도 요청/새가족 접수 관리
@@ -26,6 +27,7 @@ import { facilitiesRouter } from "./facilities";
 import { reservationsRouter } from "./reservations";
 import { blocksRouter } from "./blocks";
 import { missionReportsRouter } from "./missionReports";
+import { testimoniesRouter } from "./testimonies";
 import { staffRouter } from "./staff";
 import { popupsRouter } from "./popups";
 import { supportRequestsRouter } from "./supportRequests";
@@ -39,6 +41,7 @@ export const cmsRouter = router({
   reservations: reservationsRouter,
   blocks: blocksRouter,
   missionReports: missionReportsRouter,
+  testimonies: testimoniesRouter,
   staff: staffRouter,
   popups: popupsRouter,
   supportRequests: supportRequestsRouter,

@@ -144,6 +144,12 @@ const ROUTES: SeoRoute[] = [
     priority: "0.7",
   },
   {
+    path: "/community/testimony",
+    title: "생선 간증 | 기쁨의교회",
+    description: "기쁨의교회 성도들이 은혜로운 간증과 댓글을 나누는 공간입니다.",
+    priority: "0.7",
+  },
+  {
     path: "/support/new-member",
     title: "새가족 안내 | 기쁨의교회",
     description: "기쁨의교회에 처음 오신 분을 위한 새가족 안내입니다.",

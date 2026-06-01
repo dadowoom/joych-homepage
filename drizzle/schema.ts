@@ -769,6 +769,63 @@ export type MissionReportPrayerTopic = typeof missionReportPrayerTopics.$inferSe
 export type InsertMissionReportPrayerTopic = typeof missionReportPrayerTopics.$inferInsert;
 
 // ─────────────────────────────────────────────
+// 생선 간증: 성도 간증/SNS형 댓글 시스템
+// ─────────────────────────────────────────────
+
+export const testimonyPosts = mysqlTable("testimony_posts", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 작성 성도 ID */
+  authorMemberId: int("author_member_id").notNull(),
+  title: varchar("title", { length: 256 }).notNull(),
+  content: text("content").notNull(),
+  /** 대표 이미지 URL */
+  thumbnailUrl: text("thumbnail_url"),
+  /** published(공개) / hidden(숨김) / deleted(삭제 처리) */
+  status: mysqlEnum("status", ["published", "hidden", "deleted"]).notNull().default("published"),
+  viewCount: int("view_count").notNull().default(0),
+  isPinned: boolean("is_pinned").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("testimony_posts_status_created_idx").on(table.status, table.createdAt),
+  index("testimony_posts_author_idx").on(table.authorMemberId),
+]);
+
+export type TestimonyPost = typeof testimonyPosts.$inferSelect;
+export type InsertTestimonyPost = typeof testimonyPosts.$inferInsert;
+
+export const testimonyPostImages = mysqlTable("testimony_post_images", {
+  id: int("id").autoincrement().primaryKey(),
+  postId: int("post_id").notNull(),
+  imageUrl: text("image_url").notNull(),
+  caption: varchar("caption", { length: 128 }),
+  sortOrder: int("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("testimony_post_images_post_idx").on(table.postId),
+]);
+
+export type TestimonyPostImage = typeof testimonyPostImages.$inferSelect;
+export type InsertTestimonyPostImage = typeof testimonyPostImages.$inferInsert;
+
+export const testimonyComments = mysqlTable("testimony_comments", {
+  id: int("id").autoincrement().primaryKey(),
+  postId: int("post_id").notNull(),
+  authorMemberId: int("author_member_id").notNull(),
+  content: text("content").notNull(),
+  /** published(공개) / hidden(숨김) / deleted(삭제 처리) */
+  status: mysqlEnum("status", ["published", "hidden", "deleted"]).notNull().default("published"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("testimony_comments_post_status_idx").on(table.postId, table.status),
+  index("testimony_comments_author_idx").on(table.authorMemberId),
+]);
+
+export type TestimonyComment = typeof testimonyComments.$inferSelect;
+export type InsertTestimonyComment = typeof testimonyComments.$inferInsert;
+
+// ─────────────────────────────────────────────
 // 교회학교: 부서 테이블
 // ─────────────────────────────────────────────
 export const schoolDepartments = mysqlTable("school_departments", {
