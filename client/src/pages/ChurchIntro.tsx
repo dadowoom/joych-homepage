@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
+import type { RouteComponentProps } from "wouter";
 import { ArrowLeft, ChevronRight, Bus, BookOpen, Heart, Mail, Palette, Phone, UserRound } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
@@ -52,6 +53,19 @@ const STAFF_CATEGORIES = [
 
 type StaffCategoryFilter = typeof STAFF_CATEGORIES[number]["value"];
 type StaffCategory = Exclude<StaffCategoryFilter, "all">;
+type StaffMenuTreeItem = {
+  id: number;
+  label: string;
+  href?: string | null;
+  isVisible?: boolean;
+};
+type StaffMenuTree = Array<{
+  label: string;
+  items?: StaffMenuTreeItem[];
+}>;
+type StaffPageProps = {
+  initialCategory?: StaffCategoryFilter;
+} & Partial<RouteComponentProps<Record<string, string | undefined>>>;
 
 const STAFF_SIDE_MENU_ITEMS = [
   { id: 1, label: "담임목사 인사말", href: "/page/교회소개-담임목사-소개" },
@@ -62,36 +76,58 @@ const STAFF_SIDE_MENU_ITEMS = [
   { id: 6, label: "오시는 길", href: "/about/directions" },
 ];
 
-function getInitialStaffCategory(location: string): StaffCategoryFilter {
+function getInitialStaffCategory(location: string, fallback: StaffCategoryFilter = "all"): StaffCategoryFilter {
   if (location.includes("/associate") || location.includes("부교역자")) return "associate";
-  return "all";
+  return fallback;
 }
 
 function getStaffCategoryLabel(category: string) {
   return STAFF_CATEGORIES.find((option) => option.value === category)?.label ?? category;
 }
 
-export function StaffPage() {
+function getStaffSideMenuItems(menuTree: StaffMenuTree | undefined, pageTitle: string) {
+  const liveItems = menuTree
+    ?.find((menu) => menu.label === "교회소개")
+    ?.items
+    ?.filter((item) => item.isVisible !== false)
+    .map((item) => ({
+      id: item.id,
+      label: item.label,
+      href: item.href ?? null,
+      isActive: item.label === pageTitle,
+    }));
+
+  if (liveItems?.length) return liveItems;
+  return STAFF_SIDE_MENU_ITEMS.map((item) => ({
+    ...item,
+    isActive: item.label === pageTitle,
+  }));
+}
+
+export function StaffPage({
+  initialCategory = "all",
+}: StaffPageProps = {}) {
   const [location] = useLocation();
-  const [activeCategory, setActiveCategory] = useState<StaffCategoryFilter>(() => getInitialStaffCategory(location));
+  const [activeCategory, setActiveCategory] = useState<StaffCategoryFilter>(() => getInitialStaffCategory(location, initialCategory));
 
   useEffect(() => {
-    setActiveCategory(getInitialStaffCategory(location));
-  }, [location]);
+    setActiveCategory(getInitialStaffCategory(location, initialCategory));
+  }, [initialCategory, location]);
 
   const queryInput = useMemo(
     () => activeCategory === "all" ? undefined : { category: activeCategory as StaffCategory },
     [activeCategory],
   );
   const { data: staffList = [], isLoading } = trpc.home.staff.useQuery(queryInput);
+  const { data: menuTree } = trpc.home.menus.useQuery();
   const pageTitle = activeCategory === "associate" ? "부교역자" : "섬기는 분";
   const profileIntro = activeCategory === "associate"
     ? "기쁨의교회를 함께 섬기는 부교역자를 소개합니다."
     : "기쁨의교회를 섬기는 목회자와 사역자들을 소개합니다.";
-  const sideMenuItems = STAFF_SIDE_MENU_ITEMS.map((item) => ({
-    ...item,
-    isActive: item.label === pageTitle,
-  }));
+  const sideMenuItems = useMemo(
+    () => getStaffSideMenuItems(menuTree, pageTitle),
+    [menuTree, pageTitle],
+  );
 
   return (
     <SubPageLayout

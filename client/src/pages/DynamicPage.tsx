@@ -32,6 +32,7 @@ import { GalleryContent } from "@/components/dynamic-page/GalleryContent";
 import { BoardContent } from "@/components/dynamic-page/BoardContent";
 import { YoutubeContent } from "@/components/dynamic-page/YoutubeContent";
 import { EditorContent } from "@/components/dynamic-page/EditorContent";
+import { StaffPage } from "./ChurchIntro";
 
 type DynamicPageItem = {
   id: number;
@@ -70,6 +71,14 @@ function getCanonicalInternalHref(href: string | null | undefined, legacyHref: s
   if (!value) return null;
   if (!value.startsWith("/") || value.startsWith("//")) return null;
   return decodePath(value) === decodePath(legacyHref) ? null : value;
+}
+
+function getStaffCategoryForMenuItem(item: DynamicPageItem) {
+  const label = item.label.trim();
+  const href = item.href?.trim();
+  if (label === "섬기는 분" || href === "/page/교회소개-섬기는-분") return "all";
+  if (label === "부교역자" || href === "/page/교회소개-부교역자") return "associate";
+  return null;
 }
 
 // ─── 페이지 타입에 따라 알맞은 콘텐츠 컴포넌트를 반환 ────────────────────────
@@ -139,6 +148,11 @@ function MenuItemPageContent({
     href: s.href ?? null,
     isActive: s.id === item.id || decodePath(s.href ?? "") === decodePath(activeHref ?? ""),
   }));
+  const staffCategory = getStaffCategoryForMenuItem(item);
+
+  if (staffCategory) {
+    return <StaffPage initialCategory={staffCategory} />;
+  }
 
   return (
     <SubPageLayout
