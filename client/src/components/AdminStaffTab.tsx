@@ -28,8 +28,8 @@ type StaffForm = {
   name: string;
   title: string;
   department: string;
-  description: string;
-  profile: string;
+  email: string;
+  phone: string;
   imageUrl: string;
   sortOrder: number;
   isVisible: boolean;
@@ -40,8 +40,8 @@ const EMPTY_FORM: StaffForm = {
   name: "",
   title: "",
   department: "",
-  description: "",
-  profile: "",
+  email: "",
+  phone: "",
   imageUrl: "",
   sortOrder: 0,
   isVisible: true,
@@ -69,8 +69,8 @@ function normalizePayload(form: StaffForm) {
     name: form.name.trim(),
     title: form.title.trim(),
     department: form.department.trim() || undefined,
-    description: form.description.trim() || undefined,
-    profile: form.profile.trim() || undefined,
+    email: form.email.trim() || undefined,
+    phone: form.phone.trim() || undefined,
     imageUrl: form.imageUrl.trim() || undefined,
     sortOrder: Number.isFinite(form.sortOrder) ? form.sortOrder : 0,
     isVisible: form.isVisible,
@@ -147,8 +147,8 @@ export default function AdminStaffTab() {
       name: member.name,
       title: member.title,
       department: member.department ?? "",
-      description: member.description ?? "",
-      profile: member.profile ?? "",
+      email: member.email ?? "",
+      phone: member.phone ?? "",
       imageUrl: member.imageUrl ?? "",
       sortOrder: member.sortOrder,
       isVisible: member.isVisible,
@@ -290,13 +290,13 @@ export default function AdminStaffTab() {
               <span className={labelClass}>담당 사역/부서</span>
               <input className={fieldClass} value={form.department} onChange={(event) => setForm((prev) => ({ ...prev, department: event.target.value }))} placeholder="예: 교구, 청년부, 행정" />
             </label>
-            <label className="md:col-span-2">
-              <span className={labelClass}>짧은 소개</span>
-              <textarea className={`${fieldClass} min-h-20`} value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} placeholder="홈페이지 카드에 표시할 소개 문구" />
+            <label>
+              <span className={labelClass}>이메일</span>
+              <input className={fieldClass} type="email" value={form.email} onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))} placeholder="name@example.com" />
             </label>
-            <label className="md:col-span-2">
-              <span className={labelClass}>약력/학력/담당 안내</span>
-              <textarea className={`${fieldClass} min-h-28`} value={form.profile} onChange={(event) => setForm((prev) => ({ ...prev, profile: event.target.value }))} placeholder={"한 줄에 하나씩 입력\n예: 담당: 1교구, 새가족부\n예: 총신대학교 신학대학원"} />
+            <label>
+              <span className={labelClass}>전화번호</span>
+              <input className={fieldClass} value={form.phone} onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))} placeholder="054-000-0000" />
             </label>
             <label className="md:col-span-2">
               <span className={labelClass}>사진 URL</span>
@@ -372,7 +372,11 @@ export default function AdminStaffTab() {
                         <p className="text-xs text-gray-500 mt-1">
                           {getCategoryLabel(member.category)} · {member.department || "담당 미입력"} · 정렬 {member.sortOrder}
                         </p>
-                        {member.description && <p className="text-sm text-gray-600 mt-1 line-clamp-1">{member.description}</p>}
+                        {(member.email || member.phone) && (
+                          <p className="text-sm text-gray-600 mt-1 line-clamp-1">
+                            {[member.email, member.phone].filter(Boolean).join(" · ")}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-1 shrink-0">

@@ -5,7 +5,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, ChevronRight, Bus, BookOpen, Heart, Palette, UserRound } from "lucide-react";
+import { ArrowLeft, ChevronRight, Bus, BookOpen, Heart, Mail, Palette, Phone, UserRound } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
 
@@ -130,13 +130,11 @@ export function StaffPage() {
       ) : (
         <div className="grid gap-x-8 gap-y-16 pt-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {staffList.map((staff) => {
-            const profileLines = (staff.profile ?? "").split("\n").map(line => line.trim()).filter(Boolean);
             const roleParts = [staff.title, staff.department || getStaffCategoryLabel(staff.category)]
               .map((value) => value?.trim())
               .filter((value, index, array): value is string => Boolean(value) && array.indexOf(value) === index);
-            const detailLines = [staff.description?.trim(), ...profileLines]
-              .filter((value): value is string => Boolean(value))
-              .slice(0, 3);
+            const email = staff.email?.trim();
+            const phone = staff.phone?.trim();
             return (
               <article
                 key={staff.id}
@@ -158,12 +156,21 @@ export function StaffPage() {
                 <p className="mt-3 text-sm leading-6 text-gray-600">
                   {roleParts.join(" / ")}
                 </p>
-                {detailLines.length > 0 && (
-                  <ul className="mt-5 w-full border-t border-gray-100 pt-4 text-left text-xs leading-6 text-gray-500">
-                    {detailLines.map((line, index) => (
-                      <li key={`${staff.id}-${index}`}>· {line}</li>
-                    ))}
-                  </ul>
+                {(email || phone) && (
+                  <div className="mt-5 w-full border-t border-gray-100 pt-4 text-left text-xs leading-6 text-gray-500">
+                    {email && (
+                      <a href={`mailto:${email}`} className="flex items-center gap-2 break-all hover:text-[#1B5E20]">
+                        <Mail className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                        {email}
+                      </a>
+                    )}
+                    {phone && (
+                      <a href={`tel:${phone}`} className="flex items-center gap-2 hover:text-[#1B5E20]">
+                        <Phone className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                        {phone}
+                      </a>
+                    )}
+                  </div>
                 )}
               </article>
             );

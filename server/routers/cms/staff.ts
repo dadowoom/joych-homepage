@@ -22,6 +22,8 @@ const staffCreateSchema = z.object({
   name: requiredTextSchema(64, "이름을 입력해주세요."),
   title: requiredTextSchema(64, "직책을 입력해주세요."),
   department: optionalTextSchema(128),
+  email: optionalTextSchema(128),
+  phone: optionalTextSchema(32),
   description: optionalTextSchema(2000),
   profile: optionalTextSchema(10000),
   imageUrl: safeAssetUrlSchema.optional(),

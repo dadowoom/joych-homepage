@@ -332,6 +332,10 @@ export const churchStaff = mysqlTable("church_staff", {
   title: varchar("title", { length: 64 }).notNull(),
   /** 담당 사역/부서 */
   department: varchar("department", { length: 128 }),
+  /** 이메일 */
+  email: varchar("email", { length: 128 }),
+  /** 전화번호 */
+  phone: varchar("phone", { length: 32 }),
   /** 짧은 소개 */
   description: text("description"),
   /** 약력/학력/담당 안내. 줄바꿈 텍스트로 저장 */
