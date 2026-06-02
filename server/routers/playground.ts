@@ -3,7 +3,7 @@ import { z } from "zod";
 import { publicProcedure, router } from "../_core/trpc";
 
 const rankingPeriodSchema = z.enum(["weekly", "monthly", "yearly", "all"]);
-const rankingMetricSchema = z.enum(["total", "bible", "prayer", "worship", "light"]);
+const rankingMetricSchema = z.enum(["total", "bible", "prayer", "worship", "light", "salt", "heritage"]);
 
 type RankingPeriod = z.infer<typeof rankingPeriodSchema>;
 type RankingMetric = z.infer<typeof rankingMetricSchema>;
@@ -20,6 +20,8 @@ type RankingEntry = {
   prayerCount: number | null;
   worshipCount: number | null;
   lightCount: number | null;
+  saltCount: number | null;
+  heritageCount: number | null;
 };
 
 type RankingResponse = {
@@ -132,8 +134,10 @@ function normalizeRankingEntry(
     totalScore: pickNumber(merged, ["totalScore", "total_score", "total", "points"]),
     bibleDays: pickNumber(merged, ["totalBibleDays", "bibleDays", "bible_days", "bibleCount"]),
     prayerCount: pickNumber(merged, ["totalPrayerCount", "prayerCount", "prayer_count"]),
-    worshipCount: pickNumber(merged, ["worshipCount", "worship_count"]),
-    lightCount: pickNumber(merged, ["lightOfWorldCount", "lightCount", "light_count"]),
+    worshipCount: pickNumber(merged, ["totalWorshipCount", "worshipCount", "worship_count"]),
+    lightCount: pickNumber(merged, ["totalLightOfWorldCount", "lightOfWorldCount", "lightCount", "light_count"]),
+    saltCount: pickNumber(merged, ["totalSaltCount", "saltCount", "salt_count"]),
+    heritageCount: pickNumber(merged, ["totalHeritageCount", "heritageCount", "heritage_count"]),
   };
 }
 

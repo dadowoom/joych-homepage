@@ -4,7 +4,7 @@ import SubPageLayout from "@/components/SubPageLayout";
 import { trpc } from "@/lib/trpc";
 
 type RankingPeriod = "weekly" | "monthly" | "yearly" | "all";
-type RankingMetric = "total" | "bible" | "prayer" | "worship" | "light";
+type RankingMetric = "total" | "bible" | "prayer" | "worship" | "light" | "salt" | "heritage";
 
 type RankingEntry = {
   rank: number;
@@ -18,6 +18,8 @@ type RankingEntry = {
   prayerCount: number | null;
   worshipCount: number | null;
   lightCount: number | null;
+  saltCount: number | null;
+  heritageCount: number | null;
 };
 
 const periodOptions: Array<{ value: RankingPeriod; label: string }> = [
@@ -33,6 +35,8 @@ const metricOptions: Array<{ value: RankingMetric; label: string }> = [
   { value: "prayer", label: "기도" },
   { value: "worship", label: "예배" },
   { value: "light", label: "빛" },
+  { value: "salt", label: "소금" },
+  { value: "heritage", label: "유산" },
 ];
 
 const podiumStyles = [
@@ -132,7 +136,7 @@ function RankingTable({
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
       <div className="overflow-x-auto">
-        <table className="min-w-[760px] w-full border-collapse text-sm">
+        <table className="min-w-[920px] w-full border-collapse text-sm">
           <thead className="bg-[#F7F8F5] text-xs text-gray-500">
             <tr>
               <th className="w-20 px-4 py-3 text-left font-semibold">순위</th>
@@ -142,6 +146,8 @@ function RankingTable({
               <th className="w-24 px-4 py-3 text-right font-semibold">기도</th>
               <th className="w-24 px-4 py-3 text-right font-semibold">예배</th>
               <th className="w-24 px-4 py-3 text-right font-semibold">빛</th>
+              <th className="w-24 px-4 py-3 text-right font-semibold">소금</th>
+              <th className="w-24 px-4 py-3 text-right font-semibold">유산</th>
             </tr>
           </thead>
           <tbody>
@@ -185,6 +191,8 @@ function RankingTable({
                   <td className="px-4 py-3 text-right text-gray-600">{formatNumber(entry.prayerCount)}</td>
                   <td className="px-4 py-3 text-right text-gray-600">{formatNumber(entry.worshipCount)}</td>
                   <td className="px-4 py-3 text-right text-gray-600">{formatNumber(entry.lightCount)}</td>
+                  <td className="px-4 py-3 text-right text-gray-600">{formatNumber(entry.saltCount)}</td>
+                  <td className="px-4 py-3 text-right text-gray-600">{formatNumber(entry.heritageCount)}</td>
                 </tr>
               );
             })}
@@ -258,7 +266,7 @@ export default function PlaygroundRankings() {
                   </button>
                 ))}
               </div>
-              <div className="flex rounded-lg border border-gray-200 bg-[#FAFAF8] p-1">
+              <div className="flex max-w-full overflow-x-auto rounded-lg border border-gray-200 bg-[#FAFAF8] p-1">
                 {metricOptions.map((option) => (
                   <button
                     key={option.value}
