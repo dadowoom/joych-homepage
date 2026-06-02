@@ -99,8 +99,11 @@ export async function createYoutubeVideo(data: {
   videoId?: string | null;
   videoUrl?: string | null;
   title: string;
-  thumbnailUrl?: string;
-  description?: string;
+  preacher?: string | null;
+  scripture?: string | null;
+  sermonDate?: string | null;
+  thumbnailUrl?: string | null;
+  description?: string | null;
   sortOrder?: number;
 }) {
   const db = await getDb();
@@ -112,8 +115,11 @@ export async function createYoutubeVideo(data: {
 /** 유튜브 영상 수정 */
 export async function updateYoutubeVideo(id: number, data: {
   title?: string;
-  thumbnailUrl?: string;
-  description?: string;
+  preacher?: string | null;
+  scripture?: string | null;
+  sermonDate?: string | null;
+  thumbnailUrl?: string | null;
+  description?: string | null;
   sortOrder?: number;
   isVisible?: boolean;
 }) {

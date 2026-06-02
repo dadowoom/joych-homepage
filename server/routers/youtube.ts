@@ -152,8 +152,11 @@ export const youtubeRouter = router({
       videoId: z.string().trim().max(2048).optional().nullable(),
       videoUrl: z.string().trim().max(2048).optional().nullable(),
       title: requiredTextSchema(256, "영상 제목을 입력해주세요."),
+      preacher: optionalTextSchema(128).nullable(),
+      scripture: optionalTextSchema(256).nullable(),
+      sermonDate: optionalTextSchema(32).nullable(),
       thumbnailUrl: safeAssetUrlSchema.optional(),
-      description: optionalTextSchema(10000),
+      description: optionalTextSchema(10000).nullable(),
       sortOrder: z.number().int().min(0).max(10000).optional(),
     }))
     .mutation(({ input }) => {
@@ -166,8 +169,11 @@ export const youtubeRouter = router({
     .input(z.object({
       id: z.number().int().positive(),
       title: requiredTextSchema(256, "영상 제목을 입력해주세요.").optional(),
+      preacher: optionalTextSchema(128).nullable(),
+      scripture: optionalTextSchema(256).nullable(),
+      sermonDate: optionalTextSchema(32).nullable(),
       thumbnailUrl: safeAssetUrlSchema.optional(),
-      description: optionalTextSchema(10000),
+      description: optionalTextSchema(10000).nullable(),
       sortOrder: z.number().int().min(0).max(10000).optional(),
       isVisible: z.boolean().optional(),
     }))

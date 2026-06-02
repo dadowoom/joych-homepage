@@ -120,6 +120,13 @@
       "when": 1780294707965,
       "tag": "0016_colorful_slapstick",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1780381965440,
+      "tag": "0017_red_master_chief",
+      "breakpoints": true
     }
   ]
 }

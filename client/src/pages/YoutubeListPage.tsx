@@ -13,6 +13,14 @@ interface YoutubeListPageProps {
   title?: string;
 }
 
+function formatSermonDate(value?: string | null) {
+  const trimmed = value?.trim();
+  if (!trimmed) return "";
+  const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) return `${match[1]}.${match[2]}.${match[3]}`;
+  return trimmed;
+}
+
 export default function YoutubeListPage({ playlistId, title }: YoutubeListPageProps) {
   const { data: videos = [], isLoading } = trpc.youtube.getVideos.useQuery({ playlistId });
   const [activeIndex, setActiveIndex] = useState(0);
@@ -21,6 +29,14 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
 
   const activeVideo = videos[activeIndex];
   const CARDS_PER_VIEW = 4; // 한 번에 보이는 카드 수
+  const sermonInfoRows = activeVideo
+    ? [
+        { label: "제목", value: activeVideo.title },
+        { label: "설교자", value: activeVideo.preacher },
+        { label: "본문", value: activeVideo.scripture },
+        { label: "날짜", value: formatSermonDate(activeVideo.sermonDate) },
+      ].filter((row) => row.value?.trim())
+    : [];
 
   const handlePrev = () => {
     setSlideOffset((prev) => Math.max(0, prev - 1));
@@ -100,12 +116,25 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
               />
             ) : null}
           </div>
-          <div className="mt-3">
-            <h3 className="text-lg font-semibold text-gray-900 leading-tight">{activeVideo.title}</h3>
-            {activeVideo.description && (
-              <p className="text-sm text-gray-500 mt-1 line-clamp-2">{activeVideo.description}</p>
-            )}
+          <div className="mt-4 overflow-hidden rounded-md border border-gray-200 bg-white">
+            {sermonInfoRows.map((row) => (
+              <div key={row.label} className="flex border-b border-gray-100 last:border-b-0">
+                <div className="flex w-20 shrink-0 items-center justify-center bg-gray-600 px-3 py-2 text-sm font-semibold text-white sm:w-24">
+                  {row.label}
+                </div>
+                <div className="flex min-w-0 flex-1 items-center px-4 py-2 text-sm text-gray-800 sm:text-base">
+                  <span className="break-words leading-relaxed">{row.value}</span>
+                </div>
+              </div>
+            ))}
           </div>
+          {activeVideo.description && (
+            <div className="mt-3">
+              <p className="whitespace-pre-line text-sm leading-relaxed text-gray-500 line-clamp-3">
+                {activeVideo.description}
+              </p>
+            </div>
+          )}
         </div>
       )}
 

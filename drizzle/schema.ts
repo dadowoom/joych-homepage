@@ -987,6 +987,12 @@ export const youtubeVideos = mysqlTable("youtube_videos", {
   videoUrl: text("videoUrl"),
   /** 영상 제목 */
   title: varchar("title", { length: 256 }).notNull(),
+  /** 설교자 */
+  preacher: varchar("preacher", { length: 128 }),
+  /** 본문 */
+  scripture: varchar("scripture", { length: 256 }),
+  /** 설교 날짜 */
+  sermonDate: varchar("sermonDate", { length: 32 }),
   /** 썸네일 URL */
   thumbnailUrl: text("thumbnailUrl"),
   /** 영상 설명 (선택) */
