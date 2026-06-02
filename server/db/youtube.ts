@@ -78,7 +78,7 @@ export async function getYoutubeVideosByPlaylist(playlistId: number) {
   if (!db) return [];
   return db.select().from(youtubeVideos)
     .where(eq(youtubeVideos.playlistId, playlistId))
-    .orderBy(asc(youtubeVideos.sortOrder));
+    .orderBy(asc(youtubeVideos.sortOrder), asc(youtubeVideos.id));
 }
 
 /** 특정 플레이리스트의 공개 영상 목록 (정렬순, 일반 사용자용) */
@@ -90,7 +90,7 @@ export async function getVisibleYoutubeVideos(playlistId: number) {
       eq(youtubeVideos.playlistId, playlistId),
       eq(youtubeVideos.isVisible, true),
     ))
-    .orderBy(asc(youtubeVideos.sortOrder));
+    .orderBy(asc(youtubeVideos.sortOrder), asc(youtubeVideos.id));
 }
 
 /** 유튜브 영상 추가 */

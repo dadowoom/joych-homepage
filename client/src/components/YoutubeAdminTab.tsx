@@ -242,6 +242,7 @@ export default function YoutubeAdminTab() {
       scripture: optionalValue(videoScripture),
       sermonDate: optionalValue(videoSermonDate),
       description: optionalValue(videoDescription),
+      sortOrder: videos.length,
     };
 
     if (videoId) {
