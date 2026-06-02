@@ -97,6 +97,36 @@ function getFirstSubItemHref(allMenus: DynamicMenuTree | undefined, itemId: numb
   return null;
 }
 
+function hasOwnMenuContent(item: DynamicPageItem) {
+  const pageType = item.pageType ?? "image";
+  if (pageType === "image") {
+    return Boolean(item.pageImageUrl?.trim());
+  }
+  return true;
+}
+
+function getSecondLevelSideMenuItems(
+  menu: DynamicMenuTree[number] | undefined,
+  activeItemId?: number,
+  activeHref?: string,
+) {
+  const normalizedActiveHref = decodePath(activeHref ?? "");
+  return (menu?.items ?? []).map((item) => {
+    const subItems = item.subItems ?? [];
+    const hasSubItems = subItems.length > 0;
+    const href = hasSubItems && !hasOwnMenuContent(item) ? null : item.href ?? null;
+    return {
+      id: item.id,
+      label: item.label,
+      href,
+      isActive:
+        item.id === activeItemId ||
+        decodePath(item.href ?? "") === normalizedActiveHref ||
+        subItems.some((sub) => decodePath(sub.href ?? "") === normalizedActiveHref),
+    };
+  });
+}
+
 // ─── 페이지 타입에 따라 알맞은 콘텐츠 컴포넌트를 반환 ────────────────────────
 function renderContent(
   pageType: string,
@@ -159,12 +189,7 @@ function MenuItemPageContent({
   const parentMenu = (allMenus ?? []).find((m) =>
     (m.items ?? []).some((s) => s.id === item.id)
   );
-  const sideItems = (parentMenu?.items ?? []).map((s) => ({
-    id: s.id,
-    label: s.label,
-    href: s.href ?? null,
-    isActive: s.id === item.id || decodePath(s.href ?? "") === decodePath(activeHref ?? ""),
-  }));
+  const sideItems = getSecondLevelSideMenuItems(parentMenu, item.id, activeHref);
   const staffCategory = getStaffCategoryForMenuItem(item);
   const firstSubItemHref = getFirstSubItemHref(allMenus, item.id);
   const shouldRedirectToFirstSubItem =
@@ -242,12 +267,7 @@ function MenuSubItemPageContent({
       if (subItems.some((s) => s.id === item.id)) {
         parentItemLabel = midMenu.label;
         grandParentLabel = topMenu.label;
-        sideItems = subItems.map((s) => ({
-          id: s.id,
-          label: s.label,
-          href: s.href ?? null,
-          isActive: s.id === item.id || decodePath(s.href ?? "") === decodePath(activeHref ?? ""),
-        }));
+        sideItems = getSecondLevelSideMenuItems(topMenu, midMenu.id, activeHref);
         break;
       }
     }
@@ -257,7 +277,7 @@ function MenuSubItemPageContent({
   return (
     <SubPageLayout
       pageTitle={item.label}
-      parentLabel={parentItemLabel ?? grandParentLabel}
+      parentLabel={grandParentLabel ?? parentItemLabel}
       sideMenuItems={sideItems}
     >
       {renderContent(

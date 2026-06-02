@@ -103,7 +103,13 @@ export default function SubPageLayout({
                           {item.label}
                         </Link>
                       ) : (
-                        <span className="block px-4 py-3 text-sm text-gray-400 border-b border-gray-100 last:border-0">
+                        <span
+                          className={`block px-4 py-3 text-sm border-b border-gray-100 last:border-0 ${
+                            item.isActive
+                              ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
+                              : "text-gray-400"
+                          }`}
+                        >
                           {item.label}
                         </span>
                       )}
