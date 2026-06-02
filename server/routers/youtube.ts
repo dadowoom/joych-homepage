@@ -29,6 +29,7 @@ import {
   requiredTextSchema,
   safeAssetUrlSchema,
 } from "../_core/contentValidation";
+import { resolveLegacyVodInfoFromPageUrl } from "../_core/legacyVod";
 import {
   getAllYoutubePlaylists,
   createYoutubePlaylist,
@@ -44,7 +45,7 @@ import {
   syncAllPlaylistsToMenus,
 } from "../db";
 
-function normalizeVideoInput(input: {
+async function normalizeVideoInput(input: {
   videoId?: string | null;
   videoUrl?: string | null;
 }) {
@@ -60,13 +61,35 @@ function normalizeVideoInput(input: {
       message: "유튜브 영상 ID 또는 직접 영상 URL을 입력해주세요.",
     });
   }
+
+  try {
+    const legacyInfo = await resolveLegacyVodInfoFromPageUrl(rawVideoUrl);
+    if (legacyInfo) {
+      return {
+        videoId: null,
+        videoUrl: `/api/legacy-vod/${legacyInfo.pageCode}/${legacyInfo.num}/${legacyInfo.vodType}.mp4`,
+        legacyInfo,
+      };
+    }
+  } catch (error) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: error instanceof Error ? error.message : "옛 홈페이지 영상 정보를 불러오지 못했습니다.",
+    });
+  }
+
   if (!isSafeAssetUrl(rawVideoUrl)) {
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: "허용되지 않는 영상 URL 형식입니다.",
     });
   }
-  return { videoId: null, videoUrl: rawVideoUrl };
+  return { videoId: null, videoUrl: rawVideoUrl, legacyInfo: null };
+}
+
+function optionalInputValue(value?: string | null) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
 }
 
 export const youtubeRouter = router({
@@ -159,9 +182,20 @@ export const youtubeRouter = router({
       description: optionalTextSchema(10000).nullable(),
       sortOrder: z.number().int().min(0).max(10000).optional(),
     }))
-    .mutation(({ input }) => {
-      const normalized = normalizeVideoInput(input);
-      return createYoutubeVideo({ ...input, ...normalized });
+    .mutation(async ({ input }) => {
+      const normalized = await normalizeVideoInput(input);
+      const { legacyInfo, ...videoSource } = normalized;
+      const inputTitle = optionalInputValue(input.title);
+      return createYoutubeVideo({
+        ...input,
+        ...videoSource,
+        title: legacyInfo && (!inputTitle || inputTitle === "제목 없음")
+          ? legacyInfo.subject || input.title
+          : inputTitle ?? input.title,
+        preacher: optionalInputValue(input.preacher) ?? legacyInfo?.preacher ?? null,
+        scripture: optionalInputValue(input.scripture) ?? legacyInfo?.word ?? null,
+        sermonDate: optionalInputValue(input.sermonDate) ?? legacyInfo?.date ?? null,
+      });
     }),
 
   /** 유튜브 영상 수정 (관리자) */

@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { Readable } from "stream";
 import type { ReadableStream } from "stream/web";
 
-type LegacyVodInfo = {
+export type LegacyVodInfo = {
   pageCode: string;
   num: string;
   vodType: string;
@@ -24,6 +24,14 @@ const LEGACY_VOD_CACHE = new Map<
 
 function isNumericId(value: string | undefined) {
   return Boolean(value && /^\d{1,10}$/.test(value));
+}
+
+function isLegacyJoychPageUrl(url: URL) {
+  return (
+    url.protocol === "http:" &&
+    (url.hostname === "www.joych.org" || url.hostname === "joych.org") &&
+    url.pathname === "/main/sub.html"
+  );
 }
 
 function decodeXmlText(value: string) {
@@ -66,7 +74,7 @@ function getRequestParams(req: Request) {
   return { pageCode, num, vodType };
 }
 
-async function fetchLegacyVodInfo(
+export async function fetchLegacyVodInfo(
   pageCode: string,
   num: string,
   vodType: string
@@ -124,6 +132,62 @@ async function fetchLegacyVodInfo(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function fetchLegacyVodTypeFromPage(pageUrl: URL, pageCode: string, num: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const response = await fetch(pageUrl.toString(), {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Legacy VOD page request failed: ${response.status}`);
+    }
+
+    const html = await response.text();
+    const iframePattern = new RegExp(
+      `vodIframe\\.html\\?[^"']*pageCode=${pageCode}[^"']*num=${num}[^"']*vodType=(\\d{1,10})`,
+      "i",
+    );
+    const match = iframePattern.exec(html);
+    return match?.[1] ?? null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function resolveLegacyVodInfoFromPageUrl(rawUrl: string) {
+  let pageUrl: URL;
+  try {
+    pageUrl = new URL(rawUrl.trim());
+  } catch {
+    return null;
+  }
+
+  if (!isLegacyJoychPageUrl(pageUrl)) {
+    return null;
+  }
+
+  const pageCode = pageUrl.searchParams.get("pageCode") ?? undefined;
+  const num = pageUrl.searchParams.get("num") ?? undefined;
+  const explicitVodType = pageUrl.searchParams.get("vodType") ?? undefined;
+  if (!isNumericId(pageCode) || !isNumericId(num)) {
+    throw new Error("Legacy VOD page URL is missing pageCode or num");
+  }
+  const validPageCode = pageCode as string;
+  const validNum = num as string;
+
+  const vodType = isNumericId(explicitVodType)
+    ? explicitVodType
+    : await fetchLegacyVodTypeFromPage(pageUrl, validPageCode, validNum);
+  if (!isNumericId(vodType ?? undefined)) {
+    throw new Error("Legacy VOD page did not include a valid vodType");
+  }
+  const validVodType = vodType as string;
+
+  return fetchLegacyVodInfo(validPageCode, validNum, validVodType);
 }
 
 function setHeaderFromUpstream(
@@ -231,7 +295,7 @@ export function registerLegacyVodRoutes(app: Express) {
         preacher: info.preacher,
         date: info.date,
         streamUrl: `/api/legacy-vod/${info.pageCode}/${info.num}/${info.vodType}.mp4`,
-        originalPageUrl: `http://www.joych.org/main/sub.html?pageCode=${info.pageCode}`,
+        originalPageUrl: `http://www.joych.org/main/sub.html?pageCode=${info.pageCode}&num=${info.num}&page=`,
       });
     } catch (error) {
       console.error("[LegacyVOD] info error", error);

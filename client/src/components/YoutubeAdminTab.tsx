@@ -409,11 +409,11 @@ export default function YoutubeAdminTab() {
               {addingVideo && (
                 <div className="mb-3 space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
                   <div>
-                    <label className="mb-1 block text-xs text-gray-500">유튜브 링크 또는 영상 파일 주소</label>
+                    <label className="mb-1 block text-xs text-gray-500">유튜브 링크, 영상 파일 주소, 옛 홈페이지 상세주소</label>
                     <Input
                       value={videoUrl}
                       onChange={(e) => setVideoUrl(e.target.value)}
-                      placeholder="https://www.youtube.com/watch?v=... 또는 http://sermon.joych.org/mp4/..."
+                      placeholder="http://www.joych.org/main/sub.html?pageCode=423&num=12469&page="
                       className="h-8 text-sm"
                     />
                   </div>
@@ -422,7 +422,7 @@ export default function YoutubeAdminTab() {
                     <Input
                       value={videoTitle}
                       onChange={(e) => setVideoTitle(e.target.value)}
-                      placeholder="예: 충성된 일꾼의 기준"
+                      placeholder="옛 홈페이지 주소는 비워두면 자동 입력됩니다"
                       className="h-8 text-sm"
                     />
                   </div>
