@@ -191,11 +191,23 @@ export async function syncPlaylistToMenu(playlistId: number, title: string) {
 
   // 2단 메뉴에서 동일 이름 검색 후 연결
   const matchingItems = itemList.filter(item => item.label === title);
+  const joyfulTvMatchingItems = matchingItems.filter(item =>
+    joyfulTvMenu && item.menuId === joyfulTvMenu.id
+  );
+  const canonicalJoyfulTvItem =
+    joyfulTvMatchingItems.find(item => item.href?.startsWith("/page/")) ??
+    joyfulTvMatchingItems[0];
+
   for (const item of matchingItems) {
     const isJoyfulTvItem = Boolean(joyfulTvMenu && item.menuId === joyfulTvMenu.id);
+    const isDuplicateJoyfulTvItem =
+      isJoyfulTvItem &&
+      joyfulTvMatchingItems.length > 1 &&
+      canonicalJoyfulTvItem &&
+      item.id !== canonicalJoyfulTvItem.id;
     await db.update(menuItems)
       .set(isJoyfulTvItem
-        ? { playlistId, pageType: "youtube", isVisible: true }
+        ? { playlistId, pageType: "youtube", isVisible: !isDuplicateJoyfulTvItem }
         : { playlistId })
       .where(eq(menuItems.id, item.id));
     updatedMenuItems += 1;
