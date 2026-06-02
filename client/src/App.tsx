@@ -13,6 +13,7 @@ const AdminPage = lazy(() => import("./pages/Admin"));
 const Sitemap = lazy(() => import("./pages/Sitemap"));
 const FaithData = lazy(() => import("./pages/FaithData"));
 const ChurchDirectory = lazy(() => import("./pages/ChurchDirectory"));
+const PlaygroundRankings = lazy(() => import("./pages/PlaygroundRankings"));
 const LegacyVodPage = lazy(() => import("./pages/LegacyVodPage"));
 const MemberRegister = lazy(() => import("./pages/MemberRegister"));
 const MemberLogin = lazy(() => import("./pages/MemberLogin"));
@@ -307,6 +308,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/faith-data" component={FaithData} />
       <Route path="/church-directory" component={ChurchDirectory} />
+      <Route path="/playground" component={PlaygroundRankings} />
       <Route path="/legacy-vod/:pageCode/:num/:vodType" component={LegacyVodPage} />
 
       {/* 교회소개 */}

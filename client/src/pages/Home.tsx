@@ -665,7 +665,7 @@ export default function Home() {
 
             {/* 카드 3: 플레이 그라운드 */}
             <a
-              href="/community/club"
+              href="/playground"
               className="group block rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-300 bg-white"
             >
               <div className="relative h-96 overflow-hidden">
@@ -693,7 +693,7 @@ export default function Home() {
                   플레이 그라운드
                 </h3>
                 <p className="text-gray-500 text-sm leading-relaxed">
-                  함께 뛰고 웃는 기쁨의교회 커뮤니티 공간
+                  기쁨의교회 FaithPlus 활동 랭킹
                 </p>
                 <div className="mt-4 flex items-center gap-1 text-[#1B5E20] text-sm font-semibold">
                   <span>자세히 보기</span>
