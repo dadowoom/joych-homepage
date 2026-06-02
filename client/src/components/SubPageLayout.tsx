@@ -21,6 +21,14 @@ function getChurchAddress(address?: string | null) {
   return value;
 }
 
+type SideMenuItem = {
+  id: number;
+  label: string;
+  href: string | null;
+  isActive?: boolean;
+  subItems?: SideMenuItem[];
+};
+
 interface SubPageLayoutProps {
   /** 현재 페이지 제목 (브레드크럼 마지막 항목) */
   pageTitle: string;
@@ -29,7 +37,7 @@ interface SubPageLayoutProps {
   /** 상위 메뉴 href */
   parentHref?: string;
   /** 사이드 메뉴에 표시할 같은 카테고리 항목들 */
-  sideMenuItems?: { id: number; label: string; href: string | null; isActive?: boolean }[];
+  sideMenuItems?: SideMenuItem[];
   /** 페이지 본문 */
   children: React.ReactNode;
 }
@@ -112,6 +120,36 @@ export default function SubPageLayout({
                         >
                           {item.label}
                         </span>
+                      )}
+                      {item.subItems && item.subItems.length > 0 && (
+                        <ul className="bg-white border-t border-gray-100">
+                          {item.subItems.map((subItem) => (
+                            <li key={subItem.id}>
+                              {subItem.href ? (
+                                <Link
+                                  href={subItem.href}
+                                  className={`block py-2.5 pl-7 pr-4 text-xs border-b border-gray-100 last:border-0 transition-colors ${
+                                    subItem.isActive
+                                      ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
+                                      : "text-gray-500 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
+                                  }`}
+                                >
+                                  {subItem.label}
+                                </Link>
+                              ) : (
+                                <span
+                                  className={`block py-2.5 pl-7 pr-4 text-xs border-b border-gray-100 last:border-0 ${
+                                    subItem.isActive
+                                      ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
+                                      : "text-gray-400"
+                                  }`}
+                                >
+                                  {subItem.label}
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
                       )}
                     </li>
                   ))}

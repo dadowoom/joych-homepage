@@ -56,7 +56,10 @@ type StaffMenuTreeItem = {
   id: number;
   label: string;
   href?: string | null;
+  pageType?: string | null;
+  pageImageUrl?: string | null;
   isVisible?: boolean;
+  subItems?: StaffMenuTreeItem[];
 };
 type StaffMenuTree = Array<{
   label: string;
@@ -84,17 +87,35 @@ function getStaffCategoryLabel(category: string) {
   return STAFF_CATEGORIES.find((option) => option.value === category)?.label ?? category;
 }
 
+function hasOwnStaffMenuContent(item: StaffMenuTreeItem) {
+  const pageType = item.pageType ?? "image";
+  if (pageType === "image") {
+    return Boolean(item.pageImageUrl?.trim());
+  }
+  return true;
+}
+
 function getStaffSideMenuItems(menuTree: StaffMenuTree | undefined, pageTitle: string) {
   const liveItems = menuTree
     ?.find((menu) => menu.label === "교회소개")
     ?.items
     ?.filter((item) => item.isVisible !== false)
-    .map((item) => ({
-      id: item.id,
-      label: item.label,
-      href: item.href ?? null,
-      isActive: item.label === pageTitle,
-    }));
+    .map((item) => {
+      const subItems = item.subItems?.filter((subItem) => subItem.isVisible !== false) ?? [];
+      const hasSubItems = subItems.length > 0;
+      return {
+        id: item.id,
+        label: item.label,
+        href: hasSubItems && !hasOwnStaffMenuContent(item) ? null : item.href ?? null,
+        isActive: item.label === pageTitle,
+        subItems: subItems.map((subItem) => ({
+          id: subItem.id,
+          label: subItem.label,
+          href: subItem.href ?? null,
+          isActive: subItem.label === pageTitle,
+        })),
+      };
+    });
 
   if (liveItems?.length) return liveItems;
   return STAFF_SIDE_MENU_ITEMS.map((item) => ({

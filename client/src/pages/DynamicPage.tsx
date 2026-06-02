@@ -123,6 +123,12 @@ function getSecondLevelSideMenuItems(
         item.id === activeItemId ||
         decodePath(item.href ?? "") === normalizedActiveHref ||
         subItems.some((sub) => decodePath(sub.href ?? "") === normalizedActiveHref),
+      subItems: subItems.map((sub) => ({
+        id: sub.id,
+        label: sub.label,
+        href: sub.href ?? null,
+        isActive: decodePath(sub.href ?? "") === normalizedActiveHref,
+      })),
     };
   });
 }
