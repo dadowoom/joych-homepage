@@ -21,6 +21,26 @@ function formatSermonDate(value?: string | null) {
   return trimmed;
 }
 
+function getThumbnailUrl(video: {
+  videoId?: string | null;
+  thumbnailUrl?: string | null;
+}) {
+  return video.thumbnailUrl || (video.videoId ? `https://img.youtube.com/vi/${video.videoId}/mqdefault.jpg` : null);
+}
+
+function VideoThumbnail({ title, src }: { title: string; src: string | null }) {
+  if (src) {
+    return <img src={src} alt={title} className="h-full w-full object-cover" />;
+  }
+
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center bg-[#eef4ed] px-3 text-center">
+      <PlayCircle className="mb-2 h-9 w-9 text-[#1B5E20]/60" />
+      <span className="line-clamp-2 text-xs font-medium leading-tight text-[#1B5E20]">{title}</span>
+    </div>
+  );
+}
+
 export default function YoutubeListPage({ playlistId, title }: YoutubeListPageProps) {
   const { data: videos = [], isLoading } = trpc.youtube.getVideos.useQuery({ playlistId });
   const [activeIndex, setActiveIndex] = useState(0);
@@ -168,11 +188,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
                 >
                   {/* 썸네일 */}
                   <div className="relative aspect-video bg-gray-100">
-                    <img
-                      src={video.thumbnailUrl || (video.videoId ? `https://img.youtube.com/vi/${video.videoId}/mqdefault.jpg` : undefined)}
-                      alt={video.title}
-                      className="w-full h-full object-cover"
-                    />
+                    <VideoThumbnail title={video.title} src={getThumbnailUrl(video)} />
                     {index === activeIndex && (
                       <div className="absolute inset-0 bg-[#1B5E20]/20 flex items-center justify-center">
                         <PlayCircle className="w-8 h-8 text-white drop-shadow" />

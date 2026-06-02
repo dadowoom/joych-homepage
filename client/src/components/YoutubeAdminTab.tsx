@@ -54,6 +54,10 @@ function optionalValue(value: string) {
   return trimmed ? trimmed : null;
 }
 
+function getThumbnailUrl(video: VideoListItem) {
+  return video.thumbnailUrl || (video.videoId ? `https://img.youtube.com/vi/${video.videoId}/default.jpg` : null);
+}
+
 function SortableVideoItem({
   video,
   onDelete,
@@ -71,6 +75,7 @@ function SortableVideoItem({
     opacity: isDragging ? 0.5 : 1,
   };
   const meta = [video.preacher, video.scripture, video.sermonDate].filter(Boolean).join(" · ");
+  const thumbnailUrl = getThumbnailUrl(video);
 
   return (
     <div
@@ -86,11 +91,17 @@ function SortableVideoItem({
       >
         <GripVertical className="h-4 w-4" />
       </button>
-      <img
-        src={video.thumbnailUrl || (video.videoId ? `https://img.youtube.com/vi/${video.videoId}/default.jpg` : "/video-placeholder.png")}
-        alt={video.title}
-        className="h-9 w-16 shrink-0 rounded bg-gray-100 object-cover"
-      />
+      {thumbnailUrl ? (
+        <img
+          src={thumbnailUrl}
+          alt={video.title}
+          className="h-9 w-16 shrink-0 rounded bg-gray-100 object-cover"
+        />
+      ) : (
+        <div className="flex h-9 w-16 shrink-0 items-center justify-center rounded bg-[#eef4ed] text-[#1B5E20]">
+          <Youtube className="h-4 w-4 opacity-70" />
+        </div>
+      )}
       <div className="min-w-0 flex-1">
         <p className="line-clamp-1 text-sm font-medium leading-tight text-gray-800">{video.title}</p>
         {meta && <p className="mt-0.5 line-clamp-1 text-xs text-gray-400">{meta}</p>}

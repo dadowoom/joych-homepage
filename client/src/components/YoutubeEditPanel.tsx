@@ -57,6 +57,7 @@ function SortableVideoItem({
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
+  const thumbnailUrl = video.thumbnailUrl || (video.videoId ? `https://img.youtube.com/vi/${video.videoId}/default.jpg` : null);
 
   return (
     <div
@@ -74,11 +75,17 @@ function SortableVideoItem({
       </button>
 
       {/* 썸네일 */}
-      <img
-        src={video.thumbnailUrl || (video.videoId ? `https://img.youtube.com/vi/${video.videoId}/default.jpg` : '/video-placeholder.png')}
-        alt={video.title}
-        className="w-16 h-9 object-cover rounded flex-shrink-0 bg-gray-100"
-      />
+      {thumbnailUrl ? (
+        <img
+          src={thumbnailUrl}
+          alt={video.title}
+          className="w-16 h-9 object-cover rounded flex-shrink-0 bg-gray-100"
+        />
+      ) : (
+        <div className="flex h-9 w-16 flex-shrink-0 items-center justify-center rounded bg-[#eef4ed] text-[#1B5E20]">
+          <Youtube className="h-4 w-4 opacity-70" />
+        </div>
+      )}
 
       {/* 제목 */}
       <p className="flex-1 text-sm text-gray-800 line-clamp-2 leading-tight min-w-0">{video.title}</p>
