@@ -22,7 +22,7 @@ const LEGACY_VOD_CACHE = new Map<
   { expiresAt: number; info: LegacyVodInfo }
 >();
 
-function isNumericId(value: string | undefined) {
+function isNumericId(value: string | undefined): value is string {
   return Boolean(value && /^\d{1,10}$/.test(value));
 }
 
@@ -134,7 +134,11 @@ export async function fetchLegacyVodInfo(
   }
 }
 
-async function fetchLegacyVodTypeFromPage(pageUrl: URL, pageCode: string, num: string) {
+async function fetchLegacyVodParamsFromPage(
+  pageUrl: URL,
+  pageCode: string,
+  expectedNum?: string
+) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
@@ -147,12 +151,32 @@ async function fetchLegacyVodTypeFromPage(pageUrl: URL, pageCode: string, num: s
     }
 
     const html = await response.text();
-    const iframePattern = new RegExp(
-      `vodIframe\\.html\\?[^"']*pageCode=${pageCode}[^"']*num=${num}[^"']*vodType=(\\d{1,10})`,
-      "i",
-    );
-    const match = iframePattern.exec(html);
-    return match?.[1] ?? null;
+    const iframePattern = /<iframe\b[^>]*\bsrc=(["'])(.*?)\1/gi;
+    let match: RegExpExecArray | null;
+    while ((match = iframePattern.exec(html))) {
+      const iframeSrc = decodeXmlText(match[2]);
+      if (!iframeSrc.includes("vodIframe.html")) continue;
+
+      try {
+        const iframeUrl = new URL(iframeSrc, pageUrl);
+        const iframePageCode = iframeUrl.searchParams.get("pageCode") ?? undefined;
+        const iframeNum = iframeUrl.searchParams.get("num") ?? undefined;
+        const iframeVodType = iframeUrl.searchParams.get("vodType") ?? undefined;
+
+        if (iframePageCode !== pageCode) continue;
+        if (!isNumericId(iframeNum) || !isNumericId(iframeVodType)) continue;
+        if (expectedNum && iframeNum !== expectedNum) continue;
+
+        return {
+          num: iframeNum,
+          vodType: iframeVodType,
+        };
+      } catch {
+        continue;
+      }
+    }
+
+    return null;
   } finally {
     clearTimeout(timeout);
   }
@@ -173,21 +197,28 @@ export async function resolveLegacyVodInfoFromPageUrl(rawUrl: string) {
   const pageCode = pageUrl.searchParams.get("pageCode") ?? undefined;
   const num = pageUrl.searchParams.get("num") ?? undefined;
   const explicitVodType = pageUrl.searchParams.get("vodType") ?? undefined;
-  if (!isNumericId(pageCode) || !isNumericId(num)) {
-    throw new Error("Legacy VOD page URL is missing pageCode or num");
+  if (!isNumericId(pageCode)) {
+    throw new Error("옛 홈페이지 영상 주소에서 pageCode를 찾지 못했습니다.");
   }
   const validPageCode = pageCode as string;
-  const validNum = num as string;
 
-  const vodType = isNumericId(explicitVodType)
-    ? explicitVodType
-    : await fetchLegacyVodTypeFromPage(pageUrl, validPageCode, validNum);
-  if (!isNumericId(vodType ?? undefined)) {
-    throw new Error("Legacy VOD page did not include a valid vodType");
+  let resolvedNum = isNumericId(num) ? num : undefined;
+  let resolvedVodType = isNumericId(explicitVodType) ? explicitVodType : undefined;
+  if (!resolvedNum || !resolvedVodType) {
+    const pageParams = await fetchLegacyVodParamsFromPage(
+      pageUrl,
+      validPageCode,
+      resolvedNum
+    );
+    resolvedNum = resolvedNum ?? pageParams?.num;
+    resolvedVodType = resolvedVodType ?? pageParams?.vodType;
   }
-  const validVodType = vodType as string;
 
-  return fetchLegacyVodInfo(validPageCode, validNum, validVodType);
+  if (!isNumericId(resolvedNum) || !isNumericId(resolvedVodType)) {
+    throw new Error("옛 홈페이지 영상 목록에서 영상 정보를 찾지 못했습니다.");
+  }
+
+  return fetchLegacyVodInfo(validPageCode, resolvedNum, resolvedVodType);
 }
 
 function setHeaderFromUpstream(

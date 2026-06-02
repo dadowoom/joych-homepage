@@ -420,11 +420,11 @@ export default function YoutubeAdminTab() {
               {addingVideo && (
                 <div className="mb-3 space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
                   <div>
-                    <label className="mb-1 block text-xs text-gray-500">유튜브 링크, 영상 파일 주소, 옛 홈페이지 상세주소</label>
+                    <label className="mb-1 block text-xs text-gray-500">유튜브 링크, 영상 파일 주소, 옛 홈페이지 목록/상세주소</label>
                     <Input
                       value={videoUrl}
                       onChange={(e) => setVideoUrl(e.target.value)}
-                      placeholder="http://www.joych.org/main/sub.html?pageCode=423&num=12469&page="
+                      placeholder="http://www.joych.org/main/sub.html?pageCode=424"
                       className="h-8 text-sm"
                     />
                   </div>
