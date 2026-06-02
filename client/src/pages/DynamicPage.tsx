@@ -33,6 +33,7 @@ import { BoardContent } from "@/components/dynamic-page/BoardContent";
 import { YoutubeContent } from "@/components/dynamic-page/YoutubeContent";
 import { EditorContent } from "@/components/dynamic-page/EditorContent";
 import { StaffPage } from "./ChurchIntro";
+import KakaoDirectionsMap from "@/components/KakaoDirectionsMap";
 
 type DynamicPageItem = {
   id: number;
@@ -79,6 +80,12 @@ function getStaffCategoryForMenuItem(item: DynamicPageItem) {
   if (label === "섬기는 분" || href === "/page/교회소개-섬기는-분") return "senior";
   if (label === "부교역자" || href === "/page/교회소개-부교역자") return "associate";
   return null;
+}
+
+function isDirectionsMenuItem(item: DynamicPageItem) {
+  const label = item.label.replace(/\s+/g, "");
+  const href = item.href?.replace(/\s+/g, "") ?? "";
+  return label === "오시는길" || href.includes("오시는길") || href === "/about/directions";
 }
 
 function getFirstSubItemHref(allMenus: DynamicMenuTree | undefined, itemId: number) {
@@ -175,6 +182,18 @@ function MenuItemPageContent({
 
   if (staffCategory) {
     return <StaffPage initialCategory={staffCategory} />;
+  }
+
+  if (isDirectionsMenuItem(item)) {
+    return (
+      <SubPageLayout
+        pageTitle={item.label}
+        parentLabel={parentMenu?.label}
+        sideMenuItems={sideItems}
+      >
+        <KakaoDirectionsMap />
+      </SubPageLayout>
+    );
   }
 
   if (shouldRedirectToFirstSubItem) {
