@@ -8,9 +8,147 @@ import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
 import YoutubeListPage from "./YoutubeListPage";
 
-function EmptyVideoPage({ title, message }: { title: string; message: string }) {
+type VideoMenuSubItem = {
+  id: number;
+  label: string;
+  href?: string | null;
+  pageType?: string | null;
+  pageImageUrl?: string | null;
+  playlistId?: number | null;
+  menuItemId?: number;
+};
+
+type VideoMenuItem = {
+  id: number;
+  label: string;
+  href?: string | null;
+  pageType?: string | null;
+  pageImageUrl?: string | null;
+  playlistId?: number | null;
+  menuId?: number;
+  subItems?: VideoMenuSubItem[];
+};
+
+type VideoMenuTree = Array<{
+  id: number;
+  label: string;
+  href?: string | null;
+  items?: VideoMenuItem[];
+}>;
+
+type VideoSideMenuItem = {
+  id: number;
+  label: string;
+  href: string | null;
+  isActive?: boolean;
+  subItems?: VideoSideMenuItem[];
+};
+
+function decodePath(path: string) {
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    return path;
+  }
+}
+
+function hasOwnMenuContent(item: VideoMenuItem) {
+  const pageType = item.pageType ?? "image";
+  if (pageType === "image") {
+    return Boolean(item.pageImageUrl?.trim());
+  }
+  return true;
+}
+
+function getJoyfulTvMenu(
+  menuTree: VideoMenuTree | undefined,
+  activeItemId?: number,
+  activeSubItemId?: number
+) {
+  for (const menu of menuTree ?? []) {
+    if (
+      menu.items?.some(
+        (item) =>
+          item.id === activeItemId ||
+          item.subItems?.some((subItem) => subItem.id === activeSubItemId)
+      )
+    ) {
+      return menu;
+    }
+  }
+
+  return (menuTree ?? []).find((menu) => menu.label === "조이풀TV");
+}
+
+function getVideoSideMenuItems(
+  menuTree: VideoMenuTree | undefined,
+  activeHref: string,
+  activeItemId?: number,
+  activeSubItemId?: number
+): VideoSideMenuItem[] {
+  const parentMenu = getJoyfulTvMenu(menuTree, activeItemId, activeSubItemId);
+  const normalizedActiveHref = decodePath(activeHref);
+
+  return (parentMenu?.items ?? []).map((item) => {
+    const subItems = item.subItems ?? [];
+    const hasSubItems = subItems.length > 0;
+    const href = hasSubItems && !hasOwnMenuContent(item) ? null : item.href ?? null;
+
+    return {
+      id: item.id,
+      label: item.label,
+      href,
+      isActive:
+        item.id === activeItemId ||
+        decodePath(item.href ?? "") === normalizedActiveHref ||
+        subItems.some(
+          (subItem) =>
+            subItem.id === activeSubItemId ||
+            decodePath(subItem.href ?? "") === normalizedActiveHref
+        ),
+      subItems: subItems.map((subItem) => ({
+        id: subItem.id,
+        label: subItem.label,
+        href: subItem.href ?? null,
+        isActive:
+          subItem.id === activeSubItemId ||
+          decodePath(subItem.href ?? "") === normalizedActiveHref,
+      })),
+    };
+  });
+}
+
+function VideoPageShell({
+  title,
+  sideMenuItems,
+  children,
+}: {
+  title: string;
+  sideMenuItems: VideoSideMenuItem[];
+  children: React.ReactNode;
+}) {
   return (
-    <SubPageLayout pageTitle={title} parentLabel="조이풀TV">
+    <SubPageLayout
+      pageTitle={title}
+      parentLabel="조이풀TV"
+      sideMenuItems={sideMenuItems}
+    >
+      {children}
+    </SubPageLayout>
+  );
+}
+
+function EmptyVideoPage({
+  title,
+  message,
+  sideMenuItems,
+}: {
+  title: string;
+  message: string;
+  sideMenuItems: VideoSideMenuItem[];
+}) {
+  return (
+    <VideoPageShell title={title} sideMenuItems={sideMenuItems}>
       <div className="min-h-[320px] flex items-center justify-center rounded-xl border border-gray-100 bg-white">
         <div className="text-center text-gray-500 px-6">
           <i className="fas fa-video text-4xl text-[#1B5E20] mb-4 opacity-70"></i>
@@ -18,7 +156,7 @@ function EmptyVideoPage({ title, message }: { title: string; message: string }) 
           <p className="text-sm mt-2 text-gray-400">영상이 준비되는 대로 이곳에서 보실 수 있습니다.</p>
         </div>
       </div>
-    </SubPageLayout>
+    </VideoPageShell>
   );
 }
 
@@ -26,28 +164,47 @@ function EmptyVideoPage({ title, message }: { title: string; message: string }) 
 function WorshipVideoPage({ href, title }: { href: string; title: string }) {
   const { data: menuItem, isLoading: l1 } = trpc.home.menuItemByHref.useQuery({ href });
   const { data: subItem, isLoading: l2 } = trpc.home.menuSubItemByHref.useQuery({ href });
+  const { data: menuTree, isLoading: menuLoading } = trpc.home.menus.useQuery();
 
   const playlistId = menuItem?.playlistId ?? subItem?.playlistId ?? null;
-  const isLoading = l1 || l2;
+  const activeItemId = menuItem?.id ?? subItem?.menuItemId;
+  const activeSubItemId = subItem?.id;
+  const sideMenuItems = getVideoSideMenuItems(
+    menuTree,
+    href,
+    activeItemId,
+    activeSubItemId
+  );
+  const isLoading = l1 || l2 || menuLoading;
 
   if (isLoading) {
     return (
-      <SubPageLayout pageTitle={title} parentLabel="조이풀TV">
+      <VideoPageShell title={title} sideMenuItems={sideMenuItems}>
         <div className="min-h-[320px] flex items-center justify-center">
           <div className="text-center text-gray-400">
             <div className="w-10 h-10 border-4 border-[#1B5E20] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
             <p className="text-sm">영상 목록을 불러오는 중...</p>
           </div>
         </div>
-      </SubPageLayout>
+      </VideoPageShell>
     );
   }
 
   if (!playlistId) {
-    return <EmptyVideoPage title={title} message="현재 등록된 영상이 없습니다." />;
+    return (
+      <EmptyVideoPage
+        title={title}
+        message="현재 등록된 영상이 없습니다."
+        sideMenuItems={sideMenuItems}
+      />
+    );
   }
 
-  return <YoutubeListPage playlistId={playlistId} title={title} />;
+  return (
+    <VideoPageShell title={title} sideMenuItems={sideMenuItems}>
+      <YoutubeListPage playlistId={playlistId} title={title} />
+    </VideoPageShell>
+  );
 }
 
 export function SundayWorshipPage() {
