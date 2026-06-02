@@ -6,9 +6,10 @@
  * ⚠️ 헤더는 SiteHeader 컴포넌트를 재사용합니다.
  *    App.tsx에서 이미 <SiteHeader />를 렌더링하므로 여기서는 중복 렌더링하지 않습니다.
  */
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
-import { ChevronRight, Home } from "lucide-react";
+import { ChevronDown, ChevronRight, Home } from "lucide-react";
 
 const LOGO_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-logo_35c62cc5.jpg";
 const CHURCH_ADDRESS = "경상북도 포항시 북구 삼흥로 411";
@@ -50,6 +51,44 @@ export default function SubPageLayout({
   children,
 }: SubPageLayoutProps) {
   const { data: dbSettings } = trpc.home.settings.useQuery();
+  const [openSideMenuIds, setOpenSideMenuIds] = useState<Set<number>>(new Set());
+  const activeSideMenuIds = useMemo(
+    () =>
+      sideMenuItems
+        .filter((item) => item.isActive || item.subItems?.some((subItem) => subItem.isActive))
+        .map((item) => item.id),
+    [sideMenuItems]
+  );
+  const activeSideMenuKey = activeSideMenuIds.join(",");
+
+  useEffect(() => {
+    if (!activeSideMenuKey) return;
+    const activeIds = activeSideMenuKey.split(",").map((id) => Number(id));
+    setOpenSideMenuIds((previous) => {
+      const next = new Set(previous);
+      let changed = false;
+      activeIds.forEach((id) => {
+        if (!next.has(id)) {
+          next.add(id);
+          changed = true;
+        }
+      });
+      return changed ? next : previous;
+    });
+  }, [activeSideMenuKey]);
+
+  const toggleSideMenu = (itemId: number) => {
+    setOpenSideMenuIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  };
+
   const socialLinks = [
     { icon: "fab fa-youtube", label: "유튜브", href: dbSettings?.youtube_url || "/worship/tv" },
     { icon: "fab fa-facebook-f", label: "페이스북", href: dbSettings?.facebook_url || null },
@@ -97,62 +136,85 @@ export default function SubPageLayout({
                   </div>
                 )}
                 <ul className="border border-gray-200 rounded-b-lg overflow-hidden">
-                  {sideMenuItems.map((item) => (
-                    <li key={item.id}>
-                      {item.href ? (
-                        <Link
-                          href={item.href}
-                          className={`block px-4 py-3 text-sm border-b border-gray-100 last:border-0 transition-colors ${
-                            item.isActive
-                              ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
-                              : "text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
-                          }`}
-                        >
-                          {item.label}
-                        </Link>
-                      ) : (
-                        <span
-                          className={`block px-4 py-3 text-sm border-b border-gray-100 last:border-0 ${
-                            item.isActive
-                              ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
-                              : "text-gray-400"
-                          }`}
-                        >
-                          {item.label}
-                        </span>
-                      )}
-                      {item.subItems && item.subItems.length > 0 && (
-                        <ul className="bg-white border-t border-gray-100">
-                          {item.subItems.map((subItem) => (
-                            <li key={subItem.id}>
-                              {subItem.href ? (
-                                <Link
-                                  href={subItem.href}
-                                  className={`block py-2.5 pl-7 pr-4 text-xs border-b border-gray-100 last:border-0 transition-colors ${
-                                    subItem.isActive
-                                      ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
-                                      : "text-gray-500 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
-                                  }`}
-                                >
-                                  {subItem.label}
-                                </Link>
-                              ) : (
-                                <span
-                                  className={`block py-2.5 pl-7 pr-4 text-xs border-b border-gray-100 last:border-0 ${
-                                    subItem.isActive
-                                      ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
-                                      : "text-gray-400"
-                                  }`}
-                                >
-                                  {subItem.label}
-                                </span>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </li>
-                  ))}
+                  {sideMenuItems.map((item) => {
+                    const hasSubItems = Boolean(item.subItems?.length);
+                    const isOpen = openSideMenuIds.has(item.id);
+
+                    return (
+                      <li key={item.id}>
+                        {hasSubItems ? (
+                          <button
+                            type="button"
+                            aria-expanded={isOpen}
+                            onClick={() => toggleSideMenu(item.id)}
+                            className={`flex w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm border-b border-gray-100 last:border-0 transition-colors ${
+                              item.isActive
+                                ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
+                                : "text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
+                            }`}
+                          >
+                            <span>{item.label}</span>
+                            {isOpen ? (
+                              <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            ) : (
+                              <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            )}
+                          </button>
+                        ) : item.href ? (
+                          <Link
+                            href={item.href}
+                            className={`block px-4 py-3 text-sm border-b border-gray-100 last:border-0 transition-colors ${
+                              item.isActive
+                                ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
+                                : "text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
+                            }`}
+                          >
+                            {item.label}
+                          </Link>
+                        ) : (
+                          <span
+                            className={`block px-4 py-3 text-sm border-b border-gray-100 last:border-0 ${
+                              item.isActive
+                                ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
+                                : "text-gray-400"
+                            }`}
+                          >
+                            {item.label}
+                          </span>
+                        )}
+                        {hasSubItems && isOpen && (
+                          <ul className="bg-white border-t border-gray-100">
+                            {item.subItems?.map((subItem) => (
+                              <li key={subItem.id}>
+                                {subItem.href ? (
+                                  <Link
+                                    href={subItem.href}
+                                    className={`block py-2.5 pl-7 pr-4 text-xs border-b border-gray-100 last:border-0 transition-colors ${
+                                      subItem.isActive
+                                        ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
+                                        : "text-gray-500 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
+                                    }`}
+                                  >
+                                    {subItem.label}
+                                  </Link>
+                                ) : (
+                                  <span
+                                    className={`block py-2.5 pl-7 pr-4 text-xs border-b border-gray-100 last:border-0 ${
+                                      subItem.isActive
+                                        ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
+                                        : "text-gray-400"
+                                    }`}
+                                  >
+                                    {subItem.label}
+                                  </span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </aside>
             )}
