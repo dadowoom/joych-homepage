@@ -11,7 +11,17 @@
 
 import { and, eq, asc, desc } from "drizzle-orm";
 import type { ResultSetHeader } from "mysql2";
-import { churchMembers, memberFieldOptions, memberSocialAccounts } from "../../drizzle/schema";
+import {
+  churchMembers,
+  memberFieldOptions,
+  memberSocialAccounts,
+  missionReportAuthors,
+  missionReports,
+  reservations,
+  schoolPosts,
+  testimonyComments,
+  testimonyPosts,
+} from "../../drizzle/schema";
 import { getDb } from "./connection";
 
 export type MemberSocialProvider = "google" | "kakao";
@@ -249,6 +259,68 @@ export async function updateMemberChurchInfo(id: number, data: Partial<{
   const db = await getDb();
   if (!db) throw new Error('DB not available');
   await db.update(churchMembers).set({ ...data, updatedAt: new Date() }).where(eq(churchMembers.id, id));
+}
+
+/** 성도 본인 탈퇴: 개인정보 삭제/익명화 및 소셜 연결 해제 */
+export async function withdrawMemberAndErasePersonalData(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+
+  const anonymizedName = "탈퇴 성도";
+  const now = new Date();
+
+  await db.transaction(async (tx) => {
+    await tx.delete(memberSocialAccounts).where(eq(memberSocialAccounts.memberId, id));
+
+    await tx.update(testimonyPosts)
+      .set({ status: "deleted", updatedAt: now })
+      .where(eq(testimonyPosts.authorMemberId, id));
+
+    await tx.update(testimonyComments)
+      .set({ status: "deleted", updatedAt: now })
+      .where(eq(testimonyComments.authorMemberId, id));
+
+    await tx.update(missionReports)
+      .set({ authorMemberId: null, updatedAt: now })
+      .where(eq(missionReports.authorMemberId, id));
+
+    await tx.update(missionReportAuthors)
+      .set({ canWrite: false, updatedAt: now })
+      .where(eq(missionReportAuthors.memberId, id));
+
+    await tx.update(schoolPosts)
+      .set({ memberId: null, authorName: anonymizedName, updatedAt: now })
+      .where(eq(schoolPosts.memberId, id));
+
+    await tx.update(reservations)
+      .set({ reserverName: anonymizedName, reserverPhone: null, updatedAt: now })
+      .where(eq(reservations.userId, id));
+
+    await tx.update(churchMembers)
+      .set({
+        email: null,
+        passwordHash: null,
+        name: anonymizedName,
+        phone: null,
+        birthDate: null,
+        gender: null,
+        address: null,
+        emergencyPhone: null,
+        joinPath: null,
+        position: null,
+        department: null,
+        district: null,
+        baptismType: null,
+        baptismDate: null,
+        registeredAt: null,
+        pastor: null,
+        adminMemo: null,
+        status: "withdrawn",
+        faithPlusUserId: null,
+        updatedAt: now,
+      })
+      .where(eq(churchMembers.id, id));
+  });
 }
 
 // ─── 관리자 전용 ──────────────────────────────────────────────────────────────

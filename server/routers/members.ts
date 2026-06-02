@@ -53,6 +53,7 @@ import {
   getAllMembers,
   getPendingMembers,
   searchMembersByName,
+  withdrawMemberAndErasePersonalData,
 } from "../db";
 
 const idSchema = z.number().int().positive();
@@ -290,6 +291,23 @@ export const membersRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       await updateMemberBasicInfo(ctx.memberId, input);
+      return { success: true };
+    }),
+
+  /**
+   * 성도 본인 탈퇴
+   * - 개인정보/소셜 연결 삭제 또는 익명화
+   * - 작성한 간증글/댓글은 삭제 상태로 전환
+   */
+  withdraw: memberProtectedProcedure
+    .input(z.object({
+      confirm: z.literal("탈퇴"),
+    }))
+    .mutation(async ({ ctx }) => {
+      await withdrawMemberAndErasePersonalData(ctx.memberId);
+      ctx.res.clearCookie("church_member_session", {
+        ...getSessionCookieOptions(ctx.req),
+      });
       return { success: true };
     }),
 

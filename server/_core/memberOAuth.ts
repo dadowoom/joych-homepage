@@ -37,7 +37,7 @@ const providers = {
     authorizeUrl: "https://kauth.kakao.com/oauth/authorize",
     tokenUrl: "https://kauth.kakao.com/oauth/token",
     userInfoUrl: "https://kapi.kakao.com/v2/user/me",
-    scopes: [],
+    scopes: ["account_email", "profile_nickname"],
     clientSecretRequired: false,
   },
 } as const;
@@ -388,6 +388,12 @@ export function normalizeKakaoProfile(profile: unknown): NormalizedSocialProfile
   const kakaoAccount = (data.kakao_account ?? {}) as Record<string, unknown>;
   const accountProfile = (kakaoAccount.profile ?? {}) as Record<string, unknown>;
   const properties = (data.properties ?? {}) as Record<string, unknown>;
+  const emailVerified =
+    typeof kakaoAccount.is_email_verified === "boolean"
+      ? kakaoAccount.is_email_verified
+      : typeof kakaoAccount.is_email_valid === "boolean"
+        ? kakaoAccount.is_email_valid
+        : null;
   const providerUserId =
     typeof data.id === "number" || typeof data.id === "string"
       ? String(data.id)
@@ -397,10 +403,7 @@ export function normalizeKakaoProfile(profile: unknown): NormalizedSocialProfile
     provider: "kakao",
     providerUserId: assertString(providerUserId, "Kakao profile id missing"),
     email: typeof kakaoAccount.email === "string" ? kakaoAccount.email.trim().toLowerCase() : null,
-    emailVerified:
-      typeof kakaoAccount.is_email_verified === "boolean"
-        ? kakaoAccount.is_email_verified
-        : null,
+    emailVerified,
     displayName:
       typeof accountProfile.nickname === "string"
         ? accountProfile.nickname

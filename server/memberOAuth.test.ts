@@ -101,6 +101,23 @@ describe("member OAuth helpers", () => {
     });
   });
 
+  it("카카오 이메일 동의가 있으면 가입 화면에 채울 수 있도록 이메일을 정규화", () => {
+    expect(normalizeKakaoProfile({
+      id: "kakao-user-id",
+      kakao_account: {
+        email: "KAKAO@Example.COM",
+        is_email_valid: true,
+        profile: { nickname: "카카오성도" },
+      },
+    })).toMatchObject({
+      provider: "kakao",
+      providerUserId: "kakao-user-id",
+      email: "kakao@example.com",
+      emailVerified: true,
+      displayName: "카카오성도",
+    });
+  });
+
   it("기존 성도 이메일 자동 연결은 인증된 소셜 이메일만 허용", () => {
     expect(canUseProfileEmailForMemberAutoLink({
       email: "member@example.com",

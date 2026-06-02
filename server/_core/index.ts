@@ -26,6 +26,7 @@ const TRPC_UPLOAD_PROCEDURES = [
   "cms.blocks.uploadImage",
   "cms.facilities.images.upload",
   "mission.uploadImage",
+  "testimony.uploadImage",
 ];
 
 function getContentLength(req: express.Request) {
@@ -69,7 +70,18 @@ function requestBodyLimitGuard(
       : STANDARD_BODY_LIMIT_BYTES;
 
   if (contentLength > limit) {
-    res.status(413).type("text/plain").send("Payload too large");
+    if (isTrpcRequest) {
+      res.status(413).json({
+        error: {
+          message: isTrpcUploadRequest(req)
+            ? "업로드 요청이 너무 큽니다."
+            : "요청 본문이 너무 큽니다.",
+          code: "PAYLOAD_TOO_LARGE",
+        },
+      });
+    } else {
+      res.status(413).type("text/plain").send("Payload too large");
+    }
     return;
   }
 

@@ -16,6 +16,8 @@ export default function MemberMyPage() {
 
   const [editingFaithPlus, setEditingFaithPlus] = useState(false);
   const [faithPlusInput, setFaithPlusInput] = useState("");
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [withdrawConfirm, setWithdrawConfirm] = useState("");
 
   const logoutMutation = trpc.members.logout.useMutation({
     onSuccess: () => {
@@ -35,6 +37,17 @@ export default function MemberMyPage() {
     },
   });
 
+  const withdrawMutation = trpc.members.withdraw.useMutation({
+    onSuccess: () => {
+      toast.success("회원 탈퇴가 완료됐습니다.");
+      utils.members.me.invalidate();
+      navigate("/member/login");
+    },
+    onError: (e) => {
+      toast.error(e.message || "탈퇴 처리에 실패했습니다.");
+    },
+  });
+
   const handleFaithPlusSave = () => {
     updateInfoMutation.mutate({ faithPlusUserId: faithPlusInput || undefined });
   };
@@ -42,6 +55,14 @@ export default function MemberMyPage() {
   const handleFaithPlusEdit = () => {
     setFaithPlusInput(me?.faithPlusUserId ?? "");
     setEditingFaithPlus(true);
+  };
+
+  const handleWithdraw = () => {
+    if (withdrawConfirm.trim() !== "탈퇴") {
+      toast.error("확인 문구로 '탈퇴'를 입력해주세요.");
+      return;
+    }
+    withdrawMutation.mutate({ confirm: "탈퇴" });
   };
 
   if (isLoading) {
@@ -226,6 +247,55 @@ export default function MemberMyPage() {
                 {me.faithPlusUserId ? "수정" : "등록"}
               </button>
             </div>
+          )}
+        </div>
+
+        {/* 회원 탈퇴 */}
+        <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-6 mb-4">
+          <h2 className="text-base font-bold text-gray-800 mb-1 flex items-center gap-2">
+            <i className="fas fa-user-slash text-red-500"></i>
+            회원 탈퇴
+          </h2>
+          <p className="text-xs text-gray-400 mb-4">
+            탈퇴하면 로그인 정보와 개인정보, 간편가입 연결이 삭제되고 작성한 간증글과 댓글은 삭제 처리됩니다.
+          </p>
+
+          {withdrawOpen ? (
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={withdrawConfirm}
+                onChange={(e) => setWithdrawConfirm(e.target.value)}
+                placeholder="탈퇴"
+                className="w-full border border-red-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-200"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleWithdraw}
+                  disabled={withdrawMutation.isPending}
+                  className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+                >
+                  {withdrawMutation.isPending ? "처리 중..." : "탈퇴하기"}
+                </button>
+                <button
+                  onClick={() => {
+                    setWithdrawOpen(false);
+                    setWithdrawConfirm("");
+                  }}
+                  disabled={withdrawMutation.isPending}
+                  className="flex-1 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setWithdrawOpen(true)}
+              className="w-full py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors"
+            >
+              회원 탈퇴
+            </button>
           )}
         </div>
 
