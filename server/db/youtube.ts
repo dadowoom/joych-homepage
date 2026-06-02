@@ -11,8 +11,32 @@
  */
 
 import { and, eq, asc } from "drizzle-orm";
-import { youtubePlaylists, youtubeVideos, menuItems, menuSubItems } from "../../drizzle/schema";
+import { youtubePlaylists, youtubeVideos, menus, menuItems, menuSubItems } from "../../drizzle/schema";
+import { makeUniqueMenuPageHref, type MenuHrefCandidate } from "../_core/menuHref";
 import { getDb } from "./connection";
+
+const JOYFUL_TV_MENU_LABEL = "조이풀TV";
+
+function normalizeMenuLabel(label: string) {
+  return label.replace(/\s+/g, "").toLowerCase();
+}
+
+function isJoyfulTvMenuLabel(label: string) {
+  const normalized = normalizeMenuLabel(label);
+  return normalized === "조이풀tv" || normalized === "조이풀티비";
+}
+
+function collectMenuHrefCandidates(
+  menuList: Array<{ href?: string | null }>,
+  itemList: Array<{ href?: string | null }>,
+  subItemList: Array<{ href?: string | null }>,
+): MenuHrefCandidate[] {
+  return [
+    ...menuList.map(menu => ({ href: menu.href })),
+    ...itemList.map(item => ({ href: item.href })),
+    ...subItemList.map(subItem => ({ href: subItem.href })),
+  ];
+}
 
 // ─── 플레이리스트 CRUD ────────────────────────────────────────────────────────
 
@@ -124,22 +148,101 @@ export async function reorderYoutubeVideos(orderedIds: number[]) {
  * 플레이리스트 이름과 동일한 메뉴에 playlistId 자동 연결
  * - 2단 메뉴(menuItems)와 3단 메뉴(menuSubItems) 모두 검색
  * - 이름이 같은 메뉴가 있으면 해당 메뉴의 playlistId를 업데이트
+ * - 조이풀TV 아래에 동일 이름 메뉴가 없으면 2단 메뉴를 자동 생성
  */
 export async function syncPlaylistToMenu(playlistId: number, title: string) {
   const db = await getDb();
-  if (!db) return;
+  if (!db) return { createdMenuItem: false, updatedMenuItems: 0, updatedMenuSubItems: 0 };
+
+  const [menuList, itemList, subItemList] = await Promise.all([
+    db.select().from(menus).orderBy(asc(menus.sortOrder)),
+    db.select().from(menuItems).orderBy(asc(menuItems.sortOrder)),
+    db.select().from(menuSubItems).orderBy(asc(menuSubItems.sortOrder)),
+  ]);
+
+  let joyfulTvMenu = menuList.find(menu => isJoyfulTvMenuLabel(menu.label));
+  if (!joyfulTvMenu) {
+    const maxMenuSortOrder = menuList.reduce((max, menu) => Math.max(max, menu.sortOrder), 0);
+    const [createdMenu] = await db.insert(menus).values({
+      label: JOYFUL_TV_MENU_LABEL,
+      href: null,
+      sortOrder: maxMenuSortOrder + 1,
+      isVisible: true,
+    }).$returningId();
+    if (createdMenu?.id) {
+      joyfulTvMenu = {
+        id: createdMenu.id,
+        label: JOYFUL_TV_MENU_LABEL,
+        href: null,
+        sortOrder: maxMenuSortOrder + 1,
+        isVisible: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      menuList.push(joyfulTvMenu);
+    }
+  }
+
+  let updatedMenuItems = 0;
+  let updatedMenuSubItems = 0;
+  const joyfulItemIds = new Set(itemList
+    .filter(item => joyfulTvMenu && item.menuId === joyfulTvMenu.id)
+    .map(item => item.id));
 
   // 2단 메뉴에서 동일 이름 검색 후 연결
-  const matchingItems = await db.select().from(menuItems).where(eq(menuItems.label, title));
+  const matchingItems = itemList.filter(item => item.label === title);
   for (const item of matchingItems) {
-    await db.update(menuItems).set({ playlistId }).where(eq(menuItems.id, item.id));
+    const isJoyfulTvItem = Boolean(joyfulTvMenu && item.menuId === joyfulTvMenu.id);
+    await db.update(menuItems)
+      .set(isJoyfulTvItem
+        ? { playlistId, pageType: "youtube", isVisible: true }
+        : { playlistId })
+      .where(eq(menuItems.id, item.id));
+    updatedMenuItems += 1;
   }
 
   // 3단 메뉴에서 동일 이름 검색 후 연결
-  const matchingSubItems = await db.select().from(menuSubItems).where(eq(menuSubItems.label, title));
+  const matchingSubItems = subItemList.filter(sub => sub.label === title);
   for (const sub of matchingSubItems) {
-    await db.update(menuSubItems).set({ playlistId }).where(eq(menuSubItems.id, sub.id));
+    const isJoyfulTvSubItem = joyfulItemIds.has(sub.menuItemId);
+    await db.update(menuSubItems)
+      .set(isJoyfulTvSubItem
+        ? { playlistId, pageType: "youtube", isVisible: true }
+        : { playlistId })
+      .where(eq(menuSubItems.id, sub.id));
+    updatedMenuSubItems += 1;
   }
+
+  if (!joyfulTvMenu) {
+    return { createdMenuItem: false, updatedMenuItems, updatedMenuSubItems };
+  }
+
+  const hasJoyfulTvMenuEntry =
+    matchingItems.some(item => item.menuId === joyfulTvMenu.id) ||
+    matchingSubItems.some(sub => joyfulItemIds.has(sub.menuItemId));
+
+  if (hasJoyfulTvMenuEntry) {
+    return { createdMenuItem: false, updatedMenuItems, updatedMenuSubItems };
+  }
+
+  const maxItemSortOrder = itemList
+    .filter(item => item.menuId === joyfulTvMenu.id)
+    .reduce((max, item) => Math.max(max, item.sortOrder), 0);
+  const href = makeUniqueMenuPageHref(
+    [JOYFUL_TV_MENU_LABEL, title],
+    collectMenuHrefCandidates(menuList, itemList, subItemList),
+  );
+  await db.insert(menuItems).values({
+    menuId: joyfulTvMenu.id,
+    label: title,
+    href,
+    sortOrder: maxItemSortOrder + 1,
+    isVisible: true,
+    pageType: "youtube",
+    playlistId,
+  });
+
+  return { createdMenuItem: true, updatedMenuItems, updatedMenuSubItems };
 }
 
 /**
@@ -148,8 +251,21 @@ export async function syncPlaylistToMenu(playlistId: number, title: string) {
  */
 export async function syncAllPlaylistsToMenus() {
   const playlists = await getAllYoutubePlaylists();
+  let createdMenuItems = 0;
+  let updatedMenuItems = 0;
+  let updatedMenuSubItems = 0;
+
   for (const pl of playlists) {
-    await syncPlaylistToMenu(pl.id, pl.title);
+    const result = await syncPlaylistToMenu(pl.id, pl.title);
+    if (result?.createdMenuItem) createdMenuItems += 1;
+    updatedMenuItems += result?.updatedMenuItems ?? 0;
+    updatedMenuSubItems += result?.updatedMenuSubItems ?? 0;
   }
-  return { synced: playlists.length };
+
+  return {
+    synced: playlists.length,
+    createdMenuItems,
+    updatedMenuItems,
+    updatedMenuSubItems,
+  };
 }
