@@ -197,6 +197,10 @@ export async function syncPlaylistToMenu(playlistId: number, title: string) {
   const canonicalJoyfulTvItem =
     joyfulTvMatchingItems.find(item => item.href?.startsWith("/page/")) ??
     joyfulTvMatchingItems[0];
+  const canonicalJoyfulTvSortOrder = joyfulTvMatchingItems.reduce(
+    (min, item) => Math.min(min, item.sortOrder),
+    canonicalJoyfulTvItem?.sortOrder ?? 0,
+  );
 
   for (const item of matchingItems) {
     const isJoyfulTvItem = Boolean(joyfulTvMenu && item.menuId === joyfulTvMenu.id);
@@ -205,9 +209,19 @@ export async function syncPlaylistToMenu(playlistId: number, title: string) {
       joyfulTvMatchingItems.length > 1 &&
       canonicalJoyfulTvItem &&
       item.id !== canonicalJoyfulTvItem.id;
+    const isCanonicalJoyfulTvItem =
+      isJoyfulTvItem &&
+      joyfulTvMatchingItems.length > 1 &&
+      canonicalJoyfulTvItem &&
+      item.id === canonicalJoyfulTvItem.id;
     await db.update(menuItems)
       .set(isJoyfulTvItem
-        ? { playlistId, pageType: "youtube", isVisible: !isDuplicateJoyfulTvItem }
+        ? {
+            playlistId,
+            pageType: "youtube",
+            isVisible: !isDuplicateJoyfulTvItem,
+            ...(isCanonicalJoyfulTvItem ? { sortOrder: canonicalJoyfulTvSortOrder } : {}),
+          }
         : { playlistId })
       .where(eq(menuItems.id, item.id));
     updatedMenuItems += 1;
