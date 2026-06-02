@@ -19,8 +19,13 @@ function isExternalHref(href: string) {
   return href.startsWith("http://") || href.startsWith("https://");
 }
 
-function getFirstChildHref(subItems?: { href?: string | null }[]) {
-  return getUsableHref(subItems?.find(sub => getUsableHref(sub.href))?.href);
+function hasOwnSecondLevelContent(item: unknown) {
+  const data = item as Record<string, unknown>;
+  const pageType = typeof data.pageType === "string" ? data.pageType : "image";
+  if (pageType === "image") {
+    return typeof data.pageImageUrl === "string" && data.pageImageUrl.trim().length > 0;
+  }
+  return true;
 }
 
 const fallbackMenus = toFallbackMenuTree();
@@ -266,7 +271,9 @@ export default function SiteHeader() {
                               }
                             ).subItems ?? [];
                           const secondLevelHref =
-                            getFirstChildHref(subItems) ?? getUsableHref(s.href);
+                            hasSubItems && !hasOwnSecondLevelContent(s)
+                              ? null
+                              : getUsableHref(s.href);
                           const cls =
                             "flex items-center justify-between px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
                           return (
@@ -450,11 +457,13 @@ export default function SiteHeader() {
                             }
                           ).subItems ?? [];
                         const secondLevelHref =
-                          getFirstChildHref(subItems) ?? getUsableHref(item.href);
+                          hasSubItems && !hasOwnSecondLevelContent(item)
+                            ? null
+                            : getUsableHref(item.href);
                         return (
                           <div key={item.id}>
                             {hasSubItems ? (
-                              // 3단이 있어도 2단 페이지 링크와 펼침 버튼을 분리
+                              // 2단 자체 콘텐츠가 없으면 폴더처럼 열기만 합니다.
                               secondLevelHref ? (
                                 <div className="flex items-center">
                                   {isExternalHref(secondLevelHref) ? (
