@@ -12,6 +12,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { registerSeoUtilityRoutes } from "./seo";
+import { registerLegacyVodRoutes } from "./legacyVod";
 
 const MB = 1024 * 1024;
 const STANDARD_BODY_LIMIT_BYTES = 5 * MB;
@@ -250,6 +251,7 @@ async function startServer() {
     });
   });
   registerSeoUtilityRoutes(app);
+  registerLegacyVodRoutes(app);
 
   app.use(requestBodyLimitGuard);
   app.use(skipTrpcBodyParser(express.json({ limit: GENERAL_JSON_LIMIT })));
