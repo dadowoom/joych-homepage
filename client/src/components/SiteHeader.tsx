@@ -19,6 +19,10 @@ function isExternalHref(href: string) {
   return href.startsWith("http://") || href.startsWith("https://");
 }
 
+function getFirstChildHref(subItems?: { href?: string | null }[]) {
+  return getUsableHref(subItems?.find(sub => getUsableHref(sub.href))?.href);
+}
+
 const fallbackMenus = toFallbackMenuTree();
 
 export default function SiteHeader() {
@@ -261,14 +265,16 @@ export default function SiteHeader() {
                                 }[];
                               }
                             ).subItems ?? [];
+                          const secondLevelHref =
+                            getFirstChildHref(subItems) ?? getUsableHref(s.href);
                           const cls =
                             "flex items-center justify-between px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
                           return (
                             <li key={j} className="relative group/sub">
-                              {getUsableHref(s.href) ? (
-                                isExternalHref(getUsableHref(s.href)!) ? (
+                              {secondLevelHref ? (
+                                isExternalHref(secondLevelHref) ? (
                                   <a
-                                    href={getUsableHref(s.href)!}
+                                    href={secondLevelHref}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className={cls}
@@ -280,7 +286,7 @@ export default function SiteHeader() {
                                   </a>
                                 ) : (
                                   <Link
-                                    href={getUsableHref(s.href)!}
+                                    href={secondLevelHref}
                                     className={cls}
                                   >
                                     <span>{s.label}</span>
@@ -443,16 +449,17 @@ export default function SiteHeader() {
                               }[];
                             }
                           ).subItems ?? [];
+                        const secondLevelHref =
+                          getFirstChildHref(subItems) ?? getUsableHref(item.href);
                         return (
                           <div key={item.id}>
                             {hasSubItems ? (
                               // 3단이 있어도 2단 페이지 링크와 펼침 버튼을 분리
-                              item.href ? (
+                              secondLevelHref ? (
                                 <div className="flex items-center">
-                                  {item.href.startsWith("http://") ||
-                                  item.href.startsWith("https://") ? (
+                                  {isExternalHref(secondLevelHref) ? (
                                     <a
-                                      href={item.href}
+                                      href={secondLevelHref}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="flex-1 block pl-8 pr-3 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
@@ -462,7 +469,7 @@ export default function SiteHeader() {
                                     </a>
                                   ) : (
                                     <Link
-                                      href={item.href}
+                                      href={secondLevelHref}
                                       className="flex-1 block pl-8 pr-3 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
                                       onClick={() => setMobileOpen(false)}
                                     >

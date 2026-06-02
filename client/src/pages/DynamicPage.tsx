@@ -81,6 +81,15 @@ function getStaffCategoryForMenuItem(item: DynamicPageItem) {
   return null;
 }
 
+function getFirstSubItemHref(allMenus: DynamicMenuTree | undefined, itemId: number) {
+  for (const menu of allMenus ?? []) {
+    const matched = (menu.items ?? []).find((candidate) => candidate.id === itemId);
+    const firstHref = matched?.subItems?.find((sub) => Boolean(sub.href?.trim()))?.href?.trim();
+    if (firstHref) return firstHref;
+  }
+  return null;
+}
+
 // ─── 페이지 타입에 따라 알맞은 콘텐츠 컴포넌트를 반환 ────────────────────────
 function renderContent(
   pageType: string,
@@ -139,6 +148,7 @@ function MenuItemPageContent({
   allMenus?: DynamicMenuTree;
   activeHref?: string;
 }) {
+  const [, setLocation] = useLocation();
   const parentMenu = (allMenus ?? []).find((m) =>
     (m.items ?? []).some((s) => s.id === item.id)
   );
@@ -149,9 +159,26 @@ function MenuItemPageContent({
     isActive: s.id === item.id || decodePath(s.href ?? "") === decodePath(activeHref ?? ""),
   }));
   const staffCategory = getStaffCategoryForMenuItem(item);
+  const firstSubItemHref = getFirstSubItemHref(allMenus, item.id);
+  const shouldRedirectToFirstSubItem =
+    !staffCategory &&
+    Boolean(firstSubItemHref) &&
+    (item.pageType ?? "image") === "image" &&
+    !item.pageImageUrl &&
+    decodePath(firstSubItemHref ?? "") !== decodePath(activeHref ?? "");
+
+  useEffect(() => {
+    if (shouldRedirectToFirstSubItem && firstSubItemHref) {
+      setLocation(firstSubItemHref);
+    }
+  }, [firstSubItemHref, setLocation, shouldRedirectToFirstSubItem]);
 
   if (staffCategory) {
     return <StaffPage initialCategory={staffCategory} />;
+  }
+
+  if (shouldRedirectToFirstSubItem) {
+    return <LoadingDynamicPage />;
   }
 
   return (
