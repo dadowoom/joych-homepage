@@ -24,25 +24,11 @@ const KakaoDirectionsMap = lazy(
   () => import("@/components/KakaoDirectionsMap")
 );
 
-// 폴백(fallback) 데이터: DB 로딩 전 또는 DB 오류 시 표시
+// 폴백(fallback) 데이터: 운영 DB가 비어 있거나 DB 오류가 난 경우에만 표시
+// 예전 영상이 다시 노출되지 않도록 기본 슬라이드는 포스터 이미지만 사용한다.
 const FALLBACK_HERO_SLIDES = [
   {
-    videoUrl:
-      "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-video-2_9d9fb792.mp4",
-    posterUrl:
-      "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-church-XWJBwHDycyRoBg9dY4aj5r.webp",
-    yearLabel: "2026 JOYFUL",
-    mainTitle: "처음 익은 열매로\n여호와를 공경하라",
-    subTitle: "네 재물과 네 소산물의 처음 익은 열매로 여호와를 공경하라",
-    bibleRef: "잠언 3장 9절",
-    btn1Text: "새가족 등록",
-    btn1Href: "/support/new-member",
-    btn2Text: "예배 안내",
-    btn2Href: "/worship/schedule",
-  },
-  {
-    videoUrl:
-      "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-video-3_1b86687f.mp4",
+    videoUrl: "",
     posterUrl:
       "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-church-XWJBwHDycyRoBg9dY4aj5r.webp",
     yearLabel: "2026 JOYFUL",
@@ -226,16 +212,38 @@ export default function Home() {
   } = trpc.home.heroSlides.useQuery(undefined, {
     refetchOnWindowFocus: true,
   });
-  const { data: dbQuickMenus } = trpc.home.quickMenus.useQuery();
+  const {
+    data: dbQuickMenus,
+    isFetched: quickMenusFetched,
+    isError: quickMenusError,
+  } = trpc.home.quickMenus.useQuery();
   const { data: dbNotices } = trpc.home.notices.useQuery();
-  const { data: dbAffiliates } = trpc.home.affiliates.useQuery();
-  const { data: dbGallery } = trpc.home.gallery.useQuery();
+  const {
+    data: dbAffiliates,
+    isFetched: affiliatesFetched,
+    isError: affiliatesError,
+  } = trpc.home.affiliates.useQuery();
+  const {
+    data: dbGallery,
+    isFetched: galleryFetched,
+    isError: galleryError,
+  } = trpc.home.gallery.useQuery();
   const { data: dbSettings } = trpc.home.settings.useQuery();
 
-  // DB 데이터 또는 폴백 데이터 사용
+  // DB 데이터 또는 폴백 데이터 사용.
+  // 로딩 중에는 폴백을 먼저 보여주지 않는다. 새로고침 순간에 예전 기본 메뉴가 깜박이는 것을 막기 위함이다.
   const shouldUseHeroFallback =
     (heroSlidesFetched || heroSlidesError) &&
     (!dbHeroSlides || dbHeroSlides.length === 0);
+  const shouldUseQuickMenuFallback =
+    (quickMenusFetched || quickMenusError) &&
+    (!dbQuickMenus || dbQuickMenus.length === 0);
+  const shouldUseAffiliatesFallback =
+    (affiliatesFetched || affiliatesError) &&
+    (!dbAffiliates || dbAffiliates.length === 0);
+  const shouldUseGalleryFallback =
+    (galleryFetched || galleryError) &&
+    (!dbGallery || dbGallery.length === 0);
   const heroSlides =
     dbHeroSlides && dbHeroSlides.length > 0
       ? dbHeroSlides
@@ -253,13 +261,21 @@ export default function Home() {
   const quickMenus =
     dbQuickMenus && dbQuickMenus.length > 0
       ? dbQuickMenus
-      : FALLBACK_QUICK_MENUS;
+      : shouldUseQuickMenuFallback
+        ? FALLBACK_QUICK_MENUS
+        : [];
   const affiliates =
     dbAffiliates && dbAffiliates.length > 0
       ? dbAffiliates
-      : FALLBACK_AFFILIATES;
+      : shouldUseAffiliatesFallback
+        ? FALLBACK_AFFILIATES
+        : [];
   const gallery =
-    dbGallery && dbGallery.length > 0 ? dbGallery : FALLBACK_GALLERY;
+    dbGallery && dbGallery.length > 0
+      ? dbGallery
+      : shouldUseGalleryFallback
+        ? FALLBACK_GALLERY
+        : [];
   const socialLinks = [
     {
       icon: "fab fa-youtube",
