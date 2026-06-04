@@ -134,9 +134,12 @@ interface MinistryPageProps {
 export function MinistryPage({ title, breadcrumb, info }: MinistryPageProps) {
   const { language } = useLanguage();
   const displayTitle = language === "ja" ? info.name : title;
+  const displayBreadcrumb = language === "ja"
+    ? breadcrumb.map((item, index) => (index === breadcrumb.length - 1 ? info.name : item))
+    : breadcrumb;
   return (
     <div className="min-h-screen bg-gray-50">
-      <PageBanner title={displayTitle} breadcrumb={breadcrumb} />
+      <PageBanner title={displayTitle} breadcrumb={displayBreadcrumb} />
       <div className="max-w-5xl mx-auto px-4 py-12">
         {/* 소개 섹션 */}
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden mb-8">
