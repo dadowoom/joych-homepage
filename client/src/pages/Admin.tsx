@@ -49,6 +49,143 @@ type Tab =
   | "staticPages"
   | "popups";
 
+type TabItem = {
+  id: Tab;
+  label: string;
+  icon: string;
+  description: string;
+  status: string;
+};
+
+type TabGroup = {
+  title: string;
+  description: string;
+  tabs: Tab[];
+};
+
+const TABS: TabItem[] = [
+  {
+    id: "settings",
+    label: "기본 정보",
+    icon: "fa-cog",
+    description:
+      "교회명, 연락처, 주소 등 홈페이지의 기본 운영 정보를 관리합니다.",
+    status: "운영 기준",
+  },
+  {
+    id: "memberOptions",
+    label: "선택지 관리",
+    icon: "fa-list-ul",
+    description:
+      "성도 등록과 사역 분류에 사용되는 공통 선택 항목을 정리합니다.",
+    status: "입력 항목",
+  },
+  {
+    id: "staticPages",
+    label: "페이지 콘텐츠",
+    icon: "fa-file-alt",
+    description: "교회 소개, 안내 페이지 등 고정 콘텐츠를 수정합니다.",
+    status: "공개 콘텐츠",
+  },
+  {
+    id: "youtube",
+    label: "예배영상 관리",
+    icon: "fa-video",
+    description: "홈페이지에 노출되는 예배 영상과 유튜브 콘텐츠를 관리합니다.",
+    status: "영상 노출",
+  },
+  {
+    id: "testimonies",
+    label: "생선 간증 관리",
+    icon: "fa-comments",
+    description: "생명의 삶 나눔과 간증 콘텐츠의 게시 정보를 관리합니다.",
+    status: "검수/게시",
+  },
+  {
+    id: "popups",
+    label: "팝업 관리",
+    icon: "fa-bullhorn",
+    description:
+      "주요 공지, 행사 안내 등 방문자에게 먼저 보여줄 팝업을 설정합니다.",
+    status: "공지 노출",
+  },
+  {
+    id: "members",
+    label: "성도 관리",
+    icon: "fa-users",
+    description: "성도 정보와 등록 데이터를 확인하고 관리합니다.",
+    status: "성도 데이터",
+  },
+  {
+    id: "staff",
+    label: "섬기는 분 관리",
+    icon: "fa-user-tie",
+    description: "교역자와 섬김이 소개 정보를 관리합니다.",
+    status: "사역 소개",
+  },
+  {
+    id: "missionReports",
+    label: "선교보고 관리",
+    icon: "fa-globe-asia",
+    description: "선교 소식과 보고 콘텐츠를 정리합니다.",
+    status: "선교 소식",
+  },
+  {
+    id: "facilities",
+    label: "시설 관리",
+    icon: "fa-building",
+    description: "예약 가능한 공간과 시설 운영 정보를 관리합니다.",
+    status: "예약 자원",
+  },
+  {
+    id: "reservations",
+    label: "예약 승인",
+    icon: "fa-calendar-check",
+    description: "시설 예약 요청을 확인하고 승인 흐름을 처리합니다.",
+    status: "승인 처리",
+  },
+  {
+    id: "supportRequests",
+    label: "접수 관리",
+    icon: "fa-inbox",
+    description: "홈페이지를 통해 접수된 문의와 요청을 확인합니다.",
+    status: "접수 확인",
+  },
+];
+
+const TAB_GROUPS: TabGroup[] = [
+  {
+    title: "운영 설정",
+    description: "관리 기준과 입력 항목",
+    tabs: ["settings", "memberOptions"],
+  },
+  {
+    title: "콘텐츠/노출 관리",
+    description: "홈페이지에 공개되는 자료",
+    tabs: ["staticPages", "youtube", "testimonies", "popups"],
+  },
+  {
+    title: "성도/사역 관리",
+    description: "성도, 섬김이, 선교 소식",
+    tabs: ["members", "staff", "missionReports"],
+  },
+  {
+    title: "접수/예약 관리",
+    description: "시설과 요청 처리",
+    tabs: ["facilities", "reservations", "supportRequests"],
+  },
+];
+
+const TABS_BY_ID = TABS.reduce(
+  (acc, tab) => {
+    acc[tab.id] = tab;
+    return acc;
+  },
+  {} as Record<Tab, TabItem>
+);
+
+const VALID_TABS: Tab[] = TABS.map(tab => tab.id);
+
 // ─── 메인 관리자 페이지 ───────────────────────────────────────────────────────
 export default function AdminPage() {
   const { user, loading } = useAuth();
@@ -56,20 +193,6 @@ export default function AdminPage() {
   const [, setLocation] = useLocation();
 
   const searchParams = new URLSearchParams(searchString);
-  const VALID_TABS: Tab[] = [
-    "settings",
-    "facilities",
-    "reservations",
-    "memberOptions",
-    "members",
-    "staff",
-    "missionReports",
-    "testimonies",
-    "supportRequests",
-    "youtube",
-    "staticPages",
-    "popups",
-  ];
   const tabFromUrl = searchParams.get("tab") as Tab | null;
   const activeTab: Tab =
     tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : "settings";
@@ -161,7 +284,7 @@ export default function AdminPage() {
 
           {/* 로그인 폼 */}
           <form
-            onSubmit={(e) => {
+            onSubmit={e => {
               e.preventDefault();
               if (isLocked) {
                 setLoginError(
@@ -184,7 +307,7 @@ export default function AdminPage() {
               <input
                 type="text"
                 value={loginUsername}
-                onChange={(e) => setLoginUsername(e.target.value)}
+                onChange={e => setLoginUsername(e.target.value)}
                 placeholder="아이디를 입력하세요"
                 required
                 className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20] focus:border-transparent"
@@ -197,7 +320,7 @@ export default function AdminPage() {
               <input
                 type="password"
                 value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
+                onChange={e => setLoginPassword(e.target.value)}
                 placeholder="비밀번호를 입력하세요"
                 required
                 className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20] focus:border-transparent"
@@ -236,7 +359,10 @@ export default function AdminPage() {
           </form>
 
           <div className="mt-6 text-center">
-            <Link href="/" className="text-sm text-gray-400 hover:text-gray-600">
+            <Link
+              href="/"
+              className="text-sm text-gray-400 hover:text-gray-600"
+            >
               ← 홈페이지로 돌아가기
             </Link>
           </div>
@@ -253,7 +379,9 @@ export default function AdminPage() {
           <div className="text-red-400 text-5xl mb-4">
             <i className="fas fa-ban"></i>
           </div>
-          <h2 className="text-xl font-bold text-gray-800 mb-2">접근 권한 없음</h2>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">
+            접근 권한 없음
+          </h2>
           <p className="text-gray-500 text-sm mb-6">
             관리자 권한이 없습니다. 담당자에게 문의해주세요.
           </p>
@@ -265,21 +393,8 @@ export default function AdminPage() {
     );
   }
 
-  // ── 탭 목록 ────────────────────────────────────────────────────────────────
-  const tabs: { id: Tab; label: string; icon: string }[] = [
-    { id: "settings", label: "기본 정보", icon: "fa-cog" },
-    { id: "facilities", label: "시설 관리", icon: "fa-building" },
-    { id: "reservations", label: "예약 승인", icon: "fa-calendar-check" },
-    { id: "memberOptions", label: "선택지 관리", icon: "fa-list-ul" },
-    { id: "members", label: "성도 관리", icon: "fa-users" },
-    { id: "staff", label: "섬기는 분 관리", icon: "fa-user-tie" },
-    { id: "missionReports", label: "선교보고 관리", icon: "fa-globe-asia" },
-    { id: "testimonies", label: "생선 간증 관리", icon: "fa-comments" },
-    { id: "supportRequests", label: "접수 관리", icon: "fa-inbox" },
-    { id: "youtube", label: "예배영상 관리", icon: "fa-video" },
-    { id: "staticPages", label: "페이지 콘텐츠", icon: "fa-file-alt" },
-    { id: "popups", label: "팝업 관리", icon: "fa-bullhorn" },
-  ];
+  const activeTabInfo = TABS_BY_ID[activeTab];
+  const activeGroup = TAB_GROUPS.find(group => group.tabs.includes(activeTab));
 
   return (
     <div
@@ -287,44 +402,51 @@ export default function AdminPage() {
       style={{ fontFamily: "'Noto Sans KR', sans-serif" }}
     >
       {/* 헤더 */}
-      <header className="bg-[#0F172A] text-white px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="text-[#A5D6A7] hover:text-white transition-colors">
-            <i className="fas fa-arrow-left mr-2"></i>홈페이지
-          </Link>
-          <span className="text-gray-600">|</span>
-          <span
-            className="font-bold text-[#A5D6A7]"
-            style={{ fontFamily: "'Noto Serif KR', serif" }}
-          >
-            기쁨의교회 관리자
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-400">
-            {user.name ?? user.email ?? "관리자"}
-          </span>
-          <span className="text-xs bg-[#1B5E20] px-2 py-0.5 rounded">admin</span>
-          <button
-            onClick={() => {
-              fetch("/api/trpc/auth.logout", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({ "0": { json: null } }),
-              }).then(() => {
-                window.location.reload();
-              });
-            }}
-            className="text-xs text-gray-400 hover:text-red-400 transition-colors px-2 py-1 rounded hover:bg-white/10"
-          >
-            로그아웃
-          </button>
+      <header className="bg-[#0F172A] text-white px-4 py-4 sm:px-6">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/"
+              className="text-[#A5D6A7] hover:text-white transition-colors"
+            >
+              <i className="fas fa-arrow-left mr-2"></i>홈페이지
+            </Link>
+            <span className="text-gray-600">|</span>
+            <span
+              className="font-bold text-[#A5D6A7]"
+              style={{ fontFamily: "'Noto Serif KR', serif" }}
+            >
+              기쁨의교회 관리자
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm text-gray-400">
+              {user.name ?? user.email ?? "관리자"}
+            </span>
+            <span className="text-xs bg-[#1B5E20] px-2 py-0.5 rounded">
+              admin
+            </span>
+            <button
+              onClick={() => {
+                fetch("/api/trpc/auth.logout", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  credentials: "include",
+                  body: JSON.stringify({ "0": { json: null } }),
+                }).then(() => {
+                  window.location.reload();
+                });
+              }}
+              className="text-xs text-gray-400 hover:text-red-400 transition-colors px-2 py-1 rounded hover:bg-white/10"
+            >
+              로그아웃
+            </button>
+          </div>
         </div>
       </header>
 
       {/* 본문 */}
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-6 sm:py-8">
         <div className="mb-6">
           <h1
             className="text-2xl font-bold text-gray-900"
@@ -337,38 +459,135 @@ export default function AdminPage() {
           </p>
         </div>
 
-        {/* 탭 메뉴 */}
-        <div className="flex gap-1 bg-white border border-gray-200 rounded-lg p-1 mb-6 w-fit flex-wrap">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                activeTab === tab.id
-                  ? "bg-[#1B5E20] text-white"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              <i className={`fas ${tab.icon} text-xs`}></i>
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start">
+          {/* 업무 그룹 내비게이션 */}
+          <aside className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:sticky lg:top-6">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-bold text-[#0F172A]">업무 메뉴</h2>
+                <p className="text-xs text-gray-500">
+                  자주 쓰는 흐름대로 묶었습니다.
+                </p>
+              </div>
+              <span className="rounded-full bg-[#E8F5E9] px-2.5 py-1 text-xs font-semibold text-[#1B5E20]">
+                {TABS.length}개
+              </span>
+            </div>
 
-        {/* 탭 콘텐츠 */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          {activeTab === "settings" && <SettingsTab />}
-          {activeTab === "facilities" && <AdminFacilitiesTab />}
-          {activeTab === "reservations" && <AdminReservationsTab />}
-          {activeTab === "memberOptions" && <AdminMemberOptionsTab />}
-          {activeTab === "members" && <AdminMembersTab />}
-          {activeTab === "staff" && <AdminStaffTab />}
-          {activeTab === "missionReports" && <AdminMissionReportsTab />}
-          {activeTab === "testimonies" && <AdminTestimoniesTab />}
-          {activeTab === "supportRequests" && <AdminSupportRequestsTab />}
-          {activeTab === "youtube" && <YoutubeAdminTab />}
-          {activeTab === "staticPages" && <StaticPageContentTab />}
-          {activeTab === "popups" && <AdminPopupsTab />}
+            <nav className="flex gap-3 overflow-x-auto pb-1 lg:block lg:space-y-5 lg:overflow-visible lg:pb-0">
+              {TAB_GROUPS.map(group => (
+                <section
+                  key={group.title}
+                  className="min-w-[240px] rounded-lg border border-gray-100 bg-gray-50/70 p-3 lg:min-w-0"
+                >
+                  <div className="mb-2">
+                    <h3 className="text-xs font-bold text-gray-800">
+                      {group.title}
+                    </h3>
+                    <p className="text-[11px] leading-4 text-gray-500">
+                      {group.description}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    {group.tabs.map(tabId => {
+                      const tab = TABS_BY_ID[tabId];
+                      const isActive = activeTab === tab.id;
+
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => setActiveTab(tab.id)}
+                          className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors ${
+                            isActive
+                              ? "bg-[#1B5E20] text-white shadow-sm"
+                              : "text-gray-700 hover:bg-white hover:text-[#1B5E20]"
+                          }`}
+                        >
+                          <span
+                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
+                              isActive
+                                ? "bg-white/15 text-[#A5D6A7]"
+                                : "bg-white text-[#1B5E20]"
+                            }`}
+                          >
+                            <i className={`fas ${tab.icon} text-xs`}></i>
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block font-semibold leading-5">
+                              {tab.label}
+                            </span>
+                            <span
+                              className={`block truncate text-xs ${
+                                isActive ? "text-[#D7F0D8]" : "text-gray-500"
+                              }`}
+                            >
+                              {tab.status}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </nav>
+          </aside>
+
+          <main className="min-w-0 space-y-5">
+            {/* 선택 탭 요약 */}
+            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[#E8F5E9] text-[#1B5E20]">
+                    <i className={`fas ${activeTabInfo.icon}`}></i>
+                  </div>
+                  <div>
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-[#0F172A] px-2.5 py-1 text-xs font-semibold text-white">
+                        {activeGroup?.title ?? "관리 메뉴"}
+                      </span>
+                      <span className="rounded-full border border-[#A5D6A7] bg-[#F1F8F2] px-2.5 py-1 text-xs font-semibold text-[#1B5E20]">
+                        {activeTabInfo.status}
+                      </span>
+                    </div>
+                    <h2
+                      className="text-xl font-bold text-gray-900"
+                      style={{ fontFamily: "'Noto Serif KR', serif" }}
+                    >
+                      {activeTabInfo.label}
+                    </h2>
+                    <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
+                      {activeTabInfo.description}
+                    </p>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 sm:min-w-[150px]">
+                  <span className="block text-xs font-semibold text-gray-400">
+                    현재 화면
+                  </span>
+                  <span className="mt-1 block font-bold text-[#0F172A]">
+                    활성화됨
+                  </span>
+                </div>
+              </div>
+            </section>
+
+            {/* 탭 콘텐츠 */}
+            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+              {activeTab === "settings" && <SettingsTab />}
+              {activeTab === "facilities" && <AdminFacilitiesTab />}
+              {activeTab === "reservations" && <AdminReservationsTab />}
+              {activeTab === "memberOptions" && <AdminMemberOptionsTab />}
+              {activeTab === "members" && <AdminMembersTab />}
+              {activeTab === "staff" && <AdminStaffTab />}
+              {activeTab === "missionReports" && <AdminMissionReportsTab />}
+              {activeTab === "testimonies" && <AdminTestimoniesTab />}
+              {activeTab === "supportRequests" && <AdminSupportRequestsTab />}
+              {activeTab === "youtube" && <YoutubeAdminTab />}
+              {activeTab === "staticPages" && <StaticPageContentTab />}
+              {activeTab === "popups" && <AdminPopupsTab />}
+            </div>
+          </main>
         </div>
       </div>
     </div>
