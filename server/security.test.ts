@@ -5,7 +5,7 @@
  *
  * 테스트 항목:
  *   1. 운영 환경에서 필수 환경변수 누락 시 오류 발생
- *   2. 로그인 실패 5회 시 차단 (Rate Limiter)
+ *   2. 로그인 실패 제한 (Rate Limiter)
  *   3. 차단 해제 후 정상 동작 (Rate Limiter)
  *   4. 허용되지 않는 이미지 MIME 타입 업로드 실패
  *   5. 허용되지 않는 영상 MIME 타입 업로드 실패
@@ -14,7 +14,13 @@
  *   8. 허용된 MIME 타입은 정상 처리
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { checkRateLimit, recordFailure, resetFailures } from "./_core/rateLimiter";
+import {
+  LOGIN_ACCOUNT_MAX_ATTEMPTS,
+  LOGIN_IP_MAX_ATTEMPTS,
+  checkRateLimit,
+  recordFailure,
+  resetFailures,
+} from "./_core/rateLimiter";
 import { getJwtSecretString } from "./_core/jwtSecret";
 import {
   extractYoutubeVideoId,
@@ -129,33 +135,33 @@ describe("[보안 3번] Rate Limiter — 로그인 실패 횟수 제한", () => 
     expect(() => checkRateLimit(testKey)).not.toThrow();
   });
 
-  it("4회 실패 후에는 아직 차단되지 않음", () => {
-    for (let i = 0; i < 4; i++) {
+  it("계정 기준 최대 허용 횟수 직전까지는 아직 차단되지 않음", () => {
+    for (let i = 0; i < LOGIN_ACCOUNT_MAX_ATTEMPTS - 1; i++) {
       recordFailure(testKey);
     }
     expect(() => checkRateLimit(testKey)).not.toThrow();
   });
 
-  it("5회 실패 시 차단됨 (TOO_MANY_REQUESTS)", () => {
-    for (let i = 0; i < 5; i++) {
+  it("계정 기준 최대 허용 횟수 도달 시 차단됨 (TOO_MANY_REQUESTS)", () => {
+    for (let i = 0; i < LOGIN_ACCOUNT_MAX_ATTEMPTS; i++) {
       recordFailure(testKey);
     }
     expect(() => checkRateLimit(testKey)).toThrow(
-      "로그인 시도가 너무 많습니다."
+      "로그인 시도가 잠시 제한되었습니다."
     );
   });
 
-  it("6회 실패 후에도 차단 유지", () => {
-    for (let i = 0; i < 6; i++) {
+  it("계정 기준 최대 허용 횟수 초과 후에도 차단 유지", () => {
+    for (let i = 0; i < LOGIN_ACCOUNT_MAX_ATTEMPTS + 1; i++) {
       recordFailure(testKey);
     }
     expect(() => checkRateLimit(testKey)).toThrow(
-      "로그인 시도가 너무 많습니다."
+      "로그인 시도가 잠시 제한되었습니다."
     );
   });
 
   it("resetFailures 호출 후 차단 해제됨", () => {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < LOGIN_ACCOUNT_MAX_ATTEMPTS; i++) {
       recordFailure(testKey);
     }
     // 차단 확인
@@ -170,14 +176,30 @@ describe("[보안 3번] Rate Limiter — 로그인 실패 횟수 제한", () => 
     const ipKey = `ip:192.168.1.1-${Date.now()}`;
     const accountKey = `account:test@example.com-${Date.now()}`;
 
-    for (let i = 0; i < 5; i++) {
-      recordFailure(ipKey);
+    for (let i = 0; i < LOGIN_ACCOUNT_MAX_ATTEMPTS; i++) {
+      recordFailure(accountKey);
     }
 
-    // IP 키는 차단됨
-    expect(() => checkRateLimit(ipKey)).toThrow();
-    // 계정 키는 차단 안 됨
-    expect(() => checkRateLimit(accountKey)).not.toThrow();
+    // 계정 키는 차단됨
+    expect(() => checkRateLimit(accountKey)).toThrow();
+    // IP 키는 차단 안 됨
+    expect(() => checkRateLimit(ipKey)).not.toThrow();
+
+    resetFailures(accountKey);
+  });
+
+  it("IP 기준은 여러 사용자를 고려해 계정보다 넉넉하게 제한", () => {
+    const ipKey = `ip:192.168.1.2-${Date.now()}`;
+
+    for (let i = 0; i < LOGIN_IP_MAX_ATTEMPTS - 1; i++) {
+      recordFailure(ipKey);
+    }
+    expect(() => checkRateLimit(ipKey)).not.toThrow();
+
+    recordFailure(ipKey);
+    expect(() => checkRateLimit(ipKey)).toThrow(
+      "로그인 시도가 잠시 제한되었습니다."
+    );
 
     resetFailures(ipKey);
   });

@@ -1,16 +1,42 @@
 /**
  * 로그인 실패 횟수 제한 (Rate Limiter)
  * ─────────────────────────────────────────────────────────────────────────────
- * - 같은 IP 또는 같은 계정으로 MAX_ATTEMPTS회 실패 시 LOCKOUT_MS 동안 차단
+ * - 같은 계정으로 반복 실패 시 짧게 차단
+ * - 같은 IP에서는 여러 성도가 같은 네트워크를 쓸 수 있으므로 더 넉넉하게 제한
  * - 서버 메모리에 저장 (서버 재시작 시 초기화)
  * - 실패 로그에 비밀번호 원문 절대 기록하지 않음
  */
 
-const MAX_ATTEMPTS = 5;           // 최대 실패 허용 횟수
-const LOCKOUT_MS = 15 * 60 * 1000; // 차단 시간: 15분
+export const LOGIN_ACCOUNT_MAX_ATTEMPTS = 10;
+export const LOGIN_ACCOUNT_LOCKOUT_MS = 5 * 60 * 1000;
+export const LOGIN_IP_MAX_ATTEMPTS = 40;
+export const LOGIN_IP_LOCKOUT_MS = 10 * 60 * 1000;
+export const LOGIN_ATTEMPT_WINDOW_MS = 30 * 60 * 1000;
+
+type RateLimitPolicy = {
+  maxAttempts: number;
+  lockoutMs: number;
+  label: string;
+};
+
+function getLoginPolicy(key: string): RateLimitPolicy {
+  if (key.startsWith("ip:")) {
+    return {
+      maxAttempts: LOGIN_IP_MAX_ATTEMPTS,
+      lockoutMs: LOGIN_IP_LOCKOUT_MS,
+      label: "IP",
+    };
+  }
+  return {
+    maxAttempts: LOGIN_ACCOUNT_MAX_ATTEMPTS,
+    lockoutMs: LOGIN_ACCOUNT_LOCKOUT_MS,
+    label: "account",
+  };
+}
 
 interface AttemptRecord {
   count: number;
+  firstAttemptAt: number;
   lockedUntil: number | null; // Unix timestamp (ms), null = 차단 없음
 }
 
@@ -21,7 +47,10 @@ const store = new Map<string, AttemptRecord>();
 setInterval(() => {
   const now = Date.now();
   store.forEach((record, key) => {
-    if (record.lockedUntil && record.lockedUntil < now) {
+    if (
+      (record.lockedUntil && record.lockedUntil < now) ||
+      (!record.lockedUntil && now - record.firstAttemptAt > LOGIN_ATTEMPT_WINDOW_MS)
+    ) {
       store.delete(key);
     }
   });
@@ -39,25 +68,42 @@ export function checkRateLimit(key: string): void {
   const now = Date.now();
   if (record.lockedUntil && record.lockedUntil > now) {
     const remainingMin = Math.ceil((record.lockedUntil - now) / 60000);
-    throw Object.assign(new Error(`로그인 시도가 너무 많습니다. ${remainingMin}분 후 다시 시도해 주세요.`), {
+    throw Object.assign(new Error(`로그인 시도가 잠시 제한되었습니다. ${remainingMin}분 후 다시 시도해 주세요.`), {
       code: "TOO_MANY_REQUESTS",
     });
+  }
+  if (
+    (record.lockedUntil && record.lockedUntil <= now) ||
+    (!record.lockedUntil && now - record.firstAttemptAt > LOGIN_ATTEMPT_WINDOW_MS)
+  ) {
+    store.delete(key);
   }
 }
 
 /**
  * 로그인 실패 기록
- * MAX_ATTEMPTS 초과 시 LOCKOUT_MS 동안 차단
+ * 정책별 최대 횟수 초과 시 잠시 차단
  * @param key - "ip:1.2.3.4" 또는 "account:user@email.com"
  */
 export function recordFailure(key: string): void {
-  const record = store.get(key) ?? { count: 0, lockedUntil: null };
+  const now = Date.now();
+  const existing = store.get(key);
+  const policy = getLoginPolicy(key);
+  const record =
+    !existing ||
+    (existing.lockedUntil !== null && existing.lockedUntil <= now) ||
+    (!existing.lockedUntil && now - existing.firstAttemptAt > LOGIN_ATTEMPT_WINDOW_MS)
+      ? { count: 0, firstAttemptAt: now, lockedUntil: null }
+      : existing;
   record.count += 1;
 
-  if (record.count >= MAX_ATTEMPTS) {
-    record.lockedUntil = Date.now() + LOCKOUT_MS;
+  if (record.count >= policy.maxAttempts) {
+    record.lockedUntil = now + policy.lockoutMs;
     // 비밀번호 원문은 절대 로그에 남기지 않음
-    console.warn(`[RateLimit] 로그인 차단: ${key} (${MAX_ATTEMPTS}회 실패, 15분 차단)`);
+    const lockoutMin = Math.ceil(policy.lockoutMs / 60000);
+    console.warn(
+      `[RateLimit] 로그인 차단: ${policy.label} (${policy.maxAttempts}회 실패, ${lockoutMin}분 차단)`
+    );
   }
 
   store.set(key, record);

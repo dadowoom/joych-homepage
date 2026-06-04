@@ -174,7 +174,7 @@ export const membersRouter = router({
       // ── Rate Limit: IP 및 계정 기준 실패 횟수 제한 ───────────────────────
       const clientIp = getClientIp(ctx.req);
       const ipKey = `ip:${clientIp}`;
-      const accountKey = `account:${input.email}`;
+      const accountKey = `account:${input.email.toLowerCase()}`;
       try {
         checkRateLimit(ipKey);
         checkRateLimit(accountKey);
