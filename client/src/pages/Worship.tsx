@@ -51,7 +51,7 @@ const WORSHIP_NAV = [
 ];
 
 function notifyBulletinDownload() {
-  window.alert("주보 PDF는 관리자 CMS 등록 후 다운로드할 수 있습니다. 현재는 교회 사무실(054-270-1000)로 문의해 주세요.");
+  window.alert("주보 PDF는 관리자 CMS 등록 후 제공됩니다. 현재는 교회 사무실(054-270-1000)로 문의해 주세요.");
 }
 
 // ── 조이풀TV (설교 영상) ─────────────────────────────────────────
@@ -225,7 +225,7 @@ const BULLETINS = [
 export function Bulletin() {
   return (
     <div className="min-h-screen bg-[#F7F7F5]">
-      <PageHeader title="주보 보기" subtitle="매주 주보를 PDF로 다운로드하실 수 있습니다" breadcrumb={["조이풀TV", "주보 보기"]} />
+      <PageHeader title="주보 보기" subtitle="주보 PDF는 관리자 등록 후 제공됩니다" breadcrumb={["조이풀TV", "주보 보기"]} />
       <SubNav items={WORSHIP_NAV} />
       <div className="max-w-4xl mx-auto px-4 py-14">
         {/* 최신 주보 미리보기 */}
@@ -240,7 +240,7 @@ export function Bulletin() {
               onClick={notifyBulletinDownload}
               className="bg-white text-[#1B5E20] text-sm font-medium px-5 py-2 rounded-full hover:bg-green-50 transition-colors flex items-center gap-2"
             >
-              <i className="fas fa-download text-xs"></i> 다운로드
+              <i className="fas fa-download text-xs"></i> 문의 안내
             </button>
           </div>
           <div className="h-64 bg-gray-100 flex items-center justify-center">
@@ -274,7 +274,7 @@ export function Bulletin() {
                   onClick={notifyBulletinDownload}
                   className="text-[#1B5E20] hover:text-[#2E7D32] transition-colors text-sm flex items-center gap-1.5 font-medium"
                 >
-                  <i className="fas fa-download text-xs"></i> 다운로드
+                  <i className="fas fa-download text-xs"></i> 문의 안내
                 </button>
               </div>
             ))}

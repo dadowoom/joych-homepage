@@ -24,6 +24,7 @@ import {
   getStaticPageSeed,
   type StaticPageTemplate,
 } from "@shared/staticPageContent";
+import { translateJsonContentToLocale } from "../../_core/translation";
 import {
   getAllAffiliates,
   updateAffiliate,
@@ -46,6 +47,8 @@ import {
   deleteQuickMenu,
   getAllStaticPageContents,
   upsertStaticPageContent,
+  getStoredTranslation,
+  upsertStoredTranslation,
 } from "../../db";
 
 const SETTING_KEYS = [
@@ -83,6 +86,7 @@ const gridSpanValueSchema = z.string().refine(
 const sortOrderSchema = z.number().int().min(0).max(10000).optional();
 const staticPageHrefSchema = z.string().trim().min(1).max(128).regex(/^\//);
 const staticPageJsonSchema = z.string().max(60000, "페이지 콘텐츠는 60000자 이하로 입력해주세요.");
+const translationLocaleSchema = z.enum(["ja"]);
 
 const ministryContentSchema = z.object({
   name: requiredTextSchema(100, "페이지 이름을 입력해주세요."),
@@ -296,6 +300,60 @@ export const contentRouter = router({
           throw new TRPCError({ code: "BAD_REQUEST", message: "관리 대상 페이지가 아닙니다." });
         }
         return upsertStaticPageContent(input.href, page.content);
+      }),
+  }),
+
+  // ─── 정적 페이지 번역 관리 ────────────────────────────────────────────────
+  staticPageTranslations: router({
+    get: adminProcedure
+      .input(z.object({
+        href: staticPageHrefSchema,
+        locale: translationLocaleSchema,
+      }))
+      .query(async ({ input }) => {
+        const page = getStaticPageSeed(input.href);
+        if (!page) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "관리 대상 페이지가 아닙니다." });
+        }
+        const stored = await getStoredTranslation(input.locale, "static_page", input.href);
+        if (!stored) return null;
+        return {
+          content: JSON.stringify(stored.content, null, 2),
+          updatedAt: stored.updatedAt,
+        };
+      }),
+    update: adminProcedure
+      .input(z.object({
+        href: staticPageHrefSchema,
+        locale: translationLocaleSchema,
+        content: staticPageJsonSchema,
+      }))
+      .mutation(({ input }) => {
+        const page = getStaticPageSeed(input.href);
+        if (!page) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "관리 대상 페이지가 아닙니다." });
+        }
+        const content = parseStaticPageJson(page.template, input.content);
+        return upsertStoredTranslation(input.locale, "static_page", input.href, content);
+      }),
+    generateDraft: adminProcedure
+      .input(z.object({
+        href: staticPageHrefSchema,
+        locale: translationLocaleSchema,
+        sourceContent: staticPageJsonSchema,
+      }))
+      .mutation(async ({ input }) => {
+        const page = getStaticPageSeed(input.href);
+        if (!page) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "관리 대상 페이지가 아닙니다." });
+        }
+        const sourceContent = parseStaticPageJson(page.template, input.sourceContent);
+        const translated = await translateJsonContentToLocale({
+          content: sourceContent,
+          targetLocale: input.locale,
+        });
+        const validated = validateStaticPageContent(page.template, translated);
+        return { content: JSON.stringify(validated, null, 2) };
       }),
   }),
 

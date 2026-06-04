@@ -58,7 +58,7 @@ const SCHOOL_NAV = [
 ];
 
 function notifyEducationContact(programName: string) {
-  window.alert(`${programName} 신청 기능은 준비 중입니다. 교회 행정실(054-270-1000)로 문의해 주세요.`);
+  window.alert(`${programName} 온라인 신청 기능은 준비 중입니다. 교회 행정실(054-270-1000)로 문의해 주세요.`);
 }
 
 // ── 새가족 교육 ──────────────────────────────────────────────────
@@ -193,7 +193,7 @@ export function BibleStudy() {
                   onClick={() => notifyEducationContact(c.title)}
                   className="bg-[#1B5E20] text-white text-sm px-5 py-2 rounded-full hover:bg-[#2E7D32] transition-colors"
                 >
-                  신청하기
+                  문의하기
                 </button>
               </div>
             </div>

@@ -41,6 +41,7 @@ import {
   updateReservationStatus,
   getPageBlocks,
   getStaticPageContentByHref,
+  getStoredTranslation,
   getVisibleStaffMembers,
   ReservationLockError,
   ReservationOverlapError,
@@ -53,6 +54,7 @@ const idSchema = z.number().int().positive();
 const hrefLookupSchema = z.string().trim().min(1).max(256);
 const staticPageHrefSchema = z.string().trim().min(1).max(128).regex(/^\//);
 const staffCategorySchema = z.enum(["senior", "associate", "education", "office", "elder", "other"]);
+const translationLocaleSchema = z.enum(["ja"]);
 
 async function getVisibleFacilityById(id: number) {
   const facility = await getFacilityById(id);
@@ -109,6 +111,19 @@ export const homeRouter = router({
     .query(({ input }) => {
       if (!getStaticPageSeed(input.href)) return null;
       return getStaticPageContentByHref(input.href);
+    }),
+
+  /**
+   * 코드 기반 페이지의 공개 번역 콘텐츠 조회
+   * - 현재 1차 지원 언어는 일본어(ja)입니다.
+   * - 저장된 번역이 없으면 null을 반환하고, 프론트는 한국어 원문을 사용합니다.
+   */
+  staticPageTranslation: publicProcedure
+    .input(z.object({ href: staticPageHrefSchema, locale: translationLocaleSchema }))
+    .query(async ({ input }) => {
+      if (!getStaticPageSeed(input.href)) return null;
+      const stored = await getStoredTranslation(input.locale, "static_page", input.href);
+      return stored?.content ?? null;
     }),
 
   // ─── 네비게이션 메뉴 ────────────────────────────────────────────────────────

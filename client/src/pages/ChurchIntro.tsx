@@ -361,13 +361,13 @@ export function CIPage() {
         </div>
       </section>
 
-      {/* 다운로드 */}
+      {/* 자료 안내 */}
       <section>
-        <h2 className="text-2xl font-bold text-[#1b4332] mb-6 font-['Noto_Serif_KR']">CI 파일 다운로드</h2>
+        <h2 className="text-2xl font-bold text-[#1b4332] mb-6 font-['Noto_Serif_KR']">CI 자료 안내</h2>
         <div className="grid md:grid-cols-3 gap-4">
           {["로고 AI 파일", "로고 PNG 파일", "CI 가이드라인 PDF"].map((file, i) => (
             <button key={i} type="button" onClick={() => alertPendingResource(file)} className="border-2 border-[#2d6a4f] text-[#2d6a4f] rounded-xl p-4 hover:bg-[#2d6a4f] hover:text-white transition-colors text-sm font-semibold">
-              ⬇️ {file}
+              {file} 문의
             </button>
           ))}
         </div>

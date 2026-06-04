@@ -9,7 +9,8 @@
  *   - 사이트 설정: getSiteSettings, getSiteSetting, upsertSiteSetting
  */
 
-import { eq, asc, like, not } from "drizzle-orm";
+import { createHash } from "node:crypto";
+import { and, eq, asc, like, not } from "drizzle-orm";
 import {
   heroSlides, galleryItems, affiliates, quickMenus, siteSettings,
   InsertAffiliate, InsertGalleryItem,
@@ -17,6 +18,7 @@ import {
 import { getDb } from "./connection";
 
 const STATIC_PAGE_SETTING_PREFIX = "static_page:";
+const TRANSLATION_SETTING_PREFIX = "translation:";
 
 // ─── 히어로 슬라이드 ─────────────────────────────────────────────────────────
 
@@ -174,7 +176,10 @@ export async function getSiteSettings(): Promise<Record<string, string>> {
   const db = await getDb();
   if (!db) return {} as Record<string, string>;
   const rows = await db.select().from(siteSettings)
-    .where(not(like(siteSettings.settingKey, `${STATIC_PAGE_SETTING_PREFIX}%`)));
+    .where(and(
+      not(like(siteSettings.settingKey, `${STATIC_PAGE_SETTING_PREFIX}%`)),
+      not(like(siteSettings.settingKey, `${TRANSLATION_SETTING_PREFIX}%`)),
+    ));
   return Object.fromEntries(rows.map(r => [r.settingKey, r.settingValue ?? ""]));
 }
 
@@ -237,6 +242,46 @@ export async function upsertStaticPageContent(href: string, content: unknown) {
       set: {
         settingValue: serialized,
         description: `정적 페이지 CMS 콘텐츠: ${href}`,
+      },
+    });
+}
+
+export function getTranslationSettingKey(locale: string, scope: string, resourceId: string) {
+  const digest = createHash("sha256").update(resourceId).digest("hex").slice(0, 20);
+  return `${TRANSLATION_SETTING_PREFIX}${locale}:${scope}:${digest}`;
+}
+
+export async function getStoredTranslation(locale: string, scope: string, resourceId: string) {
+  const row = await getSiteSetting(getTranslationSettingKey(locale, scope, resourceId));
+  if (!row?.settingValue) return null;
+  try {
+    return {
+      locale,
+      scope,
+      resourceId,
+      content: JSON.parse(row.settingValue) as unknown,
+      updatedAt: row.updatedAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function upsertStoredTranslation(locale: string, scope: string, resourceId: string, content: unknown) {
+  const db = await getDb();
+  if (!db) return;
+  const key = getTranslationSettingKey(locale, scope, resourceId);
+  const serialized = JSON.stringify(content);
+  await db.insert(siteSettings)
+    .values({
+      settingKey: key,
+      settingValue: serialized,
+      description: `번역 콘텐츠: ${locale}/${scope}/${resourceId}`,
+    })
+    .onDuplicateKeyUpdate({
+      set: {
+        settingValue: serialized,
+        description: `번역 콘텐츠: ${locale}/${scope}/${resourceId}`,
       },
     });
 }

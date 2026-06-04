@@ -12,12 +12,25 @@ export function StaticPageContentTab() {
     [activeHref, pages],
   );
   const [editorValue, setEditorValue] = useState("");
+  const [jaEditorValue, setJaEditorValue] = useState("");
+
+  const { data: jaTranslation } = trpc.cms.content.staticPageTranslations.get.useQuery(
+    { href: activeHref, locale: "ja" },
+    {
+      enabled: Boolean(activeHref),
+      retry: false,
+    },
+  );
 
   useEffect(() => {
     if (selectedPage) {
       setEditorValue(selectedPage.content);
     }
   }, [selectedPage?.href, selectedPage?.content]);
+
+  useEffect(() => {
+    setJaEditorValue(jaTranslation?.content ?? "");
+  }, [activeHref, jaTranslation?.content]);
 
   const updateMutation = trpc.cms.content.staticPages.update.useMutation({
     onSuccess: () => {
@@ -35,6 +48,27 @@ export function StaticPageContentTab() {
       utils.cms.content.staticPages.list.invalidate();
       utils.home.staticPageContent.invalidate();
       toast.success("코드 기본 콘텐츠로 복원했습니다.");
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const updateJaMutation = trpc.cms.content.staticPageTranslations.update.useMutation({
+    onSuccess: () => {
+      utils.cms.content.staticPageTranslations.get.invalidate({ href: activeHref, locale: "ja" });
+      utils.home.staticPageTranslation.invalidate();
+      toast.success("일본어 번역 콘텐츠가 저장됐습니다.");
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const generateJaMutation = trpc.cms.content.staticPageTranslations.generateDraft.useMutation({
+    onSuccess: (result) => {
+      setJaEditorValue(result.content);
+      toast.success("일본어 번역 초안을 생성했습니다. 저장 전 내용을 확인해 주세요.");
     },
     onError: (error) => {
       toast.error(error.message);
@@ -134,6 +168,56 @@ export function StaticPageContentTab() {
               잘못된 JSON 또는 필수 항목 누락은 저장 시 서버에서 차단됩니다.
             </p>
           </div>
+        </div>
+      </div>
+
+      <div className="mt-5 border border-gray-200 rounded-lg bg-white overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-gray-800">일본어 번역</p>
+            <p className="text-xs text-gray-500">
+              공개 화면에서 일본어 토글을 켰을 때 저장된 번역본을 우선 표시합니다.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => generateJaMutation.mutate({
+                href: selectedPage.href,
+                locale: "ja",
+                sourceContent: editorValue,
+              })}
+              disabled={generateJaMutation.isPending}
+              className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50"
+            >
+              {generateJaMutation.isPending ? "생성 중..." : "AI 초안 생성"}
+            </button>
+            <button
+              type="button"
+              onClick={() => updateJaMutation.mutate({
+                href: selectedPage.href,
+                locale: "ja",
+                content: jaEditorValue,
+              })}
+              disabled={updateJaMutation.isPending || !jaEditorValue.trim()}
+              className="px-3 py-1.5 text-xs bg-[#1B5E20] text-white rounded hover:bg-[#2E7D32] disabled:opacity-50"
+            >
+              일본어 저장
+            </button>
+          </div>
+        </div>
+        <div className="p-4">
+          <label className="block text-xs text-gray-500 mb-2">일본어 JSON 콘텐츠</label>
+          <textarea
+            value={jaEditorValue}
+            onChange={(event) => setJaEditorValue(event.target.value)}
+            spellCheck={false}
+            placeholder="AI 초안을 생성하거나 일본어 번역 JSON을 직접 입력하세요."
+            className="w-full min-h-[360px] border border-gray-300 rounded-lg px-3 py-3 text-sm font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-[#1B5E20] focus:border-transparent"
+          />
+          <p className="text-xs text-gray-400 mt-2">
+            저장된 번역이 없으면 공개 화면은 기존 한국어 콘텐츠를 그대로 보여줍니다.
+          </p>
         </div>
       </div>
     </div>

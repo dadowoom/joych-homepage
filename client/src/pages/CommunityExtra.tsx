@@ -6,10 +6,29 @@
 
 import { useState } from "react";
 import { Link } from "wouter";
-import { ArrowLeft, Users, Camera, MessageCircle, FileText, Building, MapPin, Receipt, Subtitles, ChevronRight } from "lucide-react";
+import { ArrowLeft, Users, MessageCircle, Building, MapPin, Receipt, Subtitles, ChevronRight, Phone } from "lucide-react";
 
 function notifyOfficeContact(serviceName: string) {
   window.alert(`${serviceName} 온라인 접수 기능은 준비 중입니다. 교회 행정실(054-270-1000)로 문의해 주세요.`);
+}
+
+function OfficeContactBox({ serviceName }: { serviceName: string }) {
+  return (
+    <div className="rounded-xl border border-[#d8f3dc] bg-[#f1f8f3] p-6">
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
+          <Phone className="w-5 h-5 text-[#2d6a4f]" />
+        </div>
+        <div>
+          <h3 className="font-bold text-[#1b4332] mb-2">온라인 접수 준비 중</h3>
+          <p className="text-gray-700 text-sm leading-relaxed">
+            {serviceName}은 현재 홈페이지에서 바로 저장되지 않습니다. 접수나 상담이 필요하시면 교회 행정실로 문의해 주세요.
+          </p>
+          <p className="mt-3 text-[#2d6a4f] font-semibold">054-270-1000</p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── 공통 페이지 래퍼 ──
@@ -245,33 +264,19 @@ export function SubtitleRequestPage() {
             <Subtitles className="w-5 h-5" /> 자막 신청 안내
           </h2>
           <ul className="text-gray-700 text-sm space-y-2">
-            <li>• 예배 중 특별 광고, 생일 축하, 기념일 등 자막 신청이 가능합니다.</li>
-            <li>• 신청은 예배 최소 3일 전까지 완료해 주세요.</li>
-            <li>• 신청 내용은 담당자 확인 후 승인됩니다.</li>
+            <li>• 예배 중 특별 광고, 생일 축하, 기념일 등 자막 문의가 가능합니다.</li>
+            <li>• 예배 최소 3일 전까지 교회 행정실로 문의해 주세요.</li>
+            <li>• 접수 내용은 담당자 확인 후 안내됩니다.</li>
           </ul>
         </div>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            notifyOfficeContact("자막 신청");
-          }}
-          className="space-y-4"
+        <OfficeContactBox serviceName="자막 신청" />
+        <button
+          type="button"
+          onClick={() => notifyOfficeContact("자막 신청")}
+          className="mt-4 w-full bg-[#2d6a4f] text-white py-3 rounded-lg font-semibold hover:bg-[#1b4332] transition-colors"
         >
-          {[
-            { label: "신청자 이름", type: "text", placeholder: "성함을 입력해 주세요" },
-            { label: "연락처", type: "tel", placeholder: "010-0000-0000" },
-            { label: "자막 내용", type: "text", placeholder: "예: 김성도 집사님 생일을 축하합니다!" },
-            { label: "표시 예배", type: "text", placeholder: "예: 12월 22일 주일 1부 예배" },
-          ].map((field, i) => (
-            <div key={i}>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
-              <input type={field.type} placeholder={field.placeholder} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]" />
-            </div>
-          ))}
-          <button type="submit" className="w-full bg-[#2d6a4f] text-white py-3 rounded-lg font-semibold hover:bg-[#1b4332] transition-colors">
-            자막 신청하기
-          </button>
-        </form>
+          행정실 문의 안내
+        </button>
       </div>
     </PageWrapper>
   );
@@ -279,31 +284,46 @@ export function SubtitleRequestPage() {
 
 // ── 온라인 사무국 ──
 const officeServices = [
-  { title: "새가족 등록", desc: "처음 오신 분들의 새가족 등록을 도와드립니다.", icon: "👋" },
-  { title: "헌금 조회", desc: "온라인으로 헌금 내역을 조회할 수 있습니다.", icon: "💰" },
-  { title: "봉사 신청", desc: "교회 각 부서 봉사자 신청을 접수합니다.", icon: "🙌" },
-  { title: "증명서 발급", desc: "세례 증명서, 등록 증명서 등 각종 증명서를 발급합니다.", icon: "📄" },
-  { title: "상담 신청", desc: "목사님 또는 전도사님과의 상담을 신청합니다.", icon: "💬" },
-  { title: "기타 문의", desc: "교회 관련 기타 문의사항을 접수합니다.", icon: "❓" },
+  { title: "새가족 등록", desc: "새가족 등록 신청 화면으로 이동하여 접수할 수 있습니다.", icon: "👋", href: "/support/new-member" },
+  { title: "헌금 조회", desc: "현재 온라인 조회는 준비 중입니다. 행정실로 문의해 주세요.", icon: "💰" },
+  { title: "봉사 신청", desc: "현재 온라인 접수는 준비 중입니다. 담당 부서 또는 행정실로 문의해 주세요.", icon: "🙌" },
+  { title: "증명서 발급", desc: "현재 온라인 발급은 준비 중입니다. 필요한 서류는 행정실로 문의해 주세요.", icon: "📄" },
+  { title: "상담 신청", desc: "현재 온라인 접수는 준비 중입니다. 행정실로 연락해 일정을 문의해 주세요.", icon: "💬" },
+  { title: "기타 문의", desc: "교회 관련 문의는 행정실에서 안내해 드립니다.", icon: "❓" },
 ];
 
 export function OnlineOfficePage() {
   return (
     <PageWrapper title="온라인 사무국" breadcrumb={["행정지원", "온라인 사무국"]}>
-      <p className="text-gray-600 mb-8">온라인으로 교회 행정 서비스를 편리하게 이용하세요.</p>
+      <p className="text-gray-600 mb-8">현재 온라인 처리 기능은 순차 준비 중입니다. 접수 가능한 항목과 행정실 문의 항목을 구분해 안내합니다.</p>
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {officeServices.map((service, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => notifyOfficeContact(service.title)}
-            className="text-left border border-gray-200 rounded-xl p-6 hover:shadow-md hover:border-[#2d6a4f] transition-all cursor-pointer group"
-          >
-            <div className="text-3xl mb-3">{service.icon}</div>
-            <h3 className="font-bold text-gray-900 mb-2 group-hover:text-[#2d6a4f]">{service.title}</h3>
-            <p className="text-gray-600 text-sm">{service.desc}</p>
-          </button>
-        ))}
+        {officeServices.map((service, i) => {
+          const commonClass =
+            "text-left border border-gray-200 rounded-xl p-6 hover:shadow-md hover:border-[#2d6a4f] transition-all cursor-pointer group";
+
+          if (service.href) {
+            return (
+              <Link key={i} href={service.href} className={commonClass}>
+                <div className="text-3xl mb-3">{service.icon}</div>
+                <h3 className="font-bold text-gray-900 mb-2 group-hover:text-[#2d6a4f]">{service.title}</h3>
+                <p className="text-gray-600 text-sm">{service.desc}</p>
+              </Link>
+            );
+          }
+
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => notifyOfficeContact(service.title)}
+              className={commonClass}
+            >
+              <div className="text-3xl mb-3">{service.icon}</div>
+              <h3 className="font-bold text-gray-900 mb-2 group-hover:text-[#2d6a4f]">{service.title}</h3>
+              <p className="text-gray-600 text-sm">{service.desc}</p>
+            </button>
+          );
+        })}
       </div>
       <div className="mt-10 bg-gray-50 rounded-xl p-6">
         <h3 className="font-bold text-gray-900 mb-2 flex items-center gap-2"><Building className="w-5 h-5 text-[#2d6a4f]" /> 교회 행정실 운영 시간</h3>
@@ -327,34 +347,18 @@ export function VisitRequestPage() {
             <MapPin className="w-5 h-5" /> 교회 탐방 안내
           </h2>
           <p className="text-gray-700 text-sm leading-relaxed">
-            기쁨의교회를 방문하여 교회 시설과 사역을 직접 경험해 보세요. 탐방 신청 후 담당자가 연락드려 일정을 조율해 드립니다.
-            단체 탐방(10인 이상)의 경우 최소 2주 전에 신청해 주세요.
+            기쁨의교회를 방문하여 교회 시설과 사역을 경험하실 수 있습니다. 단체 탐방이나 일정 문의는 교회 행정실을 통해 안내받아 주세요.
+            단체 탐방(10인 이상)의 경우 최소 2주 전에 문의해 주세요.
           </p>
         </div>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            notifyOfficeContact("탐방 신청");
-          }}
-          className="space-y-4"
+        <OfficeContactBox serviceName="탐방 신청" />
+        <button
+          type="button"
+          onClick={() => notifyOfficeContact("탐방 신청")}
+          className="mt-4 w-full bg-[#2d6a4f] text-white py-3 rounded-lg font-semibold hover:bg-[#1b4332] transition-colors"
         >
-          {[
-            { label: "단체/개인명", type: "text", placeholder: "예: OO교회 청년부" },
-            { label: "대표자 이름", type: "text", placeholder: "성함을 입력해 주세요" },
-            { label: "연락처", type: "tel", placeholder: "010-0000-0000" },
-            { label: "방문 인원", type: "number", placeholder: "예: 20" },
-            { label: "희망 방문일", type: "date", placeholder: "" },
-            { label: "탐방 목적", type: "text", placeholder: "예: 교회 사역 벤치마킹" },
-          ].map((field, i) => (
-            <div key={i}>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
-              <input type={field.type} placeholder={field.placeholder} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]" />
-            </div>
-          ))}
-          <button type="submit" className="w-full bg-[#2d6a4f] text-white py-3 rounded-lg font-semibold hover:bg-[#1b4332] transition-colors">
-            탐방 신청하기
-          </button>
-        </form>
+          행정실 문의 안내
+        </button>
       </div>
     </PageWrapper>
   );
@@ -372,33 +376,23 @@ export function DonationReceiptPage() {
           <ul className="text-gray-700 text-sm space-y-2">
             <li>• 기부금 영수증은 연말정산 시 소득공제를 받을 수 있습니다.</li>
             <li>• 발급 기간: 매년 1월 1일 ~ 2월 28일</li>
-            <li>• 발급 방법: 온라인 신청 또는 교회 행정실 방문</li>
+            <li>• 발급은 교회 행정실 문의 후 안내받아 주세요.</li>
             <li>• 문의: 054-270-1000 (행정실)</li>
           </ul>
         </div>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            notifyOfficeContact("기부금 영수증 발급");
-          }}
-          className="space-y-4"
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 mb-4">
+          <p className="text-sm text-amber-900 leading-relaxed">
+            주민등록번호 등 민감한 개인정보는 홈페이지 입력폼으로 받지 않습니다. 안전한 발급을 위해 교회 행정실을 통해 안내받아 주세요.
+          </p>
+        </div>
+        <OfficeContactBox serviceName="기부금 영수증 발급" />
+        <button
+          type="button"
+          onClick={() => notifyOfficeContact("기부금 영수증 발급")}
+          className="mt-4 w-full bg-[#2d6a4f] text-white py-3 rounded-lg font-semibold hover:bg-[#1b4332] transition-colors"
         >
-          {[
-            { label: "성명", type: "text", placeholder: "성함을 입력해 주세요" },
-            { label: "주민등록번호 앞 6자리", type: "text", placeholder: "000000" },
-            { label: "연락처", type: "tel", placeholder: "010-0000-0000" },
-            { label: "이메일 (영수증 수신)", type: "email", placeholder: "example@email.com" },
-            { label: "발급 연도", type: "text", placeholder: "예: 2024" },
-          ].map((field, i) => (
-            <div key={i}>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
-              <input type={field.type} placeholder={field.placeholder} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]" />
-            </div>
-          ))}
-          <button type="submit" className="w-full bg-[#2d6a4f] text-white py-3 rounded-lg font-semibold hover:bg-[#1b4332] transition-colors">
-            영수증 발급 신청
-          </button>
-        </form>
+          행정실 문의 안내
+        </button>
       </div>
     </PageWrapper>
   );
