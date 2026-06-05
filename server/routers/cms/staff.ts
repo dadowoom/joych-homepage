@@ -1,7 +1,7 @@
 /**
  * 섬기는 분 관리 라우터 (cms.staff)
  * ─────────────────────────────────────────────────────────────────────────────
- * 관리자에서 담임목사/부교역자/교회학교 담당자를 등록하고 공개 여부를 관리합니다.
+ * 관리자에서 섬기는 분 정보를 등록하고 공개 여부를 관리합니다.
  */
 
 import { z } from "zod";
@@ -13,7 +13,7 @@ import {
 } from "../../_core/contentValidation";
 import { createStaffMember, deleteStaffMember, getAllStaffMembers, updateStaffMember } from "../../db";
 
-const staffCategorySchema = z.enum(["senior", "associate", "education", "office", "elder", "other"]);
+const staffCategorySchema = z.enum(["senior", "associate", "education", "cooperation", "elder", "office", "other"]);
 const idSchema = z.number().int().positive();
 const sortOrderSchema = z.number().int().min(0).max(10000).optional();
 

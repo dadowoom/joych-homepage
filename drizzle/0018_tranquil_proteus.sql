@@ -1,0 +1,1 @@
+ALTER TABLE `church_staff` MODIFY COLUMN `category` enum('senior','associate','education','cooperation','elder','office','other') NOT NULL DEFAULT 'associate';

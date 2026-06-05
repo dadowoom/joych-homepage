@@ -8,7 +8,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { churchStaff, type InsertChurchStaff } from "../../drizzle/schema";
 import { getDb } from "./connection";
 
-export type StaffCategory = "senior" | "associate" | "education" | "office" | "elder" | "other";
+export type StaffCategory = "senior" | "associate" | "education" | "cooperation" | "elder" | "office" | "other";
 
 export async function getVisibleStaffMembers(category?: StaffCategory) {
   const db = await getDb();

@@ -320,12 +320,12 @@ export type InsertSiteSetting = typeof siteSettings.$inferInsert;
 
 // ─────────────────────────────────────────────
 // CMS: 섬기는 분 / 교역자 소개
-// 담임목사, 부교역자, 교회학교 담당자 등을 관리자에서 등록해 공개합니다.
+// 담임목사, 부교역자, 교회학교 교역자 등을 관리자에서 등록해 공개합니다.
 // ─────────────────────────────────────────────
 export const churchStaff = mysqlTable("church_staff", {
   id: int("id").autoincrement().primaryKey(),
-  /** 분류: 담임목사 / 부교역자 / 교회학교 / 사무행정 / 장로 / 기타 */
-  category: mysqlEnum("category", ["senior", "associate", "education", "office", "elder", "other"]).notNull().default("associate"),
+  /** 분류: 담임목사 / 부교역자 / 교회학교 교역자 / 협력사역자 / 장로 / 교회직원 / 사회복지법인 기쁨의복지재단 */
+  category: mysqlEnum("category", ["senior", "associate", "education", "cooperation", "elder", "office", "other"]).notNull().default("associate"),
   /** 이름 */
   name: varchar("name", { length: 64 }).notNull(),
   /** 직책/직분 (예: 부목사, 전도사) */

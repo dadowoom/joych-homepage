@@ -53,7 +53,7 @@ const TIME_RE = /^\d{2}:\d{2}$/;
 const idSchema = z.number().int().positive();
 const hrefLookupSchema = z.string().trim().min(1).max(256);
 const staticPageHrefSchema = z.string().trim().min(1).max(128).regex(/^\//);
-const staffCategorySchema = z.enum(["senior", "associate", "education", "office", "elder", "other"]);
+const staffCategorySchema = z.enum(["senior", "associate", "education", "cooperation", "elder", "office", "other"]);
 const translationLocaleSchema = z.enum(["ja"]);
 
 async function getVisibleFacilityById(id: number) {

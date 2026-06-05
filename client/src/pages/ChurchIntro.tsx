@@ -44,10 +44,11 @@ function alertPendingResource(label: string) {
 const STAFF_CATEGORIES = [
   { value: "senior", label: "담임목사" },
   { value: "associate", label: "부교역자" },
-  { value: "education", label: "교회학교" },
-  { value: "office", label: "사무행정" },
+  { value: "education", label: "교회학교 교역자" },
+  { value: "cooperation", label: "협력사역자" },
   { value: "elder", label: "장로" },
-  { value: "other", label: "기타" },
+  { value: "office", label: "교회직원" },
+  { value: "other", label: "사회복지법인 기쁨의복지재단" },
 ] as const;
 
 type StaffCategoryFilter = typeof STAFF_CATEGORIES[number]["value"];

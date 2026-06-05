@@ -1,6 +1,6 @@
 /**
  * 관리자 섬기는 분 관리 탭
- * - 담임목사/부교역자/교회학교 담당자 등록
+ * - 섬기는 분 정보 등록
  * - 사진 업로드, 노출 여부, 정렬 순서 관리
  */
 
@@ -14,10 +14,11 @@ import { ImageIcon, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react"
 const CATEGORY_OPTIONS = [
   { value: "senior", label: "담임목사" },
   { value: "associate", label: "부교역자" },
-  { value: "education", label: "교회학교" },
-  { value: "office", label: "사무행정" },
+  { value: "education", label: "교회학교 교역자" },
+  { value: "cooperation", label: "협력사역자" },
   { value: "elder", label: "장로" },
-  { value: "other", label: "기타" },
+  { value: "office", label: "교회직원" },
+  { value: "other", label: "사회복지법인 기쁨의복지재단" },
 ] as const;
 
 type StaffCategory = typeof CATEGORY_OPTIONS[number]["value"];
@@ -82,6 +83,7 @@ function normalizePayload(form: StaffForm) {
 export default function AdminStaffTab() {
   const utils = trpc.useUtils();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const formSectionRef = useRef<HTMLElement>(null);
   const [form, setForm] = useState<StaffForm>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<StaffCategory | "all">("all");
@@ -155,6 +157,9 @@ export default function AdminStaffTab() {
       sortOrder: member.sortOrder,
       isVisible: member.isVisible,
     });
+    window.requestAnimationFrame(() => {
+      formSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   };
 
   const submit = () => {
@@ -207,7 +212,7 @@ export default function AdminStaffTab() {
         <div>
           <h3 className="text-lg font-bold text-gray-800">섬기는 분 관리</h3>
           <p className="text-sm text-gray-500 mt-0.5">
-            담임목사, 부교역자, 교회학교 담당자를 등록하고 홈페이지 노출 여부를 관리합니다.
+            담임목사, 부교역자, 교회학교 교역자, 협력사역자, 장로, 교회직원, 사회복지법인 기쁨의복지재단 정보를 등록하고 홈페이지 노출 여부를 관리합니다.
           </p>
         </div>
         <span className="text-xs bg-green-50 text-[#1B5E20] px-3 py-1 rounded-full border border-green-100">
@@ -215,7 +220,7 @@ export default function AdminStaffTab() {
         </span>
       </div>
 
-      <section className="border border-gray-200 rounded-xl p-4">
+      <section ref={formSectionRef} className="border border-gray-200 rounded-xl p-4 scroll-mt-24">
         <div className="flex items-center justify-between gap-3 mb-4">
           <h4 className="font-bold text-gray-800">
             {editingId ? "정보 수정" : "새로 등록"}

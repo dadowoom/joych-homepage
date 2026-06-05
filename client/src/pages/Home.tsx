@@ -788,7 +788,7 @@ export default function Home() {
                     조이풀 TV
                   </h2>
                   <Link
-                    href="/worship/tv"
+                    href="/page/조이풀tv-주일예배"
                     className="text-xs text-gray-400 hover:text-[#1B5E20] flex items-center gap-1 transition-colors"
                   >
                     전체보기 <i className="fas fa-arrow-right text-[10px]"></i>

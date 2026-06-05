@@ -7,6 +7,7 @@
 
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
+import SubPageLayout from "@/components/SubPageLayout";
 import { trpc } from "@/lib/trpc";
 import { CONTINENT_LABELS, type MissionContinent } from "@/lib/missionData";
 
@@ -15,6 +16,13 @@ function formatDate(dateStr: string): string {
   const [y, m, d] = dateStr.split("-");
   return `${y}년 ${m}월 ${d}일`;
 }
+
+const MISSION_SIDE_MENU_ITEMS = [
+  { id: 1, label: "국내 선교", href: "/mission-work/domestic" },
+  { id: 2, label: "해외 선교", href: "/mission-work/overseas" },
+  { id: 3, label: "봉사 활동", href: "/mission-work/volunteer" },
+  { id: 4, label: "선교보고", href: "/mission", isActive: true },
+];
 
 export default function MissionList() {
   const [selectedContinent, setSelectedContinent] = useState<MissionContinent | "all">("all");
@@ -49,64 +57,46 @@ export default function MissionList() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F7F7F5]">
-      {/* ── 상단 헤더 (홈으로 돌아가기) ── */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 text-[#1B5E20] hover:opacity-80 transition-opacity">
-            <i className="fas fa-chevron-left text-sm"></i>
-            <span className="font-medium text-sm">기쁨의교회 홈</span>
-          </Link>
-          <div className="flex items-center gap-3">
+    <SubPageLayout
+      pageTitle="선교보고"
+      parentLabel="사역/선교"
+      sideMenuItems={MISSION_SIDE_MENU_ITEMS}
+    >
+      <div className="space-y-6">
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 md:p-6">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm font-medium text-[#1B5E20]">선교 현장 소식</p>
+                <p className="mt-2 text-sm leading-6 text-gray-500">
+                  기쁨의교회가 파송하고 후원하는 선교사님들의 현장 이야기와 기도 제목을 함께 나눕니다.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-xl bg-[#F7F7F5] px-4 py-3">
+                  <p className="text-xs text-gray-400">선교 협력</p>
+                  <p className="mt-1 text-2xl font-bold text-[#1B5E20]">{activeMissionaries.length}</p>
+                </div>
+                <div className="rounded-xl bg-[#F7F7F5] px-4 py-3">
+                  <p className="text-xs text-gray-400">사역 지역</p>
+                  <p className="mt-1 text-2xl font-bold text-[#1B5E20]">{new Set(activeMissionaries.map((m) => m.region.split(" ")[0])).size}</p>
+                </div>
+                <div className="rounded-xl bg-[#F7F7F5] px-4 py-3">
+                  <p className="text-xs text-gray-400">총 선교보고</p>
+                  <p className="mt-1 text-2xl font-bold text-[#1B5E20]">{reports.length}</p>
+                </div>
+              </div>
+            </div>
             {canWriteMissionReport && (
-              <Link href="/mission/write" className="hidden sm:inline-flex items-center gap-1.5 text-xs bg-[#1B5E20] text-white px-3 py-1.5 rounded-full hover:bg-[#2E7D32] transition-colors">
+              <Link href="/mission/write" className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-[#1B5E20] px-4 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32]">
                 <i className="fas fa-pen text-[10px]"></i>
                 선교보고 작성
               </Link>
             )}
-            <span className="text-gray-400 text-sm">사역/선교 &gt; 선교보고</span>
           </div>
-        </div>
-      </header>
+        </section>
 
-      {/* ── 페이지 배너 ── */}
-      <section
-        className="relative py-20 bg-cover bg-center overflow-hidden"
-        style={{ backgroundImage: "url('https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=1400&q=80')" }}
-      >
-        <div className="absolute inset-0 bg-[#1B5E20]/75"></div>
-        <div className="relative z-10 max-w-6xl mx-auto px-4 text-white">
-          <p className="text-sm font-medium tracking-widest text-green-200 mb-3 uppercase">Mission Report</p>
-          <h1 className="text-4xl md:text-5xl font-bold mb-4" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-            선교보고
-          </h1>
-          <p className="text-green-100 text-lg max-w-xl leading-relaxed">
-            기쁨의교회가 파송하고 후원하는 선교사님들의<br />
-            현장 이야기를 함께 나눕니다.
-          </p>
-          {/* 통계 */}
-          <div className="flex gap-8 mt-8">
-            <div>
-              <p className="text-3xl font-bold">{activeMissionaries.length}</p>
-              <p className="text-green-200 text-sm mt-1">선교 협력</p>
-            </div>
-            <div className="w-px bg-green-400/40"></div>
-            <div>
-              <p className="text-3xl font-bold">{new Set(activeMissionaries.map(m => m.region.split(" ")[0])).size}</p>
-              <p className="text-green-200 text-sm mt-1">사역 지역</p>
-            </div>
-            <div className="w-px bg-green-400/40"></div>
-            <div>
-              <p className="text-3xl font-bold">{reports.length}</p>
-              <p className="text-green-200 text-sm mt-1">총 선교보고</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── 선교사 프로필 띠 ── */}
-      <section className="bg-white border-b border-gray-200 py-6">
-        <div className="max-w-6xl mx-auto px-4">
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 md:p-6">
           <p className="text-xs text-gray-400 font-medium mb-4 uppercase tracking-wider">선교 협력</p>
           <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
             <button
@@ -141,110 +131,107 @@ export default function MissionList() {
               </button>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* ── 대륙 필터 + 결과 수 ── */}
-      <section className="max-w-6xl mx-auto px-4 py-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap gap-2">
-            {continents.map((c) => (
-              <button
-                key={c.value}
-                onClick={() => setSelectedContinent(c.value)}
-                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all border ${
-                  selectedContinent === c.value
-                    ? "bg-[#1B5E20] text-white border-[#1B5E20]"
-                    : "bg-white text-gray-600 border-gray-200 hover:border-[#1B5E20] hover:text-[#1B5E20]"
-                }`}
-              >
-                {c.label}
-              </button>
-            ))}
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 md:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap gap-2">
+              {continents.map((c) => (
+                <button
+                  key={c.value}
+                  onClick={() => setSelectedContinent(c.value)}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all border ${
+                    selectedContinent === c.value
+                      ? "bg-[#1B5E20] text-white border-[#1B5E20]"
+                      : "bg-white text-gray-600 border-gray-200 hover:border-[#1B5E20] hover:text-[#1B5E20]"
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-sm text-gray-500">
+              총 <span className="font-semibold text-[#1B5E20]">{filtered.length}</span>건의 선교보고
+            </p>
           </div>
-          <p className="text-sm text-gray-500">
-            총 <span className="font-semibold text-[#1B5E20]">{filtered.length}</span>건의 선교보고
-          </p>
-        </div>
-      </section>
+        </section>
 
-      {/* ── 선교보고 카드 목록 ── */}
-      <section className="max-w-6xl mx-auto px-4 pb-20">
-        {isLoading ? (
-          <div className="text-center py-24 text-gray-400">
-            <i className="fas fa-spinner fa-spin text-4xl mb-4 block"></i>
-            <p>선교보고를 불러오는 중입니다.</p>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-24 text-gray-400">
-            <i className="fas fa-search text-4xl mb-4 block"></i>
-            <p>{reports.length === 0 ? "등록된 선교보고가 없습니다." : "해당 조건의 선교보고가 없습니다."}</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filtered.map((report) => (
-              <Link key={report.id} href={`/mission/${report.id}`}>
-                <article className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer group">
-                  {/* 썸네일 */}
-                  <div className="relative h-52 overflow-hidden">
-                    <img
-                      src={report.thumbnailUrl ?? report.images[0] ?? "https://images.unsplash.com/photo-1555636222-cae831e670b3?w=600&q=80"}
-                      alt={report.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    {/* 대륙 뱃지 */}
-                    <span className="absolute top-3 left-3 bg-[#1B5E20]/90 text-white text-xs px-2.5 py-1 rounded-full">
-                      {CONTINENT_LABELS[report.missionary.continent]}
-                    </span>
-                  </div>
-                  {/* 내용 */}
-                  <div className="p-5">
-                    {/* 선교사 정보 */}
-                    <div className="flex items-center gap-3 mb-3">
+        <section>
+          {isLoading ? (
+            <div className="text-center py-24 text-gray-400">
+              <i className="fas fa-spinner fa-spin text-4xl mb-4 block"></i>
+              <p>선교보고를 불러오는 중입니다.</p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-24 text-gray-400">
+              <i className="fas fa-search text-4xl mb-4 block"></i>
+              <p>{reports.length === 0 ? "등록된 선교보고가 없습니다." : "해당 조건의 선교보고가 없습니다."}</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {filtered.map((report) => (
+                <Link key={report.id} href={`/mission/${report.id}`}>
+                  <article className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer group">
+                    <div className="relative h-52 overflow-hidden">
                       <img
-                        src={report.missionary.profileImage ?? "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80"}
-                        alt={report.missionary.name}
-                        className="w-9 h-9 rounded-full object-cover border-2 border-[#E8F5E9]"
+                        src={report.thumbnailUrl ?? report.images[0] ?? "https://images.unsplash.com/photo-1555636222-cae831e670b3?w=600&q=80"}
+                        alt={report.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">{report.missionary.name}</p>
-                        <p className="text-xs text-gray-400">{report.missionary.region}</p>
-                      </div>
-                      <span className="ml-auto text-xs text-gray-400">{formatDate(report.reportDate)}</span>
-                    </div>
-                    {/* 제목 */}
-                    <h2
-                      className="text-base font-bold text-gray-800 mb-2 leading-snug group-hover:text-[#1B5E20] transition-colors line-clamp-2"
-                      style={{ fontFamily: "'Noto Serif KR', serif" }}
-                    >
-                      {report.title}
-                    </h2>
-                    {/* 미리보기 */}
-                    <p className="text-sm text-gray-500 leading-relaxed line-clamp-2">{report.summary}</p>
-                    {/* 기도제목 수 */}
-                    <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-1.5 text-xs text-[#1B5E20]">
-                      <i className="fas fa-hands-praying"></i>
-                      <span>기도제목 {report.prayerTopics.length}개</span>
-                      <span className="ml-auto text-gray-400 group-hover:text-[#1B5E20] transition-colors">
-                        자세히 보기 →
+                      <span className="absolute top-3 left-3 bg-[#1B5E20]/90 text-white text-xs px-2.5 py-1 rounded-full">
+                        {CONTINENT_LABELS[report.missionary.continent]}
                       </span>
                     </div>
-                  </div>
-                </article>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
+                    <div className="p-5">
+                      <div className="flex items-center gap-3 mb-3">
+                        <img
+                          src={report.missionary.profileImage ?? "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80"}
+                          alt={report.missionary.name}
+                          className="w-9 h-9 rounded-full object-cover border-2 border-[#E8F5E9]"
+                        />
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800">{report.missionary.name}</p>
+                          <p className="text-xs text-gray-400">{report.missionary.region}</p>
+                        </div>
+                        <span className="ml-auto text-xs text-gray-400">{formatDate(report.reportDate)}</span>
+                      </div>
+                      <h2
+                        className="text-base font-bold text-gray-800 mb-2 leading-snug group-hover:text-[#1B5E20] transition-colors line-clamp-2"
+                        style={{ fontFamily: "'Noto Serif KR', serif" }}
+                      >
+                        {report.title}
+                      </h2>
+                      <p className="text-sm text-gray-500 leading-relaxed line-clamp-2">{report.summary}</p>
+                      <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-1.5 text-xs text-[#1B5E20]">
+                        <i className="fas fa-hands-praying"></i>
+                        <span>기도제목 {report.prayerTopics.length}개</span>
+                        <span className="ml-auto text-gray-400 group-hover:text-[#1B5E20] transition-colors">
+                          자세히 보기 →
+                        </span>
+                      </div>
+                    </div>
+                  </article>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
 
-      {/* ── 하단 CTA ── */}
-      <section className="bg-[#1B5E20] py-12 text-center text-white">
-        <i className="fas fa-hands-praying text-3xl text-green-300 mb-4 block"></i>
-        <h3 className="text-xl font-bold mb-2" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-          선교사님들을 위해 기도해 주세요
-        </h3>
-        <p className="text-green-200 text-sm">여러분의 기도가 세계 선교의 힘이 됩니다.</p>
-      </section>
-    </div>
+        <section className="bg-[#1B5E20] rounded-2xl px-6 py-5 text-white">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-xl font-bold" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+                선교사님들을 위해 기도해 주세요
+              </h3>
+              <p className="text-green-200 text-sm mt-1">여러분의 기도가 세계 선교의 힘이 됩니다.</p>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-green-100">
+              <i className="fas fa-hands-praying"></i>
+              함께 중보하기
+            </div>
+          </div>
+        </section>
+      </div>
+    </SubPageLayout>
   );
 }
