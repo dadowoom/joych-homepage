@@ -64,10 +64,12 @@ function readFileAsBase64(file: File) {
 }
 
 function normalizePayload(form: StaffForm) {
+  const categoryLabel = getCategoryLabel(form.category);
+
   return {
     category: form.category,
     name: form.name.trim(),
-    title: form.title.trim(),
+    title: form.title.trim() || categoryLabel,
     department: form.department.trim() || undefined,
     email: form.email.trim() || undefined,
     phone: form.phone.trim() || undefined,
@@ -157,8 +159,8 @@ export default function AdminStaffTab() {
 
   const submit = () => {
     const payload = normalizePayload(form);
-    if (!payload.name || !payload.title) {
-      toast.error("이름과 직책은 필수입니다.");
+    if (!payload.name) {
+      toast.error("이름은 필수입니다.");
       return;
     }
     if (editingId) {
@@ -280,11 +282,7 @@ export default function AdminStaffTab() {
             </label>
             <label>
               <span className={labelClass}>이름</span>
-              <input className={fieldClass} value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} placeholder="예: 홍길동" />
-            </label>
-            <label>
-              <span className={labelClass}>직책</span>
-              <input className={fieldClass} value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} placeholder="예: 부목사, 전도사" />
+              <input className={fieldClass} value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} placeholder="예: 김수홍 목사" />
             </label>
             <label className="md:col-span-2">
               <span className={labelClass}>담당 사역/부서</span>
@@ -366,7 +364,6 @@ export default function AdminStaffTab() {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-semibold text-gray-900">{member.name}</p>
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-green-50 text-[#1B5E20]">{member.title}</span>
                           {!member.isVisible && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">숨김</span>}
                         </div>
                         <p className="text-xs text-gray-500 mt-1">

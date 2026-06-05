@@ -186,15 +186,13 @@ export function StaffPage({
       ) : (
         <div className="grid gap-x-8 gap-y-16 pt-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {staffList.map((staff) => {
-            const roleParts = [staff.title, staff.department || getStaffCategoryLabel(staff.category)]
-              .map((value) => value?.trim())
-              .filter((value, index, array): value is string => Boolean(value) && array.indexOf(value) === index);
+            const departmentLabel = staff.department?.trim() || getStaffCategoryLabel(staff.category);
             const email = staff.email?.trim();
             const phone = staff.phone?.trim();
             return (
               <article
                 key={staff.id}
-                className="group relative flex min-h-72 flex-col items-center border border-gray-200 bg-white px-4 pb-7 pt-40 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-md"
+                className="group relative flex h-full min-h-72 flex-col items-center border border-gray-200 bg-white px-4 pb-7 pt-40 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-md"
               >
                 <div className="absolute -top-10 left-1/2 flex h-48 w-40 -translate-x-1/2 items-center justify-center overflow-hidden bg-gray-50 ring-1 ring-gray-100 transition-transform group-hover:-translate-y-1">
                   {staff.imageUrl ? (
@@ -210,10 +208,10 @@ export function StaffPage({
                 </div>
                 <h3 className="text-base font-bold text-gray-900">{staff.name}</h3>
                 <p className="mt-3 text-sm leading-6 text-gray-600">
-                  {roleParts.join(" / ")}
+                  {departmentLabel}
                 </p>
                 {(email || phone) && (
-                  <div className="mt-5 w-full border-t border-gray-100 pt-4 text-left text-xs leading-6 text-gray-500">
+                  <div className="mt-auto min-h-16 w-full border-t border-gray-100 pt-4 text-left text-xs leading-6 text-gray-500">
                     {email && (
                       <a href={`mailto:${email}`} className="flex items-center gap-2 break-all hover:text-[#1B5E20]">
                         <Mail className="h-3.5 w-3.5 shrink-0 text-gray-400" />
