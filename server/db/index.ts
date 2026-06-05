@@ -20,6 +20,7 @@
  *   popup.ts       - 홈페이지 팝업/공지 배너 DB 함수
  *   support.ts     - 공개 접수(기도 요청/새가족 문의) DB 함수
  *   course.ts      - 교육/강좌 신청 DB 함수
+ *   bulletin.ts    - 주보 파일 관리 DB 함수
  */
 
 export * from "./connection";
@@ -38,3 +39,4 @@ export * from "./staff";
 export * from "./popup";
 export * from "./support";
 export * from "./course";
+export * from "./bulletin";

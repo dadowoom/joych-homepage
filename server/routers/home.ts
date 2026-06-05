@@ -43,6 +43,7 @@ import {
   getStaticPageContentByHref,
   getStoredTranslation,
   getVisibleStaffMembers,
+  listPublishedBulletins,
   getVisibleCourses,
   getVisibleCourseById,
   createOrReopenCourseApplication,
@@ -116,6 +117,9 @@ export const homeRouter = router({
 
   /** 공개 강좌 목록 */
   courses: publicProcedure.query(() => getVisibleCourses()),
+
+  /** 공개 주보 목록 */
+  bulletins: publicProcedure.query(() => listPublishedBulletins()),
 
   /** 공개 강좌 단건 */
   course: publicProcedure

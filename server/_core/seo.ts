@@ -408,6 +408,12 @@ const EXTRA_SITEMAP_ROUTES: SeoRoute[] = [
     priority: "0.5",
   },
   {
+    path: "/support/bulletin-ad",
+    title: "주보 광고신청 | 기쁨의교회",
+    description: "기쁨의교회 성도가 주보 광고와 부서 안내 게재를 신청할 수 있습니다.",
+    priority: "0.5",
+  },
+  {
     path: "/support/subtitle",
     title: "자막 요청 | 기쁨의교회",
     description: DEFAULT_DESCRIPTION,

@@ -59,6 +59,7 @@
   <url><loc>https://dadowoomtest.co.kr/support/vehicle</loc><priority>0.6</priority></url>
   <url><loc>https://dadowoomtest.co.kr/support/new-member</loc><priority>0.6</priority></url>
   <url><loc>https://dadowoomtest.co.kr/support/store</loc><priority>0.5</priority></url>
+  <url><loc>https://dadowoomtest.co.kr/support/bulletin-ad</loc><priority>0.5</priority></url>
   <url><loc>https://dadowoomtest.co.kr/support/subtitle</loc><priority>0.5</priority></url>
   <url><loc>https://dadowoomtest.co.kr/support/office</loc><priority>0.5</priority></url>
   <url><loc>https://dadowoomtest.co.kr/support/tour</loc><priority>0.5</priority></url>

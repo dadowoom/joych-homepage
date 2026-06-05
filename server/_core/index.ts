@@ -26,9 +26,11 @@ const TRPC_UPLOAD_PROCEDURES = [
   "cms.upload.pageImage",
   "cms.blocks.uploadImage",
   "cms.facilities.images.upload",
+  "cms.bulletins.create",
   "mission.uploadImage",
   "testimony.uploadImage",
   "support.submitSubtitle",
+  "support.submitBulletinAd",
 ];
 
 function getContentLength(req: express.Request) {

@@ -253,6 +253,11 @@ const SubtitleRequestPage = lazy(() =>
     default: module.SubtitleRequestPage,
   }))
 );
+const BulletinAdRequestPage = lazy(() =>
+  import("./pages/CommunityExtra").then(module => ({
+    default: module.BulletinAdRequestPage,
+  }))
+);
 const OnlineOfficePage = lazy(() =>
   import("./pages/CommunityExtra").then(module => ({
     default: module.OnlineOfficePage,
@@ -406,6 +411,7 @@ function Router() {
       <Route path="/support/vehicle" component={VehicleGuide} />
       <Route path="/support/new-member" component={NewMemberGuide} />
       <Route path="/support/store" component={JoyfulStore} />
+      <Route path="/support/bulletin-ad" component={BulletinAdRequestPage} />
       <Route path="/support/subtitle" component={SubtitleRequestPage} />
       <Route path="/support/office" component={OnlineOfficePage} />
       <Route path="/support/tour" component={VisitRequestPage} />
@@ -416,6 +422,7 @@ function Router() {
       <Route path="/admin/vehicle" component={VehicleGuide} />
       <Route path="/admin/new-member" component={NewMemberGuide} />
       <Route path="/admin/store" component={JoyfulStore} />
+      <Route path="/admin/bulletin-ad" component={BulletinAdRequestPage} />
       <Route path="/admin/subtitle" component={SubtitleRequestPage} />
       <Route path="/admin/office" component={OnlineOfficePage} />
       <Route path="/admin/tour" component={VisitRequestPage} />

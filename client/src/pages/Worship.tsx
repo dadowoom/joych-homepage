@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 import { Link } from "wouter";
+import { trpc } from "@/lib/trpc";
 
 function PageHeader({ title, subtitle, breadcrumb }: { title: string; subtitle?: string; breadcrumb: string[] }) {
   return (
@@ -49,10 +50,6 @@ const WORSHIP_NAV = [
   { label: "예배시간 안내", href: "/worship/schedule" },
   { label: "주보 보기", href: "/worship/bulletin" },
 ];
-
-function notifyBulletinDownload() {
-  window.alert("주보 PDF는 관리자 CMS 등록 후 제공됩니다. 현재는 교회 사무실(054-270-1000)로 문의해 주세요.");
-}
 
 // ── 조이풀TV (설교 영상) ─────────────────────────────────────────
 const SERMON_VIDEOS = [
@@ -218,36 +215,50 @@ export function WorshipSchedule() {
 }
 
 // ── 주보 보기 ─────────────────────────────────────────────────────
-const BULLETINS = [
-  {
-    id: 1,
-    date: "공지 예정",
-    title: "주보는 관리자 CMS 등록 후 제공됩니다",
-    author: "관리자",
-    fileCount: 0,
-    size: "-",
-  },
-];
+function formatBulletinDate(value: string | Date | null | undefined) {
+  if (!value) return "-";
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value.replaceAll("-", ".");
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, "0")}.${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function formatBulletinFileSize(bytes: number | null | undefined) {
+  if (!bytes) return "-";
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+}
+
+function isImageBulletin(fileMime: string | null | undefined, fileName: string | null | undefined) {
+  const mime = fileMime ?? "";
+  const name = fileName?.toLowerCase() ?? "";
+  return mime.startsWith("image/") || /\.(jpg|jpeg|png)$/.test(name);
+}
 
 export function Bulletin() {
-  const [expandedId, setExpandedId] = useState<number | null>(BULLETINS[0]?.id ?? null);
+  const { data: bulletins = [], isLoading } = trpc.home.bulletins.useQuery();
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
   const filteredBulletins = searchKeyword.trim()
-    ? BULLETINS.filter((bulletin) => bulletin.title.toLowerCase().includes(searchKeyword.trim().toLowerCase()))
-    : BULLETINS;
+    ? bulletins.filter((bulletin) => bulletin.title.toLowerCase().includes(searchKeyword.trim().toLowerCase()))
+    : bulletins;
+  const selectedBulletin = filteredBulletins.find((bulletin) => bulletin.id === expandedId) ?? filteredBulletins[0] ?? null;
 
   return (
     <div className="min-h-screen bg-[#F7F7F5]">
-      <PageHeader title="주보 보기" subtitle="주보 PDF는 관리자 등록 후 제공됩니다" breadcrumb={["조이풀TV", "주보 보기"]} />
+      <PageHeader title="주보 보기" subtitle="기쁨의교회 주보를 확인하고 내려받을 수 있습니다" breadcrumb={["조이풀TV", "주보 보기"]} />
       <SubNav items={WORSHIP_NAV} />
       <div className="max-w-5xl mx-auto px-4 py-14">
         <div className="mb-5 border-b border-gray-100 pb-4">
           <p className="text-sm text-gray-500">
-            총 <span className="font-semibold text-[#1B5E20]">{BULLETINS.length}</span>개의 주보
+            총 <span className="font-semibold text-[#1B5E20]">{bulletins.length}</span>개의 주보
             {searchKeyword && <span className="ml-2 text-gray-400">검색 결과 {filteredBulletins.length}개</span>}
           </p>
-          <p className="mt-1 text-xs text-gray-400">주보 파일이 등록되면 목록에서 선택해 미리보고 내려받을 수 있습니다.</p>
+          <p className="mt-1 text-xs text-gray-400">목록에서 주보를 선택해 미리보고 내려받을 수 있습니다.</p>
         </div>
 
         <div className="mb-4 flex flex-col gap-3 border-b border-[#86C5D8] pb-2 md:flex-row md:items-center md:justify-between">
@@ -297,7 +308,10 @@ export function Bulletin() {
           </form>
         </div>
 
-        <div className="hidden overflow-hidden border border-gray-200 bg-white md:block">
+        {isLoading ? (
+          <div className="text-center py-16 text-gray-400">불러오는 중...</div>
+        ) : (
+          <div className="hidden overflow-hidden border border-gray-200 bg-white md:block">
           <table className="w-full table-fixed text-sm">
             <colgroup>
               <col className="w-16" />
@@ -332,22 +346,24 @@ export function Bulletin() {
                         <span className="ml-2 text-[#0F8FB3]">▣</span>
                       </button>
                     </td>
-                    <td className="px-3 py-3 text-center text-gray-600">{bulletin.author}</td>
-                    <td className="px-3 py-3 text-center text-gray-500">{bulletin.date}</td>
-                    <td className="px-3 py-3 text-center text-gray-500">{bulletin.fileCount || "-"}</td>
+                    <td className="px-3 py-3 text-center text-gray-600">관리자</td>
+                    <td className="px-3 py-3 text-center text-gray-500">{formatBulletinDate(bulletin.bulletinDate)}</td>
+                    <td className="px-3 py-3 text-center text-gray-500">1</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-        </div>
+          </div>
+        )}
 
-        <div className="divide-y divide-gray-100 border border-gray-200 bg-white md:hidden">
+        {!isLoading && (
+          <div className="divide-y divide-gray-100 border border-gray-200 bg-white md:hidden">
           {filteredBulletins.map((bulletin, index) => (
             <article key={bulletin.id} className="p-4">
               <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
                 <span>번호 {filteredBulletins.length - index}</span>
-                <span>{bulletin.date}</span>
+                <span>{formatBulletinDate(bulletin.bulletinDate)}</span>
               </div>
               <button
                 type="button"
@@ -356,51 +372,62 @@ export function Bulletin() {
               >
                 {bulletin.title}
               </button>
-              <p className="mt-1 text-xs font-medium text-[#1B5E20]">{bulletin.author}</p>
+              <p className="mt-1 text-xs font-medium text-[#1B5E20]">관리자</p>
             </article>
           ))}
-        </div>
+          </div>
+        )}
 
-        {filteredBulletins.length === 0 && (
+        {!isLoading && filteredBulletins.length === 0 && (
           <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50 py-20">
             <i className="fas fa-file-alt mb-3 text-4xl text-gray-300" />
             <p className="text-sm text-gray-400">해당 조건의 주보가 없습니다.</p>
           </div>
         )}
 
-        {filteredBulletins.some((bulletin) => bulletin.id === expandedId) && (
+        {selectedBulletin && (
           <div className="mt-8 overflow-hidden border border-gray-200 bg-white">
             <div className="border-t-2 border-[#62B5D1] bg-[#EAF8FC] px-5 py-3">
               <h2 className="font-bold text-[#0F607A]" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-                {filteredBulletins.find((bulletin) => bulletin.id === expandedId)?.title}
+                {selectedBulletin.title}
               </h2>
             </div>
             <div className="border-b border-gray-100 px-5 py-3 text-xs text-gray-500">
               관리자 <span className="mx-2 text-gray-300">|</span>
-              등록일 {filteredBulletins.find((bulletin) => bulletin.id === expandedId)?.date}
+              등록일 {formatBulletinDate(selectedBulletin.bulletinDate)}
               <span className="mx-2 text-gray-300">|</span>
-              첨부 {filteredBulletins.find((bulletin) => bulletin.id === expandedId)?.fileCount || 0}개
+              첨부 1개
             </div>
             <div className="grid gap-6 p-5 lg:grid-cols-[1fr_220px]">
               <div className="flex min-h-96 items-center justify-center border border-gray-100 bg-gray-50">
-                <div className="text-center">
-                  <i className="fas fa-file-pdf mb-3 text-5xl text-gray-300"></i>
-                  <p className="text-sm text-gray-400">주보 미리보기</p>
-                  <p className="mt-1 text-xs text-gray-300">관리자 파일 등록 기능 연결 예정</p>
-                </div>
+                {isImageBulletin(selectedBulletin.fileMime, selectedBulletin.fileName) ? (
+                  <img
+                    src={selectedBulletin.fileUrl}
+                    alt={selectedBulletin.title}
+                    className="max-h-[720px] w-auto max-w-full object-contain"
+                  />
+                ) : (
+                  <iframe
+                    src={selectedBulletin.fileUrl}
+                    title={selectedBulletin.title}
+                    className="h-[720px] w-full border-0 bg-white"
+                  />
+                )}
               </div>
               <div className="border border-gray-200 bg-white p-4 text-sm">
                 <p className="mb-3 font-semibold text-gray-800">첨부파일</p>
-                <div className="rounded border border-dashed border-gray-200 p-4 text-center text-xs text-gray-400">
-                  등록된 첨부파일이 없습니다.
+                <div className="rounded border border-dashed border-gray-200 p-4 text-xs text-gray-500">
+                  <p className="font-medium text-gray-700">{selectedBulletin.fileName}</p>
+                  <p className="mt-1 text-gray-400">{formatBulletinFileSize(selectedBulletin.fileSize)}</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={notifyBulletinDownload}
-                  className="mt-4 w-full border border-[#1B5E20] px-4 py-2 text-sm font-medium text-[#1B5E20] transition-colors hover:bg-[#F1F8E9]"
+                <a
+                  href={selectedBulletin.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 block w-full border border-[#1B5E20] px-4 py-2 text-center text-sm font-medium text-[#1B5E20] transition-colors hover:bg-[#F1F8E9]"
                 >
-                  문의 안내
-                </button>
+                  파일 열기
+                </a>
               </div>
             </div>
           </div>

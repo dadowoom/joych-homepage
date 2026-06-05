@@ -5,10 +5,12 @@
 import { z } from "zod";
 import { adminProcedure, router } from "../../_core/trpc";
 import {
+  listBulletinAdRequests,
   listNewMemberRequests,
   listPrayerRequests,
   listSubtitleRequests,
   listVisitRequests,
+  updateBulletinAdRequestStatus,
   updateNewMemberRequestStatus,
   updatePrayerRequestStatus,
   updateSubtitleRequestStatus,
@@ -22,6 +24,7 @@ export const supportRequestsRouter = router({
   listNewMembers: adminProcedure.query(() => listNewMemberRequests()),
   listVisits: adminProcedure.query(() => listVisitRequests()),
   listSubtitles: adminProcedure.query(() => listSubtitleRequests()),
+  listBulletinAds: adminProcedure.query(() => listBulletinAdRequests()),
 
   updatePrayerStatus: adminProcedure
     .input(
@@ -78,6 +81,21 @@ export const supportRequestsRouter = router({
     )
     .mutation(({ input }) =>
       updateSubtitleRequestStatus(input.id, {
+        status: input.status,
+        adminMemo: input.adminMemo,
+      })
+    ),
+
+  updateBulletinAdStatus: adminProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        status: z.enum(["new", "reviewed", "completed", "archived"]),
+        adminMemo: adminMemoSchema,
+      })
+    )
+    .mutation(({ input }) =>
+      updateBulletinAdRequestStatus(input.id, {
         status: input.status,
         adminMemo: input.adminMemo,
       })

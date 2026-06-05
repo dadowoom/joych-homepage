@@ -99,6 +99,7 @@ export const INTERNAL_PAGES: InternalPageGroup[] = [
       { label: "차량 운행", path: "/support/vehicle" },
       { label: "새가족 안내", path: "/support/new-member" },
       { label: "주보", path: "/worship/bulletin" },
+      { label: "주보 광고신청", path: "/support/bulletin-ad" },
       { label: "자막 신청", path: "/support/subtitle" },
       { label: "온라인사무국", path: "/support/office" },
       { label: "탐방신청", path: "/support/tour" },
@@ -250,6 +251,7 @@ export const FALLBACK_NAV_ITEMS: FallbackNavItem[] = [
     label: "행정지원",
     sub: [
       "주보",
+      "주보 광고신청",
       "자막 신청",
       "온라인사무국",
       "탐방신청",
@@ -258,6 +260,7 @@ export const FALLBACK_NAV_ITEMS: FallbackNavItem[] = [
     ],
     subHref: {
       주보: "/worship/bulletin",
+      "주보 광고신청": "/support/bulletin-ad",
       "자막 신청": "/support/subtitle",
       온라인사무국: "/support/office",
       탐방신청: "/support/tour",

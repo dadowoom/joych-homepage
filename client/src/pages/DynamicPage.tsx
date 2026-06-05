@@ -96,6 +96,10 @@ function isRepresentativeLinkSecondLevelItem(item: DynamicPageItem) {
   return item.label.replace(/\s+/g, "") === "주보";
 }
 
+function isBulletinAdRequestMenuItem(item: DynamicPageItem) {
+  return item.label.replace(/\s+/g, "") === "주보광고신청";
+}
+
 function getRepresentativeSubItemHref(subItems: DynamicPageSubItem[] | undefined) {
   const items = subItems ?? [];
   const bulletinView = items.find((sub) => sub.label.replace(/\s+/g, "") === "주보보기");
@@ -224,6 +228,7 @@ function MenuItemPageContent({
   const isContainerOnly = isContainerOnlySecondLevelItem(item) && itemSubItems.length > 0;
   const sideItems = getSecondLevelSideMenuItems(parentMenu, item.id, activeHref);
   const staffCategory = getStaffCategoryForMenuItem(item);
+  const shouldRedirectToBulletinAd = isBulletinAdRequestMenuItem(item);
   const firstSubItemHref = getFirstSubItemHref(allMenus, item.id);
   const shouldRedirectToFirstSubItem =
     !staffCategory &&
@@ -233,10 +238,14 @@ function MenuItemPageContent({
     decodePath(firstSubItemHref ?? "") !== decodePath(activeHref ?? "");
 
   useEffect(() => {
+    if (shouldRedirectToBulletinAd) {
+      setLocation("/support/bulletin-ad");
+      return;
+    }
     if (shouldRedirectToFirstSubItem && firstSubItemHref) {
       setLocation(firstSubItemHref);
     }
-  }, [firstSubItemHref, setLocation, shouldRedirectToFirstSubItem]);
+  }, [firstSubItemHref, setLocation, shouldRedirectToBulletinAd, shouldRedirectToFirstSubItem]);
 
   if (staffCategory) {
     return <StaffPage initialCategory={staffCategory} />;
@@ -252,6 +261,10 @@ function MenuItemPageContent({
         <KakaoDirectionsMap />
       </SubPageLayout>
     );
+  }
+
+  if (shouldRedirectToBulletinAd) {
+    return <LoadingDynamicPage />;
   }
 
   if (isContainerOnly) {
@@ -298,6 +311,7 @@ function MenuSubItemPageContent({
   allMenus?: DynamicMenuTree;
   activeHref?: string;
 }) {
+  const [, setLocation] = useLocation();
   let parentItemLabel: string | undefined;
   let grandParentLabel: string | undefined;
   let sideItems: {
@@ -318,6 +332,18 @@ function MenuSubItemPageContent({
       }
     }
     if (parentItemLabel) break;
+  }
+
+  const shouldRedirectToBulletinAd = isBulletinAdRequestMenuItem(item);
+
+  useEffect(() => {
+    if (shouldRedirectToBulletinAd) {
+      setLocation("/support/bulletin-ad");
+    }
+  }, [setLocation, shouldRedirectToBulletinAd]);
+
+  if (shouldRedirectToBulletinAd) {
+    return <LoadingDynamicPage />;
   }
 
   return (

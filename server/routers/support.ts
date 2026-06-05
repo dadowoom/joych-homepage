@@ -6,13 +6,16 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { publicProcedure, router } from "../_core/trpc";
+import { memberProtectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { storagePut } from "../storage";
 import {
+  createBulletinAdRequest,
   createNewMemberRequest,
   createPrayerRequest,
   createSubtitleRequest,
   createVisitRequest,
+  getMemberById,
+  listPublicBulletinAdRequests,
   listPublicSubtitleRequests,
 } from "../db";
 
@@ -65,6 +68,12 @@ const subtitleDateSchema = z
   .string()
   .trim()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "자막이 필요한 날짜를 선택해 주세요.")
+  .optional();
+
+const bulletinAdDateSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "광고 게재 희망일을 선택해 주세요.")
   .optional();
 
 const MAX_SUBTITLE_ATTACHMENT_BYTES = 10 * 1024 * 1024;
@@ -133,8 +142,33 @@ async function saveSubtitleAttachment(attachment: z.infer<typeof subtitleAttachm
   };
 }
 
+async function saveBulletinAdAttachment(attachment: z.infer<typeof subtitleAttachmentSchema>) {
+  if (!attachment) return null;
+  const ext = getFileExt(attachment.fileName);
+  if (!ext) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "첨부파일은 PDF, DOC, DOCX, HWP, HWPX, TXT, JPG, PNG 형식만 가능합니다.",
+    });
+  }
+
+  const buffer = decodeAttachmentBase64(attachment.base64);
+  const baseName = attachment.fileName.replace(/\.[^.]+$/, "");
+  const safeName = sanitizeFileName(baseName) || "bulletin-ad-request";
+  const key = `bulletin-ad-requests/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}.${ext}`;
+  const { url } = await storagePut(key, buffer, attachment.mimeType || "application/octet-stream");
+  return {
+    attachmentName: attachment.fileName,
+    attachmentUrl: url,
+    attachmentSize: buffer.length,
+    attachmentMime: attachment.mimeType,
+  };
+}
+
 export const supportRouter = router({
   listSubtitles: publicProcedure.query(() => listPublicSubtitleRequests()),
+
+  listBulletinAds: publicProcedure.query(() => listPublicBulletinAdRequests()),
 
   submitPrayer: publicProcedure
     .input(
@@ -193,25 +227,58 @@ export const supportRouter = router({
       return { ok: true };
     }),
 
-  submitSubtitle: publicProcedure
+  submitSubtitle: memberProtectedProcedure
     .input(
       z.object({
         title: requiredText(160, "제목을 입력해 주세요."),
-        authorName: requiredText(64, "작성자 이름을 입력해 주세요."),
-        phone: phoneSchema,
-        email: optionalEmailSchema,
         requestedDate: subtitleDateSchema,
         content: requiredText(3000, "자막 신청 내용을 입력해 주세요."),
         attachment: subtitleAttachmentSchema,
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const member = await getMemberById(ctx.memberId);
+      if (!member) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "성도 로그인 정보가 확인되지 않습니다." });
+      }
       const attachment = await saveSubtitleAttachment(input.attachment);
       await createSubtitleRequest({
+        memberId: ctx.memberId,
         title: input.title,
-        authorName: input.authorName,
-        phone: input.phone,
-        email: input.email || null,
+        authorName: member.name || ctx.memberName,
+        phone: member.phone || "",
+        email: member.email || null,
+        requestedDate: input.requestedDate || null,
+        content: input.content,
+        attachmentName: attachment?.attachmentName ?? null,
+        attachmentUrl: attachment?.attachmentUrl ?? null,
+        attachmentSize: attachment?.attachmentSize ?? null,
+        attachmentMime: attachment?.attachmentMime ?? null,
+      });
+      return { ok: true };
+    }),
+
+  submitBulletinAd: memberProtectedProcedure
+    .input(
+      z.object({
+        title: requiredText(160, "제목을 입력해 주세요."),
+        requestedDate: bulletinAdDateSchema,
+        content: requiredText(3000, "주보 광고 신청 내용을 입력해 주세요."),
+        attachment: subtitleAttachmentSchema,
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const member = await getMemberById(ctx.memberId);
+      if (!member) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "성도 로그인 정보가 확인되지 않습니다." });
+      }
+      const attachment = await saveBulletinAdAttachment(input.attachment);
+      await createBulletinAdRequest({
+        memberId: ctx.memberId,
+        title: input.title,
+        authorName: member.name || ctx.memberName,
+        phone: member.phone || null,
+        email: member.email || null,
         requestedDate: input.requestedDate || null,
         content: input.content,
         attachmentName: attachment?.attachmentName ?? null,

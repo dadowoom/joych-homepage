@@ -4,6 +4,8 @@
 
 import { desc, eq, ne } from "drizzle-orm";
 import {
+  bulletinAdRequests,
+  InsertBulletinAdRequest,
   InsertNewMemberRequest,
   InsertPrayerRequest,
   InsertSubtitleRequest,
@@ -19,6 +21,7 @@ type PrayerRequestStatus = "new" | "reviewed" | "archived";
 type NewMemberRequestStatus = "new" | "contacted" | "archived";
 type VisitRequestStatus = "new" | "contacted" | "scheduled" | "completed" | "archived";
 type SubtitleRequestStatus = "new" | "reviewed" | "completed" | "archived";
+type BulletinAdRequestStatus = "new" | "reviewed" | "completed" | "archived";
 
 async function requireDb() {
   const db = await getDb();
@@ -145,4 +148,48 @@ export async function updateSubtitleRequestStatus(
     .update(subtitleRequests)
     .set({ status: data.status, adminMemo: data.adminMemo ?? null })
     .where(eq(subtitleRequests.id, id));
+}
+
+export async function createBulletinAdRequest(data: InsertBulletinAdRequest) {
+  const db = await requireDb();
+  await db.insert(bulletinAdRequests).values(data);
+}
+
+export async function listPublicBulletinAdRequests(limit = 100) {
+  const db = await requireDb();
+  return db
+    .select({
+      id: bulletinAdRequests.id,
+      title: bulletinAdRequests.title,
+      authorName: bulletinAdRequests.authorName,
+      requestedDate: bulletinAdRequests.requestedDate,
+      content: bulletinAdRequests.content,
+      attachmentName: bulletinAdRequests.attachmentName,
+      status: bulletinAdRequests.status,
+      createdAt: bulletinAdRequests.createdAt,
+    })
+    .from(bulletinAdRequests)
+    .where(ne(bulletinAdRequests.status, "archived"))
+    .orderBy(desc(bulletinAdRequests.createdAt))
+    .limit(limit);
+}
+
+export async function listBulletinAdRequests(limit = 100) {
+  const db = await requireDb();
+  return db
+    .select()
+    .from(bulletinAdRequests)
+    .orderBy(desc(bulletinAdRequests.createdAt))
+    .limit(limit);
+}
+
+export async function updateBulletinAdRequestStatus(
+  id: number,
+  data: { status: BulletinAdRequestStatus; adminMemo?: string | null }
+) {
+  const db = await requireDb();
+  await db
+    .update(bulletinAdRequests)
+    .set({ status: data.status, adminMemo: data.adminMemo ?? null })
+    .where(eq(bulletinAdRequests.id, id));
 }

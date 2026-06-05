@@ -543,6 +543,7 @@ export type InsertVisitRequest = typeof visitRequests.$inferInsert;
 // Public support intake: subtitle/caption requests with optional attachment
 export const subtitleRequests = mysqlTable("subtitle_requests", {
   id: int("id").autoincrement().primaryKey(),
+  memberId: int("member_id"),
   title: varchar("title", { length: 160 }).notNull(),
   authorName: varchar("author_name", { length: 64 }).notNull(),
   phone: varchar("phone", { length: 32 }).notNull(),
@@ -560,10 +561,59 @@ export const subtitleRequests = mysqlTable("subtitle_requests", {
 }, (table) => [
   index("subtitle_requests_status_created_idx").on(table.status, table.createdAt),
   index("subtitle_requests_date_idx").on(table.requestedDate),
+  index("subtitle_requests_member_created_idx").on(table.memberId, table.createdAt),
 ]);
 
 export type SubtitleRequest = typeof subtitleRequests.$inferSelect;
 export type InsertSubtitleRequest = typeof subtitleRequests.$inferInsert;
+
+// Worship bulletin files uploaded by admins and shown on /worship/bulletin
+export const bulletins = mysqlTable("bulletins", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 160 }).notNull(),
+  bulletinDate: varchar("bulletin_date", { length: 10 }).notNull(),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  fileUrl: varchar("file_url", { length: 512 }).notNull(),
+  fileSize: int("file_size"),
+  fileMime: varchar("file_mime", { length: 128 }),
+  status: mysqlEnum("status", ["published", "hidden", "archived"]).notNull().default("published"),
+  authorId: int("author_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("bulletins_status_date_idx").on(table.status, table.bulletinDate),
+  index("bulletins_created_idx").on(table.createdAt),
+]);
+
+export type Bulletin = typeof bulletins.$inferSelect;
+export type InsertBulletin = typeof bulletins.$inferInsert;
+
+// Member-only bulletin advertisement requests
+export const bulletinAdRequests = mysqlTable("bulletin_ad_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  memberId: int("member_id").notNull(),
+  title: varchar("title", { length: 160 }).notNull(),
+  authorName: varchar("author_name", { length: 64 }).notNull(),
+  phone: varchar("phone", { length: 32 }),
+  email: varchar("email", { length: 320 }),
+  requestedDate: varchar("requested_date", { length: 10 }),
+  content: text("content").notNull(),
+  attachmentName: varchar("attachment_name", { length: 255 }),
+  attachmentUrl: varchar("attachment_url", { length: 512 }),
+  attachmentSize: int("attachment_size"),
+  attachmentMime: varchar("attachment_mime", { length: 128 }),
+  status: mysqlEnum("status", ["new", "reviewed", "completed", "archived"]).notNull().default("new"),
+  adminMemo: text("admin_memo"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("bulletin_ad_requests_status_created_idx").on(table.status, table.createdAt),
+  index("bulletin_ad_requests_member_created_idx").on(table.memberId, table.createdAt),
+  index("bulletin_ad_requests_date_idx").on(table.requestedDate),
+]);
+
+export type BulletinAdRequest = typeof bulletinAdRequests.$inferSelect;
+export type InsertBulletinAdRequest = typeof bulletinAdRequests.$inferInsert;
 
 // ─────────────────────────────────────────────
 // 시설 예약 시스템

@@ -16,6 +16,7 @@
  *   - 팝업 관리    : components/AdminPopupsTab.tsx
  *   - 접수 관리    : components/AdminSupportRequestsTab.tsx
  *   - 강좌 관리    : components/AdminCoursesTab.tsx
+ *   - 주보 관리    : components/AdminBulletinsTab.tsx
  */
 
 import { useState } from "react";
@@ -34,6 +35,7 @@ import AdminStaffTab from "@/components/AdminStaffTab";
 import AdminSupportRequestsTab from "@/components/AdminSupportRequestsTab";
 import AdminTestimoniesTab from "@/components/AdminTestimoniesTab";
 import AdminCoursesTab from "@/components/AdminCoursesTab";
+import AdminBulletinsTab from "@/components/AdminBulletinsTab";
 import YoutubeAdminTab from "@/components/YoutubeAdminTab";
 import { SettingsTab } from "@/components/admin/SettingsTab";
 import { StaticPageContentTab } from "@/components/admin/StaticPageContentTab";
@@ -51,6 +53,7 @@ type Tab =
   | "freeBoard"
   | "supportRequests"
   | "courses"
+  | "bulletins"
   | "youtube"
   | "staticPages"
   | "popups";
@@ -165,6 +168,13 @@ const TABS: TabItem[] = [
     status: "접수 확인",
   },
   {
+    id: "bulletins",
+    label: "주보 관리",
+    icon: "fa-newspaper",
+    description: "주보 파일을 등록하고 공개 상태를 관리합니다.",
+    status: "자료 등록",
+  },
+  {
     id: "courses",
     label: "강좌 관리",
     icon: "fa-graduation-cap",
@@ -182,7 +192,7 @@ const TAB_GROUPS: TabGroup[] = [
   {
     title: "콘텐츠/노출 관리",
     description: "홈페이지에 공개되는 자료",
-    tabs: ["staticPages", "youtube", "testimonies", "freeBoard", "popups"],
+    tabs: ["staticPages", "youtube", "bulletins", "testimonies", "freeBoard", "popups"],
   },
   {
     title: "성도/사역 관리",
@@ -610,6 +620,7 @@ export default function AdminPage() {
               {activeTab === "freeBoard" && <AdminFreeBoardTab />}
               {activeTab === "supportRequests" && <AdminSupportRequestsTab />}
               {activeTab === "courses" && <AdminCoursesTab />}
+              {activeTab === "bulletins" && <AdminBulletinsTab />}
               {activeTab === "youtube" && <YoutubeAdminTab />}
               {activeTab === "staticPages" && <StaticPageContentTab />}
               {activeTab === "popups" && <AdminPopupsTab />}

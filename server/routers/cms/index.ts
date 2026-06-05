@@ -17,6 +17,7 @@
  *   - popups: 팝업/공지 배너 관리
  *   - supportRequests: 기도 요청/새가족 접수 관리
  *   - courses: 교육/강좌 신청 관리
+ *   - bulletins: 주보 파일 관리
  */
 
 import { router } from "../../_core/trpc";
@@ -34,6 +35,7 @@ import { popupsRouter } from "./popups";
 import { supportRequestsRouter } from "./supportRequests";
 import { freeBoardAdminRouter } from "./freeBoard";
 import { coursesRouter } from "./courses";
+import { bulletinsRouter } from "./bulletins";
 
 export const cmsRouter = router({
   notices: noticesRouter,
@@ -50,4 +52,5 @@ export const cmsRouter = router({
   supportRequests: supportRequestsRouter,
   freeBoard: freeBoardAdminRouter,
   courses: coursesRouter,
+  bulletins: bulletinsRouter,
 });

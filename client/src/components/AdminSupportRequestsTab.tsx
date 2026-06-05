@@ -39,6 +39,13 @@ const subtitleStatusLabels: Record<string, string> = {
   archived: "보관",
 };
 
+const bulletinAdStatusLabels: Record<string, string> = {
+  new: "신규",
+  reviewed: "확인 완료",
+  completed: "처리 완료",
+  archived: "보관",
+};
+
 const visitorTypeLabels: Record<string, string> = {
   church: "교회",
   institution: "기관 / 단체",
@@ -64,6 +71,118 @@ function formatFileSize(bytes: number | null | undefined) {
   if (bytes < 1024) return `${bytes}B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+}
+
+function BulletinAdRequestSection() {
+  const utils = trpc.useUtils();
+  const [bulletinAdMemos, setBulletinAdMemos] = useState<Record<number, string>>({});
+  const { data: bulletinAds = [], isLoading } = trpc.cms.supportRequests.listBulletinAds.useQuery();
+
+  const updateBulletinAd = trpc.cms.supportRequests.updateBulletinAdStatus.useMutation({
+    onSuccess: () => {
+      toast.success("주보 광고신청 상태가 저장되었습니다.");
+      utils.cms.supportRequests.listBulletinAds.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  return (
+    <section className="border border-gray-200 rounded-xl p-4">
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div>
+          <h4 className="font-bold text-gray-800">주보 광고신청</h4>
+          <p className="text-xs text-gray-400 mt-0.5">성도 주보 광고 게재 요청 최근 100건</p>
+        </div>
+        <span className="text-xs bg-[#E8F5E9] text-[#1B5E20] px-2.5 py-1 rounded-full">
+          {bulletinAds.length}건
+        </span>
+      </div>
+
+      {isLoading ? (
+        <p className="text-gray-500 py-8 text-center">불러오는 중...</p>
+      ) : bulletinAds.length === 0 ? (
+        <p className="text-sm text-gray-400 py-4">아직 접수된 주보 광고신청이 없습니다.</p>
+      ) : (
+        <div className="space-y-3">
+          {bulletinAds.map((request) => (
+            <div key={request.id} className="border border-gray-100 rounded-lg p-4">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-800">
+                    {request.title} · {request.authorName}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {formatDate(request.createdAt)} · {bulletinAdStatusLabels[request.status] ?? request.status}
+                  </p>
+                  <div className="text-sm text-gray-600 leading-relaxed mt-3 space-y-1">
+                    <p>연락처: {request.phone || "-"}</p>
+                    <p>이메일: {request.email || "-"}</p>
+                    <p>게재 희망일: {request.requestedDate || "-"}</p>
+                    <p className="whitespace-pre-wrap">신청 내용: {request.content}</p>
+                    {request.attachmentUrl && (
+                      <p className="flex flex-wrap items-center gap-2">
+                        <Paperclip className="h-4 w-4 text-[#1B5E20]" />
+                        <a
+                          href={request.attachmentUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#1B5E20] underline-offset-2 hover:underline"
+                        >
+                          {request.attachmentName || "첨부파일"}
+                        </a>
+                        <span className="text-xs text-gray-400">
+                          {formatFileSize(request.attachmentSize)} · {request.attachmentMime || "파일"}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <select
+                  className={`${fieldClass} shrink-0`}
+                  value={request.status}
+                  onChange={(event) =>
+                    updateBulletinAd.mutate({
+                      id: request.id,
+                      status: event.target.value as "new" | "reviewed" | "completed" | "archived",
+                      adminMemo: bulletinAdMemos[request.id] ?? request.adminMemo ?? undefined,
+                    })
+                  }
+                >
+                  {Object.entries(bulletinAdStatusLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <textarea
+                className={`${fieldClass} w-full mt-3 resize-none`}
+                rows={2}
+                placeholder="관리자 메모"
+                value={bulletinAdMemos[request.id] ?? request.adminMemo ?? ""}
+                onChange={(event) =>
+                  setBulletinAdMemos((prev) => ({ ...prev, [request.id]: event.target.value }))
+                }
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  updateBulletinAd.mutate({
+                    id: request.id,
+                    status: request.status,
+                    adminMemo: bulletinAdMemos[request.id] ?? request.adminMemo ?? undefined,
+                  })
+                }
+                className="mt-2 px-3 py-1.5 rounded-lg text-xs bg-gray-100 text-gray-600 hover:bg-gray-200"
+              >
+                메모 저장
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
 }
 
 function SubtitleRequestSection() {
@@ -307,9 +426,11 @@ export default function AdminSupportRequestsTab() {
       <div>
         <h3 className="text-lg font-bold text-gray-800">접수 관리</h3>
         <p className="text-sm text-gray-500 mt-0.5">
-          홈페이지에서 접수된 기도 요청, 새가족 등록 문의, 탐방신청, 자막 신청을 확인합니다.
+          홈페이지에서 접수된 기도 요청, 새가족 등록 문의, 주보 광고신청, 탐방신청, 자막 신청을 확인합니다.
         </p>
       </div>
+
+      <BulletinAdRequestSection />
 
       <SubtitleRequestSection />
 
