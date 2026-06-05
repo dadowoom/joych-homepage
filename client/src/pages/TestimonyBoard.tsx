@@ -570,8 +570,8 @@ export function TestimonyEditor() {
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              rows={14}
-              className={`${fieldClass} resize-y leading-7`}
+              rows={8}
+              className={`${fieldClass} min-h-[220px] resize-y leading-7 md:min-h-[360px]`}
               placeholder="간증 내용을 입력해주세요"
             />
           </div>

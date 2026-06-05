@@ -21,12 +21,14 @@ import { useState } from "react";
 import { Link, useSearch, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useIsMobile } from "@/hooks/useMobile";
 import AdminFacilitiesTab from "@/components/AdminFacilitiesTab";
 import AdminReservationsTab from "@/components/AdminReservationsTab";
 import AdminMemberOptionsTab from "@/components/AdminMemberOptionsTab";
 import AdminMembersTab from "@/components/AdminMembersTab";
 import AdminMissionReportsTab from "@/components/AdminMissionReportsTab";
 import AdminPopupsTab from "@/components/AdminPopupsTab";
+import AdminFreeBoardTab from "@/components/AdminFreeBoardTab";
 import AdminStaffTab from "@/components/AdminStaffTab";
 import AdminSupportRequestsTab from "@/components/AdminSupportRequestsTab";
 import AdminTestimoniesTab from "@/components/AdminTestimoniesTab";
@@ -44,6 +46,7 @@ type Tab =
   | "staff"
   | "missionReports"
   | "testimonies"
+  | "freeBoard"
   | "supportRequests"
   | "youtube"
   | "staticPages"
@@ -100,6 +103,13 @@ const TABS: TabItem[] = [
     icon: "fa-comments",
     description: "생명의 삶 나눔과 간증 콘텐츠의 게시 정보를 관리합니다.",
     status: "검수/게시",
+  },
+  {
+    id: "freeBoard",
+    label: "자유게시판 관리",
+    icon: "fa-clipboard-list",
+    description: "성도가 작성한 자유게시판 글의 공개, 숨김, 삭제 상태를 관리합니다.",
+    status: "게시 관리",
   },
   {
     id: "popups",
@@ -162,7 +172,7 @@ const TAB_GROUPS: TabGroup[] = [
   {
     title: "콘텐츠/노출 관리",
     description: "홈페이지에 공개되는 자료",
-    tabs: ["staticPages", "youtube", "testimonies", "popups"],
+    tabs: ["staticPages", "youtube", "testimonies", "freeBoard", "popups"],
   },
   {
     title: "성도/사역 관리",
@@ -186,9 +196,40 @@ const TABS_BY_ID = TABS.reduce(
 
 const VALID_TABS: Tab[] = TABS.map(tab => tab.id);
 
+function AdminMobileBlocked() {
+  return (
+    <div
+      className="min-h-screen flex items-center justify-center bg-gray-50 px-4"
+      style={{ fontFamily: "'Noto Sans KR', sans-serif" }}
+    >
+      <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-lg">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#E8F5E9] text-[#1B5E20]">
+          <i className="fas fa-desktop text-xl"></i>
+        </div>
+        <h1
+          className="text-xl font-bold text-gray-900"
+          style={{ fontFamily: "'Noto Serif KR', serif" }}
+        >
+          PC에서 접속해주세요
+        </h1>
+        <p className="mt-3 text-sm leading-6 text-gray-500">
+          관리자 페이지는 안정적인 운영을 위해 PC 화면에서만 사용할 수 있습니다.
+        </p>
+        <Link
+          href="/"
+          className="mt-6 inline-flex h-10 items-center justify-center rounded-lg border border-gray-200 px-4 text-sm text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
+        >
+          홈페이지로 돌아가기
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 // ─── 메인 관리자 페이지 ───────────────────────────────────────────────────────
 export default function AdminPage() {
   const { user, loading } = useAuth();
+  const isMobile = useIsMobile();
   const searchString = useSearch();
   const [, setLocation] = useLocation();
 
@@ -234,6 +275,10 @@ export default function AdminPage() {
       );
     },
   });
+
+  if (isMobile) {
+    return <AdminMobileBlocked />;
+  }
 
   // ── 로딩 중 ────────────────────────────────────────────────────────────────
   if (loading) {
@@ -552,6 +597,7 @@ export default function AdminPage() {
               {activeTab === "staff" && <AdminStaffTab />}
               {activeTab === "missionReports" && <AdminMissionReportsTab />}
               {activeTab === "testimonies" && <AdminTestimoniesTab />}
+              {activeTab === "freeBoard" && <AdminFreeBoardTab />}
               {activeTab === "supportRequests" && <AdminSupportRequestsTab />}
               {activeTab === "youtube" && <YoutubeAdminTab />}
               {activeTab === "staticPages" && <StaticPageContentTab />}

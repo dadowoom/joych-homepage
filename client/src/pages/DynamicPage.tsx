@@ -140,7 +140,8 @@ function renderContent(
   imageUrl: string | null,
   menuItemId?: number,
   menuSubItemId?: number,
-  playlistId?: number | null
+  playlistId?: number | null,
+  href?: string | null
 ) {
   switch (pageType) {
     case "image":
@@ -148,7 +149,7 @@ function renderContent(
     case "gallery":
       return <GalleryContent />;
     case "board":
-      return <BoardContent />;
+      return <BoardContent label={label} href={href} />;
     case "youtube":
       return <YoutubeContent label={label} playlistId={playlistId} />;
     case "editor":
@@ -243,7 +244,8 @@ function MenuItemPageContent({
         item.pageImageUrl ?? null,
         item.id,
         undefined,
-        item.playlistId
+        item.playlistId,
+        item.href ?? activeHref ?? null
       )}
     </SubPageLayout>
   );
@@ -292,7 +294,8 @@ function MenuSubItemPageContent({
         item.pageImageUrl ?? null,
         undefined,
         item.id,
-        item.playlistId
+        item.playlistId,
+        item.href ?? activeHref ?? null
       )}
     </SubPageLayout>
   );

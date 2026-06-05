@@ -70,6 +70,11 @@ const Location = lazy(() =>
 const StaffPage = lazy(() =>
   import("./pages/ChurchIntro").then(module => ({ default: module.StaffPage }))
 );
+const PastorBooksPage = lazy(() =>
+  import("./pages/ChurchIntro").then(module => ({
+    default: module.PastorBooksPage,
+  }))
+);
 const WhiteBookPage = lazy(() =>
   import("./pages/ChurchIntro").then(module => ({
     default: module.WhiteBookPage,
@@ -242,11 +247,6 @@ const ClubPage = lazy(() =>
     default: module.ClubPage,
   }))
 );
-const JoyTalkPage = lazy(() =>
-  import("./pages/CommunityExtra").then(module => ({
-    default: module.JoyTalkPage,
-  }))
-);
 const SubtitleRequestPage = lazy(() =>
   import("./pages/CommunityExtra").then(module => ({
     default: module.SubtitleRequestPage,
@@ -315,8 +315,10 @@ function Router() {
       <Route path="/about/pastor" component={PastorGreeting} />
       <Route path="/about/history" component={ChurchHistory} />
       <Route path="/about/vision" component={ChurchVision} />
+      <Route path="/about/pastor/books" component={PastorBooksPage} />
       <Route path="/about/staff/associate" component={StaffPage} />
       <Route path="/about/staff" component={StaffPage} />
+      <Route path="/page/교회소개-담임목사-저서" component={PastorBooksPage} />
       <Route path="/page/교회소개-섬기는-분" component={StaffPage} />
       <Route path="/page/교회소개-부교역자" component={StaffPage} />
       <Route path="/about/whitebook" component={WhiteBookPage} />
@@ -393,7 +395,9 @@ function Router() {
       <Route path="/community/testimony/edit/:id" component={TestimonyEditor} />
       <Route path="/community/testimony/:id" component={TestimonyDetail} />
       <Route path="/community/testimony" component={TestimonyList} />
-      <Route path="/community/joytalk" component={JoyTalkPage} />
+      <Route path="/community/joytalk">
+        <LegacyRedirect to="/page/커뮤니티-자유게시판" />
+      </Route>
 
       {/* 행정지원 */}
       <Route path="/support/offering" component={Offering} />

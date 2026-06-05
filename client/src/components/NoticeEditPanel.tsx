@@ -75,6 +75,7 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
       setEditingId(null);
       utils.cms.notices.list.invalidate();
       utils.home.notices.invalidate();
+      utils.home.noticeBoard.invalidate();
     },
     onError: (e) => toast.error("수정 실패: " + e.message),
   });
@@ -87,6 +88,7 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
       setNewState({ category: "공지", title: "", content: "", thumbnailUrl: "" });
       utils.cms.notices.list.invalidate();
       utils.home.notices.invalidate();
+      utils.home.noticeBoard.invalidate();
     },
     onError: (e) => toast.error("추가 실패: " + e.message),
   });
@@ -97,6 +99,7 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
       toast.success("소식이 삭제됐습니다.");
       utils.cms.notices.list.invalidate();
       utils.home.notices.invalidate();
+      utils.home.noticeBoard.invalidate();
     },
     onError: (e) => toast.error("삭제 실패: " + e.message),
   });
@@ -106,6 +109,7 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
     onSuccess: () => {
       utils.cms.notices.list.invalidate();
       utils.home.notices.invalidate();
+      utils.home.noticeBoard.invalidate();
     },
     onError: (e) => toast.error("변경 실패: " + e.message),
   });

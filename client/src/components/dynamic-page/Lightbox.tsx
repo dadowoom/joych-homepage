@@ -4,22 +4,32 @@
  * ESC 키 또는 배경 클릭으로 닫을 수 있습니다.
  */
 import { useEffect, useCallback } from "react";
-import { X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
 export function Lightbox({
   imageUrl,
   alt,
+  caption,
+  currentLabel,
   onClose,
+  onPrevious,
+  onNext,
 }: {
   imageUrl: string;
   alt: string;
+  caption?: string | null;
+  currentLabel?: string;
   onClose: () => void;
+  onPrevious?: () => void;
+  onNext?: () => void;
 }) {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft") onPrevious?.();
+      if (e.key === "ArrowRight") onNext?.();
     },
-    [onClose]
+    [onClose, onPrevious, onNext]
   );
 
   useEffect(() => {
@@ -43,15 +53,46 @@ export function Lightbox({
       >
         <X className="w-6 h-6" />
       </button>
+      {onPrevious && (
+        <button
+          className="absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-black/40 hover:bg-black/60 rounded-full p-3 transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPrevious();
+          }}
+          aria-label="이전 사진"
+        >
+          <ChevronLeft className="w-7 h-7" />
+        </button>
+      )}
+      {onNext && (
+        <button
+          className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-black/40 hover:bg-black/60 rounded-full p-3 transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            onNext();
+          }}
+          aria-label="다음 사진"
+        >
+          <ChevronRight className="w-7 h-7" />
+        </button>
+      )}
       <img
         src={imageUrl}
         alt={alt}
-        className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+        className="max-w-full max-h-[86vh] object-contain rounded-lg shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       />
-      <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/50 text-xs">
-        ESC 키 또는 배경 클릭으로 닫기
-      </p>
+      <div className="absolute bottom-4 left-4 right-4 text-center text-white">
+        {caption && (
+          <p className="mx-auto max-w-3xl text-sm sm:text-base font-medium drop-shadow">
+            {caption}
+          </p>
+        )}
+        <p className="mt-1 text-white/70 text-xs">
+          {currentLabel ? `${currentLabel} · ` : ""}ESC 키 또는 배경 클릭으로 닫기
+        </p>
+      </div>
     </div>
   );
 }

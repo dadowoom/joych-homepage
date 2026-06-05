@@ -27,6 +27,7 @@ import { missionRouter } from "./mission";
 import { supportRouter } from "./support";
 import { testimonyRouter } from "./testimony";
 import { playgroundRouter } from "./playground";
+import { freeBoardRouter } from "./freeBoard";
 
 export const appRouter = router({
   auth: authRouter,
@@ -39,6 +40,7 @@ export const appRouter = router({
   testimony: testimonyRouter,
   support: supportRouter,
   playground: playgroundRouter,
+  freeBoard: freeBoardRouter,
 });
 
 /** tRPC 타입 추론에 사용 — 클라이언트에서 import해서 사용 */

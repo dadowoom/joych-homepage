@@ -39,6 +39,7 @@ const CMS_ROUTE_REDIRECTS: Array<[string, string]> = [
 ];
 
 const CODE_BACKED_PAGE_ROUTES = new Set([
+  "/page/교회소개-담임목사-저서",
   "/page/교회소개-섬기는-분",
   "/page/교회소개-부교역자",
 ]);

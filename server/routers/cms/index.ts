@@ -31,6 +31,7 @@ import { testimoniesRouter } from "./testimonies";
 import { staffRouter } from "./staff";
 import { popupsRouter } from "./popups";
 import { supportRequestsRouter } from "./supportRequests";
+import { freeBoardAdminRouter } from "./freeBoard";
 
 export const cmsRouter = router({
   notices: noticesRouter,
@@ -45,4 +46,5 @@ export const cmsRouter = router({
   staff: staffRouter,
   popups: popupsRouter,
   supportRequests: supportRequestsRouter,
+  freeBoard: freeBoardAdminRouter,
 });

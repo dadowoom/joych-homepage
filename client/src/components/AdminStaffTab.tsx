@@ -21,6 +21,8 @@ const CATEGORY_OPTIONS = [
   { value: "other", label: "사회복지법인 기쁨의복지재단" },
 ] as const;
 
+const ELDER_GROUP_OPTIONS = ["시무장로", "휴무장로", "원로장로", "은퇴장로"] as const;
+
 type StaffCategory = typeof CATEGORY_OPTIONS[number]["value"];
 type StaffMember = inferRouterOutputs<AppRouter>["cms"]["staff"]["list"][number];
 
@@ -53,6 +55,11 @@ const labelClass = "block text-xs font-medium text-gray-500 mb-1";
 
 function getCategoryLabel(category: string) {
   return CATEGORY_OPTIONS.find((option) => option.value === category)?.label ?? category;
+}
+
+function isElderGroupOption(value: string) {
+  const normalized = value.replace(/\s+/g, "");
+  return ELDER_GROUP_OPTIONS.some((option) => option.replace(/\s+/g, "") === normalized);
 }
 
 function readFileAsBase64(file: File) {
@@ -202,6 +209,16 @@ export default function AdminStaffTab() {
     deleteStaff.mutate({ id: member.id });
   };
 
+  const handleCategoryChange = (category: StaffCategory) => {
+    setForm((prev) => ({
+      ...prev,
+      category,
+      department: category === "elder"
+        ? isElderGroupOption(prev.department) ? prev.department : ""
+        : prev.department,
+    }));
+  };
+
   if (isLoading) {
     return <p className="text-gray-500 py-8 text-center">불러오는 중...</p>;
   }
@@ -275,7 +292,7 @@ export default function AdminStaffTab() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <label>
               <span className={labelClass}>분류</span>
-              <select className={fieldClass} value={form.category} onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value as StaffCategory }))}>
+              <select className={fieldClass} value={form.category} onChange={(event) => handleCategoryChange(event.target.value as StaffCategory)}>
                 {CATEGORY_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
@@ -289,10 +306,25 @@ export default function AdminStaffTab() {
               <span className={labelClass}>이름</span>
               <input className={fieldClass} value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} placeholder="예: 김수홍 목사" />
             </label>
-            <label className="md:col-span-2">
-              <span className={labelClass}>담당 사역/부서</span>
-              <input className={fieldClass} value={form.department} onChange={(event) => setForm((prev) => ({ ...prev, department: event.target.value }))} placeholder="예: 교구, 청년부, 행정" />
-            </label>
+            {form.category === "elder" ? (
+              <label className="md:col-span-2">
+                <span className={labelClass}>장로 구분</span>
+                <select className={fieldClass} value={form.department} onChange={(event) => setForm((prev) => ({ ...prev, department: event.target.value }))}>
+                  <option value="">구분 선택</option>
+                  {form.department && !isElderGroupOption(form.department) && (
+                    <option value={form.department}>{form.department}</option>
+                  )}
+                  {ELDER_GROUP_OPTIONS.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <label className="md:col-span-2">
+                <span className={labelClass}>담당 사역/부서</span>
+                <input className={fieldClass} value={form.department} onChange={(event) => setForm((prev) => ({ ...prev, department: event.target.value }))} placeholder="예: 교구, 청년부, 행정" />
+              </label>
+            )}
             <label>
               <span className={labelClass}>이메일</span>
               <input className={fieldClass} type="email" value={form.email} onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))} placeholder="name@example.com" />

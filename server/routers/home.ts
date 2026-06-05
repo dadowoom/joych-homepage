@@ -84,6 +84,9 @@ export const homeRouter = router({
   /** 교회 소식 최신 5개 (공개된 것만) */
   notices: publicProcedure.query(() => getPublishedNotices(5)),
 
+  /** 교회 소식 게시판 전체 목록 (공개된 것만) */
+  noticeBoard: publicProcedure.query(() => getPublishedNotices(100)),
+
   /** 홈페이지 팝업/공지 배너 (현재 노출 가능한 것만) */
   popups: publicProcedure.query(() => getActiveNoticePopups(3)),
 

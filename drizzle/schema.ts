@@ -198,6 +198,23 @@ export const notices = mysqlTable("notices", {
 export type Notice = typeof notices.$inferSelect;
 export type InsertNotice = typeof notices.$inferInsert;
 
+// Free board: member-authored community posts
+export const freeBoardPosts = mysqlTable("free_board_posts", {
+  id: int("id").autoincrement().primaryKey(),
+  authorMemberId: int("author_member_id").notNull(),
+  title: varchar("title", { length: 256 }).notNull(),
+  content: text("content").notNull(),
+  status: mysqlEnum("status", ["published", "hidden", "deleted"]).notNull().default("published"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("free_board_posts_status_created_idx").on(table.status, table.createdAt),
+  index("free_board_posts_author_idx").on(table.authorMemberId),
+]);
+
+export type FreeBoardPost = typeof freeBoardPosts.$inferSelect;
+export type InsertFreeBoardPost = typeof freeBoardPosts.$inferInsert;
+
 // ─────────────────────────────────────────────
 // CMS: 홈페이지 팝업 / 공지 배너
 // 납품 전 긴급공지, 행사 안내, 신청 유도 등을 운영하기 위한 테이블

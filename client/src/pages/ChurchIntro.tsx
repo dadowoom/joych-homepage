@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import type { RouteComponentProps } from "wouter";
-import { ArrowLeft, ChevronRight, Bus, BookOpen, Heart, Mail, Palette, Phone, UserRound } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronRight, Bus, BookOpen, ExternalLink, Heart, Mail, Palette, Phone, UserRound } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
 
@@ -51,6 +51,9 @@ const STAFF_CATEGORIES = [
   { value: "other", label: "사회복지법인 기쁨의복지재단" },
 ] as const;
 
+const ELDER_GROUP_LABELS = ["시무장로", "휴무장로", "원로장로", "은퇴장로"] as const;
+const FALLBACK_ELDER_GROUP_LABEL = "장로";
+
 type StaffCategoryFilter = typeof STAFF_CATEGORIES[number]["value"];
 type StaffCategory = StaffCategoryFilter;
 type StaffMenuTreeItem = {
@@ -70,8 +73,27 @@ type StaffPageProps = {
   initialCategory?: StaffCategoryFilter;
 } & Partial<RouteComponentProps<Record<string, string | undefined>>>;
 
-const STAFF_SIDE_MENU_ITEMS = [
-  { id: 1, label: "담임목사 인사말", href: "/page/교회소개-담임목사-소개" },
+const PASTOR_GREETING_HREF = "/page/교회소개-담임목사-소개";
+const PASTOR_BOOKS_HREF = "/page/교회소개-담임목사-저서";
+
+type StaffSideMenuItem = {
+  id: number;
+  label: string;
+  href: string | null;
+  isActive?: boolean;
+  subItems?: StaffSideMenuItem[];
+};
+
+const STAFF_SIDE_MENU_ITEMS: StaffSideMenuItem[] = [
+  {
+    id: 1,
+    label: "담임목사 소개",
+    href: null,
+    subItems: [
+      { id: 101, label: "담임목사인사", href: PASTOR_GREETING_HREF },
+      { id: 102, label: "담임목사 저서", href: PASTOR_BOOKS_HREF },
+    ],
+  },
   { id: 2, label: "섬기는 분", href: "/page/교회소개-섬기는-분" },
   { id: 3, label: "부교역자", href: "/page/교회소개-부교역자" },
   { id: 4, label: "교회 역사", href: "/about/history" },
@@ -86,6 +108,77 @@ function getInitialStaffCategory(location: string, fallback: StaffCategoryFilter
 
 function getStaffCategoryLabel(category: string) {
   return STAFF_CATEGORIES.find((option) => option.value === category)?.label ?? category;
+}
+
+function normalizeElderGroup(value: string | null | undefined) {
+  return value?.replace(/\s+/g, "").trim() ?? "";
+}
+
+function getElderGroupLabel(value: string | null | undefined) {
+  const normalized = normalizeElderGroup(value);
+  return ELDER_GROUP_LABELS.find((label) => normalizeElderGroup(label) === normalized) ?? FALLBACK_ELDER_GROUP_LABEL;
+}
+
+function isPastorIntroMenuItem(item: { label: string; href?: string | null }) {
+  const label = item.label.replace(/\s+/g, "");
+  const href = item.href?.trim();
+  return (
+    href === PASTOR_GREETING_HREF ||
+    label === "담임목사소개" ||
+    label === "담임목사인사" ||
+    label === "담임목사인사말"
+  );
+}
+
+function isPastorBooksMenuItem(item: { label: string; href?: string | null }) {
+  const label = item.label.replace(/\s+/g, "");
+  return item.href?.trim() === PASTOR_BOOKS_HREF || label === "담임목사저서";
+}
+
+function ensurePastorBooksSideMenuItems(items: StaffSideMenuItem[], pageTitle: string): StaffSideMenuItem[] {
+  const bookItem: StaffSideMenuItem = {
+    id: 120012,
+    label: "담임목사 저서",
+    href: PASTOR_BOOKS_HREF,
+    isActive: pageTitle === "담임목사 저서",
+  };
+  const next: StaffSideMenuItem[] = items.map((item): StaffSideMenuItem => ({
+    ...item,
+    subItems: item.subItems?.map((subItem) => ({
+      ...subItem,
+      isActive: isPastorBooksMenuItem(subItem) ? pageTitle === "담임목사 저서" : subItem.isActive,
+    })),
+  }));
+  const alreadyExists = next.some((item) =>
+    isPastorBooksMenuItem(item) ||
+    item.subItems?.some((subItem) => isPastorBooksMenuItem(subItem))
+  );
+
+  if (alreadyExists) {
+    return next.map((item) => ({
+      ...item,
+      isActive: item.isActive || item.subItems?.some((subItem) => subItem.isActive),
+    }));
+  }
+
+  const parentIndex = next.findIndex((item) => isPastorIntroMenuItem(item));
+  if (parentIndex >= 0) {
+    const parent = next[parentIndex];
+    next[parentIndex] = {
+      ...parent,
+      isActive: parent.isActive || pageTitle === "담임목사 저서",
+      subItems: [...(parent.subItems ?? []), bookItem],
+    };
+    return next;
+  }
+
+  const greetingIndex = next.findIndex((item) => item.href === PASTOR_GREETING_HREF);
+  if (greetingIndex >= 0) {
+    next.splice(greetingIndex + 1, 0, bookItem);
+    return next;
+  }
+
+  return [...next, bookItem];
 }
 
 function hasOwnStaffMenuContent(item: StaffMenuTreeItem) {
@@ -118,10 +211,14 @@ function getStaffSideMenuItems(menuTree: StaffMenuTree | undefined, pageTitle: s
       };
     });
 
-  if (liveItems?.length) return liveItems;
-  return STAFF_SIDE_MENU_ITEMS.map((item) => ({
+  if (liveItems?.length) return ensurePastorBooksSideMenuItems(liveItems, pageTitle);
+  return ensurePastorBooksSideMenuItems(STAFF_SIDE_MENU_ITEMS, pageTitle).map((item) => ({
     ...item,
-    isActive: item.label === pageTitle,
+    isActive: item.label === pageTitle || item.subItems?.some((subItem) => subItem.label === pageTitle),
+    subItems: item.subItems?.map((subItem) => ({
+      ...subItem,
+      isActive: subItem.label === pageTitle,
+    })),
   }));
 }
 
@@ -149,6 +246,70 @@ export function StaffPage({
     () => getStaffSideMenuItems(menuTree, pageTitle),
     [menuTree, pageTitle],
   );
+  const elderGroups = useMemo(() => {
+    if (activeCategory !== "elder") return [];
+
+    const knownGroups = ELDER_GROUP_LABELS.map((label) => ({
+      label,
+      members: staffList.filter((staff) => getElderGroupLabel(staff.department) === label),
+    })).filter((group) => group.members.length > 0);
+    const fallbackMembers = staffList.filter((staff) => getElderGroupLabel(staff.department) === FALLBACK_ELDER_GROUP_LABEL);
+
+    return fallbackMembers.length > 0
+      ? [...knownGroups, { label: FALLBACK_ELDER_GROUP_LABEL, members: fallbackMembers }]
+      : knownGroups;
+  }, [activeCategory, staffList]);
+
+  const renderStaffCard = (
+    staff: typeof staffList[number],
+    options: { hideDepartment?: boolean } = {},
+  ) => {
+    const departmentLabel = staff.department?.trim() || getStaffCategoryLabel(staff.category);
+    const email = staff.email?.trim();
+    const phone = staff.phone?.trim();
+
+    return (
+      <article
+        key={staff.id}
+        className="group relative flex h-full min-h-72 flex-col items-center border border-gray-200 bg-white px-4 pb-7 pt-40 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-md"
+      >
+        <div className="absolute -top-10 left-1/2 flex h-48 w-40 -translate-x-1/2 items-center justify-center overflow-hidden bg-gray-50 ring-1 ring-gray-100 transition-transform group-hover:-translate-y-1">
+          {staff.imageUrl ? (
+            <img
+              src={staff.imageUrl}
+              alt={staff.name}
+              loading="lazy"
+              className="h-full w-full object-cover object-top"
+            />
+          ) : (
+            <UserRound className="h-14 w-14 text-gray-300" />
+          )}
+        </div>
+        <h3 className="text-base font-bold text-gray-900">{staff.name}</h3>
+        {!options.hideDepartment && (
+          <p className="mt-3 text-sm leading-6 text-gray-600">
+            {departmentLabel}
+          </p>
+        )}
+        {(email || phone) && (
+          <div className="mt-auto min-h-16 w-full border-t border-gray-100 pt-4 text-left text-xs leading-6 text-gray-500">
+            {email && (
+              <a href={`mailto:${email}`} className="flex items-center gap-2 break-all hover:text-[#1B5E20]">
+                <Mail className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                {email}
+              </a>
+            )}
+            {phone && (
+              <a href={`tel:${phone}`} className="flex items-center gap-2 hover:text-[#1B5E20]">
+                <Phone className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                {phone}
+              </a>
+            )}
+          </div>
+        )}
+      </article>
+    );
+  };
 
   return (
     <SubPageLayout
@@ -184,54 +345,187 @@ export function StaffPage({
           <UserRound className="w-10 h-10 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500">등록된 섬기는 분 정보가 없습니다.</p>
         </div>
+      ) : activeCategory === "elder" ? (
+        <div className="space-y-16 pt-6">
+          {elderGroups.map((group) => (
+            <section key={group.label}>
+              <div className="mb-12 flex items-center gap-4 border-b border-gray-200 pb-3">
+                <h2 className="text-lg font-bold text-[#1B5E20]">{group.label}</h2>
+                <span className="text-xs text-gray-400">{group.members.length}명</span>
+              </div>
+              <div className="grid gap-x-8 gap-y-16 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {group.members.map((staff) => renderStaffCard(staff, {
+                  hideDepartment: group.label !== FALLBACK_ELDER_GROUP_LABEL,
+                }))}
+              </div>
+            </section>
+          ))}
+        </div>
       ) : (
         <div className="grid gap-x-8 gap-y-16 pt-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {staffList.map((staff) => {
-            const departmentLabel = staff.department?.trim() || getStaffCategoryLabel(staff.category);
-            const email = staff.email?.trim();
-            const phone = staff.phone?.trim();
-            return (
-              <article
-                key={staff.id}
-                className="group relative flex h-full min-h-72 flex-col items-center border border-gray-200 bg-white px-4 pb-7 pt-40 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-md"
-              >
-                <div className="absolute -top-10 left-1/2 flex h-48 w-40 -translate-x-1/2 items-center justify-center overflow-hidden bg-gray-50 ring-1 ring-gray-100 transition-transform group-hover:-translate-y-1">
-                  {staff.imageUrl ? (
-                    <img
-                      src={staff.imageUrl}
-                      alt={staff.name}
-                      loading="lazy"
-                      className="h-full w-full object-cover object-top"
-                    />
-                  ) : (
-                    <UserRound className="h-14 w-14 text-gray-300" />
-                  )}
-                </div>
-                <h3 className="text-base font-bold text-gray-900">{staff.name}</h3>
-                <p className="mt-3 text-sm leading-6 text-gray-600">
-                  {departmentLabel}
-                </p>
-                {(email || phone) && (
-                  <div className="mt-auto min-h-16 w-full border-t border-gray-100 pt-4 text-left text-xs leading-6 text-gray-500">
-                    {email && (
-                      <a href={`mailto:${email}`} className="flex items-center gap-2 break-all hover:text-[#1B5E20]">
-                        <Mail className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                        {email}
-                      </a>
-                    )}
-                    {phone && (
-                      <a href={`tel:${phone}`} className="flex items-center gap-2 hover:text-[#1B5E20]">
-                        <Phone className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                        {phone}
-                      </a>
-                    )}
-                  </div>
-                )}
-              </article>
-            );
-          })}
+          {staffList.map((staff) => renderStaffCard(staff))}
         </div>
       )}
+    </SubPageLayout>
+  );
+}
+
+// ── 담임목사 저서 ──
+const PASTOR_BOOKS = [
+  {
+    num: "48406",
+    title: "생선 아카데미 인간론⑧ 『하나님과 화목하라』 : 하나님의 주권과 인간의 자유의지",
+    imageUrl: "/pastor-books/48406.png",
+    publishedAt: "2023.05.18",
+  },
+  {
+    num: "48405",
+    title: "생선 아카데미 인간론⑦ 『고난을 이기는 법』 : 고난은 축복의 밑거름입니다",
+    imageUrl: "/pastor-books/48405.jpg",
+    publishedAt: "2023.05.18",
+  },
+  {
+    num: "48202",
+    title: "생선 아카데미 인간론⑥ 『영광에서 영광으로』 : 승리의 면류관을 얻는 방법",
+    imageUrl: "/pastor-books/48202.png",
+    publishedAt: "2022.10.22",
+  },
+  {
+    num: "47951",
+    title: "생선 아카데미 인간론⑤ 『그리스도로 옷 입은 사람』 : 하늘의 영광 속에 거하는 삶",
+    imageUrl: "/pastor-books/47951.jpg",
+    publishedAt: "2022.09.25",
+  },
+  {
+    num: "47950",
+    title: "생선 아카데미 인간론④ 『일하는 인간』 : 하나님나라 통치의 동역자",
+    imageUrl: "/pastor-books/47950.jpg",
+    publishedAt: "2022.09.25",
+  },
+  {
+    num: "47519",
+    title: "생선 아카데미 인간론③ 『푯대를 향하여』 : 그리스도인의 영적 성장 단계",
+    imageUrl: "/pastor-books/47519.png",
+    publishedAt: "2022.02.03",
+  },
+  {
+    num: "47518",
+    title: "생선 아카데미 인간론② 『토기장이와 그릇』 : 하나님의 절대주권과 인간의 사명",
+    imageUrl: "/pastor-books/47518.png",
+    publishedAt: "2022.02.03",
+  },
+  {
+    num: "47517",
+    title: "생선 아카데미 인간론① 『본향을 향하여』 : 인간은 어디로부터 와서 어디로 가는가?",
+    imageUrl: "/pastor-books/47517.png",
+    publishedAt: "2022.02.03",
+  },
+  {
+    num: "47104",
+    title: "열두 물멧돌",
+    imageUrl: "/pastor-books/47104.png",
+    publishedAt: "2020.12.14",
+  },
+  {
+    num: "45367",
+    title: "그의 기이한 빛으로 들어가라",
+    imageUrl: "/pastor-books/45367.jpg",
+    publishedAt: "2019.03.21",
+  },
+  {
+    num: "34550",
+    title: "실종된 천국을 회복하라",
+    imageUrl: "/pastor-books/34550.jpg",
+    publishedAt: "2015.01.16",
+  },
+  {
+    num: "476",
+    title: "은혜, 아직 끝나지 않았다.",
+    imageUrl: "/pastor-books/476.jpg",
+    publishedAt: "2013.03.30",
+  },
+  {
+    num: "475",
+    title: "받은 복을 세어 보아라",
+    imageUrl: "/pastor-books/475.jpg",
+    publishedAt: "2011.06.03",
+  },
+  {
+    num: "474",
+    title: "기독교 교육과 리더십",
+    imageUrl: "/pastor-books/474.jpg",
+    publishedAt: "2010.04.04",
+  },
+  {
+    num: "473",
+    title: "리더십 바톤터치",
+    imageUrl: "/pastor-books/473.gif",
+    publishedAt: "2009.03.01",
+  },
+];
+
+function getPastorBookDetailUrl(num: string) {
+  return `http://www.joych.org/main/sub.html?Mode=view&boardID=www12&num=${num}&page=0&keyfield=&key=&bCate=`;
+}
+
+export function PastorBooksPage() {
+  const { data: menuTree } = trpc.home.menus.useQuery();
+  const sideMenuItems = useMemo(
+    () => getStaffSideMenuItems(menuTree, "담임목사 저서"),
+    [menuTree],
+  );
+
+  return (
+    <SubPageLayout
+      pageTitle="담임목사 저서"
+      parentLabel="교회소개"
+      sideMenuItems={sideMenuItems}
+    >
+      <div className="mb-8 flex flex-col gap-2 border-b border-gray-100 pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-[#1B5E20]">Pastor Books</p>
+          <p className="mt-2 text-sm text-gray-500">
+            박진석 담임목사의 저서를 한곳에서 확인할 수 있습니다.
+          </p>
+        </div>
+        <p className="text-sm text-gray-400">총 {PASTOR_BOOKS.length}권</p>
+      </div>
+
+      <div className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {PASTOR_BOOKS.map((book) => (
+          <a
+            key={book.num}
+            href={getPastorBookDetailUrl(book.num)}
+            target="_blank"
+            rel="noreferrer"
+            className="group block border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md"
+          >
+            <div className="flex h-64 items-center justify-center overflow-hidden bg-gray-50">
+              <img
+                src={book.imageUrl}
+                alt={book.title}
+                loading="lazy"
+                className="max-h-full max-w-full object-contain transition-transform group-hover:scale-[1.02]"
+              />
+            </div>
+            <div className="pt-4">
+              <h2 className="min-h-12 text-sm font-semibold leading-6 text-gray-800 group-hover:text-[#1B5E20]">
+                {book.title}
+              </h2>
+              <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3 text-xs text-gray-400">
+                <span className="inline-flex items-center gap-1">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  {book.publishedAt}
+                </span>
+                <span className="inline-flex items-center gap-1 text-[#1B5E20]">
+                  보기
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </span>
+              </div>
+            </div>
+          </a>
+        ))}
+      </div>
     </SubPageLayout>
   );
 }
