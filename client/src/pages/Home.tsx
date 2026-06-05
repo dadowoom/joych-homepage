@@ -724,8 +724,6 @@ export default function Home() {
                     return isExternalHref(href) ? (
                       <a
                         href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
                         className={cls}
                       >
                         {inner}
