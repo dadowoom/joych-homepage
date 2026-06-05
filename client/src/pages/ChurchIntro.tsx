@@ -194,7 +194,7 @@ export function StaffPage({
             return (
               <article
                 key={staff.id}
-                className="group relative flex min-h-72 flex-col items-center border border-gray-200 bg-white px-4 pb-7 pt-32 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-md"
+                className="group relative flex min-h-72 flex-col items-center border border-gray-200 bg-white px-4 pb-7 pt-40 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-md"
               >
                 <div className="absolute -top-10 left-1/2 flex h-48 w-40 -translate-x-1/2 items-center justify-center overflow-hidden bg-gray-50 ring-1 ring-gray-100 transition-transform group-hover:-translate-y-1">
                   {staff.imageUrl ? (
