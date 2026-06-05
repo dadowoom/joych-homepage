@@ -650,6 +650,12 @@ export function SubtitleRequestPage() {
                               <div className="whitespace-pre-line border-l-2 border-[#1B5E20]/30 pl-4 text-sm leading-7 text-gray-700">
                                 {request.content}
                               </div>
+                              {request.adminMemo && (
+                                <div className="mt-4 border border-[#d8f3dc] bg-[#f8fcf8] px-4 py-3">
+                                  <p className="mb-1 text-xs font-semibold text-[#1B5E20]">관리자 답변</p>
+                                  <p className="whitespace-pre-line text-sm leading-6 text-gray-700">{request.adminMemo}</p>
+                                </div>
+                              )}
                               {request.attachmentName && (
                                 <p className="mt-3 text-xs text-[#0F607A]">
                                   첨부파일은 관리자 확인용으로 접수되었습니다.
@@ -691,6 +697,12 @@ export function SubtitleRequestPage() {
                       <div className="mt-4 border-l-2 border-[#1B5E20]/30 pl-3 text-sm leading-6 text-gray-700">
                         <p className="mb-2 text-xs text-gray-400">자막 필요일 {request.requestedDate || "-"}</p>
                         <p className="whitespace-pre-line">{request.content}</p>
+                        {request.adminMemo && (
+                          <div className="mt-4 border border-[#d8f3dc] bg-[#f8fcf8] px-3 py-3">
+                            <p className="mb-1 text-xs font-semibold text-[#1B5E20]">관리자 답변</p>
+                            <p className="whitespace-pre-line text-sm leading-6 text-gray-700">{request.adminMemo}</p>
+                          </div>
+                        )}
                         {request.attachmentName && (
                           <p className="mt-3 text-xs text-[#0F607A]">첨부파일은 관리자 확인용으로 접수되었습니다.</p>
                         )}
@@ -1096,6 +1108,12 @@ export function BulletinAdRequestPage() {
                               <div className="whitespace-pre-line border-l-2 border-[#1B5E20]/30 pl-4 text-sm leading-7 text-gray-700">
                                 {request.content}
                               </div>
+                              {request.adminMemo && (
+                                <div className="mt-4 border border-[#d8f3dc] bg-[#f8fcf8] px-4 py-3">
+                                  <p className="mb-1 text-xs font-semibold text-[#1B5E20]">관리자 답변</p>
+                                  <p className="whitespace-pre-line text-sm leading-6 text-gray-700">{request.adminMemo}</p>
+                                </div>
+                              )}
                               {request.attachmentName && (
                                 <p className="mt-3 text-xs text-[#0F607A]">
                                   첨부파일은 관리자 확인용으로 접수되었습니다.
@@ -1137,6 +1155,12 @@ export function BulletinAdRequestPage() {
                       <div className="mt-4 border-l-2 border-[#1B5E20]/30 pl-3 text-sm leading-6 text-gray-700">
                         <p className="mb-2 text-xs text-gray-400">게재 희망일 {request.requestedDate || "-"}</p>
                         <p className="whitespace-pre-line">{request.content}</p>
+                        {request.adminMemo && (
+                          <div className="mt-4 border border-[#d8f3dc] bg-[#f8fcf8] px-3 py-3">
+                            <p className="mb-1 text-xs font-semibold text-[#1B5E20]">관리자 답변</p>
+                            <p className="whitespace-pre-line text-sm leading-6 text-gray-700">{request.adminMemo}</p>
+                          </div>
+                        )}
                         {request.attachmentName && (
                           <p className="mt-3 text-xs text-[#0F607A]">첨부파일은 관리자 확인용으로 접수되었습니다.</p>
                         )}

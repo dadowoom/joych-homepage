@@ -122,6 +122,7 @@ export async function listPublicSubtitleRequests(limit = 100) {
       content: subtitleRequests.content,
       attachmentName: subtitleRequests.attachmentName,
       status: subtitleRequests.status,
+      adminMemo: subtitleRequests.adminMemo,
       createdAt: subtitleRequests.createdAt,
     })
     .from(subtitleRequests)
@@ -166,6 +167,7 @@ export async function listPublicBulletinAdRequests(limit = 100) {
       content: bulletinAdRequests.content,
       attachmentName: bulletinAdRequests.attachmentName,
       status: bulletinAdRequests.status,
+      adminMemo: bulletinAdRequests.adminMemo,
       createdAt: bulletinAdRequests.createdAt,
     })
     .from(bulletinAdRequests)
