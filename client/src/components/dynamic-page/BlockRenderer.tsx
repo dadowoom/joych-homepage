@@ -45,6 +45,43 @@ export const BLOCK_TYPES = [
   { value: "divider", label: "구분선", icon: "—" },
 ] as const;
 
+function SingleImageBlock({
+  url,
+  alt,
+  onClick,
+}: {
+  url: string;
+  alt: string;
+  onClick: () => void;
+}) {
+  const [isLongImage, setIsLongImage] = useState(false);
+
+  return (
+    <div
+      className={`relative mx-auto flex justify-center overflow-hidden rounded-xl bg-white shadow-md cursor-zoom-in group ${
+        isLongImage ? "w-full max-w-2xl" : "w-fit max-w-full md:max-w-4xl"
+      }`}
+      onClick={onClick}
+    >
+      <img
+        src={url}
+        alt={alt}
+        loading="lazy"
+        onLoad={(event) => {
+          const { naturalWidth, naturalHeight } = event.currentTarget;
+          setIsLongImage(naturalWidth > 0 && naturalHeight / naturalWidth > 1.6);
+        }}
+        className={`block max-w-full object-contain ${
+          isLongImage ? "h-auto w-full" : "max-h-[72vh] w-auto"
+        }`}
+      />
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+        <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
+    </div>
+  );
+}
+
 // ─── 블록 렌더러 ──────────────────────────────────────────────────────────────
 export function BlockRenderer({
   block,
@@ -99,21 +136,12 @@ export function BlockRenderer({
         <>
           <div className="my-4">
             {(c.urls ?? []).slice(0, 1).map((url, i) => (
-              <div
+              <SingleImageBlock
                 key={i}
-                className="relative mx-auto flex w-full max-w-6xl justify-center overflow-hidden rounded-xl bg-white shadow-md cursor-zoom-in group"
+                url={url}
+                alt={c.captions?.[i] ?? ""}
                 onClick={() => setImgLightbox(url)}
-              >
-                <img
-                  src={url}
-                  alt={c.captions?.[i] ?? ""}
-                  loading="lazy"
-                  className="block h-auto w-full object-contain"
-                />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                  <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-              </div>
+              />
             ))}
             {c.captions?.[0] && (
               <p className="text-center text-xs text-gray-400 mt-2">{c.captions[0]}</p>
