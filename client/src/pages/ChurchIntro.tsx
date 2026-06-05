@@ -53,6 +53,7 @@ const STAFF_CATEGORIES = [
 
 const ELDER_GROUP_LABELS = ["시무장로", "휴무장로", "원로장로", "은퇴장로"] as const;
 const FALLBACK_ELDER_GROUP_LABEL = "장로";
+const COOPERATION_GROUP_LABELS = ["협력사역자", "파송선교사", "협력선교사"] as const;
 
 type StaffCategoryFilter = typeof STAFF_CATEGORIES[number]["value"];
 type StaffCategory = StaffCategoryFilter;
@@ -110,13 +111,66 @@ function getStaffCategoryLabel(category: string) {
   return STAFF_CATEGORIES.find((option) => option.value === category)?.label ?? category;
 }
 
-function normalizeElderGroup(value: string | null | undefined) {
+function normalizeStaffGroup(value: string | null | undefined) {
   return value?.replace(/\s+/g, "").trim() ?? "";
 }
 
-function getElderGroupLabel(value: string | null | undefined) {
-  const normalized = normalizeElderGroup(value);
-  return ELDER_GROUP_LABELS.find((label) => normalizeElderGroup(label) === normalized) ?? FALLBACK_ELDER_GROUP_LABEL;
+function getKnownGroupLabel<T extends readonly string[]>(value: string | null | undefined, labels: T) {
+  const normalized = normalizeStaffGroup(value);
+  return labels.find((label) => normalizeStaffGroup(label) === normalized);
+}
+
+function isGroupedStaffCategory(category: StaffCategoryFilter) {
+  return category === "elder" || category === "cooperation";
+}
+
+function getGroupedStaffLabel(staff: {
+  category: string;
+  title?: string | null;
+  department?: string | null;
+}) {
+  if (staff.category === "elder") {
+    return (
+      getKnownGroupLabel(staff.title, ELDER_GROUP_LABELS) ??
+      getKnownGroupLabel(staff.department, ELDER_GROUP_LABELS) ??
+      FALLBACK_ELDER_GROUP_LABEL
+    );
+  }
+
+  if (staff.category === "cooperation") {
+    return getKnownGroupLabel(staff.title, COOPERATION_GROUP_LABELS) ?? "협력사역자";
+  }
+
+  return staff.title?.trim() || getStaffCategoryLabel(staff.category);
+}
+
+function getStaffCardDetails(staff: {
+  category: string;
+  title?: string | null;
+  department?: string | null;
+}) {
+  const categoryLabel = getStaffCategoryLabel(staff.category);
+  const title = staff.title?.trim();
+  const department = staff.department?.trim();
+  const details: string[] = [];
+
+  if (staff.category !== "elder" && staff.category !== "cooperation" && title && title !== categoryLabel) {
+    details.push(title);
+  }
+
+  if (department) {
+    if (staff.category === "elder") {
+      if (!getKnownGroupLabel(department, ELDER_GROUP_LABELS)) {
+        details.push(`맡은 부서: ${department}`);
+      }
+    } else {
+      details.push(department);
+    }
+  } else if (staff.category !== "elder" && staff.category !== "cooperation" && details.length === 0) {
+    details.push(categoryLabel);
+  }
+
+  return details;
 }
 
 function isPastorIntroMenuItem(item: { label: string; href?: string | null }) {
@@ -246,32 +300,34 @@ export function StaffPage({
     () => getStaffSideMenuItems(menuTree, pageTitle),
     [menuTree, pageTitle],
   );
-  const elderGroups = useMemo(() => {
-    if (activeCategory !== "elder") return [];
+  const staffGroups = useMemo(() => {
+    if (!isGroupedStaffCategory(activeCategory)) {
+      return [{ label: null, members: staffList }];
+    }
 
-    const knownGroups = ELDER_GROUP_LABELS.map((label) => ({
-      label,
-      members: staffList.filter((staff) => getElderGroupLabel(staff.department) === label),
-    })).filter((group) => group.members.length > 0);
-    const fallbackMembers = staffList.filter((staff) => getElderGroupLabel(staff.department) === FALLBACK_ELDER_GROUP_LABEL);
+    const groups = new Map<string, typeof staffList>();
+    staffList.forEach((staff) => {
+      const label = getGroupedStaffLabel(staff);
+      const members = groups.get(label) ?? [];
+      members.push(staff);
+      groups.set(label, members);
+    });
 
-    return fallbackMembers.length > 0
-      ? [...knownGroups, { label: FALLBACK_ELDER_GROUP_LABEL, members: fallbackMembers }]
-      : knownGroups;
+    return Array.from(groups, ([label, members]) => ({ label, members }));
   }, [activeCategory, staffList]);
 
-  const renderStaffCard = (
-    staff: typeof staffList[number],
-    options: { hideDepartment?: boolean } = {},
-  ) => {
-    const departmentLabel = staff.department?.trim() || getStaffCategoryLabel(staff.category);
+  const renderStaffCard = (staff: typeof staffList[number]) => {
+    const details = getStaffCardDetails(staff);
     const email = staff.email?.trim();
     const phone = staff.phone?.trim();
+    const hasCardMeta = details.length > 0 || Boolean(email) || Boolean(phone);
 
     return (
       <article
         key={staff.id}
-        className="group relative flex h-full min-h-72 flex-col items-center border border-gray-200 bg-white px-4 pb-7 pt-40 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-md"
+        className={`group relative flex w-full flex-col items-center border border-gray-200 bg-white px-4 pt-40 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-md ${
+          hasCardMeta ? "min-h-72 pb-7" : "min-h-60 pb-6"
+        }`}
       >
         <div className="absolute -top-10 left-1/2 flex h-48 w-40 -translate-x-1/2 items-center justify-center overflow-hidden bg-gray-50 ring-1 ring-gray-100 transition-transform group-hover:-translate-y-1">
           {staff.imageUrl ? (
@@ -286,10 +342,12 @@ export function StaffPage({
           )}
         </div>
         <h3 className="text-base font-bold text-gray-900">{staff.name}</h3>
-        {!options.hideDepartment && (
-          <p className="mt-3 text-sm leading-6 text-gray-600">
-            {departmentLabel}
-          </p>
+        {details.length > 0 && (
+          <div className="mt-3 space-y-1 text-sm leading-6 text-gray-600">
+            {details.map((detail) => (
+              <p key={detail}>{detail}</p>
+            ))}
+          </div>
         )}
         {(email || phone) && (
           <div className="mt-auto min-h-16 w-full border-t border-gray-100 pt-4 text-left text-xs leading-6 text-gray-500">
@@ -345,25 +403,21 @@ export function StaffPage({
           <UserRound className="w-10 h-10 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500">등록된 섬기는 분 정보가 없습니다.</p>
         </div>
-      ) : activeCategory === "elder" ? (
-        <div className="space-y-16 pt-6">
-          {elderGroups.map((group) => (
-            <section key={group.label}>
-              <div className="mb-12 flex items-center gap-4 border-b border-gray-200 pb-3">
-                <h2 className="text-lg font-bold text-[#1B5E20]">{group.label}</h2>
-                <span className="text-xs text-gray-400">{group.members.length}명</span>
-              </div>
-              <div className="grid gap-x-8 gap-y-16 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {group.members.map((staff) => renderStaffCard(staff, {
-                  hideDepartment: group.label !== FALLBACK_ELDER_GROUP_LABEL,
-                }))}
+      ) : (
+        <div className="space-y-14 pt-8">
+          {staffGroups.map((group) => (
+            <section key={group.label ?? "all"}>
+              {group.label && (
+                <div className="mb-12 flex items-center gap-3 border-b border-gray-200 pb-4">
+                  <h2 className="text-lg font-bold text-[#1B5E20]">{group.label}</h2>
+                  <span className="text-xs text-gray-400">{group.members.length}명</span>
+                </div>
+              )}
+              <div className="grid items-start gap-x-8 gap-y-16 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {group.members.map((staff) => renderStaffCard(staff))}
               </div>
             </section>
           ))}
-        </div>
-      ) : (
-        <div className="grid gap-x-8 gap-y-16 pt-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {staffList.map((staff) => renderStaffCard(staff))}
         </div>
       )}
     </SubPageLayout>

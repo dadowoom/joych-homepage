@@ -21,7 +21,8 @@ const CATEGORY_OPTIONS = [
   { value: "other", label: "사회복지법인 기쁨의복지재단" },
 ] as const;
 
-const ELDER_GROUP_OPTIONS = ["시무장로", "휴무장로", "원로장로", "은퇴장로"] as const;
+const ELDER_TITLE_OPTIONS = ["시무장로", "휴무장로", "원로장로", "은퇴장로"] as const;
+const COOPERATION_TITLE_OPTIONS = ["협력사역자", "파송선교사", "협력선교사"] as const;
 
 type StaffCategory = typeof CATEGORY_OPTIONS[number]["value"];
 type StaffMember = inferRouterOutputs<AppRouter>["cms"]["staff"]["list"][number];
@@ -57,9 +58,53 @@ function getCategoryLabel(category: string) {
   return CATEGORY_OPTIONS.find((option) => option.value === category)?.label ?? category;
 }
 
-function isElderGroupOption(value: string) {
+function isElderTitleOption(value: string) {
   const normalized = value.replace(/\s+/g, "");
-  return ELDER_GROUP_OPTIONS.some((option) => option.replace(/\s+/g, "") === normalized);
+  return ELDER_TITLE_OPTIONS.some((option) => option.replace(/\s+/g, "") === normalized);
+}
+
+function getDepartmentFieldCopy(category: StaffCategory) {
+  if (category === "elder") {
+    return {
+      label: "맡은 부서",
+      placeholder: "예: 예배위원회, 재정위원회, 선교위원회",
+      help: "추후 장로님별 담당 부서가 정해지면 여기에 입력하면 홈페이지 카드에 표시됩니다.",
+    };
+  }
+
+  if (category === "cooperation") {
+    return {
+      label: "담당 사역/소속",
+      placeholder: "예: 복지선교사, 청년공동체, 선교지",
+      help: "담당 사역이나 소속을 입력하면 홈페이지 카드 이름 아래에 표시됩니다.",
+    };
+  }
+
+  return {
+    label: "담당 사역/부서",
+    placeholder: "예: 교구, 청년부, 행정",
+    help: "",
+  };
+}
+
+function getTitleFieldCopy(category: StaffCategory) {
+  if (category === "elder") {
+    return {
+      label: "장로 구분",
+      placeholder: "구분 선택",
+      options: ELDER_TITLE_OPTIONS,
+    };
+  }
+
+  if (category === "cooperation") {
+    return {
+      label: "사역 구분",
+      placeholder: "구분 선택",
+      options: COOPERATION_TITLE_OPTIONS,
+    };
+  }
+
+  return null;
 }
 
 function readFileAsBase64(file: File) {
@@ -96,6 +141,8 @@ export default function AdminStaffTab() {
   const [categoryFilter, setCategoryFilter] = useState<StaffCategory | "all">("all");
 
   const { data: staffMembers = [], isLoading } = trpc.cms.staff.list.useQuery();
+  const departmentFieldCopy = getDepartmentFieldCopy(form.category);
+  const titleFieldCopy = getTitleFieldCopy(form.category);
 
   const uploadImage = trpc.cms.upload.pageImage.useMutation({
     onSuccess: (result) => {
@@ -152,12 +199,14 @@ export default function AdminStaffTab() {
   };
 
   const startEdit = (member: StaffMember) => {
+    const department = member.department ?? "";
+    const legacyElderTitle = member.category === "elder" && isElderTitleOption(department) ? department : "";
     setEditingId(member.id);
     setForm({
       category: member.category,
       name: member.name,
-      title: member.title,
-      department: member.department ?? "",
+      title: member.title && member.title !== getCategoryLabel(member.category) ? member.title : legacyElderTitle,
+      department: legacyElderTitle ? "" : department,
       email: member.email ?? "",
       phone: member.phone ?? "",
       imageUrl: member.imageUrl ?? "",
@@ -213,9 +262,7 @@ export default function AdminStaffTab() {
     setForm((prev) => ({
       ...prev,
       category,
-      department: category === "elder"
-        ? isElderGroupOption(prev.department) ? prev.department : ""
-        : prev.department,
+      title: category === prev.category ? prev.title : "",
     }));
   };
 
@@ -306,25 +353,33 @@ export default function AdminStaffTab() {
               <span className={labelClass}>이름</span>
               <input className={fieldClass} value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} placeholder="예: 김수홍 목사" />
             </label>
-            {form.category === "elder" ? (
-              <label className="md:col-span-2">
-                <span className={labelClass}>장로 구분</span>
-                <select className={fieldClass} value={form.department} onChange={(event) => setForm((prev) => ({ ...prev, department: event.target.value }))}>
-                  <option value="">구분 선택</option>
-                  {form.department && !isElderGroupOption(form.department) && (
-                    <option value={form.department}>{form.department}</option>
-                  )}
-                  {ELDER_GROUP_OPTIONS.map((option) => (
+            {titleFieldCopy && (
+              <label>
+                <span className={labelClass}>{titleFieldCopy.label}</span>
+                <select
+                  className={fieldClass}
+                  value={form.title}
+                  onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+                >
+                  <option value="">{titleFieldCopy.placeholder}</option>
+                  {titleFieldCopy.options.map((option) => (
                     <option key={option} value={option}>{option}</option>
                   ))}
                 </select>
               </label>
-            ) : (
-              <label className="md:col-span-2">
-                <span className={labelClass}>담당 사역/부서</span>
-                <input className={fieldClass} value={form.department} onChange={(event) => setForm((prev) => ({ ...prev, department: event.target.value }))} placeholder="예: 교구, 청년부, 행정" />
-              </label>
             )}
+            <label className="md:col-span-2">
+              <span className={labelClass}>{departmentFieldCopy.label}</span>
+              <input
+                className={fieldClass}
+                value={form.department}
+                onChange={(event) => setForm((prev) => ({ ...prev, department: event.target.value }))}
+                placeholder={departmentFieldCopy.placeholder}
+              />
+              {departmentFieldCopy.help && (
+                <p className="mt-1 text-[11px] text-gray-400">{departmentFieldCopy.help}</p>
+              )}
+            </label>
             <label>
               <span className={labelClass}>이메일</span>
               <input className={fieldClass} type="email" value={form.email} onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))} placeholder="name@example.com" />
