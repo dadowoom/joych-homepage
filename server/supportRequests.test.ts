@@ -5,6 +5,7 @@ import type { TrpcContext } from "./_core/context";
 const dbMocks = vi.hoisted(() => ({
   createPrayerRequest: vi.fn(),
   createNewMemberRequest: vi.fn(),
+  createSubtitleRequest: vi.fn(),
 }));
 
 vi.mock("./db", async (importOriginal) => {
@@ -13,6 +14,7 @@ vi.mock("./db", async (importOriginal) => {
     ...actual,
     createPrayerRequest: dbMocks.createPrayerRequest,
     createNewMemberRequest: dbMocks.createNewMemberRequest,
+    createSubtitleRequest: dbMocks.createSubtitleRequest,
   };
 });
 
@@ -100,5 +102,33 @@ describe("공개 접수 라우터", () => {
     ).rejects.toBeInstanceOf(TRPCError);
 
     expect(dbMocks.createNewMemberRequest).not.toHaveBeenCalled();
+  });
+
+  it("자막 신청은 선택 입력을 정리해서 DB 저장 함수를 호출한다", async () => {
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(
+      caller.support.submitSubtitle({
+        title: "6월 7일 찬양 자막",
+        authorName: "이기쁨",
+        phone: "010-1234-5678",
+        email: "",
+        requestedDate: "2026-06-07",
+        content: "찬양 가사를 자막으로 올려 주세요.",
+      })
+    ).resolves.toEqual({ ok: true });
+
+    expect(dbMocks.createSubtitleRequest).toHaveBeenCalledWith({
+      title: "6월 7일 찬양 자막",
+      authorName: "이기쁨",
+      phone: "010-1234-5678",
+      email: null,
+      requestedDate: "2026-06-07",
+      content: "찬양 가사를 자막으로 올려 주세요.",
+      attachmentName: null,
+      attachmentUrl: null,
+      attachmentSize: null,
+      attachmentMime: null,
+    });
   });
 });

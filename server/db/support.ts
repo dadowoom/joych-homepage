@@ -2,17 +2,23 @@
  * 공개 접수 DB 함수 (기도 요청 / 새가족 등록 문의)
  */
 
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, ne } from "drizzle-orm";
 import {
   InsertNewMemberRequest,
   InsertPrayerRequest,
+  InsertSubtitleRequest,
+  InsertVisitRequest,
   newMemberRequests,
   prayerRequests,
+  subtitleRequests,
+  visitRequests,
 } from "../../drizzle/schema";
 import { getDb } from "./connection";
 
 type PrayerRequestStatus = "new" | "reviewed" | "archived";
 type NewMemberRequestStatus = "new" | "contacted" | "archived";
+type VisitRequestStatus = "new" | "contacted" | "scheduled" | "completed" | "archived";
+type SubtitleRequestStatus = "new" | "reviewed" | "completed" | "archived";
 
 async function requireDb() {
   const db = await getDb();
@@ -70,4 +76,73 @@ export async function updateNewMemberRequestStatus(
     .update(newMemberRequests)
     .set({ status: data.status, adminMemo: data.adminMemo ?? null })
     .where(eq(newMemberRequests.id, id));
+}
+
+export async function createVisitRequest(data: InsertVisitRequest) {
+  const db = await requireDb();
+  await db.insert(visitRequests).values(data);
+}
+
+export async function listVisitRequests(limit = 100) {
+  const db = await requireDb();
+  return db
+    .select()
+    .from(visitRequests)
+    .orderBy(desc(visitRequests.createdAt))
+    .limit(limit);
+}
+
+export async function updateVisitRequestStatus(
+  id: number,
+  data: { status: VisitRequestStatus; adminMemo?: string | null }
+) {
+  const db = await requireDb();
+  await db
+    .update(visitRequests)
+    .set({ status: data.status, adminMemo: data.adminMemo ?? null })
+    .where(eq(visitRequests.id, id));
+}
+
+export async function createSubtitleRequest(data: InsertSubtitleRequest) {
+  const db = await requireDb();
+  await db.insert(subtitleRequests).values(data);
+}
+
+export async function listPublicSubtitleRequests(limit = 100) {
+  const db = await requireDb();
+  return db
+    .select({
+      id: subtitleRequests.id,
+      title: subtitleRequests.title,
+      authorName: subtitleRequests.authorName,
+      requestedDate: subtitleRequests.requestedDate,
+      content: subtitleRequests.content,
+      attachmentName: subtitleRequests.attachmentName,
+      status: subtitleRequests.status,
+      createdAt: subtitleRequests.createdAt,
+    })
+    .from(subtitleRequests)
+    .where(ne(subtitleRequests.status, "archived"))
+    .orderBy(desc(subtitleRequests.createdAt))
+    .limit(limit);
+}
+
+export async function listSubtitleRequests(limit = 100) {
+  const db = await requireDb();
+  return db
+    .select()
+    .from(subtitleRequests)
+    .orderBy(desc(subtitleRequests.createdAt))
+    .limit(limit);
+}
+
+export async function updateSubtitleRequestStatus(
+  id: number,
+  data: { status: SubtitleRequestStatus; adminMemo?: string | null }
+) {
+  const db = await requireDb();
+  await db
+    .update(subtitleRequests)
+    .set({ status: data.status, adminMemo: data.adminMemo ?? null })
+    .where(eq(subtitleRequests.id, id));
 }

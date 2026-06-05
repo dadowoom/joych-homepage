@@ -20,13 +20,52 @@ function isExternalHref(href: string) {
   return href.startsWith("http://") || href.startsWith("https://");
 }
 
+function normalizeMenuLabel(label: string) {
+  return label.replace(/\s+/g, "");
+}
+
+function isContainerOnlySecondLevelItem(item: unknown) {
+  const data = item as Record<string, unknown>;
+  const label = typeof data.label === "string" ? normalizeMenuLabel(data.label) : "";
+  return label === "자료실";
+}
+
+function isRepresentativeLinkSecondLevelItem(item: unknown) {
+  const data = item as Record<string, unknown>;
+  const label = typeof data.label === "string" ? normalizeMenuLabel(data.label) : "";
+  return label === "주보";
+}
+
+function getRepresentativeSubItemHref(item: unknown) {
+  const data = item as {
+    subItems?: Array<{ label?: string | null; href?: string | null }>;
+  };
+  const subItems = data.subItems ?? [];
+  const bulletinView = subItems.find((sub) => normalizeMenuLabel(sub.label ?? "") === "주보보기");
+  return getUsableHref(bulletinView?.href) ?? getUsableHref(subItems.find((sub) => getUsableHref(sub.href))?.href);
+}
+
 function hasOwnSecondLevelContent(item: unknown) {
+  if (isContainerOnlySecondLevelItem(item)) return false;
+
   const data = item as Record<string, unknown>;
   const pageType = typeof data.pageType === "string" ? data.pageType : "image";
   if (pageType === "image") {
     return typeof data.pageImageUrl === "string" && data.pageImageUrl.trim().length > 0;
   }
   return true;
+}
+
+function getSecondLevelHref(item: unknown, hasSubItems: boolean) {
+  if (hasSubItems) {
+    if (isContainerOnlySecondLevelItem(item)) return null;
+    if (isRepresentativeLinkSecondLevelItem(item)) {
+      return getRepresentativeSubItemHref(item) ?? getUsableHref((item as { href?: string | null }).href);
+    }
+    if (!hasOwnSecondLevelContent(item)) return null;
+  }
+
+  return getUsableHref((item as { href?: string | null }).href);
 }
 
 const fallbackMenus = toFallbackMenuTree();
@@ -280,10 +319,10 @@ export default function SiteHeader() {
                                 }[];
                               }
                             ).subItems ?? [];
-                          const secondLevelHref =
-                            hasSubItems && !hasOwnSecondLevelContent(s)
-                              ? null
-                              : getUsableHref(s.href);
+                          const secondLevelHref = getSecondLevelHref(
+                            s,
+                            Boolean(hasSubItems)
+                          );
                           const cls =
                             "flex items-center justify-between px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
                           return (
@@ -474,10 +513,10 @@ export default function SiteHeader() {
                               }[];
                             }
                           ).subItems ?? [];
-                        const secondLevelHref =
-                          hasSubItems && !hasOwnSecondLevelContent(item)
-                            ? null
-                            : getUsableHref(item.href);
+                        const secondLevelHref = getSecondLevelHref(
+                          item,
+                          Boolean(hasSubItems)
+                        );
                         return (
                           <div key={item.id}>
                             {hasSubItems ? (

@@ -515,6 +515,56 @@ export const newMemberRequests = mysqlTable("new_member_requests", {
 export type NewMemberRequest = typeof newMemberRequests.$inferSelect;
 export type InsertNewMemberRequest = typeof newMemberRequests.$inferInsert;
 
+// Public support intake: external church/institution visit requests
+export const visitRequests = mysqlTable("visit_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationName: varchar("organization_name", { length: 128 }).notNull(),
+  applicantName: varchar("applicant_name", { length: 64 }).notNull(),
+  phone: varchar("phone", { length: 32 }).notNull(),
+  email: varchar("email", { length: 320 }),
+  visitDate: varchar("visit_date", { length: 10 }).notNull(),
+  visitTime: varchar("visit_time", { length: 5 }),
+  headcount: int("headcount").notNull().default(1),
+  visitorType: mysqlEnum("visitor_type", ["church", "institution", "individual", "other"]).notNull().default("church"),
+  purpose: varchar("purpose", { length: 128 }).notNull(),
+  message: text("message"),
+  status: mysqlEnum("status", ["new", "contacted", "scheduled", "completed", "archived"]).notNull().default("new"),
+  adminMemo: text("admin_memo"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("visit_requests_status_created_idx").on(table.status, table.createdAt),
+  index("visit_requests_date_idx").on(table.visitDate),
+]);
+
+export type VisitRequest = typeof visitRequests.$inferSelect;
+export type InsertVisitRequest = typeof visitRequests.$inferInsert;
+
+// Public support intake: subtitle/caption requests with optional attachment
+export const subtitleRequests = mysqlTable("subtitle_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 160 }).notNull(),
+  authorName: varchar("author_name", { length: 64 }).notNull(),
+  phone: varchar("phone", { length: 32 }).notNull(),
+  email: varchar("email", { length: 320 }),
+  requestedDate: varchar("requested_date", { length: 10 }),
+  content: text("content").notNull(),
+  attachmentName: varchar("attachment_name", { length: 255 }),
+  attachmentUrl: varchar("attachment_url", { length: 512 }),
+  attachmentSize: int("attachment_size"),
+  attachmentMime: varchar("attachment_mime", { length: 128 }),
+  status: mysqlEnum("status", ["new", "reviewed", "completed", "archived"]).notNull().default("new"),
+  adminMemo: text("admin_memo"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("subtitle_requests_status_created_idx").on(table.status, table.createdAt),
+  index("subtitle_requests_date_idx").on(table.requestedDate),
+]);
+
+export type SubtitleRequest = typeof subtitleRequests.$inferSelect;
+export type InsertSubtitleRequest = typeof subtitleRequests.$inferInsert;
+
 // ─────────────────────────────────────────────
 // 시설 예약 시스템
 // ─────────────────────────────────────────────

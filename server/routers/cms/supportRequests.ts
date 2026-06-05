@@ -7,8 +7,12 @@ import { adminProcedure, router } from "../../_core/trpc";
 import {
   listNewMemberRequests,
   listPrayerRequests,
+  listSubtitleRequests,
+  listVisitRequests,
   updateNewMemberRequestStatus,
   updatePrayerRequestStatus,
+  updateSubtitleRequestStatus,
+  updateVisitRequestStatus,
 } from "../../db";
 
 const adminMemoSchema = z.string().trim().max(1000).nullable().optional();
@@ -16,6 +20,8 @@ const adminMemoSchema = z.string().trim().max(1000).nullable().optional();
 export const supportRequestsRouter = router({
   listPrayer: adminProcedure.query(() => listPrayerRequests()),
   listNewMembers: adminProcedure.query(() => listNewMemberRequests()),
+  listVisits: adminProcedure.query(() => listVisitRequests()),
+  listSubtitles: adminProcedure.query(() => listSubtitleRequests()),
 
   updatePrayerStatus: adminProcedure
     .input(
@@ -42,6 +48,36 @@ export const supportRequestsRouter = router({
     )
     .mutation(({ input }) =>
       updateNewMemberRequestStatus(input.id, {
+        status: input.status,
+        adminMemo: input.adminMemo,
+      })
+    ),
+
+  updateVisitStatus: adminProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        status: z.enum(["new", "contacted", "scheduled", "completed", "archived"]),
+        adminMemo: adminMemoSchema,
+      })
+    )
+    .mutation(({ input }) =>
+      updateVisitRequestStatus(input.id, {
+        status: input.status,
+        adminMemo: input.adminMemo,
+      })
+    ),
+
+  updateSubtitleStatus: adminProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        status: z.enum(["new", "reviewed", "completed", "archived"]),
+        adminMemo: adminMemoSchema,
+      })
+    )
+    .mutation(({ input }) =>
+      updateSubtitleRequestStatus(input.id, {
         status: input.status,
         adminMemo: input.adminMemo,
       })

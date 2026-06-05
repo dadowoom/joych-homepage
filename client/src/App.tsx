@@ -260,7 +260,7 @@ const OnlineOfficePage = lazy(() =>
 );
 const VisitRequestPage = lazy(() =>
   import("./pages/CommunityExtra").then(module => ({
-    default: module.VisitRequestPage,
+    default: module.VisitRequestApplicationPage,
   }))
 );
 const DonationReceiptPage = lazy(() =>

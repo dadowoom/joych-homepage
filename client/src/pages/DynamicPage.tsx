@@ -88,6 +88,22 @@ function isDirectionsMenuItem(item: DynamicPageItem) {
   return label === "오시는길" || href.includes("오시는길") || href === "/about/directions";
 }
 
+function isContainerOnlySecondLevelItem(item: DynamicPageItem) {
+  return item.label.replace(/\s+/g, "") === "자료실";
+}
+
+function isRepresentativeLinkSecondLevelItem(item: DynamicPageItem) {
+  return item.label.replace(/\s+/g, "") === "주보";
+}
+
+function getRepresentativeSubItemHref(subItems: DynamicPageSubItem[] | undefined) {
+  const items = subItems ?? [];
+  const bulletinView = items.find((sub) => sub.label.replace(/\s+/g, "") === "주보보기");
+  return bulletinView?.href?.trim()
+    || items.find((sub) => Boolean(sub.href?.trim()))?.href?.trim()
+    || null;
+}
+
 function getFirstSubItemHref(allMenus: DynamicMenuTree | undefined, itemId: number) {
   for (const menu of allMenus ?? []) {
     const matched = (menu.items ?? []).find((candidate) => candidate.id === itemId);
@@ -114,7 +130,15 @@ function getSecondLevelSideMenuItems(
   return (menu?.items ?? []).map((item) => {
     const subItems = item.subItems ?? [];
     const hasSubItems = subItems.length > 0;
-    const href = hasSubItems && !hasOwnMenuContent(item) ? null : item.href ?? null;
+    const href = hasSubItems
+      ? isContainerOnlySecondLevelItem(item)
+        ? null
+        : isRepresentativeLinkSecondLevelItem(item)
+          ? getRepresentativeSubItemHref(subItems) ?? item.href ?? null
+          : hasOwnMenuContent(item)
+            ? item.href ?? null
+            : null
+      : item.href ?? null;
     return {
       id: item.id,
       label: item.label,
@@ -196,6 +220,8 @@ function MenuItemPageContent({
   const parentMenu = (allMenus ?? []).find((m) =>
     (m.items ?? []).some((s) => s.id === item.id)
   );
+  const itemSubItems = parentMenu?.items?.find((candidate) => candidate.id === item.id)?.subItems ?? [];
+  const isContainerOnly = isContainerOnlySecondLevelItem(item) && itemSubItems.length > 0;
   const sideItems = getSecondLevelSideMenuItems(parentMenu, item.id, activeHref);
   const staffCategory = getStaffCategoryForMenuItem(item);
   const firstSubItemHref = getFirstSubItemHref(allMenus, item.id);
@@ -224,6 +250,18 @@ function MenuItemPageContent({
         sideMenuItems={sideItems}
       >
         <KakaoDirectionsMap />
+      </SubPageLayout>
+    );
+  }
+
+  if (isContainerOnly) {
+    return (
+      <SubPageLayout
+        pageTitle={item.label}
+        parentLabel={parentMenu?.label}
+        sideMenuItems={sideItems}
+      >
+        <div className="min-h-[240px]" aria-hidden="true" />
       </SubPageLayout>
     );
   }

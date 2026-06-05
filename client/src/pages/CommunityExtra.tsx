@@ -4,9 +4,11 @@
  * 디자인: 녹색(#2d6a4f) 포인트 + 통일된 레이아웃
  */
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Link } from "wouter";
-import { ArrowLeft, Users, MessageCircle, Building, MapPin, Receipt, Subtitles, ChevronRight, Phone } from "lucide-react";
+import { ArrowLeft, Users, MessageCircle, Building, MapPin, Receipt, ChevronRight, Phone, FileText, Paperclip, Search, X } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 
 function notifyOfficeContact(serviceName: string) {
   window.alert(`${serviceName} 온라인 접수 기능은 준비 중입니다. 교회 행정실(054-270-1000)로 문의해 주세요.`);
@@ -256,27 +258,448 @@ export function JoyTalkPage() {
 
 // ── 자막 신청 ──
 export function SubtitleRequestPage() {
+  const utils = trpc.useUtils();
+  const { data: subtitleRequests = [], isLoading } = trpc.support.listSubtitles.useQuery();
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [page, setPage] = useState(1);
+  const [searchField, setSearchField] = useState("title");
+  const [searchInput, setSearchInput] = useState("");
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [form, setForm] = useState({
+    title: "",
+    authorName: "",
+    phone: "",
+    email: "",
+    requestedDate: "",
+    content: "",
+  });
+
+  const resetForm = () => {
+    setForm({
+      title: "",
+      authorName: "",
+      phone: "",
+      email: "",
+      requestedDate: "",
+      content: "",
+    });
+    setSelectedFile(null);
+    setShowForm(false);
+  };
+
+  const submitSubtitle = trpc.support.submitSubtitle.useMutation({
+    onSuccess: () => {
+      toast.success("자막 신청이 접수되었습니다.");
+      resetForm();
+      setPage(1);
+      utils.support.listSubtitles.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const pageSize = 15;
+  const normalizedKeyword = searchKeyword.trim().toLowerCase();
+  const filteredRequests = normalizedKeyword
+    ? subtitleRequests.filter((request) => {
+        const titleText = request.title.toLowerCase();
+        const authorText = request.authorName.toLowerCase();
+        const contentText = request.content.toLowerCase();
+        if (searchField === "author") return authorText.includes(normalizedKeyword);
+        if (searchField === "content") return contentText.includes(normalizedKeyword);
+        return titleText.includes(normalizedKeyword);
+      })
+    : subtitleRequests;
+  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize));
+  const activePage = Math.min(page, totalPages);
+  const pageStart = (activePage - 1) * pageSize;
+  const visibleRequests = filteredRequests.slice(pageStart, pageStart + pageSize);
+  const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1);
+  const newRequestCount = filteredRequests.filter((request) => isToday(request.createdAt)).length;
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    let attachment: { fileName: string; mimeType: string; base64: string } | undefined;
+    if (selectedFile) {
+      if (selectedFile.size > 10 * 1024 * 1024) {
+        toast.error("첨부파일은 최대 10MB까지 업로드할 수 있습니다.");
+        return;
+      }
+      try {
+        attachment = {
+          fileName: selectedFile.name,
+          mimeType: selectedFile.type || "application/octet-stream",
+          base64: await fileToBase64(selectedFile),
+        };
+      } catch {
+        toast.error("첨부파일을 읽는 중 문제가 발생했습니다.");
+        return;
+      }
+    }
+
+    submitSubtitle.mutate({
+      ...form,
+      email: form.email || undefined,
+      requestedDate: form.requestedDate || undefined,
+      attachment,
+    });
+  };
+
+  const isSaving = submitSubtitle.isPending;
+
   return (
     <PageWrapper title="자막 신청" breadcrumb={["행정지원", "자막 신청"]}>
-      <div className="max-w-2xl">
-        <div className="bg-[#d8f3dc] rounded-xl p-6 mb-8">
-          <h2 className="font-bold text-[#1b4332] mb-2 flex items-center gap-2">
-            <Subtitles className="w-5 h-5" /> 자막 신청 안내
-          </h2>
-          <ul className="text-gray-700 text-sm space-y-2">
-            <li>• 예배 중 특별 광고, 생일 축하, 기념일 등 자막 문의가 가능합니다.</li>
-            <li>• 예배 최소 3일 전까지 교회 행정실로 문의해 주세요.</li>
-            <li>• 접수 내용은 담당자 확인 후 안내됩니다.</li>
-          </ul>
+      <div className="space-y-5">
+        <div className="border-b border-gray-100 pb-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-sm text-gray-500">
+                총 <span className="font-semibold text-[#1B5E20]">{subtitleRequests.length}</span>개의 신청
+                {searchKeyword && (
+                  <span className="ml-2 text-gray-400">검색 결과 {filteredRequests.length}개</span>
+                )}
+              </p>
+              <p className="mt-1 text-xs text-gray-400">
+                예배 자막, 광고, 찬양 가사 요청을 접수합니다. 첨부파일은 관리자만 확인합니다.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowForm((value) => !value)}
+              className="inline-flex h-10 items-center justify-center rounded-md bg-[#1B5E20] px-4 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32]"
+            >
+              {showForm ? "작성 닫기" : "글쓰기"}
+            </button>
+          </div>
         </div>
-        <OfficeContactBox serviceName="자막 신청" />
-        <button
-          type="button"
-          onClick={() => notifyOfficeContact("자막 신청")}
-          className="mt-4 w-full bg-[#2d6a4f] text-white py-3 rounded-lg font-semibold hover:bg-[#1b4332] transition-colors"
-        >
-          행정실 문의 안내
-        </button>
+
+        {showForm && (
+          <div className="border border-gray-200 bg-white shadow-sm">
+            <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-6 py-4">
+              <div>
+                <h2 className="font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+                  자막 신청서
+                </h2>
+                <p className="mt-1 text-xs text-gray-400">연락처와 첨부파일은 관리자만 확인합니다.</p>
+              </div>
+              <button
+                type="button"
+                onClick={resetForm}
+                className="rounded-full p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                aria-label="작성 닫기"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-5 p-6">
+              <div className="grid gap-5 md:grid-cols-2">
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">제목</label>
+                  <input
+                    type="text"
+                    required
+                    value={form.title}
+                    onChange={(event) => setForm({ ...form, title: event.target.value })}
+                    placeholder="예: 6월 7일 2부 예배 특송 자막"
+                    className="w-full border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">작성자</label>
+                  <input
+                    type="text"
+                    required
+                    value={form.authorName}
+                    onChange={(event) => setForm({ ...form, authorName: event.target.value })}
+                    placeholder="이름"
+                    className="w-full border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">연락처</label>
+                  <input
+                    type="tel"
+                    required
+                    value={form.phone}
+                    onChange={(event) => setForm({ ...form, phone: event.target.value })}
+                    placeholder="010-0000-0000"
+                    className="w-full border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">이메일</label>
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(event) => setForm({ ...form, email: event.target.value })}
+                    placeholder="name@example.com"
+                    className="w-full border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">자막 필요일</label>
+                  <input
+                    type="date"
+                    value={form.requestedDate}
+                    onChange={(event) => setForm({ ...form, requestedDate: event.target.value })}
+                    className="w-full border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">신청 내용</label>
+                  <textarea
+                    required
+                    rows={7}
+                    value={form.content}
+                    onChange={(event) => setForm({ ...form, content: event.target.value })}
+                    placeholder="예배 시간, 자막 문구, 필요한 표시 방식 등을 적어 주세요."
+                    className="w-full resize-y border border-gray-200 px-4 py-3 text-sm leading-6 focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">첨부파일</label>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 border border-[#1B5E20]/30 px-4 text-sm font-medium text-[#1B5E20] transition-colors hover:bg-[#F1F8E9]">
+                      <Paperclip className="h-4 w-4" />
+                      파일 선택
+                      <input
+                        type="file"
+                        className="sr-only"
+                        accept=".pdf,.doc,.docx,.hwp,.hwpx,.txt,.jpg,.jpeg,.png"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0] ?? null;
+                          if (file && file.size > 10 * 1024 * 1024) {
+                            toast.error("첨부파일은 최대 10MB까지 업로드할 수 있습니다.");
+                            event.currentTarget.value = "";
+                            return;
+                          }
+                          setSelectedFile(file);
+                        }}
+                      />
+                    </label>
+                    <span className="min-w-0 truncate text-sm text-gray-500">
+                      {selectedFile ? selectedFile.name : "PDF, DOCX, HWP, TXT, JPG, PNG / 최대 10MB"}
+                    </span>
+                    {selectedFile && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedFile(null)}
+                        className="text-xs text-gray-400 hover:text-red-500"
+                      >
+                        파일 제거
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="border border-gray-200 px-5 py-2.5 text-sm text-gray-600 hover:bg-gray-50"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="bg-[#1B5E20] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#2E7D32] disabled:opacity-50"
+                >
+                  {isSaving ? "접수 중..." : "신청"}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-3 border-b border-[#86C5D8] pb-2 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="flex items-center gap-0.5">
+              <span className="flex h-6 w-6 items-center justify-center border border-[#86C5D8] bg-white text-[#1B5E20]">
+                <span className="h-3.5 w-3.5 border-y-2 border-[#1B5E20]" />
+              </span>
+              <span className="flex h-6 w-6 items-center justify-center border border-gray-200 bg-gray-50 text-gray-300">
+                <span className="grid grid-cols-2 gap-0.5">
+                  <span className="h-1.5 w-1.5 bg-gray-300" />
+                  <span className="h-1.5 w-1.5 bg-gray-300" />
+                  <span className="h-1.5 w-1.5 bg-gray-300" />
+                  <span className="h-1.5 w-1.5 bg-gray-300" />
+                </span>
+              </span>
+            </div>
+            <span>새 글 {newRequestCount} / {filteredRequests.length}</span>
+          </div>
+          <form
+            className="flex min-w-0 justify-end gap-1"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setSearchKeyword(searchInput);
+              setPage(1);
+            }}
+          >
+            <select
+              value={searchField}
+              onChange={(event) => setSearchField(event.target.value)}
+              className="h-8 rounded-none border border-gray-300 bg-white px-2 text-xs text-gray-700 outline-none focus:border-[#1B5E20]"
+              aria-label="검색 조건"
+            >
+              <option value="title">제목</option>
+              <option value="content">내용</option>
+              <option value="author">작성자</option>
+            </select>
+            <input
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              className="h-8 min-w-0 flex-1 rounded-none border border-gray-300 px-2 text-xs outline-none focus:border-[#1B5E20] md:w-56"
+              aria-label="검색어"
+            />
+            <button
+              type="submit"
+              className="inline-flex h-8 items-center justify-center border border-[#86C5D8] px-2 text-xs text-[#1B5E20] hover:bg-[#F1F8E9]"
+              aria-label="검색"
+            >
+              <Search className="h-3.5 w-3.5" />
+            </button>
+          </form>
+        </div>
+
+        {isLoading ? (
+          <div className="text-center py-16 text-gray-400">불러오는 중...</div>
+        ) : filteredRequests.length === 0 ? (
+          <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50 py-20">
+            <FileText className="mb-3 h-10 w-10 text-gray-300" />
+            <p className="text-sm text-gray-400">등록된 자막 신청이 없습니다.</p>
+          </div>
+        ) : (
+          <>
+            <div className="hidden overflow-hidden border border-gray-200 bg-white md:block">
+              <table className="w-full table-fixed text-sm">
+                <colgroup>
+                  <col className="w-16" />
+                  <col />
+                  <col className="w-28" />
+                  <col className="w-32" />
+                  <col className="w-20" />
+                </colgroup>
+                <thead className="border-t-2 border-[#62B5D1] bg-[#EAF8FC] text-[#0F607A]">
+                  <tr>
+                    <th scope="col" className="px-3 py-3 text-center font-semibold">번호</th>
+                    <th scope="col" className="px-3 py-3 text-center font-semibold">제목</th>
+                    <th scope="col" className="px-3 py-3 text-center font-semibold">작성자</th>
+                    <th scope="col" className="px-3 py-3 text-center font-semibold">등록일</th>
+                    <th scope="col" className="px-3 py-3 text-center font-semibold">첨부</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {visibleRequests.map((request, index) => {
+                    const requestNumber = filteredRequests.length - (pageStart + index);
+                    const isExpanded = expandedId === request.id;
+                    return (
+                      <Fragment key={request.id}>
+                        <tr className="transition-colors hover:bg-gray-50">
+                          <td className="px-3 py-3 text-center text-gray-500">{requestNumber}</td>
+                          <td className="px-3 py-3">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedId(isExpanded ? null : request.id)}
+                              className="block max-w-full truncate text-left text-gray-800 hover:text-[#1B5E20]"
+                              aria-expanded={isExpanded}
+                            >
+                              {request.title}
+                              {request.attachmentName && (
+                                <Paperclip className="ml-2 inline h-3.5 w-3.5 text-[#0F8FB3]" />
+                              )}
+                            </button>
+                          </td>
+                          <td className="px-3 py-3 text-center text-gray-600">{request.authorName}</td>
+                          <td className="px-3 py-3 text-center text-gray-500">{formatSupportDate(request.createdAt)}</td>
+                          <td className="px-3 py-3 text-center text-gray-500">{request.attachmentName ? "있음" : "-"}</td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="bg-gray-50/70">
+                            <td colSpan={5} className="px-8 py-5">
+                              <div className="mb-3 text-xs text-gray-400">
+                                자막 필요일 {request.requestedDate || "-"}
+                                <span className="mx-2 text-gray-300">|</span>
+                                처리상태 {request.status === "completed" ? "처리완료" : "접수"}
+                              </div>
+                              <div className="whitespace-pre-line border-l-2 border-[#1B5E20]/30 pl-4 text-sm leading-7 text-gray-700">
+                                {request.content}
+                              </div>
+                              {request.attachmentName && (
+                                <p className="mt-3 text-xs text-[#0F607A]">
+                                  첨부파일은 관리자 확인용으로 접수되었습니다.
+                                </p>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="divide-y divide-gray-100 border border-gray-200 bg-white md:hidden">
+              {visibleRequests.map((request, index) => {
+                const requestNumber = filteredRequests.length - (pageStart + index);
+                const isExpanded = expandedId === request.id;
+                return (
+                  <article key={request.id} className="p-4">
+                    <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
+                      <span>번호 {requestNumber}</span>
+                      <span>{formatSupportDate(request.createdAt)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedId(isExpanded ? null : request.id)}
+                      className="block w-full text-left text-base font-bold text-gray-900"
+                      aria-expanded={isExpanded}
+                    >
+                      {request.title}
+                    </button>
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-[#1B5E20]">{request.authorName}</span>
+                      {request.attachmentName && <Paperclip className="h-3.5 w-3.5 text-[#0F8FB3]" />}
+                    </div>
+                    {isExpanded && (
+                      <div className="mt-4 border-l-2 border-[#1B5E20]/30 pl-3 text-sm leading-6 text-gray-700">
+                        <p className="mb-2 text-xs text-gray-400">자막 필요일 {request.requestedDate || "-"}</p>
+                        <p className="whitespace-pre-line">{request.content}</p>
+                        {request.attachmentName && (
+                          <p className="mt-3 text-xs text-[#0F607A]">첨부파일은 관리자 확인용으로 접수되었습니다.</p>
+                        )}
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+
+            {filteredRequests.length > pageSize && (
+              <div className="flex justify-center gap-1">
+                {pageNumbers.map((pageNumber) => (
+                  <button
+                    key={pageNumber}
+                    type="button"
+                    onClick={() => setPage(pageNumber)}
+                    className={`inline-flex h-8 min-w-8 items-center justify-center border px-2 text-sm ${
+                      activePage === pageNumber
+                        ? "border-[#1B5E20] bg-[#1B5E20] text-white"
+                        : "border-gray-200 text-gray-500 hover:border-[#1B5E20]/40 hover:text-[#1B5E20]"
+                    }`}
+                    aria-current={activePage === pageNumber ? "page" : undefined}
+                  >
+                    {pageNumber}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </PageWrapper>
   );
@@ -365,6 +788,259 @@ export function VisitRequestPage() {
 }
 
 // ── 기부금 영수증 ──
+export function VisitRequestApplicationPage() {
+  const [submitted, setSubmitted] = useState(false);
+  const [form, setForm] = useState({
+    organizationName: "",
+    applicantName: "",
+    phone: "",
+    email: "",
+    visitDate: "",
+    visitTime: "",
+    headcount: "1",
+    visitorType: "church",
+    purpose: "",
+    message: "",
+  });
+
+  const submitVisit = trpc.support.submitVisit.useMutation({
+    onSuccess: () => {
+      setSubmitted(true);
+      setForm({
+        organizationName: "",
+        applicantName: "",
+        phone: "",
+        email: "",
+        visitDate: "",
+        visitTime: "",
+        headcount: "1",
+        visitorType: "church",
+        purpose: "",
+        message: "",
+      });
+    },
+  });
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    submitVisit.mutate({
+      organizationName: form.organizationName,
+      applicantName: form.applicantName,
+      phone: form.phone,
+      email: form.email,
+      visitDate: form.visitDate,
+      visitTime: form.visitTime || undefined,
+      headcount: Math.max(1, Number(form.headcount) || 1),
+      visitorType: form.visitorType as "church" | "institution" | "individual" | "other",
+      purpose: form.purpose,
+      message: form.message,
+    });
+  };
+
+  return (
+    <PageWrapper title="탐방 신청" breadcrumb={["행정지원", "탐방 신청"]}>
+      <div className="max-w-4xl">
+        <div className="mb-6 border-t-2 border-[#62B5D1] bg-[#EAF8FC] px-5 py-4">
+          <h2 className="flex items-center gap-2 font-bold text-[#0F607A]">
+            <MapPin className="h-5 w-5" /> 기쁨의교회 탐방 안내
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed text-gray-700">
+            탐방신청은 다른 교회, 기관, 성도님들이 기쁨의교회 예배와 사역, 시설을 방문하기 위해 남기는 공식 접수입니다.
+            단체 탐방은 일정 조율이 필요하므로 가능한 방문 희망일 2주 전까지 신청해 주세요.
+          </p>
+        </div>
+
+        {submitted ? (
+          <div className="border border-gray-200 bg-white p-10 text-center shadow-sm">
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#E8F5E9]">
+              <i className="fas fa-check text-2xl text-[#1B5E20]" />
+            </div>
+            <h2 className="mb-3 text-xl font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+              탐방신청이 접수되었습니다
+            </h2>
+            <p className="mx-auto mb-6 max-w-md text-sm leading-relaxed text-gray-500">
+              담당자가 신청 내용을 확인한 뒤 일정 가능 여부와 안내 사항을 연락드리겠습니다.
+            </p>
+            <button
+              type="button"
+              onClick={() => setSubmitted(false)}
+              className="bg-[#1B5E20] px-8 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#2E7D32]"
+            >
+              추가 신청하기
+            </button>
+          </div>
+        ) : (
+          <div className="border border-gray-200 bg-white shadow-sm">
+            <div className="border-b border-gray-100 px-6 py-4">
+              <h2 className="font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+                탐방신청서
+              </h2>
+              <p className="mt-1 text-xs text-gray-400">접수된 내용은 관리자만 확인합니다.</p>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-5 p-6">
+              <div className="grid gap-5 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">교회명 / 단체명</label>
+                  <input
+                    type="text"
+                    required
+                    value={form.organizationName}
+                    onChange={(event) => setForm({ ...form, organizationName: event.target.value })}
+                    placeholder="예: ○○교회, ○○기관"
+                    className="w-full border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">신청자 이름</label>
+                  <input
+                    type="text"
+                    required
+                    value={form.applicantName}
+                    onChange={(event) => setForm({ ...form, applicantName: event.target.value })}
+                    placeholder="담당자 이름"
+                    className="w-full border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">연락처</label>
+                  <input
+                    type="tel"
+                    required
+                    value={form.phone}
+                    onChange={(event) => setForm({ ...form, phone: event.target.value })}
+                    placeholder="010-0000-0000"
+                    className="w-full border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">이메일</label>
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(event) => setForm({ ...form, email: event.target.value })}
+                    placeholder="name@example.com"
+                    className="w-full border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">방문 희망일</label>
+                  <input
+                    type="date"
+                    required
+                    value={form.visitDate}
+                    onChange={(event) => setForm({ ...form, visitDate: event.target.value })}
+                    className="w-full border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">방문 희망 시간</label>
+                  <input
+                    type="time"
+                    value={form.visitTime}
+                    onChange={(event) => setForm({ ...form, visitTime: event.target.value })}
+                    className="w-full border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">방문 인원</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={500}
+                    required
+                    value={form.headcount}
+                    onChange={(event) => setForm({ ...form, headcount: event.target.value })}
+                    className="w-full border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">신청 구분</label>
+                  <select
+                    value={form.visitorType}
+                    onChange={(event) => setForm({ ...form, visitorType: event.target.value })}
+                    className="w-full border border-gray-200 bg-white px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                  >
+                    <option value="church">교회</option>
+                    <option value="institution">기관 / 단체</option>
+                    <option value="individual">개인</option>
+                    <option value="other">기타</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">탐방 목적</label>
+                <input
+                  type="text"
+                  required
+                  value={form.purpose}
+                  onChange={(event) => setForm({ ...form, purpose: event.target.value })}
+                  placeholder="예: 교회 시설 탐방, 사역 운영 사례 견학, 예배 방문"
+                  className="w-full border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">문의 및 요청사항</label>
+                <textarea
+                  value={form.message}
+                  onChange={(event) => setForm({ ...form, message: event.target.value })}
+                  rows={5}
+                  placeholder="방문 목적, 관심 사역, 안내가 필요한 내용을 적어 주세요."
+                  className="w-full resize-none border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                />
+              </div>
+
+              {submitVisit.error && (
+                <p className="text-center text-sm text-red-500">{submitVisit.error.message}</p>
+              )}
+
+              <div className="border-t border-gray-100 pt-5">
+                <button
+                  type="submit"
+                  disabled={submitVisit.isPending}
+                  className="w-full bg-[#1B5E20] py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[#2E7D32] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {submitVisit.isPending ? "접수 중..." : "탐방신청 접수하기"}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+    </PageWrapper>
+  );
+}
+
+function formatSupportDate(value: string | Date | null | undefined) {
+  if (!value) return "-";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}.${month}.${day}`;
+}
+
+function isToday(value: string | Date | null | undefined) {
+  if (!value) return false;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  const today = new Date();
+  return date.getFullYear() === today.getFullYear()
+    && date.getMonth() === today.getMonth()
+    && date.getDate() === today.getDate();
+}
+
+function fileToBase64(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error("파일을 읽지 못했습니다."));
+    reader.readAsDataURL(file);
+  });
+}
+
 export function DonationReceiptPage() {
   return (
     <PageWrapper title="기부금 영수증" breadcrumb={["행정지원", "기부금 영수증"]}>

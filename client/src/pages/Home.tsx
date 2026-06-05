@@ -1114,23 +1114,25 @@ export default function Home() {
       </section>
 
       {/* ===== 푸터 ===== */}
-      <footer className="bg-[#0F172A] text-gray-400 py-12">
+      <footer className="bg-[#0F172A] text-gray-400 py-6">
         <div className="container">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-center">
             {/* 로고 */}
             <div>
-              <img
-                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-logo_35c62cc5.jpg"
-                alt="기쁨의교회"
-                loading="lazy"
-                className="h-10 w-auto object-contain mb-2 brightness-0 invert"
-              />
-              <p className="text-xs text-gray-600">
+              <div className="inline-flex rounded-md bg-white px-3 py-2">
+                <img
+                  src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-logo_35c62cc5.jpg"
+                  alt="기쁨의교회"
+                  loading="lazy"
+                  className="h-8 w-auto object-contain"
+                />
+              </div>
+              <p className="mt-2 text-xs text-gray-600">
                 since 1946 대한예수교장로회
               </p>
             </div>
             {/* 연락처 */}
-            <div className="space-y-2 text-sm">
+            <div className="space-y-1.5 text-sm">
               <p className="flex items-center gap-2">
                 <i className="fas fa-map-marker-alt text-[#4CAF50] w-4"></i>
                 {getChurchAddress(dbSettings?.address)}
@@ -1144,14 +1146,7 @@ export default function Home() {
                 Copyright &copy; {new Date().getFullYear()} 기쁨의교회 All
                 rights reserved.
               </p>
-              <div className="mt-4 space-y-1 text-sm leading-relaxed text-gray-300">
-                <p>사이트 운영주체: 주식회사 다도움컴퍼니</p>
-                <p>대표: 최종민</p>
-                <p>사업자등록번호: 530-86-02411</p>
-                <p>주소: 전라남도 여수시 공화북2길 9-1, 2층(공화동)</p>
-                <p className="break-words">이메일: contact@dadowoom.com</p>
-              </div>
-              <div className="flex gap-3 mt-3 text-xs">
+              <div className="flex gap-3 mt-2 text-xs">
                 <Link
                   href="/sitemap"
                   className="text-gray-500 hover:text-[#4CAF50] transition-colors underline underline-offset-2"

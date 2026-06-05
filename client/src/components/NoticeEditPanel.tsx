@@ -35,6 +35,15 @@ type EditState = {
   thumbnailUrl: string;
 };
 
+const NOTICE_CATEGORIES = ["공지", "부고", "결혼"] as const;
+const DEFAULT_NOTICE_CATEGORY = "공지";
+
+function normalizeNoticeCategory(category?: string | null) {
+  const value = category?.trim();
+  if (value === "부고" || value === "결혼") return value;
+  return DEFAULT_NOTICE_CATEGORY;
+}
+
 interface NoticeEditPanelProps {
   open: boolean;
   onClose: () => void;
@@ -54,7 +63,7 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
 
   // 새 소식 추가 상태
   const [isAdding, setIsAdding] = useState(false);
-  const [newState, setNewState] = useState<EditState>({ category: "공지", title: "", content: "", thumbnailUrl: "" });
+  const [newState, setNewState] = useState<EditState>({ category: DEFAULT_NOTICE_CATEGORY, title: "", content: "", thumbnailUrl: "" });
 
   // 이미지 업로드 상태
   const [uploadingFor, setUploadingFor] = useState<"edit" | "new" | null>(null);
@@ -85,7 +94,7 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
     onSuccess: () => {
       toast.success("새 소식이 추가됐습니다.");
       setIsAdding(false);
-      setNewState({ category: "공지", title: "", content: "", thumbnailUrl: "" });
+      setNewState({ category: DEFAULT_NOTICE_CATEGORY, title: "", content: "", thumbnailUrl: "" });
       utils.cms.notices.list.invalidate();
       utils.home.notices.invalidate();
       utils.home.noticeBoard.invalidate();
@@ -117,7 +126,7 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
   const startEdit = (notice: NoticeRow) => {
     setEditingId(notice.id);
     setEditState({
-      category: notice.category,
+      category: normalizeNoticeCategory(notice.category),
       title: notice.title,
       content: notice.content ?? "",
       thumbnailUrl: notice.thumbnailUrl ?? "",
@@ -132,7 +141,7 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
     if (!editingId) return;
     updateMutation.mutate({
       id: editingId,
-      category: editState.category,
+      category: normalizeNoticeCategory(editState.category),
       title: editState.title,
       content: editState.content || undefined,
       thumbnailUrl: editState.thumbnailUrl || undefined,
@@ -145,7 +154,7 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
       return;
     }
     createMutation.mutate({
-      category: newState.category || "공지",
+      category: normalizeNoticeCategory(newState.category),
       title: newState.title,
       content: newState.content || undefined,
       thumbnailUrl: newState.thumbnailUrl || undefined,
@@ -284,8 +293,6 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
     );
   };
 
-  const CATEGORIES = ["공지", "행사", "찬양", "선교", "기타"];
-
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent side="right" className="w-[420px] sm:w-[480px] overflow-y-auto bg-white" style={{ top: "144px", height: "calc(100vh - 144px)" }}>
@@ -315,7 +322,7 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
                 onChange={(e) => setNewState({ ...newState, category: e.target.value })}
                 className="text-xs border rounded px-2 py-1 bg-white"
               >
-                {CATEGORIES.map((c) => (
+                {NOTICE_CATEGORIES.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
@@ -346,7 +353,7 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => { setIsAdding(false); setNewState({ category: "공지", title: "", content: "", thumbnailUrl: "" }); }}
+                onClick={() => { setIsAdding(false); setNewState({ category: DEFAULT_NOTICE_CATEGORY, title: "", content: "", thumbnailUrl: "" }); }}
               >
                 <X className="w-3 h-3 mr-1" /> 취소
               </Button>
@@ -373,7 +380,7 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
                         onChange={(e) => setEditState({ ...editState, category: e.target.value })}
                         className="text-xs border rounded px-2 py-1 bg-white"
                       >
-                        {CATEGORIES.map((c) => (
+                        {NOTICE_CATEGORIES.map((c) => (
                           <option key={c} value={c}>{c}</option>
                         ))}
                       </select>
@@ -421,7 +428,7 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-medium">
-                          {notice.category}
+                          {normalizeNoticeCategory(notice.category)}
                         </span>
                         {!notice.isPublished && (
                           <span className="text-xs text-gray-400">(숨김)</span>

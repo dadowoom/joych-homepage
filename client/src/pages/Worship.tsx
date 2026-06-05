@@ -219,67 +219,192 @@ export function WorshipSchedule() {
 
 // ── 주보 보기 ─────────────────────────────────────────────────────
 const BULLETINS = [
-  { date: "공지 예정", title: "주보는 관리자 CMS 등록 후 제공됩니다", week: "안내", size: "-" },
+  {
+    id: 1,
+    date: "공지 예정",
+    title: "주보는 관리자 CMS 등록 후 제공됩니다",
+    author: "관리자",
+    fileCount: 0,
+    size: "-",
+  },
 ];
 
 export function Bulletin() {
+  const [expandedId, setExpandedId] = useState<number | null>(BULLETINS[0]?.id ?? null);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const filteredBulletins = searchKeyword.trim()
+    ? BULLETINS.filter((bulletin) => bulletin.title.toLowerCase().includes(searchKeyword.trim().toLowerCase()))
+    : BULLETINS;
+
   return (
     <div className="min-h-screen bg-[#F7F7F5]">
       <PageHeader title="주보 보기" subtitle="주보 PDF는 관리자 등록 후 제공됩니다" breadcrumb={["조이풀TV", "주보 보기"]} />
       <SubNav items={WORSHIP_NAV} />
-      <div className="max-w-4xl mx-auto px-4 py-14">
-        {/* 최신 주보 미리보기 */}
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden mb-8">
-          <div className="bg-[#1B5E20] px-6 py-4 flex items-center justify-between">
-            <div>
-              <span className="text-green-200 text-xs font-medium">최신 주보</span>
-              <h2 className="text-white font-bold mt-0.5" style={{ fontFamily: "'Noto Serif KR', serif" }}>{BULLETINS[0].title}</h2>
-            </div>
-            <button
-              type="button"
-              onClick={notifyBulletinDownload}
-              className="bg-white text-[#1B5E20] text-sm font-medium px-5 py-2 rounded-full hover:bg-green-50 transition-colors flex items-center gap-2"
-            >
-              <i className="fas fa-download text-xs"></i> 문의 안내
-            </button>
-          </div>
-          <div className="h-64 bg-gray-100 flex items-center justify-center">
-            <div className="text-center">
-              <i className="fas fa-file-pdf text-5xl text-gray-300 mb-3"></i>
-              <p className="text-gray-400 text-sm">주보 미리보기</p>
-              <p className="text-gray-300 text-xs mt-1">(PDF 뷰어 연결 예정)</p>
-            </div>
-          </div>
+      <div className="max-w-5xl mx-auto px-4 py-14">
+        <div className="mb-5 border-b border-gray-100 pb-4">
+          <p className="text-sm text-gray-500">
+            총 <span className="font-semibold text-[#1B5E20]">{BULLETINS.length}</span>개의 주보
+            {searchKeyword && <span className="ml-2 text-gray-400">검색 결과 {filteredBulletins.length}개</span>}
+          </p>
+          <p className="mt-1 text-xs text-gray-400">주보 파일이 등록되면 목록에서 선택해 미리보고 내려받을 수 있습니다.</p>
         </div>
 
-        {/* 주보 목록 */}
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h3 className="font-bold text-gray-800">주보 목록</h3>
+        <div className="mb-4 flex flex-col gap-3 border-b border-[#86C5D8] pb-2 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="flex items-center gap-0.5">
+              <span className="flex h-6 w-6 items-center justify-center border border-[#86C5D8] bg-white text-[#1B5E20]">
+                <span className="h-3.5 w-3.5 border-y-2 border-[#1B5E20]" />
+              </span>
+              <span className="flex h-6 w-6 items-center justify-center border border-gray-200 bg-gray-50 text-gray-300">
+                <span className="grid grid-cols-2 gap-0.5">
+                  <span className="h-1.5 w-1.5 bg-gray-300" />
+                  <span className="h-1.5 w-1.5 bg-gray-300" />
+                  <span className="h-1.5 w-1.5 bg-gray-300" />
+                  <span className="h-1.5 w-1.5 bg-gray-300" />
+                </span>
+              </span>
+            </div>
+            <span>새 글 0 / {filteredBulletins.length}</span>
           </div>
-          <div className="divide-y divide-gray-50">
-            {BULLETINS.map((b, i) => (
-              <div key={i} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-[#E8F5E9] flex items-center justify-center">
-                    <i className="fas fa-file-pdf text-[#1B5E20] text-sm"></i>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-800 text-sm">{b.title}</p>
-                    <p className="text-gray-400 text-xs mt-0.5">{b.week} · {b.size}</p>
-                  </div>
+          <form
+            className="flex min-w-0 justify-end gap-1"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setSearchKeyword(searchInput);
+            }}
+          >
+            <select
+              className="h-8 rounded-none border border-gray-300 bg-white px-2 text-xs text-gray-700 outline-none focus:border-[#1B5E20]"
+              aria-label="검색 조건"
+              defaultValue="title"
+            >
+              <option value="title">제목</option>
+            </select>
+            <input
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              className="h-8 min-w-0 flex-1 rounded-none border border-gray-300 px-2 text-xs outline-none focus:border-[#1B5E20] md:w-56"
+              aria-label="검색어"
+            />
+            <button
+              type="submit"
+              className="h-8 border border-[#86C5D8] px-2 text-xs text-[#1B5E20] hover:bg-[#F1F8E9]"
+              aria-label="검색"
+            >
+              검색
+            </button>
+          </form>
+        </div>
+
+        <div className="hidden overflow-hidden border border-gray-200 bg-white md:block">
+          <table className="w-full table-fixed text-sm">
+            <colgroup>
+              <col className="w-16" />
+              <col />
+              <col className="w-32" />
+              <col className="w-32" />
+              <col className="w-24" />
+            </colgroup>
+            <thead className="border-t-2 border-[#62B5D1] bg-[#EAF8FC] text-[#0F607A]">
+              <tr>
+                <th scope="col" className="px-3 py-3 text-center font-semibold">번호</th>
+                <th scope="col" className="px-3 py-3 text-center font-semibold">제목</th>
+                <th scope="col" className="px-3 py-3 text-center font-semibold">작성자</th>
+                <th scope="col" className="px-3 py-3 text-center font-semibold">등록일</th>
+                <th scope="col" className="px-3 py-3 text-center font-semibold">첨부</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filteredBulletins.map((bulletin, index) => {
+                const isExpanded = expandedId === bulletin.id;
+                return (
+                  <tr key={bulletin.id} className="transition-colors hover:bg-gray-50">
+                    <td className="px-3 py-3 text-center text-gray-500">{filteredBulletins.length - index}</td>
+                    <td className="px-3 py-3">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedId(isExpanded ? null : bulletin.id)}
+                        className="block max-w-full truncate text-left text-gray-800 hover:text-[#1B5E20]"
+                        aria-expanded={isExpanded}
+                      >
+                        {bulletin.title}
+                        <span className="ml-2 text-[#0F8FB3]">▣</span>
+                      </button>
+                    </td>
+                    <td className="px-3 py-3 text-center text-gray-600">{bulletin.author}</td>
+                    <td className="px-3 py-3 text-center text-gray-500">{bulletin.date}</td>
+                    <td className="px-3 py-3 text-center text-gray-500">{bulletin.fileCount || "-"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="divide-y divide-gray-100 border border-gray-200 bg-white md:hidden">
+          {filteredBulletins.map((bulletin, index) => (
+            <article key={bulletin.id} className="p-4">
+              <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
+                <span>번호 {filteredBulletins.length - index}</span>
+                <span>{bulletin.date}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setExpandedId(expandedId === bulletin.id ? null : bulletin.id)}
+                className="block w-full text-left text-base font-bold text-gray-900"
+              >
+                {bulletin.title}
+              </button>
+              <p className="mt-1 text-xs font-medium text-[#1B5E20]">{bulletin.author}</p>
+            </article>
+          ))}
+        </div>
+
+        {filteredBulletins.length === 0 && (
+          <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50 py-20">
+            <i className="fas fa-file-alt mb-3 text-4xl text-gray-300" />
+            <p className="text-sm text-gray-400">해당 조건의 주보가 없습니다.</p>
+          </div>
+        )}
+
+        {filteredBulletins.some((bulletin) => bulletin.id === expandedId) && (
+          <div className="mt-8 overflow-hidden border border-gray-200 bg-white">
+            <div className="border-t-2 border-[#62B5D1] bg-[#EAF8FC] px-5 py-3">
+              <h2 className="font-bold text-[#0F607A]" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+                {filteredBulletins.find((bulletin) => bulletin.id === expandedId)?.title}
+              </h2>
+            </div>
+            <div className="border-b border-gray-100 px-5 py-3 text-xs text-gray-500">
+              관리자 <span className="mx-2 text-gray-300">|</span>
+              등록일 {filteredBulletins.find((bulletin) => bulletin.id === expandedId)?.date}
+              <span className="mx-2 text-gray-300">|</span>
+              첨부 {filteredBulletins.find((bulletin) => bulletin.id === expandedId)?.fileCount || 0}개
+            </div>
+            <div className="grid gap-6 p-5 lg:grid-cols-[1fr_220px]">
+              <div className="flex min-h-96 items-center justify-center border border-gray-100 bg-gray-50">
+                <div className="text-center">
+                  <i className="fas fa-file-pdf mb-3 text-5xl text-gray-300"></i>
+                  <p className="text-sm text-gray-400">주보 미리보기</p>
+                  <p className="mt-1 text-xs text-gray-300">관리자 파일 등록 기능 연결 예정</p>
+                </div>
+              </div>
+              <div className="border border-gray-200 bg-white p-4 text-sm">
+                <p className="mb-3 font-semibold text-gray-800">첨부파일</p>
+                <div className="rounded border border-dashed border-gray-200 p-4 text-center text-xs text-gray-400">
+                  등록된 첨부파일이 없습니다.
                 </div>
                 <button
                   type="button"
                   onClick={notifyBulletinDownload}
-                  className="text-[#1B5E20] hover:text-[#2E7D32] transition-colors text-sm flex items-center gap-1.5 font-medium"
+                  className="mt-4 w-full border border-[#1B5E20] px-4 py-2 text-sm font-medium text-[#1B5E20] transition-colors hover:bg-[#F1F8E9]"
                 >
-                  <i className="fas fa-download text-xs"></i> 문의 안내
+                  문의 안내
                 </button>
               </div>
-            ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
