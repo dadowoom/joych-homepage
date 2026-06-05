@@ -685,6 +685,99 @@ export type Reservation = typeof reservations.$inferSelect;
 export type InsertReservation = typeof reservations.$inferInsert;
 
 // ─────────────────────────────────────────────
+// 교육/강좌 신청 시스템
+// ─────────────────────────────────────────────
+
+/**
+ * courses: 교육/강좌 마스터 테이블
+ * 조이아카데미, 새가족 교육, 성경공부 등 신청 가능한 강좌를 관리합니다.
+ */
+export const courses = mysqlTable("courses", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 강좌명 */
+  title: varchar("title", { length: 128 }).notNull(),
+  /** 목록용 한 줄 소개 */
+  summary: varchar("summary", { length: 500 }),
+  /** 상세 안내 */
+  description: text("description"),
+  /** 강사/담당자 */
+  instructor: varchar("instructor", { length: 64 }),
+  /** 장소 */
+  location: varchar("location", { length: 128 }),
+  /** 대상 */
+  target: varchar("target", { length: 128 }),
+  /** 수강료/회비 안내 */
+  fee: varchar("fee", { length: 128 }),
+  /** 정원: 0이면 제한 없음 */
+  capacity: int("capacity").notNull().default(0),
+  /** 강좌 시작일 */
+  startDate: varchar("startDate", { length: 10 }),
+  /** 강좌 종료일 */
+  endDate: varchar("endDate", { length: 10 }),
+  /** 시작 시간 */
+  startTime: varchar("startTime", { length: 5 }),
+  /** 종료 시간 */
+  endTime: varchar("endTime", { length: 5 }),
+  /** 신청 시작일 */
+  applyStartDate: varchar("applyStartDate", { length: 10 }),
+  /** 신청 마감일 */
+  applyEndDate: varchar("applyEndDate", { length: 10 }),
+  /** 상태: draft(준비) / open(신청중) / closed(마감) / archived(보관) */
+  status: mysqlEnum("status", ["draft", "open", "closed", "archived"]).notNull().default("draft"),
+  /** 공개 노출 여부 */
+  isVisible: boolean("isVisible").notNull().default(true),
+  /** 신청 전 안내 문구 */
+  applicationNotice: text("applicationNotice"),
+  /** 정렬 순서 */
+  sortOrder: int("sortOrder").notNull().default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("courses_status_visible_sort_idx").on(table.status, table.isVisible, table.sortOrder),
+  index("courses_apply_window_idx").on(table.applyStartDate, table.applyEndDate),
+]);
+
+export type Course = typeof courses.$inferSelect;
+export type InsertCourse = typeof courses.$inferInsert;
+
+/**
+ * course_applications: 강좌 신청 내역
+ * 승인 대기, 승인, 거절, 신청 취소 상태를 관리합니다.
+ */
+export const courseApplications = mysqlTable("course_applications", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 강좌 ID */
+  courseId: int("courseId").notNull(),
+  /** 신청 성도 ID */
+  memberId: int("memberId").notNull(),
+  /** 신청자 이름 */
+  applicantName: varchar("applicantName", { length: 64 }).notNull(),
+  /** 신청자 연락처 */
+  applicantPhone: varchar("applicantPhone", { length: 32 }),
+  /** 신청자 이메일 */
+  applicantEmail: varchar("applicantEmail", { length: 320 }),
+  /** 신청 메모 */
+  memo: text("memo"),
+  /** 상태: pending(대기) / approved(승인) / rejected(거절) / cancelled(취소) */
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "cancelled"]).notNull().default("pending"),
+  /** 관리자 메모 또는 거절 사유 */
+  adminComment: text("adminComment"),
+  /** 처리한 관리자 ID */
+  processedBy: int("processedBy"),
+  /** 처리 시각 */
+  processedAt: timestamp("processedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("course_applications_course_status_idx").on(table.courseId, table.status, table.createdAt),
+  index("course_applications_member_created_idx").on(table.memberId, table.createdAt),
+  uniqueIndex("course_applications_course_member_unique").on(table.courseId, table.memberId),
+]);
+
+export type CourseApplication = typeof courseApplications.$inferSelect;
+export type InsertCourseApplication = typeof courseApplications.$inferInsert;
+
+// ─────────────────────────────────────────────
 // 선교보고 시스템
 // ─────────────────────────────────────────────
 

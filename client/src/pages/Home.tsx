@@ -102,7 +102,7 @@ const FALLBACK_AFFILIATES = [
   { icon: "fa-hands-helping", label: "기쁨의복지재단", href: null },
   { icon: "fa-building", label: "창포종합사회복지관", href: null },
   { icon: "fa-tree", label: "조이플빌리지", href: null },
-  { icon: "fa-graduation-cap", label: "조이아카데미 문화강좌", href: null },
+  { icon: "fa-graduation-cap", label: "조이아카데미 문화강좌", href: "/education/courses" },
   {
     icon: "fa-heart",
     label: "기쁨이 있는 곳",

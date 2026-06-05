@@ -141,6 +141,13 @@
       "when": 1780644919394,
       "tag": "0019_groovy_chimera",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1780649000000,
+      "tag": "0020_course_enrollment",
+      "breakpoints": true
     }
   ]
 }

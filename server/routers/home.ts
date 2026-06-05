@@ -43,6 +43,15 @@ import {
   getStaticPageContentByHref,
   getStoredTranslation,
   getVisibleStaffMembers,
+  getVisibleCourses,
+  getVisibleCourseById,
+  createOrReopenCourseApplication,
+  getMyCourseApplications,
+  cancelMyCourseApplication,
+  getMemberById,
+  CourseApplicationCapacityError,
+  CourseApplicationConflictError,
+  CourseApplicationLockError,
   ReservationLockError,
   ReservationOverlapError,
 } from "../db";
@@ -55,6 +64,7 @@ const hrefLookupSchema = z.string().trim().min(1).max(256);
 const staticPageHrefSchema = z.string().trim().min(1).max(128).regex(/^\//);
 const staffCategorySchema = z.enum(["senior", "associate", "education", "cooperation", "elder", "office", "other"]);
 const translationLocaleSchema = z.enum(["ja"]);
+const courseMemoSchema = z.string().trim().max(2000, "신청 메모는 2000자 이하로 입력해주세요.").optional();
 
 async function getVisibleFacilityById(id: number) {
   const facility = await getFacilityById(id);
@@ -103,6 +113,86 @@ export const homeRouter = router({
   staff: publicProcedure
     .input(z.object({ category: staffCategorySchema.optional() }).optional())
     .query(({ input }) => getVisibleStaffMembers(input?.category)),
+
+  /** 공개 강좌 목록 */
+  courses: publicProcedure.query(() => getVisibleCourses()),
+
+  /** 공개 강좌 단건 */
+  course: publicProcedure
+    .input(z.object({ id: idSchema }))
+    .query(({ input }) => getVisibleCourseById(input.id)),
+
+  /** 내 강좌 신청 내역 조회 (성도 본인 것만) */
+  myCourseApplications: memberProtectedProcedure
+    .query(({ ctx }) => getMyCourseApplications(ctx.memberId)),
+
+  /** 강좌 신청 (성도 로그인 필요) */
+  applyCourse: memberProtectedProcedure
+    .input(z.object({
+      courseId: idSchema,
+      applicantName: z.string().trim().min(1, "이름을 입력해주세요.").max(64, "이름은 64자 이하로 입력해주세요."),
+      applicantPhone: z.string().trim().max(32, "연락처는 32자 이하로 입력해주세요.").optional(),
+      applicantEmail: z.string().trim().max(320, "이메일은 320자 이하로 입력해주세요.").optional(),
+      memo: courseMemoSchema,
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const course = await getVisibleCourseById(input.courseId);
+      if (!course) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "강좌를 찾을 수 없습니다." });
+      }
+      if (course.status !== "open") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "현재 신청 가능한 강좌가 아닙니다." });
+      }
+      const today = todayKstDateKey();
+      if (course.applyStartDate && today < course.applyStartDate) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "아직 신청 기간이 시작되지 않았습니다." });
+      }
+      if (course.applyEndDate && today > course.applyEndDate) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "신청 기간이 마감되었습니다." });
+      }
+
+      const member = await getMemberById(ctx.memberId);
+      if (!member) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "성도 정보를 찾을 수 없습니다." });
+      }
+
+      try {
+        const id = await createOrReopenCourseApplication({
+          courseId: input.courseId,
+          memberId: ctx.memberId,
+          applicantName: input.applicantName || member.name,
+          applicantPhone: input.applicantPhone || member.phone || null,
+          applicantEmail: input.applicantEmail || member.email || null,
+          memo: input.memo || null,
+        });
+        if (!id) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "강좌 신청 저장에 실패했습니다." });
+        }
+        return { id, status: "pending" as const };
+      } catch (error) {
+        if (error instanceof CourseApplicationConflictError) {
+          throw new TRPCError({ code: "CONFLICT", message: error.message });
+        }
+        if (error instanceof CourseApplicationCapacityError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+        }
+        if (error instanceof CourseApplicationLockError) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: error.message });
+        }
+        throw error;
+      }
+    }),
+
+  /** 강좌 신청 취소 (성도 본인, 승인 대기 상태만 가능) */
+  cancelCourseApplication: memberProtectedProcedure
+    .input(z.object({ id: idSchema }))
+    .mutation(async ({ input, ctx }) => {
+      const cancelled = await cancelMyCourseApplication(input.id, ctx.memberId);
+      if (!cancelled) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "취소할 수 없는 신청입니다." });
+      }
+      return { success: true };
+    }),
 
   /**
    * 코드 기반 페이지의 CMS 콘텐츠 조회

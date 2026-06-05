@@ -15,6 +15,7 @@
  *   - 페이지 콘텐츠: components/admin/StaticPageContentTab.tsx
  *   - 팝업 관리    : components/AdminPopupsTab.tsx
  *   - 접수 관리    : components/AdminSupportRequestsTab.tsx
+ *   - 강좌 관리    : components/AdminCoursesTab.tsx
  */
 
 import { useState } from "react";
@@ -32,6 +33,7 @@ import AdminFreeBoardTab from "@/components/AdminFreeBoardTab";
 import AdminStaffTab from "@/components/AdminStaffTab";
 import AdminSupportRequestsTab from "@/components/AdminSupportRequestsTab";
 import AdminTestimoniesTab from "@/components/AdminTestimoniesTab";
+import AdminCoursesTab from "@/components/AdminCoursesTab";
 import YoutubeAdminTab from "@/components/YoutubeAdminTab";
 import { SettingsTab } from "@/components/admin/SettingsTab";
 import { StaticPageContentTab } from "@/components/admin/StaticPageContentTab";
@@ -48,6 +50,7 @@ type Tab =
   | "testimonies"
   | "freeBoard"
   | "supportRequests"
+  | "courses"
   | "youtube"
   | "staticPages"
   | "popups";
@@ -161,6 +164,13 @@ const TABS: TabItem[] = [
     description: "홈페이지를 통해 접수된 문의와 요청을 확인합니다.",
     status: "접수 확인",
   },
+  {
+    id: "courses",
+    label: "강좌 관리",
+    icon: "fa-graduation-cap",
+    description: "교육/강좌를 등록하고 성도 신청 내역을 관리합니다.",
+    status: "신청 관리",
+  },
 ];
 
 const TAB_GROUPS: TabGroup[] = [
@@ -182,7 +192,7 @@ const TAB_GROUPS: TabGroup[] = [
   {
     title: "접수/예약 관리",
     description: "시설과 요청 처리",
-    tabs: ["facilities", "reservations", "supportRequests"],
+    tabs: ["facilities", "reservations", "supportRequests", "courses"],
   },
 ];
 
@@ -599,6 +609,7 @@ export default function AdminPage() {
               {activeTab === "testimonies" && <AdminTestimoniesTab />}
               {activeTab === "freeBoard" && <AdminFreeBoardTab />}
               {activeTab === "supportRequests" && <AdminSupportRequestsTab />}
+              {activeTab === "courses" && <AdminCoursesTab />}
               {activeTab === "youtube" && <YoutubeAdminTab />}
               {activeTab === "staticPages" && <StaticPageContentTab />}
               {activeTab === "popups" && <AdminPopupsTab />}

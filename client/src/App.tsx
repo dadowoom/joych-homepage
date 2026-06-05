@@ -23,6 +23,7 @@ const FacilityList = lazy(() => import("./pages/FacilityList"));
 const FacilityDetail = lazy(() => import("./pages/FacilityDetail"));
 const FacilityApply = lazy(() => import("./pages/FacilityApply"));
 const MyReservations = lazy(() => import("./pages/MyReservations"));
+const CourseList = lazy(() => import("./pages/CourseList"));
 const MissionList = lazy(() => import("./pages/MissionList"));
 const MissionDetail = lazy(() => import("./pages/MissionDetail"));
 const MissionReportEditor = lazy(() => import("./pages/MissionReportEditor"));
@@ -348,6 +349,7 @@ function Router() {
       <Route path="/education/new-member" component={NewMember} />
       <Route path="/education/disciple" component={DiscipleTraining} />
       <Route path="/education/bible" component={BibleStudy} />
+      <Route path="/education/courses" component={CourseList} />
       <Route path="/education/hesed" component={HesedAsiaPage} />
       <Route path="/education/disciple2" component={DiscipleTrainingPage} />
       <Route path="/education/elder" component={ElderTrainingPage} />

@@ -19,6 +19,7 @@
  *   staff.ts       - 섬기는 분/교역자 소개 DB 함수
  *   popup.ts       - 홈페이지 팝업/공지 배너 DB 함수
  *   support.ts     - 공개 접수(기도 요청/새가족 문의) DB 함수
+ *   course.ts      - 교육/강좌 신청 DB 함수
  */
 
 export * from "./connection";
@@ -36,3 +37,4 @@ export * from "./freeBoard";
 export * from "./staff";
 export * from "./popup";
 export * from "./support";
+export * from "./course";
