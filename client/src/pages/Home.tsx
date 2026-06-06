@@ -29,7 +29,7 @@ const KakaoDirectionsMap = lazy(
 const FALLBACK_HERO_SLIDES = [
   {
     videoUrl: "",
-    posterUrl: "/og-image.jpg",
+    posterUrl: "/og-image-main1.jpg",
     yearLabel: "2026 JOYFUL",
     mainTitle: "처음 익은 열매로\n여호와를 공경하라",
     subTitle: "네 재물과 네 소산물의 처음 익은 열매로 여호와를 공경하라",

@@ -9,7 +9,7 @@ const SITE_NAME = "기쁨의교회";
 const SITE_TITLE = "기쁨의교회 | The Joyful Church";
 const DEFAULT_DESCRIPTION =
   "깊이있는 성장, 위대한 교회. 기쁨의교회에 오신 것을 환영합니다.";
-const DEFAULT_IMAGE = "https://newjoych.co.kr/og-image.jpg";
+const DEFAULT_IMAGE = "https://newjoych.co.kr/og-image-main1.jpg";
 
 type SeoRoute = {
   path: string;
