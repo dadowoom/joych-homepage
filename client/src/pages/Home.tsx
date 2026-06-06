@@ -29,8 +29,7 @@ const KakaoDirectionsMap = lazy(
 const FALLBACK_HERO_SLIDES = [
   {
     videoUrl: "",
-    posterUrl:
-      "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-church-XWJBwHDycyRoBg9dY4aj5r.webp",
+    posterUrl: "/og-image.jpg",
     yearLabel: "2026 JOYFUL",
     mainTitle: "처음 익은 열매로\n여호와를 공경하라",
     subTitle: "네 재물과 네 소산물의 처음 익은 열매로 여호와를 공경하라",

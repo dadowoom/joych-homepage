@@ -4,13 +4,12 @@ import { isSafeHref } from "./contentValidation";
 
 type RequestWithCspNonce = Request & { cspNonce?: string };
 
-const DEFAULT_ORIGIN = "https://dadowoomtest.co.kr";
+const DEFAULT_ORIGIN = "https://newjoych.co.kr";
 const SITE_NAME = "기쁨의교회";
 const SITE_TITLE = "기쁨의교회 | The Joyful Church";
 const DEFAULT_DESCRIPTION =
   "깊이있는 성장, 위대한 교회. 기쁨의교회에 오신 것을 환영합니다.";
-const DEFAULT_IMAGE =
-  "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-church-XWJBwHDycyRoBg9dY4aj5r.webp";
+const DEFAULT_IMAGE = "https://newjoych.co.kr/og-image.jpg";
 
 type SeoRoute = {
   path: string;
@@ -84,7 +83,7 @@ const ROUTES: SeoRoute[] = [
     path: "/about/directions",
     title: "오시는 길 | 기쁨의교회",
     description:
-      "경북 포항시 북구 상통로 411, 기쁨의교회 위치와 길찾기 정보를 안내합니다.",
+      "경북 포항시 북구 삼흥로 411, 기쁨의교회 위치와 길찾기 정보를 안내합니다.",
     priority: "0.8",
   },
   {
@@ -562,7 +561,7 @@ function buildStructuredData(canonicalUrl: string) {
         addressCountry: "KR",
         addressRegion: "경상북도",
         addressLocality: "포항시 북구",
-        streetAddress: "상통로 411",
+        streetAddress: "삼흥로 411",
       },
     },
     {
