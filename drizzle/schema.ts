@@ -588,6 +588,24 @@ export const bulletins = mysqlTable("bulletins", {
 export type Bulletin = typeof bulletins.$inferSelect;
 export type InsertBulletin = typeof bulletins.$inferInsert;
 
+// Multiple page images that belong to a single bulletin.
+export const bulletinImages = mysqlTable("bulletin_images", {
+  id: int("id").autoincrement().primaryKey(),
+  bulletinId: int("bulletin_id").notNull(),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  fileUrl: varchar("file_url", { length: 512 }).notNull(),
+  fileSize: int("file_size"),
+  fileMime: varchar("file_mime", { length: 128 }),
+  sortOrder: int("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("bulletin_images_bulletin_order_idx").on(table.bulletinId, table.sortOrder),
+  index("bulletin_images_created_idx").on(table.createdAt),
+]);
+
+export type BulletinImage = typeof bulletinImages.$inferSelect;
+export type InsertBulletinImage = typeof bulletinImages.$inferInsert;
+
 // Member-only bulletin advertisement requests
 export const bulletinAdRequests = mysqlTable("bulletin_ad_requests", {
   id: int("id").autoincrement().primaryKey(),

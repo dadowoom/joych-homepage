@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Eye, EyeOff, Paperclip, Trash2, Upload } from "lucide-react";
+import { Eye, EyeOff, Images, Paperclip, Trash2, Upload, X } from "lucide-react";
 
 const fieldClass =
   "border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20 focus:border-[#1B5E20]";
@@ -11,6 +11,9 @@ const statusLabels: Record<string, string> = {
   hidden: "숨김",
   archived: "보관",
 };
+const MAX_BULLETIN_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_BULLETIN_IMAGE_COUNT = 12;
+const ALLOWED_BULLETIN_IMAGE_RE = /\.(jpg|jpeg|png)$/i;
 
 function formatDate(value: Date | string | null | undefined) {
   if (!value) return "-";
@@ -41,10 +44,18 @@ function fileToBase64(file: File) {
   });
 }
 
+function sortBulletinImages(files: File[]) {
+  return [...files].sort((a, b) => a.name.localeCompare(b.name, "ko-KR", { numeric: true, sensitivity: "base" }));
+}
+
+function getBulletinImageCount(bulletin: { images?: unknown[] }) {
+  return bulletin.images?.length ?? 1;
+}
+
 export default function AdminBulletinsTab() {
   const utils = trpc.useUtils();
   const { data: bulletins = [], isLoading } = trpc.cms.bulletins.list.useQuery();
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [form, setForm] = useState({
     title: "",
     bulletinDate: new Date().toISOString().slice(0, 10),
@@ -59,7 +70,7 @@ export default function AdminBulletinsTab() {
         bulletinDate: new Date().toISOString().slice(0, 10),
         status: "published",
       });
-      setSelectedFile(null);
+      setSelectedFiles([]);
       utils.cms.bulletins.list.invalidate();
       utils.home.bulletins.invalidate();
     },
@@ -86,12 +97,20 @@ export default function AdminBulletinsTab() {
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!selectedFile) {
-      toast.error("등록할 주보 파일을 선택해주세요.");
+    if (selectedFiles.length === 0) {
+      toast.error("등록할 주보 이미지를 선택해주세요.");
       return;
     }
-    if (selectedFile.size > 20 * 1024 * 1024) {
-      toast.error("주보 파일은 최대 20MB까지 업로드할 수 있습니다.");
+    if (selectedFiles.length > MAX_BULLETIN_IMAGE_COUNT) {
+      toast.error(`주보 이미지는 최대 ${MAX_BULLETIN_IMAGE_COUNT}장까지 등록할 수 있습니다.`);
+      return;
+    }
+    if (selectedFiles.some((file) => !ALLOWED_BULLETIN_IMAGE_RE.test(file.name))) {
+      toast.error("주보 이미지는 JPG, PNG 파일만 등록할 수 있습니다.");
+      return;
+    }
+    if (selectedFiles.some((file) => file.size > MAX_BULLETIN_IMAGE_BYTES)) {
+      toast.error("주보 이미지는 한 장당 최대 8MB까지 업로드할 수 있습니다.");
       return;
     }
 
@@ -99,11 +118,13 @@ export default function AdminBulletinsTab() {
       title: form.title,
       bulletinDate: form.bulletinDate,
       status: form.status,
-      file: {
-        fileName: selectedFile.name,
-        mimeType: selectedFile.type || "application/octet-stream",
-        base64: await fileToBase64(selectedFile),
-      },
+      files: await Promise.all(
+        selectedFiles.map(async (file) => ({
+          fileName: file.name,
+          mimeType: file.type || "application/octet-stream",
+          base64: await fileToBase64(file),
+        }))
+      ),
     });
   }
 
@@ -112,7 +133,7 @@ export default function AdminBulletinsTab() {
       <div>
         <h3 className="text-lg font-bold text-gray-800">주보 관리</h3>
         <p className="text-sm text-gray-500 mt-0.5">
-          주보 PDF 또는 이미지를 등록하면 공개 주보 보기 화면에 표시됩니다.
+          주보 이미지 여러 장을 등록하면 공개 주보 보기 화면에 순서대로 표시됩니다.
         </p>
       </div>
 
@@ -153,19 +174,30 @@ export default function AdminBulletinsTab() {
           <div className="flex items-end gap-2">
             <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#1B5E20]/30 px-4 text-sm font-medium text-[#1B5E20] transition-colors hover:bg-[#F1F8E9]">
               <Paperclip className="h-4 w-4" />
-              파일
+              이미지
               <input
                 type="file"
                 className="sr-only"
-                accept=".pdf,.jpg,.jpeg,.png"
+                accept=".jpg,.jpeg,.png"
+                multiple
                 onChange={(event) => {
-                  const file = event.target.files?.[0] ?? null;
-                  if (file && file.size > 20 * 1024 * 1024) {
-                    toast.error("주보 파일은 최대 20MB까지 업로드할 수 있습니다.");
+                  const files = sortBulletinImages(Array.from(event.target.files ?? []));
+                  if (files.length > MAX_BULLETIN_IMAGE_COUNT) {
+                    toast.error(`주보 이미지는 최대 ${MAX_BULLETIN_IMAGE_COUNT}장까지 등록할 수 있습니다.`);
                     event.currentTarget.value = "";
                     return;
                   }
-                  setSelectedFile(file);
+                  if (files.some((file) => !ALLOWED_BULLETIN_IMAGE_RE.test(file.name))) {
+                    toast.error("주보 이미지는 JPG, PNG 파일만 등록할 수 있습니다.");
+                    event.currentTarget.value = "";
+                    return;
+                  }
+                  if (files.some((file) => file.size > MAX_BULLETIN_IMAGE_BYTES)) {
+                    toast.error("주보 이미지는 한 장당 최대 8MB까지 업로드할 수 있습니다.");
+                    event.currentTarget.value = "";
+                    return;
+                  }
+                  setSelectedFiles(files);
                 }}
               />
             </label>
@@ -178,9 +210,35 @@ export default function AdminBulletinsTab() {
               등록
             </button>
           </div>
-          <p className="lg:col-span-4 text-xs text-gray-400">
-            {selectedFile ? `${selectedFile.name} · ${formatFileSize(selectedFile.size)}` : "PDF, JPG, PNG / 최대 20MB"}
-          </p>
+          <div className="lg:col-span-4">
+            {selectedFiles.length > 0 ? (
+              <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-500">
+                  <span className="inline-flex items-center gap-1 font-medium text-gray-700">
+                    <Images className="h-3.5 w-3.5" />
+                    선택된 이미지 {selectedFiles.length}장
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFiles([])}
+                    className="inline-flex items-center gap-1 text-gray-400 hover:text-red-500"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    지우기
+                  </button>
+                </div>
+                <ol className="grid gap-1 text-xs text-gray-500 sm:grid-cols-2">
+                  {selectedFiles.map((file, index) => (
+                    <li key={`${file.name}-${file.lastModified}`} className="truncate">
+                      {index + 1}. {file.name} · {formatFileSize(file.size)}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400">JPG, PNG / 최대 12장 / 한 장당 8MB</p>
+            )}
+          </div>
         </form>
       </section>
 
@@ -207,7 +265,7 @@ export default function AdminBulletinsTab() {
                   <div className="min-w-0">
                     <p className="font-medium text-gray-800">{bulletin.title}</p>
                     <p className="mt-1 text-xs text-gray-400">
-                      주보 날짜 {bulletin.bulletinDate} · 등록 {formatDate(bulletin.createdAt)} · {formatFileSize(bulletin.fileSize)}
+                      주보 날짜 {bulletin.bulletinDate} · 등록 {formatDate(bulletin.createdAt)} · 이미지 {getBulletinImageCount(bulletin)}장
                     </p>
                     <a
                       href={bulletin.fileUrl}
@@ -216,7 +274,7 @@ export default function AdminBulletinsTab() {
                       className="mt-2 inline-flex items-center gap-1 text-xs text-[#1B5E20] underline-offset-2 hover:underline"
                     >
                       <Paperclip className="h-3.5 w-3.5" />
-                      {bulletin.fileName}
+                      대표 이미지: {bulletin.fileName}
                     </a>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">

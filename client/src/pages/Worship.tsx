@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { ChevronLeft, ChevronRight, Download, X, ZoomIn } from "lucide-react";
 
 function PageHeader({ title, subtitle, breadcrumb }: { title: string; subtitle?: string; breadcrumb: string[] }) {
   return (
@@ -238,15 +239,59 @@ function isImageBulletin(fileMime: string | null | undefined, fileName: string |
   return mime.startsWith("image/") || /\.(jpg|jpeg|png)$/.test(name);
 }
 
+type BulletinPageImage = {
+  id: number;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number | null;
+  fileMime: string | null;
+  sortOrder?: number | null;
+};
+
+type BulletinWithPages = {
+  fileName: string;
+  fileUrl: string;
+  fileSize: number | null;
+  fileMime: string | null;
+  images?: BulletinPageImage[];
+};
+
+function getBulletinPages(bulletin: BulletinWithPages) {
+  return bulletin.images && bulletin.images.length > 0
+    ? bulletin.images
+    : [{
+        id: 0,
+        fileName: bulletin.fileName,
+        fileUrl: bulletin.fileUrl,
+        fileSize: bulletin.fileSize,
+        fileMime: bulletin.fileMime,
+        sortOrder: 0,
+      }];
+}
+
 export function Bulletin() {
   const { data: bulletins = [], isLoading } = trpc.home.bulletins.useQuery();
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [lightbox, setLightbox] = useState<{ bulletinId: number; pageIndex: number } | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
   const filteredBulletins = searchKeyword.trim()
     ? bulletins.filter((bulletin) => bulletin.title.toLowerCase().includes(searchKeyword.trim().toLowerCase()))
     : bulletins;
   const selectedBulletin = filteredBulletins.find((bulletin) => bulletin.id === expandedId) ?? filteredBulletins[0] ?? null;
+  const selectedPages = selectedBulletin ? getBulletinPages(selectedBulletin) : [];
+  const lightboxBulletin = lightbox ? bulletins.find((bulletin) => bulletin.id === lightbox.bulletinId) : null;
+  const lightboxPages = lightboxBulletin ? getBulletinPages(lightboxBulletin) : [];
+  const lightboxPage = lightbox ? lightboxPages[lightbox.pageIndex] : null;
+  const lightboxTitle = lightboxBulletin?.title ?? "주보";
+  const closeLightbox = () => setLightbox(null);
+  const moveLightbox = (direction: -1 | 1) => {
+    setLightbox((current) => {
+      if (!current) return current;
+      const nextIndex = Math.min(Math.max(current.pageIndex + direction, 0), lightboxPages.length - 1);
+      return { ...current, pageIndex: nextIndex };
+    });
+  };
 
   return (
     <div className="min-h-screen bg-[#F7F7F5]">
@@ -332,6 +377,7 @@ export function Bulletin() {
             <tbody className="divide-y divide-gray-100">
               {filteredBulletins.map((bulletin, index) => {
                 const isExpanded = expandedId === bulletin.id;
+                const pageCount = getBulletinPages(bulletin).length;
                 return (
                   <tr key={bulletin.id} className="transition-colors hover:bg-gray-50">
                     <td className="px-3 py-3 text-center text-gray-500">{filteredBulletins.length - index}</td>
@@ -348,7 +394,7 @@ export function Bulletin() {
                     </td>
                     <td className="px-3 py-3 text-center text-gray-600">관리자</td>
                     <td className="px-3 py-3 text-center text-gray-500">{formatBulletinDate(bulletin.bulletinDate)}</td>
-                    <td className="px-3 py-3 text-center text-gray-500">1</td>
+                    <td className="px-3 py-3 text-center text-gray-500">{pageCount}</td>
                   </tr>
                 );
               })}
@@ -372,7 +418,7 @@ export function Bulletin() {
               >
                 {bulletin.title}
               </button>
-              <p className="mt-1 text-xs font-medium text-[#1B5E20]">관리자</p>
+              <p className="mt-1 text-xs font-medium text-[#1B5E20]">관리자 · 첨부 {getBulletinPages(bulletin).length}장</p>
             </article>
           ))}
           </div>
@@ -396,43 +442,147 @@ export function Bulletin() {
               관리자 <span className="mx-2 text-gray-300">|</span>
               등록일 {formatBulletinDate(selectedBulletin.bulletinDate)}
               <span className="mx-2 text-gray-300">|</span>
-              첨부 1개
+              첨부 {selectedPages.length}개
             </div>
-            <div className="grid gap-6 p-5 lg:grid-cols-[1fr_220px]">
-              <div className="flex min-h-96 items-center justify-center border border-gray-100 bg-gray-50">
-                {isImageBulletin(selectedBulletin.fileMime, selectedBulletin.fileName) ? (
-                  <img
-                    src={selectedBulletin.fileUrl}
-                    alt={selectedBulletin.title}
-                    className="max-h-[720px] w-auto max-w-full object-contain"
-                  />
-                ) : (
-                  <iframe
-                    src={selectedBulletin.fileUrl}
-                    title={selectedBulletin.title}
-                    className="h-[720px] w-full border-0 bg-white"
-                  />
-                )}
+            <div className="grid gap-6 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_240px]">
+              <div className="space-y-6 bg-gray-50 p-3 sm:p-5">
+                {selectedPages.map((page, index) => {
+                  const isImage = isImageBulletin(page.fileMime, page.fileName);
+                  return (
+                    <div key={`${page.id}-${page.fileUrl}`} className="mx-auto max-w-[780px]">
+                      <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
+                        <span>{index + 1} / {selectedPages.length}</span>
+                        <span className="truncate">{page.fileName}</span>
+                      </div>
+                      {isImage ? (
+                        <button
+                          type="button"
+                          onClick={() => setLightbox({ bulletinId: selectedBulletin.id, pageIndex: index })}
+                          className="group block w-full cursor-zoom-in border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+                          aria-label={`${selectedBulletin.title} ${index + 1}페이지 크게 보기`}
+                        >
+                          <img
+                            src={page.fileUrl}
+                            alt={`${selectedBulletin.title} ${index + 1}페이지`}
+                            className="h-auto w-full object-contain"
+                          />
+                          <span className="flex items-center justify-center gap-1 border-t border-gray-100 py-2 text-xs text-gray-400 group-hover:text-[#1B5E20]">
+                            <ZoomIn className="h-3.5 w-3.5" />
+                            이미지를 클릭하면 크게 볼 수 있습니다.
+                          </span>
+                        </button>
+                      ) : (
+                        <iframe
+                          src={page.fileUrl}
+                          title={`${selectedBulletin.title} ${index + 1}페이지`}
+                          className="h-[720px] w-full border border-gray-200 bg-white"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
               <div className="border border-gray-200 bg-white p-4 text-sm">
-                <p className="mb-3 font-semibold text-gray-800">첨부파일</p>
-                <div className="rounded border border-dashed border-gray-200 p-4 text-xs text-gray-500">
-                  <p className="font-medium text-gray-700">{selectedBulletin.fileName}</p>
-                  <p className="mt-1 text-gray-400">{formatBulletinFileSize(selectedBulletin.fileSize)}</p>
+                <p className="mb-3 font-semibold text-gray-800">첨부 이미지</p>
+                <div className="space-y-2">
+                  {selectedPages.map((page, index) => (
+                    <a
+                      key={`${page.id}-${page.fileUrl}-download`}
+                      href={page.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-start justify-between gap-3 rounded border border-dashed border-gray-200 p-3 text-xs text-gray-500 hover:border-[#1B5E20]/40 hover:bg-[#F1F8E9]"
+                    >
+                      <span className="min-w-0">
+                        <span className="block font-medium text-gray-700">{index + 1}페이지</span>
+                        <span className="mt-0.5 block truncate">{page.fileName}</span>
+                        <span className="mt-0.5 block text-gray-400">{formatBulletinFileSize(page.fileSize)}</span>
+                      </span>
+                      <Download className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-[#1B5E20]" />
+                    </a>
+                  ))}
                 </div>
                 <a
-                  href={selectedBulletin.fileUrl}
+                  href={selectedPages[0]?.fileUrl ?? selectedBulletin.fileUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="mt-4 block w-full border border-[#1B5E20] px-4 py-2 text-center text-sm font-medium text-[#1B5E20] transition-colors hover:bg-[#F1F8E9]"
                 >
-                  파일 열기
+                  첫 페이지 열기
                 </a>
               </div>
             </div>
           </div>
         )}
       </div>
+
+      {lightbox && lightboxPage && (
+        <div
+          className="fixed inset-0 z-[100] overflow-auto bg-black/90 px-3 py-16 sm:px-8"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${lightboxTitle} 크게 보기`}
+          onClick={closeLightbox}
+        >
+          <div className="fixed right-3 top-3 z-[101] flex items-center gap-2 sm:right-6 sm:top-6">
+            <a
+              href={lightboxPage.fileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+              aria-label="현재 페이지 새 창으로 열기"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <ZoomIn className="h-5 w-5" />
+            </a>
+            <button
+              type="button"
+              onClick={closeLightbox}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+              aria-label="닫기"
+            >
+              <X className="h-7 w-7" />
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              moveLightbox(-1);
+            }}
+            disabled={lightbox.pageIndex === 0}
+            className="fixed left-2 top-1/2 z-[101] inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 disabled:opacity-20 sm:left-6 sm:h-16 sm:w-16"
+            aria-label="이전 페이지"
+          >
+            <ChevronLeft className="h-11 w-11 sm:h-16 sm:w-16" />
+          </button>
+
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              moveLightbox(1);
+            }}
+            disabled={lightbox.pageIndex >= lightboxPages.length - 1}
+            className="fixed right-2 top-1/2 z-[101] inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 disabled:opacity-20 sm:right-6 sm:h-16 sm:w-16"
+            aria-label="다음 페이지"
+          >
+            <ChevronRight className="h-11 w-11 sm:h-16 sm:w-16" />
+          </button>
+
+          <div className="mx-auto max-w-[920px]" onClick={(event) => event.stopPropagation()}>
+            <div className="mb-3 text-center text-sm text-white/80">
+              {lightboxTitle} · {lightbox.pageIndex + 1} / {lightboxPages.length}
+            </div>
+            <img
+              src={lightboxPage.fileUrl}
+              alt={`${lightboxTitle} ${lightbox.pageIndex + 1}페이지`}
+              className="mx-auto h-auto w-full max-w-full bg-white"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
