@@ -4,7 +4,7 @@
  * 포함: JoyfulTV / WorshipSchedule / Bulletin
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { ChevronLeft, ChevronRight, Download, X, ZoomIn } from "lucide-react";
@@ -272,19 +272,39 @@ function getBulletinPages(bulletin: BulletinWithPages) {
 export function Bulletin() {
   const { data: bulletins = [], isLoading } = trpc.home.bulletins.useQuery();
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [selectedPageIndex, setSelectedPageIndex] = useState(0);
   const [lightbox, setLightbox] = useState<{ bulletinId: number; pageIndex: number } | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
+  const touchStartXRef = useRef<number | null>(null);
   const filteredBulletins = searchKeyword.trim()
     ? bulletins.filter((bulletin) => bulletin.title.toLowerCase().includes(searchKeyword.trim().toLowerCase()))
     : bulletins;
   const selectedBulletin = filteredBulletins.find((bulletin) => bulletin.id === expandedId) ?? null;
   const selectedPages = selectedBulletin ? getBulletinPages(selectedBulletin) : [];
+  const maxSelectedPageIndex = Math.max(selectedPages.length - 1, 0);
+  const mobilePageIndex = Math.min(selectedPageIndex, maxSelectedPageIndex);
+  const mobilePage = selectedPages[mobilePageIndex] ?? null;
   const lightboxBulletin = lightbox ? bulletins.find((bulletin) => bulletin.id === lightbox.bulletinId) : null;
   const lightboxPages = lightboxBulletin ? getBulletinPages(lightboxBulletin) : [];
   const lightboxPage = lightbox ? lightboxPages[lightbox.pageIndex] : null;
   const lightboxTitle = lightboxBulletin?.title ?? "주보";
   const closeLightbox = () => setLightbox(null);
+  const toggleBulletin = (id: number) => {
+    setExpandedId((current) => (current === id ? null : id));
+    setSelectedPageIndex(0);
+  };
+  const moveSelectedPage = (direction: -1 | 1) => {
+    setSelectedPageIndex((current) => Math.min(Math.max(current + direction, 0), maxSelectedPageIndex));
+  };
+  const handleMobileTouchEnd = (clientX: number) => {
+    const startX = touchStartXRef.current;
+    touchStartXRef.current = null;
+    if (startX === null || selectedPages.length <= 1) return;
+    const deltaX = clientX - startX;
+    if (Math.abs(deltaX) < 36) return;
+    moveSelectedPage(deltaX < 0 ? 1 : -1);
+  };
   const moveLightbox = (direction: -1 | 1) => {
     setLightbox((current) => {
       if (!current) return current;
@@ -384,7 +404,7 @@ export function Bulletin() {
                     <td className="px-3 py-3">
                       <button
                         type="button"
-                        onClick={() => setExpandedId(isExpanded ? null : bulletin.id)}
+                        onClick={() => toggleBulletin(bulletin.id)}
                         className="block max-w-full truncate text-left text-gray-800 hover:text-[#1B5E20]"
                         aria-expanded={isExpanded}
                       >
@@ -413,8 +433,9 @@ export function Bulletin() {
               </div>
               <button
                 type="button"
-                onClick={() => setExpandedId(expandedId === bulletin.id ? null : bulletin.id)}
+                onClick={() => toggleBulletin(bulletin.id)}
                 className="block w-full text-left text-base font-bold text-gray-900"
+                aria-expanded={expandedId === bulletin.id}
               >
                 {bulletin.title}
               </button>
@@ -445,42 +466,112 @@ export function Bulletin() {
               첨부 {selectedPages.length}개
             </div>
             <div className="grid gap-6 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_240px]">
-              <div className="space-y-6 bg-gray-50 p-3 sm:p-5">
-                {selectedPages.map((page, index) => {
-                  const isImage = isImageBulletin(page.fileMime, page.fileName);
-                  return (
-                    <div key={`${page.id}-${page.fileUrl}`} className="mx-auto max-w-[780px]">
-                      <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
-                        <span>{index + 1} / {selectedPages.length}</span>
-                        <span className="truncate">{page.fileName}</span>
+              <div className="bg-gray-50 p-3 sm:p-5">
+                {mobilePage && (
+                  <div
+                    className="md:hidden"
+                    onTouchStart={(event) => {
+                      touchStartXRef.current = event.changedTouches[0]?.clientX ?? null;
+                    }}
+                    onTouchEnd={(event) => {
+                      const clientX = event.changedTouches[0]?.clientX;
+                      if (typeof clientX === "number") handleMobileTouchEnd(clientX);
+                    }}
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => moveSelectedPage(-1)}
+                        disabled={mobilePageIndex === 0}
+                        className="inline-flex h-10 w-10 items-center justify-center border border-gray-200 bg-white text-gray-700 disabled:opacity-30"
+                        aria-label="이전 주보 페이지"
+                      >
+                        <ChevronLeft className="h-5 w-5" />
+                      </button>
+                      <div className="min-w-0 text-center">
+                        <p className="text-xs font-semibold text-[#1B5E20]">
+                          {mobilePageIndex + 1} / {selectedPages.length}
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-gray-400">{mobilePage.fileName}</p>
                       </div>
-                      {isImage ? (
-                        <button
-                          type="button"
-                          onClick={() => setLightbox({ bulletinId: selectedBulletin.id, pageIndex: index })}
-                          className="group block w-full cursor-zoom-in border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md"
-                          aria-label={`${selectedBulletin.title} ${index + 1}페이지 크게 보기`}
-                        >
-                          <img
-                            src={page.fileUrl}
-                            alt={`${selectedBulletin.title} ${index + 1}페이지`}
-                            className="h-auto w-full object-contain"
-                          />
-                          <span className="flex items-center justify-center gap-1 border-t border-gray-100 py-2 text-xs text-gray-400 group-hover:text-[#1B5E20]">
-                            <ZoomIn className="h-3.5 w-3.5" />
-                            이미지를 클릭하면 크게 볼 수 있습니다.
-                          </span>
-                        </button>
-                      ) : (
-                        <iframe
-                          src={page.fileUrl}
-                          title={`${selectedBulletin.title} ${index + 1}페이지`}
-                          className="h-[720px] w-full border border-gray-200 bg-white"
-                        />
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => moveSelectedPage(1)}
+                        disabled={mobilePageIndex >= selectedPages.length - 1}
+                        className="inline-flex h-10 w-10 items-center justify-center border border-gray-200 bg-white text-gray-700 disabled:opacity-30"
+                        aria-label="다음 주보 페이지"
+                      >
+                        <ChevronRight className="h-5 w-5" />
+                      </button>
                     </div>
-                  );
-                })}
+
+                    {isImageBulletin(mobilePage.fileMime, mobilePage.fileName) ? (
+                      <button
+                        type="button"
+                        onClick={() => setLightbox({ bulletinId: selectedBulletin.id, pageIndex: mobilePageIndex })}
+                        className="group block w-full cursor-zoom-in border border-gray-200 bg-white shadow-sm"
+                        aria-label={`${selectedBulletin.title} ${mobilePageIndex + 1}페이지 크게 보기`}
+                      >
+                        <img
+                          src={mobilePage.fileUrl}
+                          alt={`${selectedBulletin.title} ${mobilePageIndex + 1}페이지`}
+                          className="h-auto w-full object-contain"
+                        />
+                        <span className="flex items-center justify-center gap-1 border-t border-gray-100 py-2 text-xs text-gray-400">
+                          <ZoomIn className="h-3.5 w-3.5" />
+                          이미지를 누르면 크게 볼 수 있습니다.
+                        </span>
+                      </button>
+                    ) : (
+                      <iframe
+                        src={mobilePage.fileUrl}
+                        title={`${selectedBulletin.title} ${mobilePageIndex + 1}페이지`}
+                        className="h-[520px] w-full border border-gray-200 bg-white"
+                      />
+                    )}
+
+                    {selectedPages.length > 1 && (
+                      <p className="mt-3 text-center text-xs text-gray-400">좌우로 밀거나 화살표를 눌러 넘겨보세요.</p>
+                    )}
+                  </div>
+                )}
+                <div className="hidden space-y-6 md:block">
+                  {selectedPages.map((page, index) => {
+                    const isImage = isImageBulletin(page.fileMime, page.fileName);
+                    return (
+                      <div key={`${page.id}-${page.fileUrl}`} className="mx-auto max-w-[780px]">
+                        <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
+                          <span>{index + 1} / {selectedPages.length}</span>
+                          <span className="truncate">{page.fileName}</span>
+                        </div>
+                        {isImage ? (
+                          <button
+                            type="button"
+                            onClick={() => setLightbox({ bulletinId: selectedBulletin.id, pageIndex: index })}
+                            className="group block w-full cursor-zoom-in border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+                            aria-label={`${selectedBulletin.title} ${index + 1}페이지 크게 보기`}
+                          >
+                            <img
+                              src={page.fileUrl}
+                              alt={`${selectedBulletin.title} ${index + 1}페이지`}
+                              className="h-auto w-full object-contain"
+                            />
+                            <span className="flex items-center justify-center gap-1 border-t border-gray-100 py-2 text-xs text-gray-400 group-hover:text-[#1B5E20]">
+                              <ZoomIn className="h-3.5 w-3.5" />
+                              이미지를 클릭하면 크게 볼 수 있습니다.
+                            </span>
+                          </button>
+                        ) : (
+                          <iframe
+                            src={page.fileUrl}
+                            title={`${selectedBulletin.title} ${index + 1}페이지`}
+                            className="h-[720px] w-full border border-gray-200 bg-white"
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
               <div className="border border-gray-200 bg-white p-4 text-sm">
                 <p className="mb-3 font-semibold text-gray-800">첨부 이미지</p>
