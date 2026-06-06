@@ -6,6 +6,7 @@ import {
   canUseProfileEmailForMemberAutoLink,
   getCanonicalMemberOAuthStartUrl,
   getMemberOAuthProviderStatus,
+  getMemberOAuthProviderScopes,
   getMemberOAuthRedirectUri,
   normalizeGoogleProfile,
   normalizeKakaoProfile,
@@ -67,6 +68,11 @@ describe("member OAuth helpers", () => {
 
     process.env.GOOGLE_OAUTH_CLIENT_SECRET = "google-secret";
     expect(getMemberOAuthProviderStatus().google).toBe(true);
+  });
+
+  it("does not request explicit Kakao consent scopes", () => {
+    expect(getMemberOAuthProviderScopes("kakao")).toEqual([]);
+    expect(getMemberOAuthProviderScopes("google")).toEqual(["openid", "email", "profile"]);
   });
 
   it("구글 프로필을 성도 소셜 프로필로 정규화", () => {

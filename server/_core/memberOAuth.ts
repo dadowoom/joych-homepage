@@ -37,7 +37,7 @@ const providers = {
     authorizeUrl: "https://kauth.kakao.com/oauth/authorize",
     tokenUrl: "https://kauth.kakao.com/oauth/token",
     userInfoUrl: "https://kapi.kakao.com/v2/user/me",
-    scopes: ["account_email", "profile_nickname"],
+    scopes: [],
     clientSecretRequired: false,
   },
 } as const;
@@ -100,6 +100,10 @@ export function getMemberOAuthProviderStatus() {
     google: Boolean(getProviderConfig("google")),
     kakao: Boolean(getProviderConfig("kakao")),
   };
+}
+
+export function getMemberOAuthProviderScopes(provider: "google" | "kakao") {
+  return [...providers[provider].scopes];
 }
 
 function getBaseUrl(req: Request) {
