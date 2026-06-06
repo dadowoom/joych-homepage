@@ -1255,32 +1255,10 @@ export function OnlineOfficePage() {
 
 // ── 탐방 신청 ──
 export function VisitRequestPage() {
-  return (
-    <PageWrapper title="탐방 신청" breadcrumb={["행정지원", "탐방 신청"]}>
-      <div className="max-w-2xl">
-        <div className="bg-[#d8f3dc] rounded-xl p-6 mb-8">
-          <h2 className="font-bold text-[#1b4332] mb-2 flex items-center gap-2">
-            <MapPin className="w-5 h-5" /> 교회 탐방 안내
-          </h2>
-          <p className="text-gray-700 text-sm leading-relaxed">
-            기쁨의교회를 방문하여 교회 시설과 사역을 경험하실 수 있습니다. 단체 탐방이나 일정 문의는 교회 행정실을 통해 안내받아 주세요.
-            단체 탐방(10인 이상)의 경우 최소 2주 전에 문의해 주세요.
-          </p>
-        </div>
-        <OfficeContactBox serviceName="탐방 신청" />
-        <button
-          type="button"
-          onClick={() => notifyOfficeContact("탐방 신청")}
-          className="mt-4 w-full bg-[#2d6a4f] text-white py-3 rounded-lg font-semibold hover:bg-[#1b4332] transition-colors"
-        >
-          행정실 문의 안내
-        </button>
-      </div>
-    </PageWrapper>
-  );
+  return <VisitRequestApplicationPage />;
 }
 
-// ── 기부금 영수증 ──
+// ── 탐방 신청서 ──
 export function VisitRequestApplicationPage() {
   const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState({
@@ -1294,6 +1272,7 @@ export function VisitRequestApplicationPage() {
     visitorType: "church",
     purpose: "",
     message: "",
+    agreePrivacy: false,
   });
 
   const submitVisit = trpc.support.submitVisit.useMutation({
@@ -1310,12 +1289,18 @@ export function VisitRequestApplicationPage() {
         visitorType: "church",
         purpose: "",
         message: "",
+        agreePrivacy: false,
       });
     },
   });
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
+    if (!form.agreePrivacy) {
+      toast.error("개인정보 수집 및 이용에 동의해 주세요.");
+      return;
+    }
+
     submitVisit.mutate({
       organizationName: form.organizationName,
       applicantName: form.applicantName,
@@ -1333,16 +1318,6 @@ export function VisitRequestApplicationPage() {
   return (
     <PageWrapper title="탐방 신청" breadcrumb={["행정지원", "탐방 신청"]}>
       <div className="max-w-4xl">
-        <div className="mb-6 border-t-2 border-[#62B5D1] bg-[#EAF8FC] px-5 py-4">
-          <h2 className="flex items-center gap-2 font-bold text-[#0F607A]">
-            <MapPin className="h-5 w-5" /> 기쁨의교회 탐방 안내
-          </h2>
-          <p className="mt-2 text-sm leading-relaxed text-gray-700">
-            탐방신청은 다른 교회, 기관, 성도님들이 기쁨의교회 예배와 사역, 시설을 방문하기 위해 남기는 공식 접수입니다.
-            단체 탐방은 일정 조율이 필요하므로 가능한 방문 희망일 2주 전까지 신청해 주세요.
-          </p>
-        </div>
-
         {submitted ? (
           <div className="border border-gray-200 bg-white p-10 text-center shadow-sm">
             <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#E8F5E9]">
@@ -1365,10 +1340,10 @@ export function VisitRequestApplicationPage() {
         ) : (
           <div className="border border-gray-200 bg-white shadow-sm">
             <div className="border-b border-gray-100 px-6 py-4">
-              <h2 className="font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-                탐방신청서
+              <h2 className="flex items-center gap-2 font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+                <MapPin className="h-5 w-5 text-[#1B5E20]" /> 탐방신청 글쓰기
               </h2>
-              <p className="mt-1 text-xs text-gray-400">접수된 내용은 관리자만 확인합니다.</p>
+              <p className="mt-1 text-xs text-gray-400">작성한 신청 내용은 관리자만 확인합니다.</p>
             </div>
             <form onSubmit={handleSubmit} className="space-y-5 p-6">
               <div className="grid gap-5 md:grid-cols-2">
@@ -1474,15 +1449,28 @@ export function VisitRequestApplicationPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">문의 및 요청사항</label>
+                <label className="mb-2 block text-sm font-medium text-gray-700">탐방 내용 / 요청사항</label>
                 <textarea
                   value={form.message}
                   onChange={(event) => setForm({ ...form, message: event.target.value })}
                   rows={5}
-                  placeholder="방문 목적, 관심 사역, 안내가 필요한 내용을 적어 주세요."
+                  placeholder="탐방하고 싶은 내용, 관심 사역, 안내가 필요한 내용을 자유롭게 적어 주세요."
                   className="w-full resize-none border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
                 />
               </div>
+
+              <label className="flex items-start gap-3 border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={form.agreePrivacy}
+                  onChange={(event) => setForm({ ...form, agreePrivacy: event.target.checked })}
+                  className="mt-1"
+                />
+                <span>
+                  탐방 신청 접수 및 연락을 위해 입력한 개인정보를 수집·이용하는 데 동의합니다.
+                  <span className="text-red-500"> *</span>
+                </span>
+              </label>
 
               {submitVisit.error && (
                 <p className="text-center text-sm text-red-500">{submitVisit.error.message}</p>
@@ -1494,7 +1482,7 @@ export function VisitRequestApplicationPage() {
                   disabled={submitVisit.isPending}
                   className="w-full bg-[#1B5E20] py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[#2E7D32] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {submitVisit.isPending ? "접수 중..." : "탐방신청 접수하기"}
+                  {submitVisit.isPending ? "등록 중..." : "탐방신청 글 등록하기"}
                 </button>
               </div>
             </form>
