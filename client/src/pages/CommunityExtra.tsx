@@ -9,6 +9,8 @@ import { Link } from "wouter";
 import { ArrowLeft, Users, MessageCircle, Building, MapPin, Receipt, ChevronRight, Phone, FileText, Paperclip, Search, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import SubPageLayout from "@/components/SubPageLayout";
+import { getSupportSideMenuItems } from "@/lib/supportSideMenu";
 
 function notifyOfficeContact(serviceName: string) {
   window.alert(`${serviceName} 온라인 접수 기능은 준비 중입니다. 교회 행정실(054-270-1000)로 문의해 주세요.`);
@@ -58,6 +60,25 @@ function PageWrapper({ title, breadcrumb, children }: { title: string; breadcrum
         {children}
       </div>
     </div>
+  );
+}
+
+function SupportPageWrapper({
+  title,
+  activeHref,
+  children,
+}: {
+  title: string;
+  activeHref: string;
+  children: React.ReactNode;
+}) {
+  const { data: allMenus } = trpc.home.menus.useQuery();
+  const { parentLabel, sideMenuItems } = getSupportSideMenuItems(allMenus, activeHref);
+
+  return (
+    <SubPageLayout pageTitle={title} parentLabel={parentLabel} sideMenuItems={sideMenuItems}>
+      {children}
+    </SubPageLayout>
   );
 }
 
@@ -366,7 +387,7 @@ export function SubtitleRequestPage() {
   const isSaving = submitSubtitle.isPending;
 
   return (
-    <PageWrapper title="자막 신청" breadcrumb={["행정지원", "자막 신청"]}>
+    <SupportPageWrapper title="자막 신청" activeHref="/support/subtitle">
       <div className="space-y-5">
         <div className="border-b border-gray-100 pb-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -735,7 +756,7 @@ export function SubtitleRequestPage() {
           </>
         )}
       </div>
-    </PageWrapper>
+    </SupportPageWrapper>
   );
 }
 
@@ -842,7 +863,7 @@ export function BulletinAdRequestPage() {
   const isSaving = submitBulletinAd.isPending;
 
   return (
-    <PageWrapper title="주보 광고신청" breadcrumb={["행정지원", "주보 광고신청"]}>
+    <SupportPageWrapper title="주보 광고신청" activeHref="/support/bulletin-ad">
       <div className="space-y-5">
         <div className="border-b border-gray-100 pb-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -1193,7 +1214,7 @@ export function BulletinAdRequestPage() {
           </>
         )}
       </div>
-    </PageWrapper>
+    </SupportPageWrapper>
   );
 }
 
@@ -1210,7 +1231,7 @@ const officeServices = [
 
 export function OnlineOfficePage() {
   return (
-    <PageWrapper title="온라인 사무국" breadcrumb={["행정지원", "온라인 사무국"]}>
+    <SupportPageWrapper title="온라인 사무국" activeHref="/support/office">
       <p className="text-gray-600 mb-8">현재 온라인 처리 기능은 순차 준비 중입니다. 접수 가능한 항목과 행정실 문의 항목을 구분해 안내합니다.</p>
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         {officeServices.map((service, i) => {
@@ -1249,7 +1270,7 @@ export function OnlineOfficePage() {
         </div>
         <p className="mt-3 text-[#2d6a4f] font-semibold">📞 054-270-1000</p>
       </div>
-    </PageWrapper>
+    </SupportPageWrapper>
   );
 }
 
@@ -1316,7 +1337,7 @@ export function VisitRequestApplicationPage() {
   };
 
   return (
-    <PageWrapper title="탐방 신청" breadcrumb={["행정지원", "탐방 신청"]}>
+    <SupportPageWrapper title="탐방 신청" activeHref="/support/tour">
       <div className="max-w-4xl">
         {submitted ? (
           <div className="border border-gray-200 bg-white p-10 text-center shadow-sm">
@@ -1489,7 +1510,7 @@ export function VisitRequestApplicationPage() {
           </div>
         )}
       </div>
-    </PageWrapper>
+    </SupportPageWrapper>
   );
 }
 
@@ -1524,7 +1545,7 @@ function fileToBase64(file: File) {
 
 export function DonationReceiptPage() {
   return (
-    <PageWrapper title="기부금 영수증" breadcrumb={["행정지원", "기부금 영수증"]}>
+    <SupportPageWrapper title="기부금 영수증" activeHref="/support/donation">
       <div className="max-w-2xl">
         <div className="bg-[#d8f3dc] rounded-xl p-6 mb-8">
           <h2 className="font-bold text-[#1b4332] mb-2 flex items-center gap-2">
@@ -1551,6 +1572,6 @@ export function DonationReceiptPage() {
           행정실 문의 안내
         </button>
       </div>
-    </PageWrapper>
+    </SupportPageWrapper>
   );
 }
