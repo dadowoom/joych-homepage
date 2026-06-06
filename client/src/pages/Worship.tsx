@@ -278,7 +278,7 @@ export function Bulletin() {
   const filteredBulletins = searchKeyword.trim()
     ? bulletins.filter((bulletin) => bulletin.title.toLowerCase().includes(searchKeyword.trim().toLowerCase()))
     : bulletins;
-  const selectedBulletin = filteredBulletins.find((bulletin) => bulletin.id === expandedId) ?? filteredBulletins[0] ?? null;
+  const selectedBulletin = filteredBulletins.find((bulletin) => bulletin.id === expandedId) ?? null;
   const selectedPages = selectedBulletin ? getBulletinPages(selectedBulletin) : [];
   const lightboxBulletin = lightbox ? bulletins.find((bulletin) => bulletin.id === lightbox.bulletinId) : null;
   const lightboxPages = lightboxBulletin ? getBulletinPages(lightboxBulletin) : [];
@@ -518,13 +518,13 @@ export function Bulletin() {
 
       {lightbox && lightboxPage && (
         <div
-          className="fixed inset-0 z-[100] overflow-auto bg-black/90 px-3 py-16 sm:px-8"
+          className="fixed inset-0 z-[500] overflow-auto bg-black/90 px-3 py-16 sm:px-8"
           role="dialog"
           aria-modal="true"
           aria-label={`${lightboxTitle} 크게 보기`}
           onClick={closeLightbox}
         >
-          <div className="fixed right-3 top-3 z-[101] flex items-center gap-2 sm:right-6 sm:top-6">
+          <div className="fixed right-3 top-3 z-[501] flex items-center gap-2 sm:right-6 sm:top-6">
             <a
               href={lightboxPage.fileUrl}
               target="_blank"
@@ -552,7 +552,7 @@ export function Bulletin() {
               moveLightbox(-1);
             }}
             disabled={lightbox.pageIndex === 0}
-            className="fixed left-2 top-1/2 z-[101] inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 disabled:opacity-20 sm:left-6 sm:h-16 sm:w-16"
+            className="fixed left-2 top-1/2 z-[501] inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 disabled:opacity-20 sm:left-6 sm:h-16 sm:w-16"
             aria-label="이전 페이지"
           >
             <ChevronLeft className="h-11 w-11 sm:h-16 sm:w-16" />
@@ -565,7 +565,7 @@ export function Bulletin() {
               moveLightbox(1);
             }}
             disabled={lightbox.pageIndex >= lightboxPages.length - 1}
-            className="fixed right-2 top-1/2 z-[101] inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 disabled:opacity-20 sm:right-6 sm:h-16 sm:w-16"
+            className="fixed right-2 top-1/2 z-[501] inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 disabled:opacity-20 sm:right-6 sm:h-16 sm:w-16"
             aria-label="다음 페이지"
           >
             <ChevronRight className="h-11 w-11 sm:h-16 sm:w-16" />
