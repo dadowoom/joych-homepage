@@ -7,6 +7,7 @@
 import { useRef, useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
+import SubPageLayout from "@/components/SubPageLayout";
 import { ChevronLeft, ChevronRight, Download, X, ZoomIn } from "lucide-react";
 
 function PageHeader({ title, subtitle, breadcrumb }: { title: string; subtitle?: string; breadcrumb: string[] }) {
@@ -51,6 +52,90 @@ const WORSHIP_NAV = [
   { label: "예배시간 안내", href: "/worship/schedule" },
   { label: "주보 보기", href: "/worship/bulletin" },
 ];
+
+type PublicMenuSubItem = {
+  id: number;
+  label: string;
+  href?: string | null;
+};
+
+type PublicMenuItem = PublicMenuSubItem & {
+  subItems?: PublicMenuSubItem[];
+};
+
+type PublicMenu = {
+  id: number;
+  label: string;
+  href?: string | null;
+  items?: PublicMenuItem[];
+};
+
+const SUPPORT_FALLBACK_SIDE_ITEMS = [
+  { id: -1, label: "주보", href: "/worship/bulletin" },
+  { id: -2, label: "주보 광고신청", href: "/support/bulletin-ad" },
+  { id: -3, label: "자막 신청", href: "/support/subtitle" },
+  { id: -4, label: "온라인사무국", href: "/support/office" },
+  { id: -5, label: "탐방신청", href: "/support/tour" },
+  { id: -6, label: "조이풀빌리지", href: "/support/store" },
+  { id: -7, label: "기부금 영수증", href: "/support/donation" },
+];
+
+function normalizeMenuText(value: string) {
+  return value.replace(/\s+/g, "");
+}
+
+function normalizeHref(value: string | null | undefined) {
+  return value?.trim() ?? "";
+}
+
+function getSpecialSupportHref(label: string, href?: string | null) {
+  const normalized = normalizeMenuText(label);
+  if (normalized === "주보" || normalized === "주보보기") return "/worship/bulletin";
+  if (normalized === "주보광고신청") return "/support/bulletin-ad";
+  if (normalized === "자막신청") return "/support/subtitle";
+  return normalizeHref(href) || null;
+}
+
+function getSupportSideMenuItems(menus: PublicMenu[] | undefined, activeHref: string) {
+  const normalizedActiveHref = normalizeHref(activeHref);
+  const supportMenu =
+    menus?.find((menu) => normalizeMenuText(menu.label) === "행정지원") ??
+    menus?.find((menu) =>
+      (menu.items ?? []).some((item) => {
+        const itemHref = getSpecialSupportHref(item.label, item.href);
+        return itemHref === normalizedActiveHref ||
+          (item.subItems ?? []).some((subItem) => getSpecialSupportHref(subItem.label, subItem.href) === normalizedActiveHref);
+      })
+    );
+
+  const dbItems = supportMenu?.items ?? [];
+  const sourceItems = dbItems.length > 0 ? dbItems : SUPPORT_FALLBACK_SIDE_ITEMS;
+
+  return {
+    parentLabel: supportMenu?.label ?? "행정지원",
+    sideMenuItems: sourceItems.map((item) => {
+      const itemHref = getSpecialSupportHref(item.label, item.href);
+      const subItems = "subItems" in item ? item.subItems ?? [] : [];
+      const mappedSubItems = subItems.map((subItem) => {
+        const subHref = getSpecialSupportHref(subItem.label, subItem.href);
+        return {
+          id: subItem.id,
+          label: subItem.label,
+          href: subHref,
+          isActive: subHref === normalizedActiveHref,
+        };
+      });
+
+      return {
+        id: item.id,
+        label: item.label,
+        href: itemHref,
+        isActive: itemHref === normalizedActiveHref || mappedSubItems.some((subItem) => subItem.isActive),
+        subItems: mappedSubItems,
+      };
+    }),
+  };
+}
 
 // ── 조이풀TV (설교 영상) ─────────────────────────────────────────
 const SERMON_VIDEOS = [
@@ -271,12 +356,14 @@ function getBulletinPages(bulletin: BulletinWithPages) {
 
 export function Bulletin() {
   const { data: bulletins = [], isLoading } = trpc.home.bulletins.useQuery();
+  const { data: allMenus } = trpc.home.menus.useQuery();
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);
   const [lightbox, setLightbox] = useState<{ bulletinId: number; pageIndex: number } | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
   const touchStartXRef = useRef<number | null>(null);
+  const { parentLabel, sideMenuItems } = getSupportSideMenuItems(allMenus, "/worship/bulletin");
   const filteredBulletins = searchKeyword.trim()
     ? bulletins.filter((bulletin) => bulletin.title.toLowerCase().includes(searchKeyword.trim().toLowerCase()))
     : bulletins;
@@ -314,10 +401,8 @@ export function Bulletin() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F7F7F5]">
-      <PageHeader title="주보 보기" subtitle="기쁨의교회 주보를 확인하고 내려받을 수 있습니다" breadcrumb={["조이풀TV", "주보 보기"]} />
-      <SubNav items={WORSHIP_NAV} />
-      <div className="max-w-5xl mx-auto px-4 py-14">
+    <SubPageLayout pageTitle="주보 보기" parentLabel={parentLabel} sideMenuItems={sideMenuItems}>
+      <div className="max-w-5xl">
         <div className="mb-5 border-b border-gray-100 pb-4">
           <p className="text-sm text-gray-500">
             총 <span className="font-semibold text-[#1B5E20]">{bulletins.length}</span>개의 주보
@@ -674,6 +759,6 @@ export function Bulletin() {
           </div>
         </div>
       )}
-    </div>
+    </SubPageLayout>
   );
 }
