@@ -12,13 +12,17 @@
 import { and, eq, asc, desc } from "drizzle-orm";
 import type { ResultSetHeader } from "mysql2";
 import {
+  bulletinAdRequests,
   churchMembers,
+  courseApplications,
+  freeBoardPosts,
   memberFieldOptions,
   memberSocialAccounts,
   missionReportAuthors,
   missionReports,
   reservations,
   schoolPosts,
+  subtitleRequests,
   testimonyComments,
   testimonyPosts,
 } from "../../drizzle/schema";
@@ -324,6 +328,73 @@ export async function withdrawMemberAndErasePersonalData(id: number) {
 }
 
 // ─── 관리자 전용 ──────────────────────────────────────────────────────────────
+
+export type AdminHardDeleteMemberResult =
+  | { deleted: true }
+  | {
+      deleted: false;
+      reason: "not_found" | "not_withdrawn" | "has_related_records";
+      related?: string[];
+    };
+
+/** 관리자: 탈퇴 상태이며 연결 기록이 없는 성도만 완전삭제 */
+export async function adminHardDeleteMember(id: number): Promise<AdminHardDeleteMemberResult> {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+
+  return db.transaction(async (tx) => {
+    const [member] = await tx
+      .select({ id: churchMembers.id, status: churchMembers.status })
+      .from(churchMembers)
+      .where(eq(churchMembers.id, id))
+      .limit(1);
+
+    if (!member) return { deleted: false, reason: "not_found" };
+    if (member.status !== "withdrawn") return { deleted: false, reason: "not_withdrawn" };
+
+    const related: string[] = [];
+
+    if ((await tx.select({ id: freeBoardPosts.id }).from(freeBoardPosts).where(eq(freeBoardPosts.authorMemberId, id)).limit(1))[0]) {
+      related.push("자유게시판");
+    }
+    if ((await tx.select({ id: subtitleRequests.id }).from(subtitleRequests).where(eq(subtitleRequests.memberId, id)).limit(1))[0]) {
+      related.push("자막신청");
+    }
+    if ((await tx.select({ id: bulletinAdRequests.id }).from(bulletinAdRequests).where(eq(bulletinAdRequests.memberId, id)).limit(1))[0]) {
+      related.push("주보 광고신청");
+    }
+    if ((await tx.select({ id: courseApplications.id }).from(courseApplications).where(eq(courseApplications.memberId, id)).limit(1))[0]) {
+      related.push("강좌 신청");
+    }
+    if ((await tx.select({ id: reservations.id }).from(reservations).where(eq(reservations.userId, id)).limit(1))[0]) {
+      related.push("시설 예약");
+    }
+    if ((await tx.select({ id: missionReportAuthors.id }).from(missionReportAuthors).where(eq(missionReportAuthors.memberId, id)).limit(1))[0]) {
+      related.push("선교보고 권한");
+    }
+    if ((await tx.select({ id: missionReports.id }).from(missionReports).where(eq(missionReports.authorMemberId, id)).limit(1))[0]) {
+      related.push("선교보고");
+    }
+    if ((await tx.select({ id: testimonyPosts.id }).from(testimonyPosts).where(eq(testimonyPosts.authorMemberId, id)).limit(1))[0]) {
+      related.push("간증 게시글");
+    }
+    if ((await tx.select({ id: testimonyComments.id }).from(testimonyComments).where(eq(testimonyComments.authorMemberId, id)).limit(1))[0]) {
+      related.push("간증 댓글");
+    }
+    if ((await tx.select({ id: schoolPosts.id }).from(schoolPosts).where(eq(schoolPosts.memberId, id)).limit(1))[0]) {
+      related.push("교회학교 게시글");
+    }
+
+    if (related.length > 0) {
+      return { deleted: false, reason: "has_related_records", related };
+    }
+
+    await tx.delete(memberSocialAccounts).where(eq(memberSocialAccounts.memberId, id));
+    await tx.delete(churchMembers).where(eq(churchMembers.id, id));
+
+    return { deleted: true };
+  });
+}
 
 /** 관리자: 성도 전체 정보 수정 (기본정보 + 교회정보 통합) */
 export async function adminUpdateMember(id: number, data: Partial<{

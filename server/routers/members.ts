@@ -48,6 +48,7 @@ import {
   createMember,
   updateMemberBasicInfo,
   updateMemberChurchInfo,
+  adminHardDeleteMember,
   adminUpdateMember,
   adminResetMemberPassword,
   getAllMembers,
@@ -340,6 +341,28 @@ export const membersRouter = router({
     .mutation(({ input }) => {
       const { id, ...data } = input;
       return updateMemberChurchInfo(id, data);
+    }),
+
+  /** 성도 완전삭제 (관리자: 탈퇴 상태이며 연결 기록이 없는 경우만) */
+  hardDelete: adminProcedure
+    .input(z.object({ id: idSchema }))
+    .mutation(async ({ input }) => {
+      const result = await adminHardDeleteMember(input.id);
+
+      if (result.deleted) return { success: true };
+
+      if (result.reason === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "이미 삭제되었거나 존재하지 않는 성도입니다." });
+      }
+
+      if (result.reason === "not_withdrawn") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "완전삭제는 탈퇴 상태 성도에게만 사용할 수 있습니다." });
+      }
+
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `연결된 기록이 있어 완전삭제할 수 없습니다. 탈퇴 보관으로 유지해주세요. (${result.related?.join(", ")})`,
+      });
     }),
 
   /** 선택지 전체 목록 조회 (관리자 — 비활성 포함) */
