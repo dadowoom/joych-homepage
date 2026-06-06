@@ -28,6 +28,7 @@ function getSpecialMenuHref(label?: string | null) {
   const normalized = normalizeMenuLabel(label ?? "");
   if (normalized === "주보보기") return "/worship/bulletin";
   if (normalized === "주보광고신청") return "/support/bulletin-ad";
+  if (normalized === "자막신청") return "/support/subtitle";
   return null;
 }
 

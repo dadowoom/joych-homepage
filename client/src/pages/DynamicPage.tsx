@@ -104,6 +104,10 @@ function isBulletinAdRequestMenuItem(item: DynamicPageItem) {
   return item.label.replace(/\s+/g, "") === "주보광고신청";
 }
 
+function isSubtitleRequestMenuItem(item: DynamicPageItem) {
+  return item.label.replace(/\s+/g, "") === "자막신청";
+}
+
 function getRepresentativeSubItemHref(subItems: DynamicPageSubItem[] | undefined) {
   const items = subItems ?? [];
   const bulletinView = items.find((sub) => sub.label.replace(/\s+/g, "") === "주보보기");
@@ -234,6 +238,7 @@ function MenuItemPageContent({
   const staffCategory = getStaffCategoryForMenuItem(item);
   const shouldRedirectToBulletinView = isBulletinViewMenuItem(item);
   const shouldRedirectToBulletinAd = isBulletinAdRequestMenuItem(item);
+  const shouldRedirectToSubtitle = isSubtitleRequestMenuItem(item);
   const firstSubItemHref = getFirstSubItemHref(allMenus, item.id);
   const shouldRedirectToFirstSubItem =
     !staffCategory &&
@@ -251,6 +256,10 @@ function MenuItemPageContent({
       setLocation("/support/bulletin-ad");
       return;
     }
+    if (shouldRedirectToSubtitle) {
+      setLocation("/support/subtitle");
+      return;
+    }
     if (shouldRedirectToFirstSubItem && firstSubItemHref) {
       setLocation(firstSubItemHref);
     }
@@ -259,6 +268,7 @@ function MenuItemPageContent({
     setLocation,
     shouldRedirectToBulletinAd,
     shouldRedirectToBulletinView,
+    shouldRedirectToSubtitle,
     shouldRedirectToFirstSubItem,
   ]);
 
@@ -278,7 +288,7 @@ function MenuItemPageContent({
     );
   }
 
-  if (shouldRedirectToBulletinView || shouldRedirectToBulletinAd) {
+  if (shouldRedirectToBulletinView || shouldRedirectToBulletinAd || shouldRedirectToSubtitle) {
     return <LoadingDynamicPage />;
   }
 
@@ -351,6 +361,7 @@ function MenuSubItemPageContent({
 
   const shouldRedirectToBulletinView = isBulletinViewMenuItem(item);
   const shouldRedirectToBulletinAd = isBulletinAdRequestMenuItem(item);
+  const shouldRedirectToSubtitle = isSubtitleRequestMenuItem(item);
 
   useEffect(() => {
     if (shouldRedirectToBulletinView) {
@@ -359,10 +370,14 @@ function MenuSubItemPageContent({
     }
     if (shouldRedirectToBulletinAd) {
       setLocation("/support/bulletin-ad");
+      return;
     }
-  }, [setLocation, shouldRedirectToBulletinAd, shouldRedirectToBulletinView]);
+    if (shouldRedirectToSubtitle) {
+      setLocation("/support/subtitle");
+    }
+  }, [setLocation, shouldRedirectToBulletinAd, shouldRedirectToBulletinView, shouldRedirectToSubtitle]);
 
-  if (shouldRedirectToBulletinView || shouldRedirectToBulletinAd) {
+  if (shouldRedirectToBulletinView || shouldRedirectToBulletinAd || shouldRedirectToSubtitle) {
     return <LoadingDynamicPage />;
   }
 

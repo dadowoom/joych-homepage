@@ -71,11 +71,12 @@ const menuItemsData = {
   ],
   '행정지원': [
     { label: '주보', href: '/worship/bulletin', sortOrder: 1 },
-    { label: '자막 신청', href: '/admin/subtitle', sortOrder: 2 },
-    { label: '온라인사무국', href: '/admin/office', sortOrder: 3 },
-    { label: '탐방신청', href: '/support/tour', sortOrder: 4 },
-    { label: '조이풀빌리지', href: '/admin/store', sortOrder: 5 },
-    { label: '기부금 영수증', href: '/admin/donation', sortOrder: 6 },
+    { label: '주보 광고신청', href: '/support/bulletin-ad', sortOrder: 2 },
+    { label: '자막 신청', href: '/support/subtitle', sortOrder: 3 },
+    { label: '온라인사무국', href: '/support/office', sortOrder: 4 },
+    { label: '탐방신청', href: '/support/tour', sortOrder: 5 },
+    { label: '조이풀빌리지', href: '/support/store', sortOrder: 6 },
+    { label: '기부금 영수증', href: '/support/donation', sortOrder: 7 },
   ],
 };
 

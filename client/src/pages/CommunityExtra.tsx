@@ -386,7 +386,7 @@ export function SubtitleRequestPage() {
               onClick={handleWriteClick}
               className="inline-flex h-10 items-center justify-center rounded-md bg-[#1B5E20] px-4 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32]"
             >
-              {showForm ? "작성 닫기" : "글쓰기"}
+              {showForm ? "작성 닫기" : "자막 신청서 작성"}
             </button>
           </div>
         </div>
@@ -862,7 +862,7 @@ export function BulletinAdRequestPage() {
               onClick={handleWriteClick}
               className="inline-flex h-10 items-center justify-center rounded-md bg-[#1B5E20] px-4 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32]"
             >
-              {showForm ? "작성 닫기" : "글쓰기"}
+              {showForm ? "작성 닫기" : "주보 광고신청서 작성"}
             </button>
           </div>
         </div>
