@@ -29,7 +29,7 @@ const KakaoDirectionsMap = lazy(
 const FALLBACK_HERO_SLIDES = [
   {
     videoUrl: "",
-    posterUrl: "/og-image-main1.jpg",
+    posterUrl: "",
     yearLabel: "2026 JOYFUL",
     mainTitle: "처음 익은 열매로\n여호와를 공경하라",
     subTitle: "네 재물과 네 소산물의 처음 익은 열매로 여호와를 공경하라",
@@ -252,8 +252,11 @@ export default function Home() {
   const currentHeroSlide = heroSlides[heroIndex] ?? heroSlides[0] ?? null;
   const currentHeroVideoUrl = currentHeroSlide?.videoUrl?.trim() ?? "";
   const currentHeroPosterUrl = currentHeroSlide?.posterUrl?.trim() ?? "";
+  const isFallbackHeroSlide =
+    currentHeroSlide != null && !("id" in currentHeroSlide);
   const visibleHeroPosterUrl =
-    currentHeroPosterUrl || FALLBACK_HERO_SLIDES[0]?.posterUrl || "";
+    currentHeroPosterUrl ||
+    (isFallbackHeroSlide ? FALLBACK_HERO_SLIDES[0]?.posterUrl || "" : "");
   const currentHeroKey = currentHeroSlide
     ? `${"id" in currentHeroSlide ? currentHeroSlide.id : "fallback"}-${heroIndex}-${currentHeroVideoUrl}`
     : "hero-loading";
