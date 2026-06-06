@@ -96,6 +96,10 @@ function isRepresentativeLinkSecondLevelItem(item: DynamicPageItem) {
   return item.label.replace(/\s+/g, "") === "주보";
 }
 
+function isBulletinViewMenuItem(item: DynamicPageItem) {
+  return item.label.replace(/\s+/g, "") === "주보보기";
+}
+
 function isBulletinAdRequestMenuItem(item: DynamicPageItem) {
   return item.label.replace(/\s+/g, "") === "주보광고신청";
 }
@@ -228,6 +232,7 @@ function MenuItemPageContent({
   const isContainerOnly = isContainerOnlySecondLevelItem(item) && itemSubItems.length > 0;
   const sideItems = getSecondLevelSideMenuItems(parentMenu, item.id, activeHref);
   const staffCategory = getStaffCategoryForMenuItem(item);
+  const shouldRedirectToBulletinView = isBulletinViewMenuItem(item);
   const shouldRedirectToBulletinAd = isBulletinAdRequestMenuItem(item);
   const firstSubItemHref = getFirstSubItemHref(allMenus, item.id);
   const shouldRedirectToFirstSubItem =
@@ -238,6 +243,10 @@ function MenuItemPageContent({
     decodePath(firstSubItemHref ?? "") !== decodePath(activeHref ?? "");
 
   useEffect(() => {
+    if (shouldRedirectToBulletinView) {
+      setLocation("/worship/bulletin");
+      return;
+    }
     if (shouldRedirectToBulletinAd) {
       setLocation("/support/bulletin-ad");
       return;
@@ -245,7 +254,13 @@ function MenuItemPageContent({
     if (shouldRedirectToFirstSubItem && firstSubItemHref) {
       setLocation(firstSubItemHref);
     }
-  }, [firstSubItemHref, setLocation, shouldRedirectToBulletinAd, shouldRedirectToFirstSubItem]);
+  }, [
+    firstSubItemHref,
+    setLocation,
+    shouldRedirectToBulletinAd,
+    shouldRedirectToBulletinView,
+    shouldRedirectToFirstSubItem,
+  ]);
 
   if (staffCategory) {
     return <StaffPage initialCategory={staffCategory} />;
@@ -263,7 +278,7 @@ function MenuItemPageContent({
     );
   }
 
-  if (shouldRedirectToBulletinAd) {
+  if (shouldRedirectToBulletinView || shouldRedirectToBulletinAd) {
     return <LoadingDynamicPage />;
   }
 
@@ -334,15 +349,20 @@ function MenuSubItemPageContent({
     if (parentItemLabel) break;
   }
 
+  const shouldRedirectToBulletinView = isBulletinViewMenuItem(item);
   const shouldRedirectToBulletinAd = isBulletinAdRequestMenuItem(item);
 
   useEffect(() => {
+    if (shouldRedirectToBulletinView) {
+      setLocation("/worship/bulletin");
+      return;
+    }
     if (shouldRedirectToBulletinAd) {
       setLocation("/support/bulletin-ad");
     }
-  }, [setLocation, shouldRedirectToBulletinAd]);
+  }, [setLocation, shouldRedirectToBulletinAd, shouldRedirectToBulletinView]);
 
-  if (shouldRedirectToBulletinAd) {
+  if (shouldRedirectToBulletinView || shouldRedirectToBulletinAd) {
     return <LoadingDynamicPage />;
   }
 

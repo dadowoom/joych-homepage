@@ -24,6 +24,13 @@ function normalizeMenuLabel(label: string) {
   return label.replace(/\s+/g, "");
 }
 
+function getSpecialMenuHref(label?: string | null) {
+  const normalized = normalizeMenuLabel(label ?? "");
+  if (normalized === "주보보기") return "/worship/bulletin";
+  if (normalized === "주보광고신청") return "/support/bulletin-ad";
+  return null;
+}
+
 function isContainerOnlySecondLevelItem(item: unknown) {
   const data = item as Record<string, unknown>;
   const label = typeof data.label === "string" ? normalizeMenuLabel(data.label) : "";
@@ -42,7 +49,7 @@ function getRepresentativeSubItemHref(item: unknown) {
   };
   const subItems = data.subItems ?? [];
   const bulletinView = subItems.find((sub) => normalizeMenuLabel(sub.label ?? "") === "주보보기");
-  return getUsableHref(bulletinView?.href) ?? getUsableHref(subItems.find((sub) => getUsableHref(sub.href))?.href);
+  return getSpecialMenuHref(bulletinView?.label) ?? getUsableHref(bulletinView?.href) ?? getUsableHref(subItems.find((sub) => getUsableHref(sub.href))?.href);
 }
 
 function hasOwnSecondLevelContent(item: unknown) {
@@ -57,6 +64,9 @@ function hasOwnSecondLevelContent(item: unknown) {
 }
 
 function getSecondLevelHref(item: unknown, hasSubItems: boolean) {
+  const specialHref = getSpecialMenuHref((item as { label?: string | null }).label);
+  if (specialHref) return specialHref;
+
   if (hasSubItems) {
     if (isContainerOnlySecondLevelItem(item)) return null;
     if (isRepresentativeLinkSecondLevelItem(item)) {
@@ -66,6 +76,10 @@ function getSecondLevelHref(item: unknown, hasSubItems: boolean) {
   }
 
   return getUsableHref((item as { href?: string | null }).href);
+}
+
+function getThirdLevelHref(item: { label?: string | null; href?: string | null }) {
+  return getSpecialMenuHref(item.label) ?? getUsableHref(item.href);
 }
 
 const fallbackMenus = toFallbackMenuTree();
@@ -362,16 +376,17 @@ export default function SiteHeader() {
                               {hasSubItems && (
                                 <ul className="absolute left-full top-0 bg-white border-l-2 border-[#1B5E20] shadow-xl min-w-[150px] z-[300] py-1 opacity-0 invisible group-hover/sub:opacity-100 group-hover/sub:visible transition-all duration-150">
                                   {subItems.map((sub, k) => {
+                                    const thirdLevelHref = getThirdLevelHref(sub);
                                     const subCls =
                                       "block px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
                                     return (
                                       <li key={k}>
-                                        {getUsableHref(sub.href) ? (
+                                        {thirdLevelHref ? (
                                           isExternalHref(
-                                            getUsableHref(sub.href)!
+                                            thirdLevelHref
                                           ) ? (
                                             <a
-                                              href={getUsableHref(sub.href)!}
+                                              href={thirdLevelHref}
                                               target="_blank"
                                               rel="noopener noreferrer"
                                               className={subCls}
@@ -380,7 +395,7 @@ export default function SiteHeader() {
                                             </a>
                                           ) : (
                                             <Link
-                                              href={getUsableHref(sub.href)!}
+                                              href={thirdLevelHref}
                                               className={subCls}
                                             >
                                               {translateSiteText(sub.label, language)}
@@ -605,13 +620,14 @@ export default function SiteHeader() {
                             {/* 3단 메뉴 */}
                             {hasSubItems && mobileExpandedSubId === item.id && (
                               <div className="bg-white">
-                                {subItems.map(sub =>
-                                  sub.href ? (
-                                    sub.href.startsWith("http://") ||
-                                    sub.href.startsWith("https://") ? (
+                                {subItems.map(sub => {
+                                  const thirdLevelHref = getThirdLevelHref(sub);
+                                  return thirdLevelHref ? (
+                                    thirdLevelHref.startsWith("http://") ||
+                                    thirdLevelHref.startsWith("https://") ? (
                                       <a
                                         key={sub.id}
-                                        href={sub.href}
+                                        href={thirdLevelHref}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="block pl-12 pr-5 py-2 text-sm text-gray-500 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
@@ -622,7 +638,7 @@ export default function SiteHeader() {
                                     ) : (
                                       <Link
                                         key={sub.id}
-                                        href={sub.href}
+                                        href={thirdLevelHref}
                                         className="block pl-12 pr-5 py-2 text-sm text-gray-500 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
                                         onClick={() => setMobileOpen(false)}
                                       >
@@ -637,7 +653,7 @@ export default function SiteHeader() {
                                       {translateSiteText(sub.label, language)}
                                     </span>
                                   )
-                                )}
+                                })}
                               </div>
                             )}
                           </div>
