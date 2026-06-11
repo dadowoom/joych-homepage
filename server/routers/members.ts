@@ -42,6 +42,7 @@ import {
   getAllMemberFieldOptions,
   createMemberFieldOption,
   updateMemberFieldOption,
+  reorderMemberFieldOptions,
   deleteMemberFieldOption,
   getMemberByEmail,
   getMemberById,
@@ -392,6 +393,14 @@ export const membersRouter = router({
       const { id, ...data } = input;
       return updateMemberFieldOption(id, data);
     }),
+
+  /** 선택지 순서 변경 (관리자) */
+  reorderFieldOptions: adminProcedure
+    .input(z.array(z.object({
+      id: idSchema,
+      sortOrder: z.number().int().min(0).max(10000),
+    })).min(1).max(500))
+    .mutation(({ input }) => reorderMemberFieldOptions(input)),
 
   /** 선택지 삭제 (관리자) */
   deleteFieldOption: adminProcedure

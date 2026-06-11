@@ -76,6 +76,21 @@ export async function updateMemberFieldOption(id: number, data: Partial<{ label:
   await db.update(memberFieldOptions).set(data).where(eq(memberFieldOptions.id, id));
 }
 
+/** 선택지 순서 일괄 수정 */
+export async function reorderMemberFieldOptions(items: { id: number; sortOrder: number }[]) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  if (items.length === 0) return;
+
+  await Promise.all(
+    items.map((item) =>
+      db.update(memberFieldOptions)
+        .set({ sortOrder: item.sortOrder })
+        .where(eq(memberFieldOptions.id, item.id))
+    )
+  );
+}
+
 /** 선택지 삭제 */
 export async function deleteMemberFieldOption(id: number) {
   const db = await getDb();
