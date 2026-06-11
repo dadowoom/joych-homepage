@@ -496,7 +496,7 @@ export default function AdminPage() {
 
         <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start">
           {/* 업무 그룹 내비게이션 */}
-          <aside className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:sticky lg:top-6">
+          <aside className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:sticky lg:top-6 lg:flex lg:max-h-[calc(100vh-3rem)] lg:flex-col lg:overflow-hidden">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm font-bold text-[#0F172A]">업무 메뉴</h2>
@@ -509,7 +509,7 @@ export default function AdminPage() {
               </span>
             </div>
 
-            <nav className="flex gap-3 overflow-x-auto pb-1 lg:block lg:space-y-5 lg:overflow-visible lg:pb-0">
+            <nav className="flex gap-3 overflow-x-auto pb-1 lg:block lg:min-h-0 lg:flex-1 lg:space-y-5 lg:overflow-x-hidden lg:overflow-y-auto lg:pb-0 lg:pr-1">
               {TAB_GROUPS.map(group => (
                 <section
                   key={group.title}
