@@ -27,7 +27,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, GripVertical } from "lucide-react";
+import { Plus, Pencil, Trash2, GripVertical, ChevronUp, ChevronDown } from "lucide-react";
 
 type FieldType = "position" | "department" | "district" | "baptism";
 
@@ -55,12 +55,22 @@ const FIELD_TYPE_COLORS: Record<FieldType, string> = {
 
 function SortableOptionItem({
   option,
+  canMoveUp,
+  canMoveDown,
+  isSaving,
   onEdit,
   onDelete,
+  onMoveUp,
+  onMoveDown,
 }: {
   option: MemberFieldOptionRow;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  isSaving: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: option.id });
@@ -94,6 +104,26 @@ function SortableOptionItem({
         )}
       </div>
       <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onMoveUp}
+          disabled={!canMoveUp || isSaving}
+          title="위로 이동"
+          className="h-8 w-8 p-0 text-gray-500 hover:text-[#1B5E20] disabled:opacity-30"
+        >
+          <ChevronUp className="w-3.5 h-3.5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onMoveDown}
+          disabled={!canMoveDown || isSaving}
+          title="아래로 이동"
+          className="h-8 w-8 p-0 text-gray-500 hover:text-[#1B5E20] disabled:opacity-30"
+        >
+          <ChevronDown className="w-3.5 h-3.5" />
+        </Button>
         <Button
           variant="ghost"
           size="sm"
@@ -197,7 +227,30 @@ export default function AdminMemberOptionsTab() {
     deleteMutation.mutate({ id });
   };
 
+  const saveOrder = (reordered: MemberFieldOptionRow[]) => {
+    setLocalOrder(reordered);
+    reorderMutation.mutate(reordered.map((option, index) => ({
+      id: option.id,
+      sortOrder: index + 1,
+    })));
+  };
+
+  const handleMoveOption = (id: number, direction: "up" | "down") => {
+    if (reorderMutation.isPending) return;
+
+    const current = localOrder ?? filteredOptions;
+    const oldIndex = current.findIndex((option) => option.id === id);
+    if (oldIndex === -1) return;
+
+    const newIndex = direction === "up" ? oldIndex - 1 : oldIndex + 1;
+    if (newIndex < 0 || newIndex >= current.length) return;
+
+    saveOrder(arrayMove(current, oldIndex, newIndex));
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
+    if (reorderMutation.isPending) return;
+
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -206,12 +259,7 @@ export default function AdminMemberOptionsTab() {
     const newIndex = current.findIndex((option) => option.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
 
-    const reordered = arrayMove(current, oldIndex, newIndex);
-    setLocalOrder(reordered);
-    reorderMutation.mutate(reordered.map((option, index) => ({
-      id: option.id,
-      sortOrder: index + 1,
-    })));
+    saveOrder(arrayMove(current, oldIndex, newIndex));
   };
 
   return (
@@ -273,15 +321,20 @@ export default function AdminMemberOptionsTab() {
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={displayedOptions.map((option) => option.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-2">
-                  {displayedOptions.map((option) => (
+                  {displayedOptions.map((option, index) => (
                     <SortableOptionItem
                       key={option.id}
                       option={option}
+                      canMoveUp={index > 0}
+                      canMoveDown={index < displayedOptions.length - 1}
+                      isSaving={reorderMutation.isPending}
                       onEdit={() => {
                         setEditItem({ id: option.id, label: option.label });
                         setEditDialogOpen(true);
                       }}
                       onDelete={() => handleDelete(option.id, option.label)}
+                      onMoveUp={() => handleMoveOption(option.id, "up")}
+                      onMoveDown={() => handleMoveOption(option.id, "down")}
                     />
                   ))}
                 </div>
