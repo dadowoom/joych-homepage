@@ -20,14 +20,13 @@ const PURPOSE_OPTIONS = [
   "찬양 연습", "강의/세미나", "회의", "바자회/전시", "외부 단체 행사", "기타",
 ];
 
-type RepeatType = "none" | "weekly" | "biweekly" | "monthly-date" | "monthly-weekday";
+type RepeatType = "none" | "daily" | "weekly" | "monthly-weekday";
 
 const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
   { value: "none", label: "반복 없음" },
+  { value: "daily", label: "매일" },
   { value: "weekly", label: "매주" },
-  { value: "biweekly", label: "2주마다" },
-  { value: "monthly-date", label: "매월 같은 날짜" },
-  { value: "monthly-weekday", label: "매월 같은 주/요일" },
+  { value: "monthly-weekday", label: "매월 같은 주" },
 ];
 
 // // ── 시간 슬롯 생성 헬퍼 ──────────────────────────────────

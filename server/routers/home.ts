@@ -71,7 +71,7 @@ const staffCategorySchema = z.string().trim().min(1).max(64).regex(/^[a-z0-9][a-
 const translationLocaleSchema = z.enum(["ja"]);
 const courseMemoSchema = z.string().trim().max(2000, "신청 메모는 2000자 이하로 입력해주세요.").optional();
 const reservationRepeatSchema = z.object({
-  type: z.enum(["none", "weekly", "biweekly", "monthly-date", "monthly-weekday"]).default("none"),
+  type: z.enum(["none", "daily", "weekly", "monthly-weekday"]).default("none"),
   count: z.number().int().min(1).max(52).optional(),
   untilDate: z.string().regex(DATE_RE, "반복 종료일 형식이 올바르지 않습니다.").optional(),
 }).optional();
@@ -108,13 +108,6 @@ function parseDateKey(dateKey: string) {
 
 function addUtcDays(date: Date, days: number) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + days));
-}
-
-function addUtcMonthsPreserveDay(date: Date, months: number) {
-  const targetMonth = date.getUTCMonth() + months;
-  const next = new Date(Date.UTC(date.getUTCFullYear(), targetMonth, date.getUTCDate()));
-  const expectedMonth = ((targetMonth % 12) + 12) % 12;
-  return next.getUTCMonth() === expectedMonth ? next : null;
 }
 
 function formatDateKey(date: Date) {
@@ -163,9 +156,8 @@ function buildReservationDates(
 
   for (let step = 0; dates.length < limit && step < 120; step++) {
     let candidate: Date | null = null;
+    if (type === "daily") candidate = addUtcDays(startDate, step);
     if (type === "weekly") candidate = addUtcDays(startDate, step * 7);
-    if (type === "biweekly") candidate = addUtcDays(startDate, step * 14);
-    if (type === "monthly-date") candidate = addUtcMonthsPreserveDay(startDate, step);
     if (type === "monthly-weekday") {
       const monthStart = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + step, 1));
       candidate = nthWeekdayDate(
@@ -193,10 +185,9 @@ function describeReservationRepeat(
 ) {
   const labelByType: Record<NonNullable<typeof repeat>["type"], string> = {
     none: "반복 없음",
+    daily: "매일 반복",
     weekly: "매주 반복",
-    biweekly: "2주마다 반복",
-    "monthly-date": "매월 같은 날짜 반복",
-    "monthly-weekday": "매월 같은 주/요일 반복",
+    "monthly-weekday": "매월 같은 주 반복",
   };
   const suffix = repeat.untilDate ? ` · ${repeat.untilDate}까지` : ` · 총 ${count}회`;
   return `${labelByType[repeat.type ?? "none"]}${suffix}`;
