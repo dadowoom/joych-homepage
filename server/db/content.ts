@@ -10,7 +10,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { and, eq, asc, like, not } from "drizzle-orm";
+import { and, eq, asc, desc, isNull, like, not } from "drizzle-orm";
 import {
   heroSlides, galleryItems, affiliates, quickMenus, siteSettings,
   InsertAffiliate, InsertGalleryItem,
@@ -84,7 +84,15 @@ export async function getVisibleGalleryItems() {
   if (!db) return [];
   return db.select().from(galleryItems)
     .where(eq(galleryItems.isVisible, true))
-    .orderBy(asc(galleryItems.sortOrder));
+    .orderBy(desc(galleryItems.albumSortOrder), asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
+}
+
+export async function getVisibleHomeGalleryItems() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(galleryItems)
+    .where(and(eq(galleryItems.isVisible, true), eq(galleryItems.isHomeGallery, true)))
+    .orderBy(asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
 }
 
 /** 갤러리 이미지 수정 */
@@ -162,6 +170,28 @@ export async function reorderGalleryItems(items: { id: number; sortOrder: number
     items.map(item =>
       db.update(galleryItems).set({ sortOrder: item.sortOrder }).where(eq(galleryItems.id, item.id))
     )
+  );
+}
+
+export async function reorderGalleryAlbums(items: { albumKey?: string | null; albumTitle?: string | null; albumSortOrder: number }[]) {
+  const db = await getDb();
+  if (!db) return;
+  await Promise.all(
+    items.map(item => {
+      if (item.albumKey) {
+        return db.update(galleryItems)
+          .set({ albumSortOrder: item.albumSortOrder })
+          .where(eq(galleryItems.albumKey, item.albumKey));
+      }
+
+      if (item.albumTitle) {
+        return db.update(galleryItems)
+          .set({ albumSortOrder: item.albumSortOrder })
+          .where(and(isNull(galleryItems.albumKey), eq(galleryItems.albumTitle, item.albumTitle)));
+      }
+
+      return Promise.resolve();
+    })
   );
 }
 
@@ -331,18 +361,30 @@ export async function deleteAffiliate(id: number) {
 export async function getAllGalleryItems() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(galleryItems).orderBy(asc(galleryItems.sortOrder));
+  return db.select().from(galleryItems)
+    .orderBy(desc(galleryItems.albumSortOrder), asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
 }
 /** 갤러리 새 항목 추가 */
-export async function createGalleryItem(data: { imageUrl: string; caption?: string; gridSpan?: string; sortOrder?: number }) {
+export async function getAllHomeGalleryItems() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(galleryItems)
+    .where(eq(galleryItems.isHomeGallery, true))
+    .orderBy(asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
+}
+export async function createGalleryItem(data: { imageUrl: string; albumKey?: string; albumTitle?: string; albumSortOrder?: number; caption?: string; gridSpan?: string; sortOrder?: number; isHomeGallery?: boolean }) {
   const db = await getDb();
   if (!db) return;
   await db.insert(galleryItems).values({
     imageUrl: data.imageUrl,
+    albumKey: data.albumKey ?? null,
+    albumTitle: data.albumTitle ?? null,
+    albumSortOrder: data.albumSortOrder ?? Math.floor(Date.now() / 1000),
     caption: data.caption ?? null,
     gridSpan: data.gridSpan ?? "col-span-1 row-span-1",
     sortOrder: data.sortOrder ?? 999,
     isVisible: true,
+    isHomeGallery: data.isHomeGallery ?? false,
   });
 }
 /** 갤러리 항목 삭제 */

@@ -20,6 +20,16 @@ const PURPOSE_OPTIONS = [
   "찬양 연습", "강의/세미나", "회의", "바자회/전시", "외부 단체 행사", "기타",
 ];
 
+type RepeatType = "none" | "weekly" | "biweekly" | "monthly-date" | "monthly-weekday";
+
+const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
+  { value: "none", label: "반복 없음" },
+  { value: "weekly", label: "매주" },
+  { value: "biweekly", label: "2주마다" },
+  { value: "monthly-date", label: "매월 같은 날짜" },
+  { value: "monthly-weekday", label: "매월 같은 주/요일" },
+];
+
 // // ── 시간 슬롯 생성 헬퍼 ──────────────────────────────────
 // 종료 시간(closeTime)도 슬롯에 포함 (예: 09:00~22:00 시 22:00 버튼도 표시)
 function generateTimeSlots(openTime: string, closeTime: string, unitMinutes: number): string[] {
@@ -60,10 +70,11 @@ function Field({ label, required, children, hint }: {
 }
 
 // ── 완료 화면 ────────────────────────────────────────────────
-function SuccessScreen({ facilityName, status, onReset }: {
-  facilityName: string; status: string; onReset: () => void;
+function SuccessScreen({ facilityName, status, count, recurrenceLabel, onReset }: {
+  facilityName: string; status: string; count: number; recurrenceLabel?: string | null; onReset: () => void;
 }) {
   const isPending = status === "pending";
+  const isRepeated = count > 1;
   return (
     <div className="text-center py-16 px-4">
       <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5 ${isPending ? "bg-amber-50" : "bg-[#E8F5E9]"}`}>
@@ -78,6 +89,11 @@ function SuccessScreen({ facilityName, status, onReset }: {
       <p className="text-gray-500 text-sm leading-relaxed mb-2">
         <span className="font-medium text-gray-700">{facilityName}</span> 사용 신청이 정상적으로 접수되었습니다.
       </p>
+      {isRepeated && (
+        <p className="text-sm text-[#1B5E20] font-medium mb-2">
+          {recurrenceLabel ?? `반복 예약 총 ${count}건`}이 함께 접수되었습니다.
+        </p>
+      )}
       {isPending && (
         <p className="text-gray-500 text-sm mb-2">
           담당자 확인 후 입력하신 연락처로 안내드리겠습니다. <br className="hidden sm:block" />
@@ -263,10 +279,15 @@ export default function FacilityApply() {
     endTime: urlEndTime,
     attendees: "",
     notes: "",
+    repeatType: "none" as RepeatType,
+    repeatCount: "4",
+    repeatUntilDate: "",
     agreePrivacy: false,
   }));
   const [submitted, setSubmitted] = useState(false);
   const [reservedStatus, setReservedStatus] = useState<string>("pending");
+  const [reservedCount, setReservedCount] = useState(1);
+  const [reservedRecurrenceLabel, setReservedRecurrenceLabel] = useState<string | null>(null);
 
   // URL 파라미터 변경 시 폼 동기화
   useEffect(() => {
@@ -303,6 +324,8 @@ export default function FacilityApply() {
   const createReservation = trpc.home.createReservation.useMutation({
     onSuccess: (data) => {
       setReservedStatus(data.status);
+      setReservedCount(data.count ?? 1);
+      setReservedRecurrenceLabel(data.recurrenceLabel ?? null);
       setSubmitted(true);
     },
     onError: (err) => {
@@ -373,6 +396,15 @@ export default function FacilityApply() {
     if (form.startTime >= form.endTime) return "종료 시간은 시작 시간보다 늦어야 합니다.";
     if (!form.attendees || Number(form.attendees) < 1) return "예상 인원을 입력해 주세요.";
     if (facility && Number(form.attendees) > facility.capacity) return `최대 수용 인원(${facility.capacity}명)을 초과합니다.`;
+    if (form.repeatType !== "none") {
+      const count = Number(form.repeatCount);
+      if (!form.repeatUntilDate && (!Number.isInteger(count) || count < 2 || count > 52)) {
+        return "반복 횟수는 2회 이상 52회 이하로 입력해 주세요.";
+      }
+      if (form.repeatUntilDate && form.repeatUntilDate < form.date) {
+        return "반복 종료일은 사용 날짜 이후로 선택해 주세요.";
+      }
+    }
     if (!form.agreePrivacy) return "개인정보 수집·이용에 동의해 주세요.";
     // 선택한 시간대에 이미 예약이 있는지 확인
     const [sh, sm] = form.startTime.split(":").map(Number);
@@ -408,6 +440,11 @@ export default function FacilityApply() {
       department: form.department || undefined,
       attendees: Number(form.attendees),
       notes: form.notes || undefined,
+      repeat: form.repeatType === "none" ? undefined : {
+        type: form.repeatType,
+        count: form.repeatUntilDate ? undefined : Number(form.repeatCount),
+        untilDate: form.repeatUntilDate || undefined,
+      },
     });
   }
 
@@ -463,7 +500,9 @@ export default function FacilityApply() {
               <SuccessScreen
                 facilityName={facility.name}
                 status={reservedStatus}
-                onReset={() => { setSubmitted(false); setForm(prev => ({ ...prev, date: "", startTime: "", endTime: "" })); }}
+                count={reservedCount}
+                recurrenceLabel={reservedRecurrenceLabel}
+                onReset={() => { setSubmitted(false); setForm(prev => ({ ...prev, date: "", startTime: "", endTime: "", repeatType: "none", repeatUntilDate: "" })); }}
               />
             </div>
           ) : (
@@ -610,6 +649,49 @@ export default function FacilityApply() {
                     )}
                   </Field>
                 )}
+
+                {/* 반복 예약 */}
+                <Field label="반복 예약" hint="선택한 날짜와 시간 기준으로 여러 날짜의 예약을 한 번에 신청합니다.">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <select
+                      name="repeatType"
+                      value={form.repeatType}
+                      onChange={handleChange}
+                      className={inputClass}
+                    >
+                      {REPEAT_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                    {form.repeatType !== "none" && (
+                      <>
+                        <input
+                          type="number"
+                          name="repeatCount"
+                          value={form.repeatCount}
+                          onChange={handleChange}
+                          min={2}
+                          max={52}
+                          placeholder="반복 횟수"
+                          className={inputClass}
+                        />
+                        <input
+                          type="date"
+                          name="repeatUntilDate"
+                          value={form.repeatUntilDate}
+                          onChange={handleChange}
+                          min={form.date || new Date().toISOString().split("T")[0]}
+                          className={inputClass}
+                        />
+                      </>
+                    )}
+                  </div>
+                  {form.repeatType !== "none" && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      종료일을 선택하면 종료일까지 생성하고, 비워두면 입력한 반복 횟수만큼 생성됩니다.
+                    </p>
+                  )}
+                </Field>
 
                 {/* 예상 인원 */}
                 <Field label="예상 인원" required hint={("최대 수용 인원: " + facility.capacity.toLocaleString() + "명")}>

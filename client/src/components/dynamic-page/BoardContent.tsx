@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, FileText } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { FreeBoardContent } from "./FreeBoardContent";
+import { ViewModeToggle, type ViewMode } from "./ViewModeToggle";
 
 type BoardContentProps = {
   label?: string;
@@ -43,6 +44,7 @@ function isToday(value: string | Date) {
 function NoticeBoardContent() {
   const [activeCategory, setActiveCategory] = useState("전체");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [page, setPage] = useState(1);
   const [searchField, setSearchField] = useState("title");
   const [searchInput, setSearchInput] = useState("");
@@ -103,19 +105,7 @@ function NoticeBoardContent() {
 
       <div className="flex flex-col gap-3 border-b border-[#86C5D8] pb-2 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-2 text-xs text-gray-500">
-          <div className="flex items-center gap-0.5">
-            <span className="flex h-6 w-6 items-center justify-center border border-[#86C5D8] bg-white text-[#1B5E20]">
-              <span className="h-3.5 w-3.5 border-y-2 border-[#1B5E20]" />
-            </span>
-            <span className="flex h-6 w-6 items-center justify-center border border-gray-200 bg-gray-50 text-gray-300">
-              <span className="grid grid-cols-2 gap-0.5">
-                <span className="h-1.5 w-1.5 bg-gray-300" />
-                <span className="h-1.5 w-1.5 bg-gray-300" />
-                <span className="h-1.5 w-1.5 bg-gray-300" />
-                <span className="h-1.5 w-1.5 bg-gray-300" />
-              </span>
-            </span>
-          </div>
+          <ViewModeToggle value={viewMode} onChange={setViewMode} />
           <span>새 글 {newNoticeCount} / {filteredNotices.length}</span>
         </div>
         <form
@@ -195,7 +185,7 @@ function NoticeBoardContent() {
         </div>
       ) : (
         <>
-          <div className="hidden overflow-hidden border border-gray-200 bg-white md:block">
+          <div className={`${viewMode === "list" ? "hidden md:block" : "hidden"} overflow-hidden border border-gray-200 bg-white`}>
             <table className="w-full table-fixed text-sm">
               <colgroup>
                 <col className="w-16" />
@@ -265,13 +255,13 @@ function NoticeBoardContent() {
             </table>
           </div>
 
-          <div className="divide-y divide-gray-100 border border-gray-200 bg-white md:hidden">
+          <div className={viewMode === "grid" ? "grid gap-4 md:grid-cols-2" : "divide-y divide-gray-100 border border-gray-200 bg-white md:hidden"}>
             {visibleNotices.map((notice, index) => {
               const postNumber = notice.isPinned ? "공지" : String(filteredNotices.length - (pageStart + index));
               const isExpanded = expandedId === notice.id;
               const displayCategory = normalizeNoticeCategory(notice.category);
               return (
-                <article key={notice.id} className="p-4">
+                <article key={notice.id} className={viewMode === "grid" ? "border border-gray-200 bg-white p-4" : "p-4"}>
                   <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
                     <span>{postNumber}</span>
                     <span>{formatBoardDate(notice.createdAt)}</span>

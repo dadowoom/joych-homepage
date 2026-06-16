@@ -36,6 +36,7 @@ import { supportRequestsRouter } from "./supportRequests";
 import { freeBoardAdminRouter } from "./freeBoard";
 import { coursesRouter } from "./courses";
 import { bulletinsRouter } from "./bulletins";
+import { adminPermissionsRouter } from "./adminPermissions";
 
 export const cmsRouter = router({
   notices: noticesRouter,
@@ -53,4 +54,5 @@ export const cmsRouter = router({
   freeBoard: freeBoardAdminRouter,
   courses: coursesRouter,
   bulletins: bulletinsRouter,
+  adminPermissions: adminPermissionsRouter,
 });

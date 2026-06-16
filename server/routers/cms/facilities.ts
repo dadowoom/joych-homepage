@@ -15,7 +15,7 @@
  */
 
 import { z } from "zod";
-import { adminProcedure, publicProcedure, router } from "../../_core/trpc";
+import { adminPermissionProcedure, publicProcedure, router } from "../../_core/trpc";
 import {
   optionalTextSchema,
   requiredTextSchema,
@@ -43,6 +43,7 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const idSchema = z.number().int().positive();
 const timeSchema = z.string().regex(TIME_RE, "시간은 HH:MM 형식으로 입력해주세요.");
+const facilityProcedure = adminPermissionProcedure("content:facilities");
 const nullableTimeSchema = timeSchema.nullable().optional();
 const sortOrderSchema = z.number().int().min(0).max(10000).optional();
 
@@ -156,12 +157,12 @@ export const facilitiesRouter = router({
     .query(({ input }) => getFacilityById(input.id)),
 
   /** 시설 생성 (관리자) */
-  create: adminProcedure
+  create: facilityProcedure
     .input(facilityCreateSchema)
     .mutation(({ input }) => createFacility(input)),
 
   /** 시설 정보 수정 (관리자) */
-  update: adminProcedure
+  update: facilityProcedure
     .input(facilityUpdateSchema)
     .mutation(({ input }) => {
       const { id, ...data } = input;
@@ -169,7 +170,7 @@ export const facilitiesRouter = router({
     }),
 
   /** 시설 삭제 (관리자) */
-  delete: adminProcedure
+  delete: facilityProcedure
     .input(z.object({ id: idSchema }))
     .mutation(({ input }) => deleteFacility(input.id)),
 
@@ -184,7 +185,7 @@ export const facilitiesRouter = router({
      * 시설 사진 업로드 (관리자)
      * - S3 경로: facility-images/{facilityId}/{timestamp}-{random}.{ext}
      */
-    upload: adminProcedure
+    upload: facilityProcedure
       .input(z.object({
         facilityId: idSchema,
         base64: z.string(),
@@ -209,7 +210,7 @@ export const facilitiesRouter = router({
       }),
 
     /** 시설 사진 삭제 (관리자) */
-    delete: adminProcedure
+    delete: facilityProcedure
       .input(z.object({ id: idSchema }))
       .mutation(({ input }) => deleteFacilityImage(input.id)),
 
@@ -217,7 +218,7 @@ export const facilitiesRouter = router({
      * 대표 사진 설정 (관리자)
      * - 해당 시설의 모든 사진을 isThumbnail=false로 초기화 후 선택 사진만 true
      */
-    setThumbnail: adminProcedure
+    setThumbnail: facilityProcedure
       .input(z.object({ facilityId: idSchema, imageId: idSchema }))
       .mutation(async ({ input }) => {
         const { getDb } = await import("../../db");
@@ -252,7 +253,7 @@ export const facilitiesRouter = router({
      * - 요일별 운영 시간, 휴식 시간 설정
      * - 이미 존재하면 수정, 없으면 생성 (upsert)
      */
-    upsert: adminProcedure
+    upsert: facilityProcedure
       .input(facilityHourSchema)
       .mutation(({ input }) => upsertFacilityHour(input)),
   }),
@@ -265,12 +266,12 @@ export const facilitiesRouter = router({
       .query(({ input }) => getBlockedDates(input.facilityId)),
 
     /** 차단 날짜 추가 (관리자) */
-    add: adminProcedure
+    add: facilityProcedure
       .input(blockedDateSchema)
       .mutation(({ input }) => addBlockedDate(input)),
 
     /** 차단 날짜 삭제 (관리자) */
-    delete: adminProcedure
+    delete: facilityProcedure
       .input(z.object({ id: idSchema }))
       .mutation(({ input }) => deleteBlockedDate(input.id)),
   }),

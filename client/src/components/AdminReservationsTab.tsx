@@ -180,6 +180,11 @@ export default function AdminReservationsTab() {
                     <div className={"flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium shrink-0 " + st.color}>
                       {st.icon} {st.label}
                     </div>
+                    {r.recurrenceLabel && (
+                      <div className="px-2 py-1 rounded-full text-xs font-medium shrink-0 bg-blue-50 text-blue-700">
+                        반복
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-800 text-sm truncate">
                         {r.facilityName ?? "시설"} — {r.reserverName}
@@ -253,6 +258,12 @@ export default function AdminReservationsTab() {
                         <div><span className="text-gray-500 text-xs">예상 인원</span><p className="font-medium">{r.attendees}명</p></div>
                         <div><span className="text-gray-500 text-xs">사용 목적</span><p className="font-medium">{r.purpose}</p></div>
                         <div><span className="text-gray-500 text-xs">신청 일시</span><p className="font-medium">{formatTime(r.createdAt)}</p></div>
+                        {r.recurrenceLabel && (
+                          <div className="col-span-2">
+                            <span className="text-gray-500 text-xs">반복 예약</span>
+                            <p className="font-medium text-blue-700">{r.recurrenceLabel}</p>
+                          </div>
+                        )}
                         {r.notes && (
                           <div className="col-span-2"><span className="text-gray-500 text-xs">추가 요청사항</span><p className="font-medium">{r.notes}</p></div>
                         )}

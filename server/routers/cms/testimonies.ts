@@ -4,7 +4,7 @@
  */
 
 import { z } from "zod";
-import { adminProcedure, router } from "../../_core/trpc";
+import { adminPermissionProcedure, router } from "../../_core/trpc";
 import {
   getAllTestimonyComments,
   getAllTestimonyPosts,
@@ -14,17 +14,18 @@ import {
 
 const idSchema = z.number().int().positive();
 const statusSchema = z.enum(["published", "hidden", "deleted"]);
+const testimonyProcedure = adminPermissionProcedure("content:testimonies");
 
 export const testimoniesRouter = router({
-  posts: adminProcedure.query(() => getAllTestimonyPosts()),
+  posts: testimonyProcedure.query(() => getAllTestimonyPosts()),
 
-  comments: adminProcedure.query(() => getAllTestimonyComments()),
+  comments: testimonyProcedure.query(() => getAllTestimonyComments()),
 
-  updatePostStatus: adminProcedure
+  updatePostStatus: testimonyProcedure
     .input(z.object({ id: idSchema, status: statusSchema }))
     .mutation(({ input }) => updateTestimonyPostStatus(input.id, input.status)),
 
-  updateCommentStatus: adminProcedure
+  updateCommentStatus: testimonyProcedure
     .input(z.object({ id: idSchema, status: statusSchema }))
     .mutation(({ input }) => updateTestimonyCommentStatus(input.id, input.status)),
 });

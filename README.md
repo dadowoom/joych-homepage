@@ -1,7 +1,7 @@
 # 기쁨의교회 홈페이지 (joych-homepage)
 
 > **관리 주체:** 기쁨의교회 (The Joyful Church)  
-> **운영 도메인:** [dadowoomtest.co.kr](https://dadowoomtest.co.kr) / [joychome-kastcrbz.manus.space](https://joychome-kastcrbz.manus.space)  
+> **운영 도메인:** [newjoych.co.kr](https://newjoych.co.kr) / [joychome-kastcrbz.manus.space](https://joychome-kastcrbz.manus.space)
 > **최초 개발:** 2026년 4월 | **기술 플랫폼:** Manus Web App (tRPC + React + MySQL)
 
 ---

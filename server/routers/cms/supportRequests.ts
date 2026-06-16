@@ -3,7 +3,7 @@
  */
 
 import { z } from "zod";
-import { adminProcedure, router } from "../../_core/trpc";
+import { adminPermissionProcedure, router } from "../../_core/trpc";
 import {
   listBulletinAdRequests,
   listNewMemberRequests,
@@ -18,15 +18,16 @@ import {
 } from "../../db";
 
 const adminMemoSchema = z.string().trim().max(1000).nullable().optional();
+const supportRequestProcedure = adminPermissionProcedure("content:supportRequests");
 
 export const supportRequestsRouter = router({
-  listPrayer: adminProcedure.query(() => listPrayerRequests()),
-  listNewMembers: adminProcedure.query(() => listNewMemberRequests()),
-  listVisits: adminProcedure.query(() => listVisitRequests()),
-  listSubtitles: adminProcedure.query(() => listSubtitleRequests()),
-  listBulletinAds: adminProcedure.query(() => listBulletinAdRequests()),
+  listPrayer: supportRequestProcedure.query(() => listPrayerRequests()),
+  listNewMembers: supportRequestProcedure.query(() => listNewMemberRequests()),
+  listVisits: supportRequestProcedure.query(() => listVisitRequests()),
+  listSubtitles: supportRequestProcedure.query(() => listSubtitleRequests()),
+  listBulletinAds: supportRequestProcedure.query(() => listBulletinAdRequests()),
 
-  updatePrayerStatus: adminProcedure
+  updatePrayerStatus: supportRequestProcedure
     .input(
       z.object({
         id: z.number().int().positive(),
@@ -41,7 +42,7 @@ export const supportRequestsRouter = router({
       })
     ),
 
-  updateNewMemberStatus: adminProcedure
+  updateNewMemberStatus: supportRequestProcedure
     .input(
       z.object({
         id: z.number().int().positive(),
@@ -56,7 +57,7 @@ export const supportRequestsRouter = router({
       })
     ),
 
-  updateVisitStatus: adminProcedure
+  updateVisitStatus: supportRequestProcedure
     .input(
       z.object({
         id: z.number().int().positive(),
@@ -71,7 +72,7 @@ export const supportRequestsRouter = router({
       })
     ),
 
-  updateSubtitleStatus: adminProcedure
+  updateSubtitleStatus: supportRequestProcedure
     .input(
       z.object({
         id: z.number().int().positive(),
@@ -86,7 +87,7 @@ export const supportRequestsRouter = router({
       })
     ),
 
-  updateBulletinAdStatus: adminProcedure
+  updateBulletinAdStatus: supportRequestProcedure
     .input(
       z.object({
         id: z.number().int().positive(),

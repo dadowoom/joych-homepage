@@ -23,6 +23,7 @@ import {
   getActiveNoticePopups,
   getVisibleAffiliates,
   getVisibleGalleryItems,
+  getVisibleHomeGalleryItems,
   getSiteSettings,
   getVisibleMenus,
   getVisibleMenuItemById,
@@ -36,12 +37,14 @@ import {
   getBlockedDates,
   getReservationsByDate,
   createReservationIfAvailable,
+  deleteReservationsByIds,
   getMyReservations,
   getReservationById,
   updateReservationStatus,
   getPageBlocks,
   getStaticPageContentByHref,
   getStoredTranslation,
+  getVisibleStaffCategories,
   getVisibleStaffMembers,
   listPublishedBulletins,
   getVisibleCourses,
@@ -63,9 +66,14 @@ const TIME_RE = /^\d{2}:\d{2}$/;
 const idSchema = z.number().int().positive();
 const hrefLookupSchema = z.string().trim().min(1).max(256);
 const staticPageHrefSchema = z.string().trim().min(1).max(128).regex(/^\//);
-const staffCategorySchema = z.enum(["senior", "associate", "education", "cooperation", "elder", "office", "other"]);
+const staffCategorySchema = z.string().trim().min(1).max(64).regex(/^[a-z0-9][a-z0-9_-]{0,63}$/);
 const translationLocaleSchema = z.enum(["ja"]);
 const courseMemoSchema = z.string().trim().max(2000, "신청 메모는 2000자 이하로 입력해주세요.").optional();
+const reservationRepeatSchema = z.object({
+  type: z.enum(["none", "weekly", "biweekly", "monthly-date", "monthly-weekday"]).default("none"),
+  count: z.number().int().min(1).max(52).optional(),
+  untilDate: z.string().regex(DATE_RE, "반복 종료일 형식이 올바르지 않습니다.").optional(),
+}).optional();
 
 async function getVisibleFacilityById(id: number) {
   const facility = await getFacilityById(id);
@@ -81,6 +89,116 @@ function toMinutes(time: string): number | null {
 
 function todayKstDateKey() {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function parseDateKey(dateKey: string) {
+  if (!DATE_RE.test(dateKey)) return null;
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return date;
+}
+
+function addUtcDays(date: Date, days: number) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + days));
+}
+
+function addUtcMonthsPreserveDay(date: Date, months: number) {
+  const targetMonth = date.getUTCMonth() + months;
+  const next = new Date(Date.UTC(date.getUTCFullYear(), targetMonth, date.getUTCDate()));
+  const expectedMonth = ((targetMonth % 12) + 12) % 12;
+  return next.getUTCMonth() === expectedMonth ? next : null;
+}
+
+function formatDateKey(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function nthWeekdayDate(year: number, monthIndex: number, nth: number, weekday: number) {
+  const first = new Date(Date.UTC(year, monthIndex, 1));
+  const firstWeekday = first.getUTCDay();
+  const offset = (weekday - firstWeekday + 7) % 7;
+  const day = 1 + offset + (nth - 1) * 7;
+  const date = new Date(Date.UTC(year, monthIndex, day));
+  return date.getUTCMonth() === monthIndex ? date : null;
+}
+
+function getMonthlyWeekdayInfo(date: Date) {
+  return {
+    nth: Math.floor((date.getUTCDate() - 1) / 7) + 1,
+    weekday: date.getUTCDay(),
+  };
+}
+
+function buildReservationDates(
+  startDateKey: string,
+  repeat?: z.infer<typeof reservationRepeatSchema>
+) {
+  const startDate = parseDateKey(startDateKey);
+  if (!startDate) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "예약 날짜 형식이 올바르지 않습니다." });
+  }
+
+  const type = repeat?.type ?? "none";
+  if (type === "none") return [startDateKey];
+
+  const untilDate = repeat?.untilDate ? parseDateKey(repeat.untilDate) : null;
+  if (repeat?.untilDate && !untilDate) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "반복 종료일 형식이 올바르지 않습니다." });
+  }
+  if (untilDate && untilDate < startDate) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "반복 종료일은 시작일 이후로 선택해주세요." });
+  }
+
+  const limit = Math.min(repeat?.count ?? (untilDate ? 52 : 4), 52);
+  const dates: string[] = [];
+  const monthlyWeekday = getMonthlyWeekdayInfo(startDate);
+
+  for (let step = 0; dates.length < limit && step < 120; step++) {
+    let candidate: Date | null = null;
+    if (type === "weekly") candidate = addUtcDays(startDate, step * 7);
+    if (type === "biweekly") candidate = addUtcDays(startDate, step * 14);
+    if (type === "monthly-date") candidate = addUtcMonthsPreserveDay(startDate, step);
+    if (type === "monthly-weekday") {
+      const monthStart = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + step, 1));
+      candidate = nthWeekdayDate(
+        monthStart.getUTCFullYear(),
+        monthStart.getUTCMonth(),
+        monthlyWeekday.nth,
+        monthlyWeekday.weekday
+      );
+    }
+
+    if (!candidate) continue;
+    if (untilDate && candidate > untilDate) break;
+    dates.push(formatDateKey(candidate));
+  }
+
+  if (dates.length < 2) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "반복 예약은 최소 2회 이상 생성되어야 합니다." });
+  }
+  return dates;
+}
+
+function describeReservationRepeat(
+  repeat: NonNullable<z.infer<typeof reservationRepeatSchema>>,
+  count: number
+) {
+  const labelByType: Record<NonNullable<typeof repeat>["type"], string> = {
+    none: "반복 없음",
+    weekly: "매주 반복",
+    biweekly: "2주마다 반복",
+    "monthly-date": "매월 같은 날짜 반복",
+    "monthly-weekday": "매월 같은 주/요일 반복",
+  };
+  const suffix = repeat.untilDate ? ` · ${repeat.untilDate}까지` : ` · 총 ${count}회`;
+  return `${labelByType[repeat.type ?? "none"]}${suffix}`;
 }
 
 export const homeRouter = router({
@@ -107,6 +225,8 @@ export const homeRouter = router({
   /** 갤러리 사진 목록 (공개된 것만) */
   gallery: publicProcedure.query(() => getVisibleGalleryItems()),
 
+  homeGallery: publicProcedure.query(() => getVisibleHomeGalleryItems()),
+
   /** 사이트 설정 (교회명, 주소, 연락처 등) */
   settings: publicProcedure.query(() => getSiteSettings()),
 
@@ -114,6 +234,9 @@ export const homeRouter = router({
   staff: publicProcedure
     .input(z.object({ category: staffCategorySchema.optional() }).optional())
     .query(({ input }) => getVisibleStaffMembers(input?.category)),
+
+  /** 섬기는 분 공개 분류 목록 */
+  staffCategories: publicProcedure.query(() => getVisibleStaffCategories()),
 
   /** 공개 강좌 목록 */
   courses: publicProcedure.query(() => getVisibleCourses()),
@@ -323,15 +446,13 @@ export const homeRouter = router({
       department: z.string().optional(),
       attendees: z.number().int().min(1, "사용 인원은 1명 이상이어야 합니다.").default(1),
       notes: z.string().optional(),
+      repeat: reservationRepeatSchema,
     }))
     .mutation(async ({ input, ctx }) => {
       const startMinutes = toMinutes(input.startTime);
       const endMinutes = toMinutes(input.endTime);
       if (startMinutes === null || endMinutes === null) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "예약 시간 형식이 올바르지 않습니다." });
-      }
-      if (input.reservationDate < todayKstDateKey()) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "지난 날짜는 예약할 수 없습니다." });
       }
       // ① 시설 존재 여부 확인
       const facility = await getFacilityById(input.facilityId);
@@ -349,90 +470,127 @@ export const homeRouter = router({
       if (startMinutes >= endMinutes) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "시작 시간은 종료 시간보다 빨라야 합니다." });
       }
-      // ④ 운영시간 확인 (해당 요일의 운영시간 조회)
-      const reservationDayOfWeek = new Date(input.reservationDate).getDay(); // 0=일, 1=월 ...
-      const hours = await getFacilityHours(input.facilityId);
-      const dayHour = hours.find(h => h.dayOfWeek === reservationDayOfWeek);
-      if (dayHour) {
-        if (!dayHour.isOpen) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "해당 요일은 시설 운영일이 아닙니다." });
-        }
-      }
 
-      const openTime = dayHour?.openTime ?? facility.openTime;
-      const closeTime = dayHour?.closeTime ?? facility.closeTime;
-      const openMinutes = toMinutes(openTime);
-      const closeMinutes = toMinutes(closeTime);
-      if (openMinutes === null || closeMinutes === null) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "시설 운영 시간이 올바르지 않습니다. 관리자에게 문의해주세요." });
-      }
-      if (startMinutes < openMinutes || endMinutes > closeMinutes) {
+      const reservationDates = buildReservationDates(input.reservationDate, input.repeat);
+      const hours = await getFacilityHours(input.facilityId);
+      const blocked = await getBlockedDates(input.facilityId);
+
+      for (const reservationDate of reservationDates) {
+        if (reservationDate < todayKstDateKey()) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-          message: `운영 시간(${openTime}~${closeTime}) 내에서만 예약 가능합니다.`,
+            message: "지난 날짜는 예약할 수 없습니다.",
           });
-      }
-
-      const slotMinutes = facility.slotMinutes > 0 ? facility.slotMinutes : 60;
-      const durationMinutes = endMinutes - startMinutes;
-      if ((startMinutes - openMinutes) % slotMinutes !== 0 || (endMinutes - openMinutes) % slotMinutes !== 0) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `${slotMinutes}분 단위로만 예약할 수 있습니다.` });
-      }
-      const selectedSlots = durationMinutes / slotMinutes;
-      if (selectedSlots < facility.minSlots) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `최소 ${facility.minSlots}개 시간 단위 이상 예약해야 합니다.` });
-      }
-      if (selectedSlots > facility.maxSlots) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `최대 ${facility.maxSlots}개 시간 단위까지만 예약할 수 있습니다.` });
-      }
-
-      if (dayHour?.breakStart && dayHour.breakEnd) {
-        const breakStart = toMinutes(dayHour.breakStart);
-        const breakEnd = toMinutes(dayHour.breakEnd);
-        if (breakStart !== null && breakEnd !== null && startMinutes < breakEnd && endMinutes > breakStart) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: `휴게 시간(${dayHour.breakStart}~${dayHour.breakEnd})에는 예약할 수 없습니다.` });
         }
-      }
-      // ⑤ 차단일 확인 (전체 차단 또는 해당 시설 차단)
-      const blocked = await getBlockedDates(input.facilityId);
-      for (const b of blocked) {
-        if (b.blockedDate !== input.reservationDate) continue;
-        if (!b.isPartialBlock) {
-          // 하루 전체 차단
-          throw new TRPCError({ code: "BAD_REQUEST", message: `${input.reservationDate}은 예약이 차단된 날입니다.${b.reason ? ` (${b.reason})` : ""}` });
-        }
-        // 부분 차단: 요청 시간대가 차단 시간대와 겹치는지 확인
-        if (b.blockStart && b.blockEnd) {
-          const overlapPartial = input.startTime < b.blockEnd && input.endTime > b.blockStart;
-          if (overlapPartial) {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message: `해당 시간대(${b.blockStart}~${b.blockEnd})는 예약이 차단되어 있습니다.${b.reason ? ` (${b.reason})` : ""}`,
-            });
+        // ④ 운영시간 확인 (해당 요일의 운영시간 조회)
+        const reservationDateObject = parseDateKey(reservationDate);
+        const reservationDayOfWeek = reservationDateObject?.getUTCDay() ?? 0; // 0=일, 1=월 ...
+        const dayHour = hours.find(h => h.dayOfWeek === reservationDayOfWeek);
+        if (dayHour) {
+          if (!dayHour.isOpen) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `${reservationDate}은 시설 운영일이 아닙니다.` });
           }
         }
-      }
-      // ⑥ 같은 시설/날짜의 시간대 겹침 확인 (중복 예약 방지)
-      const existing = await getReservationsByDate(input.facilityId, input.reservationDate);
-      const activeReservations = existing.filter(r => r.status !== "cancelled" && r.status !== "rejected");
-      for (const r of activeReservations) {
-        const overlap = input.startTime < r.endTime && input.endTime > r.startTime;
-        if (overlap) {
+
+        const openTime = dayHour?.openTime ?? facility.openTime;
+        const closeTime = dayHour?.closeTime ?? facility.closeTime;
+        const openMinutes = toMinutes(openTime);
+        const closeMinutes = toMinutes(closeTime);
+        if (openMinutes === null || closeMinutes === null) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "시설 운영 시간이 올바르지 않습니다. 관리자에게 문의해주세요." });
+        }
+        if (startMinutes < openMinutes || endMinutes > closeMinutes) {
           throw new TRPCError({
-            code: "CONFLICT",
-            message: `해당 시간대(${r.startTime}~${r.endTime})에 이미 예약이 있습니다. 다른 시간을 선택해 주세요.`,
+            code: "BAD_REQUEST",
+            message: `${reservationDate}은 운영 시간(${openTime}~${closeTime}) 내에서만 예약 가능합니다.`,
           });
+        }
+
+        const slotMinutes = facility.slotMinutes > 0 ? facility.slotMinutes : 60;
+        const durationMinutes = endMinutes - startMinutes;
+        if ((startMinutes - openMinutes) % slotMinutes !== 0 || (endMinutes - openMinutes) % slotMinutes !== 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `${slotMinutes}분 단위로만 예약할 수 있습니다.` });
+        }
+        const selectedSlots = durationMinutes / slotMinutes;
+        if (selectedSlots < facility.minSlots) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `최소 ${facility.minSlots}개 시간 단위 이상 예약해야 합니다.` });
+        }
+        if (selectedSlots > facility.maxSlots) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `최대 ${facility.maxSlots}개 시간 단위까지만 예약할 수 있습니다.` });
+        }
+
+        if (dayHour?.breakStart && dayHour.breakEnd) {
+          const breakStart = toMinutes(dayHour.breakStart);
+          const breakEnd = toMinutes(dayHour.breakEnd);
+          if (breakStart !== null && breakEnd !== null && startMinutes < breakEnd && endMinutes > breakStart) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `${reservationDate} 휴게 시간(${dayHour.breakStart}~${dayHour.breakEnd})에는 예약할 수 없습니다.` });
+          }
+        }
+
+        // ⑤ 차단일 확인 (전체 차단 또는 해당 시설 차단)
+        for (const b of blocked) {
+          if (b.blockedDate !== reservationDate) continue;
+          if (!b.isPartialBlock) {
+            // 하루 전체 차단
+            throw new TRPCError({ code: "BAD_REQUEST", message: `${reservationDate}은 예약이 차단된 날입니다.${b.reason ? ` (${b.reason})` : ""}` });
+          }
+          // 부분 차단: 요청 시간대가 차단 시간대와 겹치는지 확인
+          if (b.blockStart && b.blockEnd) {
+            const overlapPartial = input.startTime < b.blockEnd && input.endTime > b.blockStart;
+            if (overlapPartial) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: `${reservationDate} 해당 시간대(${b.blockStart}~${b.blockEnd})는 예약이 차단되어 있습니다.${b.reason ? ` (${b.reason})` : ""}`,
+              });
+            }
+          }
+        }
+
+        // ⑥ 같은 시설/날짜의 시간대 겹침 확인 (중복 예약 방지)
+        const existing = await getReservationsByDate(input.facilityId, reservationDate);
+        const activeReservations = existing.filter(r => r.status !== "cancelled" && r.status !== "rejected");
+        for (const r of activeReservations) {
+          const overlap = input.startTime < r.endTime && input.endTime > r.startTime;
+          if (overlap) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: `${reservationDate} 해당 시간대(${r.startTime}~${r.endTime})에 이미 예약이 있습니다. 다른 시간을 선택해 주세요.`,
+            });
+          }
         }
       }
 
       // 자동 승인 시설은 바로 approved, 그 외는 pending(관리자 검토 필요)
       const status = facility.approvalType === "auto" ? "approved" : "pending";
+      const { repeat, ...baseInput } = input;
+      const recurrenceGroupId = reservationDates.length > 1 ? `res_${crypto.randomUUID()}` : null;
+      const recurrenceLabel = reservationDates.length > 1 && repeat
+        ? describeReservationRepeat(repeat, reservationDates.length)
+        : null;
+      const createdIds: number[] = [];
 
       // ctx.memberId = church_members 테이블의 id (성도 로그인 기반)
-      let id: number | null;
       try {
-        id = await createReservationIfAvailable({ ...input, userId: ctx.memberId, status });
+        for (let index = 0; index < reservationDates.length; index++) {
+          const reservationDate = reservationDates[index];
+          const id = await createReservationIfAvailable({
+            ...baseInput,
+            reservationDate,
+            userId: ctx.memberId,
+            status,
+            recurrenceGroupId,
+            recurrenceLabel,
+            recurrenceSequence: recurrenceGroupId ? index + 1 : 0,
+          });
+          if (!id) {
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "예약 신청 저장에 실패했습니다." });
+          }
+          createdIds.push(id);
+        }
       } catch (error) {
+        if (createdIds.length > 0) {
+          await deleteReservationsByIds(createdIds);
+        }
         if (error instanceof ReservationOverlapError) {
           throw new TRPCError({ code: "CONFLICT", message: error.message });
         }
@@ -441,10 +599,13 @@ export const homeRouter = router({
         }
         throw error;
       }
-      if (!id) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "예약 신청 저장에 실패했습니다." });
-      }
-      return { id, status };
+      return {
+        id: createdIds[0],
+        ids: createdIds,
+        status,
+        count: createdIds.length,
+        recurrenceLabel,
+      };
     }),
 
   /** 내 예약 목록 조회 (성도 본인 것만) */

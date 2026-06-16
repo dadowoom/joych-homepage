@@ -226,7 +226,7 @@ export default function Home() {
     data: dbGallery,
     isFetched: galleryFetched,
     isError: galleryError,
-  } = trpc.home.gallery.useQuery();
+  } = trpc.home.homeGallery.useQuery();
   const { data: dbSettings } = trpc.home.settings.useQuery();
 
   // DB 데이터 또는 폴백 데이터 사용.
@@ -455,7 +455,7 @@ export default function Home() {
               open={galleryPanelOpen}
               onClose={() => {
                 setGalleryPanelOpen(false);
-                utils.home.gallery.invalidate();
+                utils.home.homeGallery.invalidate();
               }}
             />
           )}

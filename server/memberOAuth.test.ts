@@ -32,24 +32,24 @@ describe("member OAuth helpers", () => {
   });
 
   it("PUBLIC_URL_BASE를 기준으로 provider별 콜백 주소를 생성", () => {
-    process.env.PUBLIC_URL_BASE = "https://dadowoomtest.co.kr/";
+    process.env.PUBLIC_URL_BASE = "https://newjoych.co.kr/";
     expect(getMemberOAuthRedirectUri(mockRequest(), "google")).toBe(
-      "https://dadowoomtest.co.kr/api/member-oauth/google/callback"
+      "https://newjoych.co.kr/api/member-oauth/google/callback"
     );
     expect(getMemberOAuthRedirectUri(mockRequest(), "kakao")).toBe(
-      "https://dadowoomtest.co.kr/api/member-oauth/kakao/callback"
+      "https://newjoych.co.kr/api/member-oauth/kakao/callback"
     );
   });
 
   it("PUBLIC_URL_BASE와 다른 주소에서 간편로그인을 시작하면 공식 도메인으로 정규화", () => {
-    process.env.PUBLIC_URL_BASE = "https://dadowoomtest.co.kr/";
+    process.env.PUBLIC_URL_BASE = "https://newjoych.co.kr/";
 
     expect(getCanonicalMemberOAuthStartUrl(mockRequest("115.68.224.123:4000"), "kakao", "login")).toBe(
-      "https://dadowoomtest.co.kr/api/member-oauth/kakao/start?mode=login"
+      "https://newjoych.co.kr/api/member-oauth/kakao/start?mode=login"
     );
     expect(
       getCanonicalMemberOAuthStartUrl(
-        mockRequest("dadowoomtest.co.kr", { "x-forwarded-proto": "https" }),
+        mockRequest("newjoych.co.kr", { "x-forwarded-proto": "https" }),
         "google",
         "register"
       )

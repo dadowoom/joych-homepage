@@ -9,6 +9,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import BirthDateInput, { isCompleteBirthDate } from "@/components/BirthDateInput";
 import MemberSocialAuthButtons from "@/components/MemberSocialAuthButtons";
 
 const PASSWORD_HAS_LETTER = /[A-Za-z]/;
@@ -78,6 +79,9 @@ export default function MemberRegister() {
     }
     if (form.password !== form.passwordConfirm) newErrors.passwordConfirm = "비밀번호가 일치하지 않습니다.";
     if (!form.phone.trim()) newErrors.phone = "연락처를 입력해주세요.";
+    if (form.birthDate && !isCompleteBirthDate(form.birthDate)) {
+      newErrors.birthDate = "생년월일은 YYYY-MM-DD 형식으로 입력해주세요.";
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -261,13 +265,15 @@ export default function MemberRegister() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">생년월일</label>
-                  <input
-                    type="date"
-                    autoComplete="bday"
+                  <BirthDateInput
                     value={form.birthDate}
-                    onChange={(e) => update("birthDate", e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
+                    onChange={(value) => update("birthDate", value)}
+                    className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30 ${
+                      errors.birthDate ? "border-red-400" : "border-gray-300"
+                    }`}
+                    aria-invalid={Boolean(errors.birthDate)}
                   />
+                  {errors.birthDate && <p className="text-xs text-red-500 mt-1">{errors.birthDate}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">성별</label>

@@ -12,7 +12,6 @@
  *   - 섬기는 분 관리: components/AdminStaffTab.tsx
  *   - 예배영상 관리: components/YoutubeAdminTab.tsx
  *   - 생선 간증 관리: components/AdminTestimoniesTab.tsx
- *   - 페이지 콘텐츠: components/admin/StaticPageContentTab.tsx
  *   - 팝업 관리    : components/AdminPopupsTab.tsx
  *   - 접수 관리    : components/AdminSupportRequestsTab.tsx
  *   - 강좌 관리    : components/AdminCoursesTab.tsx
@@ -36,9 +35,14 @@ import AdminSupportRequestsTab from "@/components/AdminSupportRequestsTab";
 import AdminTestimoniesTab from "@/components/AdminTestimoniesTab";
 import AdminCoursesTab from "@/components/AdminCoursesTab";
 import AdminBulletinsTab from "@/components/AdminBulletinsTab";
+import AdminPermissionsTab from "@/components/AdminPermissionsTab";
 import YoutubeAdminTab from "@/components/YoutubeAdminTab";
 import { SettingsTab } from "@/components/admin/SettingsTab";
-import { StaticPageContentTab } from "@/components/admin/StaticPageContentTab";
+import {
+  canManageAdminTab,
+  canManageAnyContent,
+  canManageFullAdmin,
+} from "@/lib/contentPermissions";
 
 // ─── 탭 타입 ──────────────────────────────────────────────────────────────────
 type Tab =
@@ -55,8 +59,8 @@ type Tab =
   | "courses"
   | "bulletins"
   | "youtube"
-  | "staticPages"
-  | "popups";
+  | "popups"
+  | "permissions";
 
 type TabItem = {
   id: Tab;
@@ -90,11 +94,11 @@ const TABS: TabItem[] = [
     status: "입력 항목",
   },
   {
-    id: "staticPages",
-    label: "페이지 콘텐츠",
-    icon: "fa-file-alt",
-    description: "교회 소개, 안내 페이지 등 고정 콘텐츠를 수정합니다.",
-    status: "공개 콘텐츠",
+    id: "permissions",
+    label: "관리 권한",
+    icon: "fa-key",
+    description: "성도 계정별 게시판, 갤러리, 접수 관리 권한을 배정합니다.",
+    status: "권한 배정",
   },
   {
     id: "youtube",
@@ -187,12 +191,12 @@ const TAB_GROUPS: TabGroup[] = [
   {
     title: "운영 설정",
     description: "관리 기준과 입력 항목",
-    tabs: ["settings", "memberOptions"],
+    tabs: ["settings", "memberOptions", "permissions"],
   },
   {
     title: "콘텐츠/노출 관리",
     description: "홈페이지에 공개되는 자료",
-    tabs: ["staticPages", "youtube", "bulletins", "testimonies", "freeBoard", "popups"],
+    tabs: ["youtube", "bulletins", "testimonies", "freeBoard", "popups"],
   },
   {
     title: "성도/사역 관리",
@@ -255,8 +259,8 @@ export default function AdminPage() {
 
   const searchParams = new URLSearchParams(searchString);
   const tabFromUrl = searchParams.get("tab") as Tab | null;
-  const activeTab: Tab =
-    tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : "settings";
+  const requestedTab: Tab | null =
+    tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : null;
   const setActiveTab = (tab: Tab) =>
     setLocation(`/admin_joych_2026?tab=${tab}`);
 
@@ -407,7 +411,7 @@ export default function AdminPage() {
   }
 
   // ── 관리자 권한 없는 경우 ──────────────────────────────────────────────────
-  if (user.role !== "admin") {
+  if (!canManageAnyContent(user)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center max-w-sm mx-auto p-8">
@@ -428,6 +432,37 @@ export default function AdminPage() {
     );
   }
 
+  const permittedTabs = VALID_TABS.filter((tab) => canManageAdminTab(user, tab));
+  if (permittedTabs.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center max-w-md mx-auto rounded-2xl bg-white p-8 shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#E8F5E9] text-[#1B5E20]">
+            <i className="fas fa-key text-xl"></i>
+          </div>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">
+            페이지별 관리 권한만 있습니다
+          </h2>
+          <p className="text-gray-500 text-sm leading-6 mb-6">
+            이 계정은 특정 게시판이나 갤러리 화면에서 직접 글쓰기, 사진 업로드, 수정 버튼을 사용할 수 있습니다.
+            홈페이지 메뉴에서 담당 화면으로 이동해주세요.
+          </p>
+          <Link href="/" className="text-sm text-gray-400 hover:text-gray-600">
+            ← 홈페이지로 돌아가기
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const activeTab: Tab =
+    requestedTab && permittedTabs.includes(requestedTab)
+      ? requestedTab
+      : (permittedTabs[0] ?? "youtube");
+  const visibleTabGroups = TAB_GROUPS.map((group) => ({
+    ...group,
+    tabs: group.tabs.filter((tab) => permittedTabs.includes(tab)),
+  })).filter((group) => group.tabs.length > 0);
   const activeTabInfo = TABS_BY_ID[activeTab];
   const activeGroup = TAB_GROUPS.find(group => group.tabs.includes(activeTab));
 
@@ -459,7 +494,7 @@ export default function AdminPage() {
               {user.name ?? user.email ?? "관리자"}
             </span>
             <span className="text-xs bg-[#1B5E20] px-2 py-0.5 rounded">
-              admin
+              {canManageFullAdmin(user) ? "admin" : "manager"}
             </span>
             <button
               onClick={() => {
@@ -505,12 +540,12 @@ export default function AdminPage() {
                 </p>
               </div>
               <span className="rounded-full bg-[#E8F5E9] px-2.5 py-1 text-xs font-semibold text-[#1B5E20]">
-                {TABS.length}개
+                {permittedTabs.length}개
               </span>
             </div>
 
             <nav className="flex gap-3 overflow-x-auto pb-1 lg:block lg:min-h-0 lg:flex-1 lg:space-y-5 lg:overflow-x-hidden lg:overflow-y-auto lg:pb-0 lg:pr-1">
-              {TAB_GROUPS.map(group => (
+              {visibleTabGroups.map(group => (
                 <section
                   key={group.title}
                   className="min-w-[240px] rounded-lg border border-gray-100 bg-gray-50/70 p-3 lg:min-w-0"
@@ -613,6 +648,7 @@ export default function AdminPage() {
               {activeTab === "facilities" && <AdminFacilitiesTab />}
               {activeTab === "reservations" && <AdminReservationsTab />}
               {activeTab === "memberOptions" && <AdminMemberOptionsTab />}
+              {activeTab === "permissions" && <AdminPermissionsTab />}
               {activeTab === "members" && <AdminMembersTab />}
               {activeTab === "staff" && <AdminStaffTab />}
               {activeTab === "missionReports" && <AdminMissionReportsTab />}
@@ -622,7 +658,6 @@ export default function AdminPage() {
               {activeTab === "courses" && <AdminCoursesTab />}
               {activeTab === "bulletins" && <AdminBulletinsTab />}
               {activeTab === "youtube" && <YoutubeAdminTab />}
-              {activeTab === "staticPages" && <StaticPageContentTab />}
               {activeTab === "popups" && <AdminPopupsTab />}
             </div>
           </main>

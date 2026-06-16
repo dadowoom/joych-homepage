@@ -2,9 +2,9 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 
 const KAKAO_MAP_SCRIPT_ID = "kakao-map-sdk";
 const DESTINATION = {
-  name: "포항기쁨의교회",
+  name: "기쁨의교회",
   address: "경상북도 포항시 북구 삼흥로 411",
-  coords: { lat: 36.095458253774, lng: 129.37385741342 },
+  coords: { lat: 36.0952752, lng: 129.3725684 },
 };
 
 const DIRECTION_MODES = [

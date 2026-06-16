@@ -41,7 +41,9 @@ function alertPendingResource(label: string) {
 }
 
 // ── 섬기는 분 ──
-const STAFF_CATEGORIES = [
+type StaffCategoryOption = { value: string; label: string };
+
+const DEFAULT_STAFF_CATEGORIES = [
   { value: "senior", label: "담임목사" },
   { value: "associate", label: "부교역자" },
   { value: "education", label: "교회학교 교역자" },
@@ -49,13 +51,28 @@ const STAFF_CATEGORIES = [
   { value: "elder", label: "장로" },
   { value: "office", label: "교회직원" },
   { value: "other", label: "사회복지법인 기쁨의복지재단" },
-] as const;
+] satisfies StaffCategoryOption[];
 
 const ELDER_GROUP_LABELS = ["시무장로", "휴무장로", "원로장로", "은퇴장로"] as const;
 const FALLBACK_ELDER_GROUP_LABEL = "장로";
 const COOPERATION_GROUP_LABELS = ["협력사역자", "파송선교사", "협력선교사"] as const;
+const FOUNDATION_GROUP_LABELS = [
+  "이사장",
+  "감사",
+  "이사",
+  "법인사무처",
+  "창포종합사회복지관",
+  "경북동부 노인보호전문기관",
+  "경상북도학대피해 노인전용쉼터",
+  "경북남부 노인보호전문기관",
+  "은빛빌리지",
+  "시립창포어린이집",
+  "기쁨의지역아동센터",
+  "창포지역아동센터",
+  "포항시가족센터",
+] as const;
 
-type StaffCategoryFilter = typeof STAFF_CATEGORIES[number]["value"];
+type StaffCategoryFilter = string;
 type StaffCategory = StaffCategoryFilter;
 type StaffMenuTreeItem = {
   id: number;
@@ -107,8 +124,16 @@ function getInitialStaffCategory(location: string, fallback: StaffCategoryFilter
   return fallback;
 }
 
-function getStaffCategoryLabel(category: string) {
-  return STAFF_CATEGORIES.find((option) => option.value === category)?.label ?? category;
+function mergeStaffCategoryOptions(categories: Array<{ categoryKey: string; label: string }>): StaffCategoryOption[] {
+  if (categories.length === 0) return DEFAULT_STAFF_CATEGORIES;
+  return categories.map((category) => ({
+    value: category.categoryKey,
+    label: category.label,
+  }));
+}
+
+function getStaffCategoryLabel(category: string, categories: StaffCategoryOption[] = DEFAULT_STAFF_CATEGORIES) {
+  return categories.find((option) => option.value === category)?.label ?? category;
 }
 
 function normalizeStaffGroup(value: string | null | undefined) {
@@ -121,14 +146,14 @@ function getKnownGroupLabel<T extends readonly string[]>(value: string | null | 
 }
 
 function isGroupedStaffCategory(category: StaffCategoryFilter) {
-  return category === "elder" || category === "cooperation";
+  return category === "elder" || category === "cooperation" || category === "other";
 }
 
 function getGroupedStaffLabel(staff: {
   category: string;
   title?: string | null;
   department?: string | null;
-}) {
+}, categories: StaffCategoryOption[]) {
   if (staff.category === "elder") {
     return (
       getKnownGroupLabel(staff.title, ELDER_GROUP_LABELS) ??
@@ -141,20 +166,29 @@ function getGroupedStaffLabel(staff: {
     return getKnownGroupLabel(staff.title, COOPERATION_GROUP_LABELS) ?? "협력사역자";
   }
 
-  return staff.title?.trim() || getStaffCategoryLabel(staff.category);
+  if (staff.category === "other") {
+    return (
+      getKnownGroupLabel(staff.title, FOUNDATION_GROUP_LABELS) ??
+      (staff.title?.trim() ||
+      getStaffCategoryLabel(staff.category, categories)
+      )
+    );
+  }
+
+  return staff.title?.trim() || getStaffCategoryLabel(staff.category, categories);
 }
 
 function getStaffCardDetails(staff: {
   category: string;
   title?: string | null;
   department?: string | null;
-}) {
-  const categoryLabel = getStaffCategoryLabel(staff.category);
+}, categories: StaffCategoryOption[]) {
+  const categoryLabel = getStaffCategoryLabel(staff.category, categories);
   const title = staff.title?.trim();
   const department = staff.department?.trim();
   const details: string[] = [];
 
-  if (staff.category !== "elder" && staff.category !== "cooperation" && title && title !== categoryLabel) {
+  if (!isGroupedStaffCategory(staff.category) && title && title !== categoryLabel) {
     details.push(title);
   }
 
@@ -166,7 +200,7 @@ function getStaffCardDetails(staff: {
     } else {
       details.push(department);
     }
-  } else if (staff.category !== "elder" && staff.category !== "cooperation" && details.length === 0) {
+  } else if (!isGroupedStaffCategory(staff.category) && details.length === 0) {
     details.push(categoryLabel);
   }
 
@@ -291,7 +325,12 @@ export function StaffPage({
     [activeCategory],
   );
   const { data: staffList = [], isLoading } = trpc.home.staff.useQuery(queryInput);
+  const { data: staffCategories = [] } = trpc.home.staffCategories.useQuery();
   const { data: menuTree } = trpc.home.menus.useQuery();
+  const categoryOptions = useMemo(
+    () => mergeStaffCategoryOptions(staffCategories),
+    [staffCategories],
+  );
   const pageTitle = activeCategory === "associate" ? "부교역자" : "섬기는 분";
   const profileIntro = activeCategory === "associate"
     ? "기쁨의교회를 함께 섬기는 부교역자를 소개합니다."
@@ -307,17 +346,17 @@ export function StaffPage({
 
     const groups = new Map<string, typeof staffList>();
     staffList.forEach((staff) => {
-      const label = getGroupedStaffLabel(staff);
+      const label = getGroupedStaffLabel(staff, categoryOptions);
       const members = groups.get(label) ?? [];
       members.push(staff);
       groups.set(label, members);
     });
 
     return Array.from(groups, ([label, members]) => ({ label, members }));
-  }, [activeCategory, staffList]);
+  }, [activeCategory, categoryOptions, staffList]);
 
   const renderStaffCard = (staff: typeof staffList[number]) => {
-    const details = getStaffCardDetails(staff);
+    const details = getStaffCardDetails(staff, categoryOptions);
     const email = staff.email?.trim();
     const phone = staff.phone?.trim();
     const hasCardMeta = details.length > 0 || Boolean(email) || Boolean(phone);
@@ -379,7 +418,7 @@ export function StaffPage({
 
       <div className="mb-12 border-y border-gray-200">
         <div className="flex flex-wrap gap-x-8 gap-y-0">
-        {STAFF_CATEGORIES.map((category) => (
+        {categoryOptions.map((category) => (
           <button
             key={category.value}
             type="button"

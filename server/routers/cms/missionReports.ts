@@ -8,7 +8,7 @@
  */
 
 import { z } from "zod";
-import { adminProcedure, router } from "../../_core/trpc";
+import { adminPermissionProcedure, router } from "../../_core/trpc";
 import {
   optionalTextSchema,
   requiredTextSchema,
@@ -31,6 +31,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const idSchema = z.number().int().positive();
 const continentSchema = z.enum(["asia", "africa", "americas", "europe", "oceania"]);
 const reportStatusSchema = z.enum(["draft", "pending", "published", "rejected"]);
+const missionReportProcedure = adminPermissionProcedure("content:missionReports");
 
 const imageSchema = z.object({
   imageUrl: safeAssetUrlSchema,
@@ -68,9 +69,9 @@ function normalizePrayerTopics(prayerTopics: string[]) {
 }
 
 export const missionReportsRouter = router({
-  missionaries: adminProcedure.query(() => getAllMissionaries()),
+  missionaries: missionReportProcedure.query(() => getAllMissionaries()),
 
-  createMissionary: adminProcedure
+  createMissionary: missionReportProcedure
     .input(z.object({
       name: requiredTextSchema(128, "선교사/사역 이름을 입력해주세요."),
       region: requiredTextSchema(128, "사역 지역을 입력해주세요."),
@@ -84,7 +85,7 @@ export const missionReportsRouter = router({
     }))
     .mutation(({ input }) => createMissionary(input)),
 
-  updateMissionary: adminProcedure
+  updateMissionary: missionReportProcedure
     .input(z.object({
       id: idSchema,
       name: requiredTextSchema(128, "선교사/사역 이름을 입력해주세요.").optional(),
@@ -102,9 +103,9 @@ export const missionReportsRouter = router({
       return updateMissionary(id, data);
     }),
 
-  authorGrants: adminProcedure.query(() => getMissionAuthorGrants()),
+  authorGrants: missionReportProcedure.query(() => getMissionAuthorGrants()),
 
-  createAuthorGrant: adminProcedure
+  createAuthorGrant: missionReportProcedure
     .input(z.object({
       memberId: idSchema,
       missionaryId: idSchema,
@@ -113,16 +114,16 @@ export const missionReportsRouter = router({
       createMissionAuthorGrant({ ...input, canWrite: true, createdBy: ctx.user.id })
     ),
 
-  updateAuthorGrant: adminProcedure
+  updateAuthorGrant: missionReportProcedure
     .input(z.object({
       id: idSchema,
       canWrite: z.boolean(),
     }))
     .mutation(({ input }) => updateMissionAuthorGrant(input.id, { canWrite: input.canWrite })),
 
-  reports: adminProcedure.query(() => getAllMissionReports()),
+  reports: missionReportProcedure.query(() => getAllMissionReports()),
 
-  createReport: adminProcedure
+  createReport: missionReportProcedure
     .input(reportInputSchema)
     .mutation(({ input }) =>
       createMissionReportWithDetails(
@@ -142,7 +143,7 @@ export const missionReportsRouter = router({
       )
     ),
 
-  updateReport: adminProcedure
+  updateReport: missionReportProcedure
     .input(reportInputSchema.extend({ id: idSchema }))
     .mutation(({ input }) => {
       const { id, ...data } = input;
@@ -164,7 +165,7 @@ export const missionReportsRouter = router({
       );
     }),
 
-  reviewReport: adminProcedure
+  reviewReport: missionReportProcedure
     .input(z.object({
       id: idSchema,
       status: z.enum(["published", "rejected", "pending", "draft"]),

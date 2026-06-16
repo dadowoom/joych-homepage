@@ -11,7 +11,7 @@ import { registerMemberOAuthRoutes } from "./memberOAuth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { registerSeoUtilityRoutes } from "./seo";
+import { canonicalHostRedirect, registerSeoUtilityRoutes } from "./seo";
 import { registerLegacyVodRoutes } from "./legacyVod";
 
 const MB = 1024 * 1024;
@@ -240,6 +240,7 @@ async function startServer() {
     }
     next();
   });
+  app.use(canonicalHostRedirect);
 
   // Manus development-only endpoints/files must not be exposed in production.
   app.use("/__manus__", (_req, res) => {

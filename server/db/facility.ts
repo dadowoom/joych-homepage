@@ -10,7 +10,7 @@
  *               createReservation, updateReservationStatus, getReservationById
  */
 
-import { eq, asc, desc, and, or, isNull, lt, gt, sql } from "drizzle-orm";
+import { eq, asc, desc, and, or, isNull, lt, gt, sql, inArray } from "drizzle-orm";
 import {
   facilities, facilityImages, facilityHours, facilityBlockedDates, reservations, churchMembers,
   InsertFacility, InsertFacilityImage, InsertFacilityHour, InsertFacilityBlockedDate, InsertReservation,
@@ -192,6 +192,9 @@ export async function getAllReservations(facilityId?: number) {
       department: reservations.department,
       attendees: reservations.attendees,        // ⚠️ attendeeCount가 아닌 attendees
       notes: reservations.notes,
+      recurrenceGroupId: reservations.recurrenceGroupId,
+      recurrenceLabel: reservations.recurrenceLabel,
+      recurrenceSequence: reservations.recurrenceSequence,
       adminComment: reservations.adminComment,  // ⚠️ adminNotes가 아닌 adminComment
       processedBy: reservations.processedBy,
       processedAt: reservations.processedAt,
@@ -230,6 +233,9 @@ export async function getMyReservations(userId: number) {
       department: reservations.department,
       attendees: reservations.attendees,
       notes: reservations.notes,
+      recurrenceGroupId: reservations.recurrenceGroupId,
+      recurrenceLabel: reservations.recurrenceLabel,
+      recurrenceSequence: reservations.recurrenceSequence,
       adminComment: reservations.adminComment,
       processedBy: reservations.processedBy,
       processedAt: reservations.processedAt,
@@ -306,6 +312,13 @@ export async function createReservationIfAvailable(data: Omit<InsertReservation,
   });
 }
 
+/** 예약 생성 실패 시 같은 요청에서 생성된 예약들을 되돌립니다. */
+export async function deleteReservationsByIds(ids: number[]) {
+  const db = await getDb();
+  if (!db || ids.length === 0) return;
+  await db.delete(reservations).where(inArray(reservations.id, ids));
+}
+
 /**
  * 예약 상태 변경 (승인/거절/취소)
  * @param adminComment - 관리자 코멘트 (adminNotes가 아닌 adminComment 컬럼 사용)
@@ -350,6 +363,9 @@ export async function getReservationById(id: number) {
       department: reservations.department,
       attendees: reservations.attendees,        // ⚠️ attendeeCount가 아닌 attendees
       notes: reservations.notes,
+      recurrenceGroupId: reservations.recurrenceGroupId,
+      recurrenceLabel: reservations.recurrenceLabel,
+      recurrenceSequence: reservations.recurrenceSequence,
       adminComment: reservations.adminComment,  // ⚠️ adminNotes가 아닌 adminComment
       processedBy: reservations.processedBy,
       processedAt: reservations.processedAt,

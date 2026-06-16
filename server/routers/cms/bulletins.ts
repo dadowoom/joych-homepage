@@ -6,7 +6,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { adminProcedure, router } from "../../_core/trpc";
+import { adminPermissionProcedure, router } from "../../_core/trpc";
 import { storagePut } from "../../storage";
 import {
   archiveBulletin,
@@ -19,6 +19,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_BULLETIN_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_BULLETIN_IMAGE_COUNT = 12;
 const ALLOWED_BULLETIN_EXTS = new Set(["jpg", "jpeg", "png"]);
+const bulletinProcedure = adminPermissionProcedure("content:bulletins");
 
 const bulletinFileSchema = z.object({
   fileName: z.string().trim().min(1).max(255),
@@ -80,9 +81,9 @@ async function saveBulletinImage(file: z.infer<typeof bulletinFileSchema>, sortO
 }
 
 export const bulletinsRouter = router({
-  list: adminProcedure.query(() => listAdminBulletins()),
+  list: bulletinProcedure.query(() => listAdminBulletins()),
 
-  create: adminProcedure
+  create: bulletinProcedure
     .input(z.object({
       title: z.string().trim().min(1, "주보 제목을 입력해주세요.").max(160),
       bulletinDate: z.string().trim().regex(DATE_RE, "주보 날짜는 YYYY-MM-DD 형식으로 입력해주세요."),
@@ -111,7 +112,7 @@ export const bulletinsRouter = router({
       return { ok: true, id };
     }),
 
-  update: adminProcedure
+  update: bulletinProcedure
     .input(z.object({
       id: z.number().int().positive(),
       title: z.string().trim().min(1).max(160).optional(),
@@ -123,7 +124,7 @@ export const bulletinsRouter = router({
       return updateBulletin(id, data);
     }),
 
-  archive: adminProcedure
+  archive: bulletinProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(({ input }) => archiveBulletin(input.id)),
 });

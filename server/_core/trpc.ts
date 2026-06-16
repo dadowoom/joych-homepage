@@ -2,6 +2,7 @@ import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
+import { hasAdminContentPermission } from "../db/adminPermissions";
 import { getMemberById } from "../db/member";
 import { getJwtSecretKey } from "./jwtSecret";
 
@@ -28,6 +29,42 @@ const requireUser = t.middleware(async opts => {
 });
 
 export const protectedProcedure = t.procedure.use(requireUser);
+
+export function adminPermissionProcedure(permissionKey: string) {
+  return t.procedure.use(
+    t.middleware(async opts => {
+      const { ctx, next } = opts;
+
+      if (!hasAdminContentPermission(ctx.user, permissionKey)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
+      }
+
+      return next({
+        ctx: {
+          ...ctx,
+          user: ctx.user!,
+        },
+      });
+    }),
+  );
+}
+
+export function adminAnyPermissionProcedure(permissionKeys: string[]) {
+  return t.procedure.use(
+    t.middleware(async opts => {
+      const { ctx, next } = opts;
+      const hasAnyPermission = permissionKeys.some((permissionKey) =>
+        hasAdminContentPermission(ctx.user, permissionKey),
+      );
+      if (!hasAnyPermission) {
+        throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
+      }
+      return next({ ctx: { ...ctx, user: ctx.user! } });
+    }),
+  );
+}
+
+export const contentProcedure = adminPermissionProcedure("content:gallery");
 
 export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {

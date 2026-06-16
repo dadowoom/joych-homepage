@@ -220,6 +220,11 @@ export default function MyReservations() {
                         {statusConf.icon}
                         {statusConf.label}
                       </span>
+                      {r.recurrenceLabel && (
+                        <span className="text-xs font-medium px-2.5 py-1 rounded-full border border-blue-200 bg-blue-50 text-blue-700 shrink-0">
+                          반복
+                        </span>
+                      )}
                     </div>
 
                     {/* 상세 정보 */}
@@ -250,6 +255,12 @@ export default function MyReservations() {
                           <span className="font-medium">거절 사유: </span>
                           {r.adminComment}
                         </div>
+                      </div>
+                    )}
+
+                    {r.recurrenceLabel && (
+                      <div className="mt-3 bg-blue-50 rounded-lg px-3 py-2 text-xs text-blue-700">
+                        <span className="font-medium">반복 예약: </span>{r.recurrenceLabel}
                       </div>
                     )}
 

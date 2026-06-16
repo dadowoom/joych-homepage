@@ -16,7 +16,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { adminProcedure, router } from "../../_core/trpc";
+import { adminAnyPermissionProcedure, adminProcedure, contentProcedure, router } from "../../_core/trpc";
 import { storagePut } from "../../storage";
 
 // ── 허용 MIME 타입 및 확장자 화이트리스트 ────────────────────────────────────────────
@@ -133,7 +133,7 @@ export const uploadRouter = router({
    * - S3 경로: notice-images/{timestamp}-{random}.{ext}
    * - 허용: jpg, png, webp, gif / 최대 10MB
    */
-  image: adminProcedure
+  image: adminAnyPermissionProcedure(["content:notices", "content:popups"])
     .input(z.object({
       base64: z.string(),        // base64로 인코딩된 파일 내용
       fileName: z.string(),      // 원본 파일명 (예: notice.jpg)
@@ -151,7 +151,7 @@ export const uploadRouter = router({
    * - S3 경로: gallery-images/{timestamp}-{random}.{ext}
    * - 허용: jpg, png, webp, gif / 최대 10MB
    */
-  galleryImage: adminProcedure
+  galleryImage: contentProcedure
     .input(z.object({
       base64: z.string(),
       fileName: z.string(),

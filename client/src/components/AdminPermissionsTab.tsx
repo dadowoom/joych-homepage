@@ -1,0 +1,240 @@
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
+
+type PermissionSubject = {
+  memberId: number;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  status: string;
+  position: string | null;
+  department: string | null;
+  permissionKeys: string[];
+};
+
+export default function AdminPermissionsTab() {
+  const utils = trpc.useUtils();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+
+  const permissionsQuery = trpc.cms.adminPermissions.list.useQuery({
+    searchTerm: debouncedSearchTerm,
+  });
+  const permissions = permissionsQuery.data?.permissions ?? [];
+  const subjects = permissionsQuery.data?.subjects ?? [];
+
+  const selectedSubject = useMemo(
+    () => subjects.find((subject) => subject.memberId === selectedMemberId) ?? null,
+    [selectedMemberId, subjects],
+  );
+
+  const groupedPermissions = useMemo(() => {
+    const groups = new Map<string, typeof permissions>();
+    for (const permission of permissions) {
+      const list = groups.get(permission.group) ?? [];
+      list.push(permission);
+      groups.set(permission.group, list);
+    }
+    return Array.from(groups.entries());
+  }, [permissions]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim());
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    if (!selectedMemberId) return;
+    if (subjects.some((subject) => subject.memberId === selectedMemberId)) return;
+    setSelectedMemberId(null);
+  }, [selectedMemberId, subjects]);
+
+  useEffect(() => {
+    setSelectedKeys(selectedSubject?.permissionKeys ?? []);
+  }, [selectedSubject?.memberId, selectedSubject?.permissionKeys]);
+
+  const setPermissions = trpc.cms.adminPermissions.set.useMutation({
+    onSuccess: async (result) => {
+      toast.success("관리 권한이 저장되었습니다.");
+      setSelectedKeys(result.permissionKeys);
+      await utils.cms.adminPermissions.list.invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.message || "관리 권한 저장에 실패했습니다.");
+    },
+  });
+
+  const toggleKey = (permissionKey: string) => {
+    setSelectedKeys((current) =>
+      current.includes(permissionKey)
+        ? current.filter((key) => key !== permissionKey)
+        : [...current, permissionKey],
+    );
+  };
+
+  const handleSave = () => {
+    if (!selectedSubject) {
+      toast.error("권한을 부여할 성도를 선택해주세요.");
+      return;
+    }
+    setPermissions.mutate({
+      memberId: selectedSubject.memberId,
+      permissionKeys: selectedKeys,
+    });
+  };
+
+  if (permissionsQuery.isLoading) {
+    return (
+      <div className="py-12 text-center text-sm text-gray-500">
+        관리 권한 정보를 불러오는 중입니다.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3
+          className="text-lg font-bold text-gray-900"
+          style={{ fontFamily: "'Noto Serif KR', serif" }}
+        >
+          게시판별 관리자 권한
+        </h3>
+        <p className="mt-1 text-sm leading-6 text-gray-500">
+          승인된 성도 계정에 필요한 게시판, 갤러리, 영상, 접수 관리 권한만 선택해서 부여합니다.
+        </p>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <section className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="mb-3">
+            <label className="text-sm font-semibold text-gray-800">성도 선택</label>
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="이름, 직분, 부서, 이메일, 연락처 검색"
+              className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20]"
+            />
+          </div>
+          <div className="max-h-[560px] space-y-2 overflow-y-auto pr-1">
+            {!debouncedSearchTerm ? (
+              <p className="rounded-lg border border-dashed border-gray-200 py-8 text-center text-sm text-gray-400">
+                이름, 직분, 부서, 이메일, 연락처를 입력해 검색하세요.
+              </p>
+            ) : permissionsQuery.isFetching ? (
+              <p className="rounded-lg border border-dashed border-gray-200 py-8 text-center text-sm text-gray-400">
+                성도를 검색하는 중입니다.
+              </p>
+            ) : subjects.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-gray-200 py-8 text-center text-sm text-gray-400">
+                검색 결과가 없습니다.
+              </p>
+            ) : (
+              subjects.map((subject: PermissionSubject) => {
+                const isSelected = selectedMemberId === subject.memberId;
+                const permissionCount = subject.permissionKeys.length;
+
+                return (
+                  <button
+                    key={subject.memberId}
+                    type="button"
+                    onClick={() => setSelectedMemberId(subject.memberId)}
+                    className={`w-full rounded-lg border px-3 py-3 text-left transition-colors ${
+                      isSelected
+                        ? "border-[#1B5E20] bg-[#F1F8F2]"
+                        : "border-gray-200 hover:border-[#A5D6A7] hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-semibold text-gray-900">{subject.name}</div>
+                        <div className="mt-1 truncate text-xs text-gray-500">
+                          {subject.position || subject.department || subject.email || subject.phone || "-"}
+                        </div>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-[#E8F5E9] px-2 py-0.5 text-xs font-semibold text-[#1B5E20]">
+                        {permissionCount}개
+                      </span>
+                    </div>
+                    {subject.status !== "approved" && (
+                      <div className="mt-2 text-xs text-amber-600">
+                        승인 완료 후 권한 로그인이 가능합니다.
+                      </div>
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="mb-4 flex flex-col gap-3 border-b border-gray-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-gray-500">선택된 성도</p>
+              <h4 className="mt-1 text-lg font-bold text-gray-900">
+                {selectedSubject?.name ?? "성도를 선택해주세요"}
+              </h4>
+            </div>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={!selectedSubject || setPermissions.isPending}
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-[#1B5E20] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#2E7D32] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <i className="fas fa-save mr-2"></i>
+              {setPermissions.isPending ? "저장 중" : "권한 저장"}
+            </button>
+          </div>
+
+          <div className="space-y-5">
+            {groupedPermissions.map(([group, groupPermissions]) => (
+              <div key={group} className="rounded-xl border border-gray-100 bg-gray-50/60 p-4">
+                <h5 className="font-semibold text-gray-900">{group}</h5>
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  {groupPermissions.map((permission) => {
+                    const checked = selectedKeys.includes(permission.key);
+
+                    return (
+                      <label
+                        key={permission.key}
+                        className={`flex cursor-pointer items-start gap-3 rounded-lg border bg-white p-3 transition-colors ${
+                          checked
+                            ? "border-[#1B5E20] ring-1 ring-[#A5D6A7]"
+                            : "border-gray-200 hover:border-[#A5D6A7]"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleKey(permission.key)}
+                          className="mt-1 h-4 w-4 accent-[#1B5E20]"
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold text-gray-900">
+                            {permission.label}
+                          </span>
+                          {permission.description && (
+                            <span className="mt-1 block text-xs text-gray-500">
+                              {permission.description}
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}

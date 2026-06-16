@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
-import type { Request } from "express";
-import { injectSeoMeta } from "./_core/seo";
+import { describe, expect, it, vi } from "vitest";
+import type { NextFunction, Request, Response } from "express";
+import { canonicalHostRedirect, injectSeoMeta } from "./_core/seo";
 
 const baseHtml = `<!doctype html>
 <html lang="ko">
@@ -36,6 +36,9 @@ describe("SEO meta injection", () => {
     expect(html).toContain(
       '<link rel="canonical" href="https://dadowoomtest.co.kr/about/directions" />'
     );
+    expect(html).toContain(
+      '<meta name="keywords" content="기쁨의교회, 포항기쁨의교회, 포항 교회, 삼흥로 411, The Joyful Church" />'
+    );
     expect(html).toContain('type="application/ld+json"');
   });
 
@@ -45,5 +48,24 @@ describe("SEO meta injection", () => {
     expect(html).toContain(
       '<meta name="robots" content="noindex, nofollow" />'
     );
+  });
+
+  it("www 공개 도메인은 대표 도메인으로 301 정리한다", () => {
+    const req = {
+      originalUrl: "/about/directions?from=www",
+      url: "/about/directions?from=www",
+      headers: { host: "www.newjoych.co.kr" },
+    } as unknown as Request;
+    const redirect = vi.fn();
+    const res = { redirect } as unknown as Response;
+    const next = vi.fn() as unknown as NextFunction;
+
+    canonicalHostRedirect(req, res, next);
+
+    expect(redirect).toHaveBeenCalledWith(
+      301,
+      "https://newjoych.co.kr/about/directions?from=www"
+    );
+    expect(next).not.toHaveBeenCalled();
   });
 });

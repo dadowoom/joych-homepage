@@ -11,6 +11,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import SubPageLayout from "@/components/SubPageLayout";
 import { getSupportSideMenuItems } from "@/lib/supportSideMenu";
+import { ViewModeToggle, type ViewMode } from "@/components/dynamic-page/ViewModeToggle";
 
 function notifyOfficeContact(serviceName: string) {
   window.alert(`${serviceName} 온라인 접수 기능은 준비 중입니다. 교회 행정실(054-270-1000)로 문의해 주세요.`);
@@ -287,6 +288,7 @@ export function SubtitleRequestPage() {
   const { data: subtitleRequests = [], isLoading } = trpc.support.listSubtitles.useQuery();
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [page, setPage] = useState(1);
   const [searchField, setSearchField] = useState("title");
   const [searchInput, setSearchInput] = useState("");
@@ -559,19 +561,7 @@ export function SubtitleRequestPage() {
 
         <div className="flex flex-col gap-3 border-b border-[#86C5D8] pb-2 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2 text-xs text-gray-500">
-            <div className="flex items-center gap-0.5">
-              <span className="flex h-6 w-6 items-center justify-center border border-[#86C5D8] bg-white text-[#1B5E20]">
-                <span className="h-3.5 w-3.5 border-y-2 border-[#1B5E20]" />
-              </span>
-              <span className="flex h-6 w-6 items-center justify-center border border-gray-200 bg-gray-50 text-gray-300">
-                <span className="grid grid-cols-2 gap-0.5">
-                  <span className="h-1.5 w-1.5 bg-gray-300" />
-                  <span className="h-1.5 w-1.5 bg-gray-300" />
-                  <span className="h-1.5 w-1.5 bg-gray-300" />
-                  <span className="h-1.5 w-1.5 bg-gray-300" />
-                </span>
-              </span>
-            </div>
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
             <span>새 글 {newRequestCount} / {filteredRequests.length}</span>
           </div>
           <form
@@ -617,7 +607,7 @@ export function SubtitleRequestPage() {
           </div>
         ) : (
           <>
-            <div className="hidden overflow-hidden border border-gray-200 bg-white md:block">
+            <div className={`${viewMode === "list" ? "hidden md:block" : "hidden"} overflow-hidden border border-gray-200 bg-white`}>
               <table className="w-full table-fixed text-sm">
                 <colgroup>
                   <col className="w-16" />
@@ -692,12 +682,12 @@ export function SubtitleRequestPage() {
               </table>
             </div>
 
-            <div className="divide-y divide-gray-100 border border-gray-200 bg-white md:hidden">
+            <div className={viewMode === "grid" ? "grid gap-4 md:grid-cols-2" : "divide-y divide-gray-100 border border-gray-200 bg-white md:hidden"}>
               {visibleRequests.map((request, index) => {
                 const requestNumber = filteredRequests.length - (pageStart + index);
                 const isExpanded = expandedId === request.id;
                 return (
-                  <article key={request.id} className="p-4">
+                  <article key={request.id} className={viewMode === "grid" ? "border border-gray-200 bg-white p-4" : "p-4"}>
                     <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
                       <span>번호 {requestNumber}</span>
                       <span>{formatSupportDate(request.createdAt)}</span>
@@ -770,6 +760,7 @@ export function BulletinAdRequestPage() {
   const { data: requests = [], isLoading } = trpc.support.listBulletinAds.useQuery();
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [page, setPage] = useState(1);
   const [searchField, setSearchField] = useState("title");
   const [searchInput, setSearchInput] = useState("");
@@ -1017,19 +1008,7 @@ export function BulletinAdRequestPage() {
 
         <div className="flex flex-col gap-3 border-b border-[#86C5D8] pb-2 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2 text-xs text-gray-500">
-            <div className="flex items-center gap-0.5">
-              <span className="flex h-6 w-6 items-center justify-center border border-[#86C5D8] bg-white text-[#1B5E20]">
-                <span className="h-3.5 w-3.5 border-y-2 border-[#1B5E20]" />
-              </span>
-              <span className="flex h-6 w-6 items-center justify-center border border-gray-200 bg-gray-50 text-gray-300">
-                <span className="grid grid-cols-2 gap-0.5">
-                  <span className="h-1.5 w-1.5 bg-gray-300" />
-                  <span className="h-1.5 w-1.5 bg-gray-300" />
-                  <span className="h-1.5 w-1.5 bg-gray-300" />
-                  <span className="h-1.5 w-1.5 bg-gray-300" />
-                </span>
-              </span>
-            </div>
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
             <span>새 글 {newRequestCount} / {filteredRequests.length}</span>
           </div>
           <form
@@ -1075,7 +1054,7 @@ export function BulletinAdRequestPage() {
           </div>
         ) : (
           <>
-            <div className="hidden overflow-hidden border border-gray-200 bg-white md:block">
+            <div className={`${viewMode === "list" ? "hidden md:block" : "hidden"} overflow-hidden border border-gray-200 bg-white`}>
               <table className="w-full table-fixed text-sm">
                 <colgroup>
                   <col className="w-16" />
@@ -1150,12 +1129,12 @@ export function BulletinAdRequestPage() {
               </table>
             </div>
 
-            <div className="divide-y divide-gray-100 border border-gray-200 bg-white md:hidden">
+            <div className={viewMode === "grid" ? "grid gap-4 md:grid-cols-2" : "divide-y divide-gray-100 border border-gray-200 bg-white md:hidden"}>
               {visibleRequests.map((request, index) => {
                 const requestNumber = filteredRequests.length - (pageStart + index);
                 const isExpanded = expandedId === request.id;
                 return (
-                  <article key={request.id} className="p-4">
+                  <article key={request.id} className={viewMode === "grid" ? "border border-gray-200 bg-white p-4" : "p-4"}>
                     <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
                       <span>번호 {requestNumber}</span>
                       <span>{formatSupportDate(request.createdAt)}</span>

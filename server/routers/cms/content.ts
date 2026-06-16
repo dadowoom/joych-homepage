@@ -12,7 +12,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { adminProcedure, router } from "../../_core/trpc";
+import { adminProcedure, contentProcedure, router } from "../../_core/trpc";
 import {
   optionalTextSchema,
   requiredTextSchema,
@@ -35,9 +35,11 @@ import {
   createHeroSlide,
   deleteHeroSlide,
   getAllGalleryItems,
+  getAllHomeGalleryItems,
   updateGalleryItem,
   createGalleryItem,
   deleteGalleryItem,
+  reorderGalleryAlbums,
   upsertSiteSetting,
   getAllQuickMenus,
   updateQuickMenu,
@@ -97,7 +99,7 @@ const ministryContentSchema = z.object({
     title: requiredTextSchema(120, "활동 제목을 입력해주세요."),
     desc: requiredTextSchema(500, "활동 설명을 입력해주세요."),
     icon: optionalTextSchema(64),
-  })).max(30).optional(),
+  })).max(100).optional(),
   contact: z.array(z.object({
     label: requiredTextSchema(80, "연락처 라벨을 입력해주세요."),
     value: requiredTextSchema(300, "연락처 값을 입력해주세요."),
@@ -206,19 +208,27 @@ export const contentRouter = router({
   // ─── 갤러리 관리 ────────────────────────────────────────────────────────────
   gallery: router({
     /** 갤러리 전체 목록 (관리자용, 숨김 포함) */
-    list: adminProcedure.query(() => getAllGalleryItems()),
+    list: contentProcedure.query(() => getAllGalleryItems()),
+    listHome: contentProcedure.query(() => getAllHomeGalleryItems()),
     /** 갤러리 사진 추가 */
-    create: adminProcedure
+    create: contentProcedure
       .input(z.object({
         imageUrl: safeAssetUrlSchema.refine(value => value.length > 0, "이미지를 선택해주세요."),
+        albumKey: optionalTextSchema(96),
+        albumTitle: optionalTextSchema(160),
+        albumSortOrder: z.number().int().min(0).max(2147483647).optional(),
         caption: optionalTextSchema(128),
         gridSpan: gridSpanValueSchema.optional(),
+        isHomeGallery: z.boolean().optional(),
       }))
       .mutation(({ input }) => createGalleryItem(input)),
     /** 갤러리 항목 수정 (캡션, 순서, 공개 여부, 그리드 크기) */
-    update: adminProcedure
+    update: contentProcedure
       .input(z.object({
         id: z.number().int().positive(),
+        albumKey: optionalTextSchema(96),
+        albumTitle: optionalTextSchema(160),
+        albumSortOrder: z.number().int().min(0).max(2147483647).optional(),
         caption: optionalTextSchema(128),
         sortOrder: sortOrderSchema,
         isVisible: z.boolean().optional(),
@@ -229,16 +239,24 @@ export const contentRouter = router({
         return updateGalleryItem(id, data);
       }),
     /** 갤러리 항목 삭제 */
-    delete: adminProcedure
+    delete: contentProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(({ input }) => deleteGalleryItem(input.id)),
     /** 갤러리 순서 일괄 변경 */
-    reorder: adminProcedure
+    reorder: contentProcedure
       .input(z.array(z.object({
         id: z.number().int().positive(),
         sortOrder: z.number().int().min(0).max(10000),
       })).max(500))
       .mutation(({ input }) => reorderGalleryItems(input)),
+    /** 갤러리 앨범 순서 일괄 변경 */
+    reorderAlbums: contentProcedure
+      .input(z.array(z.object({
+        albumKey: optionalTextSchema(96),
+        albumTitle: optionalTextSchema(160),
+        albumSortOrder: z.number().int().min(0).max(2147483647),
+      })).max(200))
+      .mutation(({ input }) => reorderGalleryAlbums(input)),
   }),
 
   // ─── 사이트 설정 관리 ───────────────────────────────────────────────────────

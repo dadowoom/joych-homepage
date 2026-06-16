@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { ChevronLeft, ChevronRight, FileText, Pencil, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { ViewModeToggle, type ViewMode } from "./ViewModeToggle";
 
 function formatDate(value: string | Date) {
   const date = new Date(value);
@@ -31,6 +32,7 @@ export function FreeBoardContent() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [page, setPage] = useState(1);
   const [searchField, setSearchField] = useState("title");
   const [searchInput, setSearchInput] = useState("");
@@ -209,19 +211,7 @@ export function FreeBoardContent() {
         <>
           <div className="flex flex-col gap-3 border-b border-[#86C5D8] pb-2 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-2 text-xs text-gray-500">
-              <div className="flex items-center gap-0.5">
-                <span className="flex h-6 w-6 items-center justify-center border border-[#86C5D8] bg-white text-[#1B5E20]">
-                  <span className="h-3.5 w-3.5 border-y-2 border-[#1B5E20]" />
-                </span>
-                <span className="flex h-6 w-6 items-center justify-center border border-gray-200 bg-gray-50 text-gray-300">
-                  <span className="grid grid-cols-2 gap-0.5">
-                    <span className="h-1.5 w-1.5 bg-gray-300" />
-                    <span className="h-1.5 w-1.5 bg-gray-300" />
-                    <span className="h-1.5 w-1.5 bg-gray-300" />
-                    <span className="h-1.5 w-1.5 bg-gray-300" />
-                  </span>
-                </span>
-              </div>
+              <ViewModeToggle value={viewMode} onChange={setViewMode} />
               <span>새 글 {newPostCount} / {filteredPosts.length}</span>
             </div>
             <form
@@ -265,7 +255,7 @@ export function FreeBoardContent() {
             </div>
           ) : (
             <>
-          <div className="hidden overflow-hidden border border-gray-200 bg-white md:block">
+          <div className={`${viewMode === "list" ? "hidden md:block" : "hidden"} overflow-hidden border border-gray-200 bg-white`}>
             <table className="w-full table-fixed text-sm">
               <colgroup>
                 <col className="w-16" />
@@ -341,13 +331,13 @@ export function FreeBoardContent() {
             </table>
           </div>
 
-          <div className="divide-y divide-gray-100 border border-gray-200 bg-white md:hidden">
+          <div className={viewMode === "grid" ? "grid gap-4 md:grid-cols-2" : "divide-y divide-gray-100 border border-gray-200 bg-white md:hidden"}>
             {visiblePosts.map((post, index) => {
               const isOwner = me?.id === post.authorMemberId;
               const postNumber = filteredPosts.length - (pageStart + index);
               const isExpanded = expandedId === post.id;
               return (
-                <article key={post.id} className="p-4">
+                <article key={post.id} className={viewMode === "grid" ? "border border-gray-200 bg-white p-4" : "p-4"}>
                   <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
                     <span>번호 {postNumber}</span>
                     <span>{formatDate(post.createdAt)}</span>

@@ -8,7 +8,7 @@
  */
 
 import { z } from "zod";
-import { adminProcedure, router } from "../../_core/trpc";
+import { adminPermissionProcedure, router } from "../../_core/trpc";
 import { optionalTextSchema, requiredTextSchema } from "../../_core/contentValidation";
 import {
   createCourse,
@@ -27,6 +27,7 @@ const nullableDateSchema = z.string().regex(DATE_RE, "날짜는 YYYY-MM-DD 형�
 const nullableTimeSchema = z.string().regex(TIME_RE, "시간은 HH:MM 형식으로 입력해주세요.").nullable().optional();
 const courseStatusSchema = z.enum(["draft", "open", "closed", "archived"]);
 const applicationStatusSchema = z.enum(["pending", "approved", "rejected", "cancelled"]);
+const courseProcedure = adminPermissionProcedure("content:courses");
 
 function compareNullableDate(start?: string | null, end?: string | null) {
   return !start || !end || start <= end;
@@ -86,28 +87,28 @@ const courseUpdateSchema = z.object(courseShape).partial().extend({
 }).superRefine(validateCourseDatesAndTimes);
 
 export const coursesRouter = router({
-  list: adminProcedure.query(() => getCoursesForAdmin()),
+  list: courseProcedure.query(() => getCoursesForAdmin()),
 
-  create: adminProcedure
+  create: courseProcedure
     .input(courseBaseSchema)
     .mutation(({ input }) => createCourse(input)),
 
-  update: adminProcedure
+  update: courseProcedure
     .input(courseUpdateSchema)
     .mutation(({ input }) => {
       const { id, ...data } = input;
       return updateCourse(id, data);
     }),
 
-  delete: adminProcedure
+  delete: courseProcedure
     .input(z.object({ id: idSchema }))
     .mutation(({ input }) => deleteCourse(input.id)),
 
-  applications: adminProcedure
+  applications: courseProcedure
     .input(z.object({ courseId: idSchema.optional() }))
     .query(({ input }) => getCourseApplications(input.courseId)),
 
-  updateApplicationStatus: adminProcedure
+  updateApplicationStatus: courseProcedure
     .input(z.object({
       id: idSchema,
       status: applicationStatusSchema,

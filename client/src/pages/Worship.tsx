@@ -4,12 +4,16 @@
  * 포함: JoyfulTV / WorshipSchedule / Bulletin
  */
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
 import { getSupportSideMenuItems } from "@/lib/supportSideMenu";
-import { ChevronLeft, ChevronRight, Download, X, ZoomIn } from "lucide-react";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { canManageBoardContent } from "@/lib/contentPermissions";
+import { ViewModeToggle, type ViewMode } from "@/components/dynamic-page/ViewModeToggle";
+import { toast } from "sonner";
+import { ChevronLeft, ChevronRight, Download, Images, Paperclip, Upload, X, ZoomIn } from "lucide-react";
 
 function PageHeader({ title, subtitle, breadcrumb }: { title: string; subtitle?: string; breadcrumb: string[] }) {
   return (
@@ -271,10 +275,183 @@ function getBulletinPages(bulletin: BulletinWithPages) {
       }];
 }
 
+const MAX_BULLETIN_UPLOAD_BYTES = 8 * 1024 * 1024;
+const MAX_BULLETIN_UPLOAD_COUNT = 12;
+const ALLOWED_BULLETIN_UPLOAD_RE = /\.(jpg|jpeg|png)$/i;
+
+function getTodayDateInputValue() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function readBulletinFile(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error("파일을 읽지 못했습니다."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function sortBulletinUploadFiles(files: File[]) {
+  return [...files].sort((a, b) =>
+    a.name.localeCompare(b.name, "ko-KR", { numeric: true, sensitivity: "base" })
+  );
+}
+
+function BulletinUploadPanel() {
+  const utils = trpc.useUtils();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [form, setForm] = useState({
+    title: "",
+    bulletinDate: getTodayDateInputValue(),
+    status: "published" as "published" | "hidden",
+  });
+
+  const createBulletin = trpc.cms.bulletins.create.useMutation({
+    onSuccess: async () => {
+      toast.success("주보가 등록되었습니다.");
+      setForm({
+        title: "",
+        bulletinDate: getTodayDateInputValue(),
+        status: "published",
+      });
+      setSelectedFiles([]);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      await Promise.all([
+        utils.home.bulletins.invalidate(),
+        utils.cms.bulletins.list.invalidate(),
+      ]);
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const handleFilesChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = sortBulletinUploadFiles(Array.from(event.target.files ?? []));
+    if (files.length > MAX_BULLETIN_UPLOAD_COUNT) {
+      toast.error(`주보 이미지는 최대 ${MAX_BULLETIN_UPLOAD_COUNT}장까지 등록할 수 있습니다.`);
+      event.currentTarget.value = "";
+      return;
+    }
+    if (files.some((file) => !ALLOWED_BULLETIN_UPLOAD_RE.test(file.name))) {
+      toast.error("주보 이미지는 JPG, PNG 파일만 등록할 수 있습니다.");
+      event.currentTarget.value = "";
+      return;
+    }
+    if (files.some((file) => file.size > MAX_BULLETIN_UPLOAD_BYTES)) {
+      toast.error("주보 이미지는 한 장당 최대 8MB까지 업로드할 수 있습니다.");
+      event.currentTarget.value = "";
+      return;
+    }
+    setSelectedFiles(files);
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (selectedFiles.length === 0) {
+      toast.error("등록할 주보 이미지를 선택해주세요.");
+      return;
+    }
+
+    await createBulletin.mutateAsync({
+      title: form.title,
+      bulletinDate: form.bulletinDate,
+      status: form.status,
+      files: await Promise.all(
+        selectedFiles.map(async (file) => ({
+          fileName: file.name,
+          mimeType: file.type || "application/octet-stream",
+          base64: await readBulletinFile(file),
+        }))
+      ),
+    });
+  };
+
+  return (
+    <section className="mb-5 border border-[#D8E8DA] bg-[#F8FCF8] p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-bold text-[#1B5E20]">주보 등록</p>
+          <p className="mt-1 text-xs text-gray-500">권한 계정은 이 화면에서 주보 이미지를 여러 장 등록할 수 있습니다.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsOpen((current) => !current)}
+          className="inline-flex h-9 items-center justify-center gap-2 border border-[#1B5E20] bg-white px-3 text-xs font-semibold text-[#1B5E20] hover:bg-[#F1F8E9]"
+        >
+          <Upload className="h-3.5 w-3.5" />
+          {isOpen ? "등록 닫기" : "주보 등록"}
+        </button>
+      </div>
+
+      {isOpen && (
+        <form onSubmit={handleSubmit} className="mt-4 grid gap-3 lg:grid-cols-[1fr_150px_130px_auto]">
+          <input
+            required
+            value={form.title}
+            onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+            placeholder="예: 2026년 6월 7일 주보"
+            className="h-10 border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#1B5E20]"
+          />
+          <input
+            type="date"
+            required
+            value={form.bulletinDate}
+            onChange={(event) => setForm((prev) => ({ ...prev, bulletinDate: event.target.value }))}
+            className="h-10 border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#1B5E20]"
+          />
+          <select
+            value={form.status}
+            onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as "published" | "hidden" }))}
+            className="h-10 border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#1B5E20]"
+          >
+            <option value="published">공개</option>
+            <option value="hidden">숨김</option>
+          </select>
+          <div className="flex items-center gap-2">
+            <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 border border-[#1B5E20]/30 bg-white px-3 text-sm font-medium text-[#1B5E20] hover:bg-[#F1F8E9]">
+              <Paperclip className="h-4 w-4" />
+              이미지
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="sr-only"
+                accept=".jpg,.jpeg,.png"
+                multiple
+                onChange={handleFilesChange}
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={createBulletin.isPending}
+              className="inline-flex h-10 items-center justify-center gap-2 bg-[#1B5E20] px-4 text-sm font-semibold text-white hover:bg-[#2E7D32] disabled:opacity-50"
+            >
+              <Upload className="h-4 w-4" />
+              등록
+            </button>
+          </div>
+          {selectedFiles.length > 0 && (
+            <div className="lg:col-span-4 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+              <Images className="h-3.5 w-3.5 text-[#1B5E20]" />
+              <span>선택된 이미지 {selectedFiles.length}장</span>
+              <span className="text-gray-300">|</span>
+              <span className="truncate">{selectedFiles.map((file) => file.name).join(", ")}</span>
+            </div>
+          )}
+        </form>
+      )}
+    </section>
+  );
+}
+
 export function Bulletin() {
   const { data: bulletins = [], isLoading } = trpc.home.bulletins.useQuery();
+  const { user } = useAuth();
+  const canManage = canManageBoardContent(user);
   const { data: allMenus } = trpc.home.menus.useQuery();
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);
   const [lightbox, setLightbox] = useState<{ bulletinId: number; pageIndex: number } | null>(null);
   const [searchInput, setSearchInput] = useState("");
@@ -328,21 +505,11 @@ export function Bulletin() {
           <p className="mt-1 text-xs text-gray-400">목록에서 주보를 선택해 미리보고 내려받을 수 있습니다.</p>
         </div>
 
+        {canManage && <BulletinUploadPanel />}
+
         <div className="mb-4 flex flex-col gap-3 border-b border-[#86C5D8] pb-2 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2 text-xs text-gray-500">
-            <div className="flex items-center gap-0.5">
-              <span className="flex h-6 w-6 items-center justify-center border border-[#86C5D8] bg-white text-[#1B5E20]">
-                <span className="h-3.5 w-3.5 border-y-2 border-[#1B5E20]" />
-              </span>
-              <span className="flex h-6 w-6 items-center justify-center border border-gray-200 bg-gray-50 text-gray-300">
-                <span className="grid grid-cols-2 gap-0.5">
-                  <span className="h-1.5 w-1.5 bg-gray-300" />
-                  <span className="h-1.5 w-1.5 bg-gray-300" />
-                  <span className="h-1.5 w-1.5 bg-gray-300" />
-                  <span className="h-1.5 w-1.5 bg-gray-300" />
-                </span>
-              </span>
-            </div>
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
             <span>새 글 0 / {filteredBulletins.length}</span>
           </div>
           <form
@@ -378,7 +545,7 @@ export function Bulletin() {
         {isLoading ? (
           <div className="text-center py-16 text-gray-400">불러오는 중...</div>
         ) : (
-          <div className="hidden overflow-hidden border border-gray-200 bg-white md:block">
+          <div className={`${viewMode === "list" ? "hidden md:block" : "hidden"} overflow-hidden border border-gray-200 bg-white`}>
           <table className="w-full table-fixed text-sm">
             <colgroup>
               <col className="w-16" />
@@ -426,9 +593,9 @@ export function Bulletin() {
         )}
 
         {!isLoading && (
-          <div className="divide-y divide-gray-100 border border-gray-200 bg-white md:hidden">
+          <div className={viewMode === "grid" ? "grid gap-4 md:grid-cols-2" : "divide-y divide-gray-100 border border-gray-200 bg-white md:hidden"}>
           {filteredBulletins.map((bulletin, index) => (
-            <article key={bulletin.id} className="p-4">
+            <article key={bulletin.id} className={viewMode === "grid" ? "border border-gray-200 bg-white p-4" : "p-4"}>
               <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
                 <span>번호 {filteredBulletins.length - index}</span>
                 <span>{formatBulletinDate(bulletin.bulletinDate)}</span>

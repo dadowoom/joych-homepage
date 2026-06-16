@@ -28,6 +28,21 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
+export const adminContentPermissions = mysqlTable("admin_content_permissions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("user_id").notNull(),
+  permissionKey: varchar("permission_key", { length: 128 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("admin_content_permissions_user_key_unique").on(table.userId, table.permissionKey),
+  index("admin_content_permissions_user_id_idx").on(table.userId),
+  index("admin_content_permissions_permission_key_idx").on(table.permissionKey),
+]);
+
+export type AdminContentPermission = typeof adminContentPermissions.$inferSelect;
+export type InsertAdminContentPermission = typeof adminContentPermissions.$inferInsert;
+
 // ─────────────────────────────────────────────
 // CMS: 섹션 마스터 테이블
 // 메인 페이지의 모든 섹션을 관리합니다.
@@ -266,15 +281,23 @@ export const galleryItems = mysqlTable("gallery_items", {
   id: int("id").autoincrement().primaryKey(),
   /** S3 CDN 이미지 URL */
   imageUrl: text("imageUrl").notNull(),
+  albumKey: varchar("albumKey", { length: 96 }),
+  albumTitle: varchar("albumTitle", { length: 160 }),
+  albumSortOrder: int("albumSortOrder").notNull().default(0),
   /** 사진 설명 (alt 텍스트) */
   caption: varchar("caption", { length: 128 }),
   /** 그리드 크기 (예: col-span-2 row-span-2) */
   gridSpan: varchar("gridSpan", { length: 64 }).default("col-span-1 row-span-1"),
   sortOrder: int("sortOrder").notNull().default(0),
   isVisible: boolean("isVisible").notNull().default(true),
+  isHomeGallery: boolean("isHomeGallery").notNull().default(false),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [
+  index("gallery_items_album_key_idx").on(table.albumKey),
+  index("gallery_items_album_sort_order_idx").on(table.albumSortOrder),
+  index("gallery_items_home_gallery_idx").on(table.isHomeGallery, table.isVisible),
+]);
 
 export type GalleryItem = typeof galleryItems.$inferSelect;
 export type InsertGalleryItem = typeof galleryItems.$inferInsert;
@@ -342,7 +365,7 @@ export type InsertSiteSetting = typeof siteSettings.$inferInsert;
 export const churchStaff = mysqlTable("church_staff", {
   id: int("id").autoincrement().primaryKey(),
   /** 분류: 담임목사 / 부교역자 / 교회학교 교역자 / 협력사역자 / 장로 / 교회직원 / 사회복지법인 기쁨의복지재단 */
-  category: mysqlEnum("category", ["senior", "associate", "education", "cooperation", "elder", "office", "other"]).notNull().default("associate"),
+  category: varchar("category", { length: 64 }).notNull().default("associate"),
   /** 이름 */
   name: varchar("name", { length: 64 }).notNull(),
   /** 직책/직분 (예: 부목사, 전도사) */
@@ -371,6 +394,39 @@ export const churchStaff = mysqlTable("church_staff", {
 
 export type ChurchStaff = typeof churchStaff.$inferSelect;
 export type InsertChurchStaff = typeof churchStaff.$inferInsert;
+
+export const churchStaffCategories = mysqlTable("church_staff_categories", {
+  id: int("id").autoincrement().primaryKey(),
+  categoryKey: varchar("category_key", { length: 64 }).notNull().unique(),
+  label: varchar("label", { length: 64 }).notNull(),
+  sortOrder: int("sort_order").notNull().default(0),
+  isBuiltIn: boolean("is_builtin").notNull().default(false),
+  isVisible: boolean("is_visible").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("church_staff_categories_visible_sort_idx").on(table.isVisible, table.sortOrder),
+]);
+
+export type ChurchStaffCategory = typeof churchStaffCategories.$inferSelect;
+export type InsertChurchStaffCategory = typeof churchStaffCategories.$inferInsert;
+
+export const churchStaffTitleOptions = mysqlTable("church_staff_title_options", {
+  id: int("id").autoincrement().primaryKey(),
+  categoryKey: varchar("category_key", { length: 64 }).notNull(),
+  label: varchar("label", { length: 64 }).notNull(),
+  sortOrder: int("sort_order").notNull().default(0),
+  isBuiltIn: boolean("is_builtin").notNull().default(false),
+  isVisible: boolean("is_visible").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("church_staff_title_options_category_sort_idx").on(table.categoryKey, table.isVisible, table.sortOrder),
+  uniqueIndex("church_staff_title_options_category_label_unique").on(table.categoryKey, table.label),
+]);
+
+export type ChurchStaffTitleOption = typeof churchStaffTitleOptions.$inferSelect;
+export type InsertChurchStaffTitleOption = typeof churchStaffTitleOptions.$inferInsert;
 
 // ─────────────────────────────────────────────
 // 교적부: 교회 성도 정보
@@ -789,6 +845,12 @@ export const reservations = mysqlTable("reservations", {
   notes: text("notes"),
   /** 예약 상태: pending(대기) / approved(승인) / rejected(거절) / cancelled(취소) */
   status: mysqlEnum("status", ["pending", "approved", "rejected", "cancelled"]).notNull().default("pending"),
+  /** 반복 예약 묶음 ID */
+  recurrenceGroupId: varchar("recurrenceGroupId", { length: 64 }),
+  /** 반복 예약 설명 */
+  recurrenceLabel: varchar("recurrenceLabel", { length: 160 }),
+  /** 반복 예약 내 순서 */
+  recurrenceSequence: int("recurrenceSequence").notNull().default(0),
   /** 승인/거절 사유 (관리자 입력) */
   adminComment: text("adminComment"),
   /** 승인/거절 처리한 관리자 ID */

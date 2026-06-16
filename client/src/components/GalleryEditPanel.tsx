@@ -38,6 +38,8 @@ import { toast } from "sonner";
 type GalleryRow = {
   id: number;
   imageUrl: string;
+  albumKey: string | null;
+  albumTitle: string | null;
   caption: string | null;
   gridSpan: string | null;
   sortOrder: number;
@@ -202,7 +204,7 @@ function SortableGalleryItem({
 export default function GalleryEditPanel({ open, onClose }: GalleryEditPanelProps) {
   const utils = trpc.useUtils();
 
-  const { data: items, isLoading } = trpc.cms.content.gallery.list.useQuery(undefined, {
+  const { data: items, isLoading } = trpc.cms.content.gallery.listHome.useQuery(undefined, {
     enabled: open,
   });
 
@@ -228,8 +230,8 @@ export default function GalleryEditPanel({ open, onClose }: GalleryEditPanelProp
   );
 
   const invalidate = () => {
-    utils.cms.content.gallery.list.invalidate();
-    utils.home.gallery.invalidate();
+    utils.cms.content.gallery.listHome.invalidate();
+    utils.home.homeGallery.invalidate();
   };
 
   const uploadMutation = trpc.cms.upload.galleryImage.useMutation({
@@ -315,8 +317,11 @@ export default function GalleryEditPanel({ open, onClose }: GalleryEditPanelProp
 
       await createMutation.mutateAsync({
         imageUrl: url,
+        albumKey: `home-gallery-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+        albumTitle: newCaption.trim() || "메인 갤러리",
         caption: newCaption.trim() || undefined,
         gridSpan: newGridSpan,
+        isHomeGallery: true,
       });
 
       toast.success("사진이 업로드됐습니다!");
