@@ -47,7 +47,7 @@ const timeSchema = z.string().regex(TIME_RE, "시간은 HH:MM 형식으로 입�
 const facilityProcedure = adminPermissionProcedure("content:facilities");
 const nullableTimeSchema = timeSchema.nullable().optional();
 const sortOrderSchema = z.number().int().min(0).max(10000).optional();
-const facilityBuildingSchema = z.enum(["hayoungin", "welfare"]).default("hayoungin");
+const facilityBuildingSchema = z.enum(["hayoungin", "welfare"]).default("welfare");
 
 function toMinutes(time: string) {
   const [hour, minute] = time.split(":").map(Number);

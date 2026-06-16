@@ -706,7 +706,7 @@ export const facilities = mysqlTable("facilities", {
   /** 위치 (예: 본관 3층) */
   location: varchar("location", { length: 128 }),
   /** 건물 분류: hayoungin(하영인관) / welfare(복지관) */
-  building: varchar("building", { length: 32 }).notNull().default("hayoungin"),
+  building: varchar("building", { length: 32 }).notNull().default("welfare"),
   /** 최대 수용 인원 */
   capacity: int("capacity").notNull().default(10),
   /** 사용 요금 (0 = 무료) */

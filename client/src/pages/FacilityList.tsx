@@ -19,7 +19,7 @@ const FACILITY_BUILDINGS = [
 type FacilityBuilding = typeof FACILITY_BUILDINGS[number]["value"];
 
 function normalizeFacilityBuilding(building: string | null | undefined): FacilityBuilding {
-  return building === "welfare" ? "welfare" : "hayoungin";
+  return building === "hayoungin" ? "hayoungin" : "welfare";
 }
 
 // ── 상단 배너 ──────────────────────────────────────────────
@@ -156,7 +156,7 @@ function FacilityCard({ facility }: { facility: Facility }) {
 // ── 메인 페이지 컴포넌트 ───────────────────────────────────
 export default function FacilityList() {
   const { data: facilities, isLoading } = trpc.home.facilities.useQuery();
-  const [activeBuilding, setActiveBuilding] = useState<FacilityBuilding>("hayoungin");
+  const [activeBuilding, setActiveBuilding] = useState<FacilityBuilding>("welfare");
   const visibleFacilities = useMemo(
     () => (facilities ?? []).filter((facility) => normalizeFacilityBuilding(facility.building) === activeBuilding),
     [activeBuilding, facilities],

@@ -16,13 +16,28 @@
  */
 
 import { useMemo, useState, useRef } from "react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import type { Facility, FacilityBlockedDate } from "../../../drizzle/schema";
 import {
   Plus, Pencil, Trash2, Loader2, ChevronDown, ChevronUp,
   Upload, X, Clock, Calendar, Users, CheckCircle2,
-  Settings, Save, Ban, ImageIcon, ArrowDown, ArrowUp, Building2,
+  Settings, Save, Ban, ImageIcon, Building2, GripVertical,
 } from "lucide-react";
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -68,7 +83,7 @@ const EMPTY_FORM: FacilityForm = {
   name: "",
   description: "",
   location: "",
-  building: "hayoungin",
+  building: "welfare",
   capacity: 50,
   pricePerHour: 0,
   slotMinutes: 60,
@@ -79,17 +94,171 @@ const EMPTY_FORM: FacilityForm = {
 };
 
 function getFacilityBuildingLabel(building: string | null | undefined) {
-  return FACILITY_BUILDINGS.find((option) => option.value === building)?.label ?? "하영인관";
+  return FACILITY_BUILDINGS.find((option) => option.value === building)?.label ?? "복지관";
 }
 
 function normalizeFacilityBuilding(building: string | null | undefined): FacilityBuilding {
-  return building === "welfare" ? "welfare" : "hayoungin";
+  return building === "hayoungin" ? "hayoungin" : "welfare";
 }
 
 function getNextFacilitySortOrder(rows: Facility[], building: FacilityBuilding) {
   return rows
     .filter((facility) => normalizeFacilityBuilding(facility.building) === building)
     .reduce((max, facility) => Math.max(max, Number(facility.sortOrder) || 0), 0) + 1;
+}
+
+function SortableFacilityRow({
+  facility,
+  isExpanded,
+  blockedDates,
+  newBlockDate,
+  newBlockReason,
+  isAddingBlockedDate,
+  isDeleting,
+  onToggleExpanded,
+  onEdit,
+  onDelete,
+  onNewBlockDateChange,
+  onNewBlockReasonChange,
+  onAddBlockedDate,
+  onRemoveBlockedDate,
+}: {
+  facility: Facility & { thumbnailUrl?: string };
+  isExpanded: boolean;
+  blockedDates: FacilityBlockedDate[];
+  newBlockDate: string;
+  newBlockReason: string;
+  isAddingBlockedDate: boolean;
+  isDeleting: boolean;
+  onToggleExpanded: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onNewBlockDateChange: (value: string) => void;
+  onNewBlockReasonChange: (value: string) => void;
+  onAddBlockedDate: () => void;
+  onRemoveBlockedDate: (id: number) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: facility.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 20 : undefined,
+    opacity: isDragging ? 0.75 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden"
+    >
+      <div className="flex items-center gap-3 p-4">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="flex h-10 w-8 shrink-0 cursor-grab items-center justify-center rounded-lg text-gray-300 transition-colors hover:bg-gray-50 hover:text-gray-600 active:cursor-grabbing touch-none"
+          title="드래그해서 순서 변경"
+          aria-label={`${facility.name} 순서 변경`}
+        >
+          <GripVertical className="w-4 h-4" />
+        </button>
+        {facility.thumbnailUrl ? (
+          <img src={facility.thumbnailUrl} alt={facility.name} className="w-14 h-14 rounded-lg object-cover shrink-0" />
+        ) : (
+          <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+            <ImageIcon className="w-6 h-6 text-gray-300" />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-gray-900">{facility.name}</p>
+          <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5 flex-wrap">
+            <span className="rounded-full bg-green-50 px-2 py-0.5 text-[#1B5E20]">{getFacilityBuildingLabel(facility.building)}</span>
+            {facility.location && <span>{facility.location}</span>}
+            <span className="flex items-center gap-1"><Users className="w-3 h-3" />{facility.capacity}명</span>
+            <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{facility.slotMinutes}분 단위</span>
+            <span className={`flex items-center gap-1 ${facility.approvalType === "auto" ? "text-green-600" : "text-amber-600"}`}>
+              <CheckCircle2 className="w-3 h-3" />
+              {facility.approvalType === "auto" ? "자동 승인" : "수동 승인"}
+            </span>
+            <span>{facility.pricePerHour === 0 ? "무료" : `${facility.pricePerHour.toLocaleString()}원/시간`}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={onToggleExpanded}
+            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+            title="예약 불가 날짜 관리"
+          >
+            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+          <button onClick={onEdit}
+            className="p-2 text-gray-400 hover:text-[#1B5E20] transition-colors" title="수정">
+            <Pencil className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onDelete}
+            disabled={isDeleting}
+            className="p-2 text-gray-400 hover:text-red-500 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            title="삭제"
+          >
+            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+          </button>
+        </div>
+      </div>
+
+      {isExpanded && (
+        <div className="border-t border-gray-100 p-4 bg-gray-50">
+          <h5 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-1.5">
+            <Ban className="w-4 h-4 text-red-400" /> 예약 불가 날짜 설정
+          </h5>
+          <div className="flex gap-2 mb-3">
+            <input type="date" value={newBlockDate}
+              onChange={e => onNewBlockDateChange(e.target.value)}
+              min={new Date().toISOString().split("T")[0]}
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#1B5E20]" />
+            <input type="text" value={newBlockReason}
+              onChange={e => onNewBlockReasonChange(e.target.value)}
+              placeholder="차단 사유 (예: 전교인 수련회)"
+              className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#1B5E20]" />
+            <button
+              onClick={onAddBlockedDate}
+              disabled={isAddingBlockedDate}
+              className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors disabled:opacity-50">
+              {isAddingBlockedDate ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            </button>
+          </div>
+          {blockedDates.length === 0 ? (
+            <p className="text-xs text-gray-400 py-2">설정된 예약 불가 날짜가 없습니다.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {blockedDates.map((bd) => (
+                <div key={bd.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Calendar className="w-3.5 h-3.5 text-red-400" />
+                    <span className="font-medium text-gray-700">{bd.blockedDate}</span>
+                    {bd.reason && <span className="text-gray-400 text-xs">— {bd.reason}</span>}
+                  </div>
+                  <button onClick={() => onRemoveBlockedDate(bd.id)}
+                    className="text-gray-300 hover:text-red-500 transition-colors">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── 운영 시간 에디터 ──────────────────────────────────────
@@ -199,12 +368,22 @@ export default function AdminFacilitiesTab() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [newBlockDate, setNewBlockDate] = useState("");
   const [newBlockReason, setNewBlockReason] = useState("");
-  const facilityGroups = useMemo(
-    () => FACILITY_BUILDINGS.map((building) => ({
-      ...building,
-      facilities: facilityRows.filter((facility) => normalizeFacilityBuilding(facility.building) === building.value),
-    })),
-    [facilityRows],
+  const [activeBuilding, setActiveBuilding] = useState<FacilityBuilding>("welfare");
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const buildingCounts = useMemo(() => {
+    const counts = new Map<FacilityBuilding, number>(FACILITY_BUILDINGS.map((building) => [building.value, 0]));
+    facilityRows.forEach((facility) => {
+      const building = normalizeFacilityBuilding(facility.building);
+      counts.set(building, (counts.get(building) ?? 0) + 1);
+    });
+    return counts;
+  }, [facilityRows]);
+  const activeBuildingOption = FACILITY_BUILDINGS.find((building) => building.value === activeBuilding) ?? FACILITY_BUILDINGS[1];
+  const activeFacilities = useMemo(
+    () => facilityRows
+      .filter((facility) => normalizeFacilityBuilding(facility.building) === activeBuilding)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.id - b.id),
+    [activeBuilding, facilityRows],
   );
 
   const { data: blockedDates } = trpc.cms.facilities.blockedDates.list.useQuery(
@@ -368,6 +547,12 @@ export default function AdminFacilitiesTab() {
     setImages([]);
   }
 
+  function startCreate() {
+    resetForm();
+    setForm({ ...EMPTY_FORM, building: activeBuilding });
+    setShowForm(true);
+  }
+
   function startEdit(f: NonNullable<typeof facilities>[number]) {
     setEditingId(f.id);
     setForm({
@@ -405,19 +590,14 @@ export default function AdminFacilitiesTab() {
     }
   }
 
-  function moveFacility(facility: Facility, direction: "up" | "down") {
-    const building = normalizeFacilityBuilding(facility.building);
-    const rows = facilityRows
-      .filter((row) => normalizeFacilityBuilding(row.building) === building)
-      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.id - b.id);
-    const currentIndex = rows.findIndex((row) => row.id === facility.id);
-    const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= rows.length) return;
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = activeFacilities.findIndex((facility) => facility.id === active.id);
+    const newIndex = activeFacilities.findIndex((facility) => facility.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
 
-    const nextRows = [...rows];
-    const [target] = nextRows.splice(currentIndex, 1);
-    if (!target) return;
-    nextRows.splice(nextIndex, 0, target);
+    const nextRows = arrayMove(activeFacilities, oldIndex, newIndex);
     reorderFacility.mutate({
       items: nextRows.map((row, index) => ({ id: row.id, sortOrder: index + 1 })),
     });
@@ -438,7 +618,7 @@ export default function AdminFacilitiesTab() {
           <p className="text-sm text-gray-500">시설을 등록하고 운영 시간, 예약 조건을 설정합니다.</p>
         </div>
         {!showForm && (
-          <button onClick={() => { resetForm(); setShowForm(true); }}
+          <button onClick={startCreate}
             className="flex items-center gap-1.5 px-4 py-2 bg-[#1B5E20] text-white rounded-lg text-sm font-medium hover:bg-[#2E7D32] transition-colors">
             <Plus className="w-4 h-4" /> 시설 등록
           </button>
@@ -603,141 +783,101 @@ export default function AdminFacilitiesTab() {
         </div>
       ) : (
         <div className="space-y-5">
-          {facilityGroups.map((group) => (
-            <section key={group.value} className="space-y-3">
-              <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-                <h4 className="inline-flex items-center gap-2 text-sm font-bold text-gray-800">
-                  <Building2 className="h-4 w-4 text-[#1B5E20]" />
-                  {group.label}
-                </h4>
-                <span className="text-xs text-gray-400">{group.facilities.length}개 시설</span>
+          <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+            <div className="mb-4 flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#E8F5E9] text-[#1B5E20]">
+                <Building2 className="h-4 w-4" />
               </div>
-              {group.facilities.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-gray-200 py-6 text-center text-sm text-gray-400">
-                  이 건물에 등록된 시설이 없습니다.
-                </p>
-              ) : (
-                group.facilities.map((f, index) => (
-                  <div key={f.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                    {/* 시설 헤더 행 */}
-                    <div className="flex items-center gap-3 p-4">
-                      {(f as Facility & { thumbnailUrl?: string }).thumbnailUrl ? (
-                        <img src={(f as Facility & { thumbnailUrl?: string }).thumbnailUrl!} alt={f.name} className="w-14 h-14 rounded-lg object-cover shrink-0" />
-                      ) : (
-                        <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-                          <ImageIcon className="w-6 h-6 text-gray-300" />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-gray-900">{f.name}</p>
-                        <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5 flex-wrap">
-                          <span className="rounded-full bg-green-50 px-2 py-0.5 text-[#1B5E20]">{getFacilityBuildingLabel(f.building)}</span>
-                          {f.location && <span>{f.location}</span>}
-                          <span className="flex items-center gap-1"><Users className="w-3 h-3" />{f.capacity}명</span>
-                          <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{f.slotMinutes}분 단위</span>
-                          <span className={`flex items-center gap-1 ${f.approvalType === "auto" ? "text-green-600" : "text-amber-600"}`}>
-                            <CheckCircle2 className="w-3 h-3" />
-                            {f.approvalType === "auto" ? "자동 승인" : "수동 승인"}
-                          </span>
-                          <span>{f.pricePerHour === 0 ? "무료" : `${f.pricePerHour.toLocaleString()}원/시간`}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => moveFacility(f, "up")}
-                          disabled={index === 0 || reorderFacility.isPending}
-                          className="p-2 text-gray-400 hover:text-[#1B5E20] transition-colors disabled:cursor-not-allowed disabled:opacity-30"
-                          title="위로 이동"
-                        >
-                          <ArrowUp className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveFacility(f, "down")}
-                          disabled={index === group.facilities.length - 1 || reorderFacility.isPending}
-                          className="p-2 text-gray-400 hover:text-[#1B5E20] transition-colors disabled:cursor-not-allowed disabled:opacity-30"
-                          title="아래로 이동"
-                        >
-                          <ArrowDown className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setExpandedId(expandedId === f.id ? null : f.id)}
-                          className="p-2 text-gray-400 hover:text-gray-600 transition-colors" title="예약 불가 날짜 관리">
-                          {expandedId === f.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </button>
-                        <button onClick={() => startEdit(f)}
-                          className="p-2 text-gray-400 hover:text-[#1B5E20] transition-colors" title="수정">
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (confirm(`"${f.name}" 시설을 삭제하시겠습니까?\n예약 내역이 있는 시설은 삭제되지 않습니다.`)) {
-                              deleteFacility.mutate({ id: f.id });
-                            }
-                          }}
-                          className="p-2 text-gray-400 hover:text-red-500 transition-colors" title="삭제">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
+              <div>
+                <h4 className="text-sm font-bold text-gray-900">건물 선택</h4>
+                <p className="text-xs text-gray-500">시설을 관리할 건물을 선택해 주세요.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {FACILITY_BUILDINGS.map((building) => {
+                const isActive = activeBuilding === building.value;
+                return (
+                  <button
+                    key={building.value}
+                    type="button"
+                    onClick={() => setActiveBuilding(building.value)}
+                    className={`flex items-center justify-between rounded-xl border px-5 py-4 text-left transition-all ${
+                      isActive
+                        ? "border-[#1B5E20] bg-[#F1F8E9] shadow-sm"
+                        : "border-gray-200 bg-white hover:border-[#1B5E20]/60 hover:bg-green-50/40"
+                    }`}
+                  >
+                    <span>
+                      <span className={`block text-base font-bold ${isActive ? "text-[#1B5E20]" : "text-gray-800"}`}>
+                        {building.label}
+                      </span>
+                      <span className="mt-1 block text-xs text-gray-500">
+                        등록 시설 {buildingCounts.get(building.value) ?? 0}개
+                      </span>
+                    </span>
+                    <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
+                      isActive ? "bg-[#1B5E20] text-white" : "bg-gray-100 text-gray-400"
+                    }`}>
+                      {isActive ? "선택" : ""}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-                    {/* 차단 날짜 관리 패널 */}
-                    {expandedId === f.id && (
-                      <div className="border-t border-gray-100 p-4 bg-gray-50">
-                        <h5 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-1.5">
-                          <Ban className="w-4 h-4 text-red-400" /> 예약 불가 날짜 설정
-                        </h5>
-                        <div className="flex gap-2 mb-3">
-                          <input type="date" value={newBlockDate}
-                            onChange={e => setNewBlockDate(e.target.value)}
-                            min={new Date().toISOString().split("T")[0]}
-                            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#1B5E20]" />
-                          <input type="text" value={newBlockReason}
-                            onChange={e => setNewBlockReason(e.target.value)}
-                            placeholder="차단 사유 (예: 전교인 수련회)"
-                            className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#1B5E20]" />
-                          <button
-                            onClick={() => {
-                              if (!newBlockDate) { toast.error("날짜를 선택해 주세요."); return; }
-                              addBlockedDate.mutate({
-                                facilityId: f.id,
-                                blockedDate: newBlockDate,
-                                reason: newBlockReason || undefined,
-                                isPartialBlock: false,
-                              });
-                            }}
-                            disabled={addBlockedDate.isPending}
-                            className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors disabled:opacity-50">
-                            {addBlockedDate.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                          </button>
-                        </div>
-                        {(blockedDates ?? []).length === 0 ? (
-                          <p className="text-xs text-gray-400 py-2">설정된 예약 불가 날짜가 없습니다.</p>
-                        ) : (
-                          <div className="space-y-1.5">
-                            {(blockedDates ?? []).map((bd: FacilityBlockedDate) => (
-                              <div key={bd.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
-                                <div className="flex items-center gap-2 text-sm">
-                                  <Calendar className="w-3.5 h-3.5 text-red-400" />
-                                  <span className="font-medium text-gray-700">{bd.blockedDate}</span>
-                                  {bd.reason && <span className="text-gray-400 text-xs">— {bd.reason}</span>}
-                                </div>
-                                <button onClick={() => removeBlockedDate.mutate({ id: bd.id })}
-                                  className="text-gray-300 hover:text-red-500 transition-colors">
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
+          <section className="space-y-3">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+              <h4 className="inline-flex items-center gap-2 text-sm font-bold text-gray-800">
+                <Building2 className="h-4 w-4 text-[#1B5E20]" />
+                {activeBuildingOption.label}
+              </h4>
+              <span className="text-xs text-gray-400">{activeFacilities.length}개 시설</span>
+            </div>
+            {activeFacilities.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-gray-200 py-6 text-center text-sm text-gray-400">
+                이 건물에 등록된 시설이 없습니다.
+              </p>
+            ) : (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={activeFacilities.map((facility) => facility.id)} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-3">
+                    {activeFacilities.map((f) => (
+                      <SortableFacilityRow
+                        key={f.id}
+                        facility={f as Facility & { thumbnailUrl?: string }}
+                        isExpanded={expandedId === f.id}
+                        blockedDates={blockedDates ?? []}
+                        newBlockDate={newBlockDate}
+                        newBlockReason={newBlockReason}
+                        isAddingBlockedDate={addBlockedDate.isPending}
+                        isDeleting={deleteFacility.isPending}
+                        onToggleExpanded={() => setExpandedId(expandedId === f.id ? null : f.id)}
+                        onEdit={() => startEdit(f)}
+                        onDelete={() => {
+                          if (confirm(`"${f.name}" 시설을 삭제하시겠습니까?\n예약 내역이 있는 시설은 삭제되지 않습니다.`)) {
+                            deleteFacility.mutate({ id: f.id });
+                          }
+                        }}
+                        onNewBlockDateChange={setNewBlockDate}
+                        onNewBlockReasonChange={setNewBlockReason}
+                        onAddBlockedDate={() => {
+                          if (!newBlockDate) { toast.error("날짜를 선택해 주세요."); return; }
+                          addBlockedDate.mutate({
+                            facilityId: f.id,
+                            blockedDate: newBlockDate,
+                            reason: newBlockReason || undefined,
+                            isPartialBlock: false,
+                          });
+                        }}
+                        onRemoveBlockedDate={(id) => removeBlockedDate.mutate({ id })}
+                      />
+                    ))}
                   </div>
-                ))
-              )}
-            </section>
-          ))}
+                </SortableContext>
+              </DndContext>
+            )}
+          </section>
         </div>
       )}
     </div>
