@@ -74,6 +74,7 @@ const FOUNDATION_GROUP_LABELS = [
 
 type StaffCategoryFilter = string;
 type StaffCategory = StaffCategoryFilter;
+type StaffTitleOption = { categoryKey: string; label: string };
 type StaffMenuTreeItem = {
   id: number;
   label: string;
@@ -140,7 +141,7 @@ function normalizeStaffGroup(value: string | null | undefined) {
   return value?.replace(/\s+/g, "").trim() ?? "";
 }
 
-function getKnownGroupLabel<T extends readonly string[]>(value: string | null | undefined, labels: T) {
+function getKnownGroupLabel(value: string | null | undefined, labels: readonly string[]) {
   const normalized = normalizeStaffGroup(value);
   return labels.find((label) => normalizeStaffGroup(label) === normalized);
 }
@@ -149,26 +150,37 @@ function isGroupedStaffCategory(category: StaffCategoryFilter) {
   return category === "elder" || category === "cooperation" || category === "other";
 }
 
+function getStaffGroupLabels(category: StaffCategoryFilter, titleOptions: StaffTitleOption[]) {
+  const savedLabels = titleOptions
+    .filter((option) => option.categoryKey === category)
+    .map((option) => option.label);
+  if (savedLabels.length > 0) return savedLabels;
+  if (category === "elder") return [...ELDER_GROUP_LABELS];
+  if (category === "cooperation") return [...COOPERATION_GROUP_LABELS];
+  if (category === "other") return [...FOUNDATION_GROUP_LABELS];
+  return [];
+}
+
 function getGroupedStaffLabel(staff: {
   category: string;
   title?: string | null;
   department?: string | null;
-}, categories: StaffCategoryOption[]) {
+}, categories: StaffCategoryOption[], groupLabels: readonly string[]) {
   if (staff.category === "elder") {
     return (
-      getKnownGroupLabel(staff.title, ELDER_GROUP_LABELS) ??
-      getKnownGroupLabel(staff.department, ELDER_GROUP_LABELS) ??
+      getKnownGroupLabel(staff.title, groupLabels) ??
+      getKnownGroupLabel(staff.department, groupLabels) ??
       FALLBACK_ELDER_GROUP_LABEL
     );
   }
 
   if (staff.category === "cooperation") {
-    return getKnownGroupLabel(staff.title, COOPERATION_GROUP_LABELS) ?? "협력사역자";
+    return getKnownGroupLabel(staff.title, groupLabels) ?? "협력사역자";
   }
 
   if (staff.category === "other") {
     return (
-      getKnownGroupLabel(staff.title, FOUNDATION_GROUP_LABELS) ??
+      getKnownGroupLabel(staff.title, groupLabels) ??
       (staff.title?.trim() ||
       getStaffCategoryLabel(staff.category, categories)
       )
@@ -182,7 +194,7 @@ function getStaffCardDetails(staff: {
   category: string;
   title?: string | null;
   department?: string | null;
-}, categories: StaffCategoryOption[]) {
+}, categories: StaffCategoryOption[], groupLabels: readonly string[] = []) {
   const categoryLabel = getStaffCategoryLabel(staff.category, categories);
   const title = staff.title?.trim();
   const department = staff.department?.trim();
@@ -194,7 +206,7 @@ function getStaffCardDetails(staff: {
 
   if (department) {
     if (staff.category === "elder") {
-      if (!getKnownGroupLabel(department, ELDER_GROUP_LABELS)) {
+      if (!getKnownGroupLabel(department, groupLabels.length > 0 ? groupLabels : ELDER_GROUP_LABELS)) {
         details.push(`맡은 부서: ${department}`);
       }
     } else {
@@ -326,10 +338,15 @@ export function StaffPage({
   );
   const { data: staffList = [], isLoading } = trpc.home.staff.useQuery(queryInput);
   const { data: staffCategories = [] } = trpc.home.staffCategories.useQuery();
+  const { data: staffTitleOptions = [] } = trpc.home.staffTitleOptions.useQuery();
   const { data: menuTree } = trpc.home.menus.useQuery();
   const categoryOptions = useMemo(
     () => mergeStaffCategoryOptions(staffCategories),
     [staffCategories],
+  );
+  const activeGroupLabels = useMemo(
+    () => getStaffGroupLabels(activeCategory, staffTitleOptions),
+    [activeCategory, staffTitleOptions],
   );
   const pageTitle = activeCategory === "associate" ? "부교역자" : "섬기는 분";
   const profileIntro = activeCategory === "associate"
@@ -346,17 +363,22 @@ export function StaffPage({
 
     const groups = new Map<string, typeof staffList>();
     staffList.forEach((staff) => {
-      const label = getGroupedStaffLabel(staff, categoryOptions);
+      const label = getGroupedStaffLabel(staff, categoryOptions, activeGroupLabels);
       const members = groups.get(label) ?? [];
       members.push(staff);
       groups.set(label, members);
     });
 
-    return Array.from(groups, ([label, members]) => ({ label, members }));
-  }, [activeCategory, categoryOptions, staffList]);
+    const orderedLabels = activeGroupLabels.filter((label) => groups.has(label));
+    const remainingLabels = Array.from(groups.keys()).filter((label) => !orderedLabels.includes(label));
+    return [...orderedLabels, ...remainingLabels].map((label) => ({
+      label,
+      members: groups.get(label) ?? [],
+    }));
+  }, [activeCategory, activeGroupLabels, categoryOptions, staffList]);
 
   const renderStaffCard = (staff: typeof staffList[number]) => {
-    const details = getStaffCardDetails(staff, categoryOptions);
+    const details = getStaffCardDetails(staff, categoryOptions, activeGroupLabels);
     const email = staff.email?.trim();
     const phone = staff.phone?.trim();
     const hasCardMeta = details.length > 0 || Boolean(email) || Boolean(phone);

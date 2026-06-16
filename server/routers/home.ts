@@ -46,6 +46,7 @@ import {
   getStoredTranslation,
   getVisibleStaffCategories,
   getVisibleStaffMembers,
+  getAllStaffTitleOptions,
   listPublishedBulletins,
   getVisibleCourses,
   getVisibleCourseById,
@@ -237,6 +238,9 @@ export const homeRouter = router({
 
   /** 섬기는 분 공개 분류 목록 */
   staffCategories: publicProcedure.query(() => getVisibleStaffCategories()),
+
+  /** 섬기는 분 공개 사역 구분 목록 */
+  staffTitleOptions: publicProcedure.query(() => getAllStaffTitleOptions()),
 
   /** 공개 강좌 목록 */
   courses: publicProcedure.query(() => getVisibleCourses()),

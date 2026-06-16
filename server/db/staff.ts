@@ -293,6 +293,39 @@ export async function deleteStaffTitleOption(categoryKey: string, label: string)
   });
 }
 
+export async function reorderStaffTitleOptions(categoryKey: string, labels: string[]) {
+  const db = await getDb();
+  if (!db) return;
+
+  const normalizedLabels = Array.from(
+    new Set(labels.map((label) => normalizeTitleLabel(label)).filter(Boolean))
+  );
+  if (!categoryKey || normalizedLabels.length === 0) return;
+
+  await db.transaction(async (tx) => {
+    const rows = await tx.select().from(churchStaffTitleOptions)
+      .where(eq(churchStaffTitleOptions.categoryKey, categoryKey))
+      .orderBy(asc(churchStaffTitleOptions.sortOrder), asc(churchStaffTitleOptions.id));
+
+    const rowMap = new Map(rows.map((row) => [row.label, row]));
+    const orderedRows = normalizedLabels
+      .map((label) => rowMap.get(label))
+      .filter((row): row is StaffTitleOptionRow => Boolean(row));
+    const missingRows = rows.filter((row) => !normalizedLabels.includes(row.label));
+    const nextRows = [...orderedRows, ...missingRows];
+
+    for (let index = 0; index < nextRows.length; index += 1) {
+      const row = nextRows[index];
+      const nextSortOrder = index + 1;
+      if (row.sortOrder !== nextSortOrder) {
+        await tx.update(churchStaffTitleOptions)
+          .set({ sortOrder: nextSortOrder })
+          .where(eq(churchStaffTitleOptions.id, row.id));
+      }
+    }
+  });
+}
+
 export async function createStaffCategory(label: string) {
   const db = await getDb();
   if (!db) return null;

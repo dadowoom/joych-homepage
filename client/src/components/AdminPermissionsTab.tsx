@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 
@@ -15,13 +15,13 @@ type PermissionSubject = {
 
 export default function AdminPermissionsTab() {
   const utils = trpc.useUtils();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [submittedSearchTerm, setSubmittedSearchTerm] = useState("");
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
 
   const permissionsQuery = trpc.cms.adminPermissions.list.useQuery({
-    searchTerm: debouncedSearchTerm,
+    searchTerm: submittedSearchTerm,
   });
   const permissions = permissionsQuery.data?.permissions ?? [];
   const subjects = permissionsQuery.data?.subjects ?? [];
@@ -40,13 +40,6 @@ export default function AdminPermissionsTab() {
     }
     return Array.from(groups.entries());
   }, [permissions]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm.trim());
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [searchTerm]);
 
   useEffect(() => {
     if (!selectedMemberId) return;
@@ -88,6 +81,16 @@ export default function AdminPermissionsTab() {
     });
   };
 
+  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const nextSearchTerm = searchInput.trim();
+    if (nextSearchTerm === submittedSearchTerm) {
+      void permissionsQuery.refetch();
+      return;
+    }
+    setSubmittedSearchTerm(nextSearchTerm);
+  };
+
   if (permissionsQuery.isLoading) {
     return (
       <div className="py-12 text-center text-sm text-gray-500">
@@ -112,20 +115,30 @@ export default function AdminPermissionsTab() {
 
       <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
         <section className="rounded-xl border border-gray-200 bg-white p-4">
-          <div className="mb-3">
+          <form className="mb-3" onSubmit={handleSearchSubmit}>
             <label className="text-sm font-semibold text-gray-800">성도 선택</label>
-            <input
-              type="search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="이름, 직분, 부서, 이메일, 연락처 검색"
-              className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20]"
-            />
-          </div>
+            <div className="mt-2 flex gap-2">
+              <input
+                type="search"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="이름, 직분, 부서, 이메일, 연락처 검색"
+                className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20]"
+              />
+              <button
+                type="submit"
+                disabled={permissionsQuery.isFetching}
+                className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-[#1B5E20] px-3 text-sm font-semibold text-white transition-colors hover:bg-[#2E7D32] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <i className="fas fa-search mr-1.5"></i>
+                검색
+              </button>
+            </div>
+          </form>
           <div className="max-h-[560px] space-y-2 overflow-y-auto pr-1">
-            {!debouncedSearchTerm ? (
+            {!submittedSearchTerm ? (
               <p className="rounded-lg border border-dashed border-gray-200 py-8 text-center text-sm text-gray-400">
-                이름, 직분, 부서, 이메일, 연락처를 입력해 검색하세요.
+                이름, 직분, 부서, 이메일, 연락처를 입력한 뒤 검색하세요.
               </p>
             ) : permissionsQuery.isFetching ? (
               <p className="rounded-lg border border-dashed border-gray-200 py-8 text-center text-sm text-gray-400">

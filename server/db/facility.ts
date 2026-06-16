@@ -42,7 +42,8 @@ function extractMysqlScalar(result: unknown) {
 export async function getFacilities(onlyVisible = true) {
   const db = await getDb();
   if (!db) return [];
-  const query = db.select().from(facilities).orderBy(asc(facilities.sortOrder));
+  const query = db.select().from(facilities)
+    .orderBy(asc(facilities.building), asc(facilities.sortOrder), asc(facilities.id));
   if (onlyVisible) {
     return query.where(eq(facilities.isVisible, true));
   }
@@ -72,10 +73,30 @@ export async function updateFacility(id: number, data: Partial<InsertFacility>) 
   await db.update(facilities).set(data).where(eq(facilities.id, id));
 }
 
+/** 시설 순서 저장 */
+export async function reorderFacilities(items: Array<{ id: number; sortOrder: number }>) {
+  const db = await getDb();
+  if (!db || items.length === 0) return;
+
+  await db.transaction(async (tx) => {
+    for (const item of items) {
+      await tx.update(facilities)
+        .set({ sortOrder: item.sortOrder })
+        .where(eq(facilities.id, item.id));
+    }
+  });
+}
+
 /** 시설 삭제 */
 export async function deleteFacility(id: number) {
   const db = await getDb();
   if (!db) return;
+  const existingReservations = await db.select({ id: reservations.id }).from(reservations)
+    .where(eq(reservations.facilityId, id))
+    .limit(1);
+  if (existingReservations.length > 0) {
+    throw new Error("예약 내역이 있는 시설은 삭제할 수 없습니다. 숨김 처리로 운영 중단해 주세요.");
+  }
   await db.delete(facilities).where(eq(facilities.id, id));
 }
 

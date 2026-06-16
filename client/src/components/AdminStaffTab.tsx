@@ -278,6 +278,61 @@ function SortableCategoryChip({
   );
 }
 
+function SortableTitleOptionChip({
+  option,
+  isDeleting,
+  onDelete,
+}: {
+  option: string;
+  isDeleting: boolean;
+  onDelete: (label: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: option });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 20 : undefined,
+    opacity: isDragging ? 0.85 : 1,
+  };
+
+  return (
+    <span
+      ref={setNodeRef}
+      style={style}
+      className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-1 text-[11px] text-gray-700"
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        className="inline-flex h-4 w-4 cursor-grab items-center justify-center rounded-full text-gray-400 hover:bg-gray-50 hover:text-gray-700 active:cursor-grabbing"
+        aria-label={`${option} 순서 이동`}
+        title="드래그해서 순서 변경"
+      >
+        <GripVertical className="h-3 w-3" />
+      </button>
+      {option}
+      <button
+        type="button"
+        onClick={() => onDelete(option)}
+        disabled={isDeleting}
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-red-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+        title="사역 구분 삭제"
+      >
+        {isDeleting ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <X className="h-2.5 w-2.5" />}
+        <span className="sr-only">삭제</span>
+      </button>
+    </span>
+  );
+}
+
 export default function AdminStaffTab() {
   const utils = trpc.useUtils();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -288,6 +343,7 @@ export default function AdminStaffTab() {
   const [newCategoryLabel, setNewCategoryLabel] = useState("");
   const [newTitleOptionLabel, setNewTitleOptionLabel] = useState("");
   const [orderedCategoryKeys, setOrderedCategoryKeys] = useState<string[]>([]);
+  const [orderedTitleOptionLabels, setOrderedTitleOptionLabels] = useState<Record<string, string[]>>({});
   const [isCustomTitleMode, setIsCustomTitleMode] = useState(false);
 
   const { data: staffMembers = [], isLoading } = trpc.cms.staff.list.useQuery();
@@ -318,6 +374,8 @@ export default function AdminStaffTab() {
   const titleFieldCopy = getTitleFieldCopy(form.category);
   const titleOptionsByCategory = useMemo(() => groupTitleOptionsByCategory(staffTitleOptions), [staffTitleOptions]);
   const getTitleOptionsForCategory = (category: StaffCategory) => {
+    const orderedOptions = orderedTitleOptionLabels[category];
+    if (orderedOptions?.length) return orderedOptions;
     const savedOptions = titleOptionsByCategory.get(category);
     if (savedOptions?.length) return savedOptions;
     return [...(getTitleFieldCopy(category)?.options ?? [])];
@@ -332,6 +390,14 @@ export default function AdminStaffTab() {
   useEffect(() => {
     setOrderedCategoryKeys(rawCategoryOptions.map((category) => category.value));
   }, [rawCategoryOptions]);
+
+  useEffect(() => {
+    const next: Record<string, string[]> = {};
+    titleOptionsByCategory.forEach((labels, categoryKey) => {
+      next[categoryKey] = labels;
+    });
+    setOrderedTitleOptionLabels(next);
+  }, [titleOptionsByCategory]);
 
   useEffect(() => {
     if (editingId) return;
@@ -437,6 +503,7 @@ export default function AdminStaffTab() {
         setForm((prev) => ({ ...prev, title: option.label }));
       }
       utils.cms.staff.titleOptions.invalidate();
+      utils.home.staffTitleOptions.invalidate();
     },
     onError: (error) => toast.error(error.message),
   });
@@ -450,8 +517,24 @@ export default function AdminStaffTab() {
           : prev
       ));
       utils.cms.staff.titleOptions.invalidate();
+      utils.home.staffTitleOptions.invalidate();
     },
     onError: (error) => toast.error(error.message),
+  });
+
+  const reorderTitleOptions = trpc.cms.staff.reorderTitleOptions.useMutation({
+    onSuccess: () => {
+      toast.success("사역 구분 순서가 저장됐습니다.");
+      utils.cms.staff.titleOptions.invalidate();
+      utils.home.staffTitleOptions.invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.message);
+      const resetOptions = titleOptionsByCategory.get(form.category);
+      if (resetOptions?.length) {
+        setOrderedTitleOptionLabels((prev) => ({ ...prev, [form.category]: resetOptions }));
+      }
+    },
   });
 
   const filteredMembers = useMemo(() => {
@@ -589,6 +672,21 @@ export default function AdminStaffTab() {
     const nextCategoryKeys = nextOptions.map((category) => category.value);
     setOrderedCategoryKeys(nextCategoryKeys);
     reorderCategories.mutate({ categoryKeys: nextCategoryKeys });
+  };
+
+  const handleTitleOptionDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !titleFieldCopy) return;
+
+    const activeLabel = String(active.id);
+    const overLabel = String(over.id);
+    const oldIndex = titleOptionsForCurrentCategory.findIndex((option) => option === activeLabel);
+    const newIndex = titleOptionsForCurrentCategory.findIndex((option) => option === overLabel);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const nextOptions = arrayMove(titleOptionsForCurrentCategory, oldIndex, newIndex);
+    setOrderedTitleOptionLabels((prev) => ({ ...prev, [form.category]: nextOptions }));
+    reorderTitleOptions.mutate({ categoryKey: form.category, labels: nextOptions });
   };
 
   const handleDeleteCategory = (category: StaffCategoryOption) => {
@@ -868,23 +966,29 @@ export default function AdminStaffTab() {
                       추가
                     </button>
                   </div>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {titleOptionsForCurrentCategory.map((option) => (
-                      <span key={option} className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-1 text-[11px] text-gray-700">
-                        {option}
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteTitleOption(option)}
-                          disabled={deleteTitleOption.isPending}
-                          className="inline-flex h-4 w-4 items-center justify-center rounded-full text-red-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-                          title="사역 구분 삭제"
-                        >
-                          {deleteTitleOption.isPending ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <X className="h-2.5 w-2.5" />}
-                          <span className="sr-only">삭제</span>
-                        </button>
-                      </span>
-                    ))}
-                  </div>
+                  <p className="mt-2 text-[11px] text-gray-500">
+                    사역 구분 칩을 드래그하면 홈페이지 그룹 표시 순서가 바뀝니다.
+                  </p>
+                  <DndContext sensors={categorySensors} collisionDetection={closestCenter} onDragEnd={handleTitleOptionDragEnd}>
+                    <SortableContext items={titleOptionsForCurrentCategory} strategy={rectSortingStrategy}>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {titleOptionsForCurrentCategory.map((option) => (
+                          <SortableTitleOptionChip
+                            key={option}
+                            option={option}
+                            isDeleting={deleteTitleOption.isPending}
+                            onDelete={handleDeleteTitleOption}
+                          />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+                  {reorderTitleOptions.isPending && (
+                    <p className="mt-2 inline-flex items-center gap-1 text-[11px] text-gray-500">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      사역 구분 순서 저장 중...
+                    </p>
+                  )}
                 </div>
               </div>
             )}

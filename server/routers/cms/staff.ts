@@ -23,6 +23,7 @@ import {
   getAllStaffTitleOptions,
   moveStaffCategory,
   reorderStaffCategories,
+  reorderStaffTitleOptions,
   updateStaffMember,
 } from "../../db";
 
@@ -85,6 +86,13 @@ export const staffRouter = router({
       label: requiredTextSchema(64, "사역 구분명을 입력해주세요."),
     }))
     .mutation(({ input }) => deleteStaffTitleOption(input.categoryKey, input.label)),
+
+  reorderTitleOptions: adminProcedure
+    .input(z.object({
+      categoryKey: staffCategorySchema,
+      labels: z.array(requiredTextSchema(64, "사역 구분명을 입력해주세요.")).min(1).max(100),
+    }))
+    .mutation(({ input }) => reorderStaffTitleOptions(input.categoryKey, input.labels)),
 
   list: adminProcedure.query(() => getAllStaffMembers()),
 

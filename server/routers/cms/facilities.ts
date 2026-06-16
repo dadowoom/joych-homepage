@@ -28,6 +28,7 @@ import {
   createFacility,
   updateFacility,
   deleteFacility,
+  reorderFacilities,
   getFacilityImages,
   addFacilityImage,
   deleteFacilityImage,
@@ -46,6 +47,7 @@ const timeSchema = z.string().regex(TIME_RE, "시간은 HH:MM 형식으로 입�
 const facilityProcedure = adminPermissionProcedure("content:facilities");
 const nullableTimeSchema = timeSchema.nullable().optional();
 const sortOrderSchema = z.number().int().min(0).max(10000).optional();
+const facilityBuildingSchema = z.enum(["hayoungin", "welfare"]).default("hayoungin");
 
 function toMinutes(time: string) {
   const [hour, minute] = time.split(":").map(Number);
@@ -67,6 +69,7 @@ const facilityCreateSchema = z.object({
   name: requiredTextSchema(128, "시설 이름을 입력해주세요."),
   description: optionalTextSchema(5000),
   location: optionalTextSchema(128),
+  building: facilityBuildingSchema,
   capacity: z.number().int().min(1).max(100000).optional(),
   pricePerHour: z.number().int().min(0).max(100000000).optional(),
   slotMinutes: z.number().int().min(5).max(1440).default(60),
@@ -92,6 +95,7 @@ const facilityUpdateSchema = z.object({
   name: requiredTextSchema(128, "시설 이름을 입력해주세요.").optional(),
   description: optionalTextSchema(5000),
   location: optionalTextSchema(128),
+  building: facilityBuildingSchema.optional(),
   capacity: z.number().int().min(1).max(100000).optional(),
   pricePerHour: z.number().int().min(0).max(100000000).optional(),
   slotMinutes: z.number().int().min(5).max(1440).optional(),
@@ -168,6 +172,16 @@ export const facilitiesRouter = router({
       const { id, ...data } = input;
       return updateFacility(id, data);
     }),
+
+  /** 시설 순서 저장 (관리자) */
+  reorder: facilityProcedure
+    .input(z.object({
+      items: z.array(z.object({
+        id: idSchema,
+        sortOrder: z.number().int().min(0).max(10000),
+      })).min(1).max(200),
+    }))
+    .mutation(({ input }) => reorderFacilities(input.items)),
 
   /** 시설 삭제 (관리자) */
   delete: facilityProcedure

@@ -3,12 +3,24 @@
  * 실제 DB API 연결 버전
  */
 
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import type { Facility, FacilityImage } from "../../../drizzle/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Clock, MapPin, CalendarCheck, Phone } from "lucide-react";
+import { Users, Clock, MapPin, CalendarCheck, Phone, Building2 } from "lucide-react";
+
+const FACILITY_BUILDINGS = [
+  { value: "hayoungin", label: "하영인관" },
+  { value: "welfare", label: "복지관" },
+] as const;
+
+type FacilityBuilding = typeof FACILITY_BUILDINGS[number]["value"];
+
+function normalizeFacilityBuilding(building: string | null | undefined): FacilityBuilding {
+  return building === "welfare" ? "welfare" : "hayoungin";
+}
 
 // ── 상단 배너 ──────────────────────────────────────────────
 function FacilityHero() {
@@ -144,6 +156,19 @@ function FacilityCard({ facility }: { facility: Facility }) {
 // ── 메인 페이지 컴포넌트 ───────────────────────────────────
 export default function FacilityList() {
   const { data: facilities, isLoading } = trpc.home.facilities.useQuery();
+  const [activeBuilding, setActiveBuilding] = useState<FacilityBuilding>("hayoungin");
+  const visibleFacilities = useMemo(
+    () => (facilities ?? []).filter((facility) => normalizeFacilityBuilding(facility.building) === activeBuilding),
+    [activeBuilding, facilities],
+  );
+  const buildingCounts = useMemo(() => {
+    const counts = new Map<FacilityBuilding, number>(FACILITY_BUILDINGS.map((building) => [building.value, 0]));
+    (facilities ?? []).forEach((facility) => {
+      const building = normalizeFacilityBuilding(facility.building);
+      counts.set(building, (counts.get(building) ?? 0) + 1);
+    });
+    return counts;
+  }, [facilities]);
 
   return (
     <div className="min-h-screen bg-[#F7F7F5]">
@@ -152,8 +177,7 @@ export default function FacilityList() {
 
       <section className="py-12">
         <div className="container">
-          {/* 내 예약 현황 링크 */}
-          <div className="flex justify-end mb-6">
+          <div className="mb-6 flex justify-end">
             <Link href="/facility/my-reservations">
               <Button variant="outline" className="border-[#1B5E20] text-[#1B5E20] hover:bg-green-50">
                 <CalendarCheck size={16} className="mr-2" />
@@ -161,6 +185,52 @@ export default function FacilityList() {
               </Button>
             </Link>
           </div>
+
+          {/* 건물 분류 */}
+          {!isLoading && facilities && facilities.length > 0 && (
+            <div className="mb-8 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#E8F5E9] text-[#1B5E20]">
+                  <Building2 size={18} />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">건물 선택</h2>
+                  <p className="text-xs text-gray-500">예약할 시설이 있는 건물을 선택해 주세요.</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {FACILITY_BUILDINGS.map((building) => {
+                  const isActive = activeBuilding === building.value;
+                  return (
+                    <button
+                      key={building.value}
+                      type="button"
+                      onClick={() => setActiveBuilding(building.value)}
+                      className={`flex items-center justify-between rounded-xl border px-5 py-4 text-left transition-all ${
+                        isActive
+                          ? "border-[#1B5E20] bg-[#F1F8E9] shadow-sm"
+                          : "border-gray-200 bg-white hover:border-[#1B5E20]/60 hover:bg-green-50/40"
+                      }`}
+                    >
+                      <span>
+                        <span className={`block text-lg font-bold ${isActive ? "text-[#1B5E20]" : "text-gray-800"}`}>
+                          {building.label}
+                        </span>
+                        <span className="mt-1 block text-xs text-gray-500">
+                          등록 시설 {buildingCounts.get(building.value) ?? 0}개
+                        </span>
+                      </span>
+                      <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
+                        isActive ? "bg-[#1B5E20] text-white" : "bg-gray-100 text-gray-400"
+                      }`}>
+                        {isActive ? "선택" : ""}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* 카드 그리드 */}
           {isLoading ? (
@@ -175,9 +245,15 @@ export default function FacilityList() {
               <p className="text-lg">등록된 시설이 없습니다.</p>
               <p className="text-sm mt-2">관리자에게 문의해 주세요.</p>
             </div>
+          ) : visibleFacilities.length === 0 ? (
+            <div className="text-center py-20 text-gray-400">
+              <CalendarCheck size={48} className="mx-auto mb-4 opacity-30" />
+              <p className="text-lg">선택한 건물에 등록된 시설이 없습니다.</p>
+              <p className="text-sm mt-2">다른 건물 분류를 선택해 주세요.</p>
+            </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {facilities.map((f: Facility) => (
+              {visibleFacilities.map((f: Facility) => (
                 <FacilityCard key={f.id} facility={f} />
               ))}
             </div>
