@@ -119,6 +119,8 @@ export const menusRouter = router({
       sortOrder: sortOrderSchema,
       pageType: PAGE_TYPE.optional(),
       pageImageUrl: pageImageSchema,
+      allowGuest: z.boolean().optional(),
+      allowMember: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
       const newId = await createMenuItem(input);
@@ -160,8 +162,10 @@ export const menusRouter = router({
       id: idSchema,
       label: requiredTextSchema(64, "메뉴 이름을 입력해주세요.").optional(),
       href: safeHrefSchema.nullable().optional(),
-      sortOrder: sortOrderSchema,
+      sortOrder: sortOrderSchema.optional(),
       isVisible: z.boolean().optional(),
+      allowGuest: z.boolean().optional(),
+      allowMember: z.boolean().optional(),
       pageType: PAGE_TYPE.optional(),
       pageImageUrl: pageImageSchema,
       playlistId: idSchema.nullable().optional(),
@@ -202,6 +206,8 @@ export const menusRouter = router({
       sortOrder: sortOrderSchema,
       pageType: PAGE_TYPE.optional(),
       pageImageUrl: pageImageSchema,
+      allowGuest: z.boolean().optional(),
+      allowMember: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
       const newId = await createMenuSubItem(input);
@@ -227,8 +233,10 @@ export const menusRouter = router({
       id: idSchema,
       label: requiredTextSchema(64, "메뉴 이름을 입력해주세요.").optional(),
       href: safeHrefSchema.nullable().optional(),
-      sortOrder: sortOrderSchema,
+      sortOrder: sortOrderSchema.optional(),
       isVisible: z.boolean().optional(),
+      allowGuest: z.boolean().optional(),
+      allowMember: z.boolean().optional(),
       pageType: PAGE_TYPE.optional(),
       pageImageUrl: pageImageSchema,
     }))

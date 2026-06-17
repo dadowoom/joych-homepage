@@ -36,6 +36,7 @@ import AdminTestimoniesTab from "@/components/AdminTestimoniesTab";
 import AdminCoursesTab from "@/components/AdminCoursesTab";
 import AdminBulletinsTab from "@/components/AdminBulletinsTab";
 import AdminPermissionsTab from "@/components/AdminPermissionsTab";
+import AdminMenuAccessTab from "@/components/AdminMenuAccessTab";
 import YoutubeAdminTab from "@/components/YoutubeAdminTab";
 import { SettingsTab } from "@/components/admin/SettingsTab";
 import {
@@ -60,6 +61,7 @@ type Tab =
   | "bulletins"
   | "youtube"
   | "popups"
+  | "menuAccess"
   | "permissions";
 
 type TabItem = {
@@ -99,6 +101,13 @@ const TABS: TabItem[] = [
     icon: "fa-key",
     description: "성도 계정별 게시판, 갤러리, 접수 관리 권한을 배정합니다.",
     status: "권한 배정",
+  },
+  {
+    id: "menuAccess",
+    label: "메뉴 읽기 권한",
+    icon: "fa-eye",
+    description: "최하위 메뉴별로 타교인과 로그인 성도의 읽기 권한을 설정합니다.",
+    status: "읽기 권한",
   },
   {
     id: "youtube",
@@ -191,7 +200,7 @@ const TAB_GROUPS: TabGroup[] = [
   {
     title: "운영 설정",
     description: "관리 기준과 입력 항목",
-    tabs: ["settings", "memberOptions", "permissions"],
+    tabs: ["settings", "memberOptions", "permissions", "menuAccess"],
   },
   {
     title: "콘텐츠/노출 관리",
@@ -271,6 +280,13 @@ export default function AdminPage() {
     const saved = localStorage.getItem("admin_fail_count");
     return saved ? parseInt(saved, 10) : 0;
   });
+  const [collapsedMenuGroups, setCollapsedMenuGroups] = useState<Record<string, boolean>>({});
+  const toggleMenuGroup = (title: string) => {
+    setCollapsedMenuGroups(prev => ({
+      ...prev,
+      [title]: !prev[title],
+    }));
+  };
 
   const adminLoginMutation = trpc.auth.adminLogin.useMutation({
     onSuccess: () => {
@@ -545,61 +561,83 @@ export default function AdminPage() {
             </div>
 
             <nav className="flex gap-3 overflow-x-auto pb-1 lg:block lg:min-h-0 lg:flex-1 lg:space-y-5 lg:overflow-x-hidden lg:overflow-y-auto lg:pb-0 lg:pr-1">
-              {visibleTabGroups.map(group => (
-                <section
-                  key={group.title}
-                  className="min-w-[240px] rounded-lg border border-gray-100 bg-gray-50/70 p-3 lg:min-w-0"
-                >
-                  <div className="mb-2">
-                    <h3 className="text-xs font-bold text-gray-800">
-                      {group.title}
-                    </h3>
-                    <p className="text-[11px] leading-4 text-gray-500">
-                      {group.description}
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    {group.tabs.map(tabId => {
-                      const tab = TABS_BY_ID[tabId];
-                      const isActive = activeTab === tab.id;
+              {visibleTabGroups.map(group => {
+                const isCollapsed = collapsedMenuGroups[group.title] ?? false;
+                const hasActiveTab = group.tabs.includes(activeTab);
 
-                      return (
-                        <button
-                          key={tab.id}
-                          onClick={() => setActiveTab(tab.id)}
-                          className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors ${
-                            isActive
-                              ? "bg-[#1B5E20] text-white shadow-sm"
-                              : "text-gray-700 hover:bg-white hover:text-[#1B5E20]"
-                          }`}
-                        >
-                          <span
-                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
-                              isActive
-                                ? "bg-white/15 text-[#A5D6A7]"
-                                : "bg-white text-[#1B5E20]"
-                            }`}
-                          >
-                            <i className={`fas ${tab.icon} text-xs`}></i>
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block font-semibold leading-5">
-                              {tab.label}
-                            </span>
-                            <span
-                              className={`block truncate text-xs ${
-                                isActive ? "text-[#D7F0D8]" : "text-gray-500"
+                return (
+                  <section
+                    key={group.title}
+                    className={`min-w-[240px] rounded-lg border p-3 lg:min-w-0 ${
+                      hasActiveTab
+                        ? "border-[#A5D6A7] bg-[#F1F8F2]"
+                        : "border-gray-100 bg-gray-50/70"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleMenuGroup(group.title)}
+                      aria-expanded={!isCollapsed}
+                      className="mb-2 flex w-full items-start justify-between gap-3 rounded-md text-left"
+                    >
+                      <span>
+                        <span className="block text-xs font-bold text-gray-800">
+                          {group.title}
+                        </span>
+                        <span className="block text-[11px] leading-4 text-gray-500">
+                          {group.description}
+                        </span>
+                      </span>
+                      <span className="mt-0.5 flex shrink-0 items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-[#1B5E20] shadow-sm">
+                        {group.tabs.length}개
+                        <i className={`fas fa-chevron-${isCollapsed ? "down" : "up"} text-[10px] text-gray-400`}></i>
+                      </span>
+                    </button>
+                    {!isCollapsed && (
+                      <div className="space-y-1">
+                        {group.tabs.map(tabId => {
+                          const tab = TABS_BY_ID[tabId];
+                          const isActive = activeTab === tab.id;
+
+                          return (
+                            <button
+                              key={tab.id}
+                              onClick={() => setActiveTab(tab.id)}
+                              className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors ${
+                                isActive
+                                  ? "bg-[#1B5E20] text-white shadow-sm"
+                                  : "text-gray-700 hover:bg-white hover:text-[#1B5E20]"
                               }`}
                             >
-                              {tab.status}
-                            </span>
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
-              ))}
+                              <span
+                                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
+                                  isActive
+                                    ? "bg-white/15 text-[#A5D6A7]"
+                                    : "bg-white text-[#1B5E20]"
+                                }`}
+                              >
+                                <i className={`fas ${tab.icon} text-xs`}></i>
+                              </span>
+                              <span className="min-w-0">
+                                <span className="block font-semibold leading-5">
+                                  {tab.label}
+                                </span>
+                                <span
+                                  className={`block truncate text-xs ${
+                                    isActive ? "text-[#D7F0D8]" : "text-gray-500"
+                                  }`}
+                                >
+                                  {tab.status}
+                                </span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
             </nav>
           </aside>
 
@@ -649,6 +687,7 @@ export default function AdminPage() {
               {activeTab === "reservations" && <AdminReservationsTab />}
               {activeTab === "memberOptions" && <AdminMemberOptionsTab />}
               {activeTab === "permissions" && <AdminPermissionsTab />}
+              {activeTab === "menuAccess" && <AdminMenuAccessTab />}
               {activeTab === "members" && <AdminMembersTab />}
               {activeTab === "staff" && <AdminStaffTab />}
               {activeTab === "missionReports" && <AdminMissionReportsTab />}

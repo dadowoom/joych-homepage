@@ -122,7 +122,7 @@ export function EditorContent({
             className="bg-green-700 hover:bg-green-800 text-white"
             onClick={() => {
               setIsNewBlock(true);
-              setEditingBlock({ blockType: "text-body", content: "{}" });
+              setEditingBlock({ blockType: "html-rich", content: "{\"html\":\"\"}" });
             }}
           >
             <Plus className="w-4 h-4 mr-1" /> 블록 추가

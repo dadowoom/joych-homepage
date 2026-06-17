@@ -53,7 +53,7 @@ const DEFAULT_STAFF_CATEGORIES = [
   { value: "other", label: "사회복지법인 기쁨의복지재단" },
 ] satisfies StaffCategoryOption[];
 
-const ELDER_GROUP_LABELS = ["시무장로", "휴무장로", "원로장로", "은퇴장로"] as const;
+const ELDER_GROUP_LABELS = ["원로장로", "은퇴장로", "시무장로", "휴무장로"] as const;
 const FALLBACK_ELDER_GROUP_LABEL = "장로";
 const COOPERATION_GROUP_LABELS = ["협력사역자", "파송선교사", "협력선교사"] as const;
 const FOUNDATION_GROUP_LABELS = [

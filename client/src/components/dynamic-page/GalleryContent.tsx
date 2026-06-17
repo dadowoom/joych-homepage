@@ -3,7 +3,7 @@
  * pageType="gallery" 메뉴에서 최근 행사 사진을 게시판형 목록과 상세 이미지 보기로 표시합니다.
  * 관리자 로그인 시에는 이 화면에서 바로 앨범 단위 다중 업로드와 사진 순서 변경을 할 수 있습니다.
  */
-import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -22,21 +22,29 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  ChevronDown,
+  ChevronUp,
   Download,
   FileImage,
   GripVertical,
   Images,
   LayoutGrid,
   Loader2,
+  Pencil,
+  Plus,
+  Save,
   Search,
+  Trash2,
   Upload,
   ZoomIn,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation, useSearch } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { canManageBoardContent } from "@/lib/contentPermissions";
+import { RichTextEditor, RichTextViewer, normalizeRichTextValue } from "@/components/ui/rich-text-editor";
 import { Lightbox } from "./Lightbox";
 import { ViewModeToggle, type ViewMode } from "./ViewModeToggle";
 
@@ -45,6 +53,7 @@ type GalleryItem = {
   imageUrl: string;
   albumKey?: string | null;
   albumTitle?: string | null;
+  albumDescription?: string | null;
   albumSortOrder?: number | null;
   caption?: string | null;
   gridSpan?: string | null;
@@ -56,6 +65,7 @@ type GalleryItem = {
 type GalleryGroup = {
   key: string;
   title: string;
+  description: string;
   createdAt: string | Date | null | undefined;
   albumSortOrder: number;
   sortOrder: number;
@@ -150,12 +160,16 @@ function buildGalleryGroups(items: GalleryItem[]) {
   items.forEach((item, index) => {
     const key = makeGroupKey(item);
     const title = getAlbumTitle(item);
+    const description = item.albumDescription?.trim() || "";
     const sortOrder = getItemSortOrder(item, index);
     const albumSortOrder = getAlbumSortOrder(item);
     const existing = groups.get(key);
 
     if (existing) {
       existing.images.push(item);
+      if (!existing.description && description) {
+        existing.description = description;
+      }
       existing.sortOrder = Math.min(existing.sortOrder, sortOrder);
       existing.albumSortOrder = Math.max(existing.albumSortOrder, albumSortOrder);
       if (toTime(item.createdAt) > toTime(existing.createdAt)) {
@@ -167,6 +181,7 @@ function buildGalleryGroups(items: GalleryItem[]) {
     groups.set(key, {
       key,
       title,
+      description,
       createdAt: item.createdAt,
       albumSortOrder,
       sortOrder,
@@ -316,8 +331,10 @@ export function GalleryContent() {
   const [searchKeyword, setSearchKeyword] = useState("");
   const [albumTitle, setAlbumTitle] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [isAlbumOrderOpen, setIsAlbumOrderOpen] = useState(false);
   const [localOrder, setLocalOrder] = useState<GalleryItem[] | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const detailFileInputRef = useRef<HTMLInputElement>(null);
 
   const galleryItems = (localOrder ?? items ?? []) as GalleryItem[];
   const galleryGroups = useMemo(() => buildGalleryGroups(galleryItems), [galleryItems]);
@@ -337,6 +354,30 @@ export function GalleryContent() {
   const activeLightboxGroup = lightbox ? galleryGroups.find((group) => group.key === lightbox.groupKey) : null;
   const activeLightboxImage = activeLightboxGroup && lightbox ? activeLightboxGroup.images[lightbox.imageIndex] : null;
   const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1);
+  const [isDetailEditing, setIsDetailEditing] = useState(false);
+  const [editAlbumTitle, setEditAlbumTitle] = useState("");
+  const [editAlbumDescription, setEditAlbumDescription] = useState("");
+  const [editPhotoCaptions, setEditPhotoCaptions] = useState<Record<number, string>>({});
+  const [editingPhotoId, setEditingPhotoId] = useState<number | null>(null);
+  const [isSavingDetail, setIsSavingDetail] = useState(false);
+  const [isAddingDetailPhotos, setIsAddingDetailPhotos] = useState(false);
+
+  useEffect(() => {
+    if (!detailGroup) {
+      setIsDetailEditing(false);
+      setEditAlbumTitle("");
+      setEditAlbumDescription("");
+      setEditPhotoCaptions({});
+      return;
+    }
+
+    setIsDetailEditing(false);
+    setEditAlbumTitle(detailGroup.title);
+    setEditAlbumDescription(normalizeRichTextValue(detailGroup.description));
+    setEditPhotoCaptions(Object.fromEntries(
+      detailGroup.images.map((image, index) => [image.id, image.caption || `${detailGroup.title} ${index + 1}`])
+    ));
+  }, [detailGroup?.key]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -345,6 +386,9 @@ export function GalleryContent() {
 
   const uploadGalleryImage = trpc.cms.upload.galleryImage.useMutation();
   const createGalleryItem = trpc.cms.content.gallery.create.useMutation();
+  const updateGalleryItem = trpc.cms.content.gallery.update.useMutation();
+  const updateGalleryAlbum = trpc.cms.content.gallery.updateAlbum.useMutation();
+  const deleteGalleryItem = trpc.cms.content.gallery.delete.useMutation();
   const reorderGalleryAlbums = trpc.cms.content.gallery.reorderAlbums.useMutation({
     onSuccess: () => {
       setLocalOrder(null);
@@ -427,14 +471,172 @@ export function GalleryContent() {
         utils.home.gallery.invalidate(),
         utils.cms.content.gallery.list.invalidate(),
       ]);
-      navigate(buildGalleryHref(location, searchString, `album:${albumKey}`));
-      toast.success(`${files.length}장의 사진을 업로드했습니다.`);
+      toast.success(`${files.length}장의 사진을 업로드했습니다. 목록에서 앨범을 선택해 확인할 수 있습니다.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "업로드 중 문제가 발생했습니다.";
       toast.error(`사진 업로드 실패: ${message}`);
     } finally {
       setIsUploading(false);
       event.target.value = "";
+    }
+  };
+
+  const refreshGallery = async () => {
+    setLocalOrder(null);
+    await Promise.all([
+      utils.home.gallery.invalidate(),
+      utils.cms.content.gallery.list.invalidate(),
+    ]);
+  };
+
+  const validateGalleryFiles = (files: File[]) => {
+    if (files.length > MAX_GALLERY_UPLOAD_COUNT) {
+      toast.error(`한 번에 최대 ${MAX_GALLERY_UPLOAD_COUNT}장까지 업로드할 수 있습니다.`);
+      return false;
+    }
+
+    const invalidTypeFile = files.find((file) => !ALLOWED_GALLERY_IMAGE_TYPES.has(file.type));
+    if (invalidTypeFile) {
+      toast.error("JPG, PNG, WEBP, GIF 이미지만 업로드할 수 있습니다.");
+      return false;
+    }
+
+    const oversizedFile = files.find((file) => file.size > MAX_GALLERY_UPLOAD_SIZE);
+    if (oversizedFile) {
+      toast.error("이미지 1장당 10MB 이하로 업로드해주세요.");
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleSaveDetailAlbum = async () => {
+    if (!detailGroup) return;
+
+    const title = editAlbumTitle.trim();
+    if (!title) {
+      toast.error("앨범 제목을 입력해주세요.");
+      return;
+    }
+
+    const description = editAlbumDescription.trim();
+    setIsSavingDetail(true);
+    try {
+      await updateGalleryAlbum.mutateAsync({
+        ids: detailGroup.images.map((image) => image.id),
+        albumTitle: title,
+        albumDescription: description,
+      });
+
+      await Promise.all(detailGroup.images.map((image) => {
+        const caption = (editPhotoCaptions[image.id] ?? "").trim();
+        if ((image.caption ?? "") === caption) return Promise.resolve();
+        return updateGalleryItem.mutateAsync({
+          id: image.id,
+          caption,
+        });
+      }));
+
+      await refreshGallery();
+      setIsDetailEditing(false);
+      toast.success("앨범 내용을 저장했습니다.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "앨범 저장 중 문제가 발생했습니다.";
+      toast.error(`앨범 저장 실패: ${message}`);
+    } finally {
+      setIsSavingDetail(false);
+    }
+  };
+
+  const handleAddDetailPhotos = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (!detailGroup) return;
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) return;
+    if (!validateGalleryFiles(files)) {
+      event.target.value = "";
+      return;
+    }
+
+    const title = editAlbumTitle.trim() || detailGroup.title;
+    const description = editAlbumDescription.trim();
+    const firstImage = detailGroup.images[0];
+    setIsAddingDetailPhotos(true);
+    try {
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index];
+        const base64 = await readFileAsBase64(file);
+        const { url } = await uploadGalleryImage.mutateAsync({
+          base64,
+          fileName: file.name,
+          mimeType: file.type,
+        });
+        await createGalleryItem.mutateAsync({
+          imageUrl: url,
+          albumKey: firstImage?.albumKey ?? undefined,
+          albumTitle: title,
+          albumDescription: description,
+          albumSortOrder: detailGroup.albumSortOrder,
+          caption: title,
+          gridSpan: "col-span-1 row-span-1",
+          sortOrder: detailGroup.images.length + index + 1,
+        });
+      }
+
+      await refreshGallery();
+      toast.success(`${files.length}장의 사진을 앨범에 추가했습니다.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "사진 추가 중 문제가 발생했습니다.";
+      toast.error(`사진 추가 실패: ${message}`);
+    } finally {
+      setIsAddingDetailPhotos(false);
+      event.target.value = "";
+    }
+  };
+
+  const handleReplacePhoto = async (item: GalleryItem, file: File | undefined) => {
+    if (!file) return;
+    if (!validateGalleryFiles([file])) return;
+
+    setEditingPhotoId(item.id);
+    try {
+      const base64 = await readFileAsBase64(file);
+      const { url } = await uploadGalleryImage.mutateAsync({
+        base64,
+        fileName: file.name,
+        mimeType: file.type,
+      });
+      await updateGalleryItem.mutateAsync({
+        id: item.id,
+        imageUrl: url,
+      });
+      await refreshGallery();
+      toast.success("사진을 교체했습니다.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "사진 교체 중 문제가 발생했습니다.";
+      toast.error(`사진 교체 실패: ${message}`);
+    } finally {
+      setEditingPhotoId(null);
+    }
+  };
+
+  const handleDeletePhoto = async (item: GalleryItem) => {
+    if (!detailGroup) return;
+    const shouldDelete = window.confirm("이 사진을 삭제할까요? 삭제 후에는 되돌릴 수 없습니다.");
+    if (!shouldDelete) return;
+
+    setEditingPhotoId(item.id);
+    try {
+      await deleteGalleryItem.mutateAsync({ id: item.id });
+      await refreshGallery();
+      if (detailGroup.images.length <= 1) {
+        navigate(buildGalleryHref(location, searchString));
+      }
+      toast.success("사진을 삭제했습니다.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "사진 삭제 중 문제가 발생했습니다.";
+      toast.error(`사진 삭제 실패: ${message}`);
+    } finally {
+      setEditingPhotoId(null);
     }
   };
 
@@ -575,25 +777,40 @@ export function GalleryContent() {
 
   const adminAlbumOrderTools = canManage && galleryGroups.length > 1 ? (
     <section className="border border-[#D8E8DA] bg-[#F8FCF8] p-4">
-      <div className="flex flex-col gap-1">
-        <p className="text-sm font-bold text-[#1B5E20]">앨범 순서 변경</p>
-        <p className="text-xs text-gray-500">드래그하면 공개 화면의 행사 앨범 표시 순서가 바뀝니다.</p>
-      </div>
-      <div className="mt-3">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleAlbumDragEnd}
-        >
-          <SortableContext items={galleryGroups.map((group) => group.key)} strategy={rectSortingStrategy}>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {galleryGroups.map((group, index) => (
-                <SortableGalleryAlbumOrderItem key={group.key} group={group} index={index} />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-      </div>
+      <button
+        type="button"
+        onClick={() => setIsAlbumOrderOpen((current) => !current)}
+        className="flex w-full items-center justify-between gap-3 text-left"
+        aria-expanded={isAlbumOrderOpen}
+      >
+        <span className="flex min-w-0 flex-col gap-1">
+          <span className="text-sm font-bold text-[#1B5E20]">앨범 순서 변경</span>
+          <span className="text-xs text-gray-500">
+            {galleryGroups.length}개의 앨범이 있습니다. 펼친 뒤 드래그하면 공개 화면의 행사 앨범 표시 순서가 바뀝니다.
+          </span>
+        </span>
+        <span className="inline-flex shrink-0 items-center gap-1 border border-[#CFE5D3] bg-white px-3 py-1 text-xs font-semibold text-[#1B5E20]">
+          {isAlbumOrderOpen ? "접기" : "펼치기"}
+          {isAlbumOrderOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+        </span>
+      </button>
+      {isAlbumOrderOpen && (
+        <div className="mt-3 max-h-56 overflow-y-auto overscroll-contain pr-1 md:max-h-64 xl:max-h-72">
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleAlbumDragEnd}
+          >
+            <SortableContext items={galleryGroups.map((group) => group.key)} strategy={rectSortingStrategy}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {galleryGroups.map((group, index) => (
+                  <SortableGalleryAlbumOrderItem key={group.key} group={group} index={index} />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        </div>
+      )}
     </section>
   ) : null;
 
@@ -655,8 +872,18 @@ export function GalleryContent() {
           </a>
 
           <article className="border border-gray-200 bg-white">
-            <header className="border-t-2 border-[#86C5D8] bg-[#E9F8FC] px-5 py-3">
+            <header className="flex flex-col gap-3 border-t-2 border-[#86C5D8] bg-[#E9F8FC] px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-base font-bold text-[#006B8F]">{detailGroup.title}</h2>
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={() => setIsDetailEditing((current) => !current)}
+                  className="inline-flex h-8 items-center justify-center gap-1.5 self-start border border-[#1B5E20] bg-white px-3 text-xs font-semibold text-[#1B5E20] hover:bg-[#F1F8E9] sm:self-auto"
+                >
+                  {isDetailEditing ? <X className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                  {isDetailEditing ? "수정 닫기" : "앨범 수정"}
+                </button>
+              )}
             </header>
             <div className="flex flex-wrap items-center gap-3 border-b border-gray-100 px-5 py-3 text-xs text-gray-500">
               <span className="font-semibold text-[#1B5E20]">관리자</span>
@@ -665,6 +892,86 @@ export function GalleryContent() {
               <span className="h-3 w-px bg-gray-200" />
               <span>첨부 {detailGroup.images.length}개</span>
             </div>
+            {detailGroup.description && !isDetailEditing && (
+              <div className="border-b border-gray-100 px-5 py-5">
+                <RichTextViewer className="mx-auto max-w-3xl text-center" html={detailGroup.description} />
+              </div>
+            )}
+            {canManage && isDetailEditing && (
+              <section className="border-b border-[#D8E8DA] bg-[#F8FCF8] px-5 py-5">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600" htmlFor="gallery-edit-title">
+                        앨범 제목
+                      </label>
+                      <input
+                        id="gallery-edit-title"
+                        value={editAlbumTitle}
+                        onChange={(event) => setEditAlbumTitle(event.target.value)}
+                        className="mt-1 h-9 w-full border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#1B5E20]"
+                        placeholder="앨범 제목"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600" htmlFor="gallery-edit-description">
+                        앨범 글/설명
+                      </label>
+                      <RichTextEditor
+                        id="gallery-edit-description"
+                        value={editAlbumDescription}
+                        onChange={setEditAlbumDescription}
+                        placeholder="행사 설명, 설교 요약, 사진 설명 등을 입력할 수 있습니다."
+                        minHeightClassName="min-h-56"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => detailFileInputRef.current?.click()}
+                      disabled={isAddingDetailPhotos}
+                      className="inline-flex h-10 items-center justify-center gap-2 border border-[#1B5E20] bg-white px-4 text-sm font-semibold text-[#1B5E20] hover:bg-[#F1F8E9] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isAddingDetailPhotos ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                      사진 추가
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveDetailAlbum}
+                      disabled={isSavingDetail}
+                      className="inline-flex h-10 items-center justify-center gap-2 bg-[#1B5E20] px-4 text-sm font-semibold text-white hover:bg-[#2E7D32] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isSavingDetail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      저장
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditAlbumTitle(detailGroup.title);
+                        setEditAlbumDescription(normalizeRichTextValue(detailGroup.description));
+                        setEditPhotoCaptions(Object.fromEntries(
+                          detailGroup.images.map((image, index) => [image.id, image.caption || `${detailGroup.title} ${index + 1}`])
+                        ));
+                        setIsDetailEditing(false);
+                      }}
+                      className="inline-flex h-9 items-center justify-center border border-gray-300 bg-white px-4 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                    >
+                      취소
+                    </button>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-gray-400">사진 설명, 사진 교체, 삭제는 각 사진 아래에서 수정할 수 있습니다.</p>
+                <input
+                  ref={detailFileInputRef}
+                  type="file"
+                  multiple
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="hidden"
+                  onChange={handleAddDetailPhotos}
+                />
+              </section>
+            )}
             <div className="grid gap-6 px-4 py-6 lg:grid-cols-[minmax(0,1fr)_260px]">
               <div className="space-y-5">
                 {detailGroup.images.map((image, imageIndex) => (
@@ -689,6 +996,51 @@ export function GalleryContent() {
                       <span>{imageIndex + 1} / {detailGroup.images.length}</span>
                       <span>{image.caption || detailGroup.title}</span>
                     </figcaption>
+                    {canManage && isDetailEditing && (
+                      <div className="mt-3 border border-gray-200 bg-white p-3">
+                        <label className="block text-xs font-semibold text-gray-600" htmlFor={`gallery-photo-caption-${image.id}`}>
+                          사진 설명
+                        </label>
+                        <input
+                          id={`gallery-photo-caption-${image.id}`}
+                          value={editPhotoCaptions[image.id] ?? ""}
+                          onChange={(event) =>
+                            setEditPhotoCaptions((current) => ({
+                              ...current,
+                              [image.id]: event.target.value,
+                            }))
+                          }
+                          className="mt-1 h-9 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#1B5E20]"
+                          placeholder="사진 아래에 표시할 설명"
+                        />
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <label className="inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 border border-[#1B5E20] bg-white px-3 text-xs font-semibold text-[#1B5E20] hover:bg-[#F1F8E9]">
+                            {editingPhotoId === image.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                            사진 교체
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp,image/gif"
+                              className="hidden"
+                              disabled={editingPhotoId === image.id}
+                              onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                event.target.value = "";
+                                handleReplacePhoto(image, file);
+                              }}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePhoto(image)}
+                            disabled={editingPhotoId === image.id}
+                            className="inline-flex h-8 items-center justify-center gap-1.5 border border-red-200 bg-white px-3 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {editingPhotoId === image.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                            삭제
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </figure>
                 ))}
               </div>

@@ -31,10 +31,10 @@ export const DEFAULT_STAFF_CATEGORIES = [
 ] as const;
 
 export const DEFAULT_STAFF_TITLE_OPTIONS = [
-  { categoryKey: "elder", label: "시무장로", sortOrder: 1, isBuiltIn: true, isVisible: true },
-  { categoryKey: "elder", label: "휴무장로", sortOrder: 2, isBuiltIn: true, isVisible: true },
-  { categoryKey: "elder", label: "원로장로", sortOrder: 3, isBuiltIn: true, isVisible: true },
-  { categoryKey: "elder", label: "은퇴장로", sortOrder: 4, isBuiltIn: true, isVisible: true },
+  { categoryKey: "elder", label: "원로장로", sortOrder: 1, isBuiltIn: true, isVisible: true },
+  { categoryKey: "elder", label: "은퇴장로", sortOrder: 2, isBuiltIn: true, isVisible: true },
+  { categoryKey: "elder", label: "시무장로", sortOrder: 3, isBuiltIn: true, isVisible: true },
+  { categoryKey: "elder", label: "휴무장로", sortOrder: 4, isBuiltIn: true, isVisible: true },
   { categoryKey: "cooperation", label: "협력사역자", sortOrder: 1, isBuiltIn: true, isVisible: true },
   { categoryKey: "cooperation", label: "파송선교사", sortOrder: 2, isBuiltIn: true, isVisible: true },
   { categoryKey: "cooperation", label: "협력선교사", sortOrder: 3, isBuiltIn: true, isVisible: true },
@@ -71,6 +71,27 @@ function normalizeCategoryLabel(label: string) {
 
 function normalizeTitleLabel(label: string) {
   return label.trim().replace(/\s+/g, " ");
+}
+
+const GROUPED_STAFF_SORT_CATEGORIES = new Set<StaffCategory>(["elder", "cooperation", "other"]);
+
+function isGroupedStaffSortCategory(category: StaffCategory) {
+  return GROUPED_STAFF_SORT_CATEGORIES.has(category);
+}
+
+function normalizeStaffSortTitle(title?: string | null) {
+  return title?.trim() ?? "";
+}
+
+function didStaffSortGroupChange(
+  previousCategory: StaffCategory,
+  previousTitle: string | null,
+  nextCategory: StaffCategory,
+  nextTitle: string | null | undefined
+) {
+  if (previousCategory !== nextCategory) return true;
+  if (!isGroupedStaffSortCategory(previousCategory)) return false;
+  return normalizeStaffSortTitle(previousTitle) !== normalizeStaffSortTitle(nextTitle);
 }
 
 function toDefaultCategoryRows(): StaffCategoryRow[] {
@@ -130,10 +151,14 @@ async function renumberStaffCategory(
   db: StaffOrderExecutor,
   category: StaffCategory,
   movingId?: number,
-  targetSortOrder?: number
+  targetSortOrder?: number,
+  title?: string | null
 ) {
+  const where = isGroupedStaffSortCategory(category)
+    ? and(eq(churchStaff.category, category), eq(churchStaff.title, normalizeStaffSortTitle(title)))
+    : eq(churchStaff.category, category);
   const rows = await db.select().from(churchStaff)
-    .where(eq(churchStaff.category, category))
+    .where(where)
     .orderBy(asc(churchStaff.sortOrder), asc(churchStaff.id));
 
   const orderedRows = orderStaffRowsByTarget(rows, movingId, targetSortOrder);
@@ -472,7 +497,7 @@ export async function createStaffMember(data: InsertChurchStaff) {
     const id = result?.id ?? null;
     if (!id) return null;
 
-    await renumberStaffCategory(tx, category, id, data.sortOrder);
+    await renumberStaffCategory(tx, category, id, data.sortOrder, data.title);
     return id;
   });
 }
@@ -485,17 +510,20 @@ export async function updateStaffMember(id: number, data: Partial<InsertChurchSt
     if (!existing) return;
 
     const previousCategory = existing.category as StaffCategory;
+    const previousTitle = existing.title;
     const nextCategory = (data.category ?? previousCategory) as StaffCategory;
+    const nextTitle = data.title ?? previousTitle;
     await tx.update(churchStaff).set(data).where(eq(churchStaff.id, id));
 
-    if (previousCategory !== nextCategory) {
-      await renumberStaffCategory(tx, previousCategory);
+    if (didStaffSortGroupChange(previousCategory, previousTitle, nextCategory, nextTitle)) {
+      await renumberStaffCategory(tx, previousCategory, undefined, undefined, previousTitle);
     }
     await renumberStaffCategory(
       tx,
       nextCategory,
       id,
-      data.sortOrder ?? existing.sortOrder
+      data.sortOrder ?? existing.sortOrder,
+      nextTitle
     );
   });
 }
@@ -507,6 +535,6 @@ export async function deleteStaffMember(id: number) {
     const [existing] = await tx.select().from(churchStaff).where(eq(churchStaff.id, id)).limit(1);
     if (!existing) return;
     await tx.delete(churchStaff).where(eq(churchStaff.id, id));
-    await renumberStaffCategory(tx, existing.category as StaffCategory);
+    await renumberStaffCategory(tx, existing.category as StaffCategory, undefined, undefined, existing.title);
   });
 }

@@ -16,6 +16,45 @@ import { CheckCircle2, XCircle, Clock, AlertCircle, Calendar, List, ChevronDown 
 
 type StatusFilter = "all" | "pending" | "approved" | "rejected" | "cancelled";
 type ViewMode = "list" | "calendar";
+type ReservationStatus = Reservation["status"];
+
+type AdminReservationRow = Pick<
+  Reservation,
+  | "id"
+  | "facilityId"
+  | "userId"
+  | "reserverName"
+  | "reserverPhone"
+  | "reservationDate"
+  | "startTime"
+  | "endTime"
+  | "status"
+  | "purpose"
+  | "department"
+  | "attendees"
+  | "notes"
+  | "recurrenceGroupId"
+  | "recurrenceLabel"
+  | "recurrenceSequence"
+  | "adminComment"
+  | "createdAt"
+> & {
+  facilityName?: string | null;
+  userName?: string | null;
+  userEmail?: string | null;
+};
+
+type ReservationGroup = {
+  key: string;
+  groupId: string | null;
+  first: AdminReservationRow;
+  reservations: AdminReservationRow[];
+  status: ReservationStatus;
+  isRecurring: boolean;
+  count: number;
+  startDate: string;
+  endDate: string;
+};
 
 const STATUS_LABELS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   pending:   { label: "승인 대기", color: "bg-amber-100 text-amber-700",  icon: <Clock className="w-3 h-3" /> },
@@ -33,14 +72,64 @@ function formatTime(ts: number | Date | string) {
   return new Date(ts).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+function formatShortDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
+}
+
+function getGroupStatus(items: AdminReservationRow[]): ReservationStatus {
+  if (items.some(r => r.status === "pending")) return "pending";
+  if (items.every(r => r.status === "approved")) return "approved";
+  if (items.some(r => r.status === "rejected")) return "rejected";
+  if (items.some(r => r.status === "cancelled")) return "cancelled";
+  return items[0]?.status ?? "pending";
+}
+
+function buildReservationGroups(rows: AdminReservationRow[]): ReservationGroup[] {
+  const grouped = new Map<string, AdminReservationRow[]>();
+
+  rows.forEach(row => {
+    const key = row.recurrenceGroupId ? `group:${row.recurrenceGroupId}` : `single:${row.id}`;
+    const current = grouped.get(key);
+    if (current) current.push(row);
+    else grouped.set(key, [row]);
+  });
+
+  return Array.from(grouped.entries())
+    .map(([key, items]) => {
+      const reservations = [...items].sort((a, b) =>
+        a.reservationDate.localeCompare(b.reservationDate)
+        || a.startTime.localeCompare(b.startTime)
+        || (a.recurrenceSequence ?? 0) - (b.recurrenceSequence ?? 0)
+      );
+      const first = reservations[0]!;
+      const last = reservations[reservations.length - 1]!;
+
+      return {
+        key,
+        groupId: first.recurrenceGroupId ?? null,
+        first,
+        reservations,
+        status: getGroupStatus(reservations),
+        isRecurring: Boolean(first.recurrenceGroupId) && reservations.length > 1,
+        count: reservations.length,
+        startDate: first.reservationDate,
+        endDate: last.reservationDate,
+      };
+    })
+    .sort((a, b) =>
+      new Date(b.first.createdAt).getTime() - new Date(a.first.createdAt).getTime()
+      || b.startDate.localeCompare(a.startDate)
+    );
+}
+
 export default function AdminReservationsTab() {
   const utils = trpc.useUtils();
   const [facilityFilter, setFacilityFilter] = useState<number | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [rejectingId, setRejectingId] = useState<number | null>(null);
+  const [rejectingKey, setRejectingKey] = useState<string | null>(null);
   const [rejectComment, setRejectComment] = useState("");
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   // 시설 목록 (필터용)
   const { data: facilities } = trpc.home.facilities.useQuery();
@@ -59,27 +148,63 @@ export default function AdminReservationsTab() {
     onError: () => toast.error("승인에 실패했습니다."),
   });
 
+  const approveGroupMutation = trpc.cms.reservations.approveGroup.useMutation({
+    onSuccess: () => {
+      utils.cms.reservations.list.invalidate();
+      toast.success("반복 예약 묶음이 승인됐습니다.");
+    },
+    onError: () => toast.error("승인에 실패했습니다."),
+  });
+
   const rejectMutation = trpc.cms.reservations.reject.useMutation({
     onSuccess: () => {
       utils.cms.reservations.list.invalidate();
-      setRejectingId(null);
+      setRejectingKey(null);
       setRejectComment("");
       toast.success("예약이 거절됐습니다.");
     },
     onError: () => toast.error("거절 처리에 실패했습니다."),
   });
 
+  const rejectGroupMutation = trpc.cms.reservations.rejectGroup.useMutation({
+    onSuccess: () => {
+      utils.cms.reservations.list.invalidate();
+      setRejectingKey(null);
+      setRejectComment("");
+      toast.success("반복 예약 묶음이 거절됐습니다.");
+    },
+    onError: () => toast.error("거절 처리에 실패했습니다."),
+  });
+
+  const groupedReservations = buildReservationGroups((reservations ?? []) as AdminReservationRow[]);
+
   // 필터 적용
-  const filtered = (reservations ?? []).filter(r =>
-    statusFilter === "all" ? true : r.status === statusFilter
+  const filtered = groupedReservations.filter(group =>
+    statusFilter === "all" ? true : group.status === statusFilter || group.reservations.some(r => r.status === statusFilter)
   );
 
   // 통계
   const stats = {
-    total: (reservations ?? []).length,
-    pending: (reservations ?? []).filter(r => r.status === "pending").length,
-    approved: (reservations ?? []).filter(r => r.status === "approved").length,
-    rejected: (reservations ?? []).filter(r => r.status === "rejected").length,
+    total: groupedReservations.length,
+    pending: groupedReservations.filter(group => group.status === "pending").length,
+    approved: groupedReservations.filter(group => group.status === "approved").length,
+    rejected: groupedReservations.filter(group => group.status === "rejected").length,
+  };
+
+  const approveReservation = (group: ReservationGroup) => {
+    if (group.isRecurring && group.groupId) {
+      approveGroupMutation.mutate({ groupId: group.groupId });
+      return;
+    }
+    approveMutation.mutate({ id: group.first.id });
+  };
+
+  const rejectReservation = (group: ReservationGroup) => {
+    if (group.isRecurring && group.groupId) {
+      rejectGroupMutation.mutate({ groupId: group.groupId, comment: rejectComment });
+      return;
+    }
+    rejectMutation.mutate({ id: group.first.id, comment: rejectComment });
   };
 
   return (
@@ -156,6 +281,13 @@ export default function AdminReservationsTab() {
         ))}
       </div>
 
+      {stats.pending === 0 && (
+        <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          현재 승인 대기 예약이 없습니다. 승인/거절 버튼은 승인 대기 상태의 예약에만 표시되며,
+          자동 승인 시설은 신청 즉시 승인 완료로 표시됩니다.
+        </div>
+      )}
+
       {/* 목록 뷰 */}
       {viewMode === "list" && (
         <div className="space-y-3">
@@ -167,22 +299,27 @@ export default function AdminReservationsTab() {
               <p className="text-sm">해당 조건의 예약이 없습니다.</p>
             </div>
           ) : (
-            filtered.map(r => {
-              const st = STATUS_LABELS[r.status] ?? STATUS_LABELS.pending;
-              const isExpanded = expandedId === r.id;
+            filtered.map(group => {
+              const r = group.first;
+              const st = STATUS_LABELS[group.status] ?? STATUS_LABELS.pending;
+              const isExpanded = expandedKey === group.key;
+              const dateSummary = group.isRecurring
+                ? `${formatShortDate(group.startDate)} ~ ${formatShortDate(group.endDate)} · ${group.count}회`
+                : formatDate(r.reservationDate);
+              const isMutating = approveMutation.isPending || approveGroupMutation.isPending || rejectMutation.isPending || rejectGroupMutation.isPending;
               return (
-                <div key={r.id} className="border border-gray-200 rounded-xl overflow-hidden">
+                <div key={group.key} className="border border-gray-200 rounded-xl overflow-hidden">
                   {/* 요약 행 */}
                   <div
                     className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 transition-colors"
-                    onClick={() => setExpandedId(isExpanded ? null : r.id)}
+                    onClick={() => setExpandedKey(isExpanded ? null : group.key)}
                   >
                     <div className={"flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium shrink-0 " + st.color}>
                       {st.icon} {st.label}
                     </div>
-                    {r.recurrenceLabel && (
+                    {group.isRecurring && (
                       <div className="px-2 py-1 rounded-full text-xs font-medium shrink-0 bg-blue-50 text-blue-700">
-                        반복
+                        반복 {group.count}회
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
@@ -190,17 +327,17 @@ export default function AdminReservationsTab() {
                         {r.facilityName ?? "시설"} — {r.reserverName}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        {formatDate(r.reservationDate)} {r.startTime}~{r.endTime} · {r.department}
+                        {dateSummary} · {r.startTime}~{r.endTime} · {r.department}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {r.status === "pending" && (
+                      {group.status === "pending" && (
                         <>
                           <Button
                             size="sm"
                             className="bg-green-600 hover:bg-green-700 text-white text-xs h-7 px-3"
-                            onClick={e => { e.stopPropagation(); approveMutation.mutate({ id: r.id }); }}
-                            disabled={approveMutation.isPending}
+                            onClick={e => { e.stopPropagation(); approveReservation(group); }}
+                            disabled={isMutating}
                           >
                             승인
                           </Button>
@@ -208,18 +345,23 @@ export default function AdminReservationsTab() {
                             size="sm"
                             variant="outline"
                             className="border-red-300 text-red-600 hover:bg-red-50 text-xs h-7 px-3"
-                            onClick={e => { e.stopPropagation(); setRejectingId(r.id); setRejectComment(""); }}
+                            onClick={e => { e.stopPropagation(); setRejectingKey(group.key); setRejectComment(""); }}
                           >
                             거절
                           </Button>
                         </>
+                      )}
+                      {group.status !== "pending" && (
+                        <span className="hidden sm:inline-flex text-xs text-gray-400">
+                          처리 완료
+                        </span>
                       )}
                       <ChevronDown className={"w-4 h-4 text-gray-400 transition-transform " + (isExpanded ? "rotate-180" : "")} />
                     </div>
                   </div>
 
                   {/* 거절 사유 입력 */}
-                  {rejectingId === r.id && (
+                  {rejectingKey === group.key && (
                     <div className="px-4 pb-4 bg-red-50 border-t border-red-100">
                       <p className="text-xs font-medium text-red-700 mt-3 mb-1.5">거절 사유를 입력해 주세요 (신청자에게 전달됩니다)</p>
                       <textarea
@@ -233,8 +375,8 @@ export default function AdminReservationsTab() {
                         <Button
                           size="sm"
                           className="bg-red-600 hover:bg-red-700 text-white text-xs"
-                          onClick={() => rejectMutation.mutate({ id: r.id, comment: rejectComment })}
-                          disabled={!rejectComment.trim() || rejectMutation.isPending}
+                          onClick={() => rejectReservation(group)}
+                          disabled={!rejectComment.trim() || isMutating}
                         >
                           거절 확정
                         </Button>
@@ -242,7 +384,7 @@ export default function AdminReservationsTab() {
                           size="sm"
                           variant="outline"
                           className="text-xs"
-                          onClick={() => setRejectingId(null)}
+                          onClick={() => setRejectingKey(null)}
                         >
                           취소
                         </Button>
@@ -258,10 +400,17 @@ export default function AdminReservationsTab() {
                         <div><span className="text-gray-500 text-xs">예상 인원</span><p className="font-medium">{r.attendees}명</p></div>
                         <div><span className="text-gray-500 text-xs">사용 목적</span><p className="font-medium">{r.purpose}</p></div>
                         <div><span className="text-gray-500 text-xs">신청 일시</span><p className="font-medium">{formatTime(r.createdAt)}</p></div>
-                        {r.recurrenceLabel && (
+                        {group.isRecurring && (
                           <div className="col-span-2">
                             <span className="text-gray-500 text-xs">반복 예약</span>
-                            <p className="font-medium text-blue-700">{r.recurrenceLabel}</p>
+                            <p className="font-medium text-blue-700">{r.recurrenceLabel ?? `${group.count}회 반복 예약`}</p>
+                            <div className="mt-2 max-h-32 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-1 pr-1">
+                              {group.reservations.map((reservation, index) => (
+                                <span key={reservation.id} className="text-xs text-gray-600 bg-white border border-gray-100 rounded px-2 py-1">
+                                  {index + 1}. {formatDate(reservation.reservationDate)} {reservation.startTime}~{reservation.endTime}
+                                </span>
+                              ))}
+                            </div>
                           </div>
                         )}
                         {r.notes && (

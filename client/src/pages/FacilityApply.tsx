@@ -279,7 +279,6 @@ export default function FacilityApply() {
     attendees: "",
     notes: "",
     repeatType: "none" as RepeatType,
-    repeatCount: "4",
     repeatUntilDate: "",
     agreePrivacy: false,
   }));
@@ -396,12 +395,11 @@ export default function FacilityApply() {
     if (!form.attendees || Number(form.attendees) < 1) return "예상 인원을 입력해 주세요.";
     if (facility && Number(form.attendees) > facility.capacity) return `최대 수용 인원(${facility.capacity}명)을 초과합니다.`;
     if (form.repeatType !== "none") {
-      const count = Number(form.repeatCount);
-      if (!form.repeatUntilDate && (!Number.isInteger(count) || count < 2 || count > 52)) {
-        return "반복 횟수는 2회 이상 52회 이하로 입력해 주세요.";
+      if (!form.repeatUntilDate) {
+        return "반복 종료일을 선택해 주세요.";
       }
-      if (form.repeatUntilDate && form.repeatUntilDate < form.date) {
-        return "반복 종료일은 사용 날짜 이후로 선택해 주세요.";
+      if (form.repeatUntilDate < form.date) {
+        return "반복 종료일은 사용 날짜보다 이전일 수 없습니다.";
       }
     }
     if (!form.agreePrivacy) return "개인정보 수집·이용에 동의해 주세요.";
@@ -441,8 +439,7 @@ export default function FacilityApply() {
       notes: form.notes || undefined,
       repeat: form.repeatType === "none" ? undefined : {
         type: form.repeatType,
-        count: form.repeatUntilDate ? undefined : Number(form.repeatCount),
-        untilDate: form.repeatUntilDate || undefined,
+        untilDate: form.repeatUntilDate,
       },
     });
   }
@@ -651,7 +648,7 @@ export default function FacilityApply() {
 
                 {/* 반복 예약 */}
                 <Field label="반복 예약" hint="선택한 날짜와 시간 기준으로 여러 날짜의 예약을 한 번에 신청합니다.">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <select
                       name="repeatType"
                       value={form.repeatType}
@@ -663,31 +660,20 @@ export default function FacilityApply() {
                       ))}
                     </select>
                     {form.repeatType !== "none" && (
-                      <>
-                        <input
-                          type="number"
-                          name="repeatCount"
-                          value={form.repeatCount}
-                          onChange={handleChange}
-                          min={2}
-                          max={52}
-                          placeholder="반복 횟수"
-                          className={inputClass}
-                        />
-                        <input
-                          type="date"
-                          name="repeatUntilDate"
-                          value={form.repeatUntilDate}
-                          onChange={handleChange}
-                          min={form.date || new Date().toISOString().split("T")[0]}
-                          className={inputClass}
-                        />
-                      </>
+                      <input
+                        type="date"
+                        name="repeatUntilDate"
+                        value={form.repeatUntilDate}
+                        onChange={handleChange}
+                        min={form.date || new Date().toISOString().split("T")[0]}
+                        aria-label="반복 종료일"
+                        className={inputClass}
+                      />
                     )}
                   </div>
                   {form.repeatType !== "none" && (
                     <p className="text-xs text-gray-400 mt-1">
-                      종료일을 선택하면 종료일까지 생성하고, 비워두면 입력한 반복 횟수만큼 생성됩니다.
+                      종료일을 넘지 않는 날짜까지만 자동 생성됩니다. 예: 화요일에 시작한 매주 반복은 종료일을 넘지 않는 마지막 화요일까지만 신청됩니다.
                     </p>
                   )}
                 </Field>

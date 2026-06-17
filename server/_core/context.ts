@@ -13,6 +13,8 @@ export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
   res: CreateExpressContextOptions["res"];
   user: TrpcUser | null;
+  memberId: number | null;
+  memberName: string | null;
 };
 
 async function attachContentPermissions(user: User): Promise<TrpcUser> {
@@ -52,10 +54,34 @@ async function authenticateMemberContentManager(
   }
 }
 
+async function authenticateApprovedMember(
+  req: CreateExpressContextOptions["req"],
+): Promise<{ memberId: number; memberName: string } | null> {
+  const token = req.cookies?.church_member_session;
+  if (!token) return null;
+
+  try {
+    const { jwtVerify } = await import("jose");
+    const { payload } = await jwtVerify(token, getJwtSecretKey());
+    if (payload.type !== "church_member" || !payload.memberId) return null;
+
+    const memberId = Number(payload.memberId);
+    if (!Number.isInteger(memberId)) return null;
+
+    const member = await getMemberById(memberId);
+    if (!member || member.status !== "approved") return null;
+
+    return { memberId: member.id, memberName: member.name };
+  } catch {
+    return null;
+  }
+}
+
 export async function createContext(
   opts: CreateExpressContextOptions
 ): Promise<TrpcContext> {
   let user: TrpcUser | null = null;
+  const memberSession = await authenticateApprovedMember(opts.req);
 
   try {
     const sdkUser = await sdk.authenticateRequest(opts.req);
@@ -73,5 +99,7 @@ export async function createContext(
     req: opts.req,
     res: opts.res,
     user,
+    memberId: memberSession?.memberId ?? user?.memberId ?? null,
+    memberName: memberSession?.memberName ?? null,
   };
 }

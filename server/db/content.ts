@@ -10,7 +10,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { and, eq, asc, desc, isNull, like, not } from "drizzle-orm";
+import { and, eq, asc, desc, inArray, isNull, like, not } from "drizzle-orm";
 import {
   heroSlides, galleryItems, affiliates, quickMenus, siteSettings,
   InsertAffiliate, InsertGalleryItem,
@@ -100,6 +100,13 @@ export async function updateGalleryItem(id: number, data: Partial<InsertGalleryI
   const db = await getDb();
   if (!db) return;
   await db.update(galleryItems).set(data).where(eq(galleryItems.id, id));
+}
+
+/** 갤러리 앨범 공통 정보 수정 */
+export async function updateGalleryAlbumItems(ids: number[], data: Partial<InsertGalleryItem>) {
+  const db = await getDb();
+  if (!db || ids.length === 0) return;
+  await db.update(galleryItems).set(data).where(inArray(galleryItems.id, ids));
 }
 
 // ─── 관련기관 (Affiliates) ────────────────────────────────────────────────────
@@ -372,13 +379,14 @@ export async function getAllHomeGalleryItems() {
     .where(eq(galleryItems.isHomeGallery, true))
     .orderBy(asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
 }
-export async function createGalleryItem(data: { imageUrl: string; albumKey?: string; albumTitle?: string; albumSortOrder?: number; caption?: string; gridSpan?: string; sortOrder?: number; isHomeGallery?: boolean }) {
+export async function createGalleryItem(data: { imageUrl: string; albumKey?: string; albumTitle?: string; albumDescription?: string; albumSortOrder?: number; caption?: string; gridSpan?: string; sortOrder?: number; isHomeGallery?: boolean }) {
   const db = await getDb();
   if (!db) return;
   await db.insert(galleryItems).values({
     imageUrl: data.imageUrl,
     albumKey: data.albumKey ?? null,
     albumTitle: data.albumTitle ?? null,
+    albumDescription: data.albumDescription ?? null,
     albumSortOrder: data.albumSortOrder ?? Math.floor(Date.now() / 1000),
     caption: data.caption ?? null,
     gridSpan: data.gridSpan ?? "col-span-1 row-span-1",

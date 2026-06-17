@@ -302,6 +302,15 @@ export function InlineEditForm({
         </div>
       )}
 
+      {showPageType && pageType === "editor" && (
+        <div className="space-y-1 rounded border border-green-100 bg-green-50 p-2">
+          <p className="text-[10px] font-semibold text-green-800">HTML 편집기</p>
+          <p className="text-[9px] leading-4 text-green-700">
+            메뉴 저장 후 해당 페이지에서 관리자 권한으로 본문, 이미지, 버튼을 편집할 수 있습니다.
+          </p>
+        </div>
+      )}
+
       <div className="flex gap-1">
         <Button
           size="sm"

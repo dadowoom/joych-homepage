@@ -37,6 +37,7 @@ import {
   getAllGalleryItems,
   getAllHomeGalleryItems,
   updateGalleryItem,
+  updateGalleryAlbumItems,
   createGalleryItem,
   deleteGalleryItem,
   reorderGalleryAlbums,
@@ -216,9 +217,11 @@ export const contentRouter = router({
         imageUrl: safeAssetUrlSchema.refine(value => value.length > 0, "이미지를 선택해주세요."),
         albumKey: optionalTextSchema(96),
         albumTitle: optionalTextSchema(160),
+        albumDescription: optionalTextSchema(20000),
         albumSortOrder: z.number().int().min(0).max(2147483647).optional(),
         caption: optionalTextSchema(128),
         gridSpan: gridSpanValueSchema.optional(),
+        sortOrder: sortOrderSchema.optional(),
         isHomeGallery: z.boolean().optional(),
       }))
       .mutation(({ input }) => createGalleryItem(input)),
@@ -228,15 +231,28 @@ export const contentRouter = router({
         id: z.number().int().positive(),
         albumKey: optionalTextSchema(96),
         albumTitle: optionalTextSchema(160),
+        albumDescription: optionalTextSchema(20000),
         albumSortOrder: z.number().int().min(0).max(2147483647).optional(),
         caption: optionalTextSchema(128),
-        sortOrder: sortOrderSchema,
+        imageUrl: safeAssetUrlSchema.optional(),
+        sortOrder: sortOrderSchema.optional(),
         isVisible: z.boolean().optional(),
         gridSpan: gridSpanValueSchema.optional(),
       }))
       .mutation(({ input }) => {
         const { id, ...data } = input;
         return updateGalleryItem(id, data);
+      }),
+    /** 갤러리 앨범 제목/설명 일괄 수정 */
+    updateAlbum: contentProcedure
+      .input(z.object({
+        ids: z.array(z.number().int().positive()).min(1).max(500),
+        albumTitle: optionalTextSchema(160),
+        albumDescription: optionalTextSchema(20000),
+      }))
+      .mutation(({ input }) => {
+        const { ids, ...data } = input;
+        return updateGalleryAlbumItems(ids, data);
       }),
     /** 갤러리 항목 삭제 */
     delete: contentProcedure

@@ -365,6 +365,28 @@ export async function updateReservationStatus(
     .where(eq(reservations.id, id));
 }
 
+/** 반복 예약 묶음 상태 변경 (승인/거절/취소) */
+export async function updateReservationGroupStatus(
+  recurrenceGroupId: string,
+  status: "pending" | "approved" | "rejected" | "cancelled",
+  adminComment?: string,
+  adminUserId?: number
+) {
+  const db = await getDb();
+  if (!db) return;
+  const values: Partial<InsertReservation> = {
+    status,
+    adminComment: adminComment ?? null,
+  };
+  if (adminUserId !== undefined) {
+    values.processedBy = adminUserId;
+    values.processedAt = new Date();
+  }
+  await db.update(reservations)
+    .set(values)
+    .where(eq(reservations.recurrenceGroupId, recurrenceGroupId));
+}
+
 /** 예약 단건 조회 */
 export async function getReservationById(id: number) {
   const db = await getDb();

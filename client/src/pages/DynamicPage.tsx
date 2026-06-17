@@ -108,6 +108,10 @@ function isSubtitleRequestMenuItem(item: DynamicPageItem) {
   return item.label.replace(/\s+/g, "") === "자막신청";
 }
 
+function isVisitRequestMenuItem(item: DynamicPageItem) {
+  return item.label.replace(/\s+/g, "") === "탐방신청";
+}
+
 function getRepresentativeSubItemHref(subItems: DynamicPageSubItem[] | undefined) {
   const items = subItems ?? [];
   const bulletinView = items.find((sub) => sub.label.replace(/\s+/g, "") === "주보보기");
@@ -239,6 +243,7 @@ function MenuItemPageContent({
   const shouldRedirectToBulletinView = isBulletinViewMenuItem(item);
   const shouldRedirectToBulletinAd = isBulletinAdRequestMenuItem(item);
   const shouldRedirectToSubtitle = isSubtitleRequestMenuItem(item);
+  const shouldRedirectToVisitRequest = isVisitRequestMenuItem(item);
   const firstSubItemHref = getFirstSubItemHref(allMenus, item.id);
   const shouldRedirectToFirstSubItem =
     !staffCategory &&
@@ -260,6 +265,10 @@ function MenuItemPageContent({
       setLocation("/support/subtitle");
       return;
     }
+    if (shouldRedirectToVisitRequest) {
+      setLocation("/support/tour");
+      return;
+    }
     if (shouldRedirectToFirstSubItem && firstSubItemHref) {
       setLocation(firstSubItemHref);
     }
@@ -269,6 +278,7 @@ function MenuItemPageContent({
     shouldRedirectToBulletinAd,
     shouldRedirectToBulletinView,
     shouldRedirectToSubtitle,
+    shouldRedirectToVisitRequest,
     shouldRedirectToFirstSubItem,
   ]);
 
@@ -288,7 +298,7 @@ function MenuItemPageContent({
     );
   }
 
-  if (shouldRedirectToBulletinView || shouldRedirectToBulletinAd || shouldRedirectToSubtitle) {
+  if (shouldRedirectToBulletinView || shouldRedirectToBulletinAd || shouldRedirectToSubtitle || shouldRedirectToVisitRequest) {
     return <LoadingDynamicPage />;
   }
 
@@ -362,6 +372,7 @@ function MenuSubItemPageContent({
   const shouldRedirectToBulletinView = isBulletinViewMenuItem(item);
   const shouldRedirectToBulletinAd = isBulletinAdRequestMenuItem(item);
   const shouldRedirectToSubtitle = isSubtitleRequestMenuItem(item);
+  const shouldRedirectToVisitRequest = isVisitRequestMenuItem(item);
 
   useEffect(() => {
     if (shouldRedirectToBulletinView) {
@@ -374,10 +385,14 @@ function MenuSubItemPageContent({
     }
     if (shouldRedirectToSubtitle) {
       setLocation("/support/subtitle");
+      return;
     }
-  }, [setLocation, shouldRedirectToBulletinAd, shouldRedirectToBulletinView, shouldRedirectToSubtitle]);
+    if (shouldRedirectToVisitRequest) {
+      setLocation("/support/tour");
+    }
+  }, [setLocation, shouldRedirectToBulletinAd, shouldRedirectToBulletinView, shouldRedirectToSubtitle, shouldRedirectToVisitRequest]);
 
-  if (shouldRedirectToBulletinView || shouldRedirectToBulletinAd || shouldRedirectToSubtitle) {
+  if (shouldRedirectToBulletinView || shouldRedirectToBulletinAd || shouldRedirectToSubtitle || shouldRedirectToVisitRequest) {
     return <LoadingDynamicPage />;
   }
 

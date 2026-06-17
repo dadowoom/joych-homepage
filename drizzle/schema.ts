@@ -96,6 +96,8 @@ export const menuItems = mysqlTable("menu_items", {
   href: varchar("href", { length: 256 }),
   sortOrder: int("sortOrder").notNull().default(0),
   isVisible: boolean("isVisible").notNull().default(true),
+  allowGuest: boolean("allowGuest").notNull().default(true),
+  allowMember: boolean("allowMember").notNull().default(true),
   /** 페이지 표시 타입: image(이미지 전체화면) / gallery(갤러리) / board(게시판) / youtube(유튜브 목록) / editor(텍스트+이미지) */
   pageType: mysqlEnum("pageType", ["image", "gallery", "board", "youtube", "editor"]).default("image").notNull(),
   /** 이미지 타입일 때 표시할 이미지 URL */
@@ -120,6 +122,8 @@ export const menuSubItems = mysqlTable("menu_sub_items", {
   href: varchar("href", { length: 256 }),
   sortOrder: int("sortOrder").notNull().default(0),
   isVisible: boolean("isVisible").notNull().default(true),
+  allowGuest: boolean("allowGuest").notNull().default(true),
+  allowMember: boolean("allowMember").notNull().default(true),
   /** 페이지 표시 타입 */
   pageType: mysqlEnum("pageType", ["image", "gallery", "board", "youtube", "editor"]).default("image").notNull(),
   /** 이미지 타입일 때 표시할 이미지 URL */
@@ -283,6 +287,7 @@ export const galleryItems = mysqlTable("gallery_items", {
   imageUrl: text("imageUrl").notNull(),
   albumKey: varchar("albumKey", { length: 96 }),
   albumTitle: varchar("albumTitle", { length: 160 }),
+  albumDescription: text("albumDescription"),
   albumSortOrder: int("albumSortOrder").notNull().default(0),
   /** 사진 설명 (alt 텍스트) */
   caption: varchar("caption", { length: 128 }),

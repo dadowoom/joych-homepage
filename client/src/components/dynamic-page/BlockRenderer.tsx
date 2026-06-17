@@ -5,11 +5,13 @@
  */
 import { useState } from "react";
 import { ZoomIn } from "lucide-react";
+import { RichTextViewer } from "@/components/ui/rich-text-editor";
 import { Lightbox } from "./Lightbox";
 
 // ─── 블록 콘텐츠 타입 정의 ────────────────────────────────────────────────────
 export type BlockContent = {
   text?: string;
+  html?: string;
   urls?: string[];
   captions?: string[];
   videoId?: string;
@@ -33,6 +35,7 @@ export function parseContent(raw: string): BlockContent {
 
 // ─── 블록 타입 선택지 (BlockEditDialog에서도 사용) ────────────────────────────
 export const BLOCK_TYPES = [
+  { value: "html-rich", label: "HTML 편집기", icon: "H" },
   { value: "text-h1", label: "제목 1 (H1)", icon: "T" },
   { value: "text-h2", label: "제목 2 (H2)", icon: "T" },
   { value: "text-h3", label: "제목 3 (H3)", icon: "T" },
@@ -97,6 +100,13 @@ export function BlockRenderer({
   };
 
   switch (block.blockType) {
+    case "html-rich":
+      return (
+        <RichTextViewer
+          className="my-6 text-base leading-8"
+          html={c.html ?? c.text}
+        />
+      );
     case "text-h1":
       return (
         <h1

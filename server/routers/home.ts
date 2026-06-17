@@ -20,6 +20,7 @@ import {
   getVisibleHeroSlides,
   getVisibleQuickMenus,
   getPublishedNotices,
+  getPublishedNoticesByCategory,
   getActiveNoticePopups,
   getVisibleAffiliates,
   getVisibleGalleryItems,
@@ -66,6 +67,10 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;
 const idSchema = z.number().int().positive();
 const hrefLookupSchema = z.string().trim().min(1).max(256);
+
+function getMenuReadAccess(ctx: { user?: unknown; memberId?: number | null }) {
+  return ctx.user || ctx.memberId ? "member" : "guest";
+}
 const staticPageHrefSchema = z.string().trim().min(1).max(128).regex(/^\//);
 const staffCategorySchema = z.string().trim().min(1).max(64).regex(/^[a-z0-9][a-z0-9_-]{0,63}$/);
 const translationLocaleSchema = z.enum(["ja"]);
@@ -75,6 +80,8 @@ const reservationRepeatSchema = z.object({
   count: z.number().int().min(1).max(52).optional(),
   untilDate: z.string().regex(DATE_RE, "반복 종료일 형식이 올바르지 않습니다.").optional(),
 }).optional();
+const MAX_REPEAT_OCCURRENCES = 366;
+const MAX_REPEAT_SEARCH_STEPS = 1200;
 
 async function getVisibleFacilityById(id: number) {
   const facility = await getFacilityById(id);
@@ -142,24 +149,32 @@ function buildReservationDates(
   const type = repeat?.type ?? "none";
   if (type === "none") return [startDateKey];
 
-  const untilDate = repeat?.untilDate ? parseDateKey(repeat.untilDate) : null;
-  if (repeat?.untilDate && !untilDate) {
+  if (!repeat?.untilDate) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "반복 종료일을 선택해주세요." });
+  }
+
+  const untilDate = parseDateKey(repeat.untilDate);
+  if (!untilDate) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "반복 종료일 형식이 올바르지 않습니다." });
   }
-  if (untilDate && untilDate < startDate) {
+  if (untilDate < startDate) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "반복 종료일은 시작일 이후로 선택해주세요." });
   }
 
-  const limit = Math.min(repeat?.count ?? (untilDate ? 52 : 4), 52);
   const dates: string[] = [];
   const monthlyWeekday = getMonthlyWeekdayInfo(startDate);
+  let stoppedByEndDate = false;
 
-  for (let step = 0; dates.length < limit && step < 120; step++) {
+  for (let step = 0; step < MAX_REPEAT_SEARCH_STEPS; step++) {
     let candidate: Date | null = null;
     if (type === "daily") candidate = addUtcDays(startDate, step);
     if (type === "weekly") candidate = addUtcDays(startDate, step * 7);
     if (type === "monthly-weekday") {
       const monthStart = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + step, 1));
+      if (monthStart > untilDate) {
+        stoppedByEndDate = true;
+        break;
+      }
       candidate = nthWeekdayDate(
         monthStart.getUTCFullYear(),
         monthStart.getUTCMonth(),
@@ -169,12 +184,30 @@ function buildReservationDates(
     }
 
     if (!candidate) continue;
-    if (untilDate && candidate > untilDate) break;
+    if (candidate > untilDate) {
+      stoppedByEndDate = true;
+      break;
+    }
+    if (dates.length >= MAX_REPEAT_OCCURRENCES) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `반복 예약은 한 번에 최대 ${MAX_REPEAT_OCCURRENCES}건까지 신청할 수 있습니다.`,
+      });
+    }
     dates.push(formatDateKey(candidate));
   }
 
-  if (dates.length < 2) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "반복 예약은 최소 2회 이상 생성되어야 합니다." });
+  if (!stoppedByEndDate && dates.length >= MAX_REPEAT_OCCURRENCES) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `반복 예약은 한 번에 최대 ${MAX_REPEAT_OCCURRENCES}건까지 신청할 수 있습니다.`,
+    });
+  }
+  if (!stoppedByEndDate && dates.length > 0) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "반복 기간이 너무 깁니다. 종료일을 앞당겨 주세요.",
+    });
   }
   return dates;
 }
@@ -189,7 +222,7 @@ function describeReservationRepeat(
     weekly: "매주 반복",
     "monthly-weekday": "매월 같은 주 반복",
   };
-  const suffix = repeat.untilDate ? ` · ${repeat.untilDate}까지` : ` · 총 ${count}회`;
+  const suffix = repeat.untilDate ? ` · ${repeat.untilDate}까지 · 총 ${count}회` : ` · 총 ${count}회`;
   return `${labelByType[repeat.type ?? "none"]}${suffix}`;
 }
 
@@ -207,6 +240,9 @@ export const homeRouter = router({
 
   /** 교회 소식 게시판 전체 목록 (공개된 것만) */
   noticeBoard: publicProcedure.query(() => getPublishedNotices(100)),
+
+  /** 행정자료 게시판 전체 목록 (공개된 것만) */
+  adminResourceBoard: publicProcedure.query(() => getPublishedNoticesByCategory("행정자료", 100)),
 
   /** 홈페이지 팝업/공지 배너 (현재 노출 가능한 것만) */
   popups: publicProcedure.query(() => getActiveNoticePopups(3)),
@@ -344,27 +380,27 @@ export const homeRouter = router({
   // ─── 네비게이션 메뉴 ────────────────────────────────────────────────────────
 
   /** 상단 GNB 메뉴 전체 목록 (서브메뉴 포함, 공개된 것만) */
-  menus: publicProcedure.query(() => getVisibleMenus()),
+  menus: publicProcedure.query(({ ctx }) => getVisibleMenus(getMenuReadAccess(ctx))),
 
   /** 2단 메뉴 단건 조회 (동적 페이지 렌더링용) */
   menuItem: publicProcedure
     .input(z.object({ id: idSchema }))
-    .query(({ input }) => getVisibleMenuItemById(input.id)),
+    .query(({ input, ctx }) => getVisibleMenuItemById(input.id, getMenuReadAccess(ctx))),
 
   /** 3단 메뉴 단건 조회 (동적 페이지 렌더링용) */
   menuSubItem: publicProcedure
     .input(z.object({ id: idSchema }))
-    .query(({ input }) => getVisibleMenuSubItemById(input.id)),
+    .query(({ input, ctx }) => getVisibleMenuSubItemById(input.id, getMenuReadAccess(ctx))),
 
   /** href(경로)로 2단 메뉴 조회 — 예배영상 페이지의 playlistId 연결에 사용 */
   menuItemByHref: publicProcedure
     .input(z.object({ href: hrefLookupSchema }))
-    .query(({ input }) => getVisibleMenuItemByHref(input.href)),
+    .query(({ input, ctx }) => getVisibleMenuItemByHref(input.href, getMenuReadAccess(ctx))),
 
   /** href(경로)로 3단 메뉴 조회 — 예배영상 페이지의 playlistId 연결에 사용 */
   menuSubItemByHref: publicProcedure
     .input(z.object({ href: hrefLookupSchema }))
-    .query(({ input }) => getVisibleMenuSubItemByHref(input.href)),
+    .query(({ input, ctx }) => getVisibleMenuSubItemByHref(input.href, getMenuReadAccess(ctx))),
 
   // ─── 시설 조회 (성도용) ─────────────────────────────────────────────────────
 

@@ -41,7 +41,7 @@ const DEFAULT_CATEGORY_OPTIONS = [
   { value: "other", label: "사회복지법인 기쁨의복지재단" },
 ] satisfies StaffCategoryOption[];
 
-const ELDER_TITLE_OPTIONS = ["시무장로", "휴무장로", "원로장로", "은퇴장로"] as const;
+const ELDER_TITLE_OPTIONS = ["원로장로", "은퇴장로", "시무장로", "휴무장로"] as const;
 const COOPERATION_TITLE_OPTIONS = ["협력사역자", "파송선교사", "협력선교사"] as const;
 const FOUNDATION_TITLE_OPTIONS = [
   "이사장",
@@ -110,6 +110,16 @@ function isElderTitleOption(value: string) {
 
 function hasTitleOption(options: readonly string[], value: string) {
   return options.some((option) => option === value);
+}
+
+const GROUPED_STAFF_SORT_CATEGORIES = new Set<StaffCategory>(["elder", "cooperation", "other"]);
+
+function isGroupedStaffSortCategory(category: StaffCategory) {
+  return GROUPED_STAFF_SORT_CATEGORIES.has(category);
+}
+
+function normalizeStaffSortTitle(title?: string | null) {
+  return title?.trim() ?? "";
 }
 
 function groupTitleOptionsByCategory(options: StaffTitleOption[]) {
@@ -210,11 +220,36 @@ function normalizePayload(form: StaffForm, categoryOptions: StaffCategoryOption[
   };
 }
 
-function getNextSortOrder(members: StaffMember[], category: StaffCategory) {
+function getNextSortOrder(members: StaffMember[], category: StaffCategory, title = "") {
+  const normalizedTitle = normalizeStaffSortTitle(title);
   const maxSortOrder = members
-    .filter((member) => member.category === category)
+    .filter((member) => {
+      if (member.category !== category) return false;
+      if (!isGroupedStaffSortCategory(category)) return true;
+      return normalizeStaffSortTitle(member.title) === normalizedTitle;
+    })
     .reduce((max, member) => Math.max(max, Number(member.sortOrder) || 0), 0);
   return maxSortOrder + 1;
+}
+
+function getMemberMeta(member: StaffMember, categoryOptions: StaffCategoryOption[]) {
+  const categoryLabel = getCategoryLabel(member.category, categoryOptions);
+  const title = normalizeStaffSortTitle(member.title);
+  const department = member.department?.trim();
+  const parts = [categoryLabel];
+
+  if (isGroupedStaffSortCategory(member.category) && title && title !== categoryLabel) {
+    parts.push(title);
+  }
+
+  if (department) {
+    parts.push(department);
+  } else if (!isGroupedStaffSortCategory(member.category) || !title) {
+    parts.push("담당 미입력");
+  }
+
+  parts.push(`정렬 ${member.sortOrder}`);
+  return parts.join(" · ");
 }
 
 function SortableCategoryChip({
@@ -384,7 +419,7 @@ export default function AdminStaffTab() {
   const getEmptyForm = (category: StaffCategory = categoryFilter === "all" ? EMPTY_FORM.category : categoryFilter): StaffForm => ({
     ...EMPTY_FORM,
     category,
-    sortOrder: getNextSortOrder(staffMembers, category),
+    sortOrder: getNextSortOrder(staffMembers, category, ""),
   });
 
   useEffect(() => {
@@ -402,7 +437,7 @@ export default function AdminStaffTab() {
   useEffect(() => {
     if (editingId) return;
     setForm((prev) => {
-      const nextSortOrder = getNextSortOrder(staffMembers, prev.category);
+      const nextSortOrder = getNextSortOrder(staffMembers, prev.category, prev.title);
       return prev.sortOrder === nextSortOrder ? prev : { ...prev, sortOrder: nextSortOrder };
     });
   }, [editingId, staffMembers]);
@@ -500,7 +535,11 @@ export default function AdminStaffTab() {
       setNewTitleOptionLabel("");
       if (option?.label) {
         setIsCustomTitleMode(false);
-        setForm((prev) => ({ ...prev, title: option.label }));
+        setForm((prev) => ({
+          ...prev,
+          title: option.label,
+          sortOrder: editingId ? prev.sortOrder : getNextSortOrder(staffMembers, prev.category, option.label),
+        }));
       }
       utils.cms.staff.titleOptions.invalidate();
       utils.home.staffTitleOptions.invalidate();
@@ -543,11 +582,38 @@ export default function AdminStaffTab() {
   }, [categoryFilter, staffMembers]);
 
   const groupedMembers = useMemo(() => {
-    return categoryOptions.map((category) => ({
-      ...category,
-      members: filteredMembers.filter((member) => member.category === category.value),
-    })).filter((group) => group.members.length > 0);
-  }, [categoryOptions, filteredMembers]);
+    return categoryOptions.flatMap((category) => {
+      const categoryMembers = filteredMembers.filter((member) => member.category === category.value);
+      if (categoryMembers.length === 0) return [];
+
+      if (!isGroupedStaffSortCategory(category.value)) {
+        return [{ ...category, members: categoryMembers }];
+      }
+
+      const titleOptions = getTitleOptionsForCategory(category.value);
+      const titleOptionSet = new Set(titleOptions.map((option) => normalizeStaffSortTitle(option)));
+      const titleGroups = titleOptions
+        .map((label) => ({
+          value: `${category.value}:${label}`,
+          label,
+          isBuiltIn: category.isBuiltIn,
+          members: categoryMembers.filter((member) => normalizeStaffSortTitle(member.title) === normalizeStaffSortTitle(label)),
+        }))
+        .filter((group) => group.members.length > 0);
+
+      const ungroupedMembers = categoryMembers.filter((member) => !titleOptionSet.has(normalizeStaffSortTitle(member.title)));
+      if (ungroupedMembers.length > 0) {
+        titleGroups.push({
+          value: `${category.value}:__ungrouped`,
+          label: category.label,
+          isBuiltIn: category.isBuiltIn,
+          members: ungroupedMembers,
+        });
+      }
+
+      return titleGroups;
+    });
+  }, [categoryOptions, filteredMembers, orderedTitleOptionLabels, titleOptionsByCategory]);
 
   const resetForm = () => {
     setForm(getEmptyForm());
@@ -626,7 +692,7 @@ export default function AdminStaffTab() {
       ...prev,
       category,
       title: category === prev.category ? prev.title : "",
-      sortOrder: category === prev.category ? prev.sortOrder : getNextSortOrder(staffMembers, category),
+      sortOrder: category === prev.category ? prev.sortOrder : getNextSortOrder(staffMembers, category, ""),
     }));
   };
 
@@ -921,11 +987,20 @@ export default function AdminStaffTab() {
                   onChange={(event) => {
                     if (event.target.value === CUSTOM_TITLE_VALUE) {
                       setIsCustomTitleMode(true);
-                      setForm((prev) => ({ ...prev, title: "" }));
+                      setForm((prev) => ({
+                        ...prev,
+                        title: "",
+                        sortOrder: editingId ? prev.sortOrder : getNextSortOrder(staffMembers, prev.category, ""),
+                      }));
                       return;
                     }
+                    const nextTitle = event.target.value;
                     setIsCustomTitleMode(false);
-                    setForm((prev) => ({ ...prev, title: event.target.value }));
+                    setForm((prev) => ({
+                      ...prev,
+                      title: nextTitle,
+                      sortOrder: editingId ? prev.sortOrder : getNextSortOrder(staffMembers, prev.category, nextTitle),
+                    }));
                   }}
                 >
                   <option value="">{titleFieldCopy.placeholder}</option>
@@ -938,7 +1013,14 @@ export default function AdminStaffTab() {
                   <input
                     className={`${fieldClass} mt-2 w-full`}
                     value={form.title}
-                    onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+                    onChange={(event) => {
+                      const nextTitle = event.target.value;
+                      setForm((prev) => ({
+                        ...prev,
+                        title: nextTitle,
+                        sortOrder: editingId ? prev.sortOrder : getNextSortOrder(staffMembers, prev.category, nextTitle),
+                      }));
+                    }}
                     placeholder="새 사역 구분을 직접 입력"
                   />
                 )}
@@ -1083,7 +1165,7 @@ export default function AdminStaffTab() {
                           {!member.isVisible && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">숨김</span>}
                         </div>
                         <p className="text-xs text-gray-500 mt-1">
-                          {getCategoryLabel(member.category, categoryOptions)} · {member.department || "담당 미입력"} · 정렬 {member.sortOrder}
+                          {getMemberMeta(member, categoryOptions)}
                         </p>
                         {(member.email || member.phone) && (
                           <p className="text-sm text-gray-600 mt-1 line-clamp-1">

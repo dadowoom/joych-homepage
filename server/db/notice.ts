@@ -7,7 +7,7 @@
  *   - createNotice / updateNotice / deleteNotice: 공지사항 CRUD
  */
 
-import { eq, desc } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { InsertNotice, notices } from "../../drizzle/schema";
 import { getDb } from "./connection";
 
@@ -19,7 +19,19 @@ export async function getPublishedNotices(limit = 5) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(notices)
-    .where(eq(notices.isPublished, true))
+    .where(and(eq(notices.isPublished, true), ne(notices.category, "행정자료")))
+    .orderBy(desc(notices.createdAt))
+    .limit(limit);
+}
+
+/**
+ * 특정 분류의 공개 게시글 목록 조회
+ */
+export async function getPublishedNoticesByCategory(category: string, limit = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(notices)
+    .where(and(eq(notices.isPublished, true), eq(notices.category, category)))
     .orderBy(desc(notices.createdAt))
     .limit(limit);
 }

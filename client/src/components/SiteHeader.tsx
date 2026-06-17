@@ -29,6 +29,7 @@ function getSpecialMenuHref(label?: string | null) {
   if (normalized === "주보보기") return "/worship/bulletin";
   if (normalized === "주보광고신청") return "/support/bulletin-ad";
   if (normalized === "자막신청") return "/support/subtitle";
+  if (normalized === "탐방신청") return "/support/tour";
   return null;
 }
 
@@ -113,8 +114,7 @@ export default function SiteHeader() {
     refetchOnWindowFocus: true,
   });
   const { data: dbSettings } = trpc.home.settings.useQuery();
-  const navMenus = dbMenus && dbMenus.length > 0 ? dbMenus : null;
-  const displayMenus = navMenus ?? (menusLoading ? [] : fallbackMenus);
+  const displayMenus = Array.isArray(dbMenus) ? dbMenus : (menusLoading ? [] : fallbackMenus);
   const socialLinks = [
     {
       icon: "fab fa-youtube",

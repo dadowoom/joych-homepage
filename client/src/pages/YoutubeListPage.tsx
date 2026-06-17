@@ -6,7 +6,10 @@
  */
 import { useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
-import { ChevronLeft, ChevronRight, PlayCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, PlayCircle, Settings } from "lucide-react";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { canManageBoardContent } from "@/lib/contentPermissions";
+import YoutubeEditPanel from "@/components/YoutubeEditPanel";
 
 interface YoutubeListPageProps {
   playlistId: number;
@@ -43,9 +46,32 @@ function VideoThumbnail({ title, src }: { title: string; src: string | null }) {
 
 export default function YoutubeListPage({ playlistId, title }: YoutubeListPageProps) {
   const { data: videos = [], isLoading } = trpc.youtube.getVideos.useQuery({ playlistId });
+  const { user } = useAuth();
+  const canManage = canManageBoardContent(user, "content:youtube");
   const [activeIndex, setActiveIndex] = useState(0);
   const [slideOffset, setSlideOffset] = useState(0);
+  const [isEditPanelOpen, setIsEditPanelOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const manageButton = canManage ? (
+    <button
+      type="button"
+      onClick={() => setIsEditPanelOpen(true)}
+      className="inline-flex items-center justify-center gap-2 rounded-md bg-[#1B5E20] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#2E7D32]"
+    >
+      <Settings className="h-4 w-4" />
+      영상 관리
+    </button>
+  ) : null;
+
+  const editPanel = canManage ? (
+    <YoutubeEditPanel
+      open={isEditPanelOpen}
+      onClose={() => setIsEditPanelOpen(false)}
+      initialPlaylistId={playlistId}
+      lockPlaylist
+    />
+  ) : null;
 
   const activeVideo = videos[activeIndex];
   const CARDS_PER_VIEW = 4; // 한 번에 보이는 카드 수
@@ -87,11 +113,14 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
   if (videos.length === 0) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-8">
-        {title && (
-          <h2 className="text-2xl font-bold text-[#1B5E20] mb-6" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-            {title}
-          </h2>
-        )}
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          {title && (
+            <h2 className="text-2xl font-bold text-[#1B5E20]" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+              {title}
+            </h2>
+          )}
+          {manageButton}
+        </div>
         <div className="min-h-[300px] flex items-center justify-center rounded-xl border border-gray-100 bg-white">
           <div className="text-center text-gray-400">
             <PlayCircle className="w-16 h-16 mx-auto mb-3 opacity-30" />
@@ -99,6 +128,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
             <p className="text-sm mt-1">영상이 준비되는 대로 이곳에서 보실 수 있습니다.</p>
           </div>
         </div>
+        {editPanel}
       </div>
     );
   }
@@ -106,11 +136,14 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
       {/* 페이지 제목 */}
-      {title && (
-        <h2 className="text-2xl font-bold text-[#1B5E20] mb-6" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-          {title}
-        </h2>
-      )}
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {title && (
+          <h2 className="text-2xl font-bold text-[#1B5E20]" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+            {title}
+          </h2>
+        )}
+        {manageButton}
+      </div>
 
       {/* 메인 플레이어 */}
       {activeVideo && (
@@ -214,6 +247,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
           </button>
         </div>
       )}
+      {editPanel}
     </div>
   );
 }

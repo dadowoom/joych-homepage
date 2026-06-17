@@ -15,13 +15,24 @@ import { eq, asc, and } from "drizzle-orm";
 import { menus, menuItems, menuSubItems } from "../../drizzle/schema";
 import { getDb } from "./connection";
 
+export type MenuReadAccess = "guest" | "member";
+
+type ReadableMenuLeaf = {
+  allowGuest: boolean;
+  allowMember: boolean;
+};
+
+function canReadMenuLeaf(row: ReadableMenuLeaf, access: MenuReadAccess) {
+  return access === "member" ? row.allowMember : row.allowGuest;
+}
+
 // ─── 메뉴 조회 ────────────────────────────────────────────────────────────────
 
 /**
  * 홈페이지 GNB에 표시할 메뉴 조회
  * - isVisible=true인 1단 메뉴와 하위 2단, 3단 메뉴를 포함합니다.
  */
-export async function getVisibleMenus() {
+export async function getVisibleMenus(access: MenuReadAccess = "guest") {
   const db = await getDb();
   if (!db) return [];
   const [menuList, visibleItems, visibleSubItems] = await Promise.all([
@@ -48,15 +59,20 @@ export async function getVisibleMenus() {
     Array<(typeof visibleItems)[number] & { subItems: typeof visibleSubItems }>
   >();
   for (const item of visibleItems) {
+    const subItems = subItemsByItemId.get(item.id) ?? [];
+    const readableSubItems = subItems.filter((subItem) => canReadMenuLeaf(subItem, access));
+    if (subItems.length > 0 && readableSubItems.length === 0) continue;
+    if (subItems.length === 0 && !canReadMenuLeaf(item, access)) continue;
+
     const list = itemsByMenuId.get(item.menuId) ?? [];
-    list.push({ ...item, subItems: subItemsByItemId.get(item.id) ?? [] });
+    list.push({ ...item, subItems: readableSubItems });
     itemsByMenuId.set(item.menuId, list);
   }
 
   return menuList.map(menu => ({
     ...menu,
     items: itemsByMenuId.get(menu.id) ?? [],
-  }));
+  })).filter(menu => menu.items.length > 0 || menu.href);
 }
 
 /**
@@ -139,7 +155,7 @@ export async function getMenuItemById(id: number) {
 }
 
 /** 2단 메뉴 단건 조회 (공개용 — 상위 메뉴와 본인이 모두 공개된 경우만) */
-export async function getVisibleMenuItemById(id: number) {
+export async function getVisibleMenuItemById(id: number, access: MenuReadAccess = "guest") {
   const db = await getDb();
   if (!db) return null;
   const rows = await db.select().from(menuItems)
@@ -147,6 +163,7 @@ export async function getVisibleMenuItemById(id: number) {
     .limit(1);
   const item = rows[0];
   if (!item) return null;
+  if (!canReadMenuLeaf(item, access)) return null;
 
   const parentRows = await db.select().from(menus)
     .where(and(eq(menus.id, item.menuId), eq(menus.isVisible, true)))
@@ -195,7 +212,7 @@ export async function getMenuSubItemById(id: number) {
 }
 
 /** 3단 메뉴 단건 조회 (공개용 — 1/2/3단이 모두 공개된 경우만) */
-export async function getVisibleMenuSubItemById(id: number) {
+export async function getVisibleMenuSubItemById(id: number, access: MenuReadAccess = "guest") {
   const db = await getDb();
   if (!db) return null;
   const rows = await db.select().from(menuSubItems)
@@ -203,6 +220,7 @@ export async function getVisibleMenuSubItemById(id: number) {
     .limit(1);
   const subItem = rows[0];
   if (!subItem) return null;
+  if (!canReadMenuLeaf(subItem, access)) return null;
 
   const itemRows = await db.select().from(menuItems)
     .where(and(eq(menuItems.id, subItem.menuItemId), eq(menuItems.isVisible, true)))
@@ -283,7 +301,7 @@ export async function getMenuItemByHref(href: string) {
 /**
  * href로 2단 메뉴 조회 (공개용 — 상위 메뉴와 본인이 모두 공개된 경우만)
  */
-export async function getVisibleMenuItemByHref(href: string) {
+export async function getVisibleMenuItemByHref(href: string, access: MenuReadAccess = "guest") {
   const db = await getDb();
   if (!db) return null;
   const rows = await db.select().from(menuItems)
@@ -291,6 +309,7 @@ export async function getVisibleMenuItemByHref(href: string) {
     .limit(1);
   const item = rows[0];
   if (!item) return null;
+  if (!canReadMenuLeaf(item, access)) return null;
 
   const parentRows = await db.select().from(menus)
     .where(and(eq(menus.id, item.menuId), eq(menus.isVisible, true)))
@@ -312,7 +331,7 @@ export async function getMenuSubItemByHref(href: string) {
 /**
  * href로 3단 메뉴 조회 (공개용 — 1/2/3단이 모두 공개된 경우만)
  */
-export async function getVisibleMenuSubItemByHref(href: string) {
+export async function getVisibleMenuSubItemByHref(href: string, access: MenuReadAccess = "guest") {
   const db = await getDb();
   if (!db) return null;
   const rows = await db.select().from(menuSubItems)
@@ -320,6 +339,7 @@ export async function getVisibleMenuSubItemByHref(href: string) {
     .limit(1);
   const subItem = rows[0];
   if (!subItem) return null;
+  if (!canReadMenuLeaf(subItem, access)) return null;
 
   const itemRows = await db.select().from(menuItems)
     .where(and(eq(menuItems.id, subItem.menuItemId), eq(menuItems.isVisible, true)))

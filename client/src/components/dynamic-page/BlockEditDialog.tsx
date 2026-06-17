@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { trpc } from "@/lib/trpc";
 import { BLOCK_TYPES } from "./BlockRenderer";
 
@@ -36,6 +37,15 @@ export function BlockEditDialog({
     try {
       const c = JSON.parse(block.content);
       return c.text ?? "";
+    } catch {
+      return "";
+    }
+  });
+  const [html, setHtml] = useState(() => {
+    if (!block?.content) return "";
+    try {
+      const c = JSON.parse(block.content);
+      return c.html ?? c.text ?? "";
     } catch {
       return "";
     }
@@ -164,6 +174,7 @@ export function BlockEditDialog({
   };
 
   const buildContent = () => {
+    if (blockType === "html-rich") return JSON.stringify({ html });
     if (blockType.startsWith("text"))
       return JSON.stringify({ text, fontSize, align });
     if (blockType.startsWith("image"))
@@ -203,6 +214,24 @@ export function BlockEditDialog({
               ))}
             </select>
           </div>
+
+          {/* HTML 편집기 블록 */}
+          {blockType === "html-rich" && (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                HTML 본문
+              </label>
+              <RichTextEditor
+                value={html}
+                onChange={setHtml}
+                placeholder="본문을 입력해주세요."
+                minHeightClassName="min-h-72"
+              />
+              <p className="text-xs text-gray-400">
+                제목, 본문, 목록, 링크, 정렬, 이미지 URL 삽입을 사용할 수 있습니다.
+              </p>
+            </div>
+          )}
 
           {/* 텍스트 블록 */}
           {blockType.startsWith("text") && (
