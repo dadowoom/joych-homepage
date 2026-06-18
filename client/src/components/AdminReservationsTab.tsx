@@ -12,7 +12,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import type { Reservation, Facility } from "../../../drizzle/schema";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, Clock, AlertCircle, Calendar, List, ChevronDown } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, AlertCircle, Calendar, List, ChevronDown, Trash2 } from "lucide-react";
 
 type StatusFilter = "all" | "pending" | "approved" | "rejected" | "cancelled";
 type ViewMode = "list" | "calendar";
@@ -176,6 +176,24 @@ export default function AdminReservationsTab() {
     onError: () => toast.error("거절 처리에 실패했습니다."),
   });
 
+  const deleteMutation = trpc.cms.reservations.delete.useMutation({
+    onSuccess: () => {
+      utils.cms.reservations.list.invalidate();
+      setExpandedKey(null);
+      toast.success("예약이 삭제되었습니다.");
+    },
+    onError: () => toast.error("예약 삭제에 실패했습니다."),
+  });
+
+  const deleteGroupMutation = trpc.cms.reservations.deleteGroup.useMutation({
+    onSuccess: () => {
+      utils.cms.reservations.list.invalidate();
+      setExpandedKey(null);
+      toast.success("반복 예약 묶음이 삭제되었습니다.");
+    },
+    onError: () => toast.error("반복 예약 삭제에 실패했습니다."),
+  });
+
   const groupedReservations = buildReservationGroups((reservations ?? []) as AdminReservationRow[]);
 
   // 필터 적용
@@ -205,6 +223,18 @@ export default function AdminReservationsTab() {
       return;
     }
     rejectMutation.mutate({ id: group.first.id, comment: rejectComment });
+  };
+
+  const deleteReservation = (group: ReservationGroup) => {
+    const message = group.isRecurring
+      ? "반복 예약 묶음을 모두 삭제하시겠습니까? 삭제 후에는 되돌릴 수 없습니다."
+      : "예약을 삭제하시겠습니까? 삭제 후에는 되돌릴 수 없습니다.";
+    if (!confirm(message)) return;
+    if (group.isRecurring && group.groupId) {
+      deleteGroupMutation.mutate({ groupId: group.groupId });
+      return;
+    }
+    deleteMutation.mutate({ id: group.first.id });
   };
 
   return (
@@ -306,7 +336,7 @@ export default function AdminReservationsTab() {
               const dateSummary = group.isRecurring
                 ? `${formatShortDate(group.startDate)} ~ ${formatShortDate(group.endDate)} · ${group.count}회`
                 : formatDate(r.reservationDate);
-              const isMutating = approveMutation.isPending || approveGroupMutation.isPending || rejectMutation.isPending || rejectGroupMutation.isPending;
+              const isMutating = approveMutation.isPending || approveGroupMutation.isPending || rejectMutation.isPending || rejectGroupMutation.isPending || deleteMutation.isPending || deleteGroupMutation.isPending;
               return (
                 <div key={group.key} className="border border-gray-200 rounded-xl overflow-hidden">
                   {/* 요약 행 */}
@@ -356,6 +386,17 @@ export default function AdminReservationsTab() {
                           처리 완료
                         </span>
                       )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-red-200 text-red-600 hover:bg-red-50 text-xs h-7 px-2.5"
+                        onClick={e => { e.stopPropagation(); deleteReservation(group); }}
+                        disabled={isMutating}
+                        title={group.isRecurring ? "반복 예약 묶음 삭제" : "예약 삭제"}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">삭제</span>
+                      </Button>
                       <ChevronDown className={"w-4 h-4 text-gray-400 transition-transform " + (isExpanded ? "rotate-180" : "")} />
                     </div>
                   </div>

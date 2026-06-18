@@ -684,10 +684,10 @@ export const homeRouter = router({
       if (reservation.userId !== ctx.memberId) {
         throw new TRPCError({ code: "FORBIDDEN", message: "본인의 예약만 취소할 수 있습니다." });
       }
-      if (reservation.status === "approved") {
+      if (reservation.status !== "pending" && reservation.status !== "approved") {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "이미 승인된 예약은 취소할 수 없습니다. 관리자에게 문의하세요.",
+          message: "취소할 수 없는 예약 상태입니다.",
         });
       }
       await updateReservationStatus(input.id, "cancelled");

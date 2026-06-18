@@ -205,7 +205,7 @@ export default function MyReservations() {
             <div className="space-y-3">
               {filtered.map(r => {
                 const statusConf = STATUS_CONFIG[r.status] ?? STATUS_CONFIG.pending;
-                const canCancel = r.status === "pending";
+                const canCancel = r.status === "pending" || r.status === "approved";
                 return (
                   <div key={r.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
                     {/* 헤더 */}
@@ -300,8 +300,8 @@ export default function MyReservations() {
           <div className="mt-6 bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-700">
             <p className="font-medium mb-1">예약 안내</p>
             <ul className="text-xs text-blue-600 space-y-1 list-disc list-inside">
-              <li>승인 대기 중인 예약은 직접 취소하실 수 있습니다.</li>
-              <li>이미 승인된 예약의 취소는 교회 사무국에 문의해 주세요.</li>
+              <li>승인 대기 또는 승인 완료 예약은 직접 취소하실 수 있습니다.</li>
+              <li>취소 후 다시 사용이 필요하면 새 예약을 신청해 주세요.</li>
               <li>문의: 교회 사무국 (054-270-1000)</li>
             </ul>
           </div>

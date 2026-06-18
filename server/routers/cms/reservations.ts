@@ -12,9 +12,12 @@
  */
 
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { adminPermissionProcedure, router } from "../../_core/trpc";
 import { optionalTextSchema, requiredTextSchema } from "../../_core/contentValidation";
 import {
+  deleteReservationById,
+  deleteReservationGroup,
   getAllReservations,
   getReservationById,
   updateReservationGroupStatus,
@@ -84,4 +87,24 @@ export const reservationsRouter = router({
     .mutation(({ input, ctx }) =>
       updateReservationGroupStatus(input.groupId, "rejected", input.comment, ctx.user.id)
     ),
+
+  delete: reservationProcedure
+    .input(z.object({ id: idSchema }))
+    .mutation(async ({ input }) => {
+      const deleted = await deleteReservationById(input.id);
+      if (!deleted) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "예약을 찾을 수 없습니다." });
+      }
+      return { success: true };
+    }),
+
+  deleteGroup: reservationProcedure
+    .input(z.object({ groupId: groupIdSchema }))
+    .mutation(async ({ input }) => {
+      const deleted = await deleteReservationGroup(input.groupId);
+      if (!deleted) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "반복 예약 묶음을 찾을 수 없습니다." });
+      }
+      return { success: true };
+    }),
 });
