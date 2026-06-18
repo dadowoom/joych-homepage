@@ -410,8 +410,14 @@ function ImageUploadArea({
   );
 }
 
+type AdminFacilitiesTabMode = "facilities" | "buildingSchedule";
+
+type AdminFacilitiesTabProps = {
+  mode?: AdminFacilitiesTabMode;
+};
+
 // ── 메인 컴포넌트 ─────────────────────────────────────────
-export default function AdminFacilitiesTab() {
+export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilitiesTabProps) {
   const utils = trpc.useUtils();
   const { data: facilities, isLoading } = trpc.home.facilities.useQuery();
   const facilityRows = facilities ?? [];
@@ -808,10 +814,16 @@ export default function AdminFacilitiesTab() {
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-bold text-gray-800">시설 관리</h3>
-          <p className="text-sm text-gray-500">시설을 등록하고 운영 시간, 예약 조건을 설정합니다.</p>
+          <h3 className="text-lg font-bold text-gray-800">
+            {mode === "buildingSchedule" ? "시설 공통 스케줄" : "시설 관리"}
+          </h3>
+          <p className="text-sm text-gray-500">
+            {mode === "buildingSchedule"
+              ? "하영인관과 복지관의 공통 예약 가능 시간을 일괄 적용합니다."
+              : "시설을 등록하고 운영 시간, 예약 조건을 설정합니다."}
+          </p>
         </div>
-        {!showForm && (
+        {mode === "facilities" && !showForm && (
           <button onClick={startCreate}
             className="flex items-center gap-1.5 px-4 py-2 bg-[#1B5E20] text-white rounded-lg text-sm font-medium hover:bg-[#2E7D32] transition-colors">
             <Plus className="w-4 h-4" /> 시설 등록
@@ -819,59 +831,60 @@ export default function AdminFacilitiesTab() {
         )}
       </div>
 
-      {/* 등록/수정 폼 */}
-      <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h4 className="flex items-center gap-2 text-sm font-bold text-gray-900">
-              <Clock className="h-4 w-4 text-[#1B5E20]" />
-              건물별 스케줄 일괄적용
-            </h4>
-            <p className="mt-1 text-xs text-gray-500">
-              공통 예약 가능 시간을 먼저 적용한 뒤, 예외 시설은 아래 시설 수정에서 개별 조정할 수 있습니다.
+      {mode === "buildingSchedule" && (
+        <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h4 className="flex items-center gap-2 text-sm font-bold text-gray-900">
+                <Clock className="h-4 w-4 text-[#1B5E20]" />
+                건물별 스케줄 일괄적용
+              </h4>
+              <p className="mt-1 text-xs text-gray-500">
+                공통 예약 가능 시간을 먼저 적용한 뒤, 예외 시설은 시설 관리에서 개별 조정할 수 있습니다.
+              </p>
+            </div>
+            <p className="rounded-full bg-[#E8F5E9] px-3 py-1 text-xs font-medium text-[#1B5E20]">
+              월요일 기본 휴무
             </p>
           </div>
-          <p className="rounded-full bg-[#E8F5E9] px-3 py-1 text-xs font-medium text-[#1B5E20]">
-            월요일 기본 휴무
-          </p>
-        </div>
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          {FACILITY_BUILDINGS.map((building) => {
-            const count = buildingCounts.get(building.value) ?? 0;
-            const isApplying = applyingBuilding === building.value;
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {FACILITY_BUILDINGS.map((building) => {
+              const count = buildingCounts.get(building.value) ?? 0;
+              const isApplying = applyingBuilding === building.value;
 
-            return (
-              <div key={building.value} className="rounded-xl border border-gray-100 bg-gray-50 p-4">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-bold text-gray-900">{building.label}</p>
-                    <p className="text-xs text-gray-500">대상 시설 {count}개</p>
+              return (
+                <div key={building.value} className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">{building.label}</p>
+                      <p className="text-xs text-gray-500">대상 시설 {count}개</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => applyBuildingSchedule(building.value)}
+                      disabled={isApplying || count === 0}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-[#1B5E20] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#2E7D32] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isApplying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                      {building.label} 일괄적용
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => applyBuildingSchedule(building.value)}
-                    disabled={isApplying || count === 0}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#1B5E20] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#2E7D32] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isApplying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                    {building.label} 일괄적용
-                  </button>
+                  <HoursEditor
+                    hours={buildingScheduleDrafts[building.value]}
+                    onChange={(next) => updateBuildingScheduleDraft(building.value, next)}
+                    dayOrder={MONDAY_FIRST_DAY_ORDER}
+                  />
+                  <p className="mt-3 text-[11px] text-gray-400">
+                    예약 불가 시간대가 있으면 불가 시작/종료에 입력하세요. 예: 12:00~13:00
+                  </p>
                 </div>
-                <HoursEditor
-                  hours={buildingScheduleDrafts[building.value]}
-                  onChange={(next) => updateBuildingScheduleDraft(building.value, next)}
-                  dayOrder={MONDAY_FIRST_DAY_ORDER}
-                />
-                <p className="mt-3 text-[11px] text-gray-400">
-                  예약 불가 시간대가 있으면 불가 시작/종료에 입력하세요. 예: 12:00~13:00
-                </p>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
-      {showForm && (
+      {mode === "facilities" && showForm && (
         <div className="bg-gray-50 rounded-xl border border-gray-200 p-5 space-y-5">
           <div className="flex items-center justify-between">
             <h4 className="font-bold text-gray-800">{editingId ? "시설 수정" : "새 시설 등록"}</h4>
@@ -1022,7 +1035,7 @@ export default function AdminFacilitiesTab() {
       )}
 
       {/* 시설 목록 */}
-      {facilityRows.length === 0 ? (
+      {mode === "facilities" && (facilityRows.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <Settings className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p>등록된 시설이 없습니다.</p>
@@ -1126,7 +1139,7 @@ export default function AdminFacilitiesTab() {
             )}
           </section>
         </div>
-      )}
+      ))}
     </div>
   );
 }

@@ -49,6 +49,7 @@ import {
 type Tab =
   | "settings"
   | "facilities"
+  | "facilitySchedule"
   | "reservations"
   | "memberOptions"
   | "members"
@@ -167,6 +168,13 @@ const TABS: TabItem[] = [
     status: "예약 자원",
   },
   {
+    id: "facilitySchedule",
+    label: "시설 스케줄",
+    icon: "fa-clock",
+    description: "하영인관과 복지관의 공통 예약 가능 시간을 일괄 적용합니다.",
+    status: "일괄 시간",
+  },
+  {
     id: "reservations",
     label: "예약 승인",
     icon: "fa-calendar-check",
@@ -215,7 +223,7 @@ const TAB_GROUPS: TabGroup[] = [
   {
     title: "접수/예약 관리",
     description: "시설과 요청 처리",
-    tabs: ["facilities", "reservations", "supportRequests", "courses"],
+    tabs: ["facilities", "facilitySchedule", "reservations", "supportRequests", "courses"],
   },
 ];
 
@@ -450,7 +458,11 @@ export default function AdminPage() {
     );
   }
 
-  const permittedTabs = VALID_TABS.filter((tab) => canManageAdminTab(user, tab));
+  const permittedTabs = VALID_TABS.filter((tab) =>
+    tab === "facilitySchedule"
+      ? canManageAdminTab(user, "facilities")
+      : canManageAdminTab(user, tab)
+  );
   if (permittedTabs.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -686,6 +698,7 @@ export default function AdminPage() {
             <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
               {activeTab === "settings" && <SettingsTab />}
               {activeTab === "facilities" && <AdminFacilitiesTab />}
+              {activeTab === "facilitySchedule" && <AdminFacilitiesTab mode="buildingSchedule" />}
               {activeTab === "reservations" && <AdminReservationsTab />}
               {activeTab === "memberOptions" && <AdminMemberOptionsTab />}
               {activeTab === "permissions" && <AdminPermissionsTab />}
