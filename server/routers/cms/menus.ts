@@ -16,6 +16,7 @@
  * 접근 권한: 모두 adminProcedure (관리자만 접근 가능)
  */
 
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { adminProcedure, router } from "../../_core/trpc";
 import {
@@ -25,7 +26,9 @@ import {
 } from "../../_core/contentValidation";
 import {
   getAllMenus,
+  getMenusForReadAccessSettings,
   getMenuItemById,
+  canUpdateMenuItemReadAccess,
   createMenuItem,
   updateMenuItem,
   deleteMenuItem,
@@ -38,6 +41,7 @@ import {
   reorderMenuSubItems,
   createMenuSubItem,
   getMenuSubItemById,
+  canUpdateMenuSubItemReadAccess,
   updateMenuSubItem,
   deleteMenuSubItem,
   createYoutubePlaylist,
@@ -85,6 +89,9 @@ function findMenuItemPath(tree: MenuTree, itemId: number) {
 export const menusRouter = router({
   /** 전체 메뉴 목록 (1단 + 2단 + 3단 포함) */
   list: adminProcedure.query(() => getAllMenus()),
+
+  /** 메뉴 읽기 권한 설정용 메뉴 목록 (메뉴편집 숨김 메뉴 제외) */
+  accessList: adminProcedure.query(() => getMenusForReadAccessSettings()),
 
   /** 2단 메뉴 단건 조회 (playlistId 포함) */
   getItem: adminProcedure
@@ -188,6 +195,26 @@ export const menusRouter = router({
       return updateMenuItem(id, data);
     }),
 
+  /** 2단 메뉴 읽기 권한만 수정 */
+  updateItemAccess: adminProcedure
+    .input(z.object({
+      id: idSchema,
+      allowGuest: z.boolean(),
+      allowMember: z.boolean(),
+    }))
+    .mutation(async ({ input }) => {
+      const { id, allowGuest, allowMember } = input;
+      const canUpdate = await canUpdateMenuItemReadAccess(id);
+      if (!canUpdate) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "숨김 메뉴는 메뉴읽기권한에서 수정할 수 없습니다. 메뉴편집에서 숨김 해제 후 다시 시도해주세요.",
+        });
+      }
+
+      return updateMenuItem(id, { allowGuest, allowMember });
+    }),
+
   /** 2단 메뉴 삭제 (하위 3단 메뉴도 함께 삭제) */
   deleteItem: adminProcedure
     .input(z.object({ id: idSchema }))
@@ -267,6 +294,26 @@ export const menusRouter = router({
       }
 
       return updateMenuSubItem(id, data);
+    }),
+
+  /** 3단 메뉴 읽기 권한만 수정 */
+  updateSubItemAccess: adminProcedure
+    .input(z.object({
+      id: idSchema,
+      allowGuest: z.boolean(),
+      allowMember: z.boolean(),
+    }))
+    .mutation(async ({ input }) => {
+      const { id, allowGuest, allowMember } = input;
+      const canUpdate = await canUpdateMenuSubItemReadAccess(id);
+      if (!canUpdate) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "숨김 메뉴는 메뉴읽기권한에서 수정할 수 없습니다. 메뉴편집에서 숨김 해제 후 다시 시도해주세요.",
+        });
+      }
+
+      return updateMenuSubItem(id, { allowGuest, allowMember });
     }),
 
   /** 3단 메뉴 삭제 */

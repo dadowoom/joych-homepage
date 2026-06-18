@@ -12,7 +12,6 @@ type MenuLeaf = {
   label: string;
   path: string;
   href: string | null;
-  isVisible: boolean;
   allowGuest: boolean;
   allowMember: boolean;
 };
@@ -58,7 +57,7 @@ function getReadLevelDescription(level: ReadLevel) {
 
 export default function AdminMenuAccessTab() {
   const utils = trpc.useUtils();
-  const menusQuery = trpc.cms.menus.list.useQuery();
+  const menusQuery = trpc.cms.menus.accessList.useQuery();
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
   const toggleGroup = (groupLabel: string) => {
@@ -70,6 +69,7 @@ export default function AdminMenuAccessTab() {
 
   const invalidateMenus = async () => {
     await Promise.all([
+      utils.cms.menus.accessList.invalidate(),
       utils.cms.menus.list.invalidate(),
       utils.home.menus.invalidate(),
       utils.home.menuItem.invalidate(),
@@ -79,7 +79,7 @@ export default function AdminMenuAccessTab() {
     ]);
   };
 
-  const updateItem = trpc.cms.menus.updateItem.useMutation({
+  const updateItem = trpc.cms.menus.updateItemAccess.useMutation({
     onSuccess: async () => {
       toast.success("메뉴 읽기 권한을 저장했습니다.");
       await invalidateMenus();
@@ -89,7 +89,7 @@ export default function AdminMenuAccessTab() {
     },
   });
 
-  const updateSubItem = trpc.cms.menus.updateSubItem.useMutation({
+  const updateSubItem = trpc.cms.menus.updateSubItemAccess.useMutation({
     onSuccess: async () => {
       toast.success("메뉴 읽기 권한을 저장했습니다.");
       await invalidateMenus();
@@ -114,7 +114,6 @@ export default function AdminMenuAccessTab() {
             label: item.label,
             path: `${menu.label} > ${item.label}`,
             href: item.href,
-            isVisible: item.isVisible,
             allowGuest: item.allowGuest,
             allowMember: item.allowMember,
           });
@@ -129,7 +128,6 @@ export default function AdminMenuAccessTab() {
             label: subItem.label,
             path: `${menu.label} > ${item.label} > ${subItem.label}`,
             href: subItem.href,
-            isVisible: subItem.isVisible,
             allowGuest: subItem.allowGuest,
             allowMember: subItem.allowMember,
           });
@@ -245,11 +243,6 @@ export default function AdminMenuAccessTab() {
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
                               <p className="font-semibold text-gray-900">{leaf.label}</p>
-                              {!leaf.isVisible && (
-                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">
-                                  숨김
-                                </span>
-                              )}
                             </div>
                             <p className="mt-1 truncate text-xs text-gray-500">{leaf.path}</p>
                             <p className="mt-1 truncate text-xs text-gray-400">

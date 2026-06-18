@@ -4,6 +4,7 @@
  * 담당 기능:
  *   - getVisibleMenus: 홈페이지 GNB에 표시할 메뉴 조회
  *   - getAllMenus: 관리자용 전체 메뉴 조회 (1단+2단+3단)
+ *   - getMenusForReadAccessSettings: 메뉴 읽기 권한 설정용 공개 메뉴 조회
  *   - createMenu / updateMenu / deleteMenu: 1단 메뉴 CRUD
  *   - createMenuItem / updateMenuItem / deleteMenuItem: 2단 메뉴 CRUD
  *   - createMenuSubItem / updateMenuSubItem / deleteMenuSubItem: 3단 메뉴 CRUD
@@ -110,6 +111,49 @@ export async function getAllMenus() {
   }));
 }
 
+/**
+ * 관리자 메뉴 읽기 권한 설정용 메뉴 조회
+ * - 메뉴편집에서 숨김 처리한 1/2/3단 메뉴는 제외합니다.
+ * - 권한값(allowGuest/allowMember)은 필터링하지 않고 그대로 내려보내 숨김 해제 후에도 유지됩니다.
+ */
+export async function getMenusForReadAccessSettings() {
+  const db = await getDb();
+  if (!db) return [];
+  const [menuList, visibleItems, visibleSubItems] = await Promise.all([
+    db.select().from(menus)
+      .where(eq(menus.isVisible, true))
+      .orderBy(asc(menus.sortOrder)),
+    db.select().from(menuItems)
+      .where(eq(menuItems.isVisible, true))
+      .orderBy(asc(menuItems.sortOrder)),
+    db.select().from(menuSubItems)
+      .where(eq(menuSubItems.isVisible, true))
+      .orderBy(asc(menuSubItems.sortOrder)),
+  ]);
+
+  const subItemsByItemId = new Map<number, typeof visibleSubItems>();
+  for (const subItem of visibleSubItems) {
+    const list = subItemsByItemId.get(subItem.menuItemId) ?? [];
+    list.push(subItem);
+    subItemsByItemId.set(subItem.menuItemId, list);
+  }
+
+  const itemsByMenuId = new Map<
+    number,
+    Array<(typeof visibleItems)[number] & { subItems: typeof visibleSubItems }>
+  >();
+  for (const item of visibleItems) {
+    const list = itemsByMenuId.get(item.menuId) ?? [];
+    list.push({ ...item, subItems: subItemsByItemId.get(item.id) ?? [] });
+    itemsByMenuId.set(item.menuId, list);
+  }
+
+  return menuList.map(menu => ({
+    ...menu,
+    items: itemsByMenuId.get(menu.id) ?? [],
+  })).filter(menu => menu.items.length > 0 || menu.href);
+}
+
 // ─── 1단 메뉴 CRUD ────────────────────────────────────────────────────────────
 
 /** 1단 메뉴 생성 */
@@ -186,6 +230,22 @@ export async function updateMenuItem(id: number, data: Partial<typeof menuItems.
   await db.update(menuItems).set(data).where(eq(menuItems.id, id));
 }
 
+/** 2단 메뉴 읽기 권한 수정 가능 여부 확인 (메뉴편집 숨김 메뉴 방어) */
+export async function canUpdateMenuItemReadAccess(id: number) {
+  const db = await getDb();
+  if (!db) return false;
+  const rows = await db.select().from(menuItems)
+    .where(and(eq(menuItems.id, id), eq(menuItems.isVisible, true)))
+    .limit(1);
+  const item = rows[0];
+  if (!item) return false;
+
+  const parentRows = await db.select().from(menus)
+    .where(and(eq(menus.id, item.menuId), eq(menus.isVisible, true)))
+    .limit(1);
+  return Boolean(parentRows[0]);
+}
+
 /** 2단 메뉴 삭제 */
 export async function deleteMenuItem(id: number) {
   const db = await getDb();
@@ -247,6 +307,28 @@ export async function updateMenuSubItem(id: number, data: Partial<typeof menuSub
   const db = await getDb();
   if (!db) return;
   await db.update(menuSubItems).set(data).where(eq(menuSubItems.id, id));
+}
+
+/** 3단 메뉴 읽기 권한 수정 가능 여부 확인 (부모 숨김 포함 방어) */
+export async function canUpdateMenuSubItemReadAccess(id: number) {
+  const db = await getDb();
+  if (!db) return false;
+  const rows = await db.select().from(menuSubItems)
+    .where(and(eq(menuSubItems.id, id), eq(menuSubItems.isVisible, true)))
+    .limit(1);
+  const subItem = rows[0];
+  if (!subItem) return false;
+
+  const itemRows = await db.select().from(menuItems)
+    .where(and(eq(menuItems.id, subItem.menuItemId), eq(menuItems.isVisible, true)))
+    .limit(1);
+  const item = itemRows[0];
+  if (!item) return false;
+
+  const parentRows = await db.select().from(menus)
+    .where(and(eq(menus.id, item.menuId), eq(menus.isVisible, true)))
+    .limit(1);
+  return Boolean(parentRows[0]);
 }
 
 /** 3단 메뉴 삭제 */
