@@ -106,6 +106,9 @@ const WorshipSchedule = lazy(() =>
 const Bulletin = lazy(() =>
   import("./pages/Worship").then(module => ({ default: module.Bulletin }))
 );
+const BulletinDetail = lazy(() =>
+  import("./pages/Worship").then(module => ({ default: module.BulletinDetail }))
+);
 
 const WednesdayWorshipPage = lazy(() =>
   import("./pages/JoyfulTV").then(module => ({
@@ -348,6 +351,7 @@ function Router() {
       <Route path="/worship/tv/testimony" component={TestimonyPage} />
       <Route path="/worship/tv/praise" component={PraisePage} />
       <Route path="/worship/schedule" component={WorshipSchedule} />
+      <Route path="/worship/bulletin/:id" component={BulletinDetail} />
       <Route path="/worship/bulletin" component={Bulletin} />
 
       {/* 양육/훈련 */}

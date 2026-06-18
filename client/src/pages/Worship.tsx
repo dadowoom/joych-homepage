@@ -5,7 +5,7 @@
  */
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { Link } from "wouter";
+import { Link, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
 import { getSupportSideMenuItems } from "@/lib/supportSideMenu";
@@ -445,12 +445,259 @@ function BulletinUploadPanel() {
   );
 }
 
+export function BulletinDetail() {
+  const params = useParams<{ id?: string }>();
+  const bulletinId = Number(params.id);
+  const { data: bulletins = [], isLoading } = trpc.home.bulletins.useQuery();
+  const { data: allMenus } = trpc.home.menus.useQuery();
+  const [selectedPageIndex, setSelectedPageIndex] = useState(0);
+  const [lightboxPageIndex, setLightboxPageIndex] = useState<number | null>(null);
+  const touchStartXRef = useRef<number | null>(null);
+  const { parentLabel, sideMenuItems } = getSupportSideMenuItems(allMenus, "/worship/bulletin");
+  const bulletin = Number.isFinite(bulletinId)
+    ? bulletins.find((item) => item.id === bulletinId) ?? null
+    : null;
+  const pages = bulletin ? getBulletinPages(bulletin) : [];
+  const maxPageIndex = Math.max(pages.length - 1, 0);
+  const pageIndex = Math.min(selectedPageIndex, maxPageIndex);
+  const page = pages[pageIndex] ?? null;
+  const lightboxPage = lightboxPageIndex !== null ? pages[lightboxPageIndex] : null;
+
+  const movePage = (direction: -1 | 1) => {
+    setSelectedPageIndex((current) => Math.min(Math.max(current + direction, 0), maxPageIndex));
+  };
+
+  const moveLightbox = (direction: -1 | 1) => {
+    setLightboxPageIndex((current) => {
+      if (current === null) return current;
+      return Math.min(Math.max(current + direction, 0), pages.length - 1);
+    });
+  };
+
+  const handleTouchEnd = (clientX: number) => {
+    const startX = touchStartXRef.current;
+    touchStartXRef.current = null;
+    if (startX === null || pages.length <= 1) return;
+    const deltaX = clientX - startX;
+    if (Math.abs(deltaX) < 36) return;
+    movePage(deltaX < 0 ? 1 : -1);
+  };
+
+  return (
+    <SubPageLayout pageTitle="주보 보기" parentLabel={parentLabel} sideMenuItems={sideMenuItems}>
+      <div className="max-w-5xl">
+        <div className="mb-5 flex items-center justify-between gap-3 border-b border-gray-100 pb-4">
+          <Link href="/worship/bulletin" className="text-sm font-semibold text-[#1B5E20] hover:underline">
+            ← 주보 목록
+          </Link>
+          {bulletin && (
+            <span className="text-xs text-gray-400">
+              등록일 {formatBulletinDate(bulletin.bulletinDate)}
+            </span>
+          )}
+        </div>
+
+        {isLoading ? (
+          <div className="text-center py-16 text-gray-400">불러오는 중...</div>
+        ) : !bulletin ? (
+          <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50 py-20">
+            <i className="fas fa-file-alt mb-3 text-4xl text-gray-300" />
+            <p className="text-sm text-gray-400">주보를 찾을 수 없습니다.</p>
+          </div>
+        ) : (
+          <div className="overflow-hidden border border-gray-200 bg-white">
+            <div className="border-t-2 border-[#62B5D1] bg-[#EAF8FC] px-5 py-3">
+              <h2 className="font-bold text-[#0F607A]" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+                {bulletin.title}
+              </h2>
+            </div>
+            <div className="border-b border-gray-100 px-5 py-3 text-xs text-gray-500">
+              관리자 <span className="mx-2 text-gray-300">|</span>
+              등록일 {formatBulletinDate(bulletin.bulletinDate)}
+              <span className="mx-2 text-gray-300">|</span>
+              첨부 {pages.length}개
+            </div>
+            <div className="grid gap-6 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_240px]">
+              <div
+                className="bg-gray-50 p-3 sm:p-5"
+                onTouchStart={(event) => {
+                  touchStartXRef.current = event.changedTouches[0]?.clientX ?? null;
+                }}
+                onTouchEnd={(event) => {
+                  const clientX = event.changedTouches[0]?.clientX;
+                  if (typeof clientX === "number") handleTouchEnd(clientX);
+                }}
+              >
+                {page && (
+                  <>
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => movePage(-1)}
+                        disabled={pageIndex === 0}
+                        className="inline-flex h-10 w-10 items-center justify-center border border-gray-200 bg-white text-gray-700 disabled:opacity-30"
+                        aria-label="이전 주보 페이지"
+                      >
+                        <ChevronLeft className="h-5 w-5" />
+                      </button>
+                      <div className="min-w-0 text-center">
+                        <p className="text-xs font-semibold text-[#1B5E20]">
+                          {pageIndex + 1} / {pages.length}
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-gray-400">{page.fileName}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => movePage(1)}
+                        disabled={pageIndex >= pages.length - 1}
+                        className="inline-flex h-10 w-10 items-center justify-center border border-gray-200 bg-white text-gray-700 disabled:opacity-30"
+                        aria-label="다음 주보 페이지"
+                      >
+                        <ChevronRight className="h-5 w-5" />
+                      </button>
+                    </div>
+
+                    {isImageBulletin(page.fileMime, page.fileName) ? (
+                      <button
+                        type="button"
+                        onClick={() => setLightboxPageIndex(pageIndex)}
+                        className="group block w-full cursor-zoom-in border border-gray-200 bg-white shadow-sm"
+                        aria-label={`${bulletin.title} ${pageIndex + 1}페이지 크게 보기`}
+                      >
+                        <img
+                          src={page.fileUrl}
+                          alt={`${bulletin.title} ${pageIndex + 1}페이지`}
+                          className="h-auto w-full object-contain"
+                        />
+                        <span className="flex items-center justify-center gap-1 border-t border-gray-100 py-2 text-xs text-gray-400 group-hover:text-[#1B5E20]">
+                          <ZoomIn className="h-3.5 w-3.5" />
+                          이미지를 누르면 크게 볼 수 있습니다.
+                        </span>
+                      </button>
+                    ) : (
+                      <iframe
+                        src={page.fileUrl}
+                        title={`${bulletin.title} ${pageIndex + 1}페이지`}
+                        className="h-[720px] w-full border border-gray-200 bg-white"
+                      />
+                    )}
+                  </>
+                )}
+              </div>
+              <div className="border border-gray-200 bg-white p-4 text-sm">
+                <p className="mb-3 font-semibold text-gray-800">첨부 이미지</p>
+                <div className="space-y-2">
+                  {pages.map((item, index) => (
+                    <button
+                      type="button"
+                      key={`${item.id}-${item.fileUrl}-select`}
+                      onClick={() => setSelectedPageIndex(index)}
+                      className={`flex w-full items-start justify-between gap-3 rounded border border-dashed p-3 text-left text-xs ${
+                        index === pageIndex
+                          ? "border-[#1B5E20]/50 bg-[#F1F8E9] text-[#1B5E20]"
+                          : "border-gray-200 text-gray-500 hover:border-[#1B5E20]/40 hover:bg-[#F1F8E9]"
+                      }`}
+                    >
+                      <span className="min-w-0">
+                        <span className="block font-medium">{index + 1}페이지</span>
+                        <span className="mt-0.5 block truncate">{item.fileName}</span>
+                        <span className="mt-0.5 block text-gray-400">{formatBulletinFileSize(item.fileSize)}</span>
+                      </span>
+                      <Download className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+                    </button>
+                  ))}
+                </div>
+                <a
+                  href={page?.fileUrl ?? bulletin.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 block w-full border border-[#1B5E20] px-4 py-2 text-center text-sm font-medium text-[#1B5E20] transition-colors hover:bg-[#F1F8E9]"
+                >
+                  현재 페이지 열기
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {lightboxPageIndex !== null && lightboxPage && (
+        <div
+          className="fixed inset-0 z-[500] overflow-auto overscroll-contain bg-black/90 px-3 py-16 sm:px-8"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${bulletin?.title ?? "주보"} 크게 보기`}
+          onClick={() => setLightboxPageIndex(null)}
+        >
+          <div className="fixed right-3 top-3 z-[501] flex items-center gap-2 sm:right-6 sm:top-6">
+            <a
+              href={lightboxPage.fileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+              aria-label="현재 페이지 새 창으로 열기"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <ZoomIn className="h-5 w-5" />
+            </a>
+            <button
+              type="button"
+              onClick={() => setLightboxPageIndex(null)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+              aria-label="닫기"
+            >
+              <X className="h-7 w-7" />
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              moveLightbox(-1);
+            }}
+            disabled={lightboxPageIndex === 0}
+            className="fixed left-2 top-1/2 z-[501] inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 disabled:opacity-20 sm:left-6 sm:h-16 sm:w-16"
+            aria-label="이전 페이지"
+          >
+            <ChevronLeft className="h-11 w-11 sm:h-16 sm:w-16" />
+          </button>
+
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              moveLightbox(1);
+            }}
+            disabled={lightboxPageIndex >= pages.length - 1}
+            className="fixed right-2 top-1/2 z-[501] inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 disabled:opacity-20 sm:right-6 sm:h-16 sm:w-16"
+            aria-label="다음 페이지"
+          >
+            <ChevronRight className="h-11 w-11 sm:h-16 sm:w-16" />
+          </button>
+
+          <div className="mx-auto w-max max-w-none pb-10" onClick={(event) => event.stopPropagation()}>
+            <div className="mb-3 text-center text-sm text-white/80">
+              {bulletin?.title ?? "주보"} · {lightboxPageIndex + 1} / {pages.length}
+            </div>
+            <img
+              src={lightboxPage.fileUrl}
+              alt={`${bulletin?.title ?? "주보"} ${lightboxPageIndex + 1}페이지`}
+              className="mx-auto h-auto w-[min(920px,calc(100vw-24px))] max-w-none bg-white sm:w-[min(920px,calc(100vw-64px))]"
+            />
+          </div>
+        </div>
+      )}
+    </SubPageLayout>
+  );
+}
+
 export function Bulletin() {
   const { data: bulletins = [], isLoading } = trpc.home.bulletins.useQuery();
   const { user } = useAuth();
   const canManage = canManageBoardContent(user);
   const { data: allMenus } = trpc.home.menus.useQuery();
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [expandedId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);
   const [lightbox, setLightbox] = useState<{ bulletinId: number; pageIndex: number } | null>(null);
@@ -471,10 +718,6 @@ export function Bulletin() {
   const lightboxPage = lightbox ? lightboxPages[lightbox.pageIndex] : null;
   const lightboxTitle = lightboxBulletin?.title ?? "주보";
   const closeLightbox = () => setLightbox(null);
-  const toggleBulletin = (id: number) => {
-    setExpandedId((current) => (current === id ? null : id));
-    setSelectedPageIndex(0);
-  };
   const moveSelectedPage = (direction: -1 | 1) => {
     setSelectedPageIndex((current) => Math.min(Math.max(current + direction, 0), maxSelectedPageIndex));
   };
@@ -493,7 +736,6 @@ export function Bulletin() {
       return { ...current, pageIndex: nextIndex };
     });
   };
-
   return (
     <SubPageLayout pageTitle="주보 보기" parentLabel={parentLabel} sideMenuItems={sideMenuItems}>
       <div className="max-w-5xl">
@@ -565,21 +807,18 @@ export function Bulletin() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredBulletins.map((bulletin, index) => {
-                const isExpanded = expandedId === bulletin.id;
                 const pageCount = getBulletinPages(bulletin).length;
                 return (
                   <tr key={bulletin.id} className="transition-colors hover:bg-gray-50">
                     <td className="px-3 py-3 text-center text-gray-500">{filteredBulletins.length - index}</td>
                     <td className="px-3 py-3">
-                      <button
-                        type="button"
-                        onClick={() => toggleBulletin(bulletin.id)}
+                      <Link
+                        href={`/worship/bulletin/${bulletin.id}`}
                         className="block max-w-full truncate text-left text-gray-800 hover:text-[#1B5E20]"
-                        aria-expanded={isExpanded}
                       >
                         {bulletin.title}
                         <span className="ml-2 text-[#0F8FB3]">▣</span>
-                      </button>
+                      </Link>
                     </td>
                     <td className="px-3 py-3 text-center text-gray-600">관리자</td>
                     <td className="px-3 py-3 text-center text-gray-500">{formatBulletinDate(bulletin.bulletinDate)}</td>
@@ -600,14 +839,12 @@ export function Bulletin() {
                 <span>번호 {filteredBulletins.length - index}</span>
                 <span>{formatBulletinDate(bulletin.bulletinDate)}</span>
               </div>
-              <button
-                type="button"
-                onClick={() => toggleBulletin(bulletin.id)}
+              <Link
+                href={`/worship/bulletin/${bulletin.id}`}
                 className="block w-full text-left text-base font-bold text-gray-900"
-                aria-expanded={expandedId === bulletin.id}
               >
                 {bulletin.title}
-              </button>
+              </Link>
               <p className="mt-1 text-xs font-medium text-[#1B5E20]">관리자 · 첨부 {getBulletinPages(bulletin).length}장</p>
             </article>
           ))}
