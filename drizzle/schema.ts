@@ -290,7 +290,7 @@ export const galleryItems = mysqlTable("gallery_items", {
   albumDescription: text("albumDescription"),
   albumSortOrder: int("albumSortOrder").notNull().default(0),
   /** 사진 설명 (alt 텍스트) */
-  caption: varchar("caption", { length: 128 }),
+  caption: text("caption"),
   /** 그리드 크기 (예: col-span-2 row-span-2) */
   gridSpan: varchar("gridSpan", { length: 64 }).default("col-span-1 row-span-1"),
   sortOrder: int("sortOrder").notNull().default(0),

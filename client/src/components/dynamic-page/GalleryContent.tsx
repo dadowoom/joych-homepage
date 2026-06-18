@@ -93,6 +93,31 @@ function formatGalleryDate(value: unknown) {
   return `${year}.${month}.${day}`;
 }
 
+function getPlainRichText(value: string) {
+  return value
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|h[1-6]|li|blockquote)>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getPhotoStory(caption: string | null | undefined, albumTitle: string, index: number) {
+  const text = normalizeRichTextValue(caption);
+  if (!text) return "";
+
+  const title = albumTitle.trim();
+  const plainText = getPlainRichText(text);
+  if (!plainText) return "";
+  if (title && (plainText === title || plainText === `${title} ${index + 1}`)) return "";
+
+  return text;
+}
+
 function toTime(value: unknown) {
   if (!value) return 0;
   const date = value instanceof Date ? value : new Date(String(value));
@@ -375,7 +400,7 @@ export function GalleryContent() {
     setEditAlbumTitle(detailGroup.title);
     setEditAlbumDescription(normalizeRichTextValue(detailGroup.description));
     setEditPhotoCaptions(Object.fromEntries(
-      detailGroup.images.map((image, index) => [image.id, image.caption || `${detailGroup.title} ${index + 1}`])
+      detailGroup.images.map((image) => [image.id, normalizeRichTextValue(image.caption)])
     ));
   }, [detailGroup?.key]);
 
@@ -461,7 +486,7 @@ export function GalleryContent() {
           albumKey,
           albumTitle: title,
           albumSortOrder,
-          caption: title,
+          caption: "",
           gridSpan: "col-span-1 row-span-1",
         });
       }
@@ -529,7 +554,7 @@ export function GalleryContent() {
       });
 
       await Promise.all(detailGroup.images.map((image) => {
-        const caption = (editPhotoCaptions[image.id] ?? "").trim();
+        const caption = normalizeRichTextValue(editPhotoCaptions[image.id]).trim();
         if ((image.caption ?? "") === caption) return Promise.resolve();
         return updateGalleryItem.mutateAsync({
           id: image.id,
@@ -576,7 +601,7 @@ export function GalleryContent() {
           albumTitle: title,
           albumDescription: description,
           albumSortOrder: detailGroup.albumSortOrder,
-          caption: title,
+          caption: "",
           gridSpan: "col-span-1 row-span-1",
           sortOrder: detailGroup.images.length + index + 1,
         });
@@ -951,7 +976,7 @@ export function GalleryContent() {
                         setEditAlbumTitle(detailGroup.title);
                         setEditAlbumDescription(normalizeRichTextValue(detailGroup.description));
                         setEditPhotoCaptions(Object.fromEntries(
-                          detailGroup.images.map((image, index) => [image.id, image.caption || `${detailGroup.title} ${index + 1}`])
+                          detailGroup.images.map((image) => [image.id, normalizeRichTextValue(image.caption)])
                         ));
                         setIsDetailEditing(false);
                       }}
@@ -974,7 +999,10 @@ export function GalleryContent() {
             )}
             <div className="grid gap-6 px-4 py-6 lg:grid-cols-[minmax(0,1fr)_260px]">
               <div className="space-y-5">
-                {detailGroup.images.map((image, imageIndex) => (
+                {detailGroup.images.map((image, imageIndex) => {
+                  const photoStory = getPhotoStory(image.caption, detailGroup.title, imageIndex);
+
+                  return (
                   <figure key={image.id} className="mx-auto max-w-4xl">
                     <button
                       type="button"
@@ -994,25 +1022,33 @@ export function GalleryContent() {
                     </button>
                     <figcaption className="mt-2 flex items-center justify-between text-xs text-gray-400">
                       <span>{imageIndex + 1} / {detailGroup.images.length}</span>
-                      <span>{image.caption || detailGroup.title}</span>
+                      <span>{photoStory ? "사진 설명" : detailGroup.title}</span>
                     </figcaption>
+                    {photoStory && (
+                      <RichTextViewer
+                        html={photoStory}
+                        className="mx-auto mb-12 mt-10 max-w-3xl text-center text-base leading-8 text-gray-700"
+                      />
+                    )}
                     {canManage && isDetailEditing && (
                       <div className="mt-3 border border-gray-200 bg-white p-3">
                         <label className="block text-xs font-semibold text-gray-600" htmlFor={`gallery-photo-caption-${image.id}`}>
                           사진 설명
                         </label>
-                        <input
+                        <RichTextEditor
                           id={`gallery-photo-caption-${image.id}`}
                           value={editPhotoCaptions[image.id] ?? ""}
-                          onChange={(event) =>
+                          onChange={(value) =>
                             setEditPhotoCaptions((current) => ({
                               ...current,
-                              [image.id]: event.target.value,
+                              [image.id]: value,
                             }))
                           }
-                          className="mt-1 h-9 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#1B5E20]"
-                          placeholder="사진 아래에 표시할 설명"
+                          minHeightClassName="min-h-[160px]"
+                          className="mt-1"
+                          placeholder="이 사진 아래, 다음 사진 위에 표시할 설명 글을 입력해주세요."
                         />
+                        <p className="mt-1 text-xs text-gray-400">입력한 글은 사진과 사진 사이에 본문처럼 표시됩니다.</p>
                         <div className="mt-3 flex flex-wrap gap-2">
                           <label className="inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 border border-[#1B5E20] bg-white px-3 text-xs font-semibold text-[#1B5E20] hover:bg-[#F1F8E9]">
                             {editingPhotoId === image.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
@@ -1042,7 +1078,8 @@ export function GalleryContent() {
                       </div>
                     )}
                   </figure>
-                ))}
+                  );
+                })}
               </div>
 
               <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">

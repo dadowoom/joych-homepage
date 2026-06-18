@@ -55,6 +55,7 @@ import {
   getMyCourseApplications,
   cancelMyCourseApplication,
   getMemberById,
+  hasAdminContentPermission,
   CourseApplicationCapacityError,
   CourseApplicationConflictError,
   CourseApplicationLockError,
@@ -82,6 +83,7 @@ const reservationRepeatSchema = z.object({
 }).optional();
 const MAX_REPEAT_OCCURRENCES = 366;
 const MAX_REPEAT_SEARCH_STEPS = 1200;
+const MIN_RESERVATION_LEAD_TIME_MS = 24 * 60 * 60 * 1000;
 
 async function getVisibleFacilityById(id: number) {
   const facility = await getFacilityById(id);
@@ -97,6 +99,27 @@ function toMinutes(time: string): number | null {
 
 function todayKstDateKey() {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function getKstDateTime(dateKey: string, time: string) {
+  if (!DATE_RE.test(dateKey) || !TIME_RE.test(time)) return null;
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day, hour - 9, minute));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function assertReservationLeadTime(dateKey: string, startTime: string) {
+  const startAt = getKstDateTime(dateKey, startTime);
+  if (!startAt) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "예약 날짜와 시간이 올바르지 않습니다." });
+  }
+  if (startAt.getTime() - Date.now() < MIN_RESERVATION_LEAD_TIME_MS) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "시설 예약은 최소 24시간 전까지만 신청할 수 있습니다. 당일 또는 24시간 이내 예약은 교회 사무국에 문의해주세요.",
+    });
+  }
 }
 
 function parseDateKey(dateKey: string) {
@@ -505,6 +528,7 @@ export const homeRouter = router({
       const reservationDates = buildReservationDates(input.reservationDate, input.repeat);
       const hours = await getFacilityHours(input.facilityId);
       const blocked = await getBlockedDates(input.facilityId);
+      const canBypassLeadTime = hasAdminContentPermission(ctx.user, "content:reservations");
 
       for (const reservationDate of reservationDates) {
         if (reservationDate < todayKstDateKey()) {
@@ -514,6 +538,9 @@ export const homeRouter = router({
           });
         }
         // ④ 운영시간 확인 (해당 요일의 운영시간 조회)
+        if (!canBypassLeadTime) {
+          assertReservationLeadTime(reservationDate, input.startTime);
+        }
         const reservationDateObject = parseDateKey(reservationDate);
         const reservationDayOfWeek = reservationDateObject?.getUTCDay() ?? 0; // 0=일, 1=월 ...
         const dayHour = hours.find(h => h.dayOfWeek === reservationDayOfWeek);

@@ -10,7 +10,7 @@
  *               createReservation, updateReservationStatus, getReservationById
  */
 
-import { eq, asc, desc, and, or, isNull, lt, gt, sql, inArray } from "drizzle-orm";
+import { eq, asc, desc, and, or, isNull, lt, gt, sql, inArray, ne, notInArray } from "drizzle-orm";
 import {
   facilities, facilityImages, facilityHours, facilityBlockedDates, reservations, churchMembers,
   InsertFacility, InsertFacilityImage, InsertFacilityHour, InsertFacilityBlockedDate, InsertReservation,
@@ -338,6 +338,141 @@ export async function deleteReservationsByIds(ids: number[]) {
   const db = await getDb();
   if (!db || ids.length === 0) return;
   await db.delete(reservations).where(inArray(reservations.id, ids));
+}
+
+export async function deleteReservationById(id: number) {
+  const db = await getDb();
+  if (!db) return false;
+  const existing = await db.select({ id: reservations.id }).from(reservations).where(eq(reservations.id, id)).limit(1);
+  if (!existing[0]) return false;
+  await db.delete(reservations).where(eq(reservations.id, id));
+  return true;
+}
+
+export async function deleteReservationGroup(recurrenceGroupId: string) {
+  const db = await getDb();
+  if (!db) return false;
+  const existing = await db
+    .select({ id: reservations.id })
+    .from(reservations)
+    .where(eq(reservations.recurrenceGroupId, recurrenceGroupId))
+    .limit(1);
+  if (!existing[0]) return false;
+  await db.delete(reservations).where(eq(reservations.recurrenceGroupId, recurrenceGroupId));
+  return true;
+}
+
+export type ReservationDetailsUpdate = {
+  reservationDate?: string;
+  startTime?: string;
+  endTime?: string;
+  purpose?: string;
+  department?: string | null;
+  attendees?: number;
+  notes?: string | null;
+  adminComment?: string | null;
+};
+
+function nullableText(value: string | null | undefined) {
+  if (value === undefined) return undefined;
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function toReservationUpdateValues(data: ReservationDetailsUpdate) {
+  const values: Partial<InsertReservation> = {};
+  if (data.reservationDate !== undefined) values.reservationDate = data.reservationDate;
+  if (data.startTime !== undefined) values.startTime = data.startTime;
+  if (data.endTime !== undefined) values.endTime = data.endTime;
+  if (data.purpose !== undefined) values.purpose = data.purpose.trim();
+  if (data.department !== undefined) values.department = nullableText(data.department);
+  if (data.attendees !== undefined) values.attendees = data.attendees;
+  if (data.notes !== undefined) values.notes = nullableText(data.notes);
+  if (data.adminComment !== undefined) values.adminComment = nullableText(data.adminComment);
+  return values;
+}
+
+export async function updateReservationDetails(id: number, data: ReservationDetailsUpdate) {
+  const db = await getDb();
+  if (!db) return false;
+  const current = await db.select().from(reservations).where(eq(reservations.id, id)).limit(1);
+  const reservation = current[0];
+  if (!reservation) return false;
+
+  const nextReservationDate = data.reservationDate ?? reservation.reservationDate;
+  const nextStartTime = data.startTime ?? reservation.startTime;
+  const nextEndTime = data.endTime ?? reservation.endTime;
+
+  const overlapping = await db
+    .select({ startTime: reservations.startTime, endTime: reservations.endTime })
+    .from(reservations)
+    .where(and(
+      eq(reservations.facilityId, reservation.facilityId),
+      eq(reservations.reservationDate, nextReservationDate),
+      ne(reservations.id, id),
+      or(
+        eq(reservations.status, "pending"),
+        eq(reservations.status, "approved"),
+      ),
+      lt(reservations.startTime, nextEndTime),
+      gt(reservations.endTime, nextStartTime),
+    ))
+    .limit(1);
+
+  if (overlapping[0]) {
+    throw new ReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime);
+  }
+
+  await db.update(reservations)
+    .set(toReservationUpdateValues(data))
+    .where(eq(reservations.id, id));
+  return true;
+}
+
+export async function updateReservationGroupDetails(
+  recurrenceGroupId: string,
+  data: Omit<ReservationDetailsUpdate, "reservationDate">
+) {
+  const db = await getDb();
+  if (!db) return false;
+  const groupRows = await db
+    .select()
+    .from(reservations)
+    .where(eq(reservations.recurrenceGroupId, recurrenceGroupId))
+    .orderBy(asc(reservations.reservationDate), asc(reservations.startTime), asc(reservations.id));
+
+  if (groupRows.length === 0) return false;
+
+  const groupIds = groupRows.map(row => row.id);
+  const nextStartTime = data.startTime ?? groupRows[0]!.startTime;
+  const nextEndTime = data.endTime ?? groupRows[0]!.endTime;
+
+  for (const row of groupRows) {
+    const overlapping = await db
+      .select({ startTime: reservations.startTime, endTime: reservations.endTime })
+      .from(reservations)
+      .where(and(
+        eq(reservations.facilityId, row.facilityId),
+        eq(reservations.reservationDate, row.reservationDate),
+        notInArray(reservations.id, groupIds),
+        or(
+          eq(reservations.status, "pending"),
+          eq(reservations.status, "approved"),
+        ),
+        lt(reservations.startTime, nextEndTime),
+        gt(reservations.endTime, nextStartTime),
+      ))
+      .limit(1);
+
+    if (overlapping[0]) {
+      throw new ReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime);
+    }
+  }
+
+  await db.update(reservations)
+    .set(toReservationUpdateValues(data))
+    .where(eq(reservations.recurrenceGroupId, recurrenceGroupId));
+  return true;
 }
 
 /**
