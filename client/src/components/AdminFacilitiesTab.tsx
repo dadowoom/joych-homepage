@@ -15,7 +15,7 @@
  *   trpc.home.facility (공개 목록)
  */
 
-import { useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   DndContext,
   closestCenter,
@@ -50,12 +50,43 @@ type FacilityBuilding = typeof FACILITY_BUILDINGS[number]["value"];
 
 const DEFAULT_HOURS = DAY_LABELS.map((_, i) => ({
   dayOfWeek: i,
-  isOpen: i !== 0,
+  isOpen: i !== 1,
   openTime: "09:00",
   closeTime: "22:00",
   breakStart: "" as string,
   breakEnd: "" as string,
 }));
+type FacilityHoursForm = typeof DEFAULT_HOURS;
+
+function createDefaultHours(): FacilityHoursForm {
+  return DEFAULT_HOURS.map(hour => ({ ...hour }));
+}
+
+function mergeFacilityHours(
+  savedHours: Array<{
+    facilityId?: number;
+    dayOfWeek: number;
+    isOpen: boolean;
+    openTime: string;
+    closeTime: string;
+    breakStart?: string | null;
+    breakEnd?: string | null;
+  }> | undefined
+): FacilityHoursForm {
+  const savedByDay = new Map((savedHours ?? []).map(hour => [hour.dayOfWeek, hour]));
+  return DEFAULT_HOURS.map(defaultHour => {
+    const saved = savedByDay.get(defaultHour.dayOfWeek);
+    if (!saved) return { ...defaultHour };
+    return {
+      ...defaultHour,
+      isOpen: saved.isOpen,
+      openTime: saved.openTime,
+      closeTime: saved.closeTime,
+      breakStart: saved.breakStart ?? "",
+      breakEnd: saved.breakEnd ?? "",
+    };
+  });
+}
 
 interface FacilityForm {
   name: string;
@@ -362,7 +393,7 @@ export default function AdminFacilitiesTab() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FacilityForm>(EMPTY_FORM);
-  const [hours, setHours] = useState([...DEFAULT_HOURS]);
+  const [hours, setHours] = useState(createDefaultHours());
   const [images, setImages] = useState<FacilityImageDraft[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -390,6 +421,16 @@ export default function AdminFacilitiesTab() {
     { facilityId: expandedId ?? undefined },
     { enabled: expandedId !== null }
   );
+  const { data: editingFacilityHours, isFetching: isFetchingFacilityHours } = trpc.cms.facilities.hours.list.useQuery(
+    { facilityId: editingId ?? 0 },
+    { enabled: editingId !== null }
+  );
+
+  useEffect(() => {
+    if (editingId === null || editingFacilityHours === undefined) return;
+    if (editingFacilityHours.some(hour => hour.facilityId !== editingId)) return;
+    setHours(mergeFacilityHours(editingFacilityHours));
+  }, [editingFacilityHours, editingId]);
 
   // ── Mutations ─────────────────────────────────────────
   const createFacility = trpc.cms.facilities.create.useMutation({
@@ -543,7 +584,7 @@ export default function AdminFacilitiesTab() {
     setShowForm(false);
     setEditingId(null);
     setForm(EMPTY_FORM);
-    setHours([...DEFAULT_HOURS]);
+    setHours(createDefaultHours());
     setImages([]);
   }
 
@@ -569,6 +610,7 @@ export default function AdminFacilitiesTab() {
       notice: f.notice ?? "",
     });
     setImages([]);
+    setHours(createDefaultHours());
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -576,6 +618,10 @@ export default function AdminFacilitiesTab() {
   // ── 저장 ──────────────────────────────────────────────
   async function handleSave() {
     if (!form.name.trim()) { toast.error("시설명을 입력해 주세요."); return; }
+    if (editingId && isFetchingFacilityHours) {
+      toast.error("운영 시간 정보를 불러오는 중입니다. 잠시 후 다시 저장해 주세요.");
+      return;
+    }
 
     if (editingId) {
       updateFacility.mutate({ id: editingId, ...form });
@@ -603,7 +649,7 @@ export default function AdminFacilitiesTab() {
     });
   }
 
-  const isSaving = createFacility.isPending || updateFacility.isPending;
+  const isSaving = createFacility.isPending || updateFacility.isPending || Boolean(editingId && isFetchingFacilityHours);
 
   if (isLoading) {
     return <div className="flex items-center justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-[#1B5E20]" /></div>;
