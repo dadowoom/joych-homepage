@@ -156,7 +156,7 @@ function SortableFacilityRow({
   onAddBlockedDate,
   onRemoveBlockedDate,
 }: {
-  facility: Facility & { thumbnailUrl?: string };
+  facility: Facility & { thumbnailUrl?: string | null };
   isExpanded: boolean;
   blockedDates: FacilityBlockedDate[];
   newBlockDate: string;
@@ -633,6 +633,8 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
 
   function invalidateFacilityImages(facilityId: number) {
     utils.cms.facilities.images.list.invalidate({ facilityId });
+    utils.cms.facilities.list.invalidate();
+    utils.home.facilities.invalidate();
     utils.home.facilityImages.invalidate({ facilityId });
   }
 

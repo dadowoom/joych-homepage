@@ -44,10 +44,35 @@ export async function getFacilities(onlyVisible = true) {
   if (!db) return [];
   const query = db.select().from(facilities)
     .orderBy(asc(facilities.building), asc(facilities.sortOrder), asc(facilities.id));
-  if (onlyVisible) {
-    return query.where(eq(facilities.isVisible, true));
+  const rows = onlyVisible
+    ? await query.where(eq(facilities.isVisible, true))
+    : await query;
+
+  const facilityIds = rows.map((facility) => facility.id);
+  if (facilityIds.length === 0) {
+    return rows.map((facility) => ({ ...facility, thumbnailUrl: null as string | null }));
   }
-  return query;
+
+  const images = await db
+    .select({
+      id: facilityImages.id,
+      facilityId: facilityImages.facilityId,
+      imageUrl: facilityImages.imageUrl,
+    })
+    .from(facilityImages)
+    .where(inArray(facilityImages.facilityId, facilityIds))
+    .orderBy(desc(facilityImages.isThumbnail), asc(facilityImages.sortOrder), asc(facilityImages.id));
+  const thumbnailByFacility = new Map<number, string>();
+  for (const image of images) {
+    if (!thumbnailByFacility.has(image.facilityId)) {
+      thumbnailByFacility.set(image.facilityId, image.imageUrl);
+    }
+  }
+
+  return rows.map((facility) => ({
+    ...facility,
+    thumbnailUrl: thumbnailByFacility.get(facility.id) ?? null,
+  }));
 }
 
 /** 시설 단건 조회 */
