@@ -37,6 +37,7 @@ import {
   reorderMenuItems,
   reorderMenuSubItems,
   createMenuSubItem,
+  getMenuSubItemById,
   updateMenuSubItem,
   deleteMenuSubItem,
   createYoutubePlaylist,
@@ -210,7 +211,16 @@ export const menusRouter = router({
       allowMember: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
-      const newId = await createMenuSubItem(input);
+      const subItemData: Parameters<typeof createMenuSubItem>[0] = { ...input };
+
+      if (input.pageType === "youtube") {
+        const plResult = await createYoutubePlaylist({ title: input.label });
+        if (plResult?.insertId) {
+          subItemData.playlistId = plResult.insertId;
+        }
+      }
+
+      const newId = await createMenuSubItem(subItemData);
 
       // href가 없으면 동적 페이지 URL 자동 설정
       if (newId && !input.href) {
@@ -239,9 +249,23 @@ export const menusRouter = router({
       allowMember: z.boolean().optional(),
       pageType: PAGE_TYPE.optional(),
       pageImageUrl: pageImageSchema,
+      playlistId: idSchema.nullable().optional(),
     }))
-    .mutation(({ input }) => {
+    .mutation(async ({ input }) => {
       const { id, ...data } = input;
+
+      if (data.pageType === "youtube" && !data.playlistId) {
+        const existing = await getMenuSubItemById(id);
+        if (existing && !existing.playlistId) {
+          const plResult = await createYoutubePlaylist({
+            title: data.label ?? existing.label,
+          });
+          if (plResult?.insertId) {
+            data.playlistId = plResult.insertId;
+          }
+        }
+      }
+
       return updateMenuSubItem(id, data);
     }),
 
