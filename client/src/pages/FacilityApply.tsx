@@ -21,6 +21,19 @@ const PURPOSE_OPTIONS = [
 ];
 
 type RepeatType = "none" | "daily" | "weekly" | "monthly-weekday";
+type FacilityBuilding = "hayoungin" | "welfare";
+
+function normalizeFacilityBuilding(building: string | null | undefined): FacilityBuilding {
+  return building === "hayoungin" ? "hayoungin" : "welfare";
+}
+
+function getFacilityListHref(building: FacilityBuilding) {
+  return `/facility?building=${building}`;
+}
+
+function getFacilityDetailHref(facilityId: number, building: FacilityBuilding) {
+  return `/facility/${facilityId}?building=${building}`;
+}
 
 const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
   { value: "none", label: "반복 없음" },
@@ -69,8 +82,13 @@ function Field({ label, required, children, hint }: {
 }
 
 // ── 완료 화면 ────────────────────────────────────────────────
-function SuccessScreen({ facilityName, status, count, recurrenceLabel, onReset }: {
-  facilityName: string; status: string; count: number; recurrenceLabel?: string | null; onReset: () => void;
+function SuccessScreen({ facilityName, status, count, recurrenceLabel, facilityListHref, onReset }: {
+  facilityName: string;
+  status: string;
+  count: number;
+  recurrenceLabel?: string | null;
+  facilityListHref: string;
+  onReset: () => void;
 }) {
   const isPending = status === "pending";
   const isRepeated = count > 1;
@@ -101,7 +119,7 @@ function SuccessScreen({ facilityName, status, count, recurrenceLabel, onReset }
       )}
       <p className="text-xs text-gray-400 mb-8">내 예약 현황에서 승인 상태를 확인하실 수 있습니다.</p>
       <div className="flex gap-3 justify-center flex-wrap">
-        <Link href="/facility">
+        <Link href={facilityListHref}>
           <button className="px-5 py-2.5 rounded-lg border border-gray-200 text-gray-600 text-sm hover:bg-gray-50 transition-colors">
             시설 목록으로
           </button>
@@ -258,12 +276,13 @@ export default function FacilityApply() {
 
   // URL 쿼리 파라미터에서 날짜/시간 읽기
   const searchString = useSearch();
-  const { urlDate, urlStartTime, urlEndTime } = useMemo(() => {
+  const { urlDate, urlStartTime, urlEndTime, urlBuilding } = useMemo(() => {
     const p = new URLSearchParams(searchString);
     return {
       urlDate: p.get("date") ?? "",
       urlStartTime: p.get("startTime") ?? "",
       urlEndTime: p.get("endTime") ?? "",
+      urlBuilding: p.get("building") ?? "",
     };
   }, [searchString]);
 
@@ -302,6 +321,12 @@ export default function FacilityApply() {
     { id: facilityId },
     { enabled: !!facilityId && !isNaN(facilityId) }
   );
+  const activeBuilding = useMemo(
+    () => normalizeFacilityBuilding(urlBuilding || facility?.building),
+    [facility?.building, urlBuilding],
+  );
+  const facilityListHref = getFacilityListHref(activeBuilding);
+  const facilityDetailHref = getFacilityDetailHref(facilityId, activeBuilding);
   const { data: facilityImages } = trpc.home.facilityImages.useQuery(
     { facilityId },
     { enabled: !!facilityId }
@@ -459,7 +484,7 @@ export default function FacilityApply() {
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 mb-4">시설 정보를 찾을 수 없습니다.</p>
-          <Link href="/facility" className="text-[#1B5E20] font-medium hover:underline">시설 목록으로 돌아가기</Link>
+          <Link href={facilityListHref} className="text-[#1B5E20] font-medium hover:underline">시설 목록으로 돌아가기</Link>
         </div>
       </div>
     );
@@ -476,9 +501,9 @@ export default function FacilityApply() {
           <nav className="flex items-center gap-2 text-xs text-green-200 mb-3 flex-wrap">
             <Link href="/" className="hover:text-white transition-colors">홈</Link>
             <ChevronRight className="w-3 h-3" />
-            <Link href="/facility" className="hover:text-white transition-colors">시설 사용 예약</Link>
+            <Link href={facilityListHref} className="hover:text-white transition-colors">시설 사용 예약</Link>
             <ChevronRight className="w-3 h-3" />
-            <Link href={`/facility/${facilityId}`} className="hover:text-white transition-colors">{facility.name}</Link>
+            <Link href={facilityDetailHref} className="hover:text-white transition-colors">{facility.name}</Link>
             <ChevronRight className="w-3 h-3" />
             <span className="text-white">예약 신청</span>
           </nav>
@@ -498,6 +523,7 @@ export default function FacilityApply() {
                 status={reservedStatus}
                 count={reservedCount}
                 recurrenceLabel={reservedRecurrenceLabel}
+                facilityListHref={facilityListHref}
                 onReset={() => { setSubmitted(false); setForm(prev => ({ ...prev, date: "", startTime: "", endTime: "", repeatType: "none", repeatUntilDate: "" })); }}
               />
             </div>
@@ -520,7 +546,7 @@ export default function FacilityApply() {
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {facility.slotMinutes}분 단위</span>
                   </div>
                 </div>
-                <Link href={`/facility/${facilityId}`} className="ml-auto text-xs text-gray-400 hover:text-[#1B5E20] transition-colors shrink-0">
+                <Link href={facilityDetailHref} className="ml-auto text-xs text-gray-400 hover:text-[#1B5E20] transition-colors shrink-0">
                   ← 변경
                 </Link>
               </div>
@@ -582,7 +608,7 @@ export default function FacilityApply() {
                         <span className="font-medium text-gray-800">{form.date}</span>
                       </div>
                       <Link
-                        href={`/facility/${facilityId}`}
+                        href={facilityDetailHref}
                         className="text-xs text-[#1B5E20] hover:underline shrink-0 whitespace-nowrap"
                       >
                         ← 날짜 변경

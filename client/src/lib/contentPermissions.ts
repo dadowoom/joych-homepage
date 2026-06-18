@@ -1,4 +1,4 @@
-import { ADMIN_TAB_PERMISSION_KEYS } from "@shared/adminPermissions";
+import { ADMIN_TAB_PERMISSION_KEY_GROUPS } from "@shared/adminPermissions";
 
 type ContentUser = {
   role?: string | null;
@@ -25,6 +25,6 @@ export function canManageAnyContent(user: ContentUser) {
 
 export function canManageAdminTab(user: ContentUser, tab: string) {
   if (user?.role === "admin") return true;
-  const permissionKey = ADMIN_TAB_PERMISSION_KEYS[tab];
-  return permissionKey ? hasContentPermission(user, permissionKey) : false;
+  const permissionKeys = ADMIN_TAB_PERMISSION_KEY_GROUPS[tab] ?? [];
+  return permissionKeys.some((permissionKey) => hasContentPermission(user, permissionKey));
 }

@@ -3,8 +3,8 @@
  * 실제 DB API 연결 버전
  */
 
-import { useMemo, useState } from "react";
-import { Link } from "wouter";
+import { useMemo } from "react";
+import { Link, useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import type { Facility, FacilityImage } from "../../../drizzle/schema";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,18 @@ type FacilityBuilding = typeof FACILITY_BUILDINGS[number]["value"];
 
 function normalizeFacilityBuilding(building: string | null | undefined): FacilityBuilding {
   return building === "hayoungin" ? "hayoungin" : "welfare";
+}
+
+function getFacilityBuildingFromSearch(searchString: string) {
+  return normalizeFacilityBuilding(new URLSearchParams(searchString).get("building"));
+}
+
+function getFacilityListHref(building: FacilityBuilding) {
+  return `/facility?building=${building}`;
+}
+
+function getFacilityDetailHref(facilityId: number, building: FacilityBuilding) {
+  return `/facility/${facilityId}?building=${building}`;
 }
 
 // ── 상단 배너 ──────────────────────────────────────────────
@@ -79,7 +91,7 @@ function FacilityGuide() {
 }
 
 // ── 시설 카드 ──────────────────────────────────────────────
-function FacilityCard({ facility }: { facility: Facility }) {
+function FacilityCard({ facility, activeBuilding }: { facility: Facility; activeBuilding: FacilityBuilding }) {
   const { data: images } = trpc.home.facilityImages.useQuery({ facilityId: facility.id });
   const thumbnail = images?.find((img: FacilityImage) => img.isThumbnail) ?? images?.[0];
 
@@ -140,7 +152,7 @@ function FacilityCard({ facility }: { facility: Facility }) {
           )}
         </div>
 
-        <Link href={`/facility/${facility.id}`}>
+        <Link href={getFacilityDetailHref(facility.id, activeBuilding)}>
           <Button
             className="w-full bg-[#1B5E20] hover:bg-[#2E7D32] text-white"
             disabled={!facility.isReservable}
@@ -156,7 +168,12 @@ function FacilityCard({ facility }: { facility: Facility }) {
 // ── 메인 페이지 컴포넌트 ───────────────────────────────────
 export default function FacilityList() {
   const { data: facilities, isLoading } = trpc.home.facilities.useQuery();
-  const [activeBuilding, setActiveBuilding] = useState<FacilityBuilding>("welfare");
+  const searchString = useSearch();
+  const [, navigate] = useLocation();
+  const activeBuilding = useMemo(
+    () => getFacilityBuildingFromSearch(searchString),
+    [searchString],
+  );
   const visibleFacilities = useMemo(
     () => (facilities ?? []).filter((facility) => normalizeFacilityBuilding(facility.building) === activeBuilding),
     [activeBuilding, facilities],
@@ -205,7 +222,7 @@ export default function FacilityList() {
                     <button
                       key={building.value}
                       type="button"
-                      onClick={() => setActiveBuilding(building.value)}
+                      onClick={() => navigate(getFacilityListHref(building.value))}
                       className={`flex items-center justify-between rounded-xl border px-5 py-4 text-left transition-all ${
                         isActive
                           ? "border-[#1B5E20] bg-[#F1F8E9] shadow-sm"
@@ -254,7 +271,7 @@ export default function FacilityList() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {visibleFacilities.map((f: Facility) => (
-                <FacilityCard key={f.id} facility={f} />
+                <FacilityCard key={f.id} facility={f} activeBuilding={activeBuilding} />
               ))}
             </div>
           )}

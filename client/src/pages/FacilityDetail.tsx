@@ -5,7 +5,7 @@
  */
 
 import { useState, useMemo } from "react";
-import { Link, useParams, useLocation } from "wouter";
+import { Link, useParams, useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import type { Facility, FacilityHour, FacilityImage, FacilityBlockedDate } from "../../../drizzle/schema";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,17 @@ import { Badge } from "@/components/ui/badge";
 import { Users, MapPin, Clock, ChevronLeft, ChevronRight, Phone, AlertCircle, CalendarCheck, Loader2 } from "lucide-react";
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
+
+type FacilityBuilding = "hayoungin" | "welfare";
+
+function normalizeFacilityBuilding(building: string | null | undefined): FacilityBuilding {
+  return building === "hayoungin" ? "hayoungin" : "welfare";
+}
+
+function getFacilityListHref(building: FacilityBuilding) {
+  return `/facility?building=${building}`;
+}
+
 
 // ── 운영 시간 표시 ──────────────────────────────────────────
 function HoursTable({ facilityId }: { facilityId: number }) {
@@ -418,6 +429,7 @@ function ReservationCalendar({
 export default function FacilityDetail() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
+  const searchString = useSearch();
   const facilityId = parseInt(params.id ?? "0");
   const [selectedDate, setSelectedDate] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -427,6 +439,11 @@ export default function FacilityDetail() {
     { id: facilityId },
     { enabled: !isNaN(facilityId) }
   );
+  const activeBuilding = useMemo(() => {
+    const requestedBuilding = new URLSearchParams(searchString).get("building");
+    return normalizeFacilityBuilding(requestedBuilding ?? facility?.building);
+  }, [facility?.building, searchString]);
+  const facilityListHref = getFacilityListHref(activeBuilding);
 
   // 날짜 변경 시 시간 초기화
   function handleSelectDate(date: string) {
@@ -444,10 +461,13 @@ export default function FacilityDetail() {
   // 예약 신청 버튼 클릭
   function handleApply() {
     if (!selectedDate) return;
-    let url = `/facility/${facilityId}/apply?date=${selectedDate}`;
-    if (startTime) url += `&startTime=${startTime}`;
-    if (endTime) url += `&endTime=${endTime}`;
-    navigate(url);
+    const params = new URLSearchParams({
+      date: selectedDate,
+      building: activeBuilding,
+    });
+    if (startTime) params.set("startTime", startTime);
+    if (endTime) params.set("endTime", endTime);
+    navigate(`/facility/${facilityId}/apply?${params.toString()}`);
   }
 
   // 버튼 라벨
@@ -475,7 +495,7 @@ export default function FacilityDetail() {
         <div className="text-center">
           <CalendarCheck size={64} className="text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500 mb-4">시설 정보를 찾을 수 없습니다.</p>
-          <Link href="/facility" className="text-[#1B5E20] font-medium hover:underline">
+          <Link href={facilityListHref} className="text-[#1B5E20] font-medium hover:underline">
             시설 목록으로 돌아가기
           </Link>
         </div>
@@ -491,7 +511,7 @@ export default function FacilityDetail() {
           <nav className="flex items-center gap-2 text-xs text-green-200 mb-3">
             <Link href="/" className="hover:text-white transition-colors">홈</Link>
             <i className="fas fa-chevron-right text-[10px]"></i>
-            <Link href="/facility" className="hover:text-white transition-colors">시설 사용 예약</Link>
+            <Link href={facilityListHref} className="hover:text-white transition-colors">시설 사용 예약</Link>
             <i className="fas fa-chevron-right text-[10px]"></i>
             <span className="text-white">{facility.name}</span>
           </nav>

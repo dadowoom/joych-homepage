@@ -3,17 +3,31 @@
  * - 접수 유형별 목록/상세/상태/답변 관리
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { hasContentPermission } from "@/lib/contentPermissions";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Inbox, Paperclip, Save, Search } from "lucide-react";
+import {
+  SUPPORT_REQUEST_PERMISSION_KEYS,
+  SUPPORT_REQUEST_ROOT_PERMISSION_KEY,
+} from "@shared/adminPermissions";
 
 type RouterOutput = inferRouterOutputs<AppRouter>;
 type SupportOutput = RouterOutput["cms"]["supportRequests"];
 
 type RequestKind = "bulletinAds" | "subtitles" | "visits" | "prayers" | "newMembers";
+
+const REQUEST_KIND_ORDER: RequestKind[] = [
+  "bulletinAds",
+  "subtitles",
+  "visits",
+  "prayers",
+  "newMembers",
+];
 
 type AdminRequestItem = {
   key: string;
@@ -148,24 +162,54 @@ function makeItemKey(kind: RequestKind, id: number) {
   return `${kind}:${id}`;
 }
 
+function canManageSupportRequestKind(
+  user: Parameters<typeof hasContentPermission>[0],
+  kind: RequestKind,
+) {
+  return (
+    hasContentPermission(user, SUPPORT_REQUEST_ROOT_PERMISSION_KEY) ||
+    hasContentPermission(user, SUPPORT_REQUEST_PERMISSION_KEYS[kind])
+  );
+}
+
 export default function AdminSupportRequestsTab() {
   const utils = trpc.useUtils();
+  const { user } = useAuth();
   const [activeKind, setActiveKind] = useState<RequestKind>("bulletinAds");
   const [statusFilter, setStatusFilter] = useState("all");
   const [keyword, setKeyword] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [memoDrafts, setMemoDrafts] = useState<Record<string, string>>({});
 
+  const permittedKinds = useMemo(
+    () => REQUEST_KIND_ORDER.filter((kind) => canManageSupportRequestKind(user, kind)),
+    [user],
+  );
+  const canManageBulletinAds = permittedKinds.includes("bulletinAds");
+  const canManageSubtitles = permittedKinds.includes("subtitles");
+  const canManageVisits = permittedKinds.includes("visits");
+  const canManagePrayers = permittedKinds.includes("prayers");
+  const canManageNewMembers = permittedKinds.includes("newMembers");
+
+  useEffect(() => {
+    const firstPermittedKind = permittedKinds[0];
+    if (!firstPermittedKind || permittedKinds.includes(activeKind)) return;
+    setActiveKind(firstPermittedKind);
+    setStatusFilter("all");
+    setKeyword("");
+    setSelectedKey(null);
+  }, [activeKind, permittedKinds]);
+
   const { data: bulletinAds = [], isLoading: loadingBulletinAds } =
-    trpc.cms.supportRequests.listBulletinAds.useQuery();
+    trpc.cms.supportRequests.listBulletinAds.useQuery(undefined, { enabled: canManageBulletinAds });
   const { data: subtitles = [], isLoading: loadingSubtitles } =
-    trpc.cms.supportRequests.listSubtitles.useQuery();
+    trpc.cms.supportRequests.listSubtitles.useQuery(undefined, { enabled: canManageSubtitles });
   const { data: visits = [], isLoading: loadingVisits } =
-    trpc.cms.supportRequests.listVisits.useQuery();
+    trpc.cms.supportRequests.listVisits.useQuery(undefined, { enabled: canManageVisits });
   const { data: prayers = [], isLoading: loadingPrayers } =
-    trpc.cms.supportRequests.listPrayer.useQuery();
+    trpc.cms.supportRequests.listPrayer.useQuery(undefined, { enabled: canManagePrayers });
   const { data: newMembers = [], isLoading: loadingNewMembers } =
-    trpc.cms.supportRequests.listNewMembers.useQuery();
+    trpc.cms.supportRequests.listNewMembers.useQuery(undefined, { enabled: canManageNewMembers });
 
   const updateBulletinAd = trpc.cms.supportRequests.updateBulletinAdStatus.useMutation({
     onSuccess: () => {
@@ -345,7 +389,10 @@ export default function AdminSupportRequestsTab() {
     newMembers: loadingNewMembers,
   };
 
-  const activeItems = sections[activeKind];
+  const currentKind = permittedKinds.includes(activeKind)
+    ? activeKind
+    : (permittedKinds[0] ?? activeKind);
+  const activeItems = permittedKinds.includes(currentKind) ? sections[currentKind] : [];
   const normalizedKeyword = keyword.trim().toLowerCase();
   const filteredItems = useMemo(() => {
     return activeItems.filter((item) => {
@@ -368,9 +415,9 @@ export default function AdminSupportRequestsTab() {
   const selectedItem =
     filteredItems.find((item) => item.key === selectedKey) ?? filteredItems[0] ?? null;
 
-  const totalCount = Object.values(sections).reduce((sum, items) => sum + items.length, 0);
-  const openCount = Object.values(sections)
-    .flat()
+  const permittedSectionItems = permittedKinds.flatMap((kind) => sections[kind]);
+  const totalCount = permittedSectionItems.length;
+  const openCount = permittedSectionItems
     .filter((item) => item.status !== "archived" && item.status !== "completed").length;
 
   function changeKind(kind: RequestKind) {
@@ -438,11 +485,18 @@ export default function AdminSupportRequestsTab() {
         </p>
       </div>
 
+      {permittedKinds.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-gray-200 bg-white py-16 text-center text-sm text-gray-400">
+          관리 가능한 접수 항목 권한이 없습니다. 관리자에게 접수 관리 권한을 요청해 주세요.
+        </div>
+      ) : null}
+
+      {permittedKinds.length > 0 && (
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
-        {(Object.keys(kindMeta) as RequestKind[]).map((kind) => {
+        {permittedKinds.map((kind) => {
           const items = sections[kind];
           const newCount = items.filter((item) => item.status === "new").length;
-          const isActive = activeKind === kind;
+          const isActive = currentKind === kind;
           return (
             <button
               key={kind}
@@ -468,11 +522,13 @@ export default function AdminSupportRequestsTab() {
           );
         })}
       </div>
+      )}
 
+      {permittedKinds.length > 0 && (
       <div className="rounded-xl border border-gray-200 bg-white p-4">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <h4 className="font-bold text-gray-900">{kindMeta[activeKind].title}</h4>
+            <h4 className="font-bold text-gray-900">{kindMeta[currentKind].title}</h4>
             <p className="mt-1 text-xs text-gray-400">
               전체 접수 {totalCount}건 · 미완료 {openCount}건 · 현재 분류 {activeItems.length}건
             </p>
@@ -508,12 +564,12 @@ export default function AdminSupportRequestsTab() {
         <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="overflow-hidden rounded-xl border border-gray-200">
             <div className="max-h-[560px] overflow-auto">
-              {loadingByKind[activeKind] ? (
+              {loadingByKind[currentKind] ? (
                 <div className="flex h-64 items-center justify-center text-sm text-gray-400">불러오는 중...</div>
               ) : filteredItems.length === 0 ? (
                 <div className="flex h-64 flex-col items-center justify-center text-sm text-gray-400">
                   <Inbox className="mb-2 h-8 w-8 text-gray-300" />
-                  {kindMeta[activeKind].empty}
+                  {kindMeta[currentKind].empty}
                 </div>
               ) : (
                 <table className="w-full table-fixed text-sm">
@@ -666,6 +722,7 @@ export default function AdminSupportRequestsTab() {
           </aside>
         </div>
       </div>
+      )}
     </div>
   );
 }
