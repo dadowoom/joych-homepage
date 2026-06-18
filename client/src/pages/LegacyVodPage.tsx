@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "wouter";
+import DirectVideoPlayer from "@/components/DirectVideoPlayer";
 import SubPageLayout from "@/components/SubPageLayout";
 
 type LegacyVodInfo = {
@@ -82,13 +83,11 @@ export default function LegacyVodPage() {
           </div>
         ) : (
           <>
-            <div className="overflow-hidden rounded-lg bg-black shadow-sm">
-              <video
-                className="block w-full aspect-video bg-black"
+            <div className="relative overflow-hidden rounded-lg bg-black shadow-sm">
+              <DirectVideoPlayer
                 src={info?.streamUrl || streamUrl}
-                controls
-                playsInline
-                preload="metadata"
+                title={pageTitle}
+                className="block w-full aspect-video bg-black"
               />
             </div>
             <div className="mt-5 border-t border-gray-200 pt-4 text-sm text-gray-600">

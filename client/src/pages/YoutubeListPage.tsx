@@ -9,6 +9,7 @@ import { trpc } from "@/lib/trpc";
 import { ChevronLeft, ChevronRight, PlayCircle, Settings } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { canManageBoardContent } from "@/lib/contentPermissions";
+import DirectVideoPlayer from "@/components/DirectVideoPlayer";
 import YoutubeEditPanel from "@/components/YoutubeEditPanel";
 
 interface YoutubeListPageProps {
@@ -159,13 +160,10 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
                 allowFullScreen
               />
             ) : activeVideo.videoUrl ? (
-              <video
-                key={activeVideo.videoUrl}
-                className="absolute inset-0 w-full h-full rounded-xl shadow-lg bg-black"
+              <DirectVideoPlayer
                 src={activeVideo.videoUrl}
-                controls
-                playsInline
-                preload="metadata"
+                title={activeVideo.title}
+                className="absolute inset-0 w-full h-full rounded-xl shadow-lg bg-black"
               />
             ) : null}
           </div>
