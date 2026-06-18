@@ -47,6 +47,7 @@ const FACILITY_BUILDINGS = [
 ] as const;
 
 type FacilityBuilding = typeof FACILITY_BUILDINGS[number]["value"];
+const MONDAY_FIRST_DAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
 
 const DEFAULT_HOURS = DAY_LABELS.map((_, i) => ({
   dayOfWeek: i,
@@ -297,43 +298,52 @@ function SortableFacilityRow({
 function HoursEditor({
   hours,
   onChange,
+  dayOrder,
 }: {
-  hours: typeof DEFAULT_HOURS;
-  onChange: (h: typeof DEFAULT_HOURS) => void;
+  hours: FacilityHoursForm;
+  onChange: (h: FacilityHoursForm) => void;
+  dayOrder?: readonly number[];
 }) {
+  const orderedHours = (dayOrder ?? hours.map(hour => hour.dayOfWeek))
+    .map(day => hours.find(hour => hour.dayOfWeek === day))
+    .filter((hour): hour is FacilityHoursForm[number] => Boolean(hour));
+
+  function updateHour(dayOfWeek: number, patch: Partial<FacilityHoursForm[number]>) {
+    const next = hours.map(hour => (
+      hour.dayOfWeek === dayOfWeek ? { ...hour, ...patch } : hour
+    ));
+    onChange(next);
+  }
+
   return (
     <div className="space-y-2">
-      {hours.map((h, i) => (
-        <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="w-5 text-center font-medium text-gray-600 shrink-0">{DAY_LABELS[i]}</span>
+      {orderedHours.map((h) => (
+        <div key={h.dayOfWeek} className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="w-5 text-center font-medium text-gray-600 shrink-0">{DAY_LABELS[h.dayOfWeek]}</span>
           <label className="flex items-center gap-1 cursor-pointer shrink-0">
             <input
               type="checkbox"
               checked={h.isOpen}
-              onChange={e => {
-                const next = [...hours];
-                next[i] = { ...next[i], isOpen: e.target.checked };
-                onChange(next);
-              }}
+              onChange={e => updateHour(h.dayOfWeek, { isOpen: e.target.checked })}
             />
             <span className={h.isOpen ? "text-gray-700" : "text-gray-400"}>운영</span>
           </label>
           {h.isOpen ? (
             <>
               <input type="time" value={h.openTime}
-                onChange={e => { const n=[...hours]; n[i]={...n[i],openTime:e.target.value}; onChange(n); }}
+                onChange={e => updateHour(h.dayOfWeek, { openTime: e.target.value })}
                 className="border border-gray-200 rounded px-2 py-1 text-xs w-24" />
               <span className="text-gray-400 text-xs">~</span>
               <input type="time" value={h.closeTime}
-                onChange={e => { const n=[...hours]; n[i]={...n[i],closeTime:e.target.value}; onChange(n); }}
+                onChange={e => updateHour(h.dayOfWeek, { closeTime: e.target.value })}
                 className="border border-gray-200 rounded px-2 py-1 text-xs w-24" />
-              <span className="text-gray-400 text-xs ml-1">점심</span>
+              <span className="text-gray-400 text-xs ml-1">불가</span>
               <input type="time" value={h.breakStart}
-                onChange={e => { const n=[...hours]; n[i]={...n[i],breakStart:e.target.value}; onChange(n); }}
+                onChange={e => updateHour(h.dayOfWeek, { breakStart: e.target.value })}
                 className="border border-gray-200 rounded px-2 py-1 text-xs w-24" />
               <span className="text-gray-400 text-xs">~</span>
               <input type="time" value={h.breakEnd}
-                onChange={e => { const n=[...hours]; n[i]={...n[i],breakEnd:e.target.value}; onChange(n); }}
+                onChange={e => updateHour(h.dayOfWeek, { breakEnd: e.target.value })}
                 className="border border-gray-200 rounded px-2 py-1 text-xs w-24" />
             </>
           ) : (
@@ -417,6 +427,11 @@ export default function AdminFacilitiesTab() {
   const [newBlockDate, setNewBlockDate] = useState("");
   const [newBlockReason, setNewBlockReason] = useState("");
   const [activeBuilding, setActiveBuilding] = useState<FacilityBuilding>("welfare");
+  const [buildingScheduleDrafts, setBuildingScheduleDrafts] = useState<Record<FacilityBuilding, FacilityHoursForm>>({
+    hayoungin: createDefaultHours(),
+    welfare: createDefaultHours(),
+  });
+  const [applyingBuilding, setApplyingBuilding] = useState<FacilityBuilding | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const buildingCounts = useMemo(() => {
     const counts = new Map<FacilityBuilding, number>(FACILITY_BUILDINGS.map((building) => [building.value, 0]));
@@ -546,6 +561,56 @@ export default function AdminFacilitiesTab() {
   const deleteImageMutation = trpc.cms.facilities.images.delete.useMutation();
   const setThumbnailMutation = trpc.cms.facilities.images.setThumbnail.useMutation();
   const upsertHour = trpc.cms.facilities.hours.upsert.useMutation();
+
+  function updateBuildingScheduleDraft(building: FacilityBuilding, nextHours: FacilityHoursForm) {
+    setBuildingScheduleDrafts(prev => ({
+      ...prev,
+      [building]: nextHours.map(hour => ({ ...hour })),
+    }));
+  }
+
+  async function applyBuildingSchedule(building: FacilityBuilding) {
+    const targetFacilities = facilityRows.filter((facility) => normalizeFacilityBuilding(facility.building) === building);
+    const buildingLabel = getFacilityBuildingLabel(building);
+
+    if (targetFacilities.length === 0) {
+      toast.error(`${buildingLabel}에 등록된 시설이 없습니다.`);
+      return;
+    }
+
+    const shouldOverwrite = window.confirm(
+      `${buildingLabel} 시설 ${targetFacilities.length}개의 요일별 예약 가능 시간을 일괄 적용합니다.\n기존 개별 시간 설정이 덮어써집니다. 계속할까요?`
+    );
+    if (!shouldOverwrite) return;
+
+    setApplyingBuilding(building);
+    try {
+      const draftHours = buildingScheduleDrafts[building];
+      for (const facility of targetFacilities) {
+        for (const hour of draftHours) {
+          await upsertHour.mutateAsync({
+            facilityId: facility.id,
+            dayOfWeek: hour.dayOfWeek,
+            isOpen: hour.isOpen,
+            openTime: hour.openTime,
+            closeTime: hour.closeTime,
+            breakStart: hour.breakStart || null,
+            breakEnd: hour.breakEnd || null,
+          });
+        }
+      }
+
+      await Promise.all(targetFacilities.flatMap((facility) => [
+        utils.cms.facilities.hours.list.invalidate({ facilityId: facility.id }),
+        utils.home.facilityHours.invalidate({ facilityId: facility.id }),
+      ]));
+      toast.success(`${buildingLabel} 시설 ${targetFacilities.length}개의 스케줄을 일괄 적용했습니다.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "건물별 스케줄 일괄 적용에 실패했습니다.");
+    } finally {
+      setApplyingBuilding(null);
+    }
+  }
 
   const addBlockedDate = trpc.cms.facilities.blockedDates.add.useMutation({
     onSuccess: () => {
@@ -755,6 +820,57 @@ export default function AdminFacilitiesTab() {
       </div>
 
       {/* 등록/수정 폼 */}
+      <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h4 className="flex items-center gap-2 text-sm font-bold text-gray-900">
+              <Clock className="h-4 w-4 text-[#1B5E20]" />
+              건물별 스케줄 일괄적용
+            </h4>
+            <p className="mt-1 text-xs text-gray-500">
+              공통 예약 가능 시간을 먼저 적용한 뒤, 예외 시설은 아래 시설 수정에서 개별 조정할 수 있습니다.
+            </p>
+          </div>
+          <p className="rounded-full bg-[#E8F5E9] px-3 py-1 text-xs font-medium text-[#1B5E20]">
+            월요일 기본 휴무
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {FACILITY_BUILDINGS.map((building) => {
+            const count = buildingCounts.get(building.value) ?? 0;
+            const isApplying = applyingBuilding === building.value;
+
+            return (
+              <div key={building.value} className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">{building.label}</p>
+                    <p className="text-xs text-gray-500">대상 시설 {count}개</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => applyBuildingSchedule(building.value)}
+                    disabled={isApplying || count === 0}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#1B5E20] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#2E7D32] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isApplying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                    {building.label} 일괄적용
+                  </button>
+                </div>
+                <HoursEditor
+                  hours={buildingScheduleDrafts[building.value]}
+                  onChange={(next) => updateBuildingScheduleDraft(building.value, next)}
+                  dayOrder={MONDAY_FIRST_DAY_ORDER}
+                />
+                <p className="mt-3 text-[11px] text-gray-400">
+                  예약 불가 시간대가 있으면 불가 시작/종료에 입력하세요. 예: 12:00~13:00
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {showForm && (
         <div className="bg-gray-50 rounded-xl border border-gray-200 p-5 space-y-5">
           <div className="flex items-center justify-between">
