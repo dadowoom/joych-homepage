@@ -189,4 +189,18 @@ describe("facility reservation lead-time guard", () => {
       }),
     );
   });
+
+  it("blocks reservation managers when the selected time has already passed", async () => {
+    const caller = appRouter.createCaller(createContext(createUserWithReservationPermission()));
+
+    await expect(
+      caller.home.createReservation(reservationInput({
+        reservationDate: "2026-06-16",
+        startTime: "12:00",
+        endTime: "13:00",
+      }))
+    ).rejects.toBeInstanceOf(TRPCError);
+
+    expect(dbMocks.createReservationIfAvailable).not.toHaveBeenCalled();
+  });
 });

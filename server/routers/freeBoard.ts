@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { normalizeRichTextHtmlContent } from "../_core/contentValidation";
 import { memberProtectedProcedure, publicProcedure, router } from "../_core/trpc";
 import {
   createFreeBoardPost,
@@ -19,6 +20,13 @@ const postInputSchema = z.object({
   content: requiredText(50000, "내용을 입력해주세요."),
 });
 
+function normalizePostInput(input: z.infer<typeof postInputSchema>) {
+  return {
+    title: input.title,
+    content: normalizeRichTextHtmlContent(input.content, 50000),
+  };
+}
+
 export const freeBoardRouter = router({
   posts: publicProcedure.query(() => getPublishedFreeBoardPosts()),
 
@@ -29,10 +37,11 @@ export const freeBoardRouter = router({
   createPost: memberProtectedProcedure
     .input(postInputSchema)
     .mutation(async ({ input, ctx }) => {
+      const normalizedInput = normalizePostInput(input);
       const id = await createFreeBoardPost({
         authorMemberId: ctx.memberId,
-        title: input.title,
-        content: input.content,
+        title: normalizedInput.title,
+        content: normalizedInput.content,
         status: "published",
       });
       if (!id) {
@@ -47,6 +56,7 @@ export const freeBoardRouter = router({
   updatePost: memberProtectedProcedure
     .input(postInputSchema.extend({ id: idSchema }))
     .mutation(async ({ input, ctx }) => {
+      const normalizedInput = normalizePostInput(input);
       const post = await getFreeBoardPostById(input.id);
       if (!post || post.status === "deleted") {
         throw new TRPCError({
@@ -67,8 +77,8 @@ export const freeBoardRouter = router({
         });
       }
       await updateFreeBoardPost(input.id, {
-        title: input.title,
-        content: input.content,
+        title: normalizedInput.title,
+        content: normalizedInput.content,
       });
       return { success: true };
     }),

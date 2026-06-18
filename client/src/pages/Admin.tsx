@@ -280,7 +280,9 @@ export default function AdminPage() {
     const saved = localStorage.getItem("admin_fail_count");
     return saved ? parseInt(saved, 10) : 0;
   });
-  const [collapsedMenuGroups, setCollapsedMenuGroups] = useState<Record<string, boolean>>({});
+  const [collapsedMenuGroups, setCollapsedMenuGroups] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(TAB_GROUPS.map((group) => [group.title, true])),
+  );
   const toggleMenuGroup = (title: string) => {
     setCollapsedMenuGroups(prev => ({
       ...prev,

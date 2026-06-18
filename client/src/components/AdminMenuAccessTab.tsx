@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 
@@ -59,6 +59,14 @@ function getReadLevelDescription(level: ReadLevel) {
 export default function AdminMenuAccessTab() {
   const utils = trpc.useUtils();
   const menusQuery = trpc.cms.menus.list.useQuery();
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  const toggleGroup = (groupLabel: string) => {
+    setCollapsedGroups((prev) => ({
+      ...prev,
+      [groupLabel]: !(prev[groupLabel] ?? true),
+    }));
+  };
 
   const invalidateMenus = async () => {
     await Promise.all([
@@ -194,65 +202,89 @@ export default function AdminMenuAccessTab() {
         </div>
       ) : (
         <div className="space-y-4">
-          {groupedLeaves.map(([groupLabel, leaves]) => (
-            <section key={groupLabel} className="rounded-xl border border-gray-200 bg-white p-4">
-              <div className="mb-3 flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
-                <h4 className="font-bold text-gray-900">{groupLabel}</h4>
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">
-                  {leaves.length}개
-                </span>
-              </div>
+          {groupedLeaves.map(([groupLabel, leaves]) => {
+            const isCollapsed = collapsedGroups[groupLabel] ?? true;
 
-              <div className="divide-y divide-gray-100">
-                {leaves.map((leaf) => {
-                  const currentLevel = getReadLevel(leaf);
+            return (
+              <section key={groupLabel} className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(groupLabel)}
+                  aria-expanded={!isCollapsed}
+                  className={`flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition-colors ${
+                    isCollapsed ? "hover:bg-gray-50" : "bg-[#F1F8F2]"
+                  }`}
+                >
+                  <span className="min-w-0">
+                    <span className="block font-bold text-gray-900">{groupLabel}</span>
+                    <span className="mt-1 block text-xs text-gray-400">
+                      {isCollapsed ? "눌러서 하위 메뉴 권한을 펼쳐보세요." : "하위 메뉴 권한을 수정할 수 있습니다."}
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-500">
+                      {leaves.length}개
+                    </span>
+                    <i
+                      className={`fas fa-chevron-${isCollapsed ? "down" : "up"} text-xs text-gray-400`}
+                      aria-hidden="true"
+                    />
+                  </span>
+                </button>
 
-                  return (
-                    <div
-                      key={`${leaf.kind}-${leaf.id}`}
-                      className="grid gap-3 py-3 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold text-gray-900">{leaf.label}</p>
-                          {!leaf.isVisible && (
-                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">
-                              숨김
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-1 truncate text-xs text-gray-500">{leaf.path}</p>
-                        <p className="mt-1 truncate text-xs text-gray-400">
-                          {leaf.href || "연결 경로 없음"}
-                        </p>
-                      </div>
+                {!isCollapsed && (
+                  <div className="divide-y divide-gray-100 border-t border-gray-100 px-4">
+                    {leaves.map((leaf) => {
+                      const currentLevel = getReadLevel(leaf);
 
-                      <label className="block">
-                        <span className="mb-1 block text-xs font-semibold text-gray-500">
-                          읽기 최소 권한
-                        </span>
-                        <select
-                          className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 outline-none transition focus:border-[#1B5E20] focus:ring-2 focus:ring-[#1B5E20]/15 disabled:bg-gray-50 disabled:text-gray-400"
-                          value={currentLevel}
-                          disabled={isSaving}
-                          onChange={(event) => setAccess(leaf, event.target.value as ReadLevel)}
+                      return (
+                        <div
+                          key={`${leaf.kind}-${leaf.id}`}
+                          className="grid gap-3 py-3 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center"
                         >
-                          {READ_LEVEL_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        <span className="mt-1 block text-xs leading-5 text-gray-400">
-                          {getReadLevelDescription(currentLevel)}
-                        </span>
-                      </label>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-semibold text-gray-900">{leaf.label}</p>
+                              {!leaf.isVisible && (
+                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">
+                                  숨김
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-1 truncate text-xs text-gray-500">{leaf.path}</p>
+                            <p className="mt-1 truncate text-xs text-gray-400">
+                              {leaf.href || "연결 경로 없음"}
+                            </p>
+                          </div>
+
+                          <label className="block">
+                            <span className="mb-1 block text-xs font-semibold text-gray-500">
+                              읽기 최소 권한
+                            </span>
+                            <select
+                              className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 outline-none transition focus:border-[#1B5E20] focus:ring-2 focus:ring-[#1B5E20]/15 disabled:bg-gray-50 disabled:text-gray-400"
+                              value={currentLevel}
+                              disabled={isSaving}
+                              onChange={(event) => setAccess(leaf, event.target.value as ReadLevel)}
+                            >
+                              {READ_LEVEL_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                            <span className="mt-1 block text-xs leading-5 text-gray-400">
+                              {getReadLevelDescription(currentLevel)}
+                            </span>
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            );
+          })}
         </div>
       )}
     </div>

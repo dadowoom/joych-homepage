@@ -242,7 +242,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class: cn(
-          "rich-text-editor-content max-w-none bg-white px-3 py-3 text-sm leading-7 outline-none",
+          "rich-text-editor-content max-w-none min-w-0 overflow-x-hidden overflow-y-auto break-words bg-white px-3 py-3 text-sm leading-7 outline-none [overflow-wrap:anywhere] [&_*]:max-w-full [&_img]:h-auto",
           minHeightClassName
         ),
       },
@@ -270,7 +270,7 @@ export function RichTextEditor({
   }
 
   return (
-    <div id={id} className={cn("overflow-hidden border border-gray-300 bg-white focus-within:border-[#1B5E20]", className)}>
+    <div id={id} className={cn("min-w-0 overflow-hidden border border-gray-300 bg-white focus-within:border-[#1B5E20]", className)}>
       <RichTextToolbar editor={editor} />
       <EditorContent editor={editor} />
     </div>
@@ -287,7 +287,7 @@ export function RichTextViewer({ html, className }: RichTextViewerProps) {
         "rich-text-viewer max-w-none text-sm leading-7 text-gray-700",
         "[&_a]:text-[#1B5E20] [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-[#D8E8DA] [&_blockquote]:pl-4 [&_blockquote]:text-gray-600",
         "[&_h2]:mb-3 [&_h2]:mt-5 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-[#001B3A] [&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:text-lg [&_h3]:font-bold [&_h3]:text-[#001B3A]",
-        "[&_hr]:my-5 [&_hr]:border-gray-200 [&_img]:mx-auto [&_img]:my-5 [&_img]:max-w-full [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:my-2 [&_ul]:ml-5 [&_ul]:list-disc",
+        "min-w-0 break-words [overflow-wrap:anywhere] [&_*]:max-w-full [&_hr]:my-5 [&_hr]:border-gray-200 [&_img]:mx-auto [&_img]:my-5 [&_img]:h-auto [&_img]:max-w-full [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:my-2 [&_ul]:ml-5 [&_ul]:list-disc",
         className
       )}
       dangerouslySetInnerHTML={{ __html: cleanHtml }}

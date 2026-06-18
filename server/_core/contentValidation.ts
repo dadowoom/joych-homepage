@@ -2,6 +2,7 @@ import { z } from "zod";
 
 const SAFE_YOUTUBE_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
 const BLOCK_TYPES = new Set([
+  "html-rich",
   "text-h1",
   "text-h2",
   "text-h3",
@@ -89,6 +90,22 @@ function normalizeNumber(value: unknown, fallback: number, min: number, max: num
   return Math.min(max, Math.max(min, number));
 }
 
+function hasUnsafeRichHtml(value: string) {
+  return (
+    /<\s*(script|iframe|object|embed|style|link|meta)\b/i.test(value) ||
+    /\son[a-z]+\s*=/i.test(value) ||
+    /\b(?:href|src)\s*=\s*(['"]?)\s*(?:javascript:|vbscript:|data:text\/html)/i.test(value)
+  );
+}
+
+export function normalizeRichTextHtmlContent(value: unknown, max = 50000) {
+  const html = normalizeString(value, max);
+  if (hasUnsafeRichHtml(html)) {
+    throw new Error("HTML 본문에 허용되지 않는 코드가 포함되어 있습니다.");
+  }
+  return html;
+}
+
 export function validateBlockType(blockType: string) {
   if (!BLOCK_TYPES.has(blockType)) {
     throw new Error("지원하지 않는 블록 타입입니다.");
@@ -110,6 +127,14 @@ export function normalizeBlockContent(blockType: string, rawContent: string) {
     content = parsed as Record<string, unknown>;
   } catch {
     throw new Error("블록 내용 JSON 형식이 올바르지 않습니다.");
+  }
+
+  if (blockType === "html-rich") {
+    const html = normalizeRichTextHtmlContent(content.html ?? content.text, 20000);
+    if (hasUnsafeRichHtml(html)) {
+      throw new Error("HTML 본문에 허용되지 않는 코드가 포함되어 있습니다.");
+    }
+    return JSON.stringify({ html });
   }
 
   if (blockType.startsWith("text-")) {

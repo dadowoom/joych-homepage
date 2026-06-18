@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { ChevronLeft, ChevronRight, FileText, Pencil, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { RichTextEditor, RichTextViewer, sanitizeRichTextHtml } from "@/components/ui/rich-text-editor";
 import { ViewModeToggle, type ViewMode } from "./ViewModeToggle";
 
 function formatDate(value: string | Date) {
@@ -21,6 +22,13 @@ function isToday(value: string | Date) {
   return date.getFullYear() === today.getFullYear()
     && date.getMonth() === today.getMonth()
     && date.getDate() === today.getDate();
+}
+
+function toPlainText(value?: string | null) {
+  return sanitizeRichTextHtml(value)
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function FreeBoardContent() {
@@ -98,7 +106,7 @@ export function FreeBoardContent() {
     ? posts.filter((post) => {
         const titleText = post.title.toLowerCase();
         const authorText = (post.authorName ?? "성도").toLowerCase();
-        const contentText = post.content.toLowerCase();
+        const contentText = toPlainText(post.content).toLowerCase();
         if (searchField === "author") return authorText.includes(normalizedKeyword);
         if (searchField === "content") return contentText.includes(normalizedKeyword);
         return titleText.includes(normalizedKeyword);
@@ -174,12 +182,12 @@ export function FreeBoardContent() {
               placeholder="제목을 입력해주세요"
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1B5E20] focus:ring-2 focus:ring-[#1B5E20]/10"
             />
-            <textarea
+            <RichTextEditor
               value={content}
-              onChange={(event) => setContent(event.target.value)}
+              onChange={setContent}
               placeholder="내용을 입력해주세요"
-              rows={7}
-              className="w-full resize-y rounded-lg border border-gray-200 px-3 py-2 text-sm leading-6 outline-none focus:border-[#1B5E20] focus:ring-2 focus:ring-[#1B5E20]/10"
+              minHeightClassName="min-h-56 max-h-[55vh]"
+              className="rounded-lg"
             />
             <div className="flex justify-end gap-2">
               <button
@@ -296,8 +304,11 @@ export function FreeBoardContent() {
                       {isExpanded && (
                         <tr className="bg-gray-50/70">
                           <td colSpan={4} className="px-8 py-5">
-                            <div className="whitespace-pre-line border-l-2 border-[#1B5E20]/30 pl-4 text-sm leading-7 text-gray-700">
-                              {post.content}
+                            <div className="border-l-2 border-[#1B5E20]/30 pl-4">
+                              <RichTextViewer
+                                html={post.content}
+                                className="text-sm leading-7 text-gray-700"
+                              />
                             </div>
                             {isOwner && (
                               <div className="mt-4 flex justify-end gap-1">
@@ -378,9 +389,12 @@ export function FreeBoardContent() {
                     )}
                   </div>
                   {isExpanded && (
-                    <p className="mt-4 whitespace-pre-line border-l-2 border-[#1B5E20]/30 pl-3 text-sm leading-6 text-gray-700">
-                      {post.content}
-                    </p>
+                    <div className="mt-4 border-l-2 border-[#1B5E20]/30 pl-3">
+                      <RichTextViewer
+                        html={post.content}
+                        className="text-sm leading-6 text-gray-700"
+                      />
+                    </div>
                   )}
                 </article>
               );

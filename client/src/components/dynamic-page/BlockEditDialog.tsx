@@ -192,7 +192,7 @@ export function BlockEditDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{isNew ? "블록 추가" : "블록 수정"}</DialogTitle>
         </DialogHeader>
@@ -225,7 +225,7 @@ export function BlockEditDialog({
                 value={html}
                 onChange={setHtml}
                 placeholder="본문을 입력해주세요."
-                minHeightClassName="min-h-72"
+                minHeightClassName="min-h-72 max-h-[55vh]"
               />
               <p className="text-xs text-gray-400">
                 제목, 본문, 목록, 링크, 정렬, 이미지 URL 삽입을 사용할 수 있습니다.
@@ -241,7 +241,8 @@ export function BlockEditDialog({
                   내용
                 </label>
                 <textarea
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm min-h-[120px] resize-y"
+                  className="min-h-[120px] max-h-[55vh] w-full resize-y overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-gray-300 px-3 py-2 text-sm [overflow-wrap:anywhere]"
+                  wrap="soft"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   placeholder={
@@ -280,7 +281,7 @@ export function BlockEditDialog({
                   <span className="text-xs text-gray-400">px</span>
                 </div>
                 <p
-                  className="mt-2 text-gray-500 border border-dashed border-gray-200 rounded p-2 truncate"
+                  className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap break-words rounded border border-dashed border-gray-200 p-2 text-gray-500 [overflow-wrap:anywhere]"
                   style={{ fontSize: `${fontSize}px` }}
                 >
                   {text || "미리보기"}

@@ -11,6 +11,7 @@ import type { Facility, FacilityHour, FacilityImage, FacilityBlockedDate } from 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Users, MapPin, Clock, ChevronLeft, ChevronRight, Phone, AlertCircle, CalendarCheck, Loader2 } from "lucide-react";
+import { getReservationTimeRestriction } from "@/lib/facilityReservationTime";
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -164,6 +165,16 @@ function TimeSlotPanel({
     return slots;
   }, [todayHour, slotMinutes]);
 
+  const disabledSlots = useMemo(() => {
+    const disabled = new Map<string, string>();
+    if (!selectedDate) return disabled;
+    allSlots.forEach((slot) => {
+      const restriction = getReservationTimeRestriction(selectedDate, slot);
+      if (restriction) disabled.set(slot, restriction);
+    });
+    return disabled;
+  }, [allSlots, selectedDate]);
+
   // 날짜 포맷 (예: 2026년 4월 18일 (금))
   const dateLabel = useMemo(() => {
     const d = new Date(selectedDate);
@@ -175,7 +186,7 @@ function TimeSlotPanel({
   // - 시작 시간만 선택된 상태 → 종료 시간 선택 (시작보다 뒤여야 함)
   // - 둘 다 선택된 상태 → 초기화 후 시작 시간 재선택
   function handleSlotClick(slot: string) {
-    if (bookedSlots.has(slot)) return; // 예약된 슬롯은 클릭 불가
+    if (bookedSlots.has(slot) || disabledSlots.has(slot)) return;
 
     // 종료 시간(closeTime) 슬롯은 시작 시간으로 선택 불가
     const lastSlot = allSlots[allSlots.length - 1];
@@ -207,7 +218,8 @@ function TimeSlotPanel({
         while (cur < end) {
           const h = Math.floor(cur / 60);
           const m = cur % 60;
-          if (bookedSlots.has(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`)) {
+          const slotKey = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+          if (bookedSlots.has(slotKey) || disabledSlots.has(slotKey)) {
             hasConflict = true;
             break;
           }
@@ -270,6 +282,8 @@ function TimeSlotPanel({
               <div className="flex flex-wrap gap-1.5">
             {allSlots.map((slot) => {
               const isBooked = bookedSlots.has(slot);
+              const disabledReason = disabledSlots.get(slot);
+              const isDisabled = isBooked || Boolean(disabledReason);
               const isStart = slot === startTime;
               const isEnd = slot === endTime;
               const isInRange = startTime && endTime && slot > startTime && slot < endTime;
@@ -278,10 +292,10 @@ function TimeSlotPanel({
               return (
                 <div key={slot} className="relative group">
                   <button
-                    disabled={isBooked}
+                    disabled={isDisabled}
                     onClick={() => handleSlotClick(slot)}
                     className={`text-xs px-2.5 py-1.5 rounded-md font-medium transition-colors ${
-                      isBooked
+                      isDisabled
                         ? "bg-red-100 text-red-400 line-through cursor-not-allowed"
                         : isStart || isEnd
                         ? "bg-[#1B5E20] text-white ring-2 ring-[#1B5E20] ring-offset-1"
@@ -292,9 +306,9 @@ function TimeSlotPanel({
                   >
                     {slot}
                   </button>
-                  {isBooked && (
+                  {isDisabled && (
                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-gray-800 text-white text-[10px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                      예약 불가
+                      {disabledReason ?? "예약 불가"}
                       <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                     </div>
                   )}

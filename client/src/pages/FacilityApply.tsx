@@ -13,6 +13,7 @@ import type { FacilityBlockedDate } from "../../../drizzle/schema";
 import { toast } from "sonner";
 import { Loader2, ChevronRight, Clock, Users, MapPin, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getKstDateKey, getReservationTimeRestriction } from "@/lib/facilityReservationTime";
 
 // ── 목적 옵션 ────────────────────────────────────────────────
 const PURPOSE_OPTIONS = [
@@ -144,6 +145,7 @@ function SuccessScreen({ facilityName, status, count, recurrenceLabel, facilityL
 function TimeSlotPicker({
   allSlots,
   bookedSlots,
+  disabledSlots = new Map<string, string>(),
   startTime,
   endTime,
   onSelect,
@@ -152,6 +154,7 @@ function TimeSlotPicker({
 }: {
   allSlots: string[];
   bookedSlots: Set<string>;
+  disabledSlots?: Map<string, string>;
   startTime: string;
   endTime: string;
   onSelect: (start: string, end: string) => void;
@@ -161,7 +164,7 @@ function TimeSlotPicker({
   const lastSlot = allSlots[allSlots.length - 1];
 
   function handleSlotClick(slot: string) {
-    if (bookedSlots.has(slot)) return;
+    if (bookedSlots.has(slot) || disabledSlots.has(slot)) return;
 
     // 아무것도 선택 안 됐거나 둘 다 선택된 경우 → 시작 시간 재선택
     if (!startTime || (startTime && endTime)) {
@@ -196,7 +199,7 @@ function TimeSlotPicker({
     while (cur < end) {
       const h = Math.floor(cur / 60).toString().padStart(2, "0");
       const m = (cur % 60).toString().padStart(2, "0");
-      if (bookedSlots.has(`${h}:${m}`)) {
+      if (bookedSlots.has(`${h}:${m}`) || disabledSlots.has(`${h}:${m}`)) {
         hasConflict = true;
         break;
       }
@@ -222,6 +225,8 @@ function TimeSlotPicker({
       <div className="flex flex-wrap gap-1.5">
         {allSlots.map((slot) => {
           const isBooked = bookedSlots.has(slot);
+          const disabledReason = disabledSlots.get(slot);
+          const isDisabled = isBooked || Boolean(disabledReason);
           const isStart = slot === startTime;
           const isEnd = slot === endTime;
           const isInRange = startTime && endTime && slot > startTime && slot < endTime;
@@ -230,10 +235,10 @@ function TimeSlotPicker({
             <div key={slot} className="relative group">
               <button
                 type="button"
-                disabled={isBooked}
+                disabled={isDisabled}
                 onClick={() => handleSlotClick(slot)}
                 className={`text-xs px-2.5 py-1.5 rounded-md font-medium transition-all ${
-                  isBooked
+                  isDisabled
                     ? "bg-red-100 text-red-400 line-through cursor-not-allowed"
                     : isStart || isEnd
                     ? "bg-[#1B5E20] text-white ring-2 ring-[#1B5E20] ring-offset-1 scale-105"
@@ -244,9 +249,9 @@ function TimeSlotPicker({
               >
                 {slot}
               </button>
-              {isBooked && (
+              {isDisabled && (
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-gray-800 text-white text-[10px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                  예약 불가
+                  {disabledReason ?? "예약 불가"}
                   <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                 </div>
               )}
@@ -386,6 +391,16 @@ export default function FacilityApply() {
     return booked;
   }, [reservationsByDate, unitMinutes]);
 
+  const disabledTimeSlots = useMemo(() => {
+    const disabled = new Map<string, string>();
+    if (!form.date) return disabled;
+    allTimeSlots.forEach((slot) => {
+      const restriction = getReservationTimeRestriction(form.date, slot);
+      if (restriction) disabled.set(slot, restriction);
+    });
+    return disabled;
+  }, [allTimeSlots, form.date]);
+
   // 날짜 비활성화 여부
   const blockedDateSet = useMemo(() => {
     return new Set((blockedDates ?? []).map(b => b.blockedDate));
@@ -417,6 +432,8 @@ export default function FacilityApply() {
     if (!form.startTime) return "시작 시간을 선택해 주세요.";
     if (!form.endTime) return "종료 시간을 선택해 주세요.";
     if (form.startTime >= form.endTime) return "종료 시간은 시작 시간보다 늦어야 합니다.";
+    const timeRestriction = getReservationTimeRestriction(form.date, form.startTime);
+    if (timeRestriction) return timeRestriction;
     if (!form.attendees || Number(form.attendees) < 1) return "예상 인원을 입력해 주세요.";
     if (facility && Number(form.attendees) > facility.capacity) return `최대 수용 인원(${facility.capacity}명)을 초과합니다.`;
     if (form.repeatType !== "none") {
@@ -620,7 +637,7 @@ export default function FacilityApply() {
                       name="date"
                       value={form.date}
                       onChange={handleChange}
-                      min={new Date().toISOString().split("T")[0]}
+                      min={getKstDateKey()}
                       className={inputClass}
                     />
                   )}
@@ -661,6 +678,7 @@ export default function FacilityApply() {
                         <TimeSlotPicker
                           allSlots={allTimeSlots}
                           bookedSlots={bookedSlots}
+                          disabledSlots={disabledTimeSlots}
                           startTime={form.startTime}
                           endTime={form.endTime}
                           onSelect={handleTimeSelect}
@@ -691,7 +709,7 @@ export default function FacilityApply() {
                         name="repeatUntilDate"
                         value={form.repeatUntilDate}
                         onChange={handleChange}
-                        min={form.date || new Date().toISOString().split("T")[0]}
+                        min={form.date || getKstDateKey()}
                         aria-label="반복 종료일"
                         className={inputClass}
                       />

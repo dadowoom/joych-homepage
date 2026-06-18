@@ -28,8 +28,8 @@ const STATUS_LABELS: Record<string, { text: string; color: string }> = {
 };
 
 const VIEW_LABELS: { key: ViewMode; label: string }[] = [
-  { key: "position", label: "직분별" },
   { key: "list", label: "전체보기" },
+  { key: "position", label: "직분별" },
   { key: "district", label: "구역/순별" },
   { key: "department", label: "부서별" },
 ];
@@ -272,128 +272,140 @@ export default function AdminMembersTab() {
       </div>
 
       {/* ── 필터 영역 ── */}
-      <div className="bg-gray-50 rounded-xl p-3 mb-4 space-y-2">
+      <div className="bg-gray-50 rounded-xl p-3 mb-4 space-y-3">
         {/* 상태 필터 */}
-        <div className="flex flex-wrap gap-1">
-          {(["all", "pending", "approved", "rejected", "withdrawn"] as StatusFilter[]).map((s) => (
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+          <span className="w-20 shrink-0 text-xs font-semibold text-gray-500">전체상태</span>
+          <div className="flex flex-wrap gap-1">
+            {(["all", "pending", "approved", "rejected", "withdrawn"] as StatusFilter[]).map((s) => (
+              <button
+                key={s}
+                onClick={() => changeFilter(setStatusFilter)(s)}
+                className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
+                  statusFilter === s
+                    ? "bg-[#1B5E20] text-white"
+                    : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                {s === "all" ? "전체 상태" : STATUS_LABELS[s]?.text}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+          <span className="w-20 shrink-0 text-xs font-semibold text-gray-500">전체보기</span>
+          <div className="flex flex-wrap gap-1">
+            {VIEW_LABELS.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => changeFilter(setViewMode)(key)}
+                className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
+                  viewMode === key
+                    ? "bg-[#1B5E20] text-white"
+                    : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+          <span className="w-20 shrink-0 text-xs font-semibold text-gray-500">기본정보</span>
+          <div className="flex flex-wrap gap-1">
             <button
-              key={s}
-              onClick={() => changeFilter(setStatusFilter)(s)}
+              onClick={() => changeFilter(setBasicMissingOnly)(!basicMissingOnly)}
               className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
-                statusFilter === s
+                basicMissingOnly
                   ? "bg-[#1B5E20] text-white"
                   : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-100"
               }`}
             >
-              {s === "all" ? "전체 상태" : STATUS_LABELS[s]?.text}
+              기본정보 미입력
             </button>
-          ))}
-        </div>
-
-        <div className="flex flex-wrap gap-1">
-          {VIEW_LABELS.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => changeFilter(setViewMode)(key)}
-              className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
-                viewMode === key
-                  ? "bg-[#1B5E20] text-white"
-                  : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex flex-wrap gap-1">
-          <button
-            onClick={() => changeFilter(setBasicMissingOnly)(!basicMissingOnly)}
-            className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
-              basicMissingOnly
-                ? "bg-[#1B5E20] text-white"
-                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-100"
-            }`}
-          >
-            기본정보 미입력
-          </button>
+          </div>
         </div>
 
         {/* 구역 / 직분 / 검색 */}
-        <div className="flex flex-col sm:flex-row gap-2">
-          <select
-            value={districtFilter}
-            onChange={(e) => changeFilter(setDistrictFilter)(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
-          >
-            <option value="">전체 구역/순</option>
-            {districtOptions.map(o => (
-              <option key={o.id} value={o.label}>{o.label}</option>
-            ))}
-          </select>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <span className="w-20 shrink-0 pt-2 text-xs font-semibold text-gray-500">상세분류</span>
+          <div className="flex flex-1 flex-col gap-2 sm:flex-row">
+            <select
+              value={positionFilter}
+              onChange={(e) => changeFilter(setPositionFilter)(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
+            >
+              <option value="">전체 직분</option>
+              {positionOptions.map(o => (
+                <option key={o.id} value={o.label}>{o.label}</option>
+              ))}
+            </select>
 
-          <select
-            value={positionFilter}
-            onChange={(e) => changeFilter(setPositionFilter)(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
-          >
-            <option value="">전체 직분</option>
-            {positionOptions.map(o => (
-              <option key={o.id} value={o.label}>{o.label}</option>
-            ))}
-          </select>
+            <select
+              value={districtFilter}
+              onChange={(e) => changeFilter(setDistrictFilter)(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
+            >
+              <option value="">전체 구역/순</option>
+              {districtOptions.map(o => (
+                <option key={o.id} value={o.label}>{o.label}</option>
+              ))}
+            </select>
 
-          <select
-            value={departmentFilter}
-            onChange={(e) => changeFilter(setDepartmentFilter)(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
-          >
-            <option value="">전체 부서</option>
-            {departmentOptions.map(o => (
-              <option key={o.id} value={o.label}>{o.label}</option>
-            ))}
-          </select>
+            <select
+              value={departmentFilter}
+              onChange={(e) => changeFilter(setDepartmentFilter)(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
+            >
+              <option value="">전체 부서</option>
+              {departmentOptions.map(o => (
+                <option key={o.id} value={o.label}>{o.label}</option>
+              ))}
+            </select>
 
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => { changeFilter(setSearchQuery)(e.target.value); }}
-            placeholder="이름, 연락처, 이메일 검색..."
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
-          />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => { changeFilter(setSearchQuery)(e.target.value); }}
+              placeholder="이름, 연락처, 이메일 검색..."
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
+            />
 
-          <select
-            value={pageSize}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value) as PageSize);
-              setPage(1);
-            }}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
-          >
-            {PAGE_SIZE_OPTIONS.map((size) => (
-              <option key={size} value={size}>{size}명씩</option>
-            ))}
-          </select>
-
-          {/* 필터 초기화 */}
-          {(statusFilter !== "all" || districtFilter || positionFilter || departmentFilter || basicMissingOnly || searchQuery || viewMode !== "list" || pageSize !== 50) && (
-            <button
-              onClick={() => {
-                setStatusFilter("all");
-                setDistrictFilter("");
-                setPositionFilter("");
-                setDepartmentFilter("");
-                setBasicMissingOnly(false);
-                setSearchQuery("");
-                setViewMode("list");
-                setPageSize(50);
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value) as PageSize);
                 setPage(1);
               }}
-              className="text-xs text-gray-400 hover:text-gray-600 px-2 whitespace-nowrap"
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
             >
-              초기화
-            </button>
-          )}
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>{size}명씩</option>
+              ))}
+            </select>
+
+            {/* 필터 초기화 */}
+            {(statusFilter !== "all" || districtFilter || positionFilter || departmentFilter || basicMissingOnly || searchQuery || viewMode !== "list" || pageSize !== 50) && (
+              <button
+                onClick={() => {
+                  setStatusFilter("all");
+                  setDistrictFilter("");
+                  setPositionFilter("");
+                  setDepartmentFilter("");
+                  setBasicMissingOnly(false);
+                  setSearchQuery("");
+                  setViewMode("list");
+                  setPageSize(50);
+                  setPage(1);
+                }}
+                className="text-xs text-gray-400 hover:text-gray-600 px-2 whitespace-nowrap"
+              >
+                초기화
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

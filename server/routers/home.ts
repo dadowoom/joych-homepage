@@ -109,11 +109,27 @@ function getKstDateTime(dateKey: string, time: string) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function assertReservationLeadTime(dateKey: string, startTime: string) {
+function getReservationStartOrThrow(dateKey: string, startTime: string) {
   const startAt = getKstDateTime(dateKey, startTime);
   if (!startAt) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "예약 날짜와 시간이 올바르지 않습니다." });
   }
+  return startAt;
+}
+
+function assertReservationStartsInFuture(dateKey: string, startTime: string) {
+  const startAt = getReservationStartOrThrow(dateKey, startTime);
+  if (startAt.getTime() <= Date.now()) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "이미 시작했거나 지난 시간은 예약할 수 없습니다.",
+    });
+  }
+  return startAt;
+}
+
+function assertReservationLeadTime(dateKey: string, startTime: string) {
+  const startAt = assertReservationStartsInFuture(dateKey, startTime);
   if (startAt.getTime() - Date.now() < MIN_RESERVATION_LEAD_TIME_MS) {
     throw new TRPCError({
       code: "BAD_REQUEST",
@@ -537,6 +553,7 @@ export const homeRouter = router({
             message: "지난 날짜는 예약할 수 없습니다.",
           });
         }
+        assertReservationStartsInFuture(reservationDate, input.startTime);
         // ④ 운영시간 확인 (해당 요일의 운영시간 조회)
         if (!canBypassLeadTime) {
           assertReservationLeadTime(reservationDate, input.startTime);

@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { sanitizeRichTextHtml } from "@/components/ui/rich-text-editor";
 
 const STATUS_LABELS: Record<string, string> = {
   published: "공개",
@@ -17,6 +18,13 @@ function formatDate(value: string | Date) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleDateString("ko-KR");
+}
+
+function toPlainText(value?: string | null) {
+  return sanitizeRichTextHtml(value)
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export default function AdminFreeBoardTab() {
@@ -63,7 +71,7 @@ export default function AdminFreeBoardTab() {
                 <p className="mt-1 text-xs text-gray-400">
                   {post.authorName ?? "성도"} · {formatDate(post.createdAt)}
                 </p>
-                <p className="mt-2 line-clamp-2 text-sm text-gray-500">{post.content}</p>
+                <p className="mt-2 line-clamp-2 text-sm text-gray-500">{toPlainText(post.content)}</p>
               </div>
               <div className="flex shrink-0 gap-1">
                 <button
