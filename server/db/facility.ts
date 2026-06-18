@@ -108,13 +108,25 @@ export async function getFacilityImages(facilityId: number) {
   if (!db) return [];
   return db.select().from(facilityImages)
     .where(eq(facilityImages.facilityId, facilityId))
-    .orderBy(asc(facilityImages.sortOrder));
+    .orderBy(desc(facilityImages.isThumbnail), asc(facilityImages.sortOrder), asc(facilityImages.id));
 }
 
 /** 시설 사진 추가 */
 export async function addFacilityImage(data: Omit<InsertFacilityImage, 'id' | 'createdAt'>) {
   const db = await getDb();
   if (!db) return null;
+  if (data.isThumbnail) {
+    const result = await db.transaction(async (tx) => {
+      await tx.update(facilityImages)
+        .set({ isThumbnail: false })
+        .where(eq(facilityImages.facilityId, data.facilityId));
+      const [insertResult] = await tx.insert(facilityImages)
+        .values({ ...data, isThumbnail: true })
+        .$returningId();
+      return insertResult;
+    });
+    return result?.id ?? null;
+  }
   const [result] = await db.insert(facilityImages).values(data).$returningId();
   return result?.id ?? null;
 }

@@ -33,7 +33,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import type { Facility, FacilityBlockedDate } from "../../../drizzle/schema";
+import type { Facility, FacilityBlockedDate, FacilityImage } from "../../../drizzle/schema";
 import {
   Plus, Pencil, Trash2, Loader2, ChevronDown, ChevronUp,
   Upload, X, Clock, Calendar, Users, CheckCircle2,
@@ -103,6 +103,7 @@ interface FacilityForm {
 }
 
 type FacilityImageDraft = {
+  id?: number;
   imageUrl: string;
   isThumbnail: boolean;
   base64?: string;
@@ -349,12 +350,16 @@ function ImageUploadArea({
   images,
   onUpload,
   onRemove,
+  onSetThumbnail,
   uploading,
+  busyImageId,
 }: {
   images: FacilityImageDraft[];
   onUpload: (file: File) => void;
   onRemove: (idx: number) => void;
+  onSetThumbnail: (idx: number) => void;
   uploading: boolean;
+  busyImageId?: number | null;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   return (
@@ -366,9 +371,20 @@ function ImageUploadArea({
             {img.isThumbnail && (
               <span className="absolute bottom-0 left-0 right-0 bg-[#1B5E20]/80 text-white text-[9px] text-center py-0.5">대표</span>
             )}
+            {!img.isThumbnail && img.id && (
+              <button
+                type="button"
+                onClick={() => onSetThumbnail(idx)}
+                disabled={busyImageId === img.id}
+                className="absolute bottom-1 left-1 rounded bg-white/90 px-1.5 py-0.5 text-[9px] font-medium text-[#1B5E20] opacity-0 shadow-sm transition-opacity group-hover:opacity-100 disabled:opacity-50"
+              >
+                대표
+              </button>
+            )}
             <button type="button" onClick={() => onRemove(idx)}
-              className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              <X className="w-2.5 h-2.5" />
+              disabled={busyImageId === img.id}
+              className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50">
+              {busyImageId === img.id ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <X className="w-2.5 h-2.5" />}
             </button>
           </div>
         ))}
@@ -396,6 +412,7 @@ export default function AdminFacilitiesTab() {
   const [hours, setHours] = useState(createDefaultHours());
   const [images, setImages] = useState<FacilityImageDraft[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [busyImageId, setBusyImageId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [newBlockDate, setNewBlockDate] = useState("");
   const [newBlockReason, setNewBlockReason] = useState("");
@@ -425,12 +442,25 @@ export default function AdminFacilitiesTab() {
     { facilityId: editingId ?? 0 },
     { enabled: editingId !== null }
   );
+  const { data: editingFacilityImages } = trpc.cms.facilities.images.list.useQuery(
+    { facilityId: editingId ?? 0 },
+    { enabled: editingId !== null }
+  );
 
   useEffect(() => {
     if (editingId === null || editingFacilityHours === undefined) return;
     if (editingFacilityHours.some(hour => hour.facilityId !== editingId)) return;
     setHours(mergeFacilityHours(editingFacilityHours));
   }, [editingFacilityHours, editingId]);
+
+  useEffect(() => {
+    if (editingId === null || editingFacilityImages === undefined) return;
+    setImages(editingFacilityImages.map((image: FacilityImage) => ({
+      id: image.id,
+      imageUrl: image.imageUrl,
+      isThumbnail: image.isThumbnail,
+    })));
+  }, [editingFacilityImages, editingId]);
 
   // ── Mutations ─────────────────────────────────────────
   const createFacility = trpc.cms.facilities.create.useMutation({
@@ -513,6 +543,8 @@ export default function AdminFacilitiesTab() {
   });
 
   const uploadImageMutation = trpc.cms.facilities.images.upload.useMutation();
+  const deleteImageMutation = trpc.cms.facilities.images.delete.useMutation();
+  const setThumbnailMutation = trpc.cms.facilities.images.setThumbnail.useMutation();
   const upsertHour = trpc.cms.facilities.hours.upsert.useMutation();
 
   const addBlockedDate = trpc.cms.facilities.blockedDates.add.useMutation({
@@ -528,6 +560,11 @@ export default function AdminFacilitiesTab() {
     onSuccess: () => { utils.cms.facilities.blockedDates.list.invalidate(); toast.success("삭제되었습니다."); },
   });
 
+  function invalidateFacilityImages(facilityId: number) {
+    utils.cms.facilities.images.list.invalidate({ facilityId });
+    utils.home.facilityImages.invalidate({ facilityId });
+  }
+
   // ── 이미지 업로드 ─────────────────────────────────────
   async function handleImageUpload(file: File) {
     setUploadingImage(true);
@@ -540,14 +577,18 @@ export default function AdminFacilitiesTab() {
       });
 
       if (editingId) {
-        // 수정 모드: 즉시 서버에 업로드
+        // 수정 모드: 즉시 서버에 업로드하고 새 이미지를 대표 사진으로 교체
         const result = await uploadImageMutation.mutateAsync({
           facilityId: editingId,
           base64,
           mimeType: file.type,
-          isThumbnail: images.length === 0,
+          isThumbnail: true,
         });
-        setImages(prev => [...prev, { imageUrl: result.url, isThumbnail: prev.length === 0 }]);
+        setImages(prev => [
+          { id: result.id ?? undefined, imageUrl: result.url, isThumbnail: true },
+          ...prev.map(image => ({ ...image, isThumbnail: false })),
+        ]);
+        invalidateFacilityImages(editingId);
       } else {
         // 등록 모드: 로컬 미리보기 후 저장 시 서버 업로드
         const localUrl = URL.createObjectURL(file);
@@ -566,7 +607,29 @@ export default function AdminFacilitiesTab() {
     }
   }
 
-  function handleImageRemove(idx: number) {
+  async function handleImageRemove(idx: number) {
+    const target = images[idx];
+    if (editingId && target?.id) {
+      setBusyImageId(target.id);
+      try {
+        await deleteImageMutation.mutateAsync({ id: target.id });
+        const next = images.filter((_, i) => i !== idx);
+        if (target.isThumbnail && next[0]?.id) {
+          await setThumbnailMutation.mutateAsync({ facilityId: editingId, imageId: next[0].id });
+          setImages(next.map((image, imageIndex) => ({ ...image, isThumbnail: imageIndex === 0 })));
+        } else {
+          setImages(next);
+        }
+        invalidateFacilityImages(editingId);
+        toast.success("시설 사진이 삭제되었습니다.");
+      } catch {
+        toast.error("시설 사진 삭제에 실패했습니다.");
+      } finally {
+        setBusyImageId(null);
+      }
+      return;
+    }
+
     setImages(prev => {
       const removed = prev[idx];
       if (removed?.localPreview) URL.revokeObjectURL(removed.imageUrl);
@@ -574,6 +637,26 @@ export default function AdminFacilitiesTab() {
       if (next.length > 0) next[0] = { ...next[0], isThumbnail: true };
       return next;
     });
+  }
+
+  async function handleSetThumbnail(idx: number) {
+    const target = images[idx];
+    if (!target) return;
+    if (editingId && target.id) {
+      setBusyImageId(target.id);
+      try {
+        await setThumbnailMutation.mutateAsync({ facilityId: editingId, imageId: target.id });
+        setImages(prev => prev.map((image, imageIndex) => ({ ...image, isThumbnail: imageIndex === idx })));
+        invalidateFacilityImages(editingId);
+        toast.success("대표 사진이 변경되었습니다.");
+      } catch {
+        toast.error("대표 사진 변경에 실패했습니다.");
+      } finally {
+        setBusyImageId(null);
+      }
+      return;
+    }
+    setImages(prev => prev.map((image, imageIndex) => ({ ...image, isThumbnail: imageIndex === idx })));
   }
 
   // ── 폼 초기화 ─────────────────────────────────────────
@@ -801,7 +884,9 @@ export default function AdminFacilitiesTab() {
               images={images}
               onUpload={handleImageUpload}
               onRemove={handleImageRemove}
+              onSetThumbnail={handleSetThumbnail}
               uploading={uploadingImage}
+              busyImageId={busyImageId}
             />
           </div>
 
