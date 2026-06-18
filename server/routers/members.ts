@@ -9,6 +9,7 @@
  *   - logout: 성도 로그아웃
  *   - me: 내 정보 조회
  *   - updateMyInfo: 내 기본 정보 수정
+ *   - updateMyChurchInfo: 내 교회 정보 수정
  *   - adminList: 전체 성도 목록 (관리자)
  *   - pendingList: 승인 대기 성도 목록 (관리자)
  *   - updateChurchInfo: 성도 교회 정보 수정 (관리자)
@@ -20,7 +21,7 @@
  * 인증 방식: church_member_session 쿠키 (JWT)
  * 접근 권한:
  *   - 공개: fieldOptions, register, login, logout, me
- *   - 성도: searchByName, updateMyInfo
+ *   - 성도: searchByName, updateMyInfo, updateMyChurchInfo
  *   - 관리자: adminList, pendingList, updateChurchInfo, adminFieldOptions, 등
  */
 
@@ -60,6 +61,10 @@ import {
 
 const idSchema = z.number().int().positive();
 const fieldTypeSchema = z.enum(["position", "department", "district", "baptism"]);
+const editableChurchDate = z.string()
+  .trim()
+  .refine((value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value), "날짜 형식은 YYYY-MM-DD여야 합니다.")
+  .optional();
 
 function sanitizeMemberForSelf<T extends Record<string, unknown>>(member: T) {
   const { passwordHash: _passwordHash, adminMemo: _adminMemo, ...safeData } = member;
@@ -293,6 +298,26 @@ export const membersRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       await updateMemberBasicInfo(ctx.memberId, input);
+      return { success: true };
+    }),
+
+  /**
+   * 내 교회 정보 수정
+   * - 승인된 성도 본인만 자기 교회 정보 필드를 수정할 수 있음
+   * - status/adminMemo/소셜 연결 등 관리자 전용 필드는 제외
+   */
+  updateMyChurchInfo: memberProtectedProcedure
+    .input(z.object({
+      position: optionalText(64),
+      department: optionalText(64),
+      district: optionalText(64),
+      baptismType: optionalText(32),
+      baptismDate: editableChurchDate,
+      registeredAt: editableChurchDate,
+      pastor: optionalText(64),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await updateMemberChurchInfo(ctx.memberId, input);
       return { success: true };
     }),
 

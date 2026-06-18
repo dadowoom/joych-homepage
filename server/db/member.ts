@@ -262,7 +262,7 @@ export async function updateMemberBasicInfo(id: number, data: Partial<{
   await db.update(churchMembers).set({ ...data, updatedAt: new Date() }).where(eq(churchMembers.id, id));
 }
 
-/** 성도 교회 정보 수정 (관리자 전용) */
+/** 성도 교회 정보 수정 */
 export async function updateMemberChurchInfo(id: number, data: Partial<{
   position: string;
   department: string;
