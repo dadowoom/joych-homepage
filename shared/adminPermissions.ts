@@ -29,6 +29,7 @@ export const STATIC_ADMIN_PERMISSIONS: AdminPermissionDefinition[] = [
   { key: "content:testimonies", label: "생명 간증 관리", group: "콘텐츠/노출 관리", tab: "testimonies" },
   { key: "content:freeBoard", label: "자유게시판 관리", group: "콘텐츠/노출 관리", tab: "freeBoard" },
   { key: "content:popups", label: "팝업 관리", group: "콘텐츠/노출 관리", tab: "popups" },
+  { key: "content:history", label: "교회연혁 관리", group: "콘텐츠/노출 관리", tab: "history" },
   { key: "content:gallery", label: "갤러리/사진 관리", group: "콘텐츠/노출 관리" },
   { key: "content:notices", label: "공지사항 관리", group: "콘텐츠/노출 관리" },
   { key: SUPPORT_REQUEST_ROOT_PERMISSION_KEY, label: "접수 관리 전체", group: "접수/예약 관리", tab: "supportRequests" },

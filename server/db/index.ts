@@ -41,3 +41,4 @@ export * from "./support";
 export * from "./course";
 export * from "./bulletin";
 export * from "./adminPermissions";
+export * from "./history";

@@ -58,9 +58,7 @@ const DynamicMenuSubItemPage = lazy(() =>
 const PastorGreeting = lazy(() =>
   import("./pages/About").then(module => ({ default: module.PastorGreeting }))
 );
-const ChurchHistory = lazy(() =>
-  import("./pages/About").then(module => ({ default: module.ChurchHistory }))
-);
+const ChurchHistory = lazy(() => import("./pages/ChurchHistory"));
 const ChurchVision = lazy(() =>
   import("./pages/About").then(module => ({ default: module.ChurchVision }))
 );

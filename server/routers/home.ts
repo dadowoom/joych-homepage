@@ -49,6 +49,7 @@ import {
   getVisibleStaffMembers,
   getAllStaffTitleOptions,
   listPublishedBulletins,
+  getPublicHistory,
   getVisibleCourses,
   getVisibleCourseById,
   createOrReopenCourseApplication,
@@ -296,6 +297,9 @@ export const homeRouter = router({
 
   /** 사이트 설정 (교회명, 주소, 연락처 등) */
   settings: publicProcedure.query(() => getSiteSettings()),
+
+  /** 교회연혁 공개 데이터 */
+  history: publicProcedure.query(() => getPublicHistory()),
 
   /** 섬기는 분 / 교역자 소개 목록 */
   staff: publicProcedure

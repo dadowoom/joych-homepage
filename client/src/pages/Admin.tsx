@@ -37,6 +37,7 @@ import AdminCoursesTab from "@/components/AdminCoursesTab";
 import AdminBulletinsTab from "@/components/AdminBulletinsTab";
 import AdminPermissionsTab from "@/components/AdminPermissionsTab";
 import AdminMenuAccessTab from "@/components/AdminMenuAccessTab";
+import AdminChurchHistoryTab from "@/components/AdminChurchHistoryTab";
 import YoutubeAdminTab from "@/components/YoutubeAdminTab";
 import { SettingsTab } from "@/components/admin/SettingsTab";
 import {
@@ -62,6 +63,7 @@ type Tab =
   | "bulletins"
   | "youtube"
   | "popups"
+  | "history"
   | "menuAccess"
   | "permissions";
 
@@ -140,6 +142,13 @@ const TABS: TabItem[] = [
     status: "공지 노출",
   },
   {
+    id: "history",
+    label: "교회연혁 관리",
+    icon: "fa-history",
+    description: "교회연혁의 년대와 연도별 내용을 등록하고 노출 상태를 관리합니다.",
+    status: "연혁 관리",
+  },
+  {
     id: "members",
     label: "성도 관리",
     icon: "fa-users",
@@ -213,7 +222,7 @@ const TAB_GROUPS: TabGroup[] = [
   {
     title: "콘텐츠/노출 관리",
     description: "홈페이지에 공개되는 자료",
-    tabs: ["youtube", "bulletins", "testimonies", "freeBoard", "popups"],
+    tabs: ["youtube", "bulletins", "testimonies", "freeBoard", "popups", "history"],
   },
   {
     title: "성도/사역 관리",
@@ -713,6 +722,7 @@ export default function AdminPage() {
               {activeTab === "bulletins" && <AdminBulletinsTab />}
               {activeTab === "youtube" && <YoutubeAdminTab />}
               {activeTab === "popups" && <AdminPopupsTab />}
+              {activeTab === "history" && <AdminChurchHistoryTab />}
             </div>
           </main>
         </div>
