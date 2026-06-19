@@ -15,6 +15,10 @@ const BLOCK_TYPES = new Set([
   "divider",
 ]);
 
+const DEFAULT_BLOCK_CONTENT_LIMIT = 20000;
+const HTML_BLOCK_CONTENT_LIMIT = 60000;
+const HTML_BODY_CONTENT_LIMIT = 50000;
+
 function isSafeAbsoluteUrl(value: string, allowedProtocols = ["http:", "https:"]) {
   try {
     const url = new URL(value);
@@ -114,8 +118,14 @@ export function validateBlockType(blockType: string) {
 
 export function normalizeBlockContent(blockType: string, rawContent: string) {
   validateBlockType(blockType);
-  if (rawContent.length > 20000) {
-    throw new Error("블록 내용은 20000자 이하로 입력해주세요.");
+  const contentLengthLimit =
+    blockType === "html-rich" ? HTML_BLOCK_CONTENT_LIMIT : DEFAULT_BLOCK_CONTENT_LIMIT;
+  if (rawContent.length > contentLengthLimit) {
+    throw new Error(
+      blockType === "html-rich"
+        ? "HTML 본문은 50000자 이하로 입력해주세요."
+        : "블록 내용은 20000자 이하로 입력해주세요."
+    );
   }
 
   let content: Record<string, unknown>;
@@ -130,10 +140,7 @@ export function normalizeBlockContent(blockType: string, rawContent: string) {
   }
 
   if (blockType === "html-rich") {
-    const html = normalizeRichTextHtmlContent(content.html ?? content.text, 20000);
-    if (hasUnsafeRichHtml(html)) {
-      throw new Error("HTML 본문에 허용되지 않는 코드가 포함되어 있습니다.");
-    }
+    const html = normalizeRichTextHtmlContent(content.html ?? content.text, HTML_BODY_CONTENT_LIMIT);
     return JSON.stringify({ html });
   }
 

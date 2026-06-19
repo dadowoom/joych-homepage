@@ -67,10 +67,32 @@ function decodePath(path: string) {
   }
 }
 
+const CODE_BACKED_PAGE_ALIASES = new Map<string, string>([
+  ["/page/교회소개-담임목사-저서", "/about/pastor/books"],
+  ["/page/교회소개-담임목사-소개-담임목사저서", "/about/pastor/books"],
+  ["/page/교회소개-담임목사-소개-담임목사-저서", "/about/pastor/books"],
+  ["/page/교회소개-담임목사소개-담임목사저서", "/about/pastor/books"],
+  ["/page/교회소개-담임목사소개-담임목사-저서", "/about/pastor/books"],
+  ["/page/교회소개-교회역사", "/about/history"],
+  ["/page/교회소개-교회-역사", "/about/history"],
+  ["/page/교회소개-교회연혁", "/about/history"],
+  ["/page/교회소개-교회-연혁", "/about/history"],
+]);
+
+function getCodeBackedPageAlias(href: string | null | undefined) {
+  const value = href?.trim();
+  if (!value) return null;
+  return CODE_BACKED_PAGE_ALIASES.get(decodePath(value)) ?? null;
+}
+
 function getCanonicalInternalHref(href: string | null | undefined, legacyHref: string) {
   const value = href?.trim();
   if (!value) return null;
   if (!value.startsWith("/") || value.startsWith("//")) return null;
+  const codeBackedHref = getCodeBackedPageAlias(value);
+  if (codeBackedHref) {
+    return decodePath(codeBackedHref) === decodePath(legacyHref) ? null : codeBackedHref;
+  }
   return decodePath(value) === decodePath(legacyHref) ? null : value;
 }
 
@@ -479,18 +501,30 @@ export function DynamicMenuSubItemPage() {
 
 // ─── 깔끔한 CMS 페이지 URL (/page/상위메뉴-메뉴명) ─────────────────────────
 export function DynamicMenuHrefPage() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const activeHref = decodePath(location);
+  const codeBackedHref = getCodeBackedPageAlias(activeHref);
+  const shouldLoadDynamicPage = Boolean(activeHref) && !codeBackedHref;
 
   const { data: item, isLoading: itemLoading } = trpc.home.menuItemByHref.useQuery(
     { href: activeHref },
-    { enabled: Boolean(activeHref) }
+    { enabled: shouldLoadDynamicPage }
   );
   const { data: subItem, isLoading: subItemLoading } = trpc.home.menuSubItemByHref.useQuery(
     { href: activeHref },
-    { enabled: Boolean(activeHref) }
+    { enabled: shouldLoadDynamicPage }
   );
   const { data: allMenus } = trpc.home.menus.useQuery();
+
+  useEffect(() => {
+    if (codeBackedHref) {
+      setLocation(codeBackedHref, { replace: true });
+    }
+  }, [codeBackedHref, setLocation]);
+
+  if (codeBackedHref) {
+    return <LoadingDynamicPage />;
+  }
 
   if (itemLoading || subItemLoading) {
     return <LoadingDynamicPage />;

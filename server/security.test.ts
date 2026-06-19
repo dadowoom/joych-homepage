@@ -367,6 +367,13 @@ describe("[보안 8번] CMS 콘텐츠 — 위험 URL 및 깨진 블록 차단", 
     expect(isSafeAssetUrl("/uploads/gallery/image.png")).toBe(true);
     expect(isSafeAssetUrl("/uploads/../secret")).toBe(false);
   });
+
+  it("allows long html-rich content beyond the normal block limit", () => {
+    const longHtml = `<p>${"a".repeat(25000)}</p>`;
+    const normalized = normalizeBlockContent("html-rich", JSON.stringify({ html: longHtml }));
+
+    expect(JSON.parse(normalized)).toEqual({ html: longHtml });
+  });
 });
 
 // ── 4. 공개 API 개인정보 필드 제거 테스트 ─────────────────────────────────────

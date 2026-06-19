@@ -242,7 +242,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class: cn(
-          "rich-text-editor-content max-w-none min-w-0 overflow-x-hidden overflow-y-auto break-words bg-white px-3 py-3 text-sm leading-7 outline-none [overflow-wrap:anywhere] [&_*]:max-w-full [&_img]:h-auto",
+          "rich-text-editor-content w-full max-w-full min-w-0 overflow-x-hidden overflow-y-auto break-words bg-white px-3 py-3 text-sm leading-7 outline-none [overflow-wrap:anywhere] [&_*]:max-w-full [&_img]:h-auto",
           minHeightClassName
         ),
       },
@@ -263,14 +263,14 @@ export function RichTextEditor({
 
   if (!editor) {
     return (
-      <div className={cn("border border-gray-300 bg-white px-3 py-3 text-sm text-gray-400", minHeightClassName, className)}>
+      <div className={cn("w-full max-w-full min-w-0 overflow-hidden border border-gray-300 bg-white px-3 py-3 text-sm text-gray-400", minHeightClassName, className)}>
         편집기를 불러오는 중입니다.
       </div>
     );
   }
 
   return (
-    <div id={id} className={cn("min-w-0 overflow-hidden border border-gray-300 bg-white focus-within:border-[#1B5E20]", className)}>
+    <div id={id} className={cn("w-full max-w-full min-w-0 overflow-hidden border border-gray-300 bg-white focus-within:border-[#1B5E20]", className)}>
       <RichTextToolbar editor={editor} />
       <EditorContent editor={editor} />
     </div>

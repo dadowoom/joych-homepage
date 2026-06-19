@@ -192,18 +192,18 @@ export function BlockEditDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[90vh] max-w-2xl min-w-0 overflow-x-hidden overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{isNew ? "블록 추가" : "블록 수정"}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {/* 블록 타입 선택 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               블록 종류
             </label>
             <select
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              className="w-full min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm"
               value={blockType}
               onChange={(e) => setBlockType(e.target.value)}
             >
@@ -222,6 +222,7 @@ export function BlockEditDialog({
                 HTML 본문
               </label>
               <RichTextEditor
+                className="w-full max-w-full"
                 value={html}
                 onChange={setHtml}
                 placeholder="본문을 입력해주세요."

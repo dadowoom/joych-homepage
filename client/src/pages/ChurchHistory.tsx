@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/_core/hooks/useAuth";
+import AdminChurchHistoryTab from "@/components/AdminChurchHistoryTab";
+import { canManageBoardContent } from "@/lib/contentPermissions";
 import { trpc } from "@/lib/trpc";
 
 type HistoryDecade = {
@@ -42,6 +45,8 @@ function formatMonth(month: number) {
 }
 
 export default function ChurchHistory() {
+  const { user } = useAuth();
+  const canManageHistory = canManageBoardContent(user, "content:history");
   const { data, isLoading } = trpc.home.history.useQuery();
   const decades = useMemo(
     () => sortDecades((data?.decades ?? []) as HistoryDecade[]),
@@ -52,6 +57,7 @@ export default function ChurchHistory() {
     [data?.items],
   );
   const [activeDecadeId, setActiveDecadeId] = useState<number | null>(null);
+  const [isManagerOpen, setIsManagerOpen] = useState(false);
 
   useEffect(() => {
     if (!activeDecadeId && decades[0]) {
@@ -84,7 +90,39 @@ export default function ChurchHistory() {
             교회연혁
           </h1>
           <div className="mx-auto mt-5 h-1 w-16 bg-[#0b4f8a]" />
+          {canManageHistory && (
+            <div className="mt-7 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setIsManagerOpen((current) => !current)}
+                className="rounded-md bg-[#16651f] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0f5018]"
+              >
+                {isManagerOpen ? "연혁 관리 닫기" : "연혁 추가/수정"}
+              </button>
+            </div>
+          )}
         </div>
+
+        {canManageHistory && isManagerOpen && (
+          <div className="mt-10 rounded-2xl border border-green-100 bg-[#f7fbf7] p-4 sm:p-6">
+            <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="font-serif text-2xl font-bold text-gray-950">교회연혁 입력</h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  이 화면에서 년대와 연혁 내용을 추가하면 아래 사용자 화면에 바로 반영됩니다.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsManagerOpen(false)}
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700"
+              >
+                닫기
+              </button>
+            </div>
+            <AdminChurchHistoryTab />
+          </div>
+        )}
 
         {isLoading ? (
           <div className="mt-16 rounded-xl border border-dashed border-gray-300 p-10 text-center text-gray-500">

@@ -11,6 +11,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { BlockRenderer } from "./BlockRenderer";
 import { BlockEditDialog } from "./BlockEditDialog";
+import { toast } from "sonner";
 
 export function EditorContent({
   menuItemId,
@@ -50,11 +51,17 @@ export function EditorContent({
       utils.home.pageBlocks.invalidate();
       utils.cms.blocks.list.invalidate();
     },
+    onError: (error) => {
+      toast.error(error.message || "블록 저장에 실패했습니다.");
+    },
   });
   const updateMut = trpc.cms.blocks.update.useMutation({
     onSuccess: () => {
       utils.home.pageBlocks.invalidate();
       utils.cms.blocks.list.invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.message || "블록 수정에 실패했습니다.");
     },
   });
   const deleteMut = trpc.cms.blocks.delete.useMutation({
@@ -62,28 +69,38 @@ export function EditorContent({
       utils.home.pageBlocks.invalidate();
       utils.cms.blocks.list.invalidate();
     },
+    onError: (error) => {
+      toast.error(error.message || "블록 삭제에 실패했습니다.");
+    },
   });
   const reorderMut = trpc.cms.blocks.reorder.useMutation({
     onSuccess: () => {
       utils.home.pageBlocks.invalidate();
       utils.cms.blocks.list.invalidate();
     },
+    onError: (error) => {
+      toast.error(error.message || "블록 순서 변경에 실패했습니다.");
+    },
   });
 
   const handleSave = async (blockType: string, content: string) => {
-    if (isNewBlock) {
-      await createMut.mutateAsync({
-        menuItemId,
-        menuSubItemId,
-        blockType,
-        content,
-        sortOrder: displayBlocks.length,
-      });
-    } else if (editingBlock?.id) {
-      await updateMut.mutateAsync({ id: editingBlock.id, blockType, content });
+    try {
+      if (isNewBlock) {
+        await createMut.mutateAsync({
+          menuItemId,
+          menuSubItemId,
+          blockType,
+          content,
+          sortOrder: displayBlocks.length,
+        });
+      } else if (editingBlock?.id) {
+        await updateMut.mutateAsync({ id: editingBlock.id, blockType, content });
+      }
+      setEditingBlock(null);
+      setIsNewBlock(false);
+    } catch {
+      // Mutation onError already shows a user-facing message.
     }
-    setEditingBlock(null);
-    setIsNewBlock(false);
   };
 
   const handleMoveUp = (idx: number) => {
@@ -107,7 +124,7 @@ export function EditorContent({
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="mx-auto w-full max-w-3xl min-w-0 overflow-x-hidden">
       {/* 관리자 편집 툴바 */}
       {isAdmin && (
         <div className="mb-6 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">
@@ -147,7 +164,7 @@ export function EditorContent({
         displayBlocks.map((block, idx) => (
           <div
             key={block.id}
-            className={`group relative ${!block.isVisible ? "opacity-50" : ""}`}
+            className={`group relative min-w-0 max-w-full overflow-x-hidden ${!block.isVisible ? "opacity-50" : ""}`}
           >
             {/* 관리자 액션 버튼 (hover 시 표시) */}
             {isAdmin && (

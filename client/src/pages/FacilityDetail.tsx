@@ -25,6 +25,76 @@ function getFacilityListHref(building: FacilityBuilding) {
   return `/facility?building=${building}`;
 }
 
+function formatDayRanges(days: number[]) {
+  const sortedDays = days
+    .filter(day => day >= 0 && day < DAY_LABELS.length)
+    .filter((day, index, validDays) => validDays.indexOf(day) === index)
+    .sort((a, b) => a - b);
+
+  const ranges: string[] = [];
+  let start: number | null = null;
+  let previous: number | null = null;
+
+  for (const day of sortedDays) {
+    if (start === null || previous === null || day !== previous + 1) {
+      if (start !== null && previous !== null) {
+        ranges.push(start === previous ? DAY_LABELS[start] : `${DAY_LABELS[start]}~${DAY_LABELS[previous]}`);
+      }
+      start = day;
+    }
+    previous = day;
+  }
+
+  if (start !== null && previous !== null) {
+    ranges.push(start === previous ? DAY_LABELS[start] : `${DAY_LABELS[start]}~${DAY_LABELS[previous]}`);
+  }
+
+  return ranges.join(", ");
+}
+
+function formatOperatingHoursSummary(hours: FacilityHour[] | undefined) {
+  if (!hours || hours.length === 0) return "운영시간 정보는 시설 안내를 확인해 주세요.";
+
+  const openGroups = new Map<string, number[]>();
+  const closedDays: number[] = [];
+
+  [...hours]
+    .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+    .forEach(hour => {
+      if (!hour.isOpen || !hour.openTime || !hour.closeTime) {
+        closedDays.push(hour.dayOfWeek);
+        return;
+      }
+
+      const breakLabel = hour.breakStart && hour.breakEnd ? ` (휴게 ${hour.breakStart}~${hour.breakEnd})` : "";
+      const timeLabel = `${hour.openTime} ~ ${hour.closeTime}${breakLabel}`;
+      openGroups.set(timeLabel, [...(openGroups.get(timeLabel) ?? []), hour.dayOfWeek]);
+    });
+
+  const summaries = Array.from(openGroups.entries()).map(([timeLabel, days]) => `${formatDayRanges(days)} ${timeLabel}`);
+  if (closedDays.length > 0) {
+    summaries.push(`${formatDayRanges(closedDays)} 휴무`);
+  }
+
+  return summaries.length > 0 ? summaries.join(" / ") : "운영시간 정보는 시설 안내를 확인해 주세요.";
+}
+
+function FacilityInquiryCard({ facilityId }: { facilityId: number }) {
+  const { data: hours } = trpc.home.facilityHours.useQuery({ facilityId });
+  const hoursSummary = useMemo(() => formatOperatingHoursSummary(hours), [hours]);
+
+  return (
+    <div className="bg-white rounded-xl p-5 border border-gray-100">
+      <p className="font-bold text-gray-800 text-sm mb-2 flex items-center gap-2">
+        <Phone size={14} className="text-[#1B5E20]" />
+        시설 문의
+      </p>
+      <p className="text-sm text-gray-500">행정실: <span className="text-[#1B5E20] font-medium">054-270-1000</span></p>
+      <p className="text-xs text-gray-400 mt-1">운영시간: {hoursSummary}</p>
+    </div>
+  );
+}
+
 
 // ── 운영 시간 표시 ──────────────────────────────────────────
 function HoursTable({ facilityId }: { facilityId: number }) {
@@ -649,14 +719,7 @@ export default function FacilityDetail() {
               )}
 
               {/* 문의 */}
-              <div className="bg-white rounded-xl p-5 border border-gray-100">
-                <p className="font-bold text-gray-800 text-sm mb-2 flex items-center gap-2">
-                  <Phone size={14} className="text-[#1B5E20]" />
-                  시설 문의
-                </p>
-                <p className="text-sm text-gray-500">행정실: <span className="text-[#1B5E20] font-medium">054-270-1000</span></p>
-                <p className="text-xs text-gray-400 mt-1">평일 09:00 ~ 18:00</p>
-              </div>
+              <FacilityInquiryCard facilityId={facilityId} />
 
               {/* 목록으로 */}
               <button onClick={() => window.history.back()} className="w-full text-center text-sm text-gray-400 hover:text-[#1B5E20] transition-colors cursor-pointer py-2 flex items-center justify-center gap-1">

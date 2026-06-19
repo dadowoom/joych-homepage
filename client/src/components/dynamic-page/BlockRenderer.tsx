@@ -103,14 +103,14 @@ export function BlockRenderer({
     case "html-rich":
       return (
         <RichTextViewer
-          className="my-6 text-base leading-8"
+          className="my-6 max-w-full text-base leading-8"
           html={c.html ?? c.text}
         />
       );
     case "text-h1":
       return (
         <h1
-          className="font-bold text-gray-900 leading-tight mt-8 mb-4"
+          className="mt-8 mb-4 min-w-0 max-w-full break-words font-bold leading-tight text-gray-900 [overflow-wrap:anywhere]"
           style={{
             fontFamily: "'Noto Serif KR', serif",
             fontSize: c.fontSize ? `${c.fontSize}px` : undefined,
@@ -123,7 +123,7 @@ export function BlockRenderer({
     case "text-h2":
       return (
         <h2
-          className="font-bold text-gray-800 leading-tight mt-6 mb-3 border-b-2 border-green-600 pb-2"
+          className="mt-6 mb-3 min-w-0 max-w-full break-words border-b-2 border-green-600 pb-2 font-bold leading-tight text-gray-800 [overflow-wrap:anywhere]"
           style={textStyle}
         >
           {c.text}
@@ -131,13 +131,19 @@ export function BlockRenderer({
       );
     case "text-h3":
       return (
-        <h3 className="font-semibold text-gray-700 mt-5 mb-2" style={textStyle}>
+        <h3
+          className="mt-5 mb-2 min-w-0 max-w-full break-words font-semibold text-gray-700 [overflow-wrap:anywhere]"
+          style={textStyle}
+        >
           {c.text}
         </h3>
       );
     case "text-body":
       return (
-        <p className="text-gray-700 leading-relaxed mb-4 whitespace-pre-wrap" style={textStyle}>
+        <p
+          className="mb-4 min-w-0 max-w-full overflow-x-hidden whitespace-pre-wrap break-words leading-relaxed text-gray-700 [overflow-wrap:anywhere]"
+          style={textStyle}
+        >
           {c.text}
         </p>
       );
@@ -164,14 +170,14 @@ export function BlockRenderer({
       );
     case "image-double":
     case "image-triple": {
-      const cols = block.blockType === "image-triple" ? "grid-cols-3" : "grid-cols-2";
+      const cols = block.blockType === "image-triple" ? "sm:grid-cols-3" : "sm:grid-cols-2";
       return (
         <>
-          <div className={`grid ${cols} gap-3 my-4`}>
+          <div className={`my-4 grid grid-cols-1 ${cols} gap-3`}>
             {(c.urls ?? []).map((url, i) => (
               <div
                 key={i}
-                className="rounded-lg overflow-hidden shadow-sm cursor-zoom-in group relative"
+                className="group relative min-w-0 cursor-zoom-in overflow-hidden rounded-lg shadow-sm"
                 onClick={() => setImgLightbox(url)}
               >
                 <img
@@ -206,8 +212,8 @@ export function BlockRenderer({
     case "button": {
       const buttonClassName =
         c.style === "outline"
-          ? "inline-block px-6 py-3 border-2 border-green-700 text-green-700 rounded-lg font-medium hover:bg-green-50 transition-colors"
-          : "inline-block px-6 py-3 bg-green-700 text-white rounded-lg font-medium hover:bg-green-800 transition-colors";
+          ? "inline-block max-w-full whitespace-normal break-words rounded-lg border-2 border-green-700 px-6 py-3 text-center font-medium text-green-700 transition-colors hover:bg-green-50 [overflow-wrap:anywhere]"
+          : "inline-block max-w-full whitespace-normal break-words rounded-lg bg-green-700 px-6 py-3 text-center font-medium text-white transition-colors hover:bg-green-800 [overflow-wrap:anywhere]";
       if (!c.href?.trim()) {
         return (
           <div className="my-4">

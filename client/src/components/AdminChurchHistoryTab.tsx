@@ -90,10 +90,23 @@ function formatMonth(month: number) {
   return String(month).padStart(2, "0");
 }
 
+function groupItemsByYear(items: HistoryItem[]) {
+  const groups = new Map<number, HistoryItem[]>();
+
+  for (const item of items) {
+    const group = groups.get(item.year) ?? [];
+    group.push(item);
+    groups.set(item.year, group);
+  }
+
+  return Array.from(groups.entries()).sort(([yearA], [yearB]) => yearA - yearB);
+}
+
 export default function AdminChurchHistoryTab() {
   const utils = trpc.useUtils();
   const decadesQuery = trpc.cms.history.decades.useQuery();
   const itemsQuery = trpc.cms.history.items.useQuery();
+
   const decades = useMemo(
     () => sortDecades((decadesQuery.data ?? []) as Decade[]),
     [decadesQuery.data],
@@ -102,9 +115,24 @@ export default function AdminChurchHistoryTab() {
     () => sortItems((itemsQuery.data ?? []) as HistoryItem[]),
     [itemsQuery.data],
   );
+
   const [selectedDecadeId, setSelectedDecadeId] = useState("");
   const [decadeForm, setDecadeForm] = useState<DecadeForm>(emptyDecadeForm);
   const [itemForm, setItemForm] = useState<ItemForm>(emptyItemForm);
+  const [isDecadeFormOpen, setIsDecadeFormOpen] = useState(false);
+  const [isItemFormOpen, setIsItemFormOpen] = useState(false);
+
+  const selectedDecade = useMemo(() => {
+    const id = Number(selectedDecadeId);
+    return Number.isFinite(id) ? decades.find((decade) => decade.id === id) : undefined;
+  }, [decades, selectedDecadeId]);
+
+  const selectedItems = useMemo(() => {
+    const id = Number(selectedDecadeId);
+    return Number.isFinite(id) ? items.filter((item) => item.decadeId === id) : [];
+  }, [items, selectedDecadeId]);
+
+  const groupedItems = useMemo(() => groupItemsByYear(selectedItems), [selectedItems]);
 
   const refreshHistory = () => {
     void utils.cms.history.decades.invalidate();
@@ -123,15 +151,19 @@ export default function AdminChurchHistoryTab() {
   const createDecade = trpc.cms.history.createDecade.useMutation({
     onSuccess: () => {
       setDecadeForm(emptyDecadeForm);
+      setIsDecadeFormOpen(false);
       refreshHistory();
     },
   });
+
   const updateDecade = trpc.cms.history.updateDecade.useMutation({
     onSuccess: () => {
       setDecadeForm(emptyDecadeForm);
+      setIsDecadeFormOpen(false);
       refreshHistory();
     },
   });
+
   const deleteDecade = trpc.cms.history.deleteDecade.useMutation({
     onSuccess: () => {
       setSelectedDecadeId("");
@@ -139,32 +171,87 @@ export default function AdminChurchHistoryTab() {
       refreshHistory();
     },
   });
+
   const reorderDecades = trpc.cms.history.reorderDecades.useMutation({
     onSuccess: refreshHistory,
   });
+
   const createItem = trpc.cms.history.createItem.useMutation({
     onSuccess: () => {
-      setItemForm({ ...emptyItemForm, decadeId: selectedDecadeId });
+      setItemForm({
+        ...emptyItemForm,
+        decadeId: selectedDecadeId,
+        sortOrder: String(selectedItems.length + 2),
+      });
+      setIsItemFormOpen(false);
       refreshHistory();
     },
   });
+
   const updateItem = trpc.cms.history.updateItem.useMutation({
     onSuccess: () => {
       setItemForm({ ...emptyItemForm, decadeId: selectedDecadeId });
+      setIsItemFormOpen(false);
       refreshHistory();
     },
   });
+
   const deleteItem = trpc.cms.history.deleteItem.useMutation({
     onSuccess: refreshHistory,
   });
+
   const reorderItems = trpc.cms.history.reorderItems.useMutation({
     onSuccess: refreshHistory,
   });
 
-  const selectedItems = useMemo(() => {
-    const id = Number(selectedDecadeId);
-    return Number.isFinite(id) ? items.filter((item) => item.decadeId === id) : [];
-  }, [items, selectedDecadeId]);
+  const startNewDecade = () => {
+    setDecadeForm({
+      ...emptyDecadeForm,
+      sortOrder: String(decades.length + 1),
+    });
+    setIsDecadeFormOpen(true);
+  };
+
+  const startEditDecade = (decade: Decade) => {
+    setDecadeForm({
+      id: decade.id,
+      title: decade.title,
+      startYear: String(decade.startYear),
+      endYear: String(decade.endYear),
+      sortOrder: String(decade.sortOrder || ""),
+      isVisible: decade.isVisible,
+    });
+    setIsDecadeFormOpen(true);
+  };
+
+  const startNewItem = (year?: number) => {
+    if (!selectedDecade) {
+      alert("년대를 먼저 추가하거나 선택해주세요.");
+      return;
+    }
+
+    setItemForm({
+      ...emptyItemForm,
+      decadeId: String(selectedDecade.id),
+      year: year ? String(year) : String(selectedDecade.startYear),
+      sortOrder: String(selectedItems.length + 1),
+    });
+    setIsItemFormOpen(true);
+  };
+
+  const startEditItem = (item: HistoryItem) => {
+    setSelectedDecadeId(String(item.decadeId));
+    setItemForm({
+      id: item.id,
+      decadeId: String(item.decadeId),
+      year: String(item.year),
+      month: String(item.month),
+      content: item.content,
+      sortOrder: String(item.sortOrder || ""),
+      isVisible: item.isVisible,
+    });
+    setIsItemFormOpen(true);
+  };
 
   const handleDecadeSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -177,7 +264,7 @@ export default function AdminChurchHistoryTab() {
       return;
     }
     if (!Number.isInteger(startYear) || !Number.isInteger(endYear)) {
-      alert("시작 연도와 종료 연도는 숫자로 입력해주세요.");
+      alert("시작 연도와 종료 연도를 숫자로 입력해주세요.");
       return;
     }
     if (startYear > endYear) {
@@ -208,11 +295,11 @@ export default function AdminChurchHistoryTab() {
     const content = itemForm.content.trim();
 
     if (!Number.isInteger(decadeId)) {
-      alert("년대를 선택해주세요.");
+      alert("년대를 먼저 선택해주세요.");
       return;
     }
     if (!Number.isInteger(year)) {
-      alert("연도는 숫자로 입력해주세요.");
+      alert("연도를 숫자로 입력해주세요.");
       return;
     }
     if (!Number.isInteger(month) || month < 1 || month > 12) {
@@ -258,6 +345,8 @@ export default function AdminChurchHistoryTab() {
     reorderItems.mutate({ ids: next.map((item) => item.id) });
   };
 
+  const isLoading = decadesQuery.isLoading || itemsQuery.isLoading;
+
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-gray-200 bg-white p-5">
@@ -268,7 +357,7 @@ export default function AdminChurchHistoryTab() {
             </p>
             <h2 className="mt-3 font-serif text-2xl font-bold text-gray-950">교회연혁 관리</h2>
             <p className="mt-1 text-sm text-gray-600">
-              년대와 연도별 내용을 등록하면 교회연혁 화면에 바로 반영됩니다.
+              년대 탭을 만들고, 선택한 년대 아래에 연혁을 한 줄씩 추가합니다.
             </p>
           </div>
           <div className="rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-700">
@@ -277,24 +366,74 @@ export default function AdminChurchHistoryTab() {
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,420px)_1fr]">
-        <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5">
+      <section className="rounded-2xl border border-gray-200 bg-white p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="font-serif text-xl font-bold text-gray-950">년대 목록 관리</h3>
-            <p className="text-sm text-gray-500">최신 년대가 앞에 보이도록 순서를 조정할 수 있습니다.</p>
+            <h3 className="font-serif text-xl font-bold text-gray-950">년대 탭</h3>
+            <p className="text-sm text-gray-500">사용자 화면의 상단 탭 순서와 동일하게 관리됩니다.</p>
           </div>
+          <button
+            type="button"
+            onClick={startNewDecade}
+            className="rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white"
+          >
+            + 년대 추가
+          </button>
+        </div>
 
-          <form onSubmit={handleDecadeSubmit} className="space-y-3 rounded-xl border border-green-100 bg-green-50/40 p-4">
-            <label className="block text-sm font-semibold text-gray-700">
-              년대 제목
-              <input
-                value={decadeForm.title}
-                onChange={(event) => setDecadeForm((current) => ({ ...current, title: event.target.value }))}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                placeholder="예: 2020년대"
-              />
-            </label>
-            <div className="grid grid-cols-2 gap-3">
+        <div className="mt-4 flex flex-wrap gap-2 border-b border-gray-200 pb-4">
+          {decades.map((decade) => (
+            <button
+              key={decade.id}
+              type="button"
+              onClick={() => {
+                setSelectedDecadeId(String(decade.id));
+                setItemForm((current) => ({ ...current, decadeId: String(decade.id) }));
+              }}
+              className={`rounded-none border px-5 py-3 text-sm font-semibold transition ${
+                String(decade.id) === selectedDecadeId
+                  ? "border-green-700 bg-green-700 text-white"
+                  : "border-gray-200 bg-white text-gray-600 hover:border-green-300"
+              }`}
+            >
+              {decade.title}
+              {!decade.isVisible && <span className="ml-2 text-xs opacity-70">숨김</span>}
+            </button>
+          ))}
+          {!decades.length && (
+            <p className="rounded-xl border border-dashed border-gray-300 px-5 py-6 text-sm text-gray-500">
+              아직 등록된 년대가 없습니다. 먼저 년대를 추가해주세요.
+            </p>
+          )}
+        </div>
+
+        {isDecadeFormOpen && (
+          <form onSubmit={handleDecadeSubmit} className="mt-4 rounded-xl border border-green-100 bg-green-50/40 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="font-semibold text-gray-950">
+                {decadeForm.id ? "년대 수정" : "새 년대 추가"}
+              </h4>
+              <button
+                type="button"
+                onClick={() => {
+                  setDecadeForm(emptyDecadeForm);
+                  setIsDecadeFormOpen(false);
+                }}
+                className="text-sm text-gray-500"
+              >
+                닫기
+              </button>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-[1.3fr_0.7fr_0.7fr_0.7fr_auto]">
+              <label className="block text-sm font-semibold text-gray-700">
+                년대 제목
+                <input
+                  value={decadeForm.title}
+                  onChange={(event) => setDecadeForm((current) => ({ ...current, title: event.target.value }))}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  placeholder="예: 2020년대"
+                />
+              </label>
               <label className="block text-sm font-semibold text-gray-700">
                 시작 연도
                 <input
@@ -315,8 +454,6 @@ export default function AdminChurchHistoryTab() {
                   inputMode="numeric"
                 />
               </label>
-            </div>
-            <div className="grid grid-cols-[1fr_auto] items-end gap-3">
               <label className="block text-sm font-semibold text-gray-700">
                 정렬 순서
                 <input
@@ -327,7 +464,7 @@ export default function AdminChurchHistoryTab() {
                   inputMode="numeric"
                 />
               </label>
-              <label className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm">
+              <label className="flex items-end gap-2 pb-2 text-sm font-semibold text-gray-700">
                 <input
                   type="checkbox"
                   checked={decadeForm.isVisible}
@@ -336,228 +473,263 @@ export default function AdminChurchHistoryTab() {
                 노출
               </label>
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="mt-4 flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setDecadeForm(emptyDecadeForm)}
+                onClick={() => {
+                  setDecadeForm(emptyDecadeForm);
+                  setIsDecadeFormOpen(false);
+                }}
                 className="rounded-lg border border-gray-300 px-4 py-2 text-sm"
               >
-                초기화
+                취소
+              </button>
+              <button type="submit" className="rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white">
+                {decadeForm.id ? "수정 저장" : "추가"}
+              </button>
+            </div>
+          </form>
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-gray-200 bg-white p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="font-serif text-xl font-bold text-gray-950">
+              {selectedDecade ? selectedDecade.title : "연혁 내용"}
+            </h3>
+            <p className="text-sm text-gray-500">
+              {selectedDecade
+                ? `${selectedDecade.startYear}년부터 ${selectedDecade.endYear}년까지의 연혁을 아래에 한 줄씩 추가합니다.`
+                : "년대를 선택하면 연혁을 추가할 수 있습니다."}
+            </p>
+          </div>
+          {selectedDecade && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => moveDecade(selectedDecade.id, -1)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              >
+                탭 앞으로
               </button>
               <button
-                type="submit"
-                className="rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white"
+                type="button"
+                onClick={() => moveDecade(selectedDecade.id, 1)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
               >
-                {decadeForm.id ? "수정" : "추가"}
+                탭 뒤로
+              </button>
+              <button
+                type="button"
+                onClick={() => startEditDecade(selectedDecade)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              >
+                년대 수정
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm("선택한 년대와 포함된 연혁 내용을 삭제할까요?")) {
+                    deleteDecade.mutate({ id: selectedDecade.id });
+                  }
+                }}
+                className="rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600"
+              >
+                년대 삭제
               </button>
             </div>
-          </form>
-
-          <div className="space-y-2">
-            {decades.map((decade, index) => (
-              <div
-                key={decade.id}
-                className={`rounded-xl border p-3 ${String(decade.id) === selectedDecadeId ? "border-green-600 bg-green-50" : "border-gray-200"}`}
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedDecadeId(String(decade.id));
-                    setItemForm((current) => ({ ...current, decadeId: String(decade.id) }));
-                  }}
-                  className="w-full text-left"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <strong className="text-gray-950">{decade.title}</strong>
-                    <span className={`rounded-full px-2 py-1 text-xs ${decade.isVisible ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                      {decade.isVisible ? "노출" : "숨김"}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {decade.startYear} - {decade.endYear} · 표시 순서 {decade.sortOrder || index + 1}
-                  </p>
-                </button>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => moveDecade(decade.id, -1)} className="rounded border px-2 py-1 text-xs" disabled={index === 0}>위</button>
-                  <button type="button" onClick={() => moveDecade(decade.id, 1)} className="rounded border px-2 py-1 text-xs" disabled={index === decades.length - 1}>아래</button>
-                  <button
-                    type="button"
-                    onClick={() => setDecadeForm({
-                      id: decade.id,
-                      title: decade.title,
-                      startYear: String(decade.startYear),
-                      endYear: String(decade.endYear),
-                      sortOrder: String(decade.sortOrder || ""),
-                      isVisible: decade.isVisible,
-                    })}
-                    className="rounded border px-2 py-1 text-xs"
-                  >
-                    수정
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (confirm("이 년대와 포함된 연혁 내용을 삭제할까요?")) {
-                        deleteDecade.mutate({ id: decade.id });
-                      }
-                    }}
-                    className="rounded border border-red-200 px-2 py-1 text-xs text-red-600"
-                  >
-                    삭제
-                  </button>
-                </div>
-              </div>
-            ))}
-            {!decades.length && (
-              <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">
-                등록된 년대가 없습니다.
-              </div>
-            )}
-          </div>
+          )}
         </div>
 
-        <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5">
-          <div>
-            <h3 className="font-serif text-xl font-bold text-gray-950">연혁 내용 관리</h3>
-            <p className="text-sm text-gray-500">년대별로 연도, 월, 내용을 등록합니다.</p>
+        {isLoading && (
+          <div className="mt-5 rounded-xl border border-dashed border-gray-300 p-10 text-center text-sm text-gray-500">
+            연혁을 불러오는 중입니다.
           </div>
+        )}
 
-          <form onSubmit={handleItemSubmit} className="space-y-3 rounded-xl border border-green-100 bg-green-50/40 p-4">
-            <label className="block text-sm font-semibold text-gray-700">
-              년대
-              <select
-                value={itemForm.decadeId}
-                onChange={(event) => {
-                  setSelectedDecadeId(event.target.value);
-                  setItemForm((current) => ({ ...current, decadeId: event.target.value }));
-                }}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              >
-                <option value="">년대 선택</option>
-                {decades.map((decade) => (
-                  <option key={decade.id} value={decade.id}>{decade.title}</option>
-                ))}
-              </select>
-            </label>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <label className="block text-sm font-semibold text-gray-700">
-                연도
-                <input
-                  value={itemForm.year}
-                  onChange={(event) => setItemForm((current) => ({ ...current, year: event.target.value }))}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                  placeholder="1980"
-                  inputMode="numeric"
-                />
-              </label>
-              <label className="block text-sm font-semibold text-gray-700">
-                월
-                <input
-                  value={itemForm.month}
-                  onChange={(event) => setItemForm((current) => ({ ...current, month: event.target.value }))}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                  placeholder="04"
-                  inputMode="numeric"
-                />
-              </label>
-              <label className="block text-sm font-semibold text-gray-700">
-                정렬 순서
-                <input
-                  value={itemForm.sortOrder}
-                  onChange={(event) => setItemForm((current) => ({ ...current, sortOrder: event.target.value }))}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                  placeholder="자동"
-                  inputMode="numeric"
-                />
-              </label>
-            </div>
-            <label className="block text-sm font-semibold text-gray-700">
-              내용
-              <textarea
-                value={itemForm.content}
-                onChange={(event) => setItemForm((current) => ({ ...current, content: event.target.value }))}
-                className="mt-1 min-h-28 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                placeholder="연혁 내용을 입력해주세요."
-              />
-            </label>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <label className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={itemForm.isVisible}
-                  onChange={(event) => setItemForm((current) => ({ ...current, isVisible: event.target.checked }))}
-                />
-                노출
-              </label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setItemForm({ ...emptyItemForm, decadeId: selectedDecadeId })}
-                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm"
-                >
-                  초기화
-                </button>
-                <button type="submit" className="rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white">
-                  {itemForm.id ? "수정" : "추가"}
-                </button>
-              </div>
-            </div>
-          </form>
-
-          <div className="space-y-2">
-            {selectedItems.map((item, index) => (
-              <div key={item.id} className="rounded-xl border border-gray-200 p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <strong className="text-lg text-blue-950">{item.year}</strong>
-                      <span className="text-sm font-semibold text-blue-500">{formatMonth(item.month)}</span>
-                      <span className={`rounded-full px-2 py-1 text-xs ${item.isVisible ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                        {item.isVisible ? "노출" : "숨김"}
-                      </span>
-                    </div>
-                    <p className="mt-2 whitespace-pre-line text-sm leading-6 text-gray-700">{item.content}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => moveItem(item.id, -1)} className="rounded border px-2 py-1 text-xs" disabled={index === 0}>위</button>
-                    <button type="button" onClick={() => moveItem(item.id, 1)} className="rounded border px-2 py-1 text-xs" disabled={index === selectedItems.length - 1}>아래</button>
-                    <button
-                      type="button"
-                      onClick={() => setItemForm({
-                        id: item.id,
-                        decadeId: String(item.decadeId),
-                        year: String(item.year),
-                        month: formatMonth(item.month),
-                        content: item.content,
-                        sortOrder: String(item.sortOrder || ""),
-                        isVisible: item.isVisible,
-                      })}
-                      className="rounded border px-2 py-1 text-xs"
-                    >
-                      수정
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (confirm("이 연혁 내용을 삭제할까요?")) {
-                          deleteItem.mutate({ id: item.id });
-                        }
-                      }}
-                      className="rounded border border-red-200 px-2 py-1 text-xs text-red-600"
-                    >
-                      삭제
-                    </button>
-                  </div>
+        {!isLoading && selectedDecade && (
+          <div className="mt-5 divide-y divide-gray-200 border-y border-gray-200">
+            {groupedItems.map(([year, yearItems]) => (
+              <div key={year} className="grid gap-4 py-5 md:grid-cols-[140px_1fr]">
+                <div className="text-3xl font-semibold text-blue-950">{year}</div>
+                <div className="space-y-3">
+                  {yearItems.map((item) => {
+                    const itemIndex = selectedItems.findIndex((candidate) => candidate.id === item.id);
+                    return (
+                      <div key={item.id} className="grid gap-3 rounded-xl border border-gray-100 bg-white p-4 sm:grid-cols-[70px_1fr_auto]">
+                        <div className="text-lg font-semibold text-blue-300">{formatMonth(item.month)}</div>
+                        <div>
+                          <p className="whitespace-pre-wrap text-sm leading-7 text-gray-700">{item.content}</p>
+                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
+                            <span>정렬 {item.sortOrder || itemIndex + 1}</span>
+                            {!item.isVisible && <span className="rounded bg-gray-100 px-2 py-0.5">숨김</span>}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => moveItem(item.id, -1)}
+                            className="rounded border border-gray-300 px-2 py-1 text-xs"
+                            disabled={itemIndex === 0}
+                          >
+                            위
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveItem(item.id, 1)}
+                            className="rounded border border-gray-300 px-2 py-1 text-xs"
+                            disabled={itemIndex === selectedItems.length - 1}
+                          >
+                            아래
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => startEditItem(item)}
+                            className="rounded border border-gray-300 px-2 py-1 text-xs"
+                          >
+                            수정
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm("이 연혁 내용을 삭제할까요?")) {
+                                deleteItem.mutate({ id: item.id });
+                              }
+                            }}
+                            className="rounded border border-red-200 px-2 py-1 text-xs text-red-600"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => startNewItem(year)}
+                    className="rounded-lg border border-dashed border-green-300 px-4 py-2 text-sm font-semibold text-green-700"
+                  >
+                    + {year}년에 연혁 추가
+                  </button>
                 </div>
               </div>
             ))}
+
             {!selectedItems.length && (
               <div className="rounded-xl border border-dashed border-gray-300 p-10 text-center text-sm text-gray-500">
                 선택한 년대에 등록된 연혁 내용이 없습니다.
               </div>
             )}
           </div>
-        </div>
+        )}
+
+        {!isLoading && !selectedDecade && (
+          <div className="mt-5 rounded-xl border border-dashed border-gray-300 p-10 text-center text-sm text-gray-500">
+            먼저 년대를 추가해주세요.
+          </div>
+        )}
+
+        {selectedDecade && (
+          <div className="mt-5">
+            {!isItemFormOpen && (
+              <button
+                type="button"
+                onClick={() => startNewItem()}
+                className="w-full rounded-xl border border-dashed border-green-300 bg-green-50 px-4 py-4 text-sm font-semibold text-green-700"
+              >
+                + 연혁 내용 추가
+              </button>
+            )}
+
+            {isItemFormOpen && (
+              <form onSubmit={handleItemSubmit} className="rounded-xl border border-green-100 bg-green-50/40 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="font-semibold text-gray-950">
+                    {itemForm.id ? "연혁 내용 수정" : "새 연혁 내용 추가"}
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setItemForm({ ...emptyItemForm, decadeId: selectedDecadeId });
+                      setIsItemFormOpen(false);
+                    }}
+                    className="text-sm text-gray-500"
+                  >
+                    닫기
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-[0.8fr_0.6fr_0.7fr_auto]">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    연도
+                    <input
+                      value={itemForm.year}
+                      onChange={(event) => setItemForm((current) => ({ ...current, year: event.target.value }))}
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      placeholder="1980"
+                      inputMode="numeric"
+                    />
+                  </label>
+                  <label className="block text-sm font-semibold text-gray-700">
+                    월
+                    <input
+                      value={itemForm.month}
+                      onChange={(event) => setItemForm((current) => ({ ...current, month: event.target.value }))}
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      placeholder="04"
+                      inputMode="numeric"
+                    />
+                  </label>
+                  <label className="block text-sm font-semibold text-gray-700">
+                    정렬 순서
+                    <input
+                      value={itemForm.sortOrder}
+                      onChange={(event) => setItemForm((current) => ({ ...current, sortOrder: event.target.value }))}
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      placeholder="자동"
+                      inputMode="numeric"
+                    />
+                  </label>
+                  <label className="flex items-end gap-2 pb-2 text-sm font-semibold text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={itemForm.isVisible}
+                      onChange={(event) => setItemForm((current) => ({ ...current, isVisible: event.target.checked }))}
+                    />
+                    노출
+                  </label>
+                </div>
+
+                <label className="mt-3 block text-sm font-semibold text-gray-700">
+                  내용
+                  <textarea
+                    value={itemForm.content}
+                    onChange={(event) => setItemForm((current) => ({ ...current, content: event.target.value }))}
+                    className="mt-1 min-h-32 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    placeholder="연혁 내용을 입력해주세요."
+                  />
+                </label>
+
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setItemForm({ ...emptyItemForm, decadeId: selectedDecadeId });
+                      setIsItemFormOpen(false);
+                    }}
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm"
+                  >
+                    취소
+                  </button>
+                  <button type="submit" className="rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white">
+                    {itemForm.id ? "수정 저장" : "추가"}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
       </section>
     </div>
   );
