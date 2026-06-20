@@ -4,7 +4,7 @@
  * 블록 종류(텍스트, 이미지, 유튜브, 버튼, 구분선)에 따라 다른 입력 폼을 보여줍니다.
  */
 import { useState, useRef } from "react";
-import { Plus } from "lucide-react";
+import { Code2, Eye, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { RichTextEditor, RichTextViewer } from "@/components/ui/rich-text-editor";
 import { trpc } from "@/lib/trpc";
 import { BLOCK_TYPES } from "./BlockRenderer";
 
@@ -50,6 +50,7 @@ export function BlockEditDialog({
       return "";
     }
   });
+  const [htmlEditMode, setHtmlEditMode] = useState<"visual" | "source" | "preview">("visual");
   const [urls, setUrls] = useState<string[]>(() => {
     if (!block?.content) return [];
     try {
@@ -217,19 +218,60 @@ export function BlockEditDialog({
 
           {/* HTML 편집기 블록 */}
           {blockType === "html-rich" && (
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                HTML 본문
-              </label>
-              <RichTextEditor
-                className="w-full max-w-full"
-                value={html}
-                onChange={setHtml}
-                placeholder="본문을 입력해주세요."
-                minHeightClassName="min-h-72 max-h-[55vh]"
-              />
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  HTML 본문
+                </label>
+                <div className="flex rounded-md border border-gray-200 bg-white p-1">
+                  {[
+                    { value: "visual" as const, label: "편집기", icon: Pencil },
+                    { value: "source" as const, label: "HTML 소스", icon: Code2 },
+                    { value: "preview" as const, label: "미리보기", icon: Eye },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    const active = htmlEditMode === item.value;
+                    return (
+                      <Button
+                        key={item.value}
+                        type="button"
+                        variant={active ? "default" : "ghost"}
+                        size="sm"
+                        className={active ? "bg-green-700 hover:bg-green-800" : "text-gray-600"}
+                        onClick={() => setHtmlEditMode(item.value)}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {item.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+              {htmlEditMode === "visual" && (
+                <RichTextEditor
+                  className="w-full max-w-full"
+                  value={html}
+                  onChange={setHtml}
+                  placeholder="본문을 입력해주세요."
+                  minHeightClassName="min-h-72 max-h-[55vh]"
+                />
+              )}
+              {htmlEditMode === "source" && (
+                <textarea
+                  className="min-h-[320px] max-h-[55vh] w-full resize-y overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-gray-200 bg-white px-3 py-3 font-mono text-xs leading-6 text-gray-900 outline-none [overflow-wrap:anywhere] focus:border-green-600 focus:ring-2 focus:ring-green-100"
+                  value={html}
+                  onChange={(event) => setHtml(event.target.value)}
+                  placeholder="<section>본문 HTML을 입력해주세요.</section>"
+                  wrap="soft"
+                />
+              )}
+              {htmlEditMode === "preview" && (
+                <div className="min-h-[320px] max-h-[55vh] overflow-auto rounded-lg border border-gray-200 bg-white p-4">
+                  <RichTextViewer html={html} />
+                </div>
+              )}
               <p className="text-xs text-gray-400">
-                제목, 본문, 목록, 링크, 정렬, 이미지 URL 삽입을 사용할 수 있습니다.
+                편집기 또는 HTML 소스로 작성할 수 있습니다. 스크립트 코드는 저장되지 않습니다.
               </p>
             </div>
           )}

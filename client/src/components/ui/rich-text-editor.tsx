@@ -45,6 +45,25 @@ type RichTextViewerProps = {
 };
 
 const htmlPattern = /<[a-z][\s\S]*>/i;
+const richTextSanitizeOptions = {
+  ADD_TAGS: ["iframe"],
+  ADD_ATTR: [
+    "allow",
+    "allowfullscreen",
+    "class",
+    "frameborder",
+    "height",
+    "loading",
+    "referrerpolicy",
+    "rel",
+    "scrolling",
+    "style",
+    "target",
+    "title",
+    "width",
+  ],
+  FORBID_TAGS: ["script", "object", "embed", "link", "meta", "base"],
+};
 
 function escapeHtml(value: string) {
   return value
@@ -70,9 +89,7 @@ export function sanitizeRichTextHtml(value?: string | null) {
   const normalized = normalizeRichTextValue(value);
   if (!normalized) return "";
 
-  return DOMPurify.sanitize(normalized, {
-    ADD_ATTR: ["target", "rel"],
-  });
+  return DOMPurify.sanitize(normalized, richTextSanitizeOptions);
 }
 
 function isEmptyEditorHtml(value: string) {

@@ -333,11 +333,13 @@ describe("[보안 8번] CMS 콘텐츠 — 위험 URL 및 깨진 블록 차단", 
   it("HTML 편집기 블록은 본문 HTML을 저장할 수 있음", () => {
     const normalized = normalizeBlockContent(
       "html-rich",
-      JSON.stringify({ html: "<h2>안내</h2><p>본문 내용을 입력합니다.</p>" })
+      JSON.stringify({
+        html: "<h2>안내</h2><p>본문 내용을 입력합니다.</p><iframe src=\"https://www.youtube.com/embed/dQw4w9WgXcQ\" title=\"영상\"></iframe>",
+      })
     );
 
     expect(JSON.parse(normalized)).toEqual({
-      html: "<h2>안내</h2><p>본문 내용을 입력합니다.</p>",
+      html: "<h2>안내</h2><p>본문 내용을 입력합니다.</p><iframe src=\"https://www.youtube.com/embed/dQw4w9WgXcQ\" title=\"영상\"></iframe>",
     });
   });
 
@@ -349,10 +351,15 @@ describe("[보안 8번] CMS 콘텐츠 — 위험 URL 및 깨진 블록 차단", 
     expect(() =>
       normalizeBlockContent("html-rich", JSON.stringify({ html: "<script>alert(1)</script>" }))
     ).toThrow("HTML 본문에 허용되지 않는 코드가 포함되어 있습니다.");
+
+    expect(() =>
+      normalizeBlockContent("html-rich", JSON.stringify({ html: "<iframe srcdoc=\"<script>alert(1)</script>\"></iframe>" }))
+    ).toThrow("HTML 본문에 허용되지 않는 코드가 포함되어 있습니다.");
   });
 
   it("유튜브 URL에서 영상 ID를 안전하게 추출", () => {
     expect(normalizeRichTextHtmlContent("<h2>안내</h2><p>본문</p>")).toBe("<h2>안내</h2><p>본문</p>");
+    expect(normalizeRichTextHtmlContent("<iframe src=\"https://www.youtube.com/embed/dQw4w9WgXcQ\"></iframe>")).toBe("<iframe src=\"https://www.youtube.com/embed/dQw4w9WgXcQ\"></iframe>");
     expect(() => normalizeRichTextHtmlContent("<img src=\"javascript:alert(1)\">")).toThrow();
     expect(() => normalizeRichTextHtmlContent("<p onmouseover=\"alert(1)\">본문</p>")).toThrow();
     expect(extractYoutubeVideoId("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");

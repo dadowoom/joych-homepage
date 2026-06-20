@@ -96,8 +96,8 @@ function normalizeNumber(value: unknown, fallback: number, min: number, max: num
 
 function hasUnsafeRichHtml(value: string) {
   return (
-    /<\s*(script|iframe|object|embed|style|link|meta)\b/i.test(value) ||
-    /\son[a-z]+\s*=/i.test(value) ||
+    /<\s*(script|object|embed|style|link|meta|base)\b/i.test(value) ||
+    /\s(?:on[a-z]+|srcdoc)\s*=/i.test(value) ||
     /\b(?:href|src)\s*=\s*(['"]?)\s*(?:javascript:|vbscript:|data:text\/html)/i.test(value)
   );
 }
