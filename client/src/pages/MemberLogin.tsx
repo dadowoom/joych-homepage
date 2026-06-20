@@ -36,6 +36,10 @@ function getSocialMessage(location: string) {
       tone: "error",
       text: "가입이 거절된 계정입니다. 교회 사무국에 문의해주세요.",
     },
+    facility_member_required: {
+      tone: "info",
+      text: "시설 사용 예약은 승인 완료된 성도만 이용할 수 있습니다. 성도 로그인 후 다시 신청해주세요.",
+    },
     withdrawn: {
       tone: "error",
       text: "탈퇴한 계정입니다. 교회 사무국에 문의해주세요.",

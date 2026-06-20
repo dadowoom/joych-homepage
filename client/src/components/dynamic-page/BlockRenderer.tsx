@@ -7,6 +7,7 @@ import { useState } from "react";
 import { ZoomIn } from "lucide-react";
 import { RichTextViewer } from "@/components/ui/rich-text-editor";
 import { Lightbox } from "./Lightbox";
+import { normalizeHtmlBlockValue } from "./htmlBlockUtils";
 
 // ─── 블록 콘텐츠 타입 정의 ────────────────────────────────────────────────────
 export type BlockContent = {
@@ -104,7 +105,7 @@ export function BlockRenderer({
       return (
         <RichTextViewer
           className="my-6 max-w-full text-base leading-8"
-          html={c.html ?? c.text}
+          html={normalizeHtmlBlockValue(c.html ?? c.text)}
         />
       );
     case "text-h1":

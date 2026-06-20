@@ -11,7 +11,7 @@ import type { Facility, FacilityHour, FacilityImage, FacilityBlockedDate } from 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Users, MapPin, Clock, ChevronLeft, ChevronRight, Phone, AlertCircle, CalendarCheck, Loader2 } from "lucide-react";
-import { getReservationTimeRestriction } from "@/lib/facilityReservationTime";
+import { getReservationTimeRestriction, hasReservableStartTime } from "@/lib/facilityReservationTime";
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -77,6 +77,22 @@ function formatOperatingHoursSummary(hours: FacilityHour[] | undefined) {
   }
 
   return summaries.length > 0 ? summaries.join(" / ") : "운영시간 정보는 시설 안내를 확인해 주세요.";
+}
+
+function generateReservationStartSlots(openTime: string, closeTime: string, slotMinutes: number) {
+  const [openHour, openMinute] = openTime.split(":").map(Number);
+  const [closeHour, closeMinute] = closeTime.split(":").map(Number);
+  if ([openHour, openMinute, closeHour, closeMinute].some(Number.isNaN) || slotMinutes <= 0) return [];
+
+  const slots: string[] = [];
+  let current = openHour * 60 + openMinute;
+  const close = closeHour * 60 + closeMinute;
+  while (current < close) {
+    slots.push(`${String(Math.floor(current / 60)).padStart(2, "0")}:${String(current % 60).padStart(2, "0")}`);
+    current += slotMinutes;
+  }
+
+  return slots;
 }
 
 function FacilityInquiryCard({ facilityId }: { facilityId: number }) {
@@ -217,22 +233,10 @@ function TimeSlotPanel({
     return set;
   }, [reservations, slotMinutes]);
 
-  // 운영 시간 내 슬롯 생성 (slotMinutes 단위, 종료 시간 포함)
+  // Generate selectable start slots within operating hours.
   const allSlots = useMemo(() => {
-    if (!todayHour || !todayHour.isOpen) return [];
-    const slots: string[] = [];
-    const [oh, om] = todayHour.openTime.split(":").map(Number);
-    const [ch, cm] = todayHour.closeTime.split(":").map(Number);
-    let cur = oh * 60 + om;
-    const end = ch * 60 + cm;
-    // 종료 시간(closeTime)도 슬롯에 포함 (<=)
-    while (cur <= end) {
-      const h = Math.floor(cur / 60);
-      const m = cur % 60;
-      slots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
-      cur += slotMinutes;
-    }
-    return slots;
+    if (!todayHour || !todayHour.isOpen || !todayHour.openTime || !todayHour.closeTime) return [];
+    return generateReservationStartSlots(todayHour.openTime, todayHour.closeTime, slotMinutes);
   }, [todayHour, slotMinutes]);
 
   const disabledSlots = useMemo(() => {
@@ -412,10 +416,12 @@ function TimeSlotPanel({
 function ReservationCalendar({
   facilityId,
   selectedDate,
+  slotMinutes,
   onSelectDate,
 }: {
   facilityId: number;
   selectedDate: string;
+  slotMinutes?: number | null;
   onSelectDate: (date: string) => void;
 }) {
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
@@ -428,11 +434,6 @@ function ReservationCalendar({
     return new Set((blockedDates ?? []).map((b: FacilityBlockedDate) => b.blockedDate));
   }, [blockedDates]);
 
-  const closedDays = useMemo(() => {
-    if (!hours) return new Set<number>();
-    return new Set(hours.filter((h: FacilityHour) => !h.isOpen).map((h: FacilityHour) => h.dayOfWeek));
-  }, [hours]);
-
   const firstDay = new Date(viewYear, viewMonth, 1).getDay();
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const days: (number | null)[] = [
@@ -442,6 +443,7 @@ function ReservationCalendar({
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const normalizedSlotMinutes = Math.max(1, Number(slotMinutes) || 60);
 
   function toDateStr(day: number) {
     return `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -486,9 +488,18 @@ function ReservationCalendar({
           const date = new Date(dateStr);
           const isPast = date < today;
           const isBlocked = blockedSet.has(dateStr);
-          const isClosed = closedDays.has(date.getDay());
+          const dayHour = hours?.find((h: FacilityHour) => h.dayOfWeek === date.getDay());
+          const hoursLoaded = Boolean(hours);
+          const isClosed = hoursLoaded ? !dayHour?.isOpen : false;
+          const startSlots =
+            hoursLoaded && dayHour?.isOpen && dayHour.openTime && dayHour.closeTime
+              ? generateReservationStartSlots(dayHour.openTime, dayHour.closeTime, normalizedSlotMinutes)
+              : [];
+          const hasAvailableStartTime = hoursLoaded
+            ? startSlots.length > 0 && hasReservableStartTime(dateStr, startSlots)
+            : true;
           const isSelected = selectedDate === dateStr;
-          const isUnavailable = isPast || isBlocked || isClosed;
+          const isUnavailable = isPast || isBlocked || isClosed || !hasAvailableStartTime;
 
           return (
             <button
@@ -523,11 +534,25 @@ export default function FacilityDetail() {
     { id: facilityId },
     { enabled: !isNaN(facilityId) }
   );
+  const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const isApprovedMember = Boolean(memberMe);
   const activeBuilding = useMemo(() => {
     const requestedBuilding = new URLSearchParams(searchString).get("building");
     return normalizeFacilityBuilding(requestedBuilding ?? facility?.building);
   }, [facility?.building, searchString]);
   const facilityListHref = getFacilityListHref(activeBuilding);
+
+  function goToMemberLogin() {
+    const nextPath = `/facility/${facilityId}${searchString ? `?${searchString}` : ""}`;
+    const loginParams = new URLSearchParams({
+      social: "facility_member_required",
+      next: nextPath,
+    });
+    navigate(`/member/login?${loginParams.toString()}`);
+  }
 
   // 날짜 변경 시 시간 초기화
   function handleSelectDate(date: string) {
@@ -545,6 +570,10 @@ export default function FacilityDetail() {
   // 예약 신청 버튼 클릭
   function handleApply() {
     if (!selectedDate) return;
+    if (!isApprovedMember) {
+      goToMemberLogin();
+      return;
+    }
     const params = new URLSearchParams({
       date: selectedDate,
       building: activeBuilding,
@@ -686,6 +715,7 @@ export default function FacilityDetail() {
               <ReservationCalendar
                 facilityId={facilityId}
                 selectedDate={selectedDate}
+                slotMinutes={facility?.slotMinutes ?? 60}
                 onSelectDate={handleSelectDate}
               />
 
@@ -705,7 +735,7 @@ export default function FacilityDetail() {
               {facility.isReservable ? (
                 <Button
                   className="w-full bg-[#1B5E20] hover:bg-[#2E7D32] text-white py-6 text-base font-bold rounded-xl disabled:opacity-50"
-                  disabled={!selectedDate}
+                  disabled={!selectedDate || memberLoading}
                   onClick={handleApply}
                 >
                   <CalendarCheck size={20} className="mr-2" />

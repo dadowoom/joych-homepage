@@ -15,6 +15,7 @@ import {
 import { RichTextEditor, RichTextViewer } from "@/components/ui/rich-text-editor";
 import { trpc } from "@/lib/trpc";
 import { BLOCK_TYPES } from "./BlockRenderer";
+import { normalizeHtmlBlockValue } from "./htmlBlockUtils";
 
 export function BlockEditDialog({
   block,
@@ -45,12 +46,12 @@ export function BlockEditDialog({
     if (!block?.content) return "";
     try {
       const c = JSON.parse(block.content);
-      return c.html ?? c.text ?? "";
+      return normalizeHtmlBlockValue(c.html ?? c.text ?? "");
     } catch {
       return "";
     }
   });
-  const [htmlEditMode, setHtmlEditMode] = useState<"visual" | "source" | "preview">("visual");
+  const [htmlEditMode, setHtmlEditMode] = useState<"visual" | "source" | "preview">("source");
   const [urls, setUrls] = useState<string[]>(() => {
     if (!block?.content) return [];
     try {
@@ -267,7 +268,7 @@ export function BlockEditDialog({
               )}
               {htmlEditMode === "preview" && (
                 <div className="min-h-[320px] max-h-[55vh] overflow-auto rounded-lg border border-gray-200 bg-white p-4">
-                  <RichTextViewer html={html} />
+                  <RichTextViewer html={normalizeHtmlBlockValue(html)} />
                 </div>
               )}
               <p className="text-xs text-gray-400">

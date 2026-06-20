@@ -11,6 +11,7 @@ import {
 import {
   SortableContext,
   arrayMove,
+  rectSortingStrategy,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
@@ -114,22 +115,71 @@ function groupItemsByYear(items: HistoryItem[]) {
   return Array.from(groups.entries());
 }
 
+function SortableDecadeTab({
+  decade,
+  isSelected,
+  onSelect,
+}: {
+  decade: Decade;
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: decade.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <button
+      ref={setNodeRef}
+      style={style}
+      type="button"
+      onClick={onSelect}
+      className={`inline-flex items-center gap-2 rounded-none border px-4 py-3 text-sm font-semibold transition ${
+        isSelected
+          ? "border-green-700 bg-green-700 text-white"
+          : "border-gray-200 bg-white text-gray-600 hover:border-green-300"
+      }`}
+    >
+      <span
+        {...attributes}
+        {...listeners}
+        title="드래그하여 연도 순서 변경"
+        className={`-ml-1 flex h-6 w-6 touch-none cursor-grab items-center justify-center rounded active:cursor-grabbing ${
+          isSelected
+            ? "text-white/80 hover:bg-white/10"
+            : "text-gray-300 hover:bg-gray-50 hover:text-gray-500"
+        }`}
+      >
+        <GripVertical className="h-4 w-4" />
+      </span>
+      <span>{decade.title}</span>
+      {!decade.isVisible && (
+        <span className="ml-1 text-xs opacity-70">숨김</span>
+      )}
+    </button>
+  );
+}
+
 function SortableHistoryItemCard({
   item,
   itemIndex,
-  isLast,
-  isSaving,
-  onMoveUp,
-  onMoveDown,
   onEdit,
   onDelete,
 }: {
   item: HistoryItem;
   itemIndex: number;
-  isLast: boolean;
-  isSaving: boolean;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -179,22 +229,6 @@ function SortableHistoryItemCard({
         </div>
       </div>
       <div className="flex flex-wrap justify-end gap-2">
-        <button
-          type="button"
-          onClick={onMoveUp}
-          className="rounded border border-gray-300 px-2 py-1 text-xs"
-          disabled={itemIndex === 0 || isSaving}
-        >
-          위
-        </button>
-        <button
-          type="button"
-          onClick={onMoveDown}
-          className="rounded border border-gray-300 px-2 py-1 text-xs"
-          disabled={isLast || isSaving}
-        >
-          아래
-        </button>
         <button
           type="button"
           onClick={onEdit}
@@ -452,22 +486,18 @@ export default function AdminChurchHistoryTab() {
     }
   };
 
-  const moveDecade = (id: number, direction: -1 | 1) => {
-    const index = decades.findIndex(decade => decade.id === id);
-    const nextIndex = index + direction;
-    if (index < 0 || nextIndex < 0 || nextIndex >= decades.length) return;
-    const next = [...decades];
-    [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
-    reorderDecades.mutate({ ids: next.map(decade => decade.id) });
-  };
+  const handleDecadeDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
 
-  const moveItem = (id: number, direction: -1 | 1) => {
-    const index = selectedItems.findIndex(item => item.id === id);
-    const nextIndex = index + direction;
-    if (index < 0 || nextIndex < 0 || nextIndex >= selectedItems.length) return;
-    const next = [...selectedItems];
-    [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
-    reorderItems.mutate({ ids: next.map(item => item.id) });
+    const activeId = Number(active.id);
+    const overId = Number(over.id);
+    const oldIndex = decades.findIndex(decade => decade.id === activeId);
+    const newIndex = decades.findIndex(decade => decade.id === overId);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const next = arrayMove(decades, oldIndex, newIndex);
+    reorderDecades.mutate({ ids: next.map(decade => decade.id) });
   };
 
   const handleItemDragEnd = (event: DragEndEvent) => {
@@ -527,36 +557,38 @@ export default function AdminChurchHistoryTab() {
           </button>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2 border-b border-gray-200 pb-4">
-          {decades.map(decade => (
-            <button
-              key={decade.id}
-              type="button"
-              onClick={() => {
-                setSelectedDecadeId(String(decade.id));
-                setItemForm(current => ({
-                  ...current,
-                  decadeId: String(decade.id),
-                }));
-              }}
-              className={`rounded-none border px-5 py-3 text-sm font-semibold transition ${
-                String(decade.id) === selectedDecadeId
-                  ? "border-green-700 bg-green-700 text-white"
-                  : "border-gray-200 bg-white text-gray-600 hover:border-green-300"
-              }`}
-            >
-              {decade.title}
-              {!decade.isVisible && (
-                <span className="ml-2 text-xs opacity-70">숨김</span>
+        <DndContext
+          sensors={dragSensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDecadeDragEnd}
+        >
+          <SortableContext
+            items={decades.map(decade => decade.id)}
+            strategy={rectSortingStrategy}
+          >
+            <div className="mt-4 flex flex-wrap gap-2 border-b border-gray-200 pb-4">
+              {decades.map(decade => (
+                <SortableDecadeTab
+                  key={decade.id}
+                  decade={decade}
+                  isSelected={String(decade.id) === selectedDecadeId}
+                  onSelect={() => {
+                    setSelectedDecadeId(String(decade.id));
+                    setItemForm(current => ({
+                      ...current,
+                      decadeId: String(decade.id),
+                    }));
+                  }}
+                />
+              ))}
+              {!decades.length && (
+                <p className="rounded-xl border border-dashed border-gray-300 px-5 py-6 text-sm text-gray-500">
+                  아직 등록된 연도가 없습니다. 먼저 연도를 추가해주세요.
+                </p>
               )}
-            </button>
-          ))}
-          {!decades.length && (
-            <p className="rounded-xl border border-dashed border-gray-300 px-5 py-6 text-sm text-gray-500">
-              아직 등록된 연도가 없습니다. 먼저 연도를 추가해주세요.
-            </p>
-          )}
-        </div>
+            </div>
+          </SortableContext>
+        </DndContext>
 
         {isDecadeFormOpen && (
           <form
@@ -661,20 +693,6 @@ export default function AdminChurchHistoryTab() {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => moveDecade(selectedDecade.id, -1)}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              >
-                탭 앞으로
-              </button>
-              <button
-                type="button"
-                onClick={() => moveDecade(selectedDecade.id, 1)}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              >
-                탭 뒤로
-              </button>
-              <button
-                type="button"
                 onClick={() => startEditDecade(selectedDecade)}
                 className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
               >
@@ -730,10 +748,6 @@ export default function AdminChurchHistoryTab() {
                             key={item.id}
                             item={item}
                             itemIndex={itemIndex}
-                            isLast={itemIndex === selectedItems.length - 1}
-                            isSaving={reorderItems.isPending}
-                            onMoveUp={() => moveItem(item.id, -1)}
-                            onMoveDown={() => moveItem(item.id, 1)}
                             onEdit={() => startEditItem(item)}
                             onDelete={() => {
                               if (confirm("이 연혁 내용을 삭제할까요?")) {

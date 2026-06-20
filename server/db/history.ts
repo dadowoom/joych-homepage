@@ -18,6 +18,35 @@ function compactUpdate<T extends Record<string, unknown>>(data: T) {
   ) as Partial<T>;
 }
 
+async function normalizeHistoryDecadeSortOrders() {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not configured.");
+
+  const decades = await db
+    .select({ id: historyDecades.id })
+    .from(historyDecades)
+    .orderBy(asc(historyDecades.sortOrder), desc(historyDecades.startYear), asc(historyDecades.id));
+
+  for (let index = 0; index < decades.length; index += 1) {
+    await db.update(historyDecades).set({ sortOrder: index + 1 }).where(eq(historyDecades.id, decades[index].id));
+  }
+}
+
+async function normalizeHistoryItemSortOrders(decadeId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not configured.");
+
+  const items = await db
+    .select({ id: historyItems.id })
+    .from(historyItems)
+    .where(eq(historyItems.decadeId, decadeId))
+    .orderBy(asc(historyItems.sortOrder), asc(historyItems.year), asc(historyItems.month), asc(historyItems.id));
+
+  for (let index = 0; index < items.length; index += 1) {
+    await db.update(historyItems).set({ sortOrder: index + 1 }).where(eq(historyItems.id, items[index].id));
+  }
+}
+
 export async function getAllHistoryDecades() {
   const db = await getDb();
   if (!db) return [];
@@ -88,6 +117,7 @@ export async function deleteHistoryDecade(id: number) {
 
   await db.delete(historyItems).where(eq(historyItems.decadeId, id));
   await db.delete(historyDecades).where(eq(historyDecades.id, id));
+  await normalizeHistoryDecadeSortOrders();
 }
 
 export async function reorderHistoryDecades(ids: number[]) {
@@ -124,7 +154,17 @@ export async function deleteHistoryItem(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database is not configured.");
 
+  const [item] = await db
+    .select({ decadeId: historyItems.decadeId })
+    .from(historyItems)
+    .where(eq(historyItems.id, id))
+    .limit(1);
+
   await db.delete(historyItems).where(eq(historyItems.id, id));
+
+  if (item) {
+    await normalizeHistoryItemSortOrders(item.decadeId);
+  }
 }
 
 export async function reorderHistoryItems(ids: number[]) {

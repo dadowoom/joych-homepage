@@ -13,7 +13,7 @@ import type { FacilityBlockedDate } from "../../../drizzle/schema";
 import { toast } from "sonner";
 import { Loader2, ChevronRight, Clock, Users, MapPin, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getKstDateKey, getReservationTimeRestriction } from "@/lib/facilityReservationTime";
+import { getReservationLeadDateKey, getReservationTimeRestriction } from "@/lib/facilityReservationTime";
 
 // ── 목적 옵션 ────────────────────────────────────────────────
 const PURPOSE_OPTIONS = [
@@ -277,7 +277,7 @@ export default function FacilityApply() {
     retry: false,
     refetchOnWindowFocus: false,
   });
-  const isAuthenticated = Boolean(memberMe);
+  const isApprovedMember = Boolean(memberMe);
 
   // URL 쿼리 파라미터에서 날짜/시간 읽기
   const searchString = useSearch();
@@ -290,6 +290,15 @@ export default function FacilityApply() {
       urlBuilding: p.get("building") ?? "",
     };
   }, [searchString]);
+
+  function goToMemberLogin() {
+    const nextPath = `/facility/${facilityId}/apply${searchString ? `?${searchString}` : ""}`;
+    const loginParams = new URLSearchParams({
+      social: "facility_member_required",
+      next: nextPath,
+    });
+    navigate(`/member/login?${loginParams.toString()}`);
+  }
 
   // 폼 상태 — URL에서 날짜/시간 자동 적용
   const [form, setForm] = useState(() => ({
@@ -461,9 +470,9 @@ export default function FacilityApply() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!isAuthenticated) {
-      toast.error("예약 신청은 로그인 후 이용하실 수 있습니다.");
-      window.location.href = "/member/login";
+    if (!isApprovedMember) {
+      toast.error("시설 사용 예약은 승인 완료된 성도만 신청할 수 있습니다.");
+      goToMemberLogin();
       return;
     }
     const error = validate();
@@ -569,19 +578,19 @@ export default function FacilityApply() {
               </div>
 
               {/* 로그인 안내 — 로딩 중에는 숨겨서 깜빡임 방지 */}
-              {!memberLoading && !isAuthenticated && (
+              {!memberLoading && !isApprovedMember && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-center gap-3">
                   <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-amber-800">로그인이 필요합니다</p>
-                    <p className="text-xs text-amber-600 mt-0.5">예약 신청은 로그인 후 이용하실 수 있습니다.</p>
+                    <p className="text-sm font-medium text-amber-800">승인된 성도 로그인이 필요합니다</p>
+                    <p className="text-xs text-amber-600 mt-0.5">시설 사용 예약은 승인 완료된 성도만 신청할 수 있습니다.</p>
                   </div>
                   <Button
                     type="button"
                     size="sm"
                     className="bg-amber-500 hover:bg-amber-600 text-white shrink-0"
-                    onClick={() => { window.location.href = "/member/login"; }}>
-                    로그인
+                    onClick={goToMemberLogin}>
+                    성도 로그인
                   </Button>
                 </div>
               )}
@@ -637,7 +646,7 @@ export default function FacilityApply() {
                       name="date"
                       value={form.date}
                       onChange={handleChange}
-                      min={getKstDateKey()}
+                      min={getReservationLeadDateKey()}
                       className={inputClass}
                     />
                   )}
@@ -709,7 +718,7 @@ export default function FacilityApply() {
                         name="repeatUntilDate"
                         value={form.repeatUntilDate}
                         onChange={handleChange}
-                        min={form.date || getKstDateKey()}
+                        min={form.date || getReservationLeadDateKey()}
                         aria-label="반복 종료일"
                         className={inputClass}
                       />
@@ -771,7 +780,7 @@ export default function FacilityApply() {
                 {/* 제출 버튼 */}
                 <button
                   type="submit"
-                  disabled={createReservation.isPending}
+                  disabled={createReservation.isPending || memberLoading}
                   className="w-full bg-[#1B5E20] text-white py-3.5 rounded-xl font-bold text-base hover:bg-[#2E7D32] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {createReservation.isPending ? (
