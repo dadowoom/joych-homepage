@@ -2,6 +2,7 @@ import {
   useId,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode } from "react";
 import Image from "@tiptap/extension-image";
@@ -39,6 +40,7 @@ import {
   Unlink
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { trpc } from "@/lib/trpc";
 
 type RichTextEditorProps = {
   value: string;
@@ -290,6 +292,9 @@ function ToolbarButton({
 function RichTextToolbar({ editor }: { editor: Editor }) {
   const [isImageInputOpen, setIsImageInputOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const imageFileInputRef = useRef<HTMLInputElement>(null);
+  const uploadImageMutation = trpc.cms.blocks.uploadImage.useMutation();
 
   const setLink = () => {
     const previousUrl = editor.getAttributes("link").href as string | undefined;
@@ -307,6 +312,41 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
     editor.chain().focus().setImage({ src: imageUrl.trim() }).run();
     setImageUrl("");
     setIsImageInputOpen(false);
+  };
+
+  const insertUploadedImage = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      window.alert("이미지 파일만 업로드할 수 있습니다.");
+      return;
+    }
+
+    setIsUploadingImage(true);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = String(reader.result ?? "");
+          resolve(result.split(",")[1] ?? "");
+        };
+        reader.onerror = () => reject(reader.error ?? new Error("이미지를 읽지 못했습니다."));
+        reader.readAsDataURL(file);
+      });
+
+      const result = await uploadImageMutation.mutateAsync({
+        base64,
+        mimeType: file.type,
+        fileName: file.name,
+      });
+
+      editor.chain().focus().setImage({ src: result.url }).run();
+      setImageUrl("");
+      setIsImageInputOpen(false);
+    } catch {
+      window.alert("이미지 업로드에 실패했습니다. 파일을 확인한 뒤 다시 시도해주세요.");
+    } finally {
+      setIsUploadingImage(false);
+      if (imageFileInputRef.current) imageFileInputRef.current.value = "";
+    }
   };
 
   const currentFontFamily = getActiveFontFamilyOption(editor);
@@ -443,6 +483,24 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
             className="h-9 rounded border border-[#1B5E20] px-3 text-sm font-medium text-[#1B5E20] transition hover:bg-[#F1F8E9]"
           >
             이미지 삽입
+          </button>
+          <input
+            ref={imageFileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void insertUploadedImage(file);
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => imageFileInputRef.current?.click()}
+            disabled={isUploadingImage}
+            className="h-9 rounded border border-gray-200 px-3 text-sm font-medium text-gray-600 transition hover:border-[#1B5E20] hover:bg-[#F1F8E9] hover:text-[#1B5E20] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isUploadingImage ? "업로드 중..." : "파일 업로드"}
           </button>
           <button
             type="button"
