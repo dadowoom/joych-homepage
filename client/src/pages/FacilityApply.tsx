@@ -36,6 +36,23 @@ function getFacilityDetailHref(facilityId: number, building: FacilityBuilding) {
   return `/facility/${facilityId}?building=${building}`;
 }
 
+function hasFacilityReservationBlockedMemberMarker(member: {
+  position?: string | null;
+  department?: string | null;
+  district?: string | null;
+  baptismType?: string | null;
+  joinPath?: string | null;
+}) {
+  const markerText = [
+    member.position,
+    member.department,
+    member.district,
+    member.baptismType,
+    member.joinPath,
+  ].filter(Boolean).join(" ");
+  return markerText.includes("타교") || markerText.includes("외부");
+}
+
 const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
   { value: "none", label: "반복 없음" },
   { value: "daily", label: "매일" },
@@ -278,7 +295,7 @@ export default function FacilityApply() {
     refetchOnWindowFocus: false,
   });
   const isApprovedMember = Boolean(memberMe);
-  const canReserveFacility = Boolean(memberMe?.canReserveFacility);
+  const canReserveFacility = Boolean(memberMe?.canReserveFacility) && !hasFacilityReservationBlockedMemberMarker(memberMe ?? {});
 
   // URL 쿼리 파라미터에서 날짜/시간 읽기
   const searchString = useSearch();

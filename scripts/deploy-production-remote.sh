@@ -131,6 +131,37 @@ try {
 NODE
 fi
 
+MIGRATION_0042="${APP_DIR}/drizzle/0042_block_external_facility_reservations.sql"
+if [[ -f "${MIGRATION_0042}" ]]; then
+  echo "[deploy] database cleanup: block external facility reservations"
+  if [[ -f "${APP_DIR}/.env" ]]; then
+    set -a
+    # shellcheck disable=SC1091
+    . "${APP_DIR}/.env"
+    set +a
+  fi
+  node --input-type=module <<'NODE'
+import fs from "node:fs/promises";
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required for migration 0042.");
+}
+
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  const sql = await fs.readFile("drizzle/0042_block_external_facility_reservations.sql", "utf8");
+  for (const statement of sql.split(";").map((part) => part.trim()).filter(Boolean)) {
+    await connection.query(statement);
+  }
+  console.log("[deploy] migration 0042 applied");
+} finally {
+  await connection.end();
+}
+NODE
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

@@ -65,6 +65,25 @@ const TAB_LABELS: { key: TabType; label: string }[] = [
   { key: "account", label: "계정 관리" },
 ];
 
+function hasFacilityReservationBlockedMemberMarker(member: {
+  position?: string | null;
+  department?: string | null;
+  district?: string | null;
+  baptismType?: string | null;
+  adminMemo?: string | null;
+  joinPath?: string | null;
+}) {
+  const markerText = [
+    member.position,
+    member.department,
+    member.district,
+    member.baptismType,
+    member.adminMemo,
+    member.joinPath,
+  ].filter(Boolean).join(" ");
+  return markerText.includes("타교") || markerText.includes("외부");
+}
+
 export default function MemberEditModal({ member, fieldOptions, open, onClose, onSaved }: Props) {
   const utils = trpc.useUtils();
   const [activeTab, setActiveTab] = useState<TabType>("basic");
@@ -143,6 +162,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
 
   const handleSave = () => {
     if (!member) return;
+    const blockedByCategory = hasFacilityReservationBlockedMemberMarker(form);
     updateMutation.mutate({
       id: member.id,
       name: form.name || undefined,
@@ -160,7 +180,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
       registeredAt: form.registeredAt || undefined,
       pastor: form.pastor || undefined,
       adminMemo: form.adminMemo || undefined,
-      canReserveFacility: form.canReserveFacility,
+      canReserveFacility: blockedByCategory ? false : form.canReserveFacility,
       status: form.status as "pending" | "approved" | "rejected" | "withdrawn",
       faithPlusUserId: form.faithPlusUserId || undefined,
     });
@@ -177,6 +197,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
 
   const inputCls = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30";
   const selectCls = inputCls;
+  const facilityReservationBlockedByCategory = hasFacilityReservationBlockedMemberMarker(form);
 
   if (!member) return null;
 
@@ -307,13 +328,18 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={form.canReserveFacility}
+                  checked={form.canReserveFacility && !facilityReservationBlockedByCategory}
+                  disabled={facilityReservationBlockedByCategory}
                   onChange={(e) => setForm(p => ({ ...p, canReserveFacility: e.target.checked }))}
-                  className="mt-1 h-4 w-4 accent-[#1B5E20]"
+                  className="mt-1 h-4 w-4 accent-[#1B5E20] disabled:opacity-50"
                 />
                 <span>
                   <span className="block text-sm font-semibold text-gray-800">시설 예약 가능 성도</span>
-                  <span className="block text-xs text-gray-500 mt-0.5">체크된 성도만 시설 사용 예약을 신청할 수 있습니다.</span>
+                  <span className="block text-xs text-gray-500 mt-0.5">
+                    {facilityReservationBlockedByCategory
+                      ? "타교/외부 분류 회원은 시설 예약을 신청할 수 없습니다."
+                      : "체크된 성도만 시설 사용 예약을 신청할 수 있습니다."}
+                  </span>
                 </span>
               </label>
             </div>

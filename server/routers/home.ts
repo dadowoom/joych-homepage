@@ -73,6 +73,37 @@ const hrefLookupSchema = z.string().trim().min(1).max(256);
 function getMenuReadAccess(ctx: { user?: unknown; memberId?: number | null }) {
   return ctx.user || ctx.memberId ? "member" : "guest";
 }
+
+function hasFacilityReservationBlockedMemberMarker(member: {
+  position?: string | null;
+  department?: string | null;
+  district?: string | null;
+  baptismType?: string | null;
+  adminMemo?: string | null;
+  joinPath?: string | null;
+}) {
+  const markerText = [
+    member.position,
+    member.department,
+    member.district,
+    member.baptismType,
+    member.adminMemo,
+    member.joinPath,
+  ].filter(Boolean).join(" ");
+  return markerText.includes("타교") || markerText.includes("외부");
+}
+
+function canMemberCreateFacilityReservation(member: {
+  canReserveFacility?: boolean | number | null;
+  position?: string | null;
+  department?: string | null;
+  district?: string | null;
+  baptismType?: string | null;
+  adminMemo?: string | null;
+  joinPath?: string | null;
+}) {
+  return Boolean(member.canReserveFacility) && !hasFacilityReservationBlockedMemberMarker(member);
+}
 const staticPageHrefSchema = z.string().trim().min(1).max(128).regex(/^\//);
 const staffCategorySchema = z.string().trim().min(1).max(64).regex(/^[a-z0-9][a-z0-9_-]{0,63}$/);
 const translationLocaleSchema = z.enum(["ja"]);
@@ -532,7 +563,7 @@ export const homeRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const member = await getMemberById(ctx.memberId);
-      if (!member?.canReserveFacility) {
+      if (!member || !canMemberCreateFacilityReservation(member)) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "시설 사용 예약은 교회 등록 성도만 신청할 수 있습니다. 관리자에게 문의해 주세요.",

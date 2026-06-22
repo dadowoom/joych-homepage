@@ -155,6 +155,23 @@ describe("facility reservation lead-time guard", () => {
     expect(dbMocks.createReservationIfAvailable).not.toHaveBeenCalled();
   });
 
+  it("blocks external-category members even if the reservation flag is enabled", async () => {
+    dbMocks.getMemberById.mockResolvedValue({
+      ...approvedMember,
+      canReserveFacility: true,
+      position: "타교인",
+    });
+
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(
+      caller.home.createReservation(reservationInput())
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    expect(dbMocks.createReservationIfAvailable).not.toHaveBeenCalled();
+  });
+
   afterEach(() => {
     vi.useRealTimers();
   });
