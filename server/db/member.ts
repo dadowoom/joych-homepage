@@ -272,6 +272,7 @@ export async function updateMemberChurchInfo(id: number, data: Partial<{
   registeredAt: string;
   pastor: string;
   adminMemo: string;
+  canReserveFacility: boolean;
   status: 'pending' | 'approved' | 'rejected' | 'withdrawn';
   faithPlusUserId: string;
 }>) {
@@ -334,6 +335,7 @@ export async function withdrawMemberAndErasePersonalData(id: number) {
         registeredAt: null,
         pastor: null,
         adminMemo: null,
+        canReserveFacility: false,
         status: "withdrawn",
         faithPlusUserId: null,
         updatedAt: now,
@@ -428,6 +430,7 @@ export async function adminUpdateMember(id: number, data: Partial<{
   registeredAt: string;
   pastor: string;
   adminMemo: string;
+  canReserveFacility: boolean;
   status: 'pending' | 'approved' | 'rejected' | 'withdrawn';
   faithPlusUserId: string;
 }>) {

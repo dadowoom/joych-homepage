@@ -85,6 +85,52 @@ else
   CI=true npm install --omit=dev
 fi
 
+MIGRATION_0041="${APP_DIR}/drizzle/0041_facility_reservation_member_gate.sql"
+if [[ -f "${MIGRATION_0041}" ]]; then
+  echo "[deploy] database migration: facility reservation member gate"
+  if [[ -f "${APP_DIR}/.env" ]]; then
+    set -a
+    # shellcheck disable=SC1091
+    . "${APP_DIR}/.env"
+    set +a
+  fi
+  node --input-type=module <<'NODE'
+import fs from "node:fs/promises";
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required for migration 0041.");
+}
+
+const url = new URL(databaseUrl);
+const databaseName = url.pathname.replace(/^\//, "");
+if (!databaseName) {
+  throw new Error("DATABASE_URL must include a database name.");
+}
+
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  const [columns] = await connection.execute(
+    "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'church_members' AND COLUMN_NAME = 'can_reserve_facility'",
+    [databaseName],
+  );
+  const count = Number(columns?.[0]?.count ?? 0);
+  if (count === 0) {
+    const sql = await fs.readFile("drizzle/0041_facility_reservation_member_gate.sql", "utf8");
+    for (const statement of sql.split(";").map((part) => part.trim()).filter(Boolean)) {
+      await connection.query(statement);
+    }
+    console.log("[deploy] migration 0041 applied");
+  } else {
+    console.log("[deploy] migration 0041 already applied");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

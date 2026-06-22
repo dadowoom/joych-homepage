@@ -37,6 +37,7 @@ type Member = {
   registeredAt?: string | null;
   pastor?: string | null;
   adminMemo?: string | null;
+  canReserveFacility?: boolean | null;
   status: string;
   faithPlusUserId?: string | null;
 };
@@ -84,6 +85,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
     registeredAt: "",
     pastor: "",
     adminMemo: "",
+    canReserveFacility: false,
     status: "pending",
     faithPlusUserId: "",
   });
@@ -106,6 +108,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
         registeredAt: member.registeredAt ?? "",
         pastor: member.pastor ?? "",
         adminMemo: member.adminMemo ?? "",
+        canReserveFacility: Boolean(member.canReserveFacility),
         status: member.status ?? "pending",
         faithPlusUserId: member.faithPlusUserId ?? "",
       });
@@ -157,6 +160,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
       registeredAt: form.registeredAt || undefined,
       pastor: form.pastor || undefined,
       adminMemo: form.adminMemo || undefined,
+      canReserveFacility: form.canReserveFacility,
       status: form.status as "pending" | "approved" | "rejected" | "withdrawn",
       faithPlusUserId: form.faithPlusUserId || undefined,
     });
@@ -298,6 +302,20 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
             <div>
               <Label className="text-xs text-gray-500 mb-1 block">믿음PLUS 앱 ID</Label>
               <Input value={form.faithPlusUserId} onChange={set("faithPlusUserId")} className={inputCls} placeholder="앱 연동 ID" />
+            </div>
+            <div className="sm:col-span-2 rounded-lg border border-emerald-100 bg-emerald-50/60 p-3">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.canReserveFacility}
+                  onChange={(e) => setForm(p => ({ ...p, canReserveFacility: e.target.checked }))}
+                  className="mt-1 h-4 w-4 accent-[#1B5E20]"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-gray-800">시설 예약 가능 성도</span>
+                  <span className="block text-xs text-gray-500 mt-0.5">체크된 성도만 시설 사용 예약을 신청할 수 있습니다.</span>
+                </span>
+              </label>
             </div>
             <div className="sm:col-span-2">
               <Label className="text-xs text-gray-500 mb-1 block">관리자 메모</Label>

@@ -530,6 +530,8 @@ export const churchMembers = mysqlTable("church_members", {
   pastor: varchar("pastor", { length: 64 }),
   /** 관리자 메모 */
   adminMemo: text("admin_memo"),
+  /** Facility reservation eligibility, managed separately from login approval. */
+  canReserveFacility: boolean("can_reserve_facility").notNull().default(false),
 
   // ── 상태 관리 ─────────────────────────────────────────────
   /** 가입 승인 상태: pending(대기) / approved(승인) / rejected(거절) / withdrawn(탈퇴) */

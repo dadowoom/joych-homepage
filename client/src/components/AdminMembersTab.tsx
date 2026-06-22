@@ -443,6 +443,11 @@ export default function AdminMembersTab() {
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>
                             {status.text}
                           </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            member.canReserveFacility ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
+                          }`}>
+                            {member.canReserveFacility ? "시설예약 가능" : "시설예약 불가"}
+                          </span>
                           {member.position && <span className="text-xs text-[#1B5E20] font-medium">{member.position}</span>}
                         </div>
                       </td>
@@ -478,6 +483,11 @@ export default function AdminMembersTab() {
                         <span className="font-semibold text-gray-800 text-sm">{member.name}</span>
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>
                           {status.text}
+                        </span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          member.canReserveFacility ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
+                        }`}>
+                          {member.canReserveFacility ? "시설예약 가능" : "시설예약 불가"}
                         </span>
                         {member.position && <span className="text-xs text-[#1B5E20] font-medium">{member.position}</span>}
                       </div>
@@ -519,6 +529,11 @@ export default function AdminMembersTab() {
                             <span className="font-semibold text-gray-800 text-sm">{member.name}</span>
                             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>
                               {status.text}
+                            </span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              member.canReserveFacility ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
+                            }`}>
+                              {member.canReserveFacility ? "시설예약 가능" : "시설예약 불가"}
                             </span>
                             {member.position && (
                               <span className="text-xs text-[#1B5E20] font-medium">{member.position}</span>

@@ -531,6 +531,14 @@ export const homeRouter = router({
       repeat: reservationRepeatSchema,
     }))
     .mutation(async ({ input, ctx }) => {
+      const member = await getMemberById(ctx.memberId);
+      if (!member?.canReserveFacility) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "시설 사용 예약은 교회 등록 성도만 신청할 수 있습니다. 관리자에게 문의해 주세요.",
+        });
+      }
+
       const startMinutes = toMinutes(input.startTime);
       const endMinutes = toMinutes(input.endTime);
       if (startMinutes === null || endMinutes === null) {

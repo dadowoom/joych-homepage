@@ -47,6 +47,7 @@ const approvedMember = {
   email: "member@example.com",
   phone: "01012345678",
   status: "approved",
+  canReserveFacility: true,
 };
 
 const reservableFacility = {
@@ -136,6 +137,22 @@ describe("facility reservation lead-time guard", () => {
     dbMocks.getBlockedDates.mockResolvedValue([]);
     dbMocks.getReservationsByDate.mockResolvedValue([]);
     dbMocks.createReservationIfAvailable.mockResolvedValue(100);
+  });
+
+  it("blocks approved members without facility reservation eligibility", async () => {
+    dbMocks.getMemberById.mockResolvedValue({
+      ...approvedMember,
+      canReserveFacility: false,
+    });
+
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(
+      caller.home.createReservation(reservationInput())
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    expect(dbMocks.createReservationIfAvailable).not.toHaveBeenCalled();
   });
 
   afterEach(() => {

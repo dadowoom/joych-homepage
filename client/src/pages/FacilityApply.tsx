@@ -278,6 +278,7 @@ export default function FacilityApply() {
     refetchOnWindowFocus: false,
   });
   const isApprovedMember = Boolean(memberMe);
+  const canReserveFacility = Boolean(memberMe?.canReserveFacility);
 
   // URL 쿼리 파라미터에서 날짜/시간 읽기
   const searchString = useSearch();
@@ -475,6 +476,10 @@ export default function FacilityApply() {
       goToMemberLogin();
       return;
     }
+    if (!canReserveFacility) {
+      toast.error("시설 사용 예약은 교회 등록 성도만 신청할 수 있습니다. 관리자에게 문의해 주세요.");
+      return;
+    }
     const error = validate();
     if (error) { toast.error(error); return; }
     createReservation.mutate({
@@ -592,6 +597,15 @@ export default function FacilityApply() {
                     onClick={goToMemberLogin}>
                     성도 로그인
                   </Button>
+                </div>
+              )}
+              {!memberLoading && isApprovedMember && !canReserveFacility && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-red-800">시설 예약 권한이 없습니다</p>
+                    <p className="text-xs text-red-600 mt-0.5">시설 사용 예약은 교회 등록 성도만 신청할 수 있습니다. 권한이 필요한 경우 관리자에게 문의해 주세요.</p>
+                  </div>
                 </div>
               )}
 
