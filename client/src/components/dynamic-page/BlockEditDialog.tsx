@@ -317,7 +317,8 @@ export function BlockEditDialog({
           height: `${dialogSize.height}px`,
           maxWidth: "calc(100vw - 24px)",
           maxHeight: "calc(100vh - 24px)",
-          transform: `translate(calc(-50% + ${dialogOffset.x}px), calc(-50% + ${dialogOffset.y}px))`,
+          marginLeft: `${dialogOffset.x}px`,
+          marginTop: `${dialogOffset.y}px`,
         }}
         onPointerMove={handleDialogPointerMove}
         onPointerUp={handleDialogInteractionEnd}
