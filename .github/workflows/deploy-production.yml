@@ -17,7 +17,7 @@ permissions:
 env:
   JOYCH_APP_DIR: ${{ vars.JOYCH_APP_DIR || '/var/www/joych-homepage' }}
   JOYCH_PM2_APP: ${{ vars.JOYCH_PM2_APP || 'joych-homepage' }}
-  JOYCH_HEALTHCHECK_URL: ${{ vars.JOYCH_HEALTHCHECK_URL || 'https://dadowoomtest.co.kr/api/public-config' }}
+  JOYCH_HEALTHCHECK_URL: ${{ vars.JOYCH_HEALTHCHECK_URL || 'http://127.0.0.1:3000/api/public-config' }}
   JOYCH_SSH_PORT: ${{ secrets.JOYCH_SSH_PORT || '22' }}
   JOYCH_SSH_HOST: ${{ secrets.JOYCH_SSH_HOST }}
   JOYCH_SSH_USER: ${{ secrets.JOYCH_SSH_USER }}
