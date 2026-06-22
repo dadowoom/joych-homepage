@@ -90,7 +90,8 @@ function sortItems(items: HistoryItem[]) {
 }
 
 function parseNumber(value: string) {
-  const parsed = Number(value);
+  const normalized = value.replace(/[^0-9]/g, "");
+  const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : NaN;
 }
 
@@ -623,7 +624,6 @@ export default function AdminChurchHistoryTab() {
                   }
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                   placeholder="예: 2026"
-                  inputMode="numeric"
                 />
               </label>
               <label className="block text-sm font-semibold text-gray-700">
@@ -833,7 +833,6 @@ export default function AdminChurchHistoryTab() {
                       }
                       className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                       placeholder="1980"
-                      inputMode="numeric"
                     />
                   </label>
                   <label className="block text-sm font-semibold text-gray-700">
