@@ -20,6 +20,10 @@ const SETTING_LABELS: Record<string, string> = {
   instagram_url: "인스타그램 URL",
   vision_title: "비전 제목",
   vision_desc: "비전 설명",
+  facility_hero_eyebrow: "시설예약 히어로 영문 라벨",
+  facility_hero_title: "시설예약 히어로 제목",
+  facility_hero_description: "시설예약 히어로 설명",
+  facility_hero_background_url: "시설예약 히어로 배경 이미지 URL",
   facility_guide_step1_title: "시설예약 안내 1 제목",
   facility_guide_step1_desc: "시설예약 안내 1 설명",
   facility_guide_step2_title: "시설예약 안내 2 제목",
@@ -58,12 +62,21 @@ export function SettingsTab() {
               <div>
                 <label className="block text-xs text-gray-500 mb-1">{label}</label>
                 <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    className="flex-1 border border-gray-300 rounded px-3 py-1.5 text-sm"
-                  />
+                  {key.endsWith("_desc") || key.endsWith("_description") ? (
+                    <textarea
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      rows={3}
+                      className="flex-1 border border-gray-300 rounded px-3 py-1.5 text-sm"
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      className="flex-1 border border-gray-300 rounded px-3 py-1.5 text-sm"
+                    />
+                  )}
                   <button
                     onClick={() => updateMutation.mutate({ key, value: editValue })}
                     disabled={updateMutation.isPending}

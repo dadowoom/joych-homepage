@@ -19,6 +19,17 @@ const FACILITY_BUILDINGS = [
 type FacilityBuilding = typeof FACILITY_BUILDINGS[number]["value"];
 type SiteSettings = Record<string, string>;
 
+const DEFAULT_FACILITY_HERO_BACKGROUND =
+  "https://images.unsplash.com/photo-1438032005730-c779502df39b?w=1200&q=60";
+
+const FACILITY_HERO_DEFAULTS = {
+  eyebrow: "Facility Reservation",
+  title: "시설 사용 예약",
+  description:
+    "기쁨의교회의 다양한 공간을 예약하여 사용하실 수 있습니다. 원하시는 시설을 선택하고\n예약 신청서를 작성해 주세요.",
+  backgroundUrl: DEFAULT_FACILITY_HERO_BACKGROUND,
+} as const;
+
 const FACILITY_GUIDE_DEFAULTS = [
   {
     icon: "fa-search",
@@ -72,26 +83,28 @@ function getFacilityDetailHref(facilityId: number, building: FacilityBuilding) {
 }
 
 // ── 상단 배너 ──────────────────────────────────────────────
-function FacilityHero() {
+function FacilityHero({ settings }: { settings?: SiteSettings }) {
+  const eyebrow = getSettingText(settings, "facility_hero_eyebrow", FACILITY_HERO_DEFAULTS.eyebrow);
+  const title = getSettingText(settings, "facility_hero_title", FACILITY_HERO_DEFAULTS.title);
+  const description = getSettingText(settings, "facility_hero_description", FACILITY_HERO_DEFAULTS.description);
+  const backgroundUrl = getSettingText(settings, "facility_hero_background_url", FACILITY_HERO_DEFAULTS.backgroundUrl);
+
   return (
     <section className="relative bg-[#1B5E20] py-16 overflow-hidden">
       <div
         className="absolute inset-0 opacity-20 bg-cover bg-center"
-        style={{ backgroundImage: "url('https://images.unsplash.com/photo-1438032005730-c779502df39b?w=1200&q=60')" }}
+        style={{ backgroundImage: `url('${backgroundUrl.replace(/'/g, "%27")}')` }}
       />
       <div className="container relative z-10 text-white">
-        <p className="text-sm tracking-widest text-green-200 mb-2 uppercase">Facility Reservation</p>
+        <p className="text-sm tracking-widest text-green-200 mb-2 uppercase">{eyebrow}</p>
         <h1 className="text-3xl md:text-4xl font-bold mb-3" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-          시설 사용 예약
+          {title}
         </h1>
-        <p className="text-green-100 text-sm md:text-base max-w-xl">
-          기쁨의교회의 다양한 공간을 예약하여 사용하실 수 있습니다.
-          원하시는 시설을 선택하고 예약 신청서를 작성해 주세요.
-        </p>
+        <p className="text-green-100 text-sm md:text-base max-w-xl whitespace-pre-line">{description}</p>
         <nav className="mt-5 flex items-center gap-2 text-xs text-green-200">
           <Link href="/" className="hover:text-white transition-colors">홈</Link>
           <i className="fas fa-chevron-right text-[10px]"></i>
-          <span className="text-white">시설 사용 예약</span>
+          <span className="text-white">{title}</span>
         </nav>
       </div>
     </section>
@@ -226,7 +239,7 @@ export default function FacilityList() {
 
   return (
     <div className="min-h-screen bg-[#F7F7F5]">
-      <FacilityHero />
+      <FacilityHero settings={settings as SiteSettings | undefined} />
       <FacilityGuide settings={settings as SiteSettings | undefined} />
 
       <section className="py-12">
