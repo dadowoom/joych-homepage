@@ -280,6 +280,7 @@ export default function AdminChurchHistoryTab() {
   const [itemForm, setItemForm] = useState<ItemForm>(emptyItemForm);
   const [isDecadeFormOpen, setIsDecadeFormOpen] = useState(false);
   const [isItemFormOpen, setIsItemFormOpen] = useState(false);
+  const [itemFormYearContext, setItemFormYearContext] = useState<number | null>(null);
   const dragSensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -363,6 +364,7 @@ export default function AdminChurchHistoryTab() {
         decadeId: selectedDecadeId,
         sortOrder: String(yearlyCount + 2),
       });
+      setItemFormYearContext(null);
       setIsItemFormOpen(false);
       refreshHistory();
     },
@@ -371,6 +373,7 @@ export default function AdminChurchHistoryTab() {
   const updateItem = trpc.cms.history.updateItem.useMutation({
     onSuccess: () => {
       setItemForm({ ...emptyItemForm, decadeId: selectedDecadeId });
+      setItemFormYearContext(null);
       setIsItemFormOpen(false);
       refreshHistory();
     },
@@ -416,10 +419,12 @@ export default function AdminChurchHistoryTab() {
       year: String(targetYear),
       sortOrder: String(yearlyCount + 1),
     });
+    setItemFormYearContext(year === undefined ? null : targetYear);
     setIsItemFormOpen(true);
   };
 
   const startEditItem = (item: HistoryItem) => {
+    const targetYear = Number(item.year);
     setSelectedDecadeId(String(item.decadeId));
     setItemForm({
       id: item.id,
@@ -430,8 +435,129 @@ export default function AdminChurchHistoryTab() {
       sortOrder: String(item.sortOrder || ""),
       isVisible: item.isVisible,
     });
+    setItemFormYearContext(Number.isFinite(targetYear) ? targetYear : null);
     setIsItemFormOpen(true);
   };
+
+  const closeItemForm = () => {
+    setItemForm({
+      ...emptyItemForm,
+      decadeId: selectedDecadeId,
+    });
+    setItemFormYearContext(null);
+    setIsItemFormOpen(false);
+  };
+
+  const renderItemForm = () => (
+    <form
+      onSubmit={handleItemSubmit}
+      className="rounded-xl border border-green-100 bg-green-50/40 p-4"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 className="font-semibold text-gray-950">
+          {itemForm.id ? "연혁 내용 수정" : "새 연혁 내용 추가"}
+        </h4>
+        <button
+          type="button"
+          onClick={closeItemForm}
+          className="text-sm text-gray-500"
+        >
+          닫기
+        </button>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-[0.8fr_0.6fr_0.7fr_auto]">
+        <label className="block text-sm font-semibold text-gray-700">
+          연도
+          <input
+            value={itemForm.year}
+            onChange={event =>
+              setItemForm(current => ({
+                ...current,
+                year: event.target.value,
+              }))
+            }
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            placeholder="1980"
+          />
+        </label>
+        <label className="block text-sm font-semibold text-gray-700">
+          월
+          <input
+            value={itemForm.month}
+            onChange={event =>
+              setItemForm(current => ({
+                ...current,
+                month: event.target.value,
+              }))
+            }
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            placeholder="04"
+            inputMode="numeric"
+          />
+        </label>
+        <label className="block text-sm font-semibold text-gray-700">
+          정렬 순서
+          <input
+            value={itemForm.sortOrder}
+            onChange={event =>
+              setItemForm(current => ({
+                ...current,
+                sortOrder: event.target.value,
+              }))
+            }
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            placeholder="자동"
+            inputMode="numeric"
+          />
+        </label>
+        <label className="flex items-end gap-2 pb-2 text-sm font-semibold text-gray-700">
+          <input
+            type="checkbox"
+            checked={itemForm.isVisible}
+            onChange={event =>
+              setItemForm(current => ({
+                ...current,
+                isVisible: event.target.checked,
+              }))
+            }
+          />
+          노출
+        </label>
+      </div>
+
+      <label className="mt-3 block text-sm font-semibold text-gray-700">
+        내용
+        <textarea
+          value={itemForm.content}
+          onChange={event =>
+            setItemForm(current => ({
+              ...current,
+              content: event.target.value,
+            }))
+          }
+          className="mt-1 min-h-32 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+          placeholder="연혁 내용을 입력해주세요."
+        />
+      </label>
+
+      <div className="mt-4 flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={closeItemForm}
+          className="rounded-lg border border-gray-300 px-4 py-2 text-sm"
+        >
+          취소
+        </button>
+        <button
+          type="submit"
+          className="rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white"
+        >
+          {itemForm.id ? "수정 저장" : "추가"}
+        </button>
+      </div>
+    </form>
+  );
 
   const handleDecadeSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -752,7 +878,7 @@ export default function AdminChurchHistoryTab() {
                       {year}
                     </div>
                     <div className="space-y-3">
-                      {yearItems.map(item => {
+                  {yearItems.map(item => {
                         const itemIndex = selectedItems.findIndex(
                           candidate => candidate.id === item.id
                         );
@@ -777,6 +903,7 @@ export default function AdminChurchHistoryTab() {
                       >
                         + {year}년에 연혁 추가
                       </button>
+                      {isItemFormOpen && itemFormYearContext === year && renderItemForm()}
                     </div>
                   </div>
                 ))}
@@ -799,7 +926,7 @@ export default function AdminChurchHistoryTab() {
 
         {selectedDecade && (
           <div className="mt-5">
-            {!isItemFormOpen && (
+            {!isItemFormOpen && itemFormYearContext === null && (
               <button
                 type="button"
                 onClick={() => startNewItem()}
@@ -809,127 +936,7 @@ export default function AdminChurchHistoryTab() {
               </button>
             )}
 
-            {isItemFormOpen && (
-              <form
-                onSubmit={handleItemSubmit}
-                className="rounded-xl border border-green-100 bg-green-50/40 p-4"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h4 className="font-semibold text-gray-950">
-                    {itemForm.id ? "연혁 내용 수정" : "새 연혁 내용 추가"}
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setItemForm({
-                        ...emptyItemForm,
-                        decadeId: selectedDecadeId,
-                      });
-                      setIsItemFormOpen(false);
-                    }}
-                    className="text-sm text-gray-500"
-                  >
-                    닫기
-                  </button>
-                </div>
-
-                <div className="mt-4 grid gap-3 md:grid-cols-[0.8fr_0.6fr_0.7fr_auto]">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    연도
-                    <input
-                      value={itemForm.year}
-                      onChange={event =>
-                        setItemForm(current => ({
-                          ...current,
-                          year: event.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                      placeholder="1980"
-                    />
-                  </label>
-                  <label className="block text-sm font-semibold text-gray-700">
-                    월
-                    <input
-                      value={itemForm.month}
-                      onChange={event =>
-                        setItemForm(current => ({
-                          ...current,
-                          month: event.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                      placeholder="04"
-                      inputMode="numeric"
-                    />
-                  </label>
-                  <label className="block text-sm font-semibold text-gray-700">
-                    정렬 순서
-                    <input
-                      value={itemForm.sortOrder}
-                      onChange={event =>
-                        setItemForm(current => ({
-                          ...current,
-                          sortOrder: event.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                      placeholder="자동"
-                      inputMode="numeric"
-                    />
-                  </label>
-                  <label className="flex items-end gap-2 pb-2 text-sm font-semibold text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={itemForm.isVisible}
-                      onChange={event =>
-                        setItemForm(current => ({
-                          ...current,
-                          isVisible: event.target.checked,
-                        }))
-                      }
-                    />
-                    노출
-                  </label>
-                </div>
-
-                <label className="mt-3 block text-sm font-semibold text-gray-700">
-                  내용
-                  <textarea
-                    value={itemForm.content}
-                    onChange={event =>
-                      setItemForm(current => ({
-                        ...current,
-                        content: event.target.value,
-                      }))
-                    }
-                    className="mt-1 min-h-32 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                    placeholder="연혁 내용을 입력해주세요."
-                  />
-                </label>
-
-                <div className="mt-4 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setItemForm({
-                        ...emptyItemForm,
-                        decadeId: selectedDecadeId,
-                      });
-                      setIsItemFormOpen(false);
-                    }}
-                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm"
-                  >
-                    취소
-                  </button>
-                  <button
-                    type="submit"
-                    className="rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white"
-                  >
-                    {itemForm.id ? "수정 저장" : "추가"}
-                  </button>
-                </div>
-              </form>
+            {isItemFormOpen && itemFormYearContext === null && renderItemForm()}
             )}
           </div>
         )}
