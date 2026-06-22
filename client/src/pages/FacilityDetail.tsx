@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Users, MapPin, Clock, ChevronLeft, ChevronRight, Phone, AlertCircle, CalendarCheck, Loader2 } from "lucide-react";
 import { getReservationTimeRestriction, hasReservableStartTime } from "@/lib/facilityReservationTime";
+import { hasFacilityReservationRuleOverride } from "@shared/facilityReservationEligibility";
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -190,6 +191,7 @@ function TimeSlotPanel({
   startTime,
   endTime,
   onSelectTime,
+  hasReservationOverride,
 }: {
   facilityId: number;
   facility: Facility | null | undefined;
@@ -197,6 +199,7 @@ function TimeSlotPanel({
   startTime: string;
   endTime: string;
   onSelectTime: (start: string, end: string) => void;
+  hasReservationOverride: boolean;
 }) {
   const dayOfWeek = new Date(selectedDate).getDay();
   const slotMinutes = facility?.slotMinutes ?? 60;
@@ -235,19 +238,28 @@ function TimeSlotPanel({
 
   // Generate selectable start slots within operating hours.
   const allSlots = useMemo(() => {
-    if (!todayHour || !todayHour.isOpen || !todayHour.openTime || !todayHour.closeTime) return [];
-    return generateReservationStartSlots(todayHour.openTime, todayHour.closeTime, slotMinutes);
-  }, [todayHour, slotMinutes]);
+    if (!hasReservationOverride && (!todayHour || !todayHour.isOpen)) return [];
+    const openTime = hasReservationOverride
+      ? (todayHour?.openTime ?? facility?.openTime)
+      : todayHour?.openTime;
+    const closeTime = hasReservationOverride
+      ? (todayHour?.closeTime ?? facility?.closeTime)
+      : todayHour?.closeTime;
+    if (!openTime || !closeTime) return [];
+    return generateReservationStartSlots(openTime, closeTime, slotMinutes);
+  }, [todayHour, slotMinutes, hasReservationOverride, facility?.openTime, facility?.closeTime]);
 
   const disabledSlots = useMemo(() => {
     const disabled = new Map<string, string>();
     if (!selectedDate) return disabled;
     allSlots.forEach((slot) => {
-      const restriction = getReservationTimeRestriction(selectedDate, slot);
+      const restriction = getReservationTimeRestriction(selectedDate, slot, {
+        enforceLeadTime: !hasReservationOverride,
+      });
       if (restriction) disabled.set(slot, restriction);
     });
     return disabled;
-  }, [allSlots, selectedDate]);
+  }, [allSlots, selectedDate, hasReservationOverride]);
 
   // 날짜 포맷 (예: 2026년 4월 18일 (금))
   const dateLabel = useMemo(() => {
@@ -260,7 +272,7 @@ function TimeSlotPanel({
   // - 시작 시간만 선택된 상태 → 종료 시간 선택 (시작보다 뒤여야 함)
   // - 둘 다 선택된 상태 → 초기화 후 시작 시간 재선택
   function handleSlotClick(slot: string) {
-    if (bookedSlots.has(slot) || disabledSlots.has(slot)) return;
+    if ((!hasReservationOverride && bookedSlots.has(slot)) || disabledSlots.has(slot)) return;
 
     // 종료 시간(closeTime) 슬롯은 시작 시간으로 선택 불가
     const lastSlot = allSlots[allSlots.length - 1];
@@ -293,7 +305,7 @@ function TimeSlotPanel({
           const h = Math.floor(cur / 60);
           const m = cur % 60;
           const slotKey = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-          if (bookedSlots.has(slotKey) || disabledSlots.has(slotKey)) {
+          if ((!hasReservationOverride && bookedSlots.has(slotKey)) || disabledSlots.has(slotKey)) {
             hasConflict = true;
             break;
           }
@@ -318,7 +330,7 @@ function TimeSlotPanel({
       </div>
 
       {/* 휴무일 */}
-      {todayHour && !todayHour.isOpen && (
+      {todayHour && !todayHour.isOpen && !hasReservationOverride && (
         <div className="flex items-center gap-2 text-red-500 text-sm bg-red-50 rounded-lg p-3">
           <AlertCircle size={14} />
           <span>이 날은 휴무일입니다.</span>
@@ -338,10 +350,10 @@ function TimeSlotPanel({
       )}
 
       {/* 시간대 슬롯 선택 */}
-      {!isLoading && todayHour && todayHour.isOpen && allSlots.length > 0 && (
+      {!isLoading && (hasReservationOverride || (todayHour && todayHour.isOpen)) && allSlots.length > 0 && (
         <>
           <p className="text-xs text-gray-500">
-            운영 시간: {todayHour.openTime} ~ {todayHour.closeTime}
+            운영 시간: {todayHour?.openTime ?? facility?.openTime} ~ {todayHour?.closeTime ?? facility?.closeTime}
           </p>
 
           {/* 선택 안내 */}
@@ -355,7 +367,7 @@ function TimeSlotPanel({
 
               <div className="flex flex-wrap gap-1.5">
             {allSlots.map((slot) => {
-              const isBooked = bookedSlots.has(slot);
+              const isBooked = !hasReservationOverride && bookedSlots.has(slot);
               const disabledReason = disabledSlots.get(slot);
               const isDisabled = isBooked || Boolean(disabledReason);
               const isStart = slot === startTime;
@@ -418,11 +430,13 @@ function ReservationCalendar({
   selectedDate,
   slotMinutes,
   onSelectDate,
+  hasReservationOverride,
 }: {
   facilityId: number;
   selectedDate: string;
   slotMinutes?: number | null;
   onSelectDate: (date: string) => void;
+  hasReservationOverride: boolean;
 }) {
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
@@ -496,10 +510,12 @@ function ReservationCalendar({
               ? generateReservationStartSlots(dayHour.openTime, dayHour.closeTime, normalizedSlotMinutes)
               : [];
           const hasAvailableStartTime = hoursLoaded
-            ? startSlots.length > 0 && hasReservableStartTime(dateStr, startSlots)
+            ? startSlots.length > 0 && hasReservableStartTime(dateStr, startSlots, {
+                enforceLeadTime: !hasReservationOverride,
+              })
             : true;
           const isSelected = selectedDate === dateStr;
-          const isUnavailable = isPast || isBlocked || isClosed || !hasAvailableStartTime;
+          const isUnavailable = isPast || (!hasReservationOverride && (isBlocked || isClosed || !hasAvailableStartTime));
 
           return (
             <button
@@ -539,6 +555,7 @@ export default function FacilityDetail() {
     refetchOnWindowFocus: false,
   });
   const isApprovedMember = Boolean(memberMe);
+  const hasReservationOverride = hasFacilityReservationRuleOverride(memberMe ?? {});
   const activeBuilding = useMemo(() => {
     const requestedBuilding = new URLSearchParams(searchString).get("building");
     return normalizeFacilityBuilding(requestedBuilding ?? facility?.building);
@@ -717,6 +734,7 @@ export default function FacilityDetail() {
                 selectedDate={selectedDate}
                 slotMinutes={facility?.slotMinutes ?? 60}
                 onSelectDate={handleSelectDate}
+                hasReservationOverride={hasReservationOverride}
               />
 
               {/* 날짜 선택 시 시간대 현황 + 선택 패널 표시 */}
@@ -728,6 +746,7 @@ export default function FacilityDetail() {
                   startTime={startTime}
                   endTime={endTime}
                   onSelectTime={handleSelectTime}
+                  hasReservationOverride={hasReservationOverride}
                 />
               )}
 

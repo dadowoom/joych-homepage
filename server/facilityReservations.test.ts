@@ -7,6 +7,7 @@ const dbMocks = vi.hoisted(() => ({
   getFacilityHours: vi.fn(),
   getBlockedDates: vi.fn(),
   getReservationsByDate: vi.fn(),
+  createReservation: vi.fn(),
   createReservationIfAvailable: vi.fn(),
   getMemberById: vi.fn(),
 }));
@@ -35,6 +36,7 @@ vi.mock("./db", async (importOriginal) => {
     getFacilityHours: dbMocks.getFacilityHours,
     getBlockedDates: dbMocks.getBlockedDates,
     getReservationsByDate: dbMocks.getReservationsByDate,
+    createReservation: dbMocks.createReservation,
     createReservationIfAvailable: dbMocks.createReservationIfAvailable,
   };
 });
@@ -47,7 +49,7 @@ const approvedMember = {
   email: "member@example.com",
   phone: "01012345678",
   status: "approved",
-  canReserveFacility: true,
+  canReserveFacility: false,
 };
 
 const reservableFacility = {
@@ -136,10 +138,11 @@ describe("facility reservation lead-time guard", () => {
     dbMocks.getFacilityHours.mockResolvedValue([]);
     dbMocks.getBlockedDates.mockResolvedValue([]);
     dbMocks.getReservationsByDate.mockResolvedValue([]);
+    dbMocks.createReservation.mockResolvedValue(100);
     dbMocks.createReservationIfAvailable.mockResolvedValue(100);
   });
 
-  it("blocks approved members without facility reservation eligibility", async () => {
+  it("allows approved church members without facility reservation override when rules are satisfied", async () => {
     dbMocks.getMemberById.mockResolvedValue({
       ...approvedMember,
       canReserveFacility: false,
@@ -148,11 +151,9 @@ describe("facility reservation lead-time guard", () => {
     const caller = appRouter.createCaller(createContext());
 
     await expect(
-      caller.home.createReservation(reservationInput())
-    ).rejects.toMatchObject({
-      code: "FORBIDDEN",
-    });
-    expect(dbMocks.createReservationIfAvailable).not.toHaveBeenCalled();
+      caller.home.createReservation(reservationInput({ startTime: "15:00", endTime: "16:00" }))
+    ).resolves.toMatchObject({ id: 100, status: "pending", count: 1 });
+    expect(dbMocks.createReservationIfAvailable).toHaveBeenCalled();
   });
 
   it("blocks external-category members even if the reservation flag is enabled", async () => {
@@ -170,6 +171,7 @@ describe("facility reservation lead-time guard", () => {
       code: "FORBIDDEN",
     });
     expect(dbMocks.createReservationIfAvailable).not.toHaveBeenCalled();
+    expect(dbMocks.createReservation).not.toHaveBeenCalled();
   });
 
   afterEach(() => {
@@ -214,7 +216,7 @@ describe("facility reservation lead-time guard", () => {
       }))
     ).resolves.toMatchObject({ id: 100, status: "pending", count: 1 });
 
-    expect(dbMocks.createReservationIfAvailable).toHaveBeenCalledWith(
+    expect(dbMocks.createReservation).toHaveBeenCalledWith(
       expect.objectContaining({
         reservationDate: "2026-06-16",
         startTime: "16:00",
@@ -222,6 +224,58 @@ describe("facility reservation lead-time guard", () => {
         userId: 1,
       }),
     );
+    expect(dbMocks.createReservationIfAvailable).not.toHaveBeenCalled();
+  });
+
+  it("lets reservation exception members bypass closed days, blocked dates, and overlaps", async () => {
+    dbMocks.getMemberById.mockResolvedValue({
+      ...approvedMember,
+      canReserveFacility: true,
+    });
+    dbMocks.getFacilityHours.mockResolvedValue([
+      {
+        facilityId: 1,
+        dayOfWeek: 3,
+        isOpen: false,
+        openTime: "09:00",
+        closeTime: "21:00",
+        breakStart: null,
+        breakEnd: null,
+      },
+    ]);
+    dbMocks.getBlockedDates.mockResolvedValue([
+      {
+        facilityId: 1,
+        blockedDate: "2026-06-17",
+        isPartialBlock: false,
+        blockStart: null,
+        blockEnd: null,
+        reason: "maintenance",
+      },
+    ]);
+    dbMocks.getReservationsByDate.mockResolvedValue([
+      {
+        startTime: "15:00",
+        endTime: "16:00",
+        status: "approved",
+      },
+    ]);
+
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(
+      caller.home.createReservation(reservationInput({ startTime: "15:00", endTime: "16:00" }))
+    ).resolves.toMatchObject({ id: 100, status: "pending", count: 1 });
+
+    expect(dbMocks.createReservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reservationDate: "2026-06-17",
+        startTime: "15:00",
+        endTime: "16:00",
+        userId: 1,
+      }),
+    );
+    expect(dbMocks.createReservationIfAvailable).not.toHaveBeenCalled();
   });
 
   it("blocks reservation managers when the selected time has already passed", async () => {

@@ -13,7 +13,11 @@ import type { FacilityBlockedDate } from "../../../drizzle/schema";
 import { toast } from "sonner";
 import { Loader2, ChevronRight, Clock, Users, MapPin, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getReservationLeadDateKey, getReservationTimeRestriction } from "@/lib/facilityReservationTime";
+import { getKstDateKey, getReservationLeadDateKey, getReservationTimeRestriction } from "@/lib/facilityReservationTime";
+import {
+  hasFacilityReservationBlockedMemberMarker,
+  hasFacilityReservationRuleOverride,
+} from "@shared/facilityReservationEligibility";
 
 // ── 목적 옵션 ────────────────────────────────────────────────
 const PURPOSE_OPTIONS = [
@@ -34,23 +38,6 @@ function getFacilityListHref(building: FacilityBuilding) {
 
 function getFacilityDetailHref(facilityId: number, building: FacilityBuilding) {
   return `/facility/${facilityId}?building=${building}`;
-}
-
-function hasFacilityReservationBlockedMemberMarker(member: {
-  position?: string | null;
-  department?: string | null;
-  district?: string | null;
-  baptismType?: string | null;
-  joinPath?: string | null;
-}) {
-  const markerText = [
-    member.position,
-    member.department,
-    member.district,
-    member.baptismType,
-    member.joinPath,
-  ].filter(Boolean).join(" ");
-  return markerText.includes("타교") || markerText.includes("외부");
 }
 
 const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
@@ -295,7 +282,8 @@ export default function FacilityApply() {
     refetchOnWindowFocus: false,
   });
   const isApprovedMember = Boolean(memberMe);
-  const canReserveFacility = Boolean(memberMe?.canReserveFacility) && !hasFacilityReservationBlockedMemberMarker(memberMe ?? {});
+  const hasReservationOverride = hasFacilityReservationRuleOverride(memberMe ?? {});
+  const canReserveFacility = isApprovedMember && !hasFacilityReservationBlockedMemberMarker(memberMe ?? {});
 
   // URL 쿼리 파라미터에서 날짜/시간 읽기
   const searchString = useSearch();
@@ -394,9 +382,16 @@ export default function FacilityApply() {
   const unitMinutes = facility?.slotMinutes ?? 60;
 
   const allTimeSlots = useMemo(() => {
-    if (!todayHour || !todayHour.isOpen || !todayHour.openTime || !todayHour.closeTime) return [];
-    return generateTimeSlots(todayHour.openTime, todayHour.closeTime, unitMinutes);
-  }, [todayHour, unitMinutes]);
+    if (!hasReservationOverride && (!todayHour || !todayHour.isOpen)) return [];
+    const openTime = hasReservationOverride
+      ? (todayHour?.openTime ?? facility?.openTime)
+      : todayHour?.openTime;
+    const closeTime = hasReservationOverride
+      ? (todayHour?.closeTime ?? facility?.closeTime)
+      : todayHour?.closeTime;
+    if (!openTime || !closeTime) return [];
+    return generateTimeSlots(openTime, closeTime, unitMinutes);
+  }, [todayHour, unitMinutes, hasReservationOverride, facility?.openTime, facility?.closeTime]);
 
   // 이미 예약된 시간 슬롯 (승인 대기 + 승인 완료)
   const bookedSlots = useMemo(() => {
@@ -422,11 +417,17 @@ export default function FacilityApply() {
     const disabled = new Map<string, string>();
     if (!form.date) return disabled;
     allTimeSlots.forEach((slot) => {
-      const restriction = getReservationTimeRestriction(form.date, slot);
+      const restriction = getReservationTimeRestriction(form.date, slot, {
+        enforceLeadTime: !hasReservationOverride,
+      });
       if (restriction) disabled.set(slot, restriction);
     });
     return disabled;
-  }, [allTimeSlots, form.date]);
+  }, [allTimeSlots, form.date, hasReservationOverride]);
+
+  const selectableBookedSlots = useMemo(() => {
+    return hasReservationOverride ? new Set<string>() : bookedSlots;
+  }, [bookedSlots, hasReservationOverride]);
 
   // 날짜 비활성화 여부
   const blockedDateSet = useMemo(() => {
@@ -455,14 +456,16 @@ export default function FacilityApply() {
     if (!form.department.trim()) return "소속 부서/단체를 입력해 주세요.";
     if (!form.purpose) return "사용 목적을 선택해 주세요.";
     if (!form.date) return "사용 날짜를 선택해 주세요.";
-    if (blockedDateSet.has(form.date)) return "해당 날짜는 예약이 불가능합니다.";
+    if (blockedDateSet.has(form.date) && !hasReservationOverride) return "해당 날짜는 예약이 불가능합니다.";
     if (!form.startTime) return "시작 시간을 선택해 주세요.";
     if (!form.endTime) return "종료 시간을 선택해 주세요.";
     if (form.startTime >= form.endTime) return "종료 시간은 시작 시간보다 늦어야 합니다.";
-    const timeRestriction = getReservationTimeRestriction(form.date, form.startTime);
+    const timeRestriction = getReservationTimeRestriction(form.date, form.startTime, {
+      enforceLeadTime: !hasReservationOverride,
+    });
     if (timeRestriction) return timeRestriction;
     if (!form.attendees || Number(form.attendees) < 1) return "예상 인원을 입력해 주세요.";
-    if (facility && Number(form.attendees) > facility.capacity) return `최대 수용 인원(${facility.capacity}명)을 초과합니다.`;
+    if (facility && Number(form.attendees) > facility.capacity && !hasReservationOverride) return `최대 수용 인원(${facility.capacity}명)을 초과합니다.`;
     if (form.repeatType !== "none") {
       if (!form.repeatUntilDate) {
         return "반복 종료일을 선택해 주세요.";
@@ -477,11 +480,13 @@ export default function FacilityApply() {
     const [eh, em] = form.endTime.split(":").map(Number);
     let cur = sh * 60 + sm;
     const end = eh * 60 + em;
-    while (cur < end) {
-      const h = Math.floor(cur / 60).toString().padStart(2, "0");
-      const m = (cur % 60).toString().padStart(2, "0");
-      if (bookedSlots.has(`${h}:${m}`)) return "선택하신 시간대에 이미 예약이 있습니다. 다른 시간을 선택해 주세요.";
-      cur += unitMinutes;
+    if (!hasReservationOverride) {
+      while (cur < end) {
+        const h = Math.floor(cur / 60).toString().padStart(2, "0");
+        const m = (cur % 60).toString().padStart(2, "0");
+        if (bookedSlots.has(`${h}:${m}`)) return "선택하신 시간대에 이미 예약이 있습니다. 다른 시간을 선택해 주세요.";
+        cur += unitMinutes;
+      }
     }
     return null;
   }
@@ -677,24 +682,29 @@ export default function FacilityApply() {
                       name="date"
                       value={form.date}
                       onChange={handleChange}
-                      min={getReservationLeadDateKey()}
+                      min={hasReservationOverride ? getKstDateKey() : getReservationLeadDateKey()}
                       className={inputClass}
                     />
                   )}
-                  {form.date && todayHour && !todayHour.isOpen && (
+                  {form.date && todayHour && !todayHour.isOpen && !hasReservationOverride && (
                     <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" /> 해당 요일은 휴무일입니다.
                     </p>
                   )}
-                  {form.date && blockedDateSet.has(form.date) && (
+                  {form.date && blockedDateSet.has(form.date) && !hasReservationOverride && (
                     <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" /> 해당 날짜는 예약이 불가능합니다.
+                    </p>
+                  )}
+                  {form.date && hasReservationOverride && (
+                    <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" /> 예약 예외 권한으로 운영 제한을 넘어 신청할 수 있습니다.
                     </p>
                   )}
                 </Field>
 
                 {/* 시간 선택 — 슬롯 버튼 방식 */}
-                {form.date && (!todayHour || todayHour.isOpen) && !blockedDateSet.has(form.date) && (
+                {form.date && (hasReservationOverride || !todayHour || todayHour.isOpen) && (hasReservationOverride || !blockedDateSet.has(form.date)) && (
                   <Field
                     label="사용 시간"
                     required
@@ -717,7 +727,7 @@ export default function FacilityApply() {
                         )}
                         <TimeSlotPicker
                           allSlots={allTimeSlots}
-                          bookedSlots={bookedSlots}
+                          bookedSlots={selectableBookedSlots}
                           disabledSlots={disabledTimeSlots}
                           startTime={form.startTime}
                           endTime={form.endTime}

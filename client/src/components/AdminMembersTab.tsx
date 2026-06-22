@@ -16,6 +16,10 @@ import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import MemberEditModal from "./MemberEditModal";
+import {
+  hasFacilityReservationBlockedMemberMarker,
+  hasFacilityReservationRuleOverride,
+} from "@shared/facilityReservationEligibility";
 
 type StatusFilter = "all" | "pending" | "approved" | "rejected" | "withdrawn";
 type ViewMode = "position" | "list" | "district" | "department";
@@ -39,27 +43,14 @@ type PageSize = typeof PAGE_SIZE_OPTIONS[number];
 
 type Member = inferRouterOutputs<AppRouter>["members"]["adminList"][number];
 
-function hasFacilityReservationBlockedMemberMarker(member: {
-  position?: string | null;
-  department?: string | null;
-  district?: string | null;
-  baptismType?: string | null;
-  adminMemo?: string | null;
-  joinPath?: string | null;
-}) {
-  const markerText = [
-    member.position,
-    member.department,
-    member.district,
-    member.baptismType,
-    member.adminMemo,
-    member.joinPath,
-  ].filter(Boolean).join(" ");
-  return markerText.includes("타교") || markerText.includes("외부");
-}
-
-function canMemberReserveFacility(member: Member) {
-  return Boolean(member.canReserveFacility) && !hasFacilityReservationBlockedMemberMarker(member);
+function getFacilityReservationBadge(member: Member) {
+  if (hasFacilityReservationBlockedMemberMarker(member)) {
+    return { text: "예약제한", color: "bg-gray-100 text-gray-500" };
+  }
+  if (hasFacilityReservationRuleOverride(member)) {
+    return { text: "예약예외", color: "bg-amber-100 text-amber-700" };
+  }
+  return { text: "일반예약", color: "bg-emerald-100 text-emerald-700" };
 }
 
 export default function AdminMembersTab() {
@@ -455,7 +446,7 @@ export default function AdminMembersTab() {
               <tbody className="divide-y divide-gray-100">
                 {paginated.map((member, index) => {
                   const status = STATUS_LABELS[member.status ?? "pending"] ?? STATUS_LABELS.pending;
-                  const canReserveFacility = canMemberReserveFacility(member);
+                  const facilityReservationBadge = getFacilityReservationBadge(member);
                   return (
                     <tr key={member.id} className="hover:bg-gray-50">
                       <td className="px-4 py-2 text-xs text-gray-400">
@@ -467,10 +458,8 @@ export default function AdminMembersTab() {
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>
                             {status.text}
                           </span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                            canReserveFacility ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
-                          }`}>
-                            {canReserveFacility ? "시설예약 가능" : "시설예약 불가"}
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${facilityReservationBadge.color}`}>
+                            {facilityReservationBadge.text}
                           </span>
                           {member.position && <span className="text-xs text-[#1B5E20] font-medium">{member.position}</span>}
                         </div>
@@ -499,7 +488,7 @@ export default function AdminMembersTab() {
           <div className="md:hidden space-y-2">
             {paginated.map((member) => {
               const status = STATUS_LABELS[member.status ?? "pending"] ?? STATUS_LABELS.pending;
-              const canReserveFacility = canMemberReserveFacility(member);
+              const facilityReservationBadge = getFacilityReservationBadge(member);
               return (
                 <div key={member.id} className="border border-gray-200 rounded-xl overflow-hidden">
                   <div className="px-4 py-3 bg-gray-50 space-y-3">
@@ -509,10 +498,8 @@ export default function AdminMembersTab() {
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>
                           {status.text}
                         </span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          canReserveFacility ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
-                        }`}>
-                          {canReserveFacility ? "시설예약 가능" : "시설예약 불가"}
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${facilityReservationBadge.color}`}>
+                          {facilityReservationBadge.text}
                         </span>
                         {member.position && <span className="text-xs text-[#1B5E20] font-medium">{member.position}</span>}
                       </div>
@@ -542,7 +529,7 @@ export default function AdminMembersTab() {
               </div>
               {group.members.map((member) => {
                 const status = STATUS_LABELS[member.status ?? "pending"] ?? STATUS_LABELS.pending;
-                const canReserveFacility = canMemberReserveFacility(member);
+                const facilityReservationBadge = getFacilityReservationBadge(member);
                 return (
                   <div key={member.id} className="border border-gray-200 rounded-xl overflow-hidden">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 bg-gray-50">
@@ -556,10 +543,8 @@ export default function AdminMembersTab() {
                             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>
                               {status.text}
                             </span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                              canReserveFacility ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
-                            }`}>
-                              {canReserveFacility ? "시설예약 가능" : "시설예약 불가"}
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${facilityReservationBadge.color}`}>
+                              {facilityReservationBadge.text}
                             </span>
                             {member.position && (
                               <span className="text-xs text-[#1B5E20] font-medium">{member.position}</span>

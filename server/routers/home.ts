@@ -17,6 +17,10 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
 import {
+  canMemberRequestFacilityReservation,
+  hasFacilityReservationRuleOverride,
+} from "@shared/facilityReservationEligibility";
+import {
   getVisibleHeroSlides,
   getVisibleQuickMenus,
   getPublishedNotices,
@@ -37,6 +41,7 @@ import {
   getFacilityHours,
   getBlockedDates,
   getReservationsByDate,
+  createReservation as insertReservation,
   createReservationIfAvailable,
   deleteReservationsByIds,
   getMyReservations,
@@ -74,36 +79,6 @@ function getMenuReadAccess(ctx: { user?: unknown; memberId?: number | null }) {
   return ctx.user || ctx.memberId ? "member" : "guest";
 }
 
-function hasFacilityReservationBlockedMemberMarker(member: {
-  position?: string | null;
-  department?: string | null;
-  district?: string | null;
-  baptismType?: string | null;
-  adminMemo?: string | null;
-  joinPath?: string | null;
-}) {
-  const markerText = [
-    member.position,
-    member.department,
-    member.district,
-    member.baptismType,
-    member.adminMemo,
-    member.joinPath,
-  ].filter(Boolean).join(" ");
-  return markerText.includes("타교") || markerText.includes("외부");
-}
-
-function canMemberCreateFacilityReservation(member: {
-  canReserveFacility?: boolean | number | null;
-  position?: string | null;
-  department?: string | null;
-  district?: string | null;
-  baptismType?: string | null;
-  adminMemo?: string | null;
-  joinPath?: string | null;
-}) {
-  return Boolean(member.canReserveFacility) && !hasFacilityReservationBlockedMemberMarker(member);
-}
 const staticPageHrefSchema = z.string().trim().min(1).max(128).regex(/^\//);
 const staffCategorySchema = z.string().trim().min(1).max(64).regex(/^[a-z0-9][a-z0-9_-]{0,63}$/);
 const translationLocaleSchema = z.enum(["ja"]);
@@ -563,12 +538,15 @@ export const homeRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const member = await getMemberById(ctx.memberId);
-      if (!member || !canMemberCreateFacilityReservation(member)) {
+      if (!member || !canMemberRequestFacilityReservation(member)) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "시설 사용 예약은 교회 등록 성도만 신청할 수 있습니다. 관리자에게 문의해 주세요.",
         });
       }
+      const canBypassReservationRules =
+        hasFacilityReservationRuleOverride(member) ||
+        hasAdminContentPermission(ctx.user, "content:reservations");
 
       const startMinutes = toMinutes(input.startTime);
       const endMinutes = toMinutes(input.endTime);
@@ -581,10 +559,10 @@ export const homeRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "시설을 찾을 수 없습니다." });
       }
       // ② 예약 가능 여부 확인
-      if (!facility.isReservable) {
+      if (!facility.isReservable && !canBypassReservationRules) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "현재 예약이 불가능한 시설입니다." });
       }
-      if (input.attendees > facility.capacity) {
+      if (input.attendees > facility.capacity && !canBypassReservationRules) {
         throw new TRPCError({ code: "BAD_REQUEST", message: `최대 수용 인원(${facility.capacity}명)을 초과할 수 없습니다.` });
       }
       // ③ 시작시간 < 종료시간 확인
@@ -595,8 +573,6 @@ export const homeRouter = router({
       const reservationDates = buildReservationDates(input.reservationDate, input.repeat);
       const hours = await getFacilityHours(input.facilityId);
       const blocked = await getBlockedDates(input.facilityId);
-      const canBypassLeadTime = hasAdminContentPermission(ctx.user, "content:reservations");
-
       for (const reservationDate of reservationDates) {
         if (reservationDate < todayKstDateKey()) {
           throw new TRPCError({
@@ -606,14 +582,14 @@ export const homeRouter = router({
         }
         assertReservationStartsInFuture(reservationDate, input.startTime);
         // ④ 운영시간 확인 (해당 요일의 운영시간 조회)
-        if (!canBypassLeadTime) {
+        if (!canBypassReservationRules) {
           assertReservationLeadTime(reservationDate, input.startTime);
         }
         const reservationDateObject = parseDateKey(reservationDate);
         const reservationDayOfWeek = reservationDateObject?.getUTCDay() ?? 0; // 0=일, 1=월 ...
         const dayHour = hours.find(h => h.dayOfWeek === reservationDayOfWeek);
         if (dayHour) {
-          if (!dayHour.isOpen) {
+          if (!dayHour.isOpen && !canBypassReservationRules) {
             throw new TRPCError({ code: "BAD_REQUEST", message: `${reservationDate}은 시설 운영일이 아닙니다.` });
           }
         }
@@ -625,7 +601,7 @@ export const homeRouter = router({
         if (openMinutes === null || closeMinutes === null) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "시설 운영 시간이 올바르지 않습니다. 관리자에게 문의해주세요." });
         }
-        if (startMinutes < openMinutes || endMinutes > closeMinutes) {
+        if ((startMinutes < openMinutes || endMinutes > closeMinutes) && !canBypassReservationRules) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: `${reservationDate}은 운영 시간(${openTime}~${closeTime}) 내에서만 예약 가능합니다.`,
@@ -634,18 +610,18 @@ export const homeRouter = router({
 
         const slotMinutes = facility.slotMinutes > 0 ? facility.slotMinutes : 60;
         const durationMinutes = endMinutes - startMinutes;
-        if ((startMinutes - openMinutes) % slotMinutes !== 0 || (endMinutes - openMinutes) % slotMinutes !== 0) {
+        if (!canBypassReservationRules && ((startMinutes - openMinutes) % slotMinutes !== 0 || (endMinutes - openMinutes) % slotMinutes !== 0)) {
           throw new TRPCError({ code: "BAD_REQUEST", message: `${slotMinutes}분 단위로만 예약할 수 있습니다.` });
         }
         const selectedSlots = durationMinutes / slotMinutes;
-        if (selectedSlots < facility.minSlots) {
+        if (selectedSlots < facility.minSlots && !canBypassReservationRules) {
           throw new TRPCError({ code: "BAD_REQUEST", message: `최소 ${facility.minSlots}개 시간 단위 이상 예약해야 합니다.` });
         }
-        if (selectedSlots > facility.maxSlots) {
+        if (selectedSlots > facility.maxSlots && !canBypassReservationRules) {
           throw new TRPCError({ code: "BAD_REQUEST", message: `최대 ${facility.maxSlots}개 시간 단위까지만 예약할 수 있습니다.` });
         }
 
-        if (dayHour?.breakStart && dayHour.breakEnd) {
+        if (dayHour?.breakStart && dayHour.breakEnd && !canBypassReservationRules) {
           const breakStart = toMinutes(dayHour.breakStart);
           const breakEnd = toMinutes(dayHour.breakEnd);
           if (breakStart !== null && breakEnd !== null && startMinutes < breakEnd && endMinutes > breakStart) {
@@ -654,6 +630,7 @@ export const homeRouter = router({
         }
 
         // ⑤ 차단일 확인 (전체 차단 또는 해당 시설 차단)
+        if (!canBypassReservationRules) {
         for (const b of blocked) {
           if (b.blockedDate !== reservationDate) continue;
           if (!b.isPartialBlock) {
@@ -673,6 +650,9 @@ export const homeRouter = router({
         }
 
         // ⑥ 같은 시설/날짜의 시간대 겹침 확인 (중복 예약 방지)
+        }
+
+        if (!canBypassReservationRules) {
         const existing = await getReservationsByDate(input.facilityId, reservationDate);
         const activeReservations = existing.filter(r => r.status !== "cancelled" && r.status !== "rejected");
         for (const r of activeReservations) {
@@ -684,10 +664,11 @@ export const homeRouter = router({
             });
           }
         }
+        }
       }
 
       // 자동 승인 시설은 바로 approved, 그 외는 pending(관리자 검토 필요)
-      const status = facility.approvalType === "auto" ? "approved" : "pending";
+      const status: "approved" | "pending" = facility.approvalType === "auto" ? "approved" : "pending";
       const { repeat, ...baseInput } = input;
       const recurrenceGroupId = reservationDates.length > 1 ? `res_${crypto.randomUUID()}` : null;
       const recurrenceLabel = reservationDates.length > 1 && repeat
@@ -699,7 +680,7 @@ export const homeRouter = router({
       try {
         for (let index = 0; index < reservationDates.length; index++) {
           const reservationDate = reservationDates[index];
-          const id = await createReservationIfAvailable({
+          const reservationData = {
             ...baseInput,
             reservationDate,
             userId: ctx.memberId,
@@ -707,7 +688,10 @@ export const homeRouter = router({
             recurrenceGroupId,
             recurrenceLabel,
             recurrenceSequence: recurrenceGroupId ? index + 1 : 0,
-          });
+          };
+          const id = canBypassReservationRules
+            ? await insertReservation(reservationData)
+            : await createReservationIfAvailable(reservationData);
           if (!id) {
             throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "예약 신청 저장에 실패했습니다." });
           }

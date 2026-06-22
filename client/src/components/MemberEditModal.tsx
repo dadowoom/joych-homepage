@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { hasFacilityReservationBlockedMemberMarker } from "@shared/facilityReservationEligibility";
 
 type Member = {
   id: number;
@@ -64,25 +65,6 @@ const TAB_LABELS: { key: TabType; label: string }[] = [
   { key: "church", label: "교회 정보" },
   { key: "account", label: "계정 관리" },
 ];
-
-function hasFacilityReservationBlockedMemberMarker(member: {
-  position?: string | null;
-  department?: string | null;
-  district?: string | null;
-  baptismType?: string | null;
-  adminMemo?: string | null;
-  joinPath?: string | null;
-}) {
-  const markerText = [
-    member.position,
-    member.department,
-    member.district,
-    member.baptismType,
-    member.adminMemo,
-    member.joinPath,
-  ].filter(Boolean).join(" ");
-  return markerText.includes("타교") || markerText.includes("외부");
-}
 
 export default function MemberEditModal({ member, fieldOptions, open, onClose, onSaved }: Props) {
   const utils = trpc.useUtils();
@@ -334,11 +316,11 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
                   className="mt-1 h-4 w-4 accent-[#1B5E20] disabled:opacity-50"
                 />
                 <span>
-                  <span className="block text-sm font-semibold text-gray-800">시설 예약 가능 성도</span>
+                  <span className="block text-sm font-semibold text-gray-800">예약 예외 권한</span>
                   <span className="block text-xs text-gray-500 mt-0.5">
                     {facilityReservationBlockedByCategory
-                      ? "타교/외부 분류 회원은 시설 예약을 신청할 수 없습니다."
-                      : "체크된 성도만 시설 사용 예약을 신청할 수 있습니다."}
+                      ? "타교/외부 분류 회원은 예약 예외 권한을 줄 수 없습니다."
+                      : "체크하면 운영시간, 휴관일, 차단일, 24시간 제한, 중복 예약 제한을 넘겨 예약할 수 있습니다."}
                   </span>
                 </span>
               </label>
