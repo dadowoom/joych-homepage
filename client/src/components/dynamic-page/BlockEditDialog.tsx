@@ -311,7 +311,7 @@ export function BlockEditDialog({
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent
-        className="relative flex max-w-none flex-col overflow-hidden p-0 sm:max-w-none"
+        className="flex max-w-none flex-col overflow-hidden p-0 sm:max-w-none"
         style={{
           width: `${dialogSize.width}px`,
           height: `${dialogSize.height}px`,
