@@ -13,12 +13,19 @@
 import { z } from "zod";
 import { adminPermissionProcedure, router } from "../../_core/trpc";
 import {
+  normalizeRichTextHtmlContent,
   optionalTextSchema,
   requiredTextSchema,
   safeAssetUrlSchema,
 } from "../../_core/contentValidation";
 import { getAllNotices, createNotice, updateNotice, deleteNotice } from "../../db";
 const noticeProcedure = adminPermissionProcedure("content:notices");
+
+function normalizeNoticeContent(value: string | undefined) {
+  if (value === undefined) return undefined;
+  if (!value.trim()) return "";
+  return normalizeRichTextHtmlContent(value, 50000);
+}
 
 export const noticesRouter = router({
   /** 전체 공지사항 목록 조회 (숨김 포함) */
@@ -38,7 +45,11 @@ export const noticesRouter = router({
       isPinned: z.boolean().default(false),
     }))
     .mutation(({ input, ctx }) =>
-      createNotice({ ...input, authorId: ctx.user.id })
+      createNotice({
+        ...input,
+        content: normalizeNoticeContent(input.content),
+        authorId: ctx.user.id,
+      })
     ),
 
   /**
@@ -57,6 +68,9 @@ export const noticesRouter = router({
     }))
     .mutation(({ input }) => {
       const { id, ...data } = input;
+      if (data.content !== undefined) {
+        data.content = normalizeNoticeContent(data.content);
+      }
       return updateNotice(id, data);
     }),
 

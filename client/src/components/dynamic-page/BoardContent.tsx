@@ -2,6 +2,7 @@ import { Fragment, useMemo, useRef, useState, type ChangeEvent, type FormEvent }
 import { Check, ChevronLeft, ChevronRight, FileText, ImageIcon, Pencil, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { RichTextEditor, RichTextViewer, sanitizeRichTextHtml } from "@/components/ui/rich-text-editor";
 import { canManageBoardContent } from "@/lib/contentPermissions";
 import { trpc } from "@/lib/trpc";
 import { FreeBoardContent } from "./FreeBoardContent";
@@ -67,6 +68,13 @@ function getNoticeViewCount(notice: unknown) {
   if (typeof notice !== "object" || notice === null) return 0;
   const value = (notice as { viewCount?: unknown }).viewCount;
   return typeof value === "number" ? value : 0;
+}
+
+function toPlainText(value?: string | null) {
+  return sanitizeRichTextHtml(value)
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
@@ -165,7 +173,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
     ? categoryFilteredNotices.filter((notice) => {
         const titleText = notice.title.toLowerCase();
         const categoryText = normalizeNoticeCategory(notice.category).toLowerCase();
-        const contentText = (notice.content ?? "").toLowerCase();
+        const contentText = toPlainText(notice.content).toLowerCase();
         if (!isAdminResource && effectiveSearchField === "category") return categoryText.includes(normalizedKeyword);
         if (effectiveSearchField === "content") return contentText.includes(normalizedKeyword);
         return titleText.includes(normalizedKeyword);
@@ -329,12 +337,12 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
           </label>
           <label className="space-y-2 md:col-span-2">
             <span className="block text-sm font-semibold text-gray-700">내용</span>
-            <textarea
+            <RichTextEditor
               value={formState.content}
-              onChange={(event) => setFormState((previous) => ({ ...previous, content: event.target.value }))}
+              onChange={(value) => setFormState((previous) => ({ ...previous, content: value }))}
               placeholder="본문 내용을 입력해주세요."
-              rows={10}
-              className="w-full resize-y border border-gray-300 px-3 py-3 text-sm leading-6 outline-none focus:border-[#1B5E20]"
+              minHeightClassName="min-h-56 max-h-[55vh]"
+              className="rounded-lg"
             />
           </label>
           <div className="space-y-2 md:col-span-2">
@@ -622,7 +630,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
                               />
                             )}
                             <div className="whitespace-pre-line border-l-2 border-[#1B5E20]/30 pl-4 text-sm leading-7 text-gray-700">
-                              {notice.content || "등록된 본문 내용이 없습니다."}
+                              {notice.content ? <RichTextViewer html={notice.content} /> : "등록된 본문 내용이 없습니다."}
                             </div>
                             {canManageNotices && (
                               <div className="mt-4 flex justify-end gap-2">
@@ -690,7 +698,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
                           }}
                         />
                       )}
-                      <p className="whitespace-pre-line">{notice.content || "등록된 본문 내용이 없습니다."}</p>
+                      {notice.content ? <RichTextViewer html={notice.content} /> : <p>등록된 본문 내용이 없습니다.</p>}
                       {canManageNotices && (
                         <div className="mt-4 flex justify-end gap-2">
                           <button
@@ -766,3 +774,4 @@ export function BoardContent({ label, href }: BoardContentProps = {}) {
   }
   return <NoticeBoardContent />;
 }
+
