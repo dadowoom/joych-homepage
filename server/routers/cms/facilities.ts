@@ -19,6 +19,7 @@ import { adminPermissionProcedure, publicProcedure, router } from "../../_core/t
 import {
   optionalTextSchema,
   requiredTextSchema,
+  safeHrefSchema,
 } from "../../_core/contentValidation";
 import { storagePut } from "../../storage";
 import { validateImage } from "./upload";
@@ -37,6 +38,7 @@ import {
   getBlockedDates,
   addBlockedDate,
   deleteBlockedDate,
+  upsertSiteSetting,
 } from "../../db";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -48,6 +50,24 @@ const facilityProcedure = adminPermissionProcedure("content:facilities");
 const nullableTimeSchema = timeSchema.nullable().optional();
 const sortOrderSchema = z.number().int().min(0).max(10000).optional();
 const facilityBuildingSchema = z.enum(["hayoungin", "welfare"]).default("welfare");
+const facilityPageSettingKeys = [
+  "facility_hero_eyebrow",
+  "facility_hero_title",
+  "facility_hero_description",
+  "facility_hero_background_url",
+  "facility_guide_step1_title",
+  "facility_guide_step1_desc",
+  "facility_guide_step2_title",
+  "facility_guide_step2_desc",
+  "facility_guide_step3_title",
+  "facility_guide_step3_desc",
+  "facility_guide_step4_title",
+  "facility_guide_step4_desc",
+] as const;
+const facilityPageSettingSchema = z.object({
+  key: z.enum(facilityPageSettingKeys),
+  value: z.string().trim().max(5000, "설정값은 5000자 이하로 입력해주세요."),
+});
 
 function toMinutes(time: string) {
   const [hour, minute] = time.split(":").map(Number);
@@ -159,6 +179,17 @@ export const facilitiesRouter = router({
   get: publicProcedure
     .input(z.object({ id: idSchema }))
     .query(({ input }) => getFacilityById(input.id)),
+
+  pageSettings: router({
+    update: facilityProcedure
+      .input(facilityPageSettingSchema)
+      .mutation(({ input }) => {
+        const value = input.key.endsWith("_url")
+          ? safeHrefSchema.parse(input.value)
+          : input.value;
+        return upsertSiteSetting(input.key, value);
+      }),
+  }),
 
   /** 시설 생성 (관리자) */
   create: facilityProcedure

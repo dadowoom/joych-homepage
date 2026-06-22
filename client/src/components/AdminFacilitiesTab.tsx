@@ -45,8 +45,23 @@ const FACILITY_BUILDINGS = [
   { value: "hayoungin", label: "하영인관" },
   { value: "welfare", label: "복지관" },
 ] as const;
+const FACILITY_PAGE_SETTING_FIELDS = [
+  { key: "facility_hero_eyebrow", label: "상단 영문 라벨", helper: "예: FACILITY RESERVATION" },
+  { key: "facility_hero_title", label: "상단 큰 제목", helper: "예: 시설 사용 예약" },
+  { key: "facility_hero_description", label: "상단 설명 문구", helper: "히어로 영역의 안내 문장을 입력합니다." },
+  { key: "facility_hero_background_url", label: "상단 배경 이미지 URL", helper: "비워두면 기본 배경 이미지를 사용합니다." },
+  { key: "facility_guide_step1_title", label: "1단계 제목", helper: "예: 시설 선택" },
+  { key: "facility_guide_step1_desc", label: "1단계 설명", helper: "예: 원하는 공간을 선택하세요" },
+  { key: "facility_guide_step2_title", label: "2단계 제목", helper: "예: 날짜 확인" },
+  { key: "facility_guide_step2_desc", label: "2단계 설명", helper: "예: 예약 가능 일정을 확인하세요" },
+  { key: "facility_guide_step3_title", label: "3단계 제목", helper: "예: 신청서 작성" },
+  { key: "facility_guide_step3_desc", label: "3단계 설명", helper: "예: 신청 정보를 입력하세요" },
+  { key: "facility_guide_step4_title", label: "4단계 제목", helper: "예: 담당자 확인" },
+  { key: "facility_guide_step4_desc", label: "4단계 설명", helper: "예: 승인 후 연락을 드립니다" },
+] as const;
 
 type FacilityBuilding = typeof FACILITY_BUILDINGS[number]["value"];
+type FacilityPageSettingKey = typeof FACILITY_PAGE_SETTING_FIELDS[number]["key"];
 const MONDAY_FIRST_DAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
 
 const DEFAULT_HOURS = DAY_LABELS.map((_, i) => ({
@@ -420,6 +435,7 @@ type AdminFacilitiesTabProps = {
 export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilitiesTabProps) {
   const utils = trpc.useUtils();
   const { data: facilities, isLoading } = trpc.home.facilities.useQuery();
+  const { data: pageSettings } = trpc.home.settings.useQuery();
   const facilityRows = facilities ?? [];
 
   const [showForm, setShowForm] = useState(false);
@@ -438,6 +454,8 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
     welfare: createDefaultHours(),
   });
   const [applyingBuilding, setApplyingBuilding] = useState<FacilityBuilding | null>(null);
+  const [editingPageSettingKey, setEditingPageSettingKey] = useState<FacilityPageSettingKey | null>(null);
+  const [editingPageSettingValue, setEditingPageSettingValue] = useState("");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const buildingCounts = useMemo(() => {
     const counts = new Map<FacilityBuilding, number>(FACILITY_BUILDINGS.map((building) => [building.value, 0]));
@@ -567,6 +585,27 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
   const deleteImageMutation = trpc.cms.facilities.images.delete.useMutation();
   const setThumbnailMutation = trpc.cms.facilities.images.setThumbnail.useMutation();
   const upsertHour = trpc.cms.facilities.hours.upsert.useMutation();
+  const updateFacilityPageSetting = trpc.cms.facilities.pageSettings.update.useMutation({
+    onSuccess: () => {
+      utils.home.settings.invalidate();
+      setEditingPageSettingKey(null);
+      setEditingPageSettingValue("");
+      toast.success("시설예약 페이지 문구가 저장되었습니다.");
+    },
+    onError: (e) => toast.error(e.message || "문구 저장에 실패했습니다."),
+  });
+
+  function startEditPageSetting(field: typeof FACILITY_PAGE_SETTING_FIELDS[number]) {
+    setEditingPageSettingKey(field.key);
+    setEditingPageSettingValue(pageSettings?.[field.key] ?? "");
+  }
+
+  function savePageSetting(field: typeof FACILITY_PAGE_SETTING_FIELDS[number]) {
+    updateFacilityPageSetting.mutate({
+      key: field.key,
+      value: editingPageSettingValue,
+    });
+  }
 
   function updateBuildingScheduleDraft(building: FacilityBuilding, nextHours: FacilityHoursForm) {
     setBuildingScheduleDrafts(prev => ({
@@ -832,6 +871,99 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
           </button>
         )}
       </div>
+
+      {mode === "facilities" && !showForm && (
+        <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-5 shadow-sm">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h4 className="flex items-center gap-2 text-sm font-bold text-gray-900">
+                <Settings className="h-4 w-4 text-[#1B5E20]" />
+                시설예약 페이지 문구
+              </h4>
+              <p className="mt-1 text-xs text-gray-500">
+                사용자 화면의 상단 히어로 문구와 4단계 안내 문구를 여기서 바로 수정합니다.
+              </p>
+            </div>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#1B5E20] shadow-sm">
+              홈페이지 즉시 반영
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            {FACILITY_PAGE_SETTING_FIELDS.map((field) => {
+              const currentValue = pageSettings?.[field.key] ?? "";
+              const isEditing = editingPageSettingKey === field.key;
+              const isLongField = field.key.endsWith("_description") || field.key.endsWith("_desc");
+
+              return (
+                <div key={field.key} className="rounded-lg border border-white/70 bg-white p-4 shadow-sm">
+                  <div className="mb-2 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">{field.label}</p>
+                      <p className="mt-0.5 text-xs text-gray-400">{field.helper}</p>
+                    </div>
+                    {!isEditing && (
+                      <button
+                        type="button"
+                        onClick={() => startEditPageSetting(field)}
+                        className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        수정
+                      </button>
+                    )}
+                  </div>
+
+                  {isEditing ? (
+                    <div className="space-y-2">
+                      {isLongField ? (
+                        <textarea
+                          value={editingPageSettingValue}
+                          onChange={(e) => setEditingPageSettingValue(e.target.value)}
+                          rows={3}
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          value={editingPageSettingValue}
+                          onChange={(e) => setEditingPageSettingValue(e.target.value)}
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
+                        />
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => savePageSetting(field)}
+                          disabled={updateFacilityPageSetting.isPending}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-[#1B5E20] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#2E7D32] disabled:opacity-50"
+                        >
+                          {updateFacilityPageSetting.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                          저장
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingPageSettingKey(null);
+                            setEditingPageSettingValue("");
+                          }}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          취소
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="min-h-[38px] whitespace-pre-wrap rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                      {currentValue || "기본값 사용 중"}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {mode === "buildingSchedule" && (
         <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
