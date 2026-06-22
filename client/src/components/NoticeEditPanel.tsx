@@ -4,7 +4,7 @@
  * - 소식 목록 조회, 추가, 수정, 삭제, 게시/숨기기 기능
  * - 썸네일 이미지 파일 직접 업로드 (S3 연동)
  */
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   Sheet,
   SheetContent,
@@ -17,6 +17,14 @@ import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import { Pencil, Trash2, Plus, Check, X, Eye, EyeOff, ImageIcon, Upload } from "lucide-react";
 import { toast } from "sonner";
+import {
+  ADMIN_RESOURCE_CATEGORY,
+  DEFAULT_NOTICE_CATEGORY_LABEL,
+  NOTICE_CATEGORY_SETTINGS_KEY,
+  getNoticeWriteCategoryLabels,
+  parseNoticeCategorySettings,
+  sanitizeNoticePostCategory,
+} from "@shared/noticeCategories";
 
 type NoticeRow = {
   id: number;
@@ -35,15 +43,9 @@ type EditState = {
   thumbnailUrl: string;
 };
 
-const NOTICE_CATEGORIES = ["공지", "부고", "결혼"] as const;
-const DEFAULT_NOTICE_CATEGORY = "공지";
-const ADMIN_RESOURCE_CATEGORY = "행정자료";
-
-function normalizeNoticeCategory(category?: string | null, fallback = DEFAULT_NOTICE_CATEGORY) {
-  const value = category?.trim();
-  if (value === "부고" || value === "결혼") return value;
-  if (value === ADMIN_RESOURCE_CATEGORY) return value;
-  return fallback;
+function normalizeNoticeCategory(category?: string | null, fallback = DEFAULT_NOTICE_CATEGORY_LABEL) {
+  if (category === ADMIN_RESOURCE_CATEGORY) return category;
+  return sanitizeNoticePostCategory(category, fallback);
 }
 
 interface NoticeEditPanelProps {
@@ -70,7 +72,7 @@ export default function NoticeEditPanel({
   const utils = trpc.useUtils();
   const effectiveCategory = categoryScope?.trim() || null;
   const getBlankState = () => ({
-    category: effectiveCategory ?? DEFAULT_NOTICE_CATEGORY,
+    category: effectiveCategory ?? DEFAULT_NOTICE_CATEGORY_LABEL,
     title: "",
     content: "",
     thumbnailUrl: "",
@@ -80,6 +82,17 @@ export default function NoticeEditPanel({
   const { data: notices, isLoading } = trpc.cms.notices.list.useQuery(undefined, {
     enabled: open,
   });
+  const { data: settings } = trpc.home.settings.useQuery(undefined, {
+    enabled: open,
+  });
+  const noticeCategorySettings = useMemo(
+    () => parseNoticeCategorySettings(settings?.[NOTICE_CATEGORY_SETTINGS_KEY]),
+    [settings],
+  );
+  const noticeWriteCategories = useMemo(
+    () => getNoticeWriteCategoryLabels(noticeCategorySettings),
+    [noticeCategorySettings],
+  );
 
   // 편집 상태
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -92,6 +105,12 @@ export default function NoticeEditPanel({
     const category = normalizeNoticeCategory(notice.category);
     return effectiveCategory ? category === effectiveCategory : category !== ADMIN_RESOURCE_CATEGORY;
   });
+  const getCategoryOptions = (current?: string | null) => {
+    const options = [...noticeWriteCategories];
+    const normalized = sanitizeNoticePostCategory(current, options[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL);
+    if (normalized && !options.includes(normalized)) options.unshift(normalized);
+    return options;
+  };
 
   // 이미지 업로드 상태
   const [uploadingFor, setUploadingFor] = useState<"edit" | "new" | null>(null);
@@ -158,7 +177,7 @@ export default function NoticeEditPanel({
   const startEdit = (notice: NoticeRow) => {
     setEditingId(notice.id);
     setEditState({
-      category: effectiveCategory ?? normalizeNoticeCategory(notice.category),
+      category: effectiveCategory ?? normalizeNoticeCategory(notice.category, noticeWriteCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
       title: notice.title,
       content: notice.content ?? "",
       thumbnailUrl: notice.thumbnailUrl ?? "",
@@ -174,7 +193,7 @@ export default function NoticeEditPanel({
         setIsAdding(false);
         setEditingId(notice.id);
         setEditState({
-          category: effectiveCategory ?? normalizeNoticeCategory(notice.category),
+          category: effectiveCategory ?? normalizeNoticeCategory(notice.category, noticeWriteCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
           title: notice.title,
           content: notice.content ?? "",
           thumbnailUrl: notice.thumbnailUrl ?? "",
@@ -198,7 +217,7 @@ export default function NoticeEditPanel({
     if (!editingId) return;
     updateMutation.mutate({
       id: editingId,
-      category: effectiveCategory ?? normalizeNoticeCategory(editState.category),
+      category: effectiveCategory ?? normalizeNoticeCategory(editState.category, noticeWriteCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
       title: editState.title,
       content: editState.content || undefined,
       thumbnailUrl: editState.thumbnailUrl || undefined,
@@ -211,7 +230,7 @@ export default function NoticeEditPanel({
       return;
     }
     createMutation.mutate({
-      category: effectiveCategory ?? normalizeNoticeCategory(newState.category),
+      category: effectiveCategory ?? normalizeNoticeCategory(newState.category, noticeWriteCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
       title: newState.title,
       content: newState.content || undefined,
       thumbnailUrl: newState.thumbnailUrl || undefined,
@@ -384,7 +403,7 @@ export default function NoticeEditPanel({
                   onChange={(e) => setNewState({ ...newState, category: e.target.value })}
                   className="text-xs border rounded px-2 py-1 bg-white"
                 >
-                  {NOTICE_CATEGORIES.map((c) => (
+                  {getCategoryOptions(newState.category).map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
@@ -448,7 +467,7 @@ export default function NoticeEditPanel({
                           onChange={(e) => setEditState({ ...editState, category: e.target.value })}
                           className="text-xs border rounded px-2 py-1 bg-white"
                         >
-                          {NOTICE_CATEGORIES.map((c) => (
+                          {getCategoryOptions(editState.category).map((c) => (
                             <option key={c} value={c}>{c}</option>
                           ))}
                         </select>

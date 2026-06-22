@@ -13,13 +13,61 @@
 import { z } from "zod";
 import { adminPermissionProcedure, router } from "../../_core/trpc";
 import {
+  ADMIN_RESOURCE_CATEGORY,
+  NOTICE_ALL_CATEGORY_LABEL,
+  NOTICE_CATEGORY_SETTINGS_KEY,
+  normalizeNoticeCategorySettings,
+} from "@shared/noticeCategories";
+import {
   normalizeRichTextHtmlContent,
   optionalTextSchema,
   requiredTextSchema,
   safeAssetUrlSchema,
 } from "../../_core/contentValidation";
-import { getAllNotices, createNotice, updateNotice, deleteNotice } from "../../db";
+import { getAllNotices, createNotice, updateNotice, deleteNotice, upsertSiteSetting } from "../../db";
 const noticeProcedure = adminPermissionProcedure("content:notices");
+
+const noticeCategorySettingsSchema = z.array(z.object({
+  label: requiredTextSchema(24, "분류 이름을 입력해주세요."),
+  isVisible: z.boolean(),
+})).min(1, "분류를 1개 이상 등록해주세요.").max(30, "분류는 최대 30개까지 등록할 수 있습니다.").superRefine((categories, ctx) => {
+  const seen = new Set<string>();
+  const visibleLabels = new Set<string>();
+
+  categories.forEach((category, index) => {
+    const label = category.label.trim().replace(/\s+/g, " ");
+    if (label === ADMIN_RESOURCE_CATEGORY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "행정자료는 공지사항 분류로 사용할 수 없습니다.",
+        path: [index, "label"],
+      });
+    }
+    if (seen.has(label)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "같은 이름의 분류가 이미 있습니다.",
+        path: [index, "label"],
+      });
+    }
+    seen.add(label);
+    if (category.isVisible) visibleLabels.add(label);
+  });
+
+  if (visibleLabels.size === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "화면에 보일 분류를 1개 이상 선택해주세요.",
+    });
+  }
+
+  if (!seen.has(NOTICE_ALL_CATEGORY_LABEL) && categories.length === 1) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "전체를 제외하려면 공지/부고/결혼 등 실제 분류를 1개 이상 남겨주세요.",
+    });
+  }
+});
 
 function normalizeNoticeContent(value: string | undefined) {
   if (value === undefined) return undefined;
@@ -78,4 +126,14 @@ export const noticesRouter = router({
   delete: noticeProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(({ input }) => deleteNotice(input.id)),
+
+  /** 공지사항 분류 메뉴 저장 */
+  categories: router({
+    update: noticeProcedure
+      .input(z.object({ categories: noticeCategorySettingsSchema }))
+      .mutation(({ input }) => {
+        const categories = normalizeNoticeCategorySettings(input.categories);
+        return upsertSiteSetting(NOTICE_CATEGORY_SETTINGS_KEY, JSON.stringify(categories));
+      }),
+  }),
 });

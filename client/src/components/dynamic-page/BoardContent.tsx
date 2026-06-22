@@ -1,5 +1,5 @@
-import { Fragment, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { Check, ChevronLeft, ChevronRight, FileText, ImageIcon, Pencil, Trash2, Upload, X } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { Check, ChevronLeft, ChevronRight, FileText, ImageIcon, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { RichTextEditor, RichTextViewer, sanitizeRichTextHtml } from "@/components/ui/rich-text-editor";
@@ -7,6 +7,17 @@ import { canManageBoardContent } from "@/lib/contentPermissions";
 import { trpc } from "@/lib/trpc";
 import { FreeBoardContent } from "./FreeBoardContent";
 import { ViewModeToggle, type ViewMode } from "./ViewModeToggle";
+import {
+  ADMIN_RESOURCE_CATEGORY,
+  DEFAULT_NOTICE_CATEGORY_LABEL,
+  NOTICE_ALL_CATEGORY_LABEL,
+  NOTICE_CATEGORY_SETTINGS_KEY,
+  getNoticeWriteCategoryLabels,
+  getVisibleNoticeFilterCategoryLabels,
+  parseNoticeCategorySettings,
+  sanitizeNoticePostCategory,
+  type NoticeCategoryConfig,
+} from "@shared/noticeCategories";
 
 type BoardContentProps = {
   label?: string;
@@ -29,16 +40,10 @@ function isFreeBoardPage(label?: string, href?: string | null) {
   return normalized.includes("자유게시판") || normalized.includes("joytalk");
 }
 
-const NOTICE_CATEGORIES = ["공지", "부고", "결혼"] as const;
-const ALL_NOTICE_CATEGORIES = ["전체", ...NOTICE_CATEGORIES] as const;
-const ADMIN_RESOURCE_CATEGORY = "행정자료";
-
 type NoticeBoardMode = "notice" | "adminResource";
 
 function normalizeNoticeCategory(category?: string | null) {
-  const value = category?.trim();
-  if (value === "부고" || value === "결혼") return value;
-  return "공지";
+  return sanitizeNoticePostCategory(category);
 }
 
 function isAdminResourcePage(label?: string, href?: string | null) {
@@ -91,10 +96,12 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
   const [formMode, setFormMode] = useState<NoticeFormMode>(null);
   const [editingNoticeId, setEditingNoticeId] = useState<number | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
+  const [newCategoryLabel, setNewCategoryLabel] = useState("");
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const getBlankForm = (): NoticeFormState => ({
-    category: isAdminResource ? ADMIN_RESOURCE_CATEGORY : "공지",
+    category: isAdminResource ? ADMIN_RESOURCE_CATEGORY : DEFAULT_NOTICE_CATEGORY_LABEL,
     title: "",
     content: "",
     thumbnailUrl: "",
@@ -105,6 +112,19 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
   const [formState, setFormState] = useState<NoticeFormState>(getBlankForm);
   const noticeQuery = trpc.home.noticeBoard.useQuery(undefined, { enabled: !isAdminResource });
   const adminResourceQuery = trpc.home.adminResourceBoard.useQuery(undefined, { enabled: isAdminResource });
+  const { data: settings } = trpc.home.settings.useQuery(undefined, { enabled: !isAdminResource });
+  const noticeCategorySettings = useMemo(
+    () => parseNoticeCategorySettings(settings?.[NOTICE_CATEGORY_SETTINGS_KEY]),
+    [settings],
+  );
+  const visibleNoticeCategories = useMemo(
+    () => getVisibleNoticeFilterCategoryLabels(noticeCategorySettings),
+    [noticeCategorySettings],
+  );
+  const writeNoticeCategories = useMemo(
+    () => getNoticeWriteCategoryLabels(noticeCategorySettings),
+    [noticeCategorySettings],
+  );
   const notices = isAdminResource ? adminResourceQuery.data : noticeQuery.data;
   const isLoading = isAdminResource ? adminResourceQuery.isLoading : noticeQuery.isLoading;
   const canManageNotices = canManageBoardContent(user, "content:notices");
@@ -122,6 +142,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
     void utils.home.notices.invalidate();
     void utils.home.noticeBoard.invalidate();
     void utils.home.adminResourceBoard.invalidate();
+    void utils.home.settings.invalidate();
   };
 
   const uploadImageMutation = trpc.cms.upload.image.useMutation({
@@ -158,6 +179,14 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
     onError: (error) => toast.error(`삭제 실패: ${error.message}`),
   });
 
+  const updateCategoriesMutation = trpc.cms.notices.categories.update.useMutation({
+    onSuccess: () => {
+      toast.success("공지사항 분류가 저장됐습니다.");
+      invalidateNoticeData();
+    },
+    onError: (error) => toast.error(`분류 저장 실패: ${error.message}`),
+  });
+
   const sortedNotices = useMemo(() => {
     return [...(notices ?? [])].sort((a, b) => {
       if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
@@ -165,7 +194,13 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
     });
   }, [notices]);
 
-  const categoryFilteredNotices = isAdminResource || activeCategory === "전체"
+  useEffect(() => {
+    if (isAdminResource || visibleNoticeCategories.includes(activeCategory)) return;
+    setActiveCategory(visibleNoticeCategories[0] ?? NOTICE_ALL_CATEGORY_LABEL);
+    setPage(1);
+  }, [activeCategory, isAdminResource, visibleNoticeCategories]);
+
+  const categoryFilteredNotices = isAdminResource || activeCategory === NOTICE_ALL_CATEGORY_LABEL
     ? sortedNotices
     : sortedNotices.filter((notice) => normalizeNoticeCategory(notice.category) === activeCategory);
   const normalizedKeyword = searchKeyword.trim().toLowerCase();
@@ -186,6 +221,13 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
   const visibleNotices = filteredNotices.slice(pageStart, pageStart + pageSize);
   const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1);
   const newNoticeCount = filteredNotices.filter((notice) => isToday(notice.createdAt)).length;
+  const formCategoryOptions = useMemo(() => {
+    if (isAdminResource) return [];
+    const options = [...writeNoticeCategories];
+    const current = sanitizeNoticePostCategory(formState.category, options[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL);
+    if (current && !options.includes(current)) options.unshift(current);
+    return options;
+  }, [formState.category, isAdminResource, writeNoticeCategories]);
 
   const openCreateForm = () => {
     setFormMode("create");
@@ -198,7 +240,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
     setFormMode("edit");
     setEditingNoticeId(notice.id);
     setFormState({
-      category: isAdminResource ? ADMIN_RESOURCE_CATEGORY : normalizeNoticeCategory(notice.category),
+      category: isAdminResource ? ADMIN_RESOURCE_CATEGORY : sanitizeNoticePostCategory(notice.category, writeNoticeCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
       title: notice.title,
       content: notice.content ?? "",
       thumbnailUrl: notice.thumbnailUrl ?? "",
@@ -257,7 +299,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
     }
 
     const payload = {
-      category: isAdminResource ? ADMIN_RESOURCE_CATEGORY : normalizeNoticeCategory(formState.category),
+      category: isAdminResource ? ADMIN_RESOURCE_CATEGORY : sanitizeNoticePostCategory(formState.category, writeNoticeCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
       title,
       content: formState.content.trim() || undefined,
       thumbnailUrl: formState.thumbnailUrl.trim() || undefined,
@@ -277,6 +319,111 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
     const message = isAdminResource ? "이 행정자료를 삭제할까요?" : "이 공지사항을 삭제할까요?";
     if (!window.confirm(message)) return;
     deleteMutation.mutate({ id });
+  };
+
+  const saveNoticeCategories = (categories: NoticeCategoryConfig[]) => {
+    updateCategoriesMutation.mutate({ categories });
+  };
+
+  const addNoticeCategory = () => {
+    const label = newCategoryLabel.trim().replace(/\s+/g, " ");
+    if (!label) {
+      toast.error("추가할 분류 이름을 입력해주세요.");
+      return;
+    }
+    if (label === ADMIN_RESOURCE_CATEGORY) {
+      toast.error("행정자료는 공지사항 분류로 사용할 수 없습니다.");
+      return;
+    }
+    if (noticeCategorySettings.some((category) => category.label === label)) {
+      toast.error("이미 등록된 분류입니다.");
+      return;
+    }
+    saveNoticeCategories([...noticeCategorySettings, { label, isVisible: true }]);
+    setNewCategoryLabel("");
+  };
+
+  const toggleNoticeCategory = (label: string) => {
+    saveNoticeCategories(noticeCategorySettings.map((category) =>
+      category.label === label ? { ...category, isVisible: !category.isVisible } : category,
+    ));
+  };
+
+  const deleteNoticeCategory = (label: string) => {
+    if (!window.confirm(`"${label}" 분류 메뉴를 삭제할까요? 기존 글은 삭제되지 않습니다.`)) return;
+    saveNoticeCategories(noticeCategorySettings.filter((category) => category.label !== label));
+  };
+
+  const renderCategoryManager = () => {
+    if (!canManageNotices || isAdminResource) return null;
+
+    return (
+      <div className="border border-emerald-100 bg-emerald-50/60 p-4">
+        <button
+          type="button"
+          onClick={() => setCategoryManagerOpen((open) => !open)}
+          className="flex w-full items-center justify-between gap-4 text-left"
+        >
+          <span>
+            <span className="block text-sm font-semibold text-gray-900">분류 관리</span>
+            <span className="mt-1 block text-xs text-gray-500">공지사항 상단 분류 메뉴를 추가, 삭제, 숨김 처리합니다.</span>
+          </span>
+          <span className="shrink-0 text-xs font-semibold text-[#1B5E20]">{categoryManagerOpen ? "닫기" : "열기"}</span>
+        </button>
+        {categoryManagerOpen && (
+          <div className="mt-4 space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {noticeCategorySettings.map((category) => (
+                <div key={category.label} className="flex items-center gap-2 border border-gray-200 bg-white px-3 py-2 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => toggleNoticeCategory(category.label)}
+                    disabled={updateCategoriesMutation.isPending}
+                    className={`h-5 w-9 rounded-full p-0.5 transition-colors ${category.isVisible ? "bg-[#1B5E20]" : "bg-gray-300"}`}
+                    aria-label={`${category.label} ${category.isVisible ? "숨기기" : "보이기"}`}
+                  >
+                    <span className={`block h-4 w-4 rounded-full bg-white transition-transform ${category.isVisible ? "translate-x-4" : ""}`} />
+                  </button>
+                  <span className={category.isVisible ? "text-gray-800" : "text-gray-400"}>{category.label}</span>
+                  <button
+                    type="button"
+                    onClick={() => deleteNoticeCategory(category.label)}
+                    disabled={updateCategoriesMutation.isPending}
+                    className="text-gray-300 hover:text-red-500"
+                    aria-label={`${category.label} 삭제`}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <input
+                value={newCategoryLabel}
+                onChange={(event) => setNewCategoryLabel(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addNoticeCategory();
+                  }
+                }}
+                placeholder="새 분류 이름"
+                className="h-9 min-w-48 flex-1 border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#1B5E20]"
+              />
+              <button
+                type="button"
+                onClick={addNoticeCategory}
+                disabled={updateCategoriesMutation.isPending}
+                className="inline-flex h-9 items-center gap-1 bg-[#1B5E20] px-3 text-sm font-medium text-white hover:bg-[#2E7D32] disabled:opacity-50"
+              >
+                <Plus className="h-4 w-4" />
+                추가
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const renderNoticeForm = () => {
@@ -312,7 +459,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
                 onChange={(event) => setFormState((previous) => ({ ...previous, category: event.target.value }))}
                 className="h-10 w-full border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#1B5E20]"
               >
-                {NOTICE_CATEGORIES.map((category) => (
+                {formCategoryOptions.map((category) => (
                   <option key={category} value={category}>{category}</option>
                 ))}
               </select>
@@ -462,7 +609,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
         <div>
           <p className="text-sm text-gray-500">
             총 <span className="font-semibold text-[#1B5E20]">{notices?.length ?? 0}</span>개의 {totalLabel}
-            {((!isAdminResource && activeCategory !== "전체") || searchKeyword) && (
+            {((!isAdminResource && activeCategory !== NOTICE_ALL_CATEGORY_LABEL) || searchKeyword) && (
               <span className="ml-2 text-gray-400">표시 {filteredNotices.length}개</span>
             )}
           </p>
@@ -478,6 +625,8 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
           </button>
         )}
       </div>
+
+      {renderCategoryManager()}
 
       {renderNoticeForm()}
 
@@ -504,7 +653,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
               className="h-8 rounded-none border border-gray-300 bg-white px-2 text-xs text-gray-700 outline-none focus:border-[#1B5E20]"
               aria-label="분류"
             >
-              {ALL_NOTICE_CATEGORIES.map((category) => (
+              {visibleNoticeCategories.map((category) => (
                 <option key={category} value={category}>{category}</option>
               ))}
             </select>
@@ -537,7 +686,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
 
       {!isAdminResource && (
         <div className="flex flex-wrap gap-2">
-          {ALL_NOTICE_CATEGORIES.map((category) => {
+          {visibleNoticeCategories.map((category) => {
             const isActive = activeCategory === category;
             return (
               <button
