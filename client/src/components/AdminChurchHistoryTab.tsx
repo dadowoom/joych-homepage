@@ -432,13 +432,8 @@ export default function AdminChurchHistoryTab() {
       return;
     }
 
-    const previousDecade = decadeForm.id
-      ? decades.find(decade => decade.id === decadeForm.id)
-      : undefined;
     const title =
-      previousDecade && previousDecade.startYear === year
-        ? previousDecade.title
-        : resolveDecadeTitle(decadeForm.year, year);
+      resolveDecadeTitle(decadeForm.year, year);
 
     const payload = {
       title,
