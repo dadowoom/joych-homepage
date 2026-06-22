@@ -96,11 +96,6 @@ const ShuttleBusPage = lazy(() =>
 const JoyfulTV = lazy(() =>
   import("./pages/Worship").then(module => ({ default: module.JoyfulTV }))
 );
-const WorshipSchedule = lazy(() =>
-  import("./pages/Worship").then(module => ({
-    default: module.WorshipSchedule,
-  }))
-);
 const Bulletin = lazy(() =>
   import("./pages/Worship").then(module => ({ default: module.Bulletin }))
 );
@@ -348,7 +343,7 @@ function Router() {
       <Route path="/worship/tv/feature" component={SpecialFeaturePage} />
       <Route path="/worship/tv/testimony" component={TestimonyPage} />
       <Route path="/worship/tv/praise" component={PraisePage} />
-      <Route path="/worship/schedule" component={WorshipSchedule} />
+      <Route path="/worship/schedule" component={DynamicMenuHrefPage} />
       <Route path="/worship/bulletin/:id" component={BulletinDetail} />
       <Route path="/worship/bulletin" component={Bulletin} />
 
