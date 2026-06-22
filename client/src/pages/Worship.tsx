@@ -833,21 +833,39 @@ export function Bulletin() {
 
         {!isLoading && (
           <div className={viewMode === "grid" ? "grid gap-4 md:grid-cols-2" : "divide-y divide-gray-100 border border-gray-200 bg-white md:hidden"}>
-          {filteredBulletins.map((bulletin, index) => (
-            <article key={bulletin.id} className={viewMode === "grid" ? "border border-gray-200 bg-white p-4" : "p-4"}>
-              <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
-                <span>번호 {filteredBulletins.length - index}</span>
-                <span>{formatBulletinDate(bulletin.bulletinDate)}</span>
-              </div>
-              <Link
-                href={`/worship/bulletin/${bulletin.id}`}
-                className="block w-full text-left text-base font-bold text-gray-900"
-              >
-                {bulletin.title}
-              </Link>
-              <p className="mt-1 text-xs font-medium text-[#1B5E20]">관리자 · 첨부 {getBulletinPages(bulletin).length}장</p>
-            </article>
-          ))}
+          {filteredBulletins.map((bulletin, index) => {
+            const pages = getBulletinPages(bulletin);
+            const coverPage = pages[0] ?? null;
+            const hasCoverImage = coverPage ? isImageBulletin(coverPage.fileMime, coverPage.fileName) : false;
+            return (
+              <article key={bulletin.id} className={viewMode === "grid" ? "border border-gray-200 bg-white p-4" : "p-4"}>
+                <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
+                  <span>번호 {filteredBulletins.length - index}</span>
+                  <span>{formatBulletinDate(bulletin.bulletinDate)}</span>
+                </div>
+                <Link href={`/worship/bulletin/${bulletin.id}`} className="mb-2 block">
+                  {hasCoverImage && coverPage ? (
+                    <img
+                      src={coverPage.fileUrl}
+                      alt={`${bulletin.title} 대표이미지`}
+                      className="h-36 w-full object-cover"
+                    />
+                  ) : (
+                    <div className="h-36 w-full border border-gray-200 bg-gray-50 flex items-center justify-center text-gray-300">
+                      <span className="text-xs">이미지 미리보기 없음</span>
+                    </div>
+                  )}
+                </Link>
+                <Link
+                  href={`/worship/bulletin/${bulletin.id}`}
+                  className="block w-full text-left text-base font-bold text-gray-900"
+                >
+                  {bulletin.title}
+                </Link>
+                <p className="mt-1 text-xs font-medium text-[#1B5E20]">관리자 · 첨부 {pages.length}장</p>
+              </article>
+            );
+          })}
           </div>
         )}
 
