@@ -3,7 +3,7 @@
  * 관리자가 에디터 페이지에서 블록을 추가하거나 수정할 때 사용하는 팝업입니다.
  * 블록 종류(텍스트, 이미지, 유튜브, 버튼, 구분선)에 따라 다른 입력 폼을 보여줍니다.
  */
-import { useState, useRef } from "react";
+import { useState, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import { Code2, Eye, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +16,54 @@ import { RichTextEditor, RichTextViewer } from "@/components/ui/rich-text-editor
 import { trpc } from "@/lib/trpc";
 import { BLOCK_TYPES } from "./BlockRenderer";
 import { normalizeHtmlBlockValue } from "./htmlBlockUtils";
+
+type DialogSize = {
+  width: number;
+  height: number;
+};
+
+type DialogOffset = {
+  x: number;
+  y: number;
+};
+
+type DialogInteraction =
+  | {
+      mode: "move";
+      pointerId: number;
+      startX: number;
+      startY: number;
+      startOffset: DialogOffset;
+    }
+  | {
+      mode: "resize";
+      pointerId: number;
+      startX: number;
+      startY: number;
+      startSize: DialogSize;
+    };
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getInitialDialogSize(): DialogSize {
+  if (typeof window === "undefined") return { width: 1040, height: 780 };
+  return {
+    width: clamp(window.innerWidth - 96, 720, 1160),
+    height: clamp(window.innerHeight - 96, 560, 860),
+  };
+}
+
+function clampDialogOffset(offset: DialogOffset, size: DialogSize) {
+  if (typeof window === "undefined") return offset;
+  const maxX = Math.max(0, (window.innerWidth - Math.min(size.width, window.innerWidth - 24)) / 2);
+  const maxY = Math.max(0, (window.innerHeight - Math.min(size.height, window.innerHeight - 24)) / 2);
+  return {
+    x: clamp(offset.x, -maxX, maxX),
+    y: clamp(offset.y, -maxY, maxY),
+  };
+}
 
 export function BlockEditDialog({
   block,
@@ -143,6 +191,9 @@ export function BlockEditDialog({
     }
   });
   const [uploading, setUploading] = useState(false);
+  const [dialogSize, setDialogSize] = useState<DialogSize>(getInitialDialogSize);
+  const [dialogOffset, setDialogOffset] = useState<DialogOffset>({ x: 0, y: 0 });
+  const [dialogInteraction, setDialogInteraction] = useState<DialogInteraction | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileInputIdxRef = useRef<number>(0);
 
@@ -192,12 +243,93 @@ export function BlockEditDialog({
     return "{}";
   };
 
+  const handleDialogMoveStart = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDialogInteraction({
+      mode: "move",
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startOffset: dialogOffset,
+    });
+  };
+
+  const handleDialogResizeStart = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDialogInteraction({
+      mode: "resize",
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startSize: dialogSize,
+    });
+  };
+
+  const handleDialogPointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!dialogInteraction || dialogInteraction.pointerId !== event.pointerId) return;
+    event.preventDefault();
+
+    if (dialogInteraction.mode === "move") {
+      const nextOffset = {
+        x: dialogInteraction.startOffset.x + event.clientX - dialogInteraction.startX,
+        y: dialogInteraction.startOffset.y + event.clientY - dialogInteraction.startY,
+      };
+      setDialogOffset(clampDialogOffset(nextOffset, dialogSize));
+      return;
+    }
+
+    const viewportWidth = typeof window === "undefined" ? 1200 : window.innerWidth;
+    const viewportHeight = typeof window === "undefined" ? 900 : window.innerHeight;
+    const nextSize = {
+      width: clamp(
+        dialogInteraction.startSize.width + event.clientX - dialogInteraction.startX,
+        640,
+        Math.max(640, viewportWidth - 24)
+      ),
+      height: clamp(
+        dialogInteraction.startSize.height + event.clientY - dialogInteraction.startY,
+        480,
+        Math.max(480, viewportHeight - 24)
+      ),
+    };
+    setDialogSize(nextSize);
+    setDialogOffset((current) => clampDialogOffset(current, nextSize));
+  };
+
+  const handleDialogInteractionEnd = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!dialogInteraction || dialogInteraction.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setDialogInteraction(null);
+  };
+
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-h-[90vh] max-w-2xl min-w-0 overflow-x-hidden overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
+      <DialogContent
+        className="relative flex max-w-none flex-col overflow-hidden p-0 sm:max-w-none"
+        style={{
+          width: `${dialogSize.width}px`,
+          height: `${dialogSize.height}px`,
+          maxWidth: "calc(100vw - 24px)",
+          maxHeight: "calc(100vh - 24px)",
+          transform: `translate(calc(-50% + ${dialogOffset.x}px), calc(-50% + ${dialogOffset.y}px))`,
+        }}
+        onPointerMove={handleDialogPointerMove}
+        onPointerUp={handleDialogInteractionEnd}
+        onPointerCancel={handleDialogInteractionEnd}
+      >
+        <DialogHeader
+          className="cursor-move select-none border-b border-gray-100 px-6 py-5"
+          onPointerDown={handleDialogMoveStart}
+        >
           <DialogTitle>{isNew ? "블록 추가" : "블록 수정"}</DialogTitle>
         </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-6 py-5">
         <div className="min-w-0 space-y-4">
           {/* 블록 타입 선택 */}
           <div>
@@ -254,12 +386,12 @@ export function BlockEditDialog({
                   value={html}
                   onChange={setHtml}
                   placeholder="본문을 입력해주세요."
-                  minHeightClassName="min-h-72 max-h-[55vh]"
+                  minHeightClassName="min-h-[420px]"
                 />
               )}
               {htmlEditMode === "source" && (
                 <textarea
-                  className="min-h-[320px] max-h-[55vh] w-full resize-y overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-gray-200 bg-white px-3 py-3 font-mono text-xs leading-6 text-gray-900 outline-none [overflow-wrap:anywhere] focus:border-green-600 focus:ring-2 focus:ring-green-100"
+                  className="min-h-[420px] w-full resize-y overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-gray-200 bg-white px-3 py-3 font-mono text-xs leading-6 text-gray-900 outline-none [overflow-wrap:anywhere] focus:border-green-600 focus:ring-2 focus:ring-green-100"
                   value={html}
                   onChange={(event) => setHtml(event.target.value)}
                   placeholder="<section>본문 HTML을 입력해주세요.</section>"
@@ -267,7 +399,7 @@ export function BlockEditDialog({
                 />
               )}
               {htmlEditMode === "preview" && (
-                <div className="min-h-[320px] max-h-[55vh] overflow-auto rounded-lg border border-gray-200 bg-white p-4">
+                <div className="min-h-[420px] overflow-auto rounded-lg border border-gray-200 bg-white p-4">
                   <RichTextViewer html={normalizeHtmlBlockValue(html)} />
                 </div>
               )}
@@ -574,6 +706,13 @@ export function BlockEditDialog({
             </Button>
           </div>
         </div>
+        </div>
+        <div
+          role="separator"
+          aria-label="블록 수정 창 크기 조절"
+          className="absolute bottom-1 right-1 h-5 w-5 cursor-nwse-resize rounded-sm border-b-2 border-r-2 border-gray-300 transition hover:border-green-700"
+          onPointerDown={handleDialogResizeStart}
+        />
       </DialogContent>
     </Dialog>
   );
