@@ -91,6 +91,9 @@ function sortItems(items: HistoryItem[]) {
 
 function parseNumber(value: string) {
   const normalized = value.replace(/[^0-9]/g, "");
+  if (!normalized) {
+    return NaN;
+  }
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : NaN;
 }
@@ -98,6 +101,11 @@ function parseNumber(value: string) {
 function optionalSortOrder(value: string) {
   const parsed = parseNumber(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function resolveDecadeTitle(yearText: string, year: number) {
+  const normalizedText = yearText.trim();
+  return normalizedText || `${year}년`;
 }
 
 function formatMonth(month: number) {
@@ -430,7 +438,7 @@ export default function AdminChurchHistoryTab() {
     const title =
       previousDecade && previousDecade.startYear === year
         ? previousDecade.title
-        : `${year}년`;
+        : resolveDecadeTitle(decadeForm.year, year);
 
     const payload = {
       title,
