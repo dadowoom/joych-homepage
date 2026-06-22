@@ -94,9 +94,23 @@ function normalizeNumber(value: unknown, fallback: number, min: number, max: num
   return Math.min(max, Math.max(min, number));
 }
 
+const STYLE_BLOCK_RE = /<\s*style\b[^>]*>([\s\S]*?)<\s*\/\s*style\s*>/gi;
+const UNSAFE_CSS_RE =
+  /@import\b|javascript\s*:|vbscript\s*:|expression\s*\(|behavior\s*:|-moz-binding\s*:|url\s*\(/i;
+
+function hasUnsafeStyleBlocks(value: string) {
+  STYLE_BLOCK_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = STYLE_BLOCK_RE.exec(value)) !== null) {
+    if (UNSAFE_CSS_RE.test(match[1] ?? "")) return true;
+  }
+  return false;
+}
+
 function hasUnsafeRichHtml(value: string) {
   return (
-    /<\s*(script|object|embed|style|link|meta|base)\b/i.test(value) ||
+    /<\s*(script|object|embed|link|meta|base)\b/i.test(value) ||
+    hasUnsafeStyleBlocks(value) ||
     /\s(?:on[a-z]+|srcdoc)\s*=/i.test(value) ||
     /\b(?:href|src)\s*=\s*(['"]?)\s*(?:javascript:|vbscript:|data:text\/html)/i.test(value)
   );

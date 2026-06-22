@@ -124,4 +124,149 @@
       max-width: 1280px;
     }
   }
+
+  .ProseMirror,
+  .rich-text-viewer {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .ProseMirror img,
+  .rich-text-viewer img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .rich-text-viewer table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .rich-text-viewer th,
+  .rich-text-viewer td {
+    border: 1px solid color-mix(in oklch, var(--border), black 4%);
+    padding: 0.75rem;
+    vertical-align: top;
+  }
+
+  .rich-text-viewer th {
+    background: color-mix(in oklch, var(--accent), white 38%);
+    color: var(--accent-foreground);
+    font-weight: 700;
+  }
+
+  .rich-text-viewer .content-callout {
+    border: 1px solid color-mix(in oklch, var(--church-green), white 72%);
+    border-radius: 1.25rem;
+    background:
+      linear-gradient(135deg, color-mix(in oklch, var(--church-green), white 92%), white 58%),
+      white;
+    padding: 1.25rem;
+    box-shadow: 0 18px 40px rgb(15 81 50 / 0.08);
+  }
+
+  .rich-text-viewer .content-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  .rich-text-viewer .worship-schedule {
+    border-radius: 1.5rem;
+    border: 1px solid color-mix(in oklch, var(--church-green), white 68%);
+    background:
+      radial-gradient(circle at top right, color-mix(in oklch, var(--church-gold), white 70%), transparent 32rem),
+      linear-gradient(135deg, color-mix(in oklch, var(--church-green), white 91%), white 62%);
+    padding: clamp(1.25rem, 3vw, 2rem);
+    box-shadow: 0 24px 60px rgb(22 101 52 / 0.12);
+  }
+
+  .rich-text-viewer .worship-schedule__eyebrow {
+    margin: 0 0 0.35rem;
+    color: var(--primary);
+    font-size: 0.85rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .rich-text-viewer .worship-schedule__title {
+    margin: 0;
+    color: var(--foreground);
+    font-size: clamp(1.6rem, 4vw, 2.5rem);
+    line-height: 1.18;
+  }
+
+  .rich-text-viewer .worship-schedule__desc {
+    margin: 0.75rem 0 0;
+    color: var(--muted-foreground);
+    line-height: 1.8;
+  }
+
+  .rich-text-viewer .worship-schedule__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin-top: 1.5rem;
+  }
+
+  .rich-text-viewer .worship-time-card {
+    border: 1px solid color-mix(in oklch, var(--border), black 3%);
+    border-radius: 1.1rem;
+    background: rgb(255 255 255 / 0.9);
+    padding: 1.1rem;
+    box-shadow: 0 14px 32px rgb(15 23 42 / 0.07);
+  }
+
+  .rich-text-viewer .worship-time-card__title {
+    margin: 0 0 0.65rem;
+    color: var(--church-green);
+    font-size: 1.1rem;
+    font-weight: 800;
+  }
+
+  .rich-text-viewer .worship-time-card__meta {
+    display: grid;
+    gap: 0.4rem;
+    margin: 0;
+    color: var(--foreground);
+    line-height: 1.65;
+  }
+
+  .rich-text-viewer .worship-time-card__time::before {
+    content: "시간";
+    display: inline-flex;
+    margin-right: 0.5rem;
+    border-radius: 999px;
+    background: color-mix(in oklch, var(--church-green), white 83%);
+    padding: 0.1rem 0.5rem;
+    color: var(--primary);
+    font-size: 0.75rem;
+    font-weight: 800;
+  }
+
+  .rich-text-viewer .worship-time-card__place::before {
+    content: "장소";
+    display: inline-flex;
+    margin-right: 0.5rem;
+    border-radius: 999px;
+    background: color-mix(in oklch, var(--church-gold), white 76%);
+    padding: 0.1rem 0.5rem;
+    color: color-mix(in oklch, var(--church-gold), black 38%);
+    font-size: 0.75rem;
+    font-weight: 800;
+  }
+
+  @media (max-width: 640px) {
+    .rich-text-viewer .content-grid-2,
+    .rich-text-viewer .worship-schedule__grid {
+      grid-template-columns: 1fr;
+    }
+
+    .rich-text-viewer th,
+    .rich-text-viewer td {
+      padding: 0.6rem;
+    }
+  }
 }

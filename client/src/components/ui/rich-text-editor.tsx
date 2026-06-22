@@ -1,11 +1,20 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useId,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode } from "react";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import TextAlign from "@tiptap/extension-text-align";
-import { FontFamily, FontSize, TextStyle } from "@tiptap/extension-text-style";
+import { FontFamily,
+  FontSize,
+  TextStyle } from "@tiptap/extension-text-style";
 import Underline from "@tiptap/extension-underline";
-import { EditorContent, useEditor, type Editor } from "@tiptap/react";
+import { EditorContent,
+  useEditor,
+  type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import DOMPurify from "dompurify";
 import {
@@ -27,7 +36,7 @@ import {
   Strikethrough,
   Underline as UnderlineIcon,
   Undo2,
-  Unlink,
+  Unlink
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -116,11 +125,98 @@ export function normalizeRichTextValue(value?: string | null) {
     .join("");
 }
 
-export function sanitizeRichTextHtml(value?: string | null) {
-  const normalized = normalizeRichTextValue(value);
-  if (!normalized) return "";
+const STYLE_BLOCK_RE = /<\s*style\b[^>]*>([\s\S]*?)<\s*\/\s*style\s*>/gi;
+const UNSAFE_CSS_RE =
+  /@import\b|javascript\s*:|vbscript\s*:|expression\s*\(|behavior\s*:|-moz-binding\s*:|url\s*\(/i;
 
-  return DOMPurify.sanitize(normalized, richTextSanitizeOptions);
+function extractStyleBlocks(value?: string | null) {
+  const html = value || "";
+  const cssBlocks: string[] = [];
+  STYLE_BLOCK_RE.lastIndex = 0;
+  const htmlWithoutStyles = html.replace(STYLE_BLOCK_RE, (_match: string, css: string) => {
+    cssBlocks.push(String(css || ""));
+    return "";
+  });
+
+  return { html: htmlWithoutStyles, css: cssBlocks.join("\n") };
+}
+
+function isUnsafeCss(css: string) {
+  return UNSAFE_CSS_RE.test(css);
+}
+
+function findClosingCssBrace(css: string, openIndex: number) {
+  let depth = 0;
+  for (let index = openIndex; index < css.length; index += 1) {
+    if (css[index] === "{") depth += 1;
+    if (css[index] === "}") {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
+}
+
+function prefixCssSelector(selector: string, scopeSelector: string) {
+  const trimmed = selector.trim();
+  if (!trimmed) return "";
+  if (trimmed === "&") return scopeSelector;
+  if (trimmed.startsWith("&")) return scopeSelector + trimmed.slice(1);
+  if (trimmed.startsWith(scopeSelector)) return trimmed;
+  if (/^(html|body|:root)\b/i.test(trimmed)) {
+    return trimmed.replace(/^(html|body|:root)\b/i, scopeSelector);
+  }
+  return scopeSelector + " " + trimmed;
+}
+
+function scopeCssRules(css: string, scopeSelector: string) {
+  let output = "";
+  let index = 0;
+
+  while (index < css.length) {
+    const openIndex = css.indexOf("{", index);
+    if (openIndex < 0) break;
+
+    const selector = css.slice(index, openIndex).trim();
+    const closeIndex = findClosingCssBrace(css, openIndex);
+    if (closeIndex < 0) break;
+
+    const body = css.slice(openIndex + 1, closeIndex).trim();
+    if (/^@(media|supports)\b/i.test(selector)) {
+      const nested = scopeCssRules(body, scopeSelector);
+      if (nested) output += selector + "{" + nested + "}";
+    } else if (!selector.startsWith("@")) {
+      const scopedSelector = selector
+        .split(",")
+        .map((part) => prefixCssSelector(part, scopeSelector))
+        .filter(Boolean)
+        .join(", ");
+      if (scopedSelector && body) output += scopedSelector + "{" + body + "}";
+    }
+
+    index = closeIndex + 1;
+  }
+
+  return output;
+}
+
+function scopeRichTextCss(css: string, scopeSelector: string) {
+  const trimmedCss = css.replace(/\/\*[\s\S]*?\*\//g, "").trim();
+  if (!trimmedCss || isUnsafeCss(trimmedCss)) return "";
+  return scopeCssRules(trimmedCss, scopeSelector);
+}
+
+function sanitizeRichTextForViewer(value: string | null | undefined, scopeSelector: string) {
+  const { html, css } = extractStyleBlocks(value);
+  return {
+    html: DOMPurify.sanitize(html, richTextSanitizeOptions),
+    css: scopeRichTextCss(css, scopeSelector),
+  };
+}
+
+export function sanitizeRichTextHtml(value?: string | null) {
+  const { html } = extractStyleBlocks(value);
+  return DOMPurify.sanitize(html, richTextSanitizeOptions);
 }
 
 function isEmptyEditorHtml(value: string) {
@@ -229,7 +325,7 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
       return;
     }
 
-    editor.chain().focus().setFontSize(value).run();
+    editor.chain().focus().setFontSize(`${value}px`).run();
   };
 
   return (
@@ -452,20 +548,30 @@ export function RichTextEditor({
 }
 
 export function RichTextViewer({ html, className }: RichTextViewerProps) {
-  const cleanHtml = useMemo(() => sanitizeRichTextHtml(html), [html]);
-  if (!cleanHtml) return null;
+  const reactId = useId();
+  const viewerId = useMemo(() => "rt-" + reactId.replace(/[^a-zA-Z0-9_-]/g, ""), [reactId]);
+  const scopeSelector = '.rich-text-viewer[data-rich-text-id="' + viewerId + '"]';
+  const { html: cleanHtml, css: scopedCss } = useMemo(
+    () => sanitizeRichTextForViewer(html, scopeSelector),
+    [html, scopeSelector]
+  );
+  if (!cleanHtml && !scopedCss) return null;
 
   return (
-    <div
-      className={cn(
-        "rich-text-viewer max-w-none text-sm leading-7 text-gray-700",
-        "[&_a]:text-[#1B5E20] [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-[#D8E8DA] [&_blockquote]:pl-4 [&_blockquote]:text-gray-600",
-        "[&_h2]:mb-3 [&_h2]:mt-5 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-[#001B3A] [&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:text-lg [&_h3]:font-bold [&_h3]:text-[#001B3A]",
-        "min-w-0 break-words [overflow-wrap:anywhere] [&_*]:max-w-full [&_hr]:my-5 [&_hr]:border-gray-200 [&_img]:mx-auto [&_img]:my-5 [&_img]:h-auto [&_img]:max-w-full [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:my-2 [&_ul]:ml-5 [&_ul]:list-disc",
-        "[&_section]:my-4 [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-gray-200 [&_td]:px-3 [&_td]:py-2 [&_th]:border [&_th]:border-gray-200 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2",
-        className,
-      )}
-      dangerouslySetInnerHTML={{ __html: cleanHtml }}
-    />
+    <>
+      {scopedCss ? <style>{scopedCss}</style> : null}
+      <div
+        data-rich-text-id={viewerId}
+        className={cn(
+          "rich-text-viewer max-w-none text-sm leading-7 text-gray-700",
+          "[&_a]:text-[#1B5E20] [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-[#D8E8DA] [&_blockquote]:pl-4 [&_blockquote]:text-gray-600",
+          "[&_h2]:mb-3 [&_h2]:mt-5 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-[#001B3A] [&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:text-lg [&_h3]:font-bold [&_h3]:text-[#001B3A]",
+          "min-w-0 break-words [overflow-wrap:anywhere] [&_*]:max-w-full [&_hr]:my-5 [&_hr]:border-gray-200 [&_img]:mx-auto [&_img]:my-5 [&_img]:h-auto [&_img]:max-w-full [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:my-2 [&_ul]:ml-5 [&_ul]:list-disc",
+          "[&_section]:my-4 [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-gray-200 [&_td]:px-3 [&_td]:py-2 [&_th]:border [&_th]:border-gray-200 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2",
+          className,
+        )}
+        dangerouslySetInnerHTML={{ __html: cleanHtml }}
+      />
+    </>
   );
 }
