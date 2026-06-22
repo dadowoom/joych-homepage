@@ -937,7 +937,6 @@ export default function AdminChurchHistoryTab() {
             )}
 
             {isItemFormOpen && itemFormYearContext === null && renderItemForm()}
-            )}
           </div>
         )}
       </section>
