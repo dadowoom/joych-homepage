@@ -315,8 +315,16 @@ export const homeRouter = router({
   /** 공개 강좌 목록 */
   courses: publicProcedure.query(() => getVisibleCourses()),
 
-  /** 공개 주보 목록 */
-  bulletins: publicProcedure.query(() => listPublishedBulletins()),
+  /** 성도 이상 주보 목록 */
+  bulletins: publicProcedure.query(({ ctx }) => {
+    if (!ctx.memberId && !hasAdminContentPermission(ctx.user, "content:bulletins")) {
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "주보 보기는 성도 로그인 후 이용할 수 있습니다.",
+      });
+    }
+    return listPublishedBulletins();
+  }),
 
   /** 공개 강좌 단건 */
   course: publicProcedure

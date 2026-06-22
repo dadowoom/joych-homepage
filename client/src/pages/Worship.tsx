@@ -283,6 +283,33 @@ function getTodayDateInputValue() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function getMemberLoginHref(fallbackPath = "/worship/bulletin") {
+  const currentPath = typeof window === "undefined"
+    ? fallbackPath
+    : `${window.location.pathname}${window.location.search}`;
+  return `/member/login?next=${encodeURIComponent(currentPath || fallbackPath)}`;
+}
+
+function BulletinAccessRequired() {
+  return (
+    <div className="flex flex-col items-center justify-center border-2 border-dashed border-[#D8E8DA] bg-[#F8FCF8] px-5 py-20 text-center">
+      <i className="fas fa-lock mb-4 text-4xl text-[#1B5E20]" />
+      <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+        성도 로그인 후 이용할 수 있습니다
+      </h2>
+      <p className="mt-3 max-w-md text-sm leading-6 text-gray-500">
+        주보 보기는 성도 이상 읽기 권한이 필요한 자료입니다. 성도 로그인 후 다시 확인해 주세요.
+      </p>
+      <Link
+        href={getMemberLoginHref()}
+        className="mt-6 inline-flex h-10 items-center justify-center border border-[#1B5E20] bg-[#1B5E20] px-5 text-sm font-semibold text-white hover:bg-[#2E7D32]"
+      >
+        성도 로그인
+      </Link>
+    </div>
+  );
+}
+
 function readBulletinFile(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -448,7 +475,16 @@ function BulletinUploadPanel() {
 export function BulletinDetail() {
   const params = useParams<{ id?: string }>();
   const bulletinId = Number(params.id);
-  const { data: bulletins = [], isLoading } = trpc.home.bulletins.useQuery();
+  const { user, loading: authLoading } = useAuth();
+  const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, { retry: false });
+  const canReadBulletins = Boolean(memberMe) || canManageBoardContent(user, "content:bulletins");
+  const bulletinsQuery = trpc.home.bulletins.useQuery(undefined, {
+    enabled: canReadBulletins,
+    retry: false,
+  });
+  const bulletins = bulletinsQuery.data ?? [];
+  const isAccessDenied = !authLoading && !memberLoading && !canReadBulletins;
+  const isLoading = authLoading || memberLoading || (canReadBulletins && bulletinsQuery.isLoading);
   const { data: allMenus } = trpc.home.menus.useQuery();
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);
   const [lightboxPageIndex, setLightboxPageIndex] = useState<number | null>(null);
@@ -497,7 +533,9 @@ export function BulletinDetail() {
           )}
         </div>
 
-        {isLoading ? (
+        {isAccessDenied ? (
+          <BulletinAccessRequired />
+        ) : isLoading ? (
           <div className="text-center py-16 text-gray-400">불러오는 중...</div>
         ) : !bulletin ? (
           <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50 py-20">
@@ -693,9 +731,17 @@ export function BulletinDetail() {
 }
 
 export function Bulletin() {
-  const { data: bulletins = [], isLoading } = trpc.home.bulletins.useQuery();
-  const { user } = useAuth();
-  const canManage = canManageBoardContent(user);
+  const { user, loading: authLoading } = useAuth();
+  const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, { retry: false });
+  const canManage = canManageBoardContent(user, "content:bulletins");
+  const canReadBulletins = Boolean(memberMe) || canManage;
+  const bulletinsQuery = trpc.home.bulletins.useQuery(undefined, {
+    enabled: canReadBulletins,
+    retry: false,
+  });
+  const bulletins = bulletinsQuery.data ?? [];
+  const isAccessDenied = !authLoading && !memberLoading && !canReadBulletins;
+  const isLoading = authLoading || memberLoading || (canReadBulletins && bulletinsQuery.isLoading);
   const { data: allMenus } = trpc.home.menus.useQuery();
   const [expandedId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
@@ -739,6 +785,10 @@ export function Bulletin() {
   return (
     <SubPageLayout pageTitle="주보 보기" parentLabel={parentLabel} sideMenuItems={sideMenuItems}>
       <div className="max-w-5xl">
+        {isAccessDenied ? (
+          <BulletinAccessRequired />
+        ) : (
+          <>
         <div className="mb-5 border-b border-gray-100 pb-4">
           <p className="text-sm text-gray-500">
             총 <span className="font-semibold text-[#1B5E20]">{bulletins.length}</span>개의 주보
@@ -1032,6 +1082,8 @@ export function Bulletin() {
               </div>
             </div>
           </div>
+        )}
+          </>
         )}
       </div>
 

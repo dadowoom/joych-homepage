@@ -57,16 +57,24 @@ export async function getVisibleMenus(access: MenuReadAccess = "guest") {
 
   const itemsByMenuId = new Map<
     number,
-    Array<(typeof visibleItems)[number] & { subItems: typeof visibleSubItems }>
+    Array<(typeof visibleItems)[number] & {
+      canRead: boolean;
+      subItems: Array<(typeof visibleSubItems)[number] & { canRead: boolean }>;
+    }>
   >();
   for (const item of visibleItems) {
     const subItems = subItemsByItemId.get(item.id) ?? [];
-    const readableSubItems = subItems.filter((subItem) => canReadMenuLeaf(subItem, access));
-    if (subItems.length > 0 && readableSubItems.length === 0) continue;
-    if (subItems.length === 0 && !canReadMenuLeaf(item, access)) continue;
+    const visibleSubItemsWithAccess = subItems.map((subItem) => ({
+      ...subItem,
+      canRead: canReadMenuLeaf(subItem, access),
+    }));
 
     const list = itemsByMenuId.get(item.menuId) ?? [];
-    list.push({ ...item, subItems: readableSubItems });
+    list.push({
+      ...item,
+      canRead: canReadMenuLeaf(item, access),
+      subItems: visibleSubItemsWithAccess,
+    });
     itemsByMenuId.set(item.menuId, list);
   }
 
