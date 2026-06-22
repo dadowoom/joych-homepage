@@ -844,17 +844,21 @@ export function Bulletin() {
                   <span>{formatBulletinDate(bulletin.bulletinDate)}</span>
                 </div>
                 <Link href={`/worship/bulletin/${bulletin.id}`} className="mb-2 block">
-                  {hasCoverImage && coverPage ? (
-                    <img
-                      src={coverPage.fileUrl}
-                      alt={`${bulletin.title} 대표이미지`}
-                      className="h-36 w-full object-cover"
-                    />
-                  ) : (
-                    <div className="h-36 w-full border border-gray-200 bg-gray-50 flex items-center justify-center text-gray-300">
-                      <span className="text-xs">이미지 미리보기 없음</span>
+                  <div className="relative overflow-hidden border border-gray-200 bg-gray-50">
+                    <div className="relative aspect-[3/4] w-full">
+                      {hasCoverImage && coverPage ? (
+                        <img
+                          src={coverPage.fileUrl}
+                          alt={`${bulletin.title} 대표이미지`}
+                          className="absolute inset-0 h-full w-full object-contain p-2"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-xs text-gray-300">이미지 미리보기 없음</span>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </Link>
                 <Link
                   href={`/worship/bulletin/${bulletin.id}`}
