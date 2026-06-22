@@ -62,6 +62,7 @@ const FACILITY_PAGE_SETTING_FIELDS = [
 
 type FacilityBuilding = typeof FACILITY_BUILDINGS[number]["value"];
 type FacilityPageSettingKey = typeof FACILITY_PAGE_SETTING_FIELDS[number]["key"];
+type FacilitySubTab = "list" | "pageSettings";
 const MONDAY_FIRST_DAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
 
 const DEFAULT_HOURS = DAY_LABELS.map((_, i) => ({
@@ -73,6 +74,13 @@ const DEFAULT_HOURS = DAY_LABELS.map((_, i) => ({
   breakEnd: "" as string,
 }));
 type FacilityHoursForm = typeof DEFAULT_HOURS;
+
+function createFacilityPageSettingDrafts(): Record<FacilityPageSettingKey, string> {
+  return FACILITY_PAGE_SETTING_FIELDS.reduce((drafts, field) => {
+    drafts[field.key] = "";
+    return drafts;
+  }, {} as Record<FacilityPageSettingKey, string>);
+}
 
 function createDefaultHours(): FacilityHoursForm {
   return DEFAULT_HOURS.map(hour => ({ ...hour }));
@@ -454,8 +462,8 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
     welfare: createDefaultHours(),
   });
   const [applyingBuilding, setApplyingBuilding] = useState<FacilityBuilding | null>(null);
-  const [editingPageSettingKey, setEditingPageSettingKey] = useState<FacilityPageSettingKey | null>(null);
-  const [editingPageSettingValue, setEditingPageSettingValue] = useState("");
+  const [activeFacilitySubTab, setActiveFacilitySubTab] = useState<FacilitySubTab>("list");
+  const [pageSettingDrafts, setPageSettingDrafts] = useState<Record<FacilityPageSettingKey, string>>(createFacilityPageSettingDrafts);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const buildingCounts = useMemo(() => {
     const counts = new Map<FacilityBuilding, number>(FACILITY_BUILDINGS.map((building) => [building.value, 0]));
@@ -500,6 +508,17 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
       isThumbnail: image.isThumbnail,
     })));
   }, [editingFacilityImages, editingId]);
+
+  useEffect(() => {
+    if (!pageSettings) return;
+    setPageSettingDrafts(() => {
+      const next = createFacilityPageSettingDrafts();
+      FACILITY_PAGE_SETTING_FIELDS.forEach((field) => {
+        next[field.key] = pageSettings[field.key] ?? "";
+      });
+      return next;
+    });
+  }, [pageSettings]);
 
   // ── Mutations ─────────────────────────────────────────
   const createFacility = trpc.cms.facilities.create.useMutation({
@@ -586,25 +605,26 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
   const setThumbnailMutation = trpc.cms.facilities.images.setThumbnail.useMutation();
   const upsertHour = trpc.cms.facilities.hours.upsert.useMutation();
   const updateFacilityPageSetting = trpc.cms.facilities.pageSettings.update.useMutation({
-    onSuccess: () => {
-      utils.home.settings.invalidate();
-      setEditingPageSettingKey(null);
-      setEditingPageSettingValue("");
-      toast.success("시설예약 페이지 문구가 저장되었습니다.");
-    },
-    onError: (e) => toast.error(e.message || "문구 저장에 실패했습니다."),
+    onSuccess: () => utils.home.settings.invalidate(),
   });
 
-  function startEditPageSetting(field: typeof FACILITY_PAGE_SETTING_FIELDS[number]) {
-    setEditingPageSettingKey(field.key);
-    setEditingPageSettingValue(pageSettings?.[field.key] ?? "");
+  function updatePageSettingDraft(key: FacilityPageSettingKey, value: string) {
+    setPageSettingDrafts(prev => ({ ...prev, [key]: value }));
   }
 
-  function savePageSetting(field: typeof FACILITY_PAGE_SETTING_FIELDS[number]) {
-    updateFacilityPageSetting.mutate({
-      key: field.key,
-      value: editingPageSettingValue,
-    });
+  async function savePageSettings() {
+    try {
+      for (const field of FACILITY_PAGE_SETTING_FIELDS) {
+        await updateFacilityPageSetting.mutateAsync({
+          key: field.key,
+          value: pageSettingDrafts[field.key],
+        });
+      }
+      await utils.home.settings.invalidate();
+      toast.success("시설예약 페이지 문구가 저장되었습니다.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "문구 저장에 실패했습니다.");
+    }
   }
 
   function updateBuildingScheduleDraft(building: FacilityBuilding, nextHours: FacilityHoursForm) {
@@ -864,7 +884,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
               : "시설을 등록하고 운영 시간, 예약 조건을 설정합니다."}
           </p>
         </div>
-        {mode === "facilities" && !showForm && (
+        {mode === "facilities" && activeFacilitySubTab === "list" && !showForm && (
           <button onClick={startCreate}
             className="flex items-center gap-1.5 px-4 py-2 bg-[#1B5E20] text-white rounded-lg text-sm font-medium hover:bg-[#2E7D32] transition-colors">
             <Plus className="w-4 h-4" /> 시설 등록
@@ -872,7 +892,61 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
         )}
       </div>
 
-      {mode === "facilities" && !showForm && (
+      {mode === "facilities" && (
+        <div className="grid grid-cols-1 gap-3 rounded-xl border border-gray-100 bg-white p-2 shadow-sm sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setActiveFacilitySubTab("list")}
+            className={`flex items-center gap-3 rounded-lg px-4 py-3 text-left transition-colors ${
+              activeFacilitySubTab === "list"
+                ? "bg-[#1B5E20] text-white shadow-sm"
+                : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+              activeFacilitySubTab === "list" ? "bg-white/15" : "bg-white"
+            }`}>
+              <Building2 className="h-4 w-4" />
+            </span>
+            <span>
+              <span className="block text-sm font-bold">시설 목록 / 예약 조건</span>
+              <span className={`mt-0.5 block text-xs ${
+                activeFacilitySubTab === "list" ? "text-white/75" : "text-gray-400"
+              }`}>
+                시설 등록, 사진, 운영 시간, 예약 조건 관리
+              </span>
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (showForm) resetForm();
+              setActiveFacilitySubTab("pageSettings");
+            }}
+            className={`flex items-center gap-3 rounded-lg px-4 py-3 text-left transition-colors ${
+              activeFacilitySubTab === "pageSettings"
+                ? "bg-[#1B5E20] text-white shadow-sm"
+                : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+              activeFacilitySubTab === "pageSettings" ? "bg-white/15" : "bg-white"
+            }`}>
+              <Pencil className="h-4 w-4" />
+            </span>
+            <span>
+              <span className="block text-sm font-bold">페이지 문구</span>
+              <span className={`mt-0.5 block text-xs ${
+                activeFacilitySubTab === "pageSettings" ? "text-white/75" : "text-gray-400"
+              }`}>
+                상단 히어로와 4단계 안내 문구 수정
+              </span>
+            </span>
+          </button>
+        </div>
+      )}
+
+      {mode === "facilities" && activeFacilitySubTab === "pageSettings" && (
         <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-5 shadow-sm">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -884,83 +958,104 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
                 사용자 화면의 상단 히어로 문구와 4단계 안내 문구를 여기서 바로 수정합니다.
               </p>
             </div>
-            <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#1B5E20] shadow-sm">
-              홈페이지 즉시 반영
-            </span>
+            <button
+              type="button"
+              onClick={savePageSettings}
+              disabled={updateFacilityPageSetting.isPending}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#1B5E20] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32] disabled:opacity-50"
+            >
+              {updateFacilityPageSetting.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              문구 저장
+            </button>
           </div>
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            {FACILITY_PAGE_SETTING_FIELDS.map((field) => {
-              const currentValue = pageSettings?.[field.key] ?? "";
-              const isEditing = editingPageSettingKey === field.key;
-              const isLongField = field.key.endsWith("_description") || field.key.endsWith("_desc");
-
-              return (
-                <div key={field.key} className="rounded-lg border border-white/70 bg-white p-4 shadow-sm">
-                  <div className="mb-2 flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-bold text-gray-900">{field.label}</p>
-                      <p className="mt-0.5 text-xs text-gray-400">{field.helper}</p>
-                    </div>
-                    {!isEditing && (
-                      <button
-                        type="button"
-                        onClick={() => startEditPageSetting(field)}
-                        className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                        수정
-                      </button>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+            <div className="rounded-xl border border-white/70 bg-white p-5 shadow-sm">
+              <div className="mb-4">
+                <p className="text-sm font-bold text-gray-900">상단 히어로</p>
+                <p className="mt-1 text-xs text-gray-400">시설예약 화면 맨 위의 제목, 설명, 배경 이미지를 수정합니다.</p>
+              </div>
+              <div className="space-y-3">
+                {FACILITY_PAGE_SETTING_FIELDS.slice(0, 4).map((field) => (
+                  <label key={field.key} className="block">
+                    <span className="mb-1 block text-xs font-medium text-gray-600">{field.label}</span>
+                    {field.key === "facility_hero_description" ? (
+                      <textarea
+                        value={pageSettingDrafts[field.key]}
+                        onChange={(e) => updatePageSettingDraft(field.key, e.target.value)}
+                        rows={4}
+                        placeholder={field.helper}
+                        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={pageSettingDrafts[field.key]}
+                        onChange={(e) => updatePageSettingDraft(field.key, e.target.value)}
+                        placeholder={field.helper}
+                        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
+                      />
                     )}
-                  </div>
+                  </label>
+                ))}
+              </div>
+              <div className="mt-4 rounded-xl bg-[#123F17] p-4 text-white">
+                <p className="text-xs font-semibold tracking-[0.18em] text-white/70">
+                  {pageSettingDrafts.facility_hero_eyebrow || "FACILITY RESERVATION"}
+                </p>
+                <p className="mt-2 text-2xl font-bold">
+                  {pageSettingDrafts.facility_hero_title || "시설 사용 예약"}
+                </p>
+                <p className="mt-2 max-w-md text-sm leading-6 text-white/80">
+                  {pageSettingDrafts.facility_hero_description || "기쁨의교회의 다양한 공간을 예약하여 사용하실 수 있습니다. 원하시는 시설을 선택하고 예약 신청서를 작성해 주세요."}
+                </p>
+              </div>
+            </div>
 
-                  {isEditing ? (
-                    <div className="space-y-2">
-                      {isLongField ? (
-                        <textarea
-                          value={editingPageSettingValue}
-                          onChange={(e) => setEditingPageSettingValue(e.target.value)}
-                          rows={3}
-                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
-                        />
-                      ) : (
-                        <input
-                          type="text"
-                          value={editingPageSettingValue}
-                          onChange={(e) => setEditingPageSettingValue(e.target.value)}
-                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
-                        />
-                      )}
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => savePageSetting(field)}
-                          disabled={updateFacilityPageSetting.isPending}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-[#1B5E20] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#2E7D32] disabled:opacity-50"
-                        >
-                          {updateFacilityPageSetting.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                          저장
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingPageSettingKey(null);
-                            setEditingPageSettingValue("");
-                          }}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                          취소
-                        </button>
+            <div className="rounded-xl border border-white/70 bg-white p-5 shadow-sm">
+              <div className="mb-4">
+                <p className="text-sm font-bold text-gray-900">4단계 안내 문구</p>
+                <p className="mt-1 text-xs text-gray-400">실제 화면에 보이는 순서대로 제목과 설명을 바로 수정합니다.</p>
+              </div>
+              <div className="space-y-3">
+                {[0, 1, 2, 3].map((index) => {
+                  const titleField = FACILITY_PAGE_SETTING_FIELDS[4 + index * 2];
+                  const descField = FACILITY_PAGE_SETTING_FIELDS[5 + index * 2];
+
+                  return (
+                    <div key={titleField.key} className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                      <div className="mb-3 flex items-center gap-2">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1B5E20] text-xs font-bold text-white">
+                          {index + 1}
+                        </span>
+                        <p className="text-sm font-bold text-gray-900">{index + 1}단계 안내</p>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-[0.8fr_1.2fr]">
+                        <label className="block">
+                          <span className="mb-1 block text-xs font-medium text-gray-600">제목</span>
+                          <input
+                            type="text"
+                            value={pageSettingDrafts[titleField.key]}
+                            onChange={(e) => updatePageSettingDraft(titleField.key, e.target.value)}
+                            placeholder={titleField.helper}
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="mb-1 block text-xs font-medium text-gray-600">설명</span>
+                          <input
+                            type="text"
+                            value={pageSettingDrafts[descField.key]}
+                            onChange={(e) => updatePageSettingDraft(descField.key, e.target.value)}
+                            placeholder={descField.helper}
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
+                          />
+                        </label>
                       </div>
                     </div>
-                  ) : (
-                    <p className="min-h-[38px] whitespace-pre-wrap rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">
-                      {currentValue || "기본값 사용 중"}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1018,7 +1113,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
         </div>
       )}
 
-      {mode === "facilities" && showForm && (
+      {mode === "facilities" && activeFacilitySubTab === "list" && showForm && (
         <div className="bg-gray-50 rounded-xl border border-gray-200 p-5 space-y-5">
           <div className="flex items-center justify-between">
             <h4 className="font-bold text-gray-800">{editingId ? "시설 수정" : "새 시설 등록"}</h4>
@@ -1169,7 +1264,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
       )}
 
       {/* 시설 목록 */}
-      {mode === "facilities" && (facilityRows.length === 0 ? (
+      {mode === "facilities" && activeFacilitySubTab === "list" && (facilityRows.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <Settings className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p>등록된 시설이 없습니다.</p>
