@@ -272,7 +272,10 @@ function ToolbarButton({
       title={label}
       aria-label={label}
       aria-pressed={isActive}
-      onClick={onClick}
+      onMouseDown={(event) => {
+        event.preventDefault();
+        onClick();
+      }}
       className={cn(
         "inline-flex h-8 w-8 items-center justify-center border border-gray-200 bg-white text-gray-700 transition hover:border-[#1B5E20] hover:bg-[#F1F8E9] hover:text-[#1B5E20]",
         isActive && "border-[#1B5E20] bg-[#EAF6EA] text-[#1B5E20]",
@@ -518,6 +521,7 @@ export function RichTextEditor({
       onChange(isEmptyEditorHtml(html) ? "" : html);
     },
     onBlur: ({ editor: currentEditor }) => {
+      if (!currentEditor.state.selection.empty) return;
       resetEditorFormattingState(currentEditor);
     },
   });
