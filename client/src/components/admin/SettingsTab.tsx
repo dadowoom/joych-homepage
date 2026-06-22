@@ -20,6 +20,14 @@ const SETTING_LABELS: Record<string, string> = {
   instagram_url: "인스타그램 URL",
   vision_title: "비전 제목",
   vision_desc: "비전 설명",
+  facility_guide_step1_title: "시설예약 안내 1 제목",
+  facility_guide_step1_desc: "시설예약 안내 1 설명",
+  facility_guide_step2_title: "시설예약 안내 2 제목",
+  facility_guide_step2_desc: "시설예약 안내 2 설명",
+  facility_guide_step3_title: "시설예약 안내 3 제목",
+  facility_guide_step3_desc: "시설예약 안내 3 설명",
+  facility_guide_step4_title: "시설예약 안내 4 제목",
+  facility_guide_step4_desc: "시설예약 안내 4 설명",
 };
 
 export function SettingsTab() {

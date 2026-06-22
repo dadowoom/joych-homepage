@@ -67,6 +67,14 @@ const SETTING_KEYS = [
   "instagram_url",
   "vision_title",
   "vision_desc",
+  "facility_guide_step1_title",
+  "facility_guide_step1_desc",
+  "facility_guide_step2_title",
+  "facility_guide_step2_desc",
+  "facility_guide_step3_title",
+  "facility_guide_step3_desc",
+  "facility_guide_step4_title",
+  "facility_guide_step4_desc",
 ] as const;
 
 const iconClassSchema = z.string()

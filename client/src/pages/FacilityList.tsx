@@ -17,6 +17,43 @@ const FACILITY_BUILDINGS = [
 ] as const;
 
 type FacilityBuilding = typeof FACILITY_BUILDINGS[number]["value"];
+type SiteSettings = Record<string, string>;
+
+const FACILITY_GUIDE_DEFAULTS = [
+  {
+    icon: "fa-search",
+    titleKey: "facility_guide_step1_title",
+    descKey: "facility_guide_step1_desc",
+    title: "시설 선택",
+    desc: "원하는 공간을 선택하세요",
+  },
+  {
+    icon: "fa-calendar-check",
+    titleKey: "facility_guide_step2_title",
+    descKey: "facility_guide_step2_desc",
+    title: "날짜 확인",
+    desc: "예약 가능 일정을 확인하세요",
+  },
+  {
+    icon: "fa-file-alt",
+    titleKey: "facility_guide_step3_title",
+    descKey: "facility_guide_step3_desc",
+    title: "신청서 작성",
+    desc: "신청 정보를 입력하세요",
+  },
+  {
+    icon: "fa-phone",
+    titleKey: "facility_guide_step4_title",
+    descKey: "facility_guide_step4_desc",
+    title: "담당자 확인",
+    desc: "승인 후 연락을 드립니다",
+  },
+] as const;
+
+function getSettingText(settings: SiteSettings | undefined, key: string, fallback: string) {
+  const value = settings?.[key]?.trim();
+  return value || fallback;
+}
 
 function normalizeFacilityBuilding(building: string | null | undefined): FacilityBuilding {
   return building === "hayoungin" ? "hayoungin" : "welfare";
@@ -62,13 +99,12 @@ function FacilityHero() {
 }
 
 // ── 이용 안내 요약 배너 ────────────────────────────────────
-function FacilityGuide() {
-  const steps = [
-    { icon: "fa-search", title: "시설 선택", desc: "원하는 공간을 선택하세요" },
-    { icon: "fa-calendar-check", title: "날짜 확인", desc: "예약 가능 일정을 확인하세요" },
-    { icon: "fa-file-alt", title: "신청서 작성", desc: "신청 정보를 입력하세요" },
-    { icon: "fa-phone", title: "담당자 확인", desc: "승인 후 연락을 드립니다" },
-  ];
+function FacilityGuide({ settings }: { settings?: SiteSettings }) {
+  const steps = FACILITY_GUIDE_DEFAULTS.map((step) => ({
+    icon: step.icon,
+    title: getSettingText(settings, step.titleKey, step.title),
+    desc: getSettingText(settings, step.descKey, step.desc),
+  }));
   return (
     <section className="bg-[#F1F8E9] border-b border-green-100 py-6">
       <div className="container">
@@ -168,6 +204,7 @@ function FacilityCard({ facility, activeBuilding }: { facility: Facility; active
 // ── 메인 페이지 컴포넌트 ───────────────────────────────────
 export default function FacilityList() {
   const { data: facilities, isLoading } = trpc.home.facilities.useQuery();
+  const { data: settings } = trpc.home.settings.useQuery();
   const searchString = useSearch();
   const [, navigate] = useLocation();
   const activeBuilding = useMemo(
@@ -190,7 +227,7 @@ export default function FacilityList() {
   return (
     <div className="min-h-screen bg-[#F7F7F5]">
       <FacilityHero />
-      <FacilityGuide />
+      <FacilityGuide settings={settings as SiteSettings | undefined} />
 
       <section className="py-12">
         <div className="container">
