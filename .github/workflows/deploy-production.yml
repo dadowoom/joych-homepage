@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - codex/signup-hardening
 
 concurrency:
   group: joych-production
@@ -18,6 +19,10 @@ env:
   JOYCH_PM2_APP: ${{ vars.JOYCH_PM2_APP || 'joych-homepage' }}
   JOYCH_HEALTHCHECK_URL: ${{ vars.JOYCH_HEALTHCHECK_URL || 'https://dadowoomtest.co.kr/api/public-config' }}
   JOYCH_SSH_PORT: ${{ secrets.JOYCH_SSH_PORT || '22' }}
+  JOYCH_SSH_HOST: ${{ secrets.JOYCH_SSH_HOST }}
+  JOYCH_SSH_USER: ${{ secrets.JOYCH_SSH_USER }}
+  JOYCH_SSH_PASSWORD: ${{ secrets.JOYCH_SSH_PASSWORD }}
+  JOYCH_SSH_PRIVATE_KEY: ${{ secrets.JOYCH_SSH_PRIVATE_KEY }}
 
 jobs:
   deploy:
@@ -63,36 +68,68 @@ jobs:
           SSH_HOST: ${{ secrets.JOYCH_SSH_HOST }}
           SSH_USER: ${{ secrets.JOYCH_SSH_USER }}
           SSH_PRIVATE_KEY: ${{ secrets.JOYCH_SSH_PRIVATE_KEY }}
+          SSH_PASSWORD: ${{ secrets.JOYCH_SSH_PASSWORD }}
         run: |
-          if [[ -z "${SSH_HOST}" || -z "${SSH_USER}" || -z "${SSH_PRIVATE_KEY}" ]]; then
+          if [[ -z "${SSH_HOST}" || -z "${SSH_USER}" ]]; then
             echo "Missing required deployment secrets." >&2
-            echo "Required: JOYCH_SSH_HOST, JOYCH_SSH_USER, JOYCH_SSH_PRIVATE_KEY" >&2
+            echo "Required: JOYCH_SSH_HOST, JOYCH_SSH_USER" >&2
             exit 1
           fi
 
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/joych_deploy_key
-          chmod 600 ~/.ssh/joych_deploy_key
+
+          if [[ -n "${SSH_PRIVATE_KEY}" ]]; then
+            printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/joych_deploy_key
+            chmod 600 ~/.ssh/joych_deploy_key
+          fi
+
           ssh-keyscan -p "${JOYCH_SSH_PORT}" "${SSH_HOST}" >> ~/.ssh/known_hosts
 
       - name: Upload artifact
         env:
           SSH_HOST: ${{ secrets.JOYCH_SSH_HOST }}
           SSH_USER: ${{ secrets.JOYCH_SSH_USER }}
+          SSH_PASSWORD: ${{ secrets.JOYCH_SSH_PASSWORD }}
+          SSH_PRIVATE_KEY: ${{ secrets.JOYCH_SSH_PRIVATE_KEY }}
         run: |
-          scp -i ~/.ssh/joych_deploy_key \
-            -P "${JOYCH_SSH_PORT}" \
-            "${ARTIFACT}" \
-            "${SSH_USER}@${SSH_HOST}:/tmp/${ARTIFACT}"
+          if [[ -n "${SSH_PRIVATE_KEY}" ]]; then
+            scp -i ~/.ssh/joych_deploy_key \
+              -P "${JOYCH_SSH_PORT}" \
+              "${ARTIFACT}" \
+              "${SSH_USER}@${SSH_HOST}:/tmp/${ARTIFACT}"
+          elif [[ -n "${SSH_PASSWORD}" ]]; then
+            sudo apt-get update -y >/dev/null
+            sudo apt-get install -y sshpass >/dev/null
+            sshpass -p "${SSH_PASSWORD}" \
+              scp -P "${JOYCH_SSH_PORT}" \
+              "${ARTIFACT}" \
+              "${SSH_USER}@${SSH_HOST}:/tmp/${ARTIFACT}"
+          else
+            echo "Missing SSH authentication: set JOYCH_SSH_PRIVATE_KEY or JOYCH_SSH_PASSWORD." >&2
+            exit 1
+          fi
 
       - name: Run remote deploy
         env:
           SSH_HOST: ${{ secrets.JOYCH_SSH_HOST }}
           SSH_USER: ${{ secrets.JOYCH_SSH_USER }}
+          SSH_PASSWORD: ${{ secrets.JOYCH_SSH_PASSWORD }}
+          SSH_PRIVATE_KEY: ${{ secrets.JOYCH_SSH_PRIVATE_KEY }}
         run: |
-          ssh -i ~/.ssh/joych_deploy_key \
-            -p "${JOYCH_SSH_PORT}" \
-            "${SSH_USER}@${SSH_HOST}" \
-            "APP_DIR='${JOYCH_APP_DIR}' PM2_APP='${JOYCH_PM2_APP}' ARTIFACT='/tmp/${ARTIFACT}' HEALTHCHECK_URL='${JOYCH_HEALTHCHECK_URL}' bash -s" \
-            < scripts/deploy-production-remote.sh
+          if [[ -n "${SSH_PRIVATE_KEY}" ]]; then
+            ssh -i ~/.ssh/joych_deploy_key \
+              -p "${JOYCH_SSH_PORT}" \
+              "${SSH_USER}@${SSH_HOST}" \
+              "APP_DIR='${JOYCH_APP_DIR}' PM2_APP='${JOYCH_PM2_APP}' ARTIFACT='/tmp/${ARTIFACT}' HEALTHCHECK_URL='${JOYCH_HEALTHCHECK_URL}' bash -s" \
+              < scripts/deploy-production-remote.sh
+          elif [[ -n "${SSH_PASSWORD}" ]]; then
+            sshpass -p "${SSH_PASSWORD}" \
+              ssh -p "${JOYCH_SSH_PORT}" \
+              "${SSH_USER}@${SSH_HOST}" \
+              "APP_DIR='${JOYCH_APP_DIR}' PM2_APP='${JOYCH_PM2_APP}' ARTIFACT='/tmp/${ARTIFACT}' HEALTHCHECK_URL='${JOYCH_HEALTHCHECK_URL}' bash -s" \
+              < scripts/deploy-production-remote.sh
+          else
+            echo "Missing SSH authentication: set JOYCH_SSH_PRIVATE_KEY or JOYCH_SSH_PASSWORD." >&2
+            exit 1
+          fi
