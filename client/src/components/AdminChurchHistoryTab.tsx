@@ -124,6 +124,10 @@ function groupItemsByYear(items: HistoryItem[]) {
   return Array.from(groups.entries());
 }
 
+function getYearlyItemCount(items: HistoryItem[], year: number) {
+  return items.filter((item) => item.year === year).length;
+}
+
 function SortableDecadeTab({
   decade,
   isSelected,
@@ -350,10 +354,14 @@ export default function AdminChurchHistoryTab() {
 
   const createItem = trpc.cms.history.createItem.useMutation({
     onSuccess: () => {
+      const currentYear = Number(itemForm.year);
+      const yearlyCount = Number.isFinite(currentYear)
+        ? getYearlyItemCount(selectedItems, currentYear)
+        : selectedItems.length;
       setItemForm({
         ...emptyItemForm,
         decadeId: selectedDecadeId,
-        sortOrder: String(selectedItems.length + 2),
+        sortOrder: String(yearlyCount + 2),
       });
       setIsItemFormOpen(false);
       refreshHistory();
@@ -400,11 +408,13 @@ export default function AdminChurchHistoryTab() {
       return;
     }
 
+    const targetYear = year ?? Number(selectedDecade.startYear);
+    const yearlyCount = getYearlyItemCount(selectedItems, targetYear);
     setItemForm({
       ...emptyItemForm,
       decadeId: String(selectedDecade.id),
-      year: year ? String(year) : String(selectedDecade.startYear),
-      sortOrder: String(selectedItems.length + 1),
+      year: String(targetYear),
+      sortOrder: String(yearlyCount + 1),
     });
     setIsItemFormOpen(true);
   };
