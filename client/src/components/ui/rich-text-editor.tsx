@@ -248,11 +248,10 @@ function getActiveFontSizeValue(editor: Editor) {
   return fontSize.endsWith("px") ? fontSize.slice(0, -2) : fontSize;
 }
 
-function resetEditorFormattingState(editor: Editor) {
+function clearEditorStoredMarks(editor: Editor) {
   if (editor.isDestroyed) return;
-  editor.commands.setTextSelection(1);
-  editor.commands.unsetAllMarks();
-  editor.commands.blur();
+  const transaction = editor.state.tr.setStoredMarks([]);
+  editor.view.dispatch(transaction);
 }
 
 function ToolbarButton({
@@ -578,10 +577,6 @@ export function RichTextEditor({
       const html = currentEditor.getHTML();
       onChange(isEmptyEditorHtml(html) ? "" : html);
     },
-    onBlur: ({ editor: currentEditor }) => {
-      if (!currentEditor.state.selection.empty) return;
-      resetEditorFormattingState(currentEditor);
-    },
   });
 
   useEffect(() => {
@@ -589,7 +584,7 @@ export function RichTextEditor({
     const nextValue = normalizeRichTextValue(value);
     if (editor.getHTML() !== nextValue) {
       editor.commands.setContent(nextValue, { emitUpdate: false });
-      resetEditorFormattingState(editor);
+      clearEditorStoredMarks(editor);
     }
   }, [editor, value]);
 
