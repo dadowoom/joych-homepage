@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import AdminChurchHistoryTab from "@/components/AdminChurchHistoryTab";
 import { canManageBoardContent } from "@/lib/contentPermissions";
@@ -87,7 +87,7 @@ export default function ChurchHistory() {
       <section className="mx-auto max-w-6xl px-4 py-14 sm:py-20">
         <div className="text-center">
           <h1 className="font-serif text-4xl font-bold tracking-normal text-gray-950 sm:text-5xl">
-            교회연혁
+            援먰쉶?고쁺
           </h1>
           <div className="mx-auto mt-5 h-1 w-16 bg-[#0b4f8a]" />
           {canManageHistory && (
@@ -97,7 +97,7 @@ export default function ChurchHistory() {
                 onClick={() => setIsManagerOpen((current) => !current)}
                 className="rounded-md bg-[#16651f] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0f5018]"
               >
-                {isManagerOpen ? "연혁 관리 닫기" : "연혁 추가/수정"}
+                {isManagerOpen ? "?고쁺 愿由??リ린" : "?고쁺 異붽?/?섏젙"}
               </button>
             </div>
           )}
@@ -107,9 +107,9 @@ export default function ChurchHistory() {
           <div className="mt-10 rounded-2xl border border-green-100 bg-[#f7fbf7] p-4 sm:p-6">
             <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="font-serif text-2xl font-bold text-gray-950">교회연혁 입력</h2>
+                <h2 className="font-serif text-2xl font-bold text-gray-950">援먰쉶?고쁺 ?낅젰</h2>
                 <p className="mt-1 text-sm text-gray-600">
-                  이 화면에서 년대와 연혁 내용을 추가하면 아래 사용자 화면에 바로 반영됩니다.
+                  ???붾㈃?먯꽌 ?꾨?? ?고쁺 ?댁슜??異붽??섎㈃ ?꾨옒 ?ъ슜???붾㈃??諛붾줈 諛섏쁺?⑸땲??
                 </p>
               </div>
               <button
@@ -117,7 +117,7 @@ export default function ChurchHistory() {
                 onClick={() => setIsManagerOpen(false)}
                 className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700"
               >
-                닫기
+                ?リ린
               </button>
             </div>
             <AdminChurchHistoryTab />
@@ -126,7 +126,7 @@ export default function ChurchHistory() {
 
         {isLoading ? (
           <div className="mt-16 rounded-xl border border-dashed border-gray-300 p-10 text-center text-gray-500">
-            교회연혁을 불러오는 중입니다.
+            援먰쉶?고쁺??遺덈윭?ㅻ뒗 以묒엯?덈떎.
           </div>
         ) : decades.length ? (
           <>
@@ -154,35 +154,38 @@ export default function ChurchHistory() {
               {yearGroups.map((group) => (
                 <article
                   key={group.year}
-                  className="grid gap-4 py-8 sm:grid-cols-[140px_100px_minmax(0,1fr)] sm:gap-8"
+                  className="grid gap-4 py-8 sm:grid-cols-[140px_1fr] sm:gap-8"
                 >
                   <div className="font-serif text-4xl font-normal text-[#0b376f] sm:text-5xl">
                     {group.year}
                   </div>
-                  <div className="space-y-6 text-lg font-semibold text-[#8aa4c4]">
+                  <div className="space-y-6">
                     {group.items.map((item) => (
-                      <div key={item.id}>{formatMonth(item.month)}</div>
-                    ))}
-                  </div>
-                  <div className="space-y-6 text-base leading-8 text-gray-700">
-                    {group.items.map((item) => (
-                      <p key={item.id} className="whitespace-pre-line">
-                        {item.content}
-                      </p>
+                      <div
+                        key={item.id}
+                        className="grid grid-cols-[100px_minmax(0,1fr)] items-start gap-3 sm:gap-4"
+                      >
+                        <div className="text-base font-semibold leading-6 text-[#8aa4c4] sm:text-lg">
+                          {formatMonth(item.month)}
+                        </div>
+                        <p className="whitespace-pre-line text-base leading-8 text-gray-700">
+                          {item.content}
+                        </p>
+                      </div>
                     ))}
                   </div>
                 </article>
               ))}
               {!yearGroups.length && (
                 <div className="rounded-xl border border-dashed border-gray-300 p-10 text-center text-gray-500">
-                  선택한 년대에 등록된 연혁이 없습니다.
+                  ?좏깮???꾨????깅줉???고쁺???놁뒿?덈떎.
                 </div>
               )}
             </div>
           </>
         ) : (
           <div className="mt-16 rounded-xl border border-dashed border-gray-300 p-10 text-center text-gray-500">
-            등록된 교회연혁이 없습니다.
+            ?깅줉??援먰쉶?고쁺???놁뒿?덈떎.
           </div>
         )}
       </section>
