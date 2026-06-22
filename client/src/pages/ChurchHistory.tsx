@@ -87,7 +87,7 @@ export default function ChurchHistory() {
       <section className="mx-auto max-w-6xl px-4 py-14 sm:py-20">
         <div className="text-center">
           <h1 className="font-serif text-4xl font-bold tracking-normal text-gray-950 sm:text-5xl">
-            援먰쉶?고쁺
+            교회 역사
           </h1>
           <div className="mx-auto mt-5 h-1 w-16 bg-[#0b4f8a]" />
           {canManageHistory && (
@@ -97,7 +97,7 @@ export default function ChurchHistory() {
                 onClick={() => setIsManagerOpen((current) => !current)}
                 className="rounded-md bg-[#16651f] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0f5018]"
               >
-                {isManagerOpen ? "?고쁺 愿由??リ린" : "?고쁺 異붽?/?섏젙"}
+                {isManagerOpen ? "교회연혁 닫기" : "교회연혁 추가/수정"}
               </button>
             </div>
           )}
@@ -107,9 +107,9 @@ export default function ChurchHistory() {
           <div className="mt-10 rounded-2xl border border-green-100 bg-[#f7fbf7] p-4 sm:p-6">
             <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="font-serif text-2xl font-bold text-gray-950">援먰쉶?고쁺 ?낅젰</h2>
+                <h2 className="font-serif text-2xl font-bold text-gray-950">교회연혁 등록</h2>
                 <p className="mt-1 text-sm text-gray-600">
-                  ???붾㈃?먯꽌 ?꾨?? ?고쁺 ?댁슜??異붽??섎㈃ ?꾨옒 ?ъ슜???붾㈃??諛붾줈 諛섏쁺?⑸땲??
+                  로그인한 관리자는 교회연혁 게시물을 추가/수정할 수 있습니다.
                 </p>
               </div>
               <button
@@ -117,7 +117,7 @@ export default function ChurchHistory() {
                 onClick={() => setIsManagerOpen(false)}
                 className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700"
               >
-                ?リ린
+                닫기
               </button>
             </div>
             <AdminChurchHistoryTab />
@@ -126,7 +126,7 @@ export default function ChurchHistory() {
 
         {isLoading ? (
           <div className="mt-16 rounded-xl border border-dashed border-gray-300 p-10 text-center text-gray-500">
-            援먰쉶?고쁺??遺덈윭?ㅻ뒗 以묒엯?덈떎.
+            교회연혁 정보를 불러오는 중입니다.
           </div>
         ) : decades.length ? (
           <>
@@ -178,14 +178,14 @@ export default function ChurchHistory() {
               ))}
               {!yearGroups.length && (
                 <div className="rounded-xl border border-dashed border-gray-300 p-10 text-center text-gray-500">
-                  ?좏깮???꾨????깅줉???고쁺???놁뒿?덈떎.
+                  선택한 연도에 등록된 연혁이 없습니다.
                 </div>
               )}
             </div>
           </>
         ) : (
           <div className="mt-16 rounded-xl border border-dashed border-gray-300 p-10 text-center text-gray-500">
-            ?깅줉??援먰쉶?고쁺???놁뒿?덈떎.
+            등록된 교회연혁이 없습니다.
           </div>
         )}
       </section>
