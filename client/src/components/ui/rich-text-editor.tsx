@@ -5,9 +5,14 @@ import {
   useRef,
   useState,
   type ReactNode } from "react";
+import Color from "@tiptap/extension-color";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
+import Table from "@tiptap/extension-table";
+import TableCell from "@tiptap/extension-table-cell";
+import TableHeader from "@tiptap/extension-table-header";
+import TableRow from "@tiptap/extension-table-row";
 import TextAlign from "@tiptap/extension-text-align";
 import { FontFamily,
   FontSize,
@@ -76,6 +81,7 @@ const FONT_FAMILY_OPTIONS = [
 ];
 const formattingSelectClassName =
   "h-8 min-w-[5rem] border border-gray-200 bg-white px-2 text-xs text-gray-700 outline-none transition hover:border-[#1B5E20] focus:border-[#1B5E20]";
+const DEFAULT_TEXT_COLOR = "#111827";
 const richTextSanitizeOptions = {
   ADD_TAGS: ["iframe"],
   ADD_ATTR: [
@@ -238,6 +244,17 @@ function normalizeFontFamilyName(value: string | null | undefined) {
   return (value ?? "").replace(/["']/g, "").replace(/\s+/g, " ").trim().toLowerCase();
 }
 
+function normalizeEditorTextColor(value: string | null | undefined) {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return DEFAULT_TEXT_COLOR;
+  if (/^#[0-9a-f]{6}$/i.test(trimmed)) return trimmed.toLowerCase();
+  const rgbMatch = trimmed.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+  if (!rgbMatch) return DEFAULT_TEXT_COLOR;
+  return `#${[rgbMatch[1], rgbMatch[2], rgbMatch[3]]
+    .map((component) => Number(component).toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
 function getActiveFontFamilyOption(editor: Editor) {
   const activeFontFamily = normalizeFontFamilyName(
     editor.getAttributes("textStyle").fontFamily as string | undefined,
@@ -359,6 +376,9 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
 
   const currentFontFamily = getActiveFontFamilyOption(editor);
   const currentFontSize = getActiveFontSizeValue(editor);
+  const currentTextColor = normalizeEditorTextColor(
+    editor.getAttributes("textStyle").color as string | undefined,
+  );
 
   const handleFontFamilyChange = (value: string) => {
     const nextOption = FONT_FAMILY_OPTIONS.find((option) => option.value === value);
@@ -377,6 +397,19 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
     }
 
     editor.chain().focus().setFontSize(`${value}px`).run();
+  };
+
+  const handleTextColorChange = (value: string) => {
+    if (!value || value === DEFAULT_TEXT_COLOR) {
+      editor.chain().focus().unsetColor().run();
+      return;
+    }
+
+    editor.chain().focus().setColor(value).run();
+  };
+
+  const insertDefaultTable = () => {
+    editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
   };
 
   return (
@@ -416,6 +449,19 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
             </option>
           ))}
         </select>
+        <label className="flex h-8 items-center gap-2 border border-gray-200 bg-white px-2 text-xs text-gray-700 transition hover:border-[#1B5E20]">
+          <span>색상</span>
+          <input
+            aria-label="글자색 선택"
+            type="color"
+            value={currentTextColor}
+            onChange={(event) => handleTextColorChange(event.target.value)}
+            className="h-5 w-5 cursor-pointer border-0 bg-transparent p-0"
+          />
+        </label>
+        <ToolbarButton editor={editor} label="글자색 제거" onClick={() => editor.chain().focus().unsetColor().run()}>
+          <span className="text-[10px] font-semibold">색X</span>
+        </ToolbarButton>
         <span className="mx-1 h-8 w-px bg-gray-200" />
         <ToolbarButton editor={editor} label="굵게" isActive={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}>
           <Bold className="h-4 w-4" />
@@ -462,6 +508,28 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
         <ToolbarButton editor={editor} label="이미지 직접 입력" onClick={() => setIsImageInputOpen((current) => !current)}>
           <ImageIcon className="h-4 w-4" />
         </ToolbarButton>
+        <ToolbarButton editor={editor} label="표 만들기" isActive={editor.isActive("table")} onClick={insertDefaultTable}>
+          <span className="text-[10px] font-semibold">표</span>
+        </ToolbarButton>
+        {editor.isActive("table") && (
+          <>
+            <ToolbarButton editor={editor} label="행 추가" onClick={() => editor.chain().focus().addRowAfter().run()}>
+              <span className="text-[10px] font-semibold">행+</span>
+            </ToolbarButton>
+            <ToolbarButton editor={editor} label="열 추가" onClick={() => editor.chain().focus().addColumnAfter().run()}>
+              <span className="text-[10px] font-semibold">열+</span>
+            </ToolbarButton>
+            <ToolbarButton editor={editor} label="행 삭제" onClick={() => editor.chain().focus().deleteRow().run()}>
+              <span className="text-[10px] font-semibold">행-</span>
+            </ToolbarButton>
+            <ToolbarButton editor={editor} label="열 삭제" onClick={() => editor.chain().focus().deleteColumn().run()}>
+              <span className="text-[10px] font-semibold">열-</span>
+            </ToolbarButton>
+            <ToolbarButton editor={editor} label="표 삭제" onClick={() => editor.chain().focus().deleteTable().run()}>
+              <span className="text-[10px] font-semibold">표X</span>
+            </ToolbarButton>
+          </>
+        )}
         <span className="mx-1 h-8 w-px bg-gray-200" />
         <ToolbarButton editor={editor} label="실행 취소" onClick={() => editor.chain().focus().undo().run()}>
           <Undo2 className="h-4 w-4" />
@@ -542,10 +610,19 @@ export function RichTextEditor({
         },
       }),
       TextStyle,
+      Color.configure({
+        types: ["textStyle"],
+      }),
       FontFamily.configure({
         types: ["textStyle"],
       }),
       FontSize,
+      Table.configure({
+        resizable: true,
+      }),
+      TableRow,
+      TableHeader,
+      TableCell,
       Underline,
       TextAlign.configure({
         types: ["heading", "paragraph"],
@@ -577,7 +654,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class: cn(
-          "rich-text-editor-content w-full max-w-full min-w-0 overflow-x-hidden overflow-y-auto break-words bg-white px-3 py-3 text-sm leading-7 outline-none [overflow-wrap:anywhere] [&_*]:max-w-full [&_img]:h-auto",
+          "rich-text-editor-content w-full max-w-full min-w-0 overflow-x-hidden overflow-y-auto break-words bg-white px-3 py-3 text-sm leading-7 outline-none [overflow-wrap:anywhere] [&_*]:max-w-full [&_.selectedCell]:bg-[#EAF6EA] [&_.tableWrapper]:my-4 [&_.tableWrapper]:overflow-x-auto [&_img]:h-auto [&_table]:w-full [&_table]:border-collapse [&_td]:min-w-[120px] [&_td]:border [&_td]:border-gray-300 [&_td]:px-3 [&_td]:py-2 [&_th]:min-w-[120px] [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2",
           minHeightClassName,
         ),
       },

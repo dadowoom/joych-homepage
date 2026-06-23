@@ -3,7 +3,7 @@
  * 관리자가 에디터 페이지에서 블록을 추가하거나 수정할 때 사용하는 팝업입니다.
  * 블록 종류(텍스트, 이미지, 유튜브, 버튼, 구분선)에 따라 다른 입력 폼을 보여줍니다.
  */
-import { useState, useRef, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Code2, Eye, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,6 +45,48 @@ type DialogInteraction =
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+const VISUAL_EDITOR_ALLOWED_TAGS = new Set([
+  "a",
+  "blockquote",
+  "br",
+  "em",
+  "h2",
+  "h3",
+  "hr",
+  "img",
+  "li",
+  "ol",
+  "p",
+  "s",
+  "span",
+  "strong",
+  "u",
+  "ul",
+]);
+const VISUAL_EDITOR_STYLE_TAGS = new Set(["h2", "h3", "p", "span"]);
+const STYLE_BLOCK_PATTERN = /<\s*style\b[^>]*>[\s\S]*?<\s*\/\s*style\s*>/i;
+const OPENING_TAG_PATTERN = /<([a-z0-9-]+)\b([^>]*)>/gi;
+
+function isVisualEditorSafeHtml(value: string) {
+  const normalized = normalizeHtmlBlockValue(value).trim();
+  if (!normalized) return true;
+  if (STYLE_BLOCK_PATTERN.test(normalized)) return false;
+
+  OPENING_TAG_PATTERN.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = OPENING_TAG_PATTERN.exec(normalized)) !== null) {
+    const tagName = String(match[1] ?? "").toLowerCase();
+    const attributes = String(match[2] ?? "");
+
+    if (!VISUAL_EDITOR_ALLOWED_TAGS.has(tagName)) return false;
+    if (/\sclass\s*=/i.test(attributes)) return false;
+    if (/\s(?:id|data-[\w-]+)\s*=/i.test(attributes)) return false;
+    if (/\sstyle\s*=/i.test(attributes) && !VISUAL_EDITOR_STYLE_TAGS.has(tagName)) return false;
+  }
+
+  return true;
 }
 
 function getInitialDialogSize(): DialogSize {
@@ -198,6 +240,13 @@ export function BlockEditDialog({
   const fileInputIdxRef = useRef<number>(0);
 
   const uploadMutation = trpc.cms.blocks.uploadImage.useMutation();
+  const visualEditorSafeHtml = useMemo(() => isVisualEditorSafeHtml(html), [html]);
+
+  useEffect(() => {
+    if (!visualEditorSafeHtml && htmlEditMode === "visual") {
+      setHtmlEditMode("source");
+    }
+  }, [htmlEditMode, visualEditorSafeHtml]);
 
   const imgCount =
     blockType === "image-single" ? 1 : blockType === "image-double" ? 2 : 3;
@@ -353,6 +402,12 @@ export function BlockEditDialog({
           {/* HTML 편집기 블록 */}
           {blockType === "html-rich" && (
             <div className="space-y-3">
+              {!visualEditorSafeHtml && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                  현재 HTML에는 스타일, class, 또는 고급 레이아웃 태그가 포함되어 있어 시각 편집기로 열면 기존 소스가 깨질 수 있습니다.
+                  이 경우에는 HTML 소스 또는 미리보기 모드로만 수정해주세요.
+                </div>
+              )}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <label className="block text-sm font-medium text-gray-700">
                   HTML 본문
@@ -372,6 +427,7 @@ export function BlockEditDialog({
                         variant={active ? "default" : "ghost"}
                         size="sm"
                         className={active ? "bg-green-700 hover:bg-green-800" : "text-gray-600"}
+                        disabled={item.value === "visual" && !visualEditorSafeHtml}
                         onClick={() => setHtmlEditMode(item.value)}
                       >
                         <Icon className="h-4 w-4" />
