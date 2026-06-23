@@ -91,8 +91,9 @@ export async function getVisibleHomeGalleryItems() {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(galleryItems)
-    .where(and(eq(galleryItems.isVisible, true), eq(galleryItems.isHomeGallery, true)))
-    .orderBy(asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
+    .where(eq(galleryItems.isVisible, true))
+    .orderBy(desc(galleryItems.albumSortOrder), asc(galleryItems.sortOrder), desc(galleryItems.createdAt))
+    .limit(5);
 }
 
 /** 갤러리 이미지 수정 */
