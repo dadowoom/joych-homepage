@@ -24,7 +24,7 @@ const LEGACY_VOD_CACHE = new Map<
 
 function isAllowedSermonMp4Url(url: URL) {
   return (
-    url.protocol === "http:" &&
+    (url.protocol === "http:" || url.protocol === "https:") &&
     url.hostname === "sermon.joych.org" &&
     url.pathname.startsWith("/mp4/") &&
     url.pathname.toLowerCase().endsWith(".mp4")

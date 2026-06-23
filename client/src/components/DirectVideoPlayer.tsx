@@ -13,6 +13,10 @@ type DirectVideoPlayerProps = {
   className?: string;
 };
 
+function isMobileUserAgent(userAgent: string) {
+  return /iphone|ipad|ipod|android|mobile/i.test(userAgent);
+}
+
 const inlinePlaybackAttrs = {
   playsInline: true,
   "webkit-playsinline": "true",
@@ -24,7 +28,7 @@ function stripWww(hostname: string) {
 
 function getSermonVideoProxySrc(url: URL) {
   const isAllowedHttpMp4 =
-    url.protocol === "http:" &&
+    (url.protocol === "http:" || url.protocol === "https:") &&
     url.hostname === "sermon.joych.org" &&
     url.pathname.startsWith("/mp4/") &&
     url.pathname.toLowerCase().endsWith(".mp4");
@@ -102,7 +106,9 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
   const [isLegacyUnavailable, setIsLegacyUnavailable] = useState(false);
   const [forceNoRange, setForceNoRange] = useState(false);
   const [attemptedFallback, setAttemptedFallback] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(
+    () => typeof navigator !== "undefined" && isMobileUserAgent(navigator.userAgent),
+  );
   const videoRef = useRef<HTMLVideoElement>(null);
   const playableSrc = useMemo(() => getPlayableSrc(src, forceNoRange), [src, forceNoRange]);
   const videoType = useMemo(() => getVideoType(playableSrc), [playableSrc]);
@@ -117,8 +123,7 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
 
   useEffect(() => {
     if (typeof navigator === "undefined") return;
-    const userAgent = navigator.userAgent.toLowerCase();
-    setIsMobile(/iphone|ipad|ipod|android/.test(userAgent));
+    setIsMobile(isMobileUserAgent(navigator.userAgent));
   }, []);
 
   useEffect(() => {
@@ -127,21 +132,28 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
     }
   }, [isMobile]);
 
-  const handleError = useCallback(() => {
-    if (!forceNoRange && playableSrc.includes("/api/direct-video-proxy")) {
-      setForceNoRange(true);
-      return;
-    }
-    setHasError(true);
-    setIsLegacyUnavailable(Boolean(legacyOriginalUrl));
-  }, [forceNoRange, playableSrc, legacyOriginalUrl]);
-
-  const handleStall = useCallback(() => {
-    if (!forceNoRange && isMobile && !attemptedFallback && playableSrc.includes("/api/direct-video-proxy")) {
+  const triggerNoRangeFallback = useCallback(() => {
+    if (!forceNoRange && !attemptedFallback && playableSrc.includes("/api/direct-video-proxy")) {
       setAttemptedFallback(true);
       setForceNoRange(true);
+      return true;
     }
-  }, [attemptedFallback, forceNoRange, isMobile, playableSrc]);
+    return false;
+  }, [attemptedFallback, forceNoRange, playableSrc]);
+
+  const handleError = useCallback(() => {
+    if (triggerNoRangeFallback()) return;
+    setHasError(true);
+    setIsLegacyUnavailable(Boolean(legacyOriginalUrl));
+  }, [triggerNoRangeFallback, legacyOriginalUrl]);
+
+  const handleStall = useCallback(() => {
+    triggerNoRangeFallback();
+  }, [triggerNoRangeFallback]);
+
+  const handleRecoveryIssue = useCallback(() => {
+    triggerNoRangeFallback();
+  }, [triggerNoRangeFallback]);
 
   const errorTitle = isLegacyUnavailable
     ? "구형 영상 파일을 바로 재생할 수 없습니다."
@@ -164,6 +176,9 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
         onError={handleError}
         onStalled={handleStall}
         onWaiting={handleStall}
+        onAbort={handleRecoveryIssue}
+        onSuspend={handleRecoveryIssue}
+        onEmptied={handleRecoveryIssue}
         onLoadedMetadata={() => {
           setHasError(false);
           setIsLegacyUnavailable(false);
