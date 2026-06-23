@@ -33,9 +33,9 @@ function sortDecades(decades: HistoryDecade[]) {
 function sortItems(items: HistoryItem[]) {
   return [...items].sort(
     (a, b) =>
-      (a.sortOrder || 0) - (b.sortOrder || 0) ||
       a.year - b.year ||
       a.month - b.month ||
+      (a.sortOrder || 0) - (b.sortOrder || 0) ||
       a.id - b.id,
   );
 }

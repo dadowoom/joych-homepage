@@ -40,7 +40,12 @@ async function normalizeHistoryItemSortOrders(decadeId: number) {
     .select({ id: historyItems.id })
     .from(historyItems)
     .where(eq(historyItems.decadeId, decadeId))
-    .orderBy(asc(historyItems.sortOrder), asc(historyItems.year), asc(historyItems.month), asc(historyItems.id));
+    .orderBy(
+      asc(historyItems.year),
+      asc(historyItems.month),
+      asc(historyItems.sortOrder),
+      asc(historyItems.id),
+    );
 
   for (let index = 0; index < items.length; index += 1) {
     await db.update(historyItems).set({ sortOrder: index + 1 }).where(eq(historyItems.id, items[index].id));
@@ -64,7 +69,12 @@ export async function getAllHistoryItems() {
   return db
     .select()
     .from(historyItems)
-    .orderBy(asc(historyItems.sortOrder), asc(historyItems.year), asc(historyItems.month), asc(historyItems.id));
+    .orderBy(
+      asc(historyItems.year),
+      asc(historyItems.month),
+      asc(historyItems.sortOrder),
+      asc(historyItems.id),
+    );
 }
 
 export async function getPublicHistory() {
@@ -86,7 +96,12 @@ export async function getPublicHistory() {
     .select()
     .from(historyItems)
     .where(and(eq(historyItems.isVisible, true), inArray(historyItems.decadeId, decadeIds)))
-    .orderBy(asc(historyItems.sortOrder), asc(historyItems.year), asc(historyItems.month), asc(historyItems.id));
+    .orderBy(
+      asc(historyItems.year),
+      asc(historyItems.month),
+      asc(historyItems.sortOrder),
+      asc(historyItems.id),
+    );
 
   return { decades, items };
 }

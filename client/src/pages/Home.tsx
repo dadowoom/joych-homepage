@@ -24,9 +24,6 @@ const GalleryEditPanel = lazy(() => import("@/components/GalleryEditPanel"));
 const HomeSectionsEditPanel = lazy(
   () => import("@/components/HomeSectionsEditPanel")
 );
-const KakaoDirectionsMap = lazy(
-  () => import("@/components/KakaoDirectionsMap")
-);
 
 // 폴백(fallback) 데이터: 운영 DB가 비어 있거나 DB 오류가 난 경우에만 표시
 // 예전 영상이 다시 노출되지 않도록 기본 슬라이드는 포스터 이미지만 사용한다.
@@ -1437,10 +1434,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
-      <Suspense fallback={null}>
-        <KakaoDirectionsMap />
-      </Suspense>
 
       {/* ===== 관련 기관 ===== */}
       <section className="py-14 bg-[#F7F7F5]">
