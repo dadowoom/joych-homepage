@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState, type VideoHTMLAttributes } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type VideoHTMLAttributes,
+} from "react";
 
 type DirectVideoPlayerProps = {
   src: string;
@@ -94,6 +101,9 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
   const [hasError, setHasError] = useState(false);
   const [isLegacyUnavailable, setIsLegacyUnavailable] = useState(false);
   const [forceNoRange, setForceNoRange] = useState(false);
+  const [attemptedFallback, setAttemptedFallback] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const playableSrc = useMemo(() => getPlayableSrc(src, forceNoRange), [src, forceNoRange]);
   const videoType = useMemo(() => getVideoType(playableSrc), [playableSrc]);
   const legacyOriginalUrl = useMemo(() => getLegacyOriginalUrl(playableSrc), [playableSrc]);
@@ -101,8 +111,21 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
   useEffect(() => {
     setHasError(false);
     setIsLegacyUnavailable(false);
-    setForceNoRange(false);
-  }, [playableSrc]);
+    setAttemptedFallback(false);
+    setForceNoRange(isMobile);
+  }, [src, isMobile]);
+
+  useEffect(() => {
+    if (typeof navigator === "undefined") return;
+    const userAgent = navigator.userAgent.toLowerCase();
+    setIsMobile(/iphone|ipad|ipod|android/.test(userAgent));
+  }, []);
+
+  useEffect(() => {
+    if (isMobile) {
+      setForceNoRange(true);
+    }
+  }, [isMobile]);
 
   const handleError = useCallback(() => {
     if (!forceNoRange && playableSrc.includes("/api/direct-video-proxy")) {
@@ -112,6 +135,13 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
     setHasError(true);
     setIsLegacyUnavailable(Boolean(legacyOriginalUrl));
   }, [forceNoRange, playableSrc, legacyOriginalUrl]);
+
+  const handleStall = useCallback(() => {
+    if (!forceNoRange && isMobile && !attemptedFallback && playableSrc.includes("/api/direct-video-proxy")) {
+      setAttemptedFallback(true);
+      setForceNoRange(true);
+    }
+  }, [attemptedFallback, forceNoRange, isMobile, playableSrc]);
 
   const errorTitle = isLegacyUnavailable
     ? "구형 영상 파일을 바로 재생할 수 없습니다."
@@ -128,9 +158,12 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
         key={playableSrc}
         className={className}
         controls
-        preload="metadata"
+        preload="auto"
         aria-label={title}
+        ref={videoRef}
         onError={handleError}
+        onStalled={handleStall}
+        onWaiting={handleStall}
         onLoadedMetadata={() => {
           setHasError(false);
           setIsLegacyUnavailable(false);
