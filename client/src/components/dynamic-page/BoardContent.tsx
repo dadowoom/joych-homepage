@@ -86,6 +86,14 @@ function toPlainText(value?: string | null) {
 
 const ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024;
 const ATTACHMENT_ACCEPT = ".pdf,.hwp,.hwpx,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.jpg,.jpeg,.png,.webp,.gif";
+const ATTACHMENT_LABEL = "\uCCA8\uBD80\uD30C\uC77C";
+const ATTACHMENT_REMOVE_LABEL = "\uCCA8\uBD80 \uC81C\uAC70";
+const ATTACHMENT_UPLOADING_LABEL = "\uCCA8\uBD80 \uC5C5\uB85C\uB4DC \uC911";
+const ATTACHMENT_SELECT_LABEL = "\uCCA8\uBD80\uD30C\uC77C \uC120\uD0DD";
+const ATTACHMENT_HELP_TEXT = "pdf, hwp, office \uBB38\uC11C, zip, \uC774\uBBF8\uC9C0 \uD30C\uC77C\uC744 25MB\uAE4C\uC9C0 \uC5C5\uB85C\uB4DC\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.";
+const ATTACHMENT_TOO_LARGE_TEXT = "\uCCA8\uBD80\uD30C\uC77C\uC740 25MB \uC774\uD558 \uD30C\uC77C\uB9CC \uC5C5\uB85C\uB4DC\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.";
+const ATTACHMENT_UPLOAD_SUCCESS_TEXT = "\uCCA8\uBD80\uD30C\uC77C \uC5C5\uB85C\uB4DC \uC644\uB8CC";
+const ATTACHMENT_UPLOAD_FAILURE_LABEL = "\uCCA8\uBD80\uD30C\uC77C \uC5C5\uB85C\uB4DC \uC2E4\uD328";
 
 function readFileAsBase64(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -171,7 +179,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
   });
 
   const uploadAttachmentMutation = trpc.cms.upload.attachment.useMutation({
-    onError: (error) => toast.error(`泥⑤??뚯씪 ?낅줈???ㅽ뙣: ${error.message}`),
+    onError: (error) => toast.error(`${ATTACHMENT_UPLOAD_FAILURE_LABEL}: ${error.message}`),
   });
 
   const createMutation = trpc.cms.notices.create.useMutation({
@@ -310,7 +318,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
         mimeType: file.type || "image/jpeg",
       });
       setFormState((previous) => ({ ...previous, thumbnailUrl: url }));
-      toast.success("이미지 업로드 완료");
+      toast.success(ATTACHMENT_UPLOAD_SUCCESS_TEXT);
     } finally {
       setUploadingImage(false);
       event.target.value = "";
@@ -322,7 +330,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
     if (!file) return;
 
     if (file.size > ATTACHMENT_MAX_BYTES) {
-      toast.error("泥⑤??뚯씪? 25MB ?댄븯 ?뚯씪留??낅줈?쒗븷 ???덉뒿?덈떎.");
+      toast.error(ATTACHMENT_TOO_LARGE_TEXT);
       event.target.value = "";
       return;
     }
@@ -340,7 +348,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
         attachmentName: result.fileName,
         attachmentUrl: result.url,
       }));
-      toast.success("泥⑤??뚯씪 ?낅줈???꾨즺");
+      toast.success("???? ??? ??");
     } finally {
       setUploadingAttachment(false);
       event.target.value = "";
@@ -601,7 +609,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
           {isAdminResource && (
             <div className="space-y-2 md:col-span-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="block text-sm font-semibold text-gray-700">泥⑤??뚯씪</span>
+                <span className="block text-sm font-semibold text-gray-700">{ATTACHMENT_LABEL}</span>
                 {formState.attachmentUrl && (
                   <button
                     type="button"
@@ -609,7 +617,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
                     className="inline-flex h-8 items-center gap-1 border border-red-200 px-3 text-xs text-red-500 hover:bg-red-50"
                   >
                     <X className="h-3.5 w-3.5" />
-                    泥⑤???쒓굅
+                    {ATTACHMENT_REMOVE_LABEL}
                   </button>
                 )}
               </div>
@@ -620,8 +628,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
                   disabled={uploadingAttachment}
                   className="inline-flex h-9 items-center gap-2 border border-[#1B5E20] px-3 text-sm font-medium text-[#1B5E20] hover:bg-[#F1F8E9] disabled:opacity-50"
                 >
-                  {uploadingAttachment ? <Upload className="h-4 w-4 animate-bounce" /> : <Paperclip className="h-4 w-4" />}
-                  {uploadingAttachment ? "泥⑤??낅줈??以?" : "泥⑤??뚯씪 ?좏깮"}
+                  {uploadingAttachment ? ATTACHMENT_UPLOADING_LABEL : ATTACHMENT_SELECT_LABEL}
                 </button>
                 <input
                   ref={attachmentInputRef}
@@ -639,10 +646,10 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
                       className="inline-flex max-w-full items-center gap-2 text-[#1B5E20] hover:underline"
                     >
                       <Paperclip className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{formState.attachmentName || "泥⑤??뚯씪"}</span>
+                      <span className="truncate">{formState.attachmentName || ATTACHMENT_LABEL}</span>
                     </a>
                   ) : (
-                    <span>pdf, hwp, office 臾몄꽌, zip, ?대?吏 ?뚯씪瑜?25MB源뚯? ?낅줈?쒗븷 ???덉뒿?덈떎.</span>
+                    <span>{ATTACHMENT_HELP_TEXT}</span>
                   )}
                 </div>
               </div>
@@ -900,7 +907,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
                                   className="inline-flex items-center gap-2 border border-[#1B5E20]/20 bg-white px-3 py-2 text-sm text-[#1B5E20] hover:bg-[#F1F8E9]"
                                 >
                                   <Paperclip className="h-4 w-4" />
-                                  <span>{notice.attachmentName || "泥⑤??뚯씪"}</span>
+                                  <span>{notice.attachmentName || ATTACHMENT_LABEL}</span>
                                 </a>
                               </div>
                             )}
@@ -981,7 +988,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
                             className="inline-flex items-center gap-2 border border-[#1B5E20]/20 bg-white px-3 py-2 text-sm text-[#1B5E20] hover:bg-[#F1F8E9]"
                           >
                             <Paperclip className="h-4 w-4" />
-                            <span>{notice.attachmentName || "泥⑤??뚯씪"}</span>
+                            <span>{notice.attachmentName || ATTACHMENT_LABEL}</span>
                           </a>
                         </div>
                       )}
