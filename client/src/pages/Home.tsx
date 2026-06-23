@@ -46,6 +46,8 @@ const VISION_IMAGE =
   "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-vision-bg_0cd6097b.webp";
 const CHURCH_ADDRESS = "경상북도 포항시 북구 삼흥로 411";
 
+const GALLERY_PAGE_HREF = "/page/커뮤니티-최근-행사-사진";
+
 function getChurchAddress(address?: string | null) {
   const value = address?.trim();
   if (!value || value.includes("상통로 411")) {
@@ -196,6 +198,31 @@ function getUsableHref(href: string | null | undefined, fallback: string) {
 
 function isExternalHref(href: string) {
   return href.startsWith("http://") || href.startsWith("https://");
+}
+
+type HomeGalleryCard = {
+  albumKey?: string | null;
+  albumTitle?: string | null;
+  caption?: string | null;
+};
+
+function getHomeGalleryTitle(item: HomeGalleryCard) {
+  return item.albumTitle?.trim() || item.caption?.trim() || "최근 행사 사진";
+}
+
+function getHomeGalleryHref(item: HomeGalleryCard) {
+  const params = new URLSearchParams();
+  const albumKey = item.albumKey?.trim();
+  const albumTitle = item.albumTitle?.trim();
+
+  if (albumKey) {
+    params.set("gallery", `album:${albumKey}`);
+  } else if (albumTitle) {
+    params.set("gallery", `album-title:${albumTitle}`);
+  }
+
+  const query = params.toString();
+  return query ? `${GALLERY_PAGE_HREF}?${query}` : GALLERY_PAGE_HREF;
 }
 
 export default function Home() {
@@ -1035,24 +1062,42 @@ export default function Home() {
           <div className="grid grid-cols-2 md:grid-cols-4 auto-rows-[180px] md:auto-rows-[220px] gap-3">
             {gallery.map((item, i) => (
               <FadeIn
-                key={i}
+                key={item.albumKey ?? item.albumTitle ?? item.imageUrl ?? i}
                 delay={i * 60}
                 className={item.gridSpan ?? "col-span-1 row-span-1"}
               >
-                <div className="group relative w-full h-full overflow-hidden rounded-xl">
+                <Link
+                  href={getHomeGalleryHref(item)}
+                  className="group relative block w-full h-full overflow-hidden rounded-xl bg-[#E9ECE5] shadow-sm ring-1 ring-black/5"
+                >
                   <img
                     src={item.imageUrl}
-                    alt={item.caption ?? ""}
+                    alt={getHomeGalleryTitle(item)}
                     loading="lazy"
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                   {/* 호버 오버레이 */}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/35 transition-all duration-300 flex items-end p-4">
-                    <span className="text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-y-2 group-hover:translate-y-0">
-                      {item.caption}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/78 via-black/28 to-transparent transition-all duration-300 group-hover:from-black/86 group-hover:via-black/38" />
+                  <div className="absolute left-4 right-4 top-4 flex items-start justify-between gap-3">
+                    <span className="rounded-full bg-white/92 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-[#1B5E20] uppercase backdrop-blur-sm">
+                      Album
+                    </span>
+                    <span className="rounded-full border border-white/20 bg-black/20 px-3 py-1 text-[11px] font-medium text-white/90 opacity-0 backdrop-blur-sm transition-opacity duration-300 group-hover:opacity-100">
+                      앨범 보기
                     </span>
                   </div>
-                </div>
+                  <div className="absolute inset-x-0 bottom-0 p-4 md:p-5">
+                    <p
+                      className="text-lg font-semibold leading-snug text-white drop-shadow-sm md:text-xl"
+                      style={{ fontFamily: "'Noto Serif KR', serif" }}
+                    >
+                      {getHomeGalleryTitle(item)}
+                    </p>
+                    <p className="mt-1 text-[11px] tracking-[0.24em] text-white/75 uppercase">
+                      Recent Event Album
+                    </p>
+                  </div>
+                </Link>
               </FadeIn>
             ))}
           </div>

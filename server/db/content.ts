@@ -95,6 +95,7 @@ export async function getVisibleHomeGalleryItems() {
     .orderBy(desc(galleryItems.albumSortOrder), asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
 
   const seenAlbums = new Set<string>();
+  // The home gallery showcases recent albums, so keep only one representative photo per album.
   const homeGalleryItems = items.filter((item) => {
     const albumKey = item.albumKey?.trim() || item.albumTitle?.trim() || `single:${item.id}`;
     if (seenAlbums.has(albumKey)) return false;
@@ -102,7 +103,7 @@ export async function getVisibleHomeGalleryItems() {
     return true;
   });
 
-  return homeGalleryItems.slice(0, 5);
+  return homeGalleryItems.slice(0, 8);
 }
 
 /** 갤러리 이미지 수정 */
