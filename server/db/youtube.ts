@@ -21,15 +21,18 @@ function normalizeMenuLabel(label: string) {
   return label.replace(/\s+/g, "").toLowerCase();
 }
 
-const HOSANNA_CHOIR_PLAYLIST_ID = 90008;
+const CHOIR_PLAYLIST_IDS = new Set<number>([
+  90008,
+  90009,
+]);
 const HOSANNA_MIN_SERMON_DATE = "2010-01-01";
 
-function isHosannaChoirPlaylist(playlistId: number) {
-  return playlistId === HOSANNA_CHOIR_PLAYLIST_ID;
+function isChoirPlaylist(playlistId: number) {
+  return CHOIR_PLAYLIST_IDS.has(playlistId);
 }
 
 function getHosannaVideoOrderBy(playlistId: number) {
-  if (isHosannaChoirPlaylist(playlistId)) {
+  if (isChoirPlaylist(playlistId)) {
     return [desc(youtubeVideos.sermonDate), desc(youtubeVideos.id)];
   }
   return [asc(youtubeVideos.sortOrder), asc(youtubeVideos.id)];
@@ -92,7 +95,7 @@ export async function getYoutubeVideosByPlaylist(playlistId: number) {
   if (!db) return [];
   return db.select().from(youtubeVideos)
     .where(
-      isHosannaChoirPlaylist(playlistId)
+      isChoirPlaylist(playlistId)
         ? and(
             eq(youtubeVideos.playlistId, playlistId),
             gte(youtubeVideos.sermonDate, HOSANNA_MIN_SERMON_DATE),
@@ -110,7 +113,7 @@ export async function getVisibleYoutubeVideos(playlistId: number) {
     .where(and(
       eq(youtubeVideos.playlistId, playlistId),
       eq(youtubeVideos.isVisible, true),
-      ...(isHosannaChoirPlaylist(playlistId)
+      ...(isChoirPlaylist(playlistId)
         ? [gte(youtubeVideos.sermonDate, HOSANNA_MIN_SERMON_DATE)]
         : []),
     ))
