@@ -51,6 +51,8 @@ const VISUAL_EDITOR_ALLOWED_TAGS = new Set([
   "a",
   "blockquote",
   "br",
+  "col",
+  "colgroup",
   "em",
   "h2",
   "h3",
@@ -62,10 +64,16 @@ const VISUAL_EDITOR_ALLOWED_TAGS = new Set([
   "s",
   "span",
   "strong",
+  "table",
+  "tbody",
+  "td",
+  "th",
+  "thead",
+  "tr",
   "u",
   "ul",
 ]);
-const VISUAL_EDITOR_STYLE_TAGS = new Set(["h2", "h3", "p", "span"]);
+const VISUAL_EDITOR_STYLE_TAGS = new Set(["col", "h2", "h3", "p", "span", "table", "td", "th"]);
 const STYLE_BLOCK_PATTERN = /<\s*style\b[^>]*>[\s\S]*?<\s*\/\s*style\s*>/i;
 const OPENING_TAG_PATTERN = /<([a-z0-9-]+)\b([^>]*)>/gi;
 
