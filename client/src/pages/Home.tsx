@@ -556,7 +556,30 @@ export default function Home() {
               setAdminToolsOpen(false);
               setQuickMenuPanelOpen(true);
             }}
-            onToggle={() => setAdminToolsOpen(prev => !prev)}
+            onToggle={() => {
+              const hasOpenPanel =
+                menuPanelOpen ||
+                noticePanelOpen ||
+                heroPanelOpen ||
+                quickMenuPanelOpen ||
+                affiliatePanelOpen ||
+                galleryPanelOpen ||
+                homeSectionsPanelOpen;
+
+              if (hasOpenPanel) {
+                setMenuPanelOpen(false);
+                setNoticePanelOpen(false);
+                setHeroPanelOpen(false);
+                setQuickMenuPanelOpen(false);
+                setAffiliatePanelOpen(false);
+                setGalleryPanelOpen(false);
+                setHomeSectionsPanelOpen(false);
+                setAdminToolsOpen(true);
+                return;
+              }
+
+              setAdminToolsOpen(prev => !prev);
+            }}
           />
         <div className="hidden bg-[#1B5E20] text-white text-xs py-2 px-4 flex items-center justify-between sticky top-0 z-[100]">
           <span className="font-semibold tracking-wide">✏️ 편집 모드</span>
