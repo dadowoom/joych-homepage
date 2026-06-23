@@ -16,26 +16,33 @@ import { makeUniqueMenuPageHref, type MenuHrefCandidate } from "../_core/menuHre
 import { getDb } from "./connection";
 
 const JOYFUL_TV_MENU_LABEL = "조이풀TV";
-
-function normalizeMenuLabel(label: string) {
-  return label.replace(/\s+/g, "").toLowerCase();
-}
-
 const CHOIR_PLAYLIST_IDS = new Set<number>([
+  90007,
   90008,
   90009,
 ]);
-const HOSANNA_MIN_SERMON_DATE = "2010-01-01";
+const YOUTUBE_PUBLIC_MIN_SERMON_DATE = "2010-01-01";
 
 function isChoirPlaylist(playlistId: number) {
   return CHOIR_PLAYLIST_IDS.has(playlistId);
 }
 
-function getHosannaVideoOrderBy(playlistId: number) {
+function getYoutubeVideoOrderBy(playlistId: number) {
   if (isChoirPlaylist(playlistId)) {
     return [desc(youtubeVideos.sermonDate), desc(youtubeVideos.id)];
   }
   return [asc(youtubeVideos.sortOrder), asc(youtubeVideos.id)];
+}
+
+function getVisibleChoirVideoConditions(playlistId: number) {
+  if (!isChoirPlaylist(playlistId)) {
+    return [];
+  }
+  return [gte(youtubeVideos.sermonDate, YOUTUBE_PUBLIC_MIN_SERMON_DATE)];
+}
+
+function normalizeMenuLabel(label: string) {
+  return label.replace(/\s+/g, "").toLowerCase();
 }
 
 function isJoyfulTvMenuLabel(label: string) {
@@ -94,15 +101,8 @@ export async function getYoutubeVideosByPlaylist(playlistId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(youtubeVideos)
-    .where(
-      isChoirPlaylist(playlistId)
-        ? and(
-            eq(youtubeVideos.playlistId, playlistId),
-            gte(youtubeVideos.sermonDate, HOSANNA_MIN_SERMON_DATE),
-          )
-        : eq(youtubeVideos.playlistId, playlistId),
-    )
-    .orderBy(...getHosannaVideoOrderBy(playlistId));
+    .where(eq(youtubeVideos.playlistId, playlistId))
+    .orderBy(...getYoutubeVideoOrderBy(playlistId));
 }
 
 /** 특정 플레이리스트의 공개 영상 목록 (정렬순, 일반 사용자용) */
@@ -113,11 +113,9 @@ export async function getVisibleYoutubeVideos(playlistId: number) {
     .where(and(
       eq(youtubeVideos.playlistId, playlistId),
       eq(youtubeVideos.isVisible, true),
-      ...(isChoirPlaylist(playlistId)
-        ? [gte(youtubeVideos.sermonDate, HOSANNA_MIN_SERMON_DATE)]
-        : []),
+      ...getVisibleChoirVideoConditions(playlistId),
     ))
-    .orderBy(...getHosannaVideoOrderBy(playlistId));
+    .orderBy(...getYoutubeVideoOrderBy(playlistId));
 }
 
 /** 유튜브 영상 추가 */
@@ -178,7 +176,7 @@ export async function reorderYoutubeVideos(orderedIds: number[]) {
 // ─── 메뉴 자동 연결 ───────────────────────────────────────────────────────────
 
 /**
- * 플레이리스트 이름과 동일한 메뉴에 playlistId 자동 연결
+ * 플레이리스트 이름과 메뉴에 playlistId 자동 연결
  * - 2단 메뉴(menuItems)와 3단 메뉴(menuSubItems) 모두 검색
  * - 이름이 같은 메뉴가 있으면 해당 메뉴의 playlistId를 업데이트
  * - 조이풀TV 아래에 동일 이름 메뉴가 없으면 2단 메뉴를 자동 생성
