@@ -27,7 +27,9 @@ import {
   AlignCenter,
   AlignLeft,
   AlignRight,
+  Baseline,
   Bold,
+  Columns3,
   Heading2,
   Heading3,
   Image as ImageIcon,
@@ -36,10 +38,13 @@ import {
   List,
   ListOrdered,
   Minus,
+  PaintBucket,
   Pilcrow,
   Quote,
   Redo2,
+  Rows3,
   Strikethrough,
+  Table as TableIcon,
   Underline as UnderlineIcon,
   Undo2,
   Unlink
@@ -79,9 +84,18 @@ const FONT_FAMILY_OPTIONS = [
   { label: "고딕", value: "sans", fontFamily: "'Noto Sans KR', sans-serif" },
   { label: "명조", value: "serif", fontFamily: "'Noto Serif KR', serif" },
 ];
+const TABLE_PRESET_OPTIONS = [
+  { label: "기본", value: "default" },
+  { label: "헤더", value: "header" },
+  { label: "구분", value: "soft" },
+  { label: "강조", value: "strong" },
+];
 const formattingSelectClassName =
   "h-8 min-w-[5rem] border border-gray-200 bg-white px-2 text-xs text-gray-700 outline-none transition hover:border-[#1B5E20] focus:border-[#1B5E20]";
+const tableToolSelectClassName =
+  "h-8 border border-gray-200 bg-white px-2 text-xs text-gray-700 outline-none transition hover:border-[#1B5E20] focus:border-[#1B5E20]";
 const DEFAULT_TEXT_COLOR = "#111827";
+const DEFAULT_CELL_BACKGROUND_COLOR = "#ffffff";
 const richTextSanitizeOptions = {
   ADD_TAGS: ["iframe"],
   ADD_ATTR: [
@@ -255,6 +269,64 @@ function normalizeEditorTextColor(value: string | null | undefined) {
     .join("")}`;
 }
 
+function normalizeOptionalCssColor(value: string | null | undefined) {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return null;
+  return normalizeEditorTextColor(trimmed);
+}
+
+function normalizeTableVerticalAlign(value: string | null | undefined) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return ["top", "middle", "bottom"].includes(normalized) ? normalized : null;
+}
+
+function getTableCellStyle(attributes: Record<string, unknown>) {
+  const styles: string[] = [];
+  const backgroundColor = normalizeOptionalCssColor(attributes.backgroundColor as string | null | undefined);
+  const verticalAlign = normalizeTableVerticalAlign(attributes.verticalAlign as string | null | undefined);
+
+  if (backgroundColor) styles.push(`background-color: ${backgroundColor}`);
+  if (verticalAlign) styles.push(`vertical-align: ${verticalAlign}`);
+
+  return styles.length ? { style: styles.join("; ") } : {};
+}
+
+const RichTableCell = TableCell.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      backgroundColor: {
+        default: null,
+        parseHTML: (element: HTMLElement) => normalizeOptionalCssColor(element.style.backgroundColor),
+        renderHTML: getTableCellStyle,
+      },
+      verticalAlign: {
+        default: null,
+        parseHTML: (element: HTMLElement) => normalizeTableVerticalAlign(element.style.verticalAlign),
+        renderHTML: getTableCellStyle,
+      },
+    };
+  },
+});
+
+const RichTableHeader = TableHeader.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      backgroundColor: {
+        default: null,
+        parseHTML: (element: HTMLElement) => normalizeOptionalCssColor(element.style.backgroundColor),
+        renderHTML: getTableCellStyle,
+      },
+      verticalAlign: {
+        default: null,
+        parseHTML: (element: HTMLElement) => normalizeTableVerticalAlign(element.style.verticalAlign),
+        renderHTML: getTableCellStyle,
+      },
+    };
+  },
+});
+
 function getActiveFontFamilyOption(editor: Editor) {
   const activeFontFamily = normalizeFontFamilyName(
     editor.getAttributes("textStyle").fontFamily as string | undefined,
@@ -379,6 +451,16 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
   const currentTextColor = normalizeEditorTextColor(
     editor.getAttributes("textStyle").color as string | undefined,
   );
+  const tableCellAttributes = editor.getAttributes("tableCell") as Record<string, unknown>;
+  const tableHeaderAttributes = editor.getAttributes("tableHeader") as Record<string, unknown>;
+  const currentCellBackgroundColor =
+    normalizeOptionalCssColor(
+      (tableCellAttributes.backgroundColor ?? tableHeaderAttributes.backgroundColor) as string | undefined,
+    ) ?? DEFAULT_CELL_BACKGROUND_COLOR;
+  const currentCellAlign = String(tableCellAttributes.align ?? tableHeaderAttributes.align ?? "");
+  const currentCellVerticalAlign = String(
+    tableCellAttributes.verticalAlign ?? tableHeaderAttributes.verticalAlign ?? "",
+  );
 
   const handleFontFamilyChange = (value: string) => {
     const nextOption = FONT_FAMILY_OPTIONS.find((option) => option.value === value);
@@ -410,6 +492,39 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
 
   const insertDefaultTable = () => {
     editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+  };
+
+  const handleCellBackgroundColorChange = (value: string) => {
+    editor.chain().focus().setCellAttribute("backgroundColor", value).run();
+  };
+
+  const clearCellBackgroundColor = () => {
+    editor.chain().focus().setCellAttribute("backgroundColor", null).run();
+  };
+
+  const handleCellAlignChange = (value: string) => {
+    editor.chain().focus().setCellAttribute("align", value || null).run();
+  };
+
+  const handleCellVerticalAlignChange = (value: string) => {
+    editor.chain().focus().setCellAttribute("verticalAlign", value || null).run();
+  };
+
+  const applyTablePreset = (preset: string) => {
+    const chain = editor.chain().focus();
+    if (preset === "header") {
+      chain.setCellAttribute("backgroundColor", "#e8f5e9").setCellAttribute("align", "center").setCellAttribute("verticalAlign", "middle").run();
+      return;
+    }
+    if (preset === "soft") {
+      chain.setCellAttribute("backgroundColor", "#f8fafc").setCellAttribute("verticalAlign", "middle").run();
+      return;
+    }
+    if (preset === "strong") {
+      chain.setCellAttribute("backgroundColor", "#1b5e20").setCellAttribute("align", "center").setCellAttribute("verticalAlign", "middle").setColor("#ffffff").run();
+      return;
+    }
+    chain.setCellAttribute("backgroundColor", null).setCellAttribute("align", null).setCellAttribute("verticalAlign", null).unsetColor().run();
   };
 
   return (
@@ -509,21 +624,88 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
           <ImageIcon className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton editor={editor} label="표 만들기" isActive={editor.isActive("table")} onClick={insertDefaultTable}>
-          <span className="text-[10px] font-semibold">표</span>
+          <TableIcon className="h-4 w-4" />
         </ToolbarButton>
         {editor.isActive("table") && (
           <>
+            <label className="flex h-8 items-center gap-2 border border-gray-200 bg-white px-2 text-xs text-gray-700 transition hover:border-[#1B5E20]">
+              <PaintBucket className="h-3.5 w-3.5" />
+              <input
+                aria-label="셀 배경색 선택"
+                type="color"
+                value={currentCellBackgroundColor}
+                onChange={(event) => handleCellBackgroundColorChange(event.target.value)}
+                className="h-5 w-5 cursor-pointer border-0 bg-transparent p-0"
+              />
+            </label>
+            <ToolbarButton editor={editor} label="셀 배경색 제거" onClick={clearCellBackgroundColor}>
+              <span className="text-[10px] font-semibold">배X</span>
+            </ToolbarButton>
+            <select
+              aria-label="셀 가로 정렬"
+              className={tableToolSelectClassName}
+              value={currentCellAlign}
+              onChange={(event) => handleCellAlignChange(event.target.value)}
+            >
+              <option value="">가로</option>
+              <option value="left">왼쪽</option>
+              <option value="center">가운데</option>
+              <option value="right">오른쪽</option>
+            </select>
+            <select
+              aria-label="셀 세로 정렬"
+              className={tableToolSelectClassName}
+              value={currentCellVerticalAlign}
+              onChange={(event) => handleCellVerticalAlignChange(event.target.value)}
+            >
+              <option value="">세로</option>
+              <option value="top">위</option>
+              <option value="middle">중간</option>
+              <option value="bottom">아래</option>
+            </select>
+            <select
+              aria-label="표 셀 프리셋"
+              className={tableToolSelectClassName}
+              defaultValue=""
+              onChange={(event) => {
+                if (!event.target.value) return;
+                applyTablePreset(event.target.value);
+                event.target.value = "";
+              }}
+            >
+              <option value="">프리셋</option>
+              {TABLE_PRESET_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
             <ToolbarButton editor={editor} label="행 추가" onClick={() => editor.chain().focus().addRowAfter().run()}>
-              <span className="text-[10px] font-semibold">행+</span>
+              <Rows3 className="h-4 w-4" />
             </ToolbarButton>
             <ToolbarButton editor={editor} label="열 추가" onClick={() => editor.chain().focus().addColumnAfter().run()}>
-              <span className="text-[10px] font-semibold">열+</span>
+              <Columns3 className="h-4 w-4" />
             </ToolbarButton>
             <ToolbarButton editor={editor} label="행 삭제" onClick={() => editor.chain().focus().deleteRow().run()}>
               <span className="text-[10px] font-semibold">행-</span>
             </ToolbarButton>
             <ToolbarButton editor={editor} label="열 삭제" onClick={() => editor.chain().focus().deleteColumn().run()}>
               <span className="text-[10px] font-semibold">열-</span>
+            </ToolbarButton>
+            <ToolbarButton editor={editor} label="셀 병합" onClick={() => editor.chain().focus().mergeCells().run()}>
+              <span className="text-[10px] font-semibold">병합</span>
+            </ToolbarButton>
+            <ToolbarButton editor={editor} label="셀 분할" onClick={() => editor.chain().focus().splitCell().run()}>
+              <span className="text-[10px] font-semibold">분할</span>
+            </ToolbarButton>
+            <ToolbarButton editor={editor} label="헤더 행" onClick={() => editor.chain().focus().toggleHeaderRow().run()}>
+              <span className="text-[10px] font-semibold">H행</span>
+            </ToolbarButton>
+            <ToolbarButton editor={editor} label="헤더 열" onClick={() => editor.chain().focus().toggleHeaderColumn().run()}>
+              <span className="text-[10px] font-semibold">H열</span>
+            </ToolbarButton>
+            <ToolbarButton editor={editor} label="헤더 셀" onClick={() => editor.chain().focus().toggleHeaderCell().run()}>
+              <Baseline className="h-4 w-4" />
             </ToolbarButton>
             <ToolbarButton editor={editor} label="표 삭제" onClick={() => editor.chain().focus().deleteTable().run()}>
               <span className="text-[10px] font-semibold">표X</span>
@@ -621,8 +803,8 @@ export function RichTextEditor({
         resizable: true,
       }),
       TableRow,
-      TableHeader,
-      TableCell,
+      RichTableHeader,
+      RichTableCell,
       Underline,
       TextAlign.configure({
         types: ["heading", "paragraph"],
