@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type VideoHTMLAttributes } from "react";
+import { useCallback, useEffect, useMemo, useState, type VideoHTMLAttributes } from "react";
 
 type DirectVideoPlayerProps = {
   src: string;
@@ -15,11 +15,28 @@ function stripWww(hostname: string) {
   return hostname.replace(/^www\./, "");
 }
 
+function getSermonVideoProxySrc(url: URL) {
+  const isAllowedHttpMp4 =
+    url.protocol === "http:" &&
+    url.hostname === "sermon.joych.org" &&
+    url.pathname.startsWith("/mp4/") &&
+    url.pathname.toLowerCase().endsWith(".mp4");
+
+  return isAllowedHttpMp4
+    ? `/api/direct-video-proxy?url=${encodeURIComponent(url.toString())}`
+    : null;
+}
+
 function getPlayableSrc(src: string) {
   if (typeof window === "undefined") return src;
 
   try {
     const url = new URL(src, window.location.origin);
+    const proxiedSrc = getSermonVideoProxySrc(url);
+    if (proxiedSrc) {
+      return proxiedSrc;
+    }
+
     const current = new URL(window.location.href);
     const isSameSite =
       url.protocol === current.protocol &&
@@ -47,14 +64,44 @@ function getVideoType(src: string) {
   }
 }
 
+function getLegacyOriginalUrl(src: string) {
+  try {
+    const path = new URL(src, window.location.origin).pathname;
+    const match = /^\/api\/legacy-vod\/(\d+)\/(\d+)\/(\d+)\.mp4$/.exec(path);
+    if (!match) return null;
+
+    const [, pageCode, num, vodType] = match;
+    return `http://www.joych.org/core/module/vod/skin_001/vodIframe.html?pageCode=${pageCode}&num=${num}&vodType=${vodType}`;
+  } catch {
+    return null;
+  }
+}
+
 export default function DirectVideoPlayer({ src, title, className }: DirectVideoPlayerProps) {
   const [hasError, setHasError] = useState(false);
+  const [isLegacyUnavailable, setIsLegacyUnavailable] = useState(false);
   const playableSrc = useMemo(() => getPlayableSrc(src), [src]);
   const videoType = useMemo(() => getVideoType(playableSrc), [playableSrc]);
+  const legacyOriginalUrl = useMemo(() => getLegacyOriginalUrl(playableSrc), [playableSrc]);
 
   useEffect(() => {
     setHasError(false);
+    setIsLegacyUnavailable(false);
   }, [playableSrc]);
+
+  const handleError = useCallback(() => {
+    setHasError(true);
+    setIsLegacyUnavailable(Boolean(legacyOriginalUrl));
+  }, [legacyOriginalUrl]);
+
+  const errorTitle = isLegacyUnavailable
+    ? "구형 영상 파일을 바로 재생할 수 없습니다."
+    : "영상 재생을 다시 시도하고 있습니다.";
+  const errorDescription = isLegacyUnavailable
+    ? "이 자료는 옛 홈페이지의 WMV/MMS 형식이라 mp4 원본 확인이 필요합니다."
+    : "새 창에서 열면 브라우저가 직접 재생을 다시 시도합니다.";
+  const errorHref = isLegacyUnavailable && legacyOriginalUrl ? legacyOriginalUrl : playableSrc;
+  const errorLinkText = isLegacyUnavailable ? "옛 영상 페이지 열기" : "새 창에서 영상 열기";
 
   return (
     <>
@@ -64,8 +111,11 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
         controls
         preload="metadata"
         aria-label={title}
-        onError={() => setHasError(true)}
-        onLoadedMetadata={() => setHasError(false)}
+        onError={handleError}
+        onLoadedMetadata={() => {
+          setHasError(false);
+          setIsLegacyUnavailable(false);
+        }}
         {...inlinePlaybackAttrs}
       >
         <source src={playableSrc} type={videoType} />
@@ -73,14 +123,15 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
       {hasError && (
         <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/80 px-5 text-center text-white">
           <div>
-            <p className="text-sm font-semibold">모바일 브라우저에서 영상 재생이 지연되고 있습니다.</p>
+            <p className="text-sm font-semibold">{errorTitle}</p>
+            <p className="mt-2 text-xs leading-relaxed text-white/75">{errorDescription}</p>
             <a
-              href={playableSrc}
+              href={errorHref}
               target="_blank"
               rel="noreferrer"
               className="mt-3 inline-flex rounded-md bg-white px-4 py-2 text-sm font-semibold text-[#1B5E20]"
             >
-              새 창에서 영상 열기
+              {errorLinkText}
             </a>
           </div>
         </div>

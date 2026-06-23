@@ -22,6 +22,15 @@ const LEGACY_VOD_CACHE = new Map<
   { expiresAt: number; info: LegacyVodInfo }
 >();
 
+function isAllowedSermonMp4Url(url: URL) {
+  return (
+    url.protocol === "http:" &&
+    url.hostname === "sermon.joych.org" &&
+    url.pathname.startsWith("/mp4/") &&
+    url.pathname.toLowerCase().endsWith(".mp4")
+  );
+}
+
 function isNumericId(value: string | undefined): value is string {
   return Boolean(value && /^\d{1,10}$/.test(value));
 }
@@ -50,13 +59,7 @@ function getXmlTag(xml: string, tag: string) {
 
 function validateLegacyVodFile(vodFile: string) {
   try {
-    const url = new URL(vodFile);
-    return (
-      url.protocol === "http:" &&
-      url.hostname === "sermon.joych.org" &&
-      url.pathname.startsWith("/mp4/") &&
-      url.pathname.toLowerCase().endsWith(".mp4")
-    );
+    return isAllowedSermonMp4Url(new URL(vodFile));
   } catch {
     return false;
   }
@@ -232,27 +235,29 @@ function setHeaderFromUpstream(
   }
 }
 
-async function sendLegacyVodStream(req: Request, res: Response) {
-  const params = getRequestParams(req);
-  if (!params) {
-    res.status(400).json({ error: "Invalid legacy VOD parameters" });
-    return;
-  }
+function getApprovedDirectVideoUrl(req: Request) {
+  const rawUrl = typeof req.query.url === "string" ? req.query.url : null;
+  if (!rawUrl) return null;
 
-  let info: LegacyVodInfo;
   try {
-    info = await fetchLegacyVodInfo(params.pageCode, params.num, params.vodType);
-  } catch (error) {
-    console.error("[LegacyVOD] metadata error", error);
-    res.status(502).json({ error: "Legacy VOD metadata unavailable" });
-    return;
+    const url = new URL(rawUrl);
+    return isAllowedSermonMp4Url(url) ? url : null;
+  } catch {
+    return null;
   }
+}
 
+async function sendApprovedVideoStream(
+  req: Request,
+  res: Response,
+  sourceUrl: string,
+  logPrefix: string
+) {
   const controller = new AbortController();
   req.on("close", () => controller.abort());
 
   try {
-    const upstream = await fetch(info.vodFile, {
+    const upstream = await fetch(sourceUrl, {
       headers: {
         ...(req.headers.range ? { Range: req.headers.range } : {}),
         Referer: "http://www.joych.org/",
@@ -262,7 +267,7 @@ async function sendLegacyVodStream(req: Request, res: Response) {
     });
 
     if (![200, 206].includes(upstream.status)) {
-      res.status(502).json({ error: "Legacy VOD stream unavailable" });
+      res.status(502).json({ error: "Upstream video stream unavailable" });
       return;
     }
 
@@ -289,7 +294,7 @@ async function sendLegacyVodStream(req: Request, res: Response) {
       upstream.body as unknown as ReadableStream<Uint8Array>
     );
     stream.on("error", error => {
-      console.error("[LegacyVOD] stream error", error);
+      console.error(`${logPrefix} stream error`, error);
       if (!res.headersSent) {
         res.status(502).end();
       } else {
@@ -299,11 +304,40 @@ async function sendLegacyVodStream(req: Request, res: Response) {
     stream.pipe(res);
   } catch (error) {
     if (controller.signal.aborted) return;
-    console.error("[LegacyVOD] upstream error", error);
+    console.error(`${logPrefix} upstream error`, error);
     if (!res.headersSent) {
-      res.status(502).json({ error: "Legacy VOD stream unavailable" });
+      res.status(502).json({ error: "Upstream video stream unavailable" });
     }
   }
+}
+
+async function sendLegacyVodStream(req: Request, res: Response) {
+  const params = getRequestParams(req);
+  if (!params) {
+    res.status(400).json({ error: "Invalid legacy VOD parameters" });
+    return;
+  }
+
+  let info: LegacyVodInfo;
+  try {
+    info = await fetchLegacyVodInfo(params.pageCode, params.num, params.vodType);
+  } catch (error) {
+    console.error("[LegacyVOD] metadata error", error);
+    res.status(502).json({ error: "Legacy VOD metadata unavailable" });
+    return;
+  }
+
+  await sendApprovedVideoStream(req, res, info.vodFile, "[LegacyVOD]");
+}
+
+async function sendDirectVideoProxy(req: Request, res: Response) {
+  const sourceUrl = getApprovedDirectVideoUrl(req);
+  if (!sourceUrl) {
+    res.status(400).json({ error: "Invalid direct video URL" });
+    return;
+  }
+
+  await sendApprovedVideoStream(req, res, sourceUrl.toString(), "[DirectVideoProxy]");
 }
 
 export function registerLegacyVodRoutes(app: Express) {
@@ -336,4 +370,6 @@ export function registerLegacyVodRoutes(app: Express) {
 
   app.get("/api/legacy-vod/:pageCode/:num/:vodType.mp4", sendLegacyVodStream);
   app.head("/api/legacy-vod/:pageCode/:num/:vodType.mp4", sendLegacyVodStream);
+  app.get("/api/direct-video-proxy", sendDirectVideoProxy);
+  app.head("/api/direct-video-proxy", sendDirectVideoProxy);
 }
