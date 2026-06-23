@@ -19,10 +19,10 @@ import {
   normalizeNoticeCategorySettings,
 } from "@shared/noticeCategories";
 import {
+  isSafeAssetUrl,
   normalizeRichTextHtmlContent,
   optionalTextSchema,
   requiredTextSchema,
-  safeAssetUrlSchema,
 } from "../../_core/contentValidation";
 import { getAllNotices, createNotice, updateNotice, deleteNotice, upsertSiteSetting } from "../../db";
 const noticeProcedure = adminPermissionProcedure("content:notices");
@@ -75,6 +75,39 @@ function normalizeNoticeContent(value: string | undefined) {
   return normalizeRichTextHtmlContent(value, 50000);
 }
 
+const optionalAssetUrlInputSchema = z.string()
+  .trim()
+  .max(2048, "URL 길이가 너무 깁니다.")
+  .optional()
+  .refine((value) => value === undefined || value.length === 0 || isSafeAssetUrl(value), "허용되지 않는 URL 형식입니다.");
+
+function normalizeOptionalTextValue(value: string | undefined) {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function normalizeOptionalAssetUrlValue(value: string | undefined) {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function validateAttachmentPair(
+  value: { attachmentName?: string; attachmentUrl?: string },
+  ctx: z.RefinementCtx,
+) {
+  const hasName = Boolean(value.attachmentName?.trim());
+  const hasUrl = Boolean(value.attachmentUrl?.trim());
+  if (hasName === hasUrl) return;
+
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    message: "첨부파일명과 첨부 URL을 함께 입력해주세요.",
+    path: [hasName ? "attachmentUrl" : "attachmentName"],
+  });
+}
+
 export const noticesRouter = router({
   /** 전체 공지사항 목록 조회 (숨김 포함) */
   list: noticeProcedure.query(() => getAllNotices()),
@@ -88,14 +121,22 @@ export const noticesRouter = router({
       category: requiredTextSchema(32, "카테고리를 입력해주세요.").default("공지"),
       title: requiredTextSchema(256, "제목을 입력해주세요."),
       content: optionalTextSchema(50000),
-      thumbnailUrl: safeAssetUrlSchema.optional(),
+      thumbnailUrl: optionalAssetUrlInputSchema,
+      attachmentName: optionalTextSchema(255),
+      attachmentUrl: optionalAssetUrlInputSchema,
       isPublished: z.boolean().default(true),
       isPinned: z.boolean().default(false),
-    }))
+    }).superRefine(validateAttachmentPair))
     .mutation(({ input, ctx }) =>
       createNotice({
-        ...input,
+        category: input.category,
+        title: input.title,
         content: normalizeNoticeContent(input.content),
+        thumbnailUrl: normalizeOptionalAssetUrlValue(input.thumbnailUrl),
+        attachmentName: normalizeOptionalTextValue(input.attachmentName),
+        attachmentUrl: normalizeOptionalAssetUrlValue(input.attachmentUrl),
+        isPublished: input.isPublished,
+        isPinned: input.isPinned,
         authorId: ctx.user.id,
       })
     ),
@@ -110,14 +151,25 @@ export const noticesRouter = router({
       category: requiredTextSchema(32, "카테고리를 입력해주세요.").optional(),
       title: requiredTextSchema(256, "제목을 입력해주세요.").optional(),
       content: optionalTextSchema(50000),
-      thumbnailUrl: safeAssetUrlSchema.optional(),
+      thumbnailUrl: optionalAssetUrlInputSchema,
+      attachmentName: optionalTextSchema(255),
+      attachmentUrl: optionalAssetUrlInputSchema,
       isPublished: z.boolean().optional(),
       isPinned: z.boolean().optional(),
-    }))
+    }).superRefine(validateAttachmentPair))
     .mutation(({ input }) => {
       const { id, ...data } = input;
       if (data.content !== undefined) {
         data.content = normalizeNoticeContent(data.content);
+      }
+      if (data.thumbnailUrl !== undefined) {
+        data.thumbnailUrl = normalizeOptionalAssetUrlValue(data.thumbnailUrl);
+      }
+      if (data.attachmentName !== undefined) {
+        data.attachmentName = normalizeOptionalTextValue(data.attachmentName);
+      }
+      if (data.attachmentUrl !== undefined) {
+        data.attachmentUrl = normalizeOptionalAssetUrlValue(data.attachmentUrl);
       }
       return updateNotice(id, data);
     }),

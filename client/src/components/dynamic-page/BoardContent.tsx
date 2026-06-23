@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { Check, ChevronLeft, ChevronRight, FileText, ImageIcon, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, FileText, ImageIcon, Paperclip, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { RichTextEditor, RichTextViewer, sanitizeRichTextHtml } from "@/components/ui/rich-text-editor";
@@ -29,6 +29,8 @@ type NoticeFormState = {
   title: string;
   content: string;
   thumbnailUrl: string;
+  attachmentName: string;
+  attachmentUrl: string;
   isPublished: boolean;
   isPinned: boolean;
 };
@@ -82,6 +84,21 @@ function toPlainText(value?: string | null) {
     .trim();
 }
 
+const ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024;
+const ATTACHMENT_ACCEPT = ".pdf,.hwp,.hwpx,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.jpg,.jpeg,.png,.webp,.gif";
+
+function readFileAsBase64(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.split(",")[1] ?? "");
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
   const { user } = useAuth();
   const utils = trpc.useUtils();
@@ -96,15 +113,19 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
   const [formMode, setFormMode] = useState<NoticeFormMode>(null);
   const [editingNoticeId, setEditingNoticeId] = useState<number | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
   const [newCategoryLabel, setNewCategoryLabel] = useState("");
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
 
   const getBlankForm = (): NoticeFormState => ({
     category: isAdminResource ? ADMIN_RESOURCE_CATEGORY : DEFAULT_NOTICE_CATEGORY_LABEL,
     title: "",
     content: "",
     thumbnailUrl: "",
+    attachmentName: "",
+    attachmentUrl: "",
     isPublished: true,
     isPinned: false,
   });
@@ -147,6 +168,10 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
 
   const uploadImageMutation = trpc.cms.upload.image.useMutation({
     onError: (error) => toast.error(`이미지 업로드 실패: ${error.message}`),
+  });
+
+  const uploadAttachmentMutation = trpc.cms.upload.attachment.useMutation({
+    onError: (error) => toast.error(`泥⑤??뚯씪 ?낅줈???ㅽ뙣: ${error.message}`),
   });
 
   const createMutation = trpc.cms.notices.create.useMutation({
@@ -244,6 +269,8 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
       title: notice.title,
       content: notice.content ?? "",
       thumbnailUrl: notice.thumbnailUrl ?? "",
+      attachmentName: notice.attachmentName ?? "",
+      attachmentUrl: notice.attachmentUrl ?? "",
       isPublished: notice.isPublished,
       isPinned: notice.isPinned,
     });
@@ -290,6 +317,36 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
     }
   };
 
+  const handleAttachmentFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > ATTACHMENT_MAX_BYTES) {
+      toast.error("泥⑤??뚯씪? 25MB ?댄븯 ?뚯씪留??낅줈?쒗븷 ???덉뒿?덈떎.");
+      event.target.value = "";
+      return;
+    }
+
+    setUploadingAttachment(true);
+    try {
+      const base64 = await readFileAsBase64(file);
+      const result = await uploadAttachmentMutation.mutateAsync({
+        base64,
+        fileName: file.name,
+        mimeType: file.type || "application/octet-stream",
+      });
+      setFormState((previous) => ({
+        ...previous,
+        attachmentName: result.fileName,
+        attachmentUrl: result.url,
+      }));
+      toast.success("泥⑤??뚯씪 ?낅줈???꾨즺");
+    } finally {
+      setUploadingAttachment(false);
+      event.target.value = "";
+    }
+  };
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const title = formState.title.trim();
@@ -302,7 +359,9 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
       category: isAdminResource ? ADMIN_RESOURCE_CATEGORY : sanitizeNoticePostCategory(formState.category, writeNoticeCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
       title,
       content: formState.content.trim() || undefined,
-      thumbnailUrl: formState.thumbnailUrl.trim() || undefined,
+      thumbnailUrl: formState.thumbnailUrl.trim(),
+      attachmentName: isAdminResource ? formState.attachmentName.trim() : undefined,
+      attachmentUrl: isAdminResource ? formState.attachmentUrl.trim() : undefined,
       isPublished: formState.isPublished,
       isPinned: formState.isPinned,
     };
@@ -539,6 +598,56 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
               />
             </div>
           </div>
+          {isAdminResource && (
+            <div className="space-y-2 md:col-span-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="block text-sm font-semibold text-gray-700">泥⑤??뚯씪</span>
+                {formState.attachmentUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setFormState((previous) => ({ ...previous, attachmentName: "", attachmentUrl: "" }))}
+                    className="inline-flex h-8 items-center gap-1 border border-red-200 px-3 text-xs text-red-500 hover:bg-red-50"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    泥⑤???쒓굅
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => attachmentInputRef.current?.click()}
+                  disabled={uploadingAttachment}
+                  className="inline-flex h-9 items-center gap-2 border border-[#1B5E20] px-3 text-sm font-medium text-[#1B5E20] hover:bg-[#F1F8E9] disabled:opacity-50"
+                >
+                  {uploadingAttachment ? <Upload className="h-4 w-4 animate-bounce" /> : <Paperclip className="h-4 w-4" />}
+                  {uploadingAttachment ? "泥⑤??낅줈??以?" : "泥⑤??뚯씪 ?좏깮"}
+                </button>
+                <input
+                  ref={attachmentInputRef}
+                  type="file"
+                  accept={ATTACHMENT_ACCEPT}
+                  className="hidden"
+                  onChange={handleAttachmentFileChange}
+                />
+                <div className="min-w-0 flex-1 border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                  {formState.attachmentUrl ? (
+                    <a
+                      href={formState.attachmentUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex max-w-full items-center gap-2 text-[#1B5E20] hover:underline"
+                    >
+                      <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{formState.attachmentName || "泥⑤??뚯씪"}</span>
+                    </a>
+                  ) : (
+                    <span>pdf, hwp, office 臾몄꽌, zip, ?대?吏 ?뚯씪瑜?25MB源뚯? ?낅줈?쒗븷 ???덉뒿?덈떎.</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           <div className="flex flex-wrap gap-5 md:col-span-2">
             <label className="inline-flex items-center gap-2 text-sm text-gray-700">
               <input
@@ -587,7 +696,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
             </button>
             <button
               type="submit"
-              disabled={isSaving || uploadingImage}
+              disabled={isSaving || uploadingImage || uploadingAttachment}
               className="inline-flex h-9 items-center gap-2 bg-[#1B5E20] px-4 text-sm font-medium text-white hover:bg-[#2E7D32] disabled:opacity-50"
             >
               <Check className="h-4 w-4" />
@@ -758,6 +867,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
                               <span className="mr-2 text-xs text-[#1B5E20]">[{displayCategory}]</span>
                             )}
                             {notice.title}
+                            {notice.attachmentUrl && <Paperclip className="ml-2 inline h-3.5 w-3.5 text-[#1B5E20]" />}
                             {notice.thumbnailUrl && <span className="ml-2 text-[#0F8FB3]">▣</span>}
                           </button>
                         </td>
@@ -781,6 +891,19 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
                             <div className="whitespace-pre-line border-l-2 border-[#1B5E20]/30 pl-4 text-sm leading-7 text-gray-700">
                               {notice.content ? <RichTextViewer html={notice.content} /> : "등록된 본문 내용이 없습니다."}
                             </div>
+                            {notice.attachmentUrl && (
+                              <div className="mt-4">
+                                <a
+                                  href={notice.attachmentUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-2 border border-[#1B5E20]/20 bg-white px-3 py-2 text-sm text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                >
+                                  <Paperclip className="h-4 w-4" />
+                                  <span>{notice.attachmentName || "泥⑤??뚯씪"}</span>
+                                </a>
+                              </div>
+                            )}
                             {canManageNotices && (
                               <div className="mt-4 flex justify-end gap-2">
                                 <button
@@ -830,6 +953,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
                       <span className="mr-2 text-xs text-[#1B5E20]">[{displayCategory}]</span>
                     )}
                     {notice.title}
+                    {notice.attachmentUrl && <Paperclip className="ml-2 inline h-3.5 w-3.5 text-[#1B5E20]" />}
                   </button>
                   <div className="mt-1 flex flex-wrap gap-2 text-xs text-gray-500">
                     <span className="font-medium text-[#1B5E20]">관리자</span>
@@ -848,6 +972,19 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
                         />
                       )}
                       {notice.content ? <RichTextViewer html={notice.content} /> : <p>등록된 본문 내용이 없습니다.</p>}
+                      {notice.attachmentUrl && (
+                        <div className="mt-4">
+                          <a
+                            href={notice.attachmentUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-2 border border-[#1B5E20]/20 bg-white px-3 py-2 text-sm text-[#1B5E20] hover:bg-[#F1F8E9]"
+                          >
+                            <Paperclip className="h-4 w-4" />
+                            <span>{notice.attachmentName || "泥⑤??뚯씪"}</span>
+                          </a>
+                        </div>
+                      )}
                       {canManageNotices && (
                         <div className="mt-4 flex justify-end gap-2">
                           <button

@@ -22,6 +22,7 @@ const GENERAL_FORM_LIMIT = "512kb";
 const TRPC_UPLOAD_PROCEDURES = [
   "cms.upload.video",
   "cms.upload.image",
+  "cms.upload.attachment",
   "cms.upload.galleryImage",
   "cms.upload.pageImage",
   "cms.blocks.uploadImage",
