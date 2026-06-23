@@ -7,14 +7,14 @@ type ViewModeToggleProps = {
 
 export function ViewModeToggle({ value, onChange }: ViewModeToggleProps) {
   const buttonClass = (mode: ViewMode) =>
-    `flex h-6 w-6 items-center justify-center border transition-colors ${
+    `flex h-8 w-8 items-center justify-center border transition-colors ${
       value === mode
         ? "border-[#86C5D8] bg-white text-[#1B5E20]"
         : "border-gray-200 bg-gray-50 text-gray-300 hover:border-[#86C5D8] hover:text-[#1B5E20]"
     }`;
 
   return (
-    <div className="flex items-center gap-0.5" role="group" aria-label="view mode">
+    <div className="flex items-center gap-1" role="group" aria-label="view mode">
       <button
         type="button"
         onClick={() => onChange("list")}
@@ -22,7 +22,7 @@ export function ViewModeToggle({ value, onChange }: ViewModeToggleProps) {
         aria-label="list view"
         aria-pressed={value === "list"}
       >
-        <span className={`h-3.5 w-3.5 border-y-2 ${value === "list" ? "border-[#1B5E20]" : "border-current"}`} />
+        <span className={`h-4 w-4 border-y-2 ${value === "list" ? "border-[#1B5E20]" : "border-current"}`} />
       </button>
       <button
         type="button"

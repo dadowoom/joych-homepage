@@ -882,13 +882,13 @@ export function Bulletin() {
         )}
 
         {!isLoading && (
-          <div className={viewMode === "grid" ? "grid gap-4 md:grid-cols-2" : "divide-y divide-gray-100 border border-gray-200 bg-white md:hidden"}>
+          <div className={viewMode === "grid" ? "grid grid-cols-2 gap-3 md:grid-cols-2 md:gap-4" : "divide-y divide-gray-100 border border-gray-200 bg-white md:hidden"}>
           {filteredBulletins.map((bulletin, index) => {
             const pages = getBulletinPages(bulletin);
             const coverPage = pages[0] ?? null;
             const hasCoverImage = coverPage ? isImageBulletin(coverPage.fileMime, coverPage.fileName) : false;
             return (
-              <article key={bulletin.id} className={viewMode === "grid" ? "border border-gray-200 bg-white p-4" : "p-4"}>
+              <article key={bulletin.id} className={viewMode === "grid" ? "overflow-hidden border border-gray-200 bg-white p-2.5 sm:p-4" : "p-4"}>
                 <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
                   <span>번호 {filteredBulletins.length - index}</span>
                   <span>{formatBulletinDate(bulletin.bulletinDate)}</span>
@@ -912,7 +912,7 @@ export function Bulletin() {
                 </Link>
                 <Link
                   href={`/worship/bulletin/${bulletin.id}`}
-                  className="block w-full text-left text-base font-bold text-gray-900"
+                  className={viewMode === "grid" ? "block w-full text-left text-sm font-bold leading-5 text-gray-900" : "block w-full text-left text-base font-bold text-gray-900"}
                 >
                   {bulletin.title}
                 </Link>
