@@ -1088,23 +1088,17 @@ export default function Home() {
                   />
                   {/* 호버 오버레이 */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/78 via-black/28 to-transparent transition-all duration-300 group-hover:from-black/86 group-hover:via-black/38" />
-                  <div className="absolute left-4 right-4 top-4 flex items-start justify-between gap-3">
-                    <span className="rounded-full bg-white/92 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-[#1B5E20] uppercase backdrop-blur-sm">
-                      Album
-                    </span>
+                  <div className="absolute right-4 top-4">
                     <span className="rounded-full border border-white/20 bg-black/20 px-3 py-1 text-[11px] font-medium text-white/90 opacity-0 backdrop-blur-sm transition-opacity duration-300 group-hover:opacity-100">
                       앨범 보기
                     </span>
                   </div>
                   <div className="absolute inset-x-0 bottom-0 p-4 md:p-5">
                     <p
-                      className="text-lg font-semibold leading-snug text-white drop-shadow-sm md:text-xl"
+                      className="truncate text-base font-semibold leading-snug text-white drop-shadow-sm md:text-lg"
                       style={{ fontFamily: "'Noto Serif KR', serif" }}
                     >
                       {getHomeGalleryTitle(item)}
-                    </p>
-                    <p className="mt-1 text-[11px] tracking-[0.24em] text-white/75 uppercase">
-                      Recent Event Album
                     </p>
                   </div>
                 </Link>
