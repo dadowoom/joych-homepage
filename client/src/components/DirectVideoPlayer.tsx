@@ -13,10 +13,6 @@ type DirectVideoPlayerProps = {
   className?: string;
 };
 
-function isMobileUserAgent(userAgent: string) {
-  return /iphone|ipad|ipod|android|mobile/i.test(userAgent);
-}
-
 const inlinePlaybackAttrs = {
   playsInline: true,
   "webkit-playsinline": "true",
@@ -106,9 +102,6 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
   const [isLegacyUnavailable, setIsLegacyUnavailable] = useState(false);
   const [forceNoRange, setForceNoRange] = useState(false);
   const [attemptedFallback, setAttemptedFallback] = useState(false);
-  const [isMobile, setIsMobile] = useState(
-    () => typeof navigator !== "undefined" && isMobileUserAgent(navigator.userAgent),
-  );
   const videoRef = useRef<HTMLVideoElement>(null);
   const playableSrc = useMemo(() => getPlayableSrc(src, forceNoRange), [src, forceNoRange]);
   const videoType = useMemo(() => getVideoType(playableSrc), [playableSrc]);
@@ -118,19 +111,8 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
     setHasError(false);
     setIsLegacyUnavailable(false);
     setAttemptedFallback(false);
-    setForceNoRange(isMobile);
-  }, [src, isMobile]);
-
-  useEffect(() => {
-    if (typeof navigator === "undefined") return;
-    setIsMobile(isMobileUserAgent(navigator.userAgent));
-  }, []);
-
-  useEffect(() => {
-    if (isMobile) {
-      setForceNoRange(true);
-    }
-  }, [isMobile]);
+    setForceNoRange(false);
+  }, [src]);
 
   const triggerNoRangeFallback = useCallback(() => {
     if (!forceNoRange && !attemptedFallback && playableSrc.includes("/api/direct-video-proxy")) {
@@ -147,14 +129,6 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
     setIsLegacyUnavailable(Boolean(legacyOriginalUrl));
   }, [triggerNoRangeFallback, legacyOriginalUrl]);
 
-  const handleStall = useCallback(() => {
-    triggerNoRangeFallback();
-  }, [triggerNoRangeFallback]);
-
-  const handleRecoveryIssue = useCallback(() => {
-    triggerNoRangeFallback();
-  }, [triggerNoRangeFallback]);
-
   const errorTitle = isLegacyUnavailable
     ? "구형 영상 파일을 바로 재생할 수 없습니다."
     : "영상 재생을 다시 시도하고 있습니다.";
@@ -170,15 +144,10 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
         key={playableSrc}
         className={className}
         controls
-        preload="auto"
+        preload="metadata"
         aria-label={title}
         ref={videoRef}
         onError={handleError}
-        onStalled={handleStall}
-        onWaiting={handleStall}
-        onAbort={handleRecoveryIssue}
-        onSuspend={handleRecoveryIssue}
-        onEmptied={handleRecoveryIssue}
         onLoadedMetadata={() => {
           setHasError(false);
           setIsLegacyUnavailable(false);
