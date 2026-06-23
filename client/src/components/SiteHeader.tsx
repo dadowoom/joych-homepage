@@ -536,48 +536,10 @@ export default function SiteHeader() {
                         return (
                           <div key={item.id}>
                             {hasSubItems ? (
-                              // 2단 자체 콘텐츠가 없으면 폴더처럼 열기만 합니다.
-                              secondLevelHref ? (
-                                <div className="flex items-center">
-                                  {isExternalHref(secondLevelHref) ? (
-                                    <a
-                                      href={secondLevelHref}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="flex-1 block pl-8 pr-3 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
-                                      onClick={() => setMobileOpen(false)}
-                                    >
-                                      {translateSiteText(item.label, language)}
-                                    </a>
-                                  ) : (
-                                    <Link
-                                      href={secondLevelHref}
-                                      className="flex-1 block pl-8 pr-3 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
-                                      onClick={() => setMobileOpen(false)}
-                                    >
-                                      {translateSiteText(item.label, language)}
-                                    </Link>
-                                  )}
-                                  <button
-                                    type="button"
-                                  aria-label={`${translateSiteText(item.label, language)} 하위 메뉴 열기`}
-                                    className="px-5 py-2.5 text-gray-400 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
-                                    onClick={() =>
-                                      setMobileExpandedSubId(
-                                        mobileExpandedSubId === item.id
-                                          ? null
-                                          : item.id
-                                      )
-                                    }
-                                  >
-                                    <i
-                                      className={`fas fa-chevron-${mobileExpandedSubId === item.id ? "up" : "down"} text-[10px]`}
-                                    ></i>
-                                  </button>
-                                </div>
-                              ) : (
+                              <div className="flex items-center">
                                 <button
-                                  className="w-full flex items-center justify-between pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] text-left"
+                                  type="button"
+                                  className="w-full flex items-center justify-between flex-1 pl-8 pr-3 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9] text-left"
                                   onClick={() =>
                                     setMobileExpandedSubId(
                                       mobileExpandedSubId === item.id
@@ -585,13 +547,37 @@ export default function SiteHeader() {
                                         : item.id
                                     )
                                   }
+                                  aria-label={`${translateSiteText(item.label, language)} 하위 메뉴 열기`}
                                 >
                                   <span>{translateSiteText(item.label, language)}</span>
                                   <i
                                     className={`fas fa-chevron-${mobileExpandedSubId === item.id ? "up" : "down"} text-[10px] text-gray-400`}
                                   ></i>
                                 </button>
-                              )
+                                {secondLevelHref ? (
+                                  isExternalHref(secondLevelHref) ? (
+                                    <a
+                                      href={secondLevelHref}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="px-3 py-2.5 text-gray-400 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                      onClick={() => setMobileOpen(false)}
+                                      aria-label={`${translateSiteText(item.label, language)} 이동`}
+                                    >
+                                      <i className="fas fa-external-link-alt text-[12px]"></i>
+                                    </a>
+                                  ) : (
+                                    <Link
+                                      href={secondLevelHref}
+                                      className="px-3 py-2.5 text-gray-400 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                      onClick={() => setMobileOpen(false)}
+                                      aria-label={`${translateSiteText(item.label, language)} 이동`}
+                                    >
+                                      <i className="fas fa-arrow-right text-[12px]"></i>
+                                    </Link>
+                                  )
+                                ) : null}
+                              </div>
                             ) : item.href ? (
                               item.href.startsWith("http://") ||
                               item.href.startsWith("https://") ? (
