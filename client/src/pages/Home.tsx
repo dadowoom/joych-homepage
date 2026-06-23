@@ -115,30 +115,40 @@ const FALLBACK_GALLERY = [
   {
     imageUrl:
       "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-exterior-3_82fdf499.jpg",
+    albumKey: null,
+    albumTitle: null,
     caption: "기쁨의교회 야경",
     gridSpan: "col-span-2 row-span-2",
   },
   {
     imageUrl:
       "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-worship-praise_d34c61eb.webp",
+    albumKey: null,
+    albumTitle: null,
     caption: "찬양 집회",
     gridSpan: "col-span-1 row-span-1",
   },
   {
     imageUrl:
       "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-worship-sunday_f599f896.jpg",
+    albumKey: null,
+    albumTitle: null,
     caption: "주일예배",
     gridSpan: "col-span-1 row-span-1",
   },
   {
     imageUrl:
       "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-exterior-1_eb2be3e7.webp",
+    albumKey: null,
+    albumTitle: null,
     caption: "교회 전경 (야경)",
     gridSpan: "col-span-1 row-span-1",
   },
   {
     imageUrl:
       "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-exterior-2_b3093207.jpg",
+    albumKey: null,
+    albumTitle: null,
     caption: "교회 전경 (주간)",
     gridSpan: "col-span-1 row-span-1",
   },
