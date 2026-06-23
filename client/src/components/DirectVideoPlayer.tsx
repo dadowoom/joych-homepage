@@ -27,14 +27,27 @@ function getSermonVideoProxySrc(url: URL) {
     : null;
 }
 
-function getPlayableSrc(src: string) {
+function normalizeSource(src: string) {
+  const trimmed = src.trim();
+  if (!trimmed) return "";
+  if (/^\/\/sermon\.joych\.org\/mp4\//.test(trimmed)) {
+    return `http:${trimmed}`;
+  }
+  return trimmed;
+}
+
+function getPlayableSrc(src: string, forceNoRange: boolean) {
   if (typeof window === "undefined") return src;
 
   try {
-    const url = new URL(src, window.location.origin);
+    const url = new URL(normalizeSource(src), window.location.origin);
     const proxiedSrc = getSermonVideoProxySrc(url);
     if (proxiedSrc) {
-      return proxiedSrc;
+      const directVideoUrl = new URL(proxiedSrc, window.location.origin);
+      if (forceNoRange) {
+        directVideoUrl.searchParams.set("skipRange", "1");
+      }
+      return directVideoUrl.toString();
     }
 
     const current = new URL(window.location.href);
@@ -80,19 +93,25 @@ function getLegacyOriginalUrl(src: string) {
 export default function DirectVideoPlayer({ src, title, className }: DirectVideoPlayerProps) {
   const [hasError, setHasError] = useState(false);
   const [isLegacyUnavailable, setIsLegacyUnavailable] = useState(false);
-  const playableSrc = useMemo(() => getPlayableSrc(src), [src]);
+  const [forceNoRange, setForceNoRange] = useState(false);
+  const playableSrc = useMemo(() => getPlayableSrc(src, forceNoRange), [src, forceNoRange]);
   const videoType = useMemo(() => getVideoType(playableSrc), [playableSrc]);
   const legacyOriginalUrl = useMemo(() => getLegacyOriginalUrl(playableSrc), [playableSrc]);
 
   useEffect(() => {
     setHasError(false);
     setIsLegacyUnavailable(false);
+    setForceNoRange(false);
   }, [playableSrc]);
 
   const handleError = useCallback(() => {
+    if (!forceNoRange && playableSrc.includes("/api/direct-video-proxy")) {
+      setForceNoRange(true);
+      return;
+    }
     setHasError(true);
     setIsLegacyUnavailable(Boolean(legacyOriginalUrl));
-  }, [legacyOriginalUrl]);
+  }, [forceNoRange, playableSrc, legacyOriginalUrl]);
 
   const errorTitle = isLegacyUnavailable
     ? "구형 영상 파일을 바로 재생할 수 없습니다."

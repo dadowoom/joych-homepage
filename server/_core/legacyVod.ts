@@ -253,13 +253,14 @@ async function sendApprovedVideoStream(
   sourceUrl: string,
   logPrefix: string
 ) {
+  const isSkipRange = req.query.skipRange === "1";
   const controller = new AbortController();
   req.on("close", () => controller.abort());
 
   try {
     const upstream = await fetch(sourceUrl, {
       headers: {
-        ...(req.headers.range ? { Range: req.headers.range } : {}),
+        ...(isSkipRange ? {} : req.headers.range ? { Range: req.headers.range } : {}),
         Referer: "http://www.joych.org/",
         "User-Agent": "Mozilla/5.0",
       },
