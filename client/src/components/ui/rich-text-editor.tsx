@@ -609,7 +609,16 @@ export function RichTextEditor({
   return (
     <div id={id} className={cn("w-full max-w-full min-w-0 overflow-hidden border border-gray-300 bg-white focus-within:border-[#1B5E20]", className)}>
       <RichTextToolbar editor={editor} />
-      <EditorContent editor={editor} />
+      <div
+        className={cn("cursor-text", minHeightClassName)}
+        onMouseDown={(event) => {
+          if (event.button !== 0 || !editor.isEmpty) return;
+          event.preventDefault();
+          editor.chain().focus("end").setParagraph().run();
+        }}
+      >
+        <EditorContent editor={editor} />
+      </div>
     </div>
   );
 }
