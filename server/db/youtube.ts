@@ -10,7 +10,7 @@
  *   - 메뉴 자동 연결: syncPlaylistToMenu, syncAllPlaylistsToMenus
  */
 
-import { and, eq, asc } from "drizzle-orm";
+import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { youtubePlaylists, youtubeVideos, menus, menuItems, menuSubItems } from "../../drizzle/schema";
 import { makeUniqueMenuPageHref, type MenuHrefCandidate } from "../_core/menuHref";
 import { getDb } from "./connection";
@@ -19,6 +19,20 @@ const JOYFUL_TV_MENU_LABEL = "조이풀TV";
 
 function normalizeMenuLabel(label: string) {
   return label.replace(/\s+/g, "").toLowerCase();
+}
+
+const HOSANNA_CHOIR_PLAYLIST_ID = 90008;
+const HOSANNA_MIN_SERMON_DATE = "2010-01-01";
+
+function isHosannaChoirPlaylist(playlistId: number) {
+  return playlistId === HOSANNA_CHOIR_PLAYLIST_ID;
+}
+
+function getHosannaVideoOrderBy(playlistId: number) {
+  if (isHosannaChoirPlaylist(playlistId)) {
+    return [desc(youtubeVideos.sermonDate), desc(youtubeVideos.id)];
+  }
+  return [asc(youtubeVideos.sortOrder), asc(youtubeVideos.id)];
 }
 
 function isJoyfulTvMenuLabel(label: string) {
@@ -77,8 +91,15 @@ export async function getYoutubeVideosByPlaylist(playlistId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(youtubeVideos)
-    .where(eq(youtubeVideos.playlistId, playlistId))
-    .orderBy(asc(youtubeVideos.sortOrder), asc(youtubeVideos.id));
+    .where(
+      isHosannaChoirPlaylist(playlistId)
+        ? and(
+            eq(youtubeVideos.playlistId, playlistId),
+            gte(youtubeVideos.sermonDate, HOSANNA_MIN_SERMON_DATE),
+          )
+        : eq(youtubeVideos.playlistId, playlistId),
+    )
+    .orderBy(...getHosannaVideoOrderBy(playlistId));
 }
 
 /** 특정 플레이리스트의 공개 영상 목록 (정렬순, 일반 사용자용) */
@@ -89,8 +110,11 @@ export async function getVisibleYoutubeVideos(playlistId: number) {
     .where(and(
       eq(youtubeVideos.playlistId, playlistId),
       eq(youtubeVideos.isVisible, true),
+      ...(isHosannaChoirPlaylist(playlistId)
+        ? [gte(youtubeVideos.sermonDate, HOSANNA_MIN_SERMON_DATE)]
+        : []),
     ))
-    .orderBy(asc(youtubeVideos.sortOrder), asc(youtubeVideos.id));
+    .orderBy(...getHosannaVideoOrderBy(playlistId));
 }
 
 /** 유튜브 영상 추가 */
