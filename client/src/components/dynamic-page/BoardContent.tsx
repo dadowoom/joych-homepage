@@ -482,16 +482,16 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
               className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#1B5E20]"
             />
           </label>
-          <label className="space-y-2 md:col-span-2">
-            <span className="block text-sm font-semibold text-gray-700">내용</span>
-            <RichTextEditor
-              value={formState.content}
-              onChange={(value) => setFormState((previous) => ({ ...previous, content: value }))}
-              placeholder="본문 내용을 입력해주세요."
-              minHeightClassName="min-h-56 max-h-[55vh]"
-              className="rounded-lg"
-            />
-          </label>
+                <div className="space-y-2 md:col-span-2">
+                  <span className="block text-sm font-semibold text-gray-700">내용</span>
+                  <RichTextEditor
+                    value={formState.content}
+                    onChange={(value) => setFormState((previous) => ({ ...previous, content: value }))}
+                    placeholder="본문 내용을 입력해주세요."
+                    minHeightClassName="min-h-56 max-h-[55vh]"
+                    className="rounded-lg"
+                  />
+                </div>
           <div className="space-y-2 md:col-span-2">
             <span className="block text-sm font-semibold text-gray-700">첨부 이미지</span>
             {formState.thumbnailUrl && (
