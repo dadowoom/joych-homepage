@@ -79,7 +79,7 @@ function sortDecades(decades: Decade[]) {
   );
 }
 
-function sortItems(items: HistoryItem[]) {
+function sortItems(items: HistoryItem[]): HistoryItem[] {
   return [...items].sort(
     (a, b) =>
       a.year - b.year ||
@@ -112,7 +112,7 @@ function formatMonth(month: number) {
   return String(month).padStart(2, "0");
 }
 
-function groupItemsByYear(items: HistoryItem[]) {
+function groupItemsByYear(items: HistoryItem[]): Array<[number, HistoryItem[]]> {
   const groups = new Map<number, HistoryItem[]>();
 
   for (const item of items) {
@@ -123,7 +123,12 @@ function groupItemsByYear(items: HistoryItem[]) {
 
   return Array.from(groups.entries())
     .sort(([yearA], [yearB]) => yearA - yearB)
-    .map(([year, yearItems]) => [year, sortItems(yearItems)]);
+    .map(
+      ([year, yearItems]): [number, HistoryItem[]] => [
+        year,
+        sortItems(yearItems),
+      ]
+    );
 }
 
 function getYearlyItemCount(items: HistoryItem[], year: number) {
