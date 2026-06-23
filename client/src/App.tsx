@@ -2,6 +2,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NoticePopupLayer from "@/components/NoticePopupLayer";
 import SiteHeader from "@/components/SiteHeader";
+import SitewideAdminEditor from "@/components/SitewideAdminEditor";
 import NotFound from "@/pages/NotFound";
 import { lazy, Suspense, useEffect } from "react";
 import { Route, Switch, useLocation } from "wouter";
@@ -464,6 +465,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <SiteHeader />
+          <SitewideAdminEditor />
           <Suspense fallback={null}>
             <Router />
           </Suspense>
