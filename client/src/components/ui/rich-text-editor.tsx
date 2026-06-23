@@ -225,6 +225,15 @@ function isEmptyEditorHtml(value: string) {
   return value === "<p></p>" || value === "";
 }
 
+function getEditorContentForValue(value?: string | null) {
+  return normalizeRichTextValue(value) || "<p></p>";
+}
+
+function isSameEditorHtmlValue(currentHtml: string, nextValue: string) {
+  if (isEmptyEditorHtml(currentHtml) && !nextValue) return true;
+  return currentHtml === nextValue;
+}
+
 function normalizeFontFamilyName(value: string | null | undefined) {
   return (value ?? "").replace(/["']/g, "").replace(/\s+/g, " ").trim().toLowerCase();
 }
@@ -563,7 +572,7 @@ export function RichTextEditor({
 
   const editor = useEditor({
     extensions,
-    content: normalizeRichTextValue(value),
+    content: getEditorContentForValue(value),
     immediatelyRender: false,
     editorProps: {
       attributes: {
@@ -582,8 +591,9 @@ export function RichTextEditor({
   useEffect(() => {
     if (!editor) return;
     const nextValue = normalizeRichTextValue(value);
-    if (editor.getHTML() !== nextValue) {
-      editor.commands.setContent(nextValue, { emitUpdate: false });
+    if (!isSameEditorHtmlValue(editor.getHTML(), nextValue)) {
+      if (editor.isFocused) return;
+      editor.commands.setContent(nextValue || "<p></p>", { emitUpdate: false });
       clearEditorStoredMarks(editor);
     }
   }, [editor, value]);
