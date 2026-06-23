@@ -90,10 +90,19 @@ export async function getVisibleGalleryItems() {
 export async function getVisibleHomeGalleryItems() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(galleryItems)
+  const items = await db.select().from(galleryItems)
     .where(eq(galleryItems.isVisible, true))
-    .orderBy(desc(galleryItems.albumSortOrder), asc(galleryItems.sortOrder), desc(galleryItems.createdAt))
-    .limit(5);
+    .orderBy(desc(galleryItems.albumSortOrder), asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
+
+  const seenAlbums = new Set<string>();
+  const homeGalleryItems = items.filter((item) => {
+    const albumKey = item.albumKey?.trim() || item.albumTitle?.trim() || `single:${item.id}`;
+    if (seenAlbums.has(albumKey)) return false;
+    seenAlbums.add(albumKey);
+    return true;
+  });
+
+  return homeGalleryItems.slice(0, 5);
 }
 
 /** 갤러리 이미지 수정 */
