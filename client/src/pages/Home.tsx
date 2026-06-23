@@ -8,6 +8,7 @@ import { lazy, Suspense, useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import HomeAdminDock from "@/components/HomeAdminDock";
 import { getLoginUrl } from "@/const";
 
 const MenuEditPanel = lazy(() => import("@/components/MenuEditPanel"));
@@ -481,6 +482,7 @@ export default function Home() {
   const [affiliatePanelOpen, setAffiliatePanelOpen] = useState(false);
   const [galleryPanelOpen, setGalleryPanelOpen] = useState(false);
   const [homeSectionsPanelOpen, setHomeSectionsPanelOpen] = useState(false);
+  const [adminToolsOpen, setAdminToolsOpen] = useState(false);
   const utils = trpc.useUtils();
 
   // 로그아웃 mutation
@@ -520,7 +522,43 @@ export default function Home() {
     >
       {/* ===== 관리자 편집 바 (isAdmin일 때만 표시) ===== */}
       {isAdmin && (
-        <div className="bg-[#1B5E20] text-white text-xs py-2 px-4 flex items-center justify-between sticky top-0 z-[100]">
+        <>
+          <HomeAdminDock
+            loggingOut={logoutMutation.isPending}
+            open={adminToolsOpen}
+            onClose={() => setAdminToolsOpen(false)}
+            onLogout={() => logoutMutation.mutate()}
+            onOpenAffiliates={() => {
+              setAdminToolsOpen(false);
+              setAffiliatePanelOpen(true);
+            }}
+            onOpenGallery={() => {
+              setAdminToolsOpen(false);
+              setGalleryPanelOpen(true);
+            }}
+            onOpenHero={() => {
+              setAdminToolsOpen(false);
+              setHeroPanelOpen(true);
+            }}
+            onOpenHomeSections={() => {
+              setAdminToolsOpen(false);
+              setHomeSectionsPanelOpen(true);
+            }}
+            onOpenMenu={() => {
+              setAdminToolsOpen(false);
+              setMenuPanelOpen(true);
+            }}
+            onOpenNotice={() => {
+              setAdminToolsOpen(false);
+              setNoticePanelOpen(true);
+            }}
+            onOpenQuickMenu={() => {
+              setAdminToolsOpen(false);
+              setQuickMenuPanelOpen(true);
+            }}
+            onToggle={() => setAdminToolsOpen(prev => !prev)}
+          />
+        <div className="hidden bg-[#1B5E20] text-white text-xs py-2 px-4 flex items-center justify-between sticky top-0 z-[100]">
           <span className="font-semibold tracking-wide">✏️ 편집 모드</span>
           <div className="flex gap-2">
             <button
@@ -580,6 +618,7 @@ export default function Home() {
             </button>
           </div>
         </div>
+        </>
       )}
 
       {isAdmin && (
