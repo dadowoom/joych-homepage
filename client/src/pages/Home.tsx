@@ -20,6 +20,9 @@ const AffiliateEditPanel = lazy(
   () => import("@/components/AffiliateEditPanel")
 );
 const GalleryEditPanel = lazy(() => import("@/components/GalleryEditPanel"));
+const HomeSectionsEditPanel = lazy(
+  () => import("@/components/HomeSectionsEditPanel")
+);
 const KakaoDirectionsMap = lazy(
   () => import("@/components/KakaoDirectionsMap")
 );
@@ -153,6 +156,127 @@ const FALLBACK_GALLERY = [
     gridSpan: "col-span-1 row-span-1",
   },
 ];
+
+type HomeFeatureCard = {
+  title: string;
+  badge: string;
+  description: string;
+  buttonText: string;
+  imageUrl: string;
+  href: string;
+};
+
+type HomeSectionConfig = {
+  eyebrow: string;
+  title: string;
+  description: string;
+  buttonText?: string;
+  buttonHref?: string;
+  backgroundImage?: string;
+  subtitle?: string;
+};
+
+const FALLBACK_FEATURE_CARDS: HomeFeatureCard[] = [
+  {
+    badge: "Saengseong Conference",
+    title: "생생간증",
+    description: "교회 구성원들이 나누는 실제 신앙 간증과 영감의 메시지를 소개합니다.",
+    buttonText: "자세히 보기",
+    imageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-worship-praise_d34c61eb.webp",
+    href: "/community/testimony",
+  },
+  {
+    badge: "MISSION REPORT",
+    title: "선교보고",
+    description: "전도와 구제를 위한 선교 활동 현황을 주보와 함께 확인할 수 있습니다.",
+    buttonText: "자세히 보기",
+    imageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-worship-sunday_f599f896.jpg",
+    href: "/mission",
+  },
+  {
+    badge: "PLAY GROUND",
+    title: "플레이그라운드",
+    description: "청소년을 위한 다양한 문화·게임 프로그램을 안내합니다.",
+    buttonText: "자세히 보기",
+    imageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-exterior-3_82fdf499.jpg",
+    href: "/playground",
+  },
+];
+
+const FALLBACK_CHURCH_INTRO_SECTION: HomeSectionConfig = {
+  eyebrow: "OUR VISION",
+  title: "믿음은 사랑입니다",
+  description:
+    "우리는 예수 그리스도의 사랑 안에서 한마음으로 예배하고, 성장을 통해 서로를 세우며, 이웃에게 사랑을 실천합니다.",
+  buttonText: "교회 소개 보기",
+  buttonHref: "/about/vision",
+  backgroundImage: VISION_IMAGE,
+};
+
+const FALLBACK_WORSHIP_SECTION: HomeSectionConfig = {
+  eyebrow: "WORSHIP",
+  title: "함께 드리는 예배",
+  subtitle: "매주 토요일 저녁",
+  description: "모든 성도님들이 함께 참여할 수 있는 예배를 준비합니다.",
+  buttonText: "예배 시간표 보기",
+  buttonHref: "/worship/schedule",
+  backgroundImage: WORSHIP_IMAGE,
+};
+
+function normalizeText(value: string | null | undefined, fallback: string) {
+  const text = value?.trim();
+  return text ? text : fallback;
+}
+
+function parseJsonArray<T>(raw: string | null | undefined, fallback: T[]): T[] {
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return fallback;
+    return parsed as T[];
+  } catch {
+    return fallback;
+  }
+}
+
+function parseJsonObject<T>(raw: string | null | undefined, fallback: T): T {
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return fallback;
+    return parsed as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function sanitizeHomeFeatureCards(raw: string | null | undefined): HomeFeatureCard[] {
+  const parsed = parseJsonArray<Partial<HomeFeatureCard>>(raw, FALLBACK_FEATURE_CARDS);
+  return parsed.slice(0, 3).map((item, index) => {
+    const fallback = FALLBACK_FEATURE_CARDS[index];
+    return {
+      badge: normalizeText(item.badge, fallback.badge),
+      title: normalizeText(item.title, fallback.title),
+      description: normalizeText(item.description, fallback.description),
+      buttonText: normalizeText(item.buttonText, fallback.buttonText),
+      imageUrl: normalizeText(item.imageUrl, fallback.imageUrl),
+      href: normalizeText(item.href, fallback.href),
+    };
+  });
+}
+
+function sanitizeHomeSectionConfig(raw: string | null | undefined, fallback: HomeSectionConfig): HomeSectionConfig {
+  const parsed = parseJsonObject<Partial<HomeSectionConfig>>(raw, fallback);
+  return {
+    eyebrow: normalizeText(parsed.eyebrow, fallback.eyebrow),
+    title: normalizeText(parsed.title, fallback.title),
+    description: normalizeText(parsed.description, fallback.description),
+    buttonText: normalizeText(parsed.buttonText, fallback.buttonText ?? ""),
+    buttonHref: normalizeText(parsed.buttonHref, fallback.buttonHref ?? ""),
+    backgroundImage: normalizeText(parsed.backgroundImage, fallback.backgroundImage ?? ""),
+    subtitle: normalizeText(parsed.subtitle, fallback.subtitle ?? ""),
+  };
+}
 
 // 스크롤 애니메이션 훅
 function useFadeIn() {
@@ -315,6 +439,17 @@ export default function Home() {
       : shouldUseGalleryFallback
         ? FALLBACK_GALLERY
         : [];
+  const homeFeatureCards = sanitizeHomeFeatureCards(
+    dbSettings?.home_feature_cards
+  );
+  const churchIntroSection = sanitizeHomeSectionConfig(
+    dbSettings?.home_church_intro_section,
+    FALLBACK_CHURCH_INTRO_SECTION
+  );
+  const worshipSection = sanitizeHomeSectionConfig(
+    dbSettings?.home_worship_section,
+    FALLBACK_WORSHIP_SECTION
+  );
   const socialLinks = [
     {
       icon: "fab fa-youtube",
@@ -345,6 +480,7 @@ export default function Home() {
   const [quickMenuPanelOpen, setQuickMenuPanelOpen] = useState(false);
   const [affiliatePanelOpen, setAffiliatePanelOpen] = useState(false);
   const [galleryPanelOpen, setGalleryPanelOpen] = useState(false);
+  const [homeSectionsPanelOpen, setHomeSectionsPanelOpen] = useState(false);
   const utils = trpc.useUtils();
 
   // 로그아웃 mutation
@@ -423,6 +559,12 @@ export default function Home() {
             >
               갤러리 편집
             </button>
+            <button
+              onClick={() => setHomeSectionsPanelOpen(true)}
+              className="bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-1 rounded transition-colors"
+            >
+              홈섹션 편집
+            </button>
             <a
               href="/admin_joych_2026"
               className="bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-1 rounded transition-colors"
@@ -493,6 +635,15 @@ export default function Home() {
               onClose={() => {
                 setGalleryPanelOpen(false);
                 utils.home.homeGallery.invalidate();
+              }}
+            />
+          )}
+          {homeSectionsPanelOpen && (
+            <HomeSectionsEditPanel
+              open={homeSectionsPanelOpen}
+              onClose={() => {
+                setHomeSectionsPanelOpen(false);
+                utils.home.settings.invalidate();
               }}
             />
           )}
@@ -633,7 +784,51 @@ export default function Home() {
 
         {/* 카드 3개 */}
         <div className="container">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            {homeFeatureCards.map((card, index) => (
+              <a
+                key={`${card.title}-${index}`}
+                href={getUsableHref(card.href, "#")}
+                target={isExternalHref(card.href) ? "_blank" : undefined}
+                rel={isExternalHref(card.href) ? "noopener noreferrer" : undefined}
+                className="group block overflow-hidden rounded-2xl bg-white shadow-md transition-shadow duration-300 hover:shadow-xl"
+              >
+                <div className="relative h-96 overflow-hidden">
+                  <div
+                    className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
+                    style={{ backgroundImage: `url('${card.imageUrl}')` }}
+                  />
+                  <div className="absolute inset-0 bg-black/20 transition-colors duration-300 group-hover:bg-black/10" />
+                  <div className="absolute left-4 top-4">
+                    <span className="rounded-full bg-[#1B5E20] px-3 py-1 text-[10px] font-medium uppercase tracking-widest text-white">
+                      {card.badge}
+                    </span>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#1B5E20]">
+                    {card.badge}
+                  </p>
+                  <h3
+                    className="mb-2 text-xl font-bold text-[#1A1A1A]"
+                    style={{ fontFamily: "'Noto Serif KR', serif" }}
+                  >
+                    {card.title}
+                  </h3>
+                  <p className="text-sm leading-relaxed text-gray-500">
+                    {card.description}
+                  </p>
+                  <div className="mt-4 flex items-center gap-1 text-sm font-semibold text-[#1B5E20]">
+                    <span>{card.buttonText || "View more"}</span>
+                    <span className="transition-transform duration-300 group-hover:translate-x-1">
+                      ??
+                    </span>
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
+          <div className="hidden grid-cols-1 md:grid-cols-3 gap-6">
             {/* 카드 1: 생선 간증 */}
             <a
               href="/community/testimony"
@@ -933,7 +1128,7 @@ export default function Home() {
       <section
         className="py-20 relative overflow-hidden"
         style={{
-          backgroundImage: `url(${VISION_IMAGE})`,
+          backgroundImage: `url(${churchIntroSection.backgroundImage})`,
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
@@ -942,6 +1137,43 @@ export default function Home() {
         <div className="container relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <FadeIn>
+              <div className="text-white">
+                <p className="text-xs tracking-[0.3em] text-[#A5D6A7] mb-3 font-medium">
+                  {churchIntroSection.eyebrow}
+                </p>
+                <h2
+                  className="text-3xl md:text-4xl font-bold leading-tight mb-5"
+                  style={{ fontFamily: "'Noto Serif KR', serif" }}
+                >
+                  {churchIntroSection.title.split("\n").map((line, index, array) => (
+                    <span key={index}>
+                      {line}
+                      {index < array.length - 1 && <br />}
+                    </span>
+                  ))}
+                </h2>
+                <p className="text-white/70 leading-relaxed mb-8 text-sm md:text-base">
+                  {churchIntroSection.description}
+                </p>
+                <a
+                  href={getUsableHref(churchIntroSection.buttonHref, "/about/vision")}
+                  target={
+                    isExternalHref(getUsableHref(churchIntroSection.buttonHref, "/about/vision"))
+                      ? "_blank"
+                      : undefined
+                  }
+                  rel={
+                    isExternalHref(getUsableHref(churchIntroSection.buttonHref, "/about/vision"))
+                      ? "noopener noreferrer"
+                      : undefined
+                  }
+                  className="inline-block px-7 py-3 bg-[#1B5E20] hover:bg-[#2E7D32] text-white text-sm font-medium rounded transition-colors"
+                >
+                  {churchIntroSection.buttonText}
+                </a>
+              </div>
+            </FadeIn>
+            <FadeIn className="hidden">
               <div className="text-white">
                 <p className="text-xs tracking-[0.3em] text-[#A5D6A7] mb-3 font-medium">
                   OUR VISION
@@ -1010,10 +1242,16 @@ export default function Home() {
           <FadeIn>
             <div className="text-center mb-10">
               <p className="text-xs tracking-[0.3em] text-[#1B5E20] mb-2 font-medium">
-                WORSHIP
+                {worshipSection.eyebrow}
               </p>
               <h2
                 className="text-2xl md:text-3xl font-bold text-gray-900"
+                style={{ fontFamily: "'Noto Serif KR', serif" }}
+              >
+                {worshipSection.title}
+              </h2>
+              <h2
+                className="hidden text-2xl md:text-3xl font-bold text-gray-900"
                 style={{ fontFamily: "'Noto Serif KR', serif" }}
               >
                 함께 드리는 예배
@@ -1023,15 +1261,45 @@ export default function Home() {
           <FadeIn delay={100}>
             <div
               className="w-full h-64 md:h-96 rounded-2xl bg-cover bg-center overflow-hidden relative"
-              style={{ backgroundImage: `url(${WORSHIP_IMAGE})` }}
+              style={{ backgroundImage: `url(${worshipSection.backgroundImage})` }}
             >
               <div className="absolute inset-0 bg-black/30 flex items-end p-8">
                 <div className="text-white">
-                  <p className="text-sm text-white/80 mb-1">
+                  {worshipSection.subtitle ? (
+                    <p className="text-sm text-white/80 mb-1">
+                      {worshipSection.subtitle}
+                    </p>
+                  ) : null}
+                  <h3
+                    className="text-xl md:text-2xl font-bold"
+                    style={{ fontFamily: "'Noto Serif KR', serif" }}
+                  >
+                    {worshipSection.title}
+                  </h3>
+                  <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/85 md:text-base">
+                    {worshipSection.description}
+                  </p>
+                  <a
+                    href={getUsableHref(worshipSection.buttonHref, "/worship/schedule")}
+                    target={
+                      isExternalHref(getUsableHref(worshipSection.buttonHref, "/worship/schedule"))
+                        ? "_blank"
+                        : undefined
+                    }
+                    rel={
+                      isExternalHref(getUsableHref(worshipSection.buttonHref, "/worship/schedule"))
+                        ? "noopener noreferrer"
+                        : undefined
+                    }
+                    className="mt-5 inline-flex rounded bg-white px-5 py-2 text-sm font-semibold text-[#1B5E20] transition-colors hover:bg-[#F1F8E9]"
+                  >
+                    {worshipSection.buttonText}
+                  </a>
+                  <p className="hidden text-sm text-white/80 mb-1">
                     매주 일요일 오전 11시
                   </p>
                   <h3
-                    className="text-xl md:text-2xl font-bold"
+                    className="hidden text-xl md:text-2xl font-bold"
                     style={{ fontFamily: "'Noto Serif KR', serif" }}
                   >
                     주일 예배에 오세요

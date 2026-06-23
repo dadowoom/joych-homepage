@@ -32,6 +32,9 @@ const SETTING_LABELS: Record<string, string> = {
   facility_guide_step3_desc: "시설예약 안내 3 설명",
   facility_guide_step4_title: "시설예약 안내 4 제목",
   facility_guide_step4_desc: "시설예약 안내 4 설명",
+  home_feature_cards: "홈페이지 메인 기능 카드(JSON: 제목/설명/이미지/버튼/링크)",
+  home_church_intro_section: "교회소개 보기 영역(JSON: 배경/타이틀/설명/버튼)",
+  home_worship_section: "함께드리는 예배 영역(JSON: 배경/타이틀/설명)",
 };
 
 export function SettingsTab() {
