@@ -84,13 +84,13 @@ const optionalAssetUrlInputSchema = z.string()
 function normalizeOptionalTextValue(value: string | undefined) {
   if (value === undefined) return undefined;
   const trimmed = value.trim();
-  return trimmed ? trimmed : null;
+  return trimmed ? trimmed : "";
 }
 
 function normalizeOptionalAssetUrlValue(value: string | undefined) {
   if (value === undefined) return undefined;
   const trimmed = value.trim();
-  return trimmed ? trimmed : null;
+  return trimmed ? trimmed : "";
 }
 
 function validateAttachmentPair(
