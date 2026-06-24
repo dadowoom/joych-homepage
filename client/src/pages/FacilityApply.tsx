@@ -2,7 +2,7 @@
  * 시설 사용 예약 신청 페이지 (/facility/:id/apply)
  * - DB에서 시설 정보, 운영 시간, 예약 현황을 실시간으로 가져옴
  * - 날짜/시작시간/종료시간을 URL 파라미터로 자동 적용
- * - 시간 선택은 슬롯 버튼 클릭 방식 (드롭다운 없음)
+ * - 시간 선택은 가로 타임라인 바 방식
  * - 신청 완료 시 DB에 저장 + 관리자 알림
  */
 
@@ -13,6 +13,7 @@ import type { FacilityBlockedDate } from "../../../drizzle/schema";
 import { toast } from "sonner";
 import { Loader2, ChevronRight, Clock, Users, MapPin, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import ReservationTimelinePicker from "@/components/facility/ReservationTimelinePicker";
 import {
   getKstDateKey,
   getReservationDateRangeRestriction,
@@ -22,7 +23,6 @@ import {
 } from "@/lib/facilityReservationTime";
 import {
   generateReservationTimePoints,
-  getReservationSlotSelectionState,
 } from "@/lib/facilitySlotSelection";
 import {
   hasFacilityReservationBlockedMemberMarker,
@@ -157,92 +157,17 @@ function TimeSlotPicker({
   slotMinutes?: number;
   maxSlots?: number;
 }) {
-  function handleSlotClick(slot: string) {
-    const slotState = getReservationSlotSelectionState({
-      slot,
-      allSlots,
-      bookedSlots,
-      disabledSlots,
-      startTime,
-      endTime,
-      slotMinutes,
-      maxSlots,
-      bookedReason: "예약됨",
-    });
-
-    if (slotState.isDisabled) return;
-    if (slotState.action === "start") {
-      onSelect(slot, "");
-      return;
-    }
-    if (slotState.action === "end") {
-      onSelect(startTime, slot);
-    }
-  }
-
-  const guideText = !startTime
-    ? "시작 시간을 클릭하세요"
-    : !endTime
-    ? `${startTime} 선택됨 — 종료 시간을 클릭하세요`
-    : `${startTime} ~ ${endTime} 선택됨 — 다시 클릭하면 변경`;
-
   return (
-    <div className="space-y-3">
-      <p className="text-xs font-medium text-[#1B5E20]">{guideText}</p>
-      <div className="flex flex-wrap gap-1.5">
-        {allSlots.map((slot) => {
-          const slotState = getReservationSlotSelectionState({
-            slot,
-            allSlots,
-            bookedSlots,
-            disabledSlots,
-            startTime,
-            endTime,
-            slotMinutes,
-            maxSlots,
-            bookedReason: "예약됨",
-          });
-          const isBooked = slotState.isBookedStart && slotState.isDisabled;
-          const disabledReason = slotState.disabledReason;
-          const isDisabled = slotState.isDisabled;
-          const isStart = slot === startTime;
-          const isEnd = slot === endTime;
-          const isInRange = startTime && endTime && slot > startTime && slot < endTime;
-
-          return (
-            <div key={slot} className="relative group">
-              <button
-                type="button"
-                disabled={isDisabled}
-                onClick={() => handleSlotClick(slot)}
-                className={`text-xs px-2.5 py-1.5 rounded-md font-medium transition-all ${
-                  isDisabled
-                    ? "bg-red-100 text-red-400 line-through cursor-not-allowed"
-                    : isStart || isEnd
-                    ? "bg-[#1B5E20] text-white ring-2 ring-[#1B5E20] ring-offset-1 scale-105"
-                    : isInRange
-                    ? "bg-[#2E7D32] text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-green-100 hover:text-green-700 cursor-pointer"
-                }`}
-              >
-                {slot}
-              </button>
-              {isDisabled && (
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-gray-800 text-white text-[10px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                  {disabledReason ?? "예약 불가"}
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      <div className="flex flex-wrap gap-3 text-xs text-gray-400">
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-100 inline-block" /> 예약 가능</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 inline-block" /> 예약됨</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-[#1B5E20] inline-block" /> 선택됨</span>
-      </div>
-    </div>
+    <ReservationTimelinePicker
+      allSlots={allSlots}
+      bookedSlots={bookedSlots}
+      disabledSlots={disabledSlots}
+      startTime={startTime}
+      endTime={endTime}
+      onSelect={onSelect}
+      slotMinutes={slotMinutes}
+      maxSlots={maxSlots}
+    />
   );
 }
 

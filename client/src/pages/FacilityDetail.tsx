@@ -10,6 +10,7 @@ import { trpc } from "@/lib/trpc";
 import type { Facility, FacilityHour, FacilityImage, FacilityBlockedDate } from "../../../drizzle/schema";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import ReservationTimelinePicker from "@/components/facility/ReservationTimelinePicker";
 import { Users, MapPin, Clock, ChevronLeft, ChevronRight, Phone, AlertCircle, CalendarCheck, Loader2 } from "lucide-react";
 import {
   getFacilityReservationMaxMonths,
@@ -19,7 +20,6 @@ import {
 } from "@/lib/facilityReservationTime";
 import {
   generateReservationTimePoints,
-  getReservationSlotSelectionState,
 } from "@/lib/facilitySlotSelection";
 import { hasFacilityReservationRuleOverride } from "@shared/facilityReservationEligibility";
 
@@ -357,31 +357,25 @@ function TimeSlotPanel({
     return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${DAY_LABELS[d.getDay()]})`;
   }, [selectedDate]);
 
-  // 슬롯 클릭 핸들러
-  // - 아무것도 선택 안 된 상태 → 시작 시간 선택
-  // - 시작 시간만 선택된 상태 → 종료 시간 선택 (시작보다 뒤여야 함)
-  // - 둘 다 선택된 상태 → 초기화 후 시작 시간 재선택
-  function handleSlotClick(slot: string) {
-    const slotState = getReservationSlotSelectionState({
-      slot,
-      allSlots,
-      bookedSlots: hasReservationOverride ? new Set<string>() : bookedSlots,
-      disabledSlots,
-      startTime,
-      endTime,
-      slotMinutes,
-      maxSlots,
-      bookedReason: "예약됨",
-    });
+  function renderDisabledTooltip(slot: string, disabledReason?: string) {
+    const bookedReservation = reservationBySlot.get(slot);
+    if (!bookedReservation || !hasAdminReservationDetails(bookedReservation)) {
+      return disabledReason ?? "예약 불가";
+    }
 
-    if (slotState.isDisabled) return;
-    if (slotState.action === "start") {
-      onSelectTime(slot, "");
-      return;
-    }
-    if (slotState.action === "end") {
-      onSelectTime(startTime, slot);
-    }
+    return (
+      <div className="space-y-0.5">
+        <p className="font-semibold text-white">
+          {getReservationName(bookedReservation)} · {getReservationTimeRange(bookedReservation)}
+        </p>
+        <p className="text-gray-200">
+          {getReservationPosition(bookedReservation)} · {getReservationPhone(bookedReservation)}
+        </p>
+        {bookedReservation.purpose && (
+          <p className="line-clamp-2 text-gray-300">{bookedReservation.purpose}</p>
+        )}
+      </div>
+    );
   }
 
   if (!selectedDate) return null;
@@ -420,94 +414,17 @@ function TimeSlotPanel({
             운영 시간: {todayHour?.openTime ?? facility?.openTime} ~ {todayHour?.closeTime ?? facility?.closeTime}
           </p>
 
-          {/* 선택 안내 */}
-          <p className="text-xs text-[#1B5E20] font-medium">
-            {!startTime
-              ? "시작 시간을 클릭하세요"
-              : !endTime
-              ? `${startTime} 선택됨 — 종료 시간을 클릭하세요`
-              : `${startTime} ~ ${endTime} 선택됨 — 다시 클릭하면 초기화`}
-          </p>
-
-              <div className="flex flex-wrap gap-1.5">
-            {allSlots.map((slot) => {
-              const slotState = getReservationSlotSelectionState({
-                slot,
-                allSlots,
-                bookedSlots: hasReservationOverride ? new Set<string>() : bookedSlots,
-                disabledSlots,
-                startTime,
-                endTime,
-                slotMinutes,
-                maxSlots,
-                bookedReason: "예약됨",
-              });
-              const isBooked = !hasReservationOverride && slotState.isBookedStart && slotState.isDisabled;
-              const bookedReservation = reservationBySlot.get(slot);
-              const disabledReason = slotState.disabledReason;
-              const isDisabled = slotState.isDisabled;
-              const isStart = slot === startTime;
-              const isEnd = slot === endTime;
-              const isInRange = startTime && endTime && slot > startTime && slot < endTime;
-              const isSelected = isStart || isEnd || isInRange;
-
-              return (
-                <div key={slot} className="relative group">
-                  <button
-                    disabled={isDisabled}
-                    onClick={() => handleSlotClick(slot)}
-                    className={`text-xs px-2.5 py-1.5 rounded-md font-medium transition-colors ${
-                      isDisabled
-                        ? "bg-red-100 text-red-400 line-through cursor-not-allowed"
-                        : isStart || isEnd
-                        ? "bg-[#1B5E20] text-white ring-2 ring-[#1B5E20] ring-offset-1"
-                        : isInRange
-                        ? "bg-[#2E7D32] text-white"
-                        : "bg-green-50 text-green-700 border border-green-200 hover:bg-green-200 cursor-pointer"
-                    }`}
-                  >
-                    {slot}
-                  </button>
-                  {isDisabled && (
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-56 px-3 py-2 bg-gray-900 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-left shadow-lg">
-                      {bookedReservation && hasAdminReservationDetails(bookedReservation) ? (
-                        <div className="space-y-0.5">
-                          <p className="font-semibold text-white">
-                            {getReservationName(bookedReservation)} · {getReservationTimeRange(bookedReservation)}
-                          </p>
-                          <p className="text-gray-200">
-                            {getReservationPosition(bookedReservation)} · {getReservationPhone(bookedReservation)}
-                          </p>
-                          {bookedReservation.purpose && (
-                            <p className="text-gray-300 line-clamp-2">{bookedReservation.purpose}</p>
-                          )}
-                        </div>
-                      ) : (
-                        disabledReason ?? "예약 불가"
-                      )}
-                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* 범례 */}
-          <div className="flex flex-wrap gap-3 text-xs text-gray-400 pt-1">
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-sm bg-green-50 border border-green-200 inline-block" />
-              예약 가능
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-sm bg-red-100 inline-block" />
-              예약됨
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-sm bg-[#1B5E20] inline-block" />
-              선택됨
-            </span>
-          </div>
+          <ReservationTimelinePicker
+            allSlots={allSlots}
+            bookedSlots={hasReservationOverride ? new Set<string>() : bookedSlots}
+            disabledSlots={disabledSlots}
+            startTime={startTime}
+            endTime={endTime}
+            onSelect={onSelectTime}
+            slotMinutes={slotMinutes}
+            maxSlots={maxSlots}
+            renderDisabledTooltip={renderDisabledTooltip}
+          />
 
           {adminReservations.length > 0 && (
             <div className="mt-3 rounded-lg border border-green-100 bg-green-50/60 p-3">
