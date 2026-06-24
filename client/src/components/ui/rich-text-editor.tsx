@@ -374,6 +374,26 @@ function getCurrentTableCellNodeRange(editor: Editor) {
   return null;
 }
 
+function getSelectedTableCellNodeRanges(editor: Editor) {
+  const ranges: Array<{ from: number; to: number }> = [];
+  const { doc, selection } = editor.state;
+
+  doc.nodesBetween(selection.from, selection.to, (node, position) => {
+    if (node.type.name !== "tableCell" && node.type.name !== "tableHeader") return;
+    ranges.push({ from: position, to: position + node.nodeSize });
+    return false;
+  });
+
+  if (!ranges.length) {
+    const currentRange = getCurrentTableCellNodeRange(editor);
+    if (currentRange) ranges.push({ from: currentRange.from, to: currentRange.to });
+  }
+
+  return ranges
+    .filter((range, index, allRanges) => allRanges.findIndex((item) => item.from === range.from && item.to === range.to) === index)
+    .sort((a, b) => b.from - a.from);
+}
+
 function getCurrentTableCellFocusPosition(editor: Editor) {
   const range = getCurrentTableCellNodeRange(editor);
   return range ? range.from + 1 : editor.state.selection.from;
@@ -391,6 +411,11 @@ function focusEditorAt(editor: Editor, position?: number) {
     return;
   }
   editor.commands.focus();
+}
+
+function createEmptyParagraph(editor: Editor) {
+  const paragraph = editor.schema.nodes.paragraph;
+  return paragraph?.createAndFill() ?? paragraph?.create() ?? null;
 }
 
 function ToolbarButton({
@@ -591,15 +616,27 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
   };
 
   const clearCurrentCell = () => {
-    const range = getCurrentTableCellNodeRange(editor);
-    if (!range) return;
+    const ranges = getSelectedTableCellNodeRanges(editor);
+    if (!ranges.length) return;
     const focusPosition = getCurrentTableCellFocusPosition(editor);
-    if (!confirmActionAndKeepFocus("현재 셀 안의 내용만 삭제할까요? 셀 자체는 유지됩니다.", focusPosition)) return;
-    // 셀 자체와 배경색/정렬은 남기고, 안쪽 내용만 빈 문단으로 교체한다.
-    const emptyCell = range.node.type.createAndFill(range.node.attrs);
-    if (!emptyCell) return;
-    editor.view.dispatch(editor.state.tr.replaceWith(range.from, range.to, emptyCell));
-    editor.commands.focus();
+    const message =
+      ranges.length > 1
+        ? `${ranges.length}개 셀 안의 내용만 삭제할까요? 셀 자체는 유지됩니다.`
+        : "현재 셀 안의 내용만 삭제할까요? 셀 자체는 유지됩니다.";
+    if (!confirmActionAndKeepFocus(message, focusPosition)) return;
+
+    // 표 구조와 셀 서식은 그대로 두고, 셀 내부의 글/이미지/문단만 빈 문단으로 교체한다.
+    let transaction = editor.state.tr;
+    ranges.forEach((range) => {
+      const emptyParagraph = createEmptyParagraph(editor);
+      if (!emptyParagraph) return;
+      transaction = transaction.replaceWith(range.from + 1, range.to - 1, emptyParagraph);
+    });
+
+    if (!transaction.docChanged) return;
+    const firstCell = ranges[ranges.length - 1];
+    editor.view.dispatch(transaction.scrollIntoView());
+    focusEditorAt(editor, firstCell ? firstCell.from + 2 : focusPosition);
   };
 
   const deleteCurrentRow = () => {
@@ -622,6 +659,15 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
 
   const insertLineBreak = () => {
     editor.chain().focus().setHardBreak().run();
+  };
+
+  const toggleQuote = () => {
+    const focusPosition = editor.state.selection.from;
+    const didRun = editor.chain().focus(focusPosition).toggleBlockquote().run();
+    if (didRun) return;
+
+    window.alert("현재 위치에서는 인용을 적용할 수 없습니다. 일반 문단에서 다시 시도해주세요.");
+    focusEditorAt(editor, focusPosition);
   };
 
   const handleCellBackgroundColorChange = (value: string) => {
@@ -744,7 +790,7 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
         <ToolbarButton editor={editor} label="번호 목록" isActive={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()}>
           <ListOrdered className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton editor={editor} label="인용" isActive={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()}>
+        <ToolbarButton editor={editor} label="인용" isActive={editor.isActive("blockquote")} onClick={toggleQuote}>
           <Quote className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton editor={editor} label="구분선" onClick={() => editor.chain().focus().setHorizontalRule().run()}>
@@ -1009,7 +1055,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class: cn(
-          "rich-text-editor-content w-full max-w-full min-w-0 overflow-x-hidden overflow-y-auto break-words bg-white px-3 py-3 text-sm leading-7 outline-none [overflow-wrap:anywhere] [&_*]:max-w-full [&_.selectedCell]:bg-[#EAF6EA] [&_.tableWrapper]:my-4 [&_.tableWrapper]:overflow-x-auto [&_img]:h-auto [&_table]:w-full [&_table]:border-collapse [&_td]:min-w-[120px] [&_td]:border [&_td]:border-gray-300 [&_td]:px-3 [&_td]:py-2 [&_th]:min-w-[120px] [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2",
+          "rich-text-editor-content w-full max-w-full min-w-0 overflow-x-hidden overflow-y-auto break-words bg-white px-3 py-3 text-sm leading-7 outline-none [overflow-wrap:anywhere] [&_*]:max-w-full [&_.selectedCell]:bg-[#EAF6EA] [&_.tableWrapper]:my-4 [&_.tableWrapper]:overflow-x-auto [&_blockquote]:my-3 [&_blockquote]:border-l-4 [&_blockquote]:border-[#D8E8DA] [&_blockquote]:bg-[#F8FBF8] [&_blockquote]:py-2 [&_blockquote]:pl-4 [&_blockquote]:pr-3 [&_blockquote]:text-gray-600 [&_blockquote_p]:my-0 [&_img]:h-auto [&_table]:w-full [&_table]:border-collapse [&_td]:min-w-[120px] [&_td]:border [&_td]:border-gray-300 [&_td]:px-3 [&_td]:py-2 [&_th]:min-w-[120px] [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2",
           minHeightClassName,
         ),
       },
