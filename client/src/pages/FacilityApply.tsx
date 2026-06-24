@@ -15,6 +15,10 @@ import { Loader2, ChevronRight, Clock, Users, MapPin, Calendar, CheckCircle2, Al
 import { Button } from "@/components/ui/button";
 import { getKstDateKey, getReservationLeadDateKey, getReservationTimeRestriction } from "@/lib/facilityReservationTime";
 import {
+  generateReservationTimePoints,
+  getReservationSlotSelectionState,
+} from "@/lib/facilitySlotSelection";
+import {
   hasFacilityReservationBlockedMemberMarker,
   hasFacilityReservationRuleOverride,
 } from "@shared/facilityReservationEligibility";
@@ -46,24 +50,6 @@ const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
   { value: "weekly", label: "매주" },
   { value: "monthly-weekday", label: "매월 같은 주" },
 ];
-
-// // ── 시간 슬롯 생성 헬퍼 ──────────────────────────────────
-// 종료 시간(closeTime)도 슬롯에 포함 (예: 09:00~22:00 시 22:00 버튼도 표시)
-function generateTimeSlots(openTime: string, closeTime: string, unitMinutes: number): string[] {
-  const slots: string[] = [];
-  const [openH, openM] = openTime.split(":").map(Number);
-  const [closeH, closeM] = closeTime.split(":").map(Number);
-  let current = openH * 60 + openM;
-  const end = closeH * 60 + closeM;
-  // <= 로 종료 시간 포함
-  while (current <= end) {
-    const h = Math.floor(current / 60).toString().padStart(2, "0");
-    const m = (current % 60).toString().padStart(2, "0");
-    slots.push(`${h}:${m}`);
-    current += unitMinutes;
-  }
-  return slots;
-}
 
 // 요일 숫자 (0=일, 1=월 ... 6=토)
 function getDayOfWeek(dateStr: string): number {
@@ -165,54 +151,25 @@ function TimeSlotPicker({
   slotMinutes?: number;
   maxSlots?: number;
 }) {
-  const lastSlot = allSlots[allSlots.length - 1];
-
   function handleSlotClick(slot: string) {
-    if (bookedSlots.has(slot) || disabledSlots.has(slot)) return;
+    const slotState = getReservationSlotSelectionState({
+      slot,
+      allSlots,
+      bookedSlots,
+      disabledSlots,
+      startTime,
+      endTime,
+      slotMinutes,
+      maxSlots,
+      bookedReason: "예약됨",
+    });
 
-    // 아무것도 선택 안 됐거나 둘 다 선택된 경우 → 시작 시간 재선택
-    if (!startTime || (startTime && endTime)) {
-      // 마지막 슬롯(종료 시간)은 시작 시간으로 선택 불가
-      if (slot === lastSlot) return;
+    if (slotState.isDisabled) return;
+    if (slotState.action === "start") {
       onSelect(slot, "");
       return;
     }
-
-    // 시작 시간만 있는 경우
-    if (slot <= startTime) {
-      if (slot === lastSlot) return;
-      onSelect(slot, "");
-      return;
-    }
-
-    // maxSlots 초과 여부 확인
-    const [sh, sm] = startTime.split(":").map(Number);
-    const [eh, em] = slot.split(":").map(Number);
-    const diffMinutes = (eh * 60 + em) - (sh * 60 + sm);
-    const selectedSlots = diffMinutes / slotMinutes;
-    if (selectedSlots > maxSlots) {
-      // 최대 예약 시간 초과 시 해당 슬롯을 새 시작 시간으로
-      if (slot !== lastSlot) onSelect(slot, "");
-      return;
-    }
-
-    // 범위 내 예약 충돌 확인
-    let cur = sh * 60 + sm;
-    const end = eh * 60 + em;
-    let hasConflict = false;
-    while (cur < end) {
-      const h = Math.floor(cur / 60).toString().padStart(2, "0");
-      const m = (cur % 60).toString().padStart(2, "0");
-      if (bookedSlots.has(`${h}:${m}`) || disabledSlots.has(`${h}:${m}`)) {
-        hasConflict = true;
-        break;
-      }
-      cur += slotMinutes;
-    }
-
-    if (hasConflict) {
-      if (slot !== lastSlot) onSelect(slot, "");
-    } else {
+    if (slotState.action === "end") {
       onSelect(startTime, slot);
     }
   }
@@ -228,9 +185,20 @@ function TimeSlotPicker({
       <p className="text-xs font-medium text-[#1B5E20]">{guideText}</p>
       <div className="flex flex-wrap gap-1.5">
         {allSlots.map((slot) => {
-          const isBooked = bookedSlots.has(slot);
-          const disabledReason = disabledSlots.get(slot);
-          const isDisabled = isBooked || Boolean(disabledReason);
+          const slotState = getReservationSlotSelectionState({
+            slot,
+            allSlots,
+            bookedSlots,
+            disabledSlots,
+            startTime,
+            endTime,
+            slotMinutes,
+            maxSlots,
+            bookedReason: "예약됨",
+          });
+          const isBooked = slotState.isBookedStart && slotState.isDisabled;
+          const disabledReason = slotState.disabledReason;
+          const isDisabled = slotState.isDisabled;
           const isStart = slot === startTime;
           const isEnd = slot === endTime;
           const isInRange = startTime && endTime && slot > startTime && slot < endTime;
@@ -390,7 +358,7 @@ export default function FacilityApply() {
       ? (todayHour?.closeTime ?? facility?.closeTime)
       : todayHour?.closeTime;
     if (!openTime || !closeTime) return [];
-    return generateTimeSlots(openTime, closeTime, unitMinutes);
+    return generateReservationTimePoints(openTime, closeTime, unitMinutes);
   }, [todayHour, unitMinutes, hasReservationOverride, facility?.openTime, facility?.closeTime]);
 
   // 이미 예약된 시간 슬롯 (승인 대기 + 승인 완료)

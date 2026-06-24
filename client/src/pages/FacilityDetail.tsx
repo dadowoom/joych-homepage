@@ -12,6 +12,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Users, MapPin, Clock, ChevronLeft, ChevronRight, Phone, AlertCircle, CalendarCheck, Loader2 } from "lucide-react";
 import { getReservationTimeRestriction, hasReservableStartTime } from "@/lib/facilityReservationTime";
+import {
+  generateReservationTimePoints,
+  getReservationSlotSelectionState,
+} from "@/lib/facilitySlotSelection";
 import { hasFacilityReservationRuleOverride } from "@shared/facilityReservationEligibility";
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -327,7 +331,7 @@ function TimeSlotPanel({
       ? (todayHour?.closeTime ?? facility?.closeTime)
       : todayHour?.closeTime;
     if (!openTime || !closeTime) return [];
-    return generateReservationStartSlots(openTime, closeTime, slotMinutes);
+    return generateReservationTimePoints(openTime, closeTime, slotMinutes);
   }, [todayHour, slotMinutes, hasReservationOverride, facility?.openTime, facility?.closeTime]);
 
   const disabledSlots = useMemo(() => {
@@ -353,51 +357,25 @@ function TimeSlotPanel({
   // - 시작 시간만 선택된 상태 → 종료 시간 선택 (시작보다 뒤여야 함)
   // - 둘 다 선택된 상태 → 초기화 후 시작 시간 재선택
   function handleSlotClick(slot: string) {
-    if ((!hasReservationOverride && bookedSlots.has(slot)) || disabledSlots.has(slot)) return;
+    const slotState = getReservationSlotSelectionState({
+      slot,
+      allSlots,
+      bookedSlots: hasReservationOverride ? new Set<string>() : bookedSlots,
+      disabledSlots,
+      startTime,
+      endTime,
+      slotMinutes,
+      maxSlots,
+      bookedReason: "예약됨",
+    });
 
-    // 종료 시간(closeTime) 슬롯은 시작 시간으로 선택 불가
-    const lastSlot = allSlots[allSlots.length - 1];
-    
-    if (!startTime || (startTime && endTime)) {
-      // 마지막 슬롯(종료 시간)은 시작 시간으로 선택 불가
-      if (slot === lastSlot) return;
+    if (slotState.isDisabled) return;
+    if (slotState.action === "start") {
       onSelectTime(slot, "");
-    } else {
-      // 시작 시간이 있고 종료 시간이 없는 상태
-      if (slot <= startTime) {
-        if (slot === lastSlot) return;
-        onSelectTime(slot, "");
-      } else {
-        // maxSlots 초과 여부 확인
-        const [sh, sm] = startTime.split(":").map(Number);
-        const [eh, em] = slot.split(":").map(Number);
-        const diffMinutes = (eh * 60 + em) - (sh * 60 + sm);
-        const selectedSlots = diffMinutes / slotMinutes;
-        if (selectedSlots > maxSlots) {
-          // 최대 예약 시간 초과 시 해당 슬롯을 새 시작 시간으로
-          if (slot !== lastSlot) onSelectTime(slot, "");
-          return;
-        }
-        // 시작~종료 사이에 예약된 슬롯이 있으면 불가
-        let cur = sh * 60 + sm;
-        const end = eh * 60 + em;
-        let hasConflict = false;
-        while (cur < end) {
-          const h = Math.floor(cur / 60);
-          const m = cur % 60;
-          const slotKey = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-          if ((!hasReservationOverride && bookedSlots.has(slotKey)) || disabledSlots.has(slotKey)) {
-            hasConflict = true;
-            break;
-          }
-          cur += slotMinutes;
-        }
-        if (hasConflict) {
-          if (slot !== lastSlot) onSelectTime(slot, "");
-        } else {
-          onSelectTime(startTime, slot);
-        }
-      }
+      return;
+    }
+    if (slotState.action === "end") {
+      onSelectTime(startTime, slot);
     }
   }
 
@@ -448,10 +426,21 @@ function TimeSlotPanel({
 
               <div className="flex flex-wrap gap-1.5">
             {allSlots.map((slot) => {
-              const isBooked = !hasReservationOverride && bookedSlots.has(slot);
+              const slotState = getReservationSlotSelectionState({
+                slot,
+                allSlots,
+                bookedSlots: hasReservationOverride ? new Set<string>() : bookedSlots,
+                disabledSlots,
+                startTime,
+                endTime,
+                slotMinutes,
+                maxSlots,
+                bookedReason: "예약됨",
+              });
+              const isBooked = !hasReservationOverride && slotState.isBookedStart && slotState.isDisabled;
               const bookedReservation = reservationBySlot.get(slot);
-              const disabledReason = disabledSlots.get(slot);
-              const isDisabled = isBooked || Boolean(disabledReason);
+              const disabledReason = slotState.disabledReason;
+              const isDisabled = slotState.isDisabled;
               const isStart = slot === startTime;
               const isEnd = slot === endTime;
               const isInRange = startTime && endTime && slot > startTime && slot < endTime;
