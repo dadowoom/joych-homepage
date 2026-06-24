@@ -34,6 +34,7 @@ import {
   updateHeroSlide,
   createHeroSlide,
   deleteHeroSlide,
+  clearAllHeroSlideCustomButtons,
   getAllGalleryItems,
   getAllHomeGalleryItems,
   updateGalleryItem,
@@ -82,6 +83,7 @@ const SETTING_KEYS = [
   "home_feature_cards",
   "home_church_intro_section",
   "home_worship_section",
+  "home_hero_common_buttons",
 ] as const;
 
 const iconClassSchema = z.string()
@@ -102,6 +104,26 @@ const gridSpanValueSchema = z.string().refine(
 );
 
 const sortOrderSchema = z.number().int().min(0).max(10000).optional();
+
+const heroButtonSchema = z.object({
+  label: requiredTextSchema(64, "버튼 텍스트를 입력해주세요."),
+  href: safeHrefSchema,
+});
+
+const heroButtonsSchema = z.array(heroButtonSchema).max(4, "히어로 버튼은 최대 4개까지 등록할 수 있습니다.");
+
+function serializeHeroButtons(buttons: z.infer<typeof heroButtonsSchema> | null | undefined) {
+  if (buttons === undefined) return undefined;
+  if (buttons === null) return null;
+  const normalized = buttons
+    .map((button) => ({
+      label: button.label.trim(),
+      href: button.href.trim(),
+    }))
+    .filter((button) => button.label && button.href)
+    .slice(0, 4);
+  return JSON.stringify(normalized);
+}
 const staticPageHrefSchema = z.string().trim().min(1).max(128).regex(/^\//);
 const staticPageJsonSchema = z.string().max(60000, "페이지 콘텐츠는 60000자 이하로 입력해주세요.");
 const translationLocaleSchema = z.enum(["ja"]);
@@ -195,8 +217,15 @@ export const contentRouter = router({
         btn1Href: safeHrefSchema.optional(),
         btn2Text: optionalTextSchema(64),
         btn2Href: safeHrefSchema.optional(),
+        buttonsJson: heroButtonsSchema.nullable().optional(),
       }))
-      .mutation(({ input }) => createHeroSlide(input)),
+      .mutation(({ input }) => {
+        const { buttonsJson, ...data } = input;
+        return createHeroSlide({
+          ...data,
+          buttonsJson: serializeHeroButtons(buttonsJson),
+        });
+      }),
     update: adminProcedure
       .input(z.object({
         id: z.number().int().positive(),
@@ -211,11 +240,16 @@ export const contentRouter = router({
         videoUrl: safeAssetUrlSchema.optional(),
         posterUrl: safeAssetUrlSchema.optional(),
         isVisible: z.boolean().optional(),
+        buttonsJson: heroButtonsSchema.nullable().optional(),
       }))
       .mutation(({ input }) => {
-        const { id, ...data } = input;
-        return updateHeroSlide(id, data);
+        const { id, buttonsJson, ...data } = input;
+        return updateHeroSlide(id, {
+          ...data,
+          ...(buttonsJson !== undefined ? { buttonsJson: serializeHeroButtons(buttonsJson) } : {}),
+        });
       }),
+    useCommonButtonsForAll: adminProcedure.mutation(() => clearAllHeroSlideCustomButtons()),
     delete: adminProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(({ input }) => deleteHeroSlide(input.id)),

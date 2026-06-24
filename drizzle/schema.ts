@@ -181,6 +181,8 @@ export const heroSlides = mysqlTable("hero_slides", {
   btn2Text: varchar("btn2Text", { length: 64 }),
   /** 버튼2 링크 */
   btn2Href: varchar("btn2Href", { length: 256 }),
+  /** 새 히어로 버튼 목록(JSON). null이면 공통 버튼 설정을 사용한다. */
+  buttonsJson: text("buttonsJson"),
   sortOrder: int("sortOrder").notNull().default(0),
   isVisible: boolean("isVisible").notNull().default(true),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

@@ -50,6 +50,7 @@ export async function createHeroSlide(data: {
   btn1Href?: string;
   btn2Text?: string;
   btn2Href?: string;
+  buttonsJson?: string | null;
   sortOrder?: number;
   isVisible?: boolean;
 }) {
@@ -67,6 +68,13 @@ export async function updateHeroSlide(id: number, data: Partial<typeof heroSlide
   const db = await getDb();
   if (!db) return;
   await db.update(heroSlides).set(data).where(eq(heroSlides.id, id));
+}
+
+/** 모든 히어로 슬라이드를 공통 버튼 설정을 따르도록 전환 */
+export async function clearAllHeroSlideCustomButtons() {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(heroSlides).set({ buttonsJson: null });
 }
 
 /** 슬라이드 삭제 */

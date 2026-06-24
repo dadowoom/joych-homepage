@@ -283,6 +283,66 @@ try {
 NODE
 fi
 
+MIGRATION_0045="${APP_DIR}/drizzle/0045_hero_slide_buttons_json.sql"
+if [[ -f "${MIGRATION_0045}" ]]; then
+  echo "[deploy] database migration: hero slide button list"
+  if [[ -f "${APP_DIR}/.env" ]]; then
+    set -a
+    # shellcheck disable=SC1091
+    . "${APP_DIR}/.env"
+    set +a
+  fi
+  node --input-type=module <<'NODE'
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required for migration 0045.");
+}
+
+const url = new URL(databaseUrl);
+const databaseName = url.pathname.replace(/^\//, "");
+if (!databaseName) {
+  throw new Error("DATABASE_URL must include a database name.");
+}
+
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id VARCHAR(128) PRIMARY KEY,
+      applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  const [rows] = await connection.query(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    ["0045_hero_slide_buttons_json"],
+  );
+
+  if (rows.length > 0) {
+    console.log("[deploy] migration 0045 already applied");
+  } else {
+    const [columns] = await connection.execute(
+      "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'hero_slides' AND COLUMN_NAME = 'buttonsJson'",
+      [databaseName],
+    );
+    const hasButtonsJson = Number(columns?.[0]?.count ?? 0) > 0;
+    if (!hasButtonsJson) {
+      await connection.query("ALTER TABLE `hero_slides` ADD COLUMN `buttonsJson` text NULL AFTER `btn2Href`");
+    }
+    await connection.query(
+      "INSERT INTO app_migrations (id) VALUES (?)",
+      ["0045_hero_slide_buttons_json"],
+    );
+    console.log("[deploy] migration 0045 applied");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

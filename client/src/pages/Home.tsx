@@ -174,6 +174,24 @@ type HomeSectionConfig = {
   subtitle?: string;
 };
 
+type HeroButtonConfig = {
+  label: string;
+  href: string;
+};
+
+type HeroButtonSource = {
+  btn1Text?: string | null;
+  btn1Href?: string | null;
+  btn2Text?: string | null;
+  btn2Href?: string | null;
+  buttonsJson?: string | null;
+} | null | undefined;
+
+const DEFAULT_HERO_BUTTONS: HeroButtonConfig[] = [
+  { label: "새가족 등록", href: "/support/new-member" },
+  { label: "예배 안내", href: "/worship/schedule" },
+];
+
 const FALLBACK_FEATURE_CARDS: HomeFeatureCard[] = [
   {
     badge: "Saengseong Conference",
@@ -246,6 +264,51 @@ function parseJsonObject<T>(raw: string | null | undefined, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function sanitizeHeroButtons(value: unknown): HeroButtonConfig[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+      const record = item as Record<string, unknown>;
+      const label = typeof record.label === "string" ? record.label.trim() : "";
+      const href = typeof record.href === "string" ? record.href.trim() : "";
+      return label && href ? { label, href } : null;
+    })
+    .filter((button): button is HeroButtonConfig => Boolean(button))
+    .slice(0, 4);
+}
+
+function parseHeroButtonsJson(raw: string | null | undefined) {
+  if (typeof raw !== "string") return null;
+  try {
+    return sanitizeHeroButtons(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+function getLegacyHeroButtons(slide: HeroButtonSource): HeroButtonConfig[] {
+  const button1 = {
+    label: normalizeText(slide?.btn1Text, DEFAULT_HERO_BUTTONS[0].label),
+    href: normalizeText(slide?.btn1Href, DEFAULT_HERO_BUTTONS[0].href),
+  };
+  const button2 = {
+    label: normalizeText(slide?.btn2Text, DEFAULT_HERO_BUTTONS[1].label),
+    href: normalizeText(slide?.btn2Href, DEFAULT_HERO_BUTTONS[1].href),
+  };
+  return [button1, button2].filter((button) => button.label && button.href);
+}
+
+function getEffectiveHeroButtons(
+  slide: HeroButtonSource,
+  commonButtons: HeroButtonConfig[],
+) {
+  const customButtons = parseHeroButtonsJson(slide?.buttonsJson);
+  if (customButtons !== null) return customButtons;
+  if (commonButtons.length > 0) return commonButtons;
+  return getLegacyHeroButtons(slide);
 }
 
 function sanitizeHomeFeatureCards(raw: string | null | undefined): HomeFeatureCard[] {
@@ -416,6 +479,8 @@ export default function Home() {
   const visibleHeroPosterUrl =
     currentHeroPosterUrl ||
     (isFallbackHeroSlide ? FALLBACK_HERO_SLIDES[0]?.posterUrl || "" : "");
+  const commonHeroButtons = parseHeroButtonsJson(dbSettings?.home_hero_common_buttons) ?? [];
+  const currentHeroButtons = getEffectiveHeroButtons(currentHeroSlide, commonHeroButtons);
   const currentHeroKey = currentHeroSlide
     ? `${"id" in currentHeroSlide ? currentHeroSlide.id : "fallback"}-${heroIndex}-${currentHeroVideoUrl}`
     : "hero-loading";
@@ -780,24 +845,19 @@ export default function Home() {
               style={{ animation: "fadeUp 0.8s ease 0.8s both" }}
               className="flex gap-2 md:gap-3 flex-wrap"
             >
-              <a
-                href={getUsableHref(
-                  currentHeroSlide?.btn1Href,
-                  "/support/new-member"
-                )}
-                className="px-5 md:px-7 py-2.5 md:py-3 bg-[#1B5E20] hover:bg-[#2E7D32] text-white text-xs md:text-sm font-medium rounded transition-colors"
-              >
-                {currentHeroSlide?.btn1Text ?? "새가족 등록"}
-              </a>
-              <a
-                href={getUsableHref(
-                  currentHeroSlide?.btn2Href,
-                  "/worship/schedule"
-                )}
-                className="px-5 md:px-7 py-2.5 md:py-3 border-2 border-white/80 hover:bg-white/15 text-white text-xs md:text-sm font-medium rounded transition-colors"
-              >
-                {currentHeroSlide?.btn2Text ?? "예배 안내"}
-              </a>
+              {currentHeroButtons.map((button, index) => (
+                <a
+                  key={`${button.label}-${button.href}-${index}`}
+                  href={getUsableHref(button.href, DEFAULT_HERO_BUTTONS[index]?.href ?? "#")}
+                  className={
+                    index === 0
+                      ? "px-5 md:px-7 py-2.5 md:py-3 bg-[#1B5E20] hover:bg-[#2E7D32] text-white text-xs md:text-sm font-medium rounded transition-colors"
+                      : "px-5 md:px-7 py-2.5 md:py-3 border-2 border-white/80 hover:bg-white/15 text-white text-xs md:text-sm font-medium rounded transition-colors"
+                  }
+                >
+                  {button.label}
+                </a>
+              ))}
             </div>
           </div>
         </div>
