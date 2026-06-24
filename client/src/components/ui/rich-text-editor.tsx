@@ -514,6 +514,7 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
   );
   const hasSelection = !editor.state.selection.empty;
   const isInTable = editor.isActive("table");
+  const tableToolDisabled = !isInTable;
   const canUndo = editor.can().chain().focus().undo().run();
   const canRedo = editor.can().chain().focus().redo().run();
 
@@ -791,25 +792,26 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
             </option>
           ))}
         </select>
-        {editor.isActive("table") && (
-          <>
-            <label className="flex h-8 items-center gap-2 border border-gray-200 bg-white px-2 text-xs text-gray-700 transition hover:border-[#1B5E20]">
+        <>
+            <label className={cn("flex h-8 items-center gap-2 border border-gray-200 bg-white px-2 text-xs text-gray-700 transition hover:border-[#1B5E20]", tableToolDisabled && "opacity-40")}>
               <PaintBucket className="h-3.5 w-3.5" />
               <input
                 aria-label="셀 배경색 선택"
                 type="color"
                 value={currentCellBackgroundColor}
+                disabled={tableToolDisabled}
                 onChange={(event) => handleCellBackgroundColorChange(event.target.value)}
                 className="h-5 w-5 cursor-pointer border-0 bg-transparent p-0"
               />
             </label>
-            <ToolbarButton editor={editor} label="셀 배경색 제거" onClick={clearCellBackgroundColor}>
+            <ToolbarButton editor={editor} label={isInTable ? "셀 배경색 제거" : "표 셀을 클릭하면 셀 배경색 제거 가능"} disabled={tableToolDisabled} onClick={clearCellBackgroundColor}>
               <span className="text-[10px] font-semibold">배X</span>
             </ToolbarButton>
             <select
               aria-label="셀 가로 정렬"
               className={tableToolSelectClassName}
               value={currentCellAlign}
+              disabled={tableToolDisabled}
               onChange={(event) => handleCellAlignChange(event.target.value)}
             >
               <option value="">가로</option>
@@ -821,6 +823,7 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
               aria-label="셀 세로 정렬"
               className={tableToolSelectClassName}
               value={currentCellVerticalAlign}
+              disabled={tableToolDisabled}
               onChange={(event) => handleCellVerticalAlignChange(event.target.value)}
             >
               <option value="">세로</option>
@@ -832,6 +835,7 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
               aria-label="표 셀 프리셋"
               className={tableToolSelectClassName}
               defaultValue=""
+              disabled={tableToolDisabled}
               onChange={(event) => {
                 if (!event.target.value) return;
                 applyTablePreset(event.target.value);
@@ -845,47 +849,46 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
                 </option>
               ))}
             </select>
-            <ToolbarButton editor={editor} label="위에 행 추가" onClick={() => editor.chain().focus().addRowBefore().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "위에 행 추가" : "표 셀을 클릭하면 위에 행 추가 가능"} disabled={tableToolDisabled} onClick={() => editor.chain().focus().addRowBefore().run()}>
               <span className="text-[10px] font-semibold">행↑</span>
             </ToolbarButton>
-            <ToolbarButton editor={editor} label="아래에 행 추가" onClick={() => editor.chain().focus().addRowAfter().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "아래에 행 추가" : "표 셀을 클릭하면 아래에 행 추가 가능"} disabled={tableToolDisabled} onClick={() => editor.chain().focus().addRowAfter().run()}>
               <span className="text-[10px] font-semibold">행↓</span>
             </ToolbarButton>
-            <ToolbarButton editor={editor} label="왼쪽에 열 추가" onClick={() => editor.chain().focus().addColumnBefore().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "왼쪽에 열 추가" : "표 셀을 클릭하면 왼쪽에 열 추가 가능"} disabled={tableToolDisabled} onClick={() => editor.chain().focus().addColumnBefore().run()}>
               <span className="text-[10px] font-semibold">열←</span>
             </ToolbarButton>
-            <ToolbarButton editor={editor} label="오른쪽에 열 추가" onClick={() => editor.chain().focus().addColumnAfter().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "오른쪽에 열 추가" : "표 셀을 클릭하면 오른쪽에 열 추가 가능"} disabled={tableToolDisabled} onClick={() => editor.chain().focus().addColumnAfter().run()}>
               <span className="text-[10px] font-semibold">열→</span>
             </ToolbarButton>
-            <ToolbarButton editor={editor} label="셀 내용 삭제" variant="danger" onClick={clearCurrentCell}>
+            <ToolbarButton editor={editor} label={isInTable ? "셀 내용 삭제" : "표 셀을 클릭하면 셀 내용 삭제 가능"} disabled={tableToolDisabled} variant="danger" onClick={clearCurrentCell}>
               <span className="text-[10px] font-semibold">셀X</span>
             </ToolbarButton>
-            <ToolbarButton editor={editor} label="행 삭제" variant="danger" onClick={deleteCurrentRow}>
+            <ToolbarButton editor={editor} label={isInTable ? "행 삭제" : "표 셀을 클릭하면 행 삭제 가능"} disabled={tableToolDisabled} variant="danger" onClick={deleteCurrentRow}>
               <span className="text-[10px] font-semibold">행-</span>
             </ToolbarButton>
-            <ToolbarButton editor={editor} label="열 삭제" variant="danger" onClick={deleteCurrentColumn}>
+            <ToolbarButton editor={editor} label={isInTable ? "열 삭제" : "표 셀을 클릭하면 열 삭제 가능"} disabled={tableToolDisabled} variant="danger" onClick={deleteCurrentColumn}>
               <span className="text-[10px] font-semibold">열-</span>
             </ToolbarButton>
-            <ToolbarButton editor={editor} label="셀 병합" onClick={() => editor.chain().focus().mergeCells().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "셀 병합" : "표 셀을 클릭하면 셀 병합 가능"} disabled={tableToolDisabled} onClick={() => editor.chain().focus().mergeCells().run()}>
               <span className="text-[10px] font-semibold">병합</span>
             </ToolbarButton>
-            <ToolbarButton editor={editor} label="셀 분할" onClick={() => editor.chain().focus().splitCell().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "셀 분할" : "표 셀을 클릭하면 셀 분할 가능"} disabled={tableToolDisabled} onClick={() => editor.chain().focus().splitCell().run()}>
               <span className="text-[10px] font-semibold">분할</span>
             </ToolbarButton>
-            <ToolbarButton editor={editor} label="헤더 행" onClick={() => editor.chain().focus().toggleHeaderRow().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "헤더 행" : "표 셀을 클릭하면 헤더 행 설정 가능"} disabled={tableToolDisabled} onClick={() => editor.chain().focus().toggleHeaderRow().run()}>
               <span className="text-[10px] font-semibold">H행</span>
             </ToolbarButton>
-            <ToolbarButton editor={editor} label="헤더 열" onClick={() => editor.chain().focus().toggleHeaderColumn().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "헤더 열" : "표 셀을 클릭하면 헤더 열 설정 가능"} disabled={tableToolDisabled} onClick={() => editor.chain().focus().toggleHeaderColumn().run()}>
               <span className="text-[10px] font-semibold">H열</span>
             </ToolbarButton>
-            <ToolbarButton editor={editor} label="헤더 셀" onClick={() => editor.chain().focus().toggleHeaderCell().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "헤더 셀" : "표 셀을 클릭하면 헤더 셀 설정 가능"} disabled={tableToolDisabled} onClick={() => editor.chain().focus().toggleHeaderCell().run()}>
               <Baseline className="h-4 w-4" />
             </ToolbarButton>
-            <ToolbarButton editor={editor} label="표 삭제" variant="danger" onClick={deleteCurrentTable}>
+            <ToolbarButton editor={editor} label={isInTable ? "표 삭제" : "표 셀을 클릭하면 표 삭제 가능"} disabled={tableToolDisabled} variant="danger" onClick={deleteCurrentTable}>
               <span className="text-[10px] font-semibold">표X</span>
             </ToolbarButton>
           </>
-        )}
       </div>
       {isImageInputOpen && (
         <div className="flex flex-wrap items-center gap-2 border-t border-gray-200 bg-white px-2 py-2">
