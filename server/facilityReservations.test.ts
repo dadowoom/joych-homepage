@@ -7,6 +7,7 @@ const dbMocks = vi.hoisted(() => ({
   getFacilityHours: vi.fn(),
   getBlockedDates: vi.fn(),
   getReservationsByDate: vi.fn(),
+  getAdminReservationDetailsByDate: vi.fn(),
   createReservation: vi.fn(),
   createReservationIfAvailable: vi.fn(),
   getMemberById: vi.fn(),
@@ -36,6 +37,7 @@ vi.mock("./db", async (importOriginal) => {
     getFacilityHours: dbMocks.getFacilityHours,
     getBlockedDates: dbMocks.getBlockedDates,
     getReservationsByDate: dbMocks.getReservationsByDate,
+    getAdminReservationDetailsByDate: dbMocks.getAdminReservationDetailsByDate,
     createReservation: dbMocks.createReservation,
     createReservationIfAvailable: dbMocks.createReservationIfAvailable,
   };
@@ -138,8 +140,66 @@ describe("facility reservation lead-time guard", () => {
     dbMocks.getFacilityHours.mockResolvedValue([]);
     dbMocks.getBlockedDates.mockResolvedValue([]);
     dbMocks.getReservationsByDate.mockResolvedValue([]);
+    dbMocks.getAdminReservationDetailsByDate.mockResolvedValue([]);
     dbMocks.createReservation.mockResolvedValue(100);
     dbMocks.createReservationIfAvailable.mockResolvedValue(100);
+  });
+
+  it("keeps public facility reservation lookups free of private fields", async () => {
+    dbMocks.getReservationsByDate.mockResolvedValue([
+      {
+        startTime: "15:00",
+        endTime: "16:00",
+        status: "approved",
+        reserverName: "Private Name",
+        reserverPhone: "01012345678",
+      },
+    ]);
+
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(
+      caller.home.facilityReservationsByDate({ facilityId: 1, date: "2026-06-17" })
+    ).resolves.toEqual([
+      {
+        startTime: "15:00",
+        endTime: "16:00",
+        status: "approved",
+      },
+    ]);
+    expect(dbMocks.getAdminReservationDetailsByDate).not.toHaveBeenCalled();
+  });
+
+  it("returns reservation detail fields to reservation managers", async () => {
+    dbMocks.getAdminReservationDetailsByDate.mockResolvedValue([
+      {
+        id: 7,
+        startTime: "15:00",
+        endTime: "16:00",
+        status: "approved",
+        reserverName: "Reservation Member",
+        reserverPhone: "01012345678",
+        memberPosition: "집사",
+        purpose: "Meeting",
+      },
+    ]);
+
+    const caller = appRouter.createCaller(createContext(createUserWithReservationPermission()));
+
+    await expect(
+      caller.home.facilityReservationsByDate({ facilityId: 1, date: "2026-06-17" })
+    ).resolves.toMatchObject([
+      {
+        id: 7,
+        startTime: "15:00",
+        endTime: "16:00",
+        status: "approved",
+        reserverName: "Reservation Member",
+        reserverPhone: "01012345678",
+        memberPosition: "집사",
+      },
+    ]);
+    expect(dbMocks.getAdminReservationDetailsByDate).toHaveBeenCalledWith(1, "2026-06-17");
   });
 
   it("allows approved church members without facility reservation override when rules are satisfied", async () => {

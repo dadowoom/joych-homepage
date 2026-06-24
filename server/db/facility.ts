@@ -320,6 +320,40 @@ export async function getReservationsByDate(facilityId: number, date: string) {
     ));
 }
 
+/** Admin detail rows for a facility/date, used only after a server-side permission check. */
+export async function getAdminReservationDetailsByDate(facilityId: number, date: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: reservations.id,
+      facilityId: reservations.facilityId,
+      userId: reservations.userId,
+      reserverName: reservations.reserverName,
+      reserverPhone: reservations.reserverPhone,
+      reservationDate: reservations.reservationDate,
+      startTime: reservations.startTime,
+      endTime: reservations.endTime,
+      status: reservations.status,
+      purpose: reservations.purpose,
+      department: reservations.department,
+      attendees: reservations.attendees,
+      notes: reservations.notes,
+      facilityName: facilities.name,
+      userName: churchMembers.name,
+      memberPosition: churchMembers.position,
+      memberPhone: churchMembers.phone,
+    })
+    .from(reservations)
+    .leftJoin(facilities, eq(reservations.facilityId, facilities.id))
+    .leftJoin(churchMembers, eq(reservations.userId, churchMembers.id))
+    .where(and(
+      eq(reservations.facilityId, facilityId),
+      eq(reservations.reservationDate, date),
+    ))
+    .orderBy(asc(reservations.startTime), asc(reservations.id));
+}
+
 /** 예약 생성 */
 export async function createReservation(data: Omit<InsertReservation, 'id' | 'createdAt' | 'updatedAt'>) {
   const db = await getDb();

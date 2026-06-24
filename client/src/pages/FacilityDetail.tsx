@@ -96,6 +96,61 @@ function generateReservationStartSlots(openTime: string, closeTime: string, slot
   return slots;
 }
 
+type ReservationByDateRow = {
+  id?: number;
+  startTime: string;
+  endTime: string;
+  status: string;
+  reserverName?: string | null;
+  reserverPhone?: string | null;
+  purpose?: string | null;
+  department?: string | null;
+  attendees?: number | null;
+  userName?: string | null;
+  memberPosition?: string | null;
+  memberPhone?: string | null;
+};
+
+function isActiveReservation(row: ReservationByDateRow) {
+  return row.status !== "rejected" && row.status !== "cancelled";
+}
+
+function hasAdminReservationDetails(row: ReservationByDateRow) {
+  return Boolean(
+    row.reserverName ||
+    row.userName ||
+    row.reserverPhone ||
+    row.memberPhone ||
+    row.memberPosition ||
+    row.department ||
+    row.purpose
+  );
+}
+
+function getReservationName(row: ReservationByDateRow) {
+  return row.reserverName || row.userName || "이름 없음";
+}
+
+function getReservationPosition(row: ReservationByDateRow) {
+  return row.memberPosition || row.department || "-";
+}
+
+function getReservationPhone(row: ReservationByDateRow) {
+  return row.reserverPhone || row.memberPhone || "-";
+}
+
+function getReservationTimeRange(row: ReservationByDateRow) {
+  return `${row.startTime}~${row.endTime}`;
+}
+
+function getReservationStatusLabel(status: string) {
+  if (status === "approved") return "승인";
+  if (status === "pending") return "대기";
+  if (status === "rejected") return "거절";
+  if (status === "cancelled") return "취소";
+  return status;
+}
+
 function FacilityInquiryCard({ facilityId }: { facilityId: number }) {
   const { data: hours } = trpc.home.facilityHours.useQuery({ facilityId });
   const hoursSummary = useMemo(() => formatOperatingHoursSummary(hours), [hours]);
@@ -210,6 +265,10 @@ function TimeSlotPanel({
     { facilityId, date: selectedDate },
     { enabled: !!selectedDate }
   );
+  const reservationRows = useMemo(
+    () => (reservations ?? []) as ReservationByDateRow[],
+    [reservations]
+  );
 
   const todayHour = useMemo(() => {
     if (!hours) return null;
@@ -219,9 +278,8 @@ function TimeSlotPanel({
   // 예약된 시간 슬롯 계산 (slotMinutes 단위)
   const bookedSlots = useMemo(() => {
     const set = new Set<string>();
-    if (!reservations) return set;
-    reservations.forEach((r) => {
-      if (r.status === "rejected" || r.status === "cancelled") return;
+    reservationRows.forEach((r) => {
+      if (!isActiveReservation(r)) return;
       const [sh, sm] = r.startTime.split(":").map(Number);
       const [eh, em] = r.endTime.split(":").map(Number);
       let cur = sh * 60 + sm;
@@ -234,7 +292,30 @@ function TimeSlotPanel({
       }
     });
     return set;
-  }, [reservations, slotMinutes]);
+  }, [reservationRows, slotMinutes]);
+
+  const reservationBySlot = useMemo(() => {
+    const map = new Map<string, ReservationByDateRow>();
+    reservationRows.forEach((r) => {
+      if (!isActiveReservation(r)) return;
+      const [sh, sm] = r.startTime.split(":").map(Number);
+      const [eh, em] = r.endTime.split(":").map(Number);
+      let cur = sh * 60 + sm;
+      const end = eh * 60 + em;
+      while (cur < end) {
+        const h = Math.floor(cur / 60);
+        const m = cur % 60;
+        map.set(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`, r);
+        cur += slotMinutes;
+      }
+    });
+    return map;
+  }, [reservationRows, slotMinutes]);
+
+  const adminReservations = useMemo(
+    () => reservationRows.filter((r) => isActiveReservation(r) && hasAdminReservationDetails(r)),
+    [reservationRows]
+  );
 
   // Generate selectable start slots within operating hours.
   const allSlots = useMemo(() => {
@@ -368,6 +449,7 @@ function TimeSlotPanel({
               <div className="flex flex-wrap gap-1.5">
             {allSlots.map((slot) => {
               const isBooked = !hasReservationOverride && bookedSlots.has(slot);
+              const bookedReservation = reservationBySlot.get(slot);
               const disabledReason = disabledSlots.get(slot);
               const isDisabled = isBooked || Boolean(disabledReason);
               const isStart = slot === startTime;
@@ -393,9 +475,23 @@ function TimeSlotPanel({
                     {slot}
                   </button>
                   {isDisabled && (
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-gray-800 text-white text-[10px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                      {disabledReason ?? "예약 불가"}
-                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-56 px-3 py-2 bg-gray-900 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-left shadow-lg">
+                      {bookedReservation && hasAdminReservationDetails(bookedReservation) ? (
+                        <div className="space-y-0.5">
+                          <p className="font-semibold text-white">
+                            {getReservationName(bookedReservation)} · {getReservationTimeRange(bookedReservation)}
+                          </p>
+                          <p className="text-gray-200">
+                            {getReservationPosition(bookedReservation)} · {getReservationPhone(bookedReservation)}
+                          </p>
+                          {bookedReservation.purpose && (
+                            <p className="text-gray-300 line-clamp-2">{bookedReservation.purpose}</p>
+                          )}
+                        </div>
+                      ) : (
+                        disabledReason ?? "예약 불가"
+                      )}
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
                     </div>
                   )}
                 </div>
@@ -418,6 +514,46 @@ function TimeSlotPanel({
               선택됨
             </span>
           </div>
+
+          {adminReservations.length > 0 && (
+            <div className="mt-3 rounded-lg border border-green-100 bg-green-50/60 p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-xs font-bold text-[#1B5E20]">관리자용 예약 상세</p>
+                <p className="text-[10px] text-gray-400">관리자에게만 표시</p>
+              </div>
+              <div className="space-y-2">
+                {adminReservations.map((reservation, index) => (
+                  <div
+                    key={reservation.id ?? `${reservation.startTime}-${reservation.endTime}-${index}`}
+                    className="rounded-md border border-white bg-white/90 p-2 text-xs text-gray-700 shadow-sm"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-1">
+                      <span className="font-bold text-gray-900">
+                        {getReservationTimeRange(reservation)}
+                      </span>
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500">
+                        {getReservationStatusLabel(reservation.status)}
+                      </span>
+                    </div>
+                    <div className="mt-1 grid grid-cols-[52px_1fr] gap-x-2 gap-y-1">
+                      <span className="text-gray-400">이름</span>
+                      <span className="font-medium text-gray-900">{getReservationName(reservation)}</span>
+                      <span className="text-gray-400">직분/부서</span>
+                      <span>{getReservationPosition(reservation)}</span>
+                      <span className="text-gray-400">전화번호</span>
+                      <span>{getReservationPhone(reservation)}</span>
+                      {reservation.purpose && (
+                        <>
+                          <span className="text-gray-400">목적</span>
+                          <span className="line-clamp-2">{reservation.purpose}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

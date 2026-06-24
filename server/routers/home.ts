@@ -42,6 +42,7 @@ import {
   getFacilityHours,
   getBlockedDates,
   getReservationsByDate,
+  getAdminReservationDetailsByDate,
   createReservation as insertReservation,
   createReservationIfAvailable,
   deleteReservationsByIds,
@@ -524,9 +525,12 @@ export const homeRouter = router({
       facilityId: idSchema,
       date: z.string().regex(DATE_RE, "날짜 형식이 올바르지 않습니다."),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const facility = await getVisibleFacilityById(input.facilityId);
       if (!facility) return [];
+      if (hasAdminContentPermission(ctx.user, "content:reservations")) {
+        return getAdminReservationDetailsByDate(input.facilityId, input.date);
+      }
       const rows = await getReservationsByDate(input.facilityId, input.date);
       // 공개 화면에는 시간대와 상태만 반환 — 개인정보 필드 제거
       return rows.map(({ startTime, endTime, status }) => ({ startTime, endTime, status }));
