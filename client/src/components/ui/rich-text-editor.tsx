@@ -399,6 +399,7 @@ function ToolbarButton({
   isActive,
   disabled,
   variant = "default",
+  wide = false,
   onClick,
   children,
 }: {
@@ -407,6 +408,7 @@ function ToolbarButton({
   isActive?: boolean;
   disabled?: boolean;
   variant?: "default" | "danger" | "primary";
+  wide?: boolean;
   onClick: () => void;
   children: ReactNode;
 }) {
@@ -424,7 +426,8 @@ function ToolbarButton({
         onClick();
       }}
       className={cn(
-        "inline-flex h-8 w-8 items-center justify-center border border-gray-200 bg-white text-gray-700 transition hover:border-[#1B5E20] hover:bg-[#F1F8E9] hover:text-[#1B5E20]",
+        "inline-flex h-8 items-center justify-center whitespace-nowrap border border-gray-200 bg-white text-gray-700 transition hover:border-[#1B5E20] hover:bg-[#F1F8E9] hover:text-[#1B5E20]",
+        wide ? "min-w-[3.75rem] px-2 text-xs font-semibold" : "w-8",
         variant === "primary" && "border-[#1B5E20] bg-[#F1F8E9] text-[#1B5E20]",
         variant === "danger" && "border-red-200 text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700",
         isActive && "border-[#1B5E20] bg-[#EAF6EA] text-[#1B5E20]",
@@ -849,44 +852,44 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
                 </option>
               ))}
             </select>
-            <ToolbarButton editor={editor} label={isInTable ? "위에 행 추가" : "표 셀을 클릭하면 위에 행 추가 가능"} disabled={tableToolDisabled} onClick={() => editor.chain().focus().addRowBefore().run()}>
-              <span className="text-[10px] font-semibold">행↑</span>
+            <ToolbarButton editor={editor} label={isInTable ? "위에 행 추가" : "표 셀을 클릭하면 위에 행 추가 가능"} disabled={tableToolDisabled} wide onClick={() => editor.chain().focus().addRowBefore().run()}>
+              행+위
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "아래에 행 추가" : "표 셀을 클릭하면 아래에 행 추가 가능"} disabled={tableToolDisabled} onClick={() => editor.chain().focus().addRowAfter().run()}>
-              <span className="text-[10px] font-semibold">행↓</span>
+            <ToolbarButton editor={editor} label={isInTable ? "아래에 행 추가" : "표 셀을 클릭하면 아래에 행 추가 가능"} disabled={tableToolDisabled} wide onClick={() => editor.chain().focus().addRowAfter().run()}>
+              행+아래
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "왼쪽에 열 추가" : "표 셀을 클릭하면 왼쪽에 열 추가 가능"} disabled={tableToolDisabled} onClick={() => editor.chain().focus().addColumnBefore().run()}>
-              <span className="text-[10px] font-semibold">열←</span>
+            <ToolbarButton editor={editor} label={isInTable ? "왼쪽에 열 추가" : "표 셀을 클릭하면 왼쪽에 열 추가 가능"} disabled={tableToolDisabled} wide onClick={() => editor.chain().focus().addColumnBefore().run()}>
+              열+왼쪽
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "오른쪽에 열 추가" : "표 셀을 클릭하면 오른쪽에 열 추가 가능"} disabled={tableToolDisabled} onClick={() => editor.chain().focus().addColumnAfter().run()}>
-              <span className="text-[10px] font-semibold">열→</span>
+            <ToolbarButton editor={editor} label={isInTable ? "오른쪽에 열 추가" : "표 셀을 클릭하면 오른쪽에 열 추가 가능"} disabled={tableToolDisabled} wide onClick={() => editor.chain().focus().addColumnAfter().run()}>
+              열+오른쪽
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "셀 내용 삭제" : "표 셀을 클릭하면 셀 내용 삭제 가능"} disabled={tableToolDisabled} variant="danger" onClick={clearCurrentCell}>
-              <span className="text-[10px] font-semibold">셀X</span>
+            <ToolbarButton editor={editor} label={isInTable ? "셀 내용 삭제" : "표 셀을 클릭하면 셀 내용 삭제 가능"} disabled={tableToolDisabled} variant="danger" wide onClick={clearCurrentCell}>
+              셀 비움
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "행 삭제" : "표 셀을 클릭하면 행 삭제 가능"} disabled={tableToolDisabled} variant="danger" onClick={deleteCurrentRow}>
-              <span className="text-[10px] font-semibold">행-</span>
+            <ToolbarButton editor={editor} label={isInTable ? "행 삭제" : "표 셀을 클릭하면 행 삭제 가능"} disabled={tableToolDisabled} variant="danger" wide onClick={deleteCurrentRow}>
+              행 삭제
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "열 삭제" : "표 셀을 클릭하면 열 삭제 가능"} disabled={tableToolDisabled} variant="danger" onClick={deleteCurrentColumn}>
-              <span className="text-[10px] font-semibold">열-</span>
+            <ToolbarButton editor={editor} label={isInTable ? "열 삭제" : "표 셀을 클릭하면 열 삭제 가능"} disabled={tableToolDisabled} variant="danger" wide onClick={deleteCurrentColumn}>
+              열 삭제
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "셀 병합" : "표 셀을 클릭하면 셀 병합 가능"} disabled={tableToolDisabled} onClick={() => editor.chain().focus().mergeCells().run()}>
-              <span className="text-[10px] font-semibold">병합</span>
+            <ToolbarButton editor={editor} label={isInTable ? "셀 병합" : "표 셀을 클릭하면 셀 병합 가능"} disabled={tableToolDisabled} wide onClick={() => editor.chain().focus().mergeCells().run()}>
+              병합
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "셀 분할" : "표 셀을 클릭하면 셀 분할 가능"} disabled={tableToolDisabled} onClick={() => editor.chain().focus().splitCell().run()}>
-              <span className="text-[10px] font-semibold">분할</span>
+            <ToolbarButton editor={editor} label={isInTable ? "셀 분할" : "표 셀을 클릭하면 셀 분할 가능"} disabled={tableToolDisabled} wide onClick={() => editor.chain().focus().splitCell().run()}>
+              분할
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "헤더 행" : "표 셀을 클릭하면 헤더 행 설정 가능"} disabled={tableToolDisabled} onClick={() => editor.chain().focus().toggleHeaderRow().run()}>
-              <span className="text-[10px] font-semibold">H행</span>
+            <ToolbarButton editor={editor} label={isInTable ? "헤더 행" : "표 셀을 클릭하면 헤더 행 설정 가능"} disabled={tableToolDisabled} wide onClick={() => editor.chain().focus().toggleHeaderRow().run()}>
+              H행
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "헤더 열" : "표 셀을 클릭하면 헤더 열 설정 가능"} disabled={tableToolDisabled} onClick={() => editor.chain().focus().toggleHeaderColumn().run()}>
-              <span className="text-[10px] font-semibold">H열</span>
+            <ToolbarButton editor={editor} label={isInTable ? "헤더 열" : "표 셀을 클릭하면 헤더 열 설정 가능"} disabled={tableToolDisabled} wide onClick={() => editor.chain().focus().toggleHeaderColumn().run()}>
+              H열
             </ToolbarButton>
             <ToolbarButton editor={editor} label={isInTable ? "헤더 셀" : "표 셀을 클릭하면 헤더 셀 설정 가능"} disabled={tableToolDisabled} onClick={() => editor.chain().focus().toggleHeaderCell().run()}>
               <Baseline className="h-4 w-4" />
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "표 삭제" : "표 셀을 클릭하면 표 삭제 가능"} disabled={tableToolDisabled} variant="danger" onClick={deleteCurrentTable}>
-              <span className="text-[10px] font-semibold">표X</span>
+            <ToolbarButton editor={editor} label={isInTable ? "표 삭제" : "표 셀을 클릭하면 표 삭제 가능"} disabled={tableToolDisabled} variant="danger" wide onClick={deleteCurrentTable}>
+              표 삭제
             </ToolbarButton>
           </>
       </div>
