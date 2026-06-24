@@ -89,7 +89,12 @@ function ActionButton({
   const content = (
     <>
       <span className={iconWrapClassName}>{icon}</span>
-      <span className={cn("font-medium leading-tight", featured ? "text-sm" : "text-[13px]")}>
+      <span
+        className={cn(
+          "font-medium leading-tight",
+          featured ? "text-sm" : "text-[13px]"
+        )}
+      >
         {label}
       </span>
     </>
@@ -171,7 +176,9 @@ export default function HomeAdminDock({
                 <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/70">
                   Admin Mode
                 </p>
-                <h2 className="mt-1 text-base font-semibold">{LABEL_EDIT_TOOLS}</h2>
+                <h2 className="mt-1 text-base font-semibold">
+                  {LABEL_EDIT_TOOLS}
+                </h2>
               </div>
               <button
                 type="button"
@@ -193,7 +200,11 @@ export default function HomeAdminDock({
             />
 
             <div className="grid grid-cols-2 gap-3">
-              <ActionButton icon={<Menu className="size-4" />} label={LABEL_MENU} onClick={onOpenMenu} />
+              <ActionButton
+                icon={<Menu className="size-4" />}
+                label={LABEL_MENU}
+                onClick={onOpenMenu}
+              />
               <ActionButton
                 icon={<Newspaper className="size-4" />}
                 label={LABEL_NOTICE}
@@ -229,7 +240,7 @@ export default function HomeAdminDock({
                     ? `${LABEL_DASHBOARD} - ${LABEL_NEW_NOTIFICATION} ${formatNotificationCount(notificationCount)}${LABEL_COUNT_UNIT}`
                     : LABEL_DASHBOARD
                 }
-                href="/admin_joych_2026#admin-new-notifications"
+                href="/admin_joych_2026?view=notifications"
                 tone="accent"
               />
               <button

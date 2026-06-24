@@ -109,7 +109,8 @@ const TABS: TabItem[] = [
     id: "menuAccess",
     label: "메뉴 읽기 권한",
     icon: "fa-eye",
-    description: "최하위 메뉴별로 타교인과 로그인 성도의 읽기 권한을 설정합니다.",
+    description:
+      "최하위 메뉴별로 타교인과 로그인 성도의 읽기 권한을 설정합니다.",
     status: "읽기 권한",
   },
   {
@@ -130,7 +131,8 @@ const TABS: TabItem[] = [
     id: "freeBoard",
     label: "자유게시판 관리",
     icon: "fa-clipboard-list",
-    description: "성도가 작성한 자유게시판 글의 공개, 숨김, 삭제 상태를 관리합니다.",
+    description:
+      "성도가 작성한 자유게시판 글의 공개, 숨김, 삭제 상태를 관리합니다.",
     status: "게시 관리",
   },
   {
@@ -145,7 +147,8 @@ const TABS: TabItem[] = [
     id: "history",
     label: "교회연혁 관리",
     icon: "fa-history",
-    description: "교회연혁의 년대와 연도별 내용을 등록하고 노출 상태를 관리합니다.",
+    description:
+      "교회연혁의 년대와 연도별 내용을 등록하고 노출 상태를 관리합니다.",
     status: "연혁 관리",
   },
   {
@@ -222,7 +225,14 @@ const TAB_GROUPS: TabGroup[] = [
   {
     title: "콘텐츠/노출 관리",
     description: "홈페이지에 공개되는 자료",
-    tabs: ["youtube", "bulletins", "testimonies", "freeBoard", "popups", "history"],
+    tabs: [
+      "youtube",
+      "bulletins",
+      "testimonies",
+      "freeBoard",
+      "popups",
+      "history",
+    ],
   },
   {
     title: "성도/사역 관리",
@@ -232,7 +242,13 @@ const TAB_GROUPS: TabGroup[] = [
   {
     title: "접수/예약 관리",
     description: "시설과 요청 처리",
-    tabs: ["facilities", "facilitySchedule", "reservations", "supportRequests", "courses"],
+    tabs: [
+      "facilities",
+      "facilitySchedule",
+      "reservations",
+      "supportRequests",
+      "courses",
+    ],
   },
 ];
 
@@ -298,6 +314,7 @@ export default function AdminPage() {
   const [, setLocation] = useLocation();
 
   const searchParams = new URLSearchParams(searchString);
+  const isNotificationsView = searchParams.get("view") === "notifications";
   const tabFromUrl = searchParams.get("tab") as Tab | null;
   const requestedTab: Tab | null =
     tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : null;
@@ -311,9 +328,9 @@ export default function AdminPage() {
     const saved = localStorage.getItem("admin_fail_count");
     return saved ? parseInt(saved, 10) : 0;
   });
-  const [collapsedMenuGroups, setCollapsedMenuGroups] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(TAB_GROUPS.map((group) => [group.title, true])),
-  );
+  const [collapsedMenuGroups, setCollapsedMenuGroups] = useState<
+    Record<string, boolean>
+  >(() => Object.fromEntries(TAB_GROUPS.map(group => [group.title, true])));
   const toggleMenuGroup = (title: string) => {
     setCollapsedMenuGroups(prev => ({
       ...prev,
@@ -349,7 +366,9 @@ export default function AdminPage() {
     },
   });
 
-  const shouldLoadDashboardNotifications = Boolean(user && !isMobile && canManageAnyContent(user));
+  const shouldLoadDashboardNotifications = Boolean(
+    user && !isMobile && canManageAnyContent(user)
+  );
   const { data: notificationSummary, isLoading: notificationsLoading } =
     trpc.cms.notifications.summary.useQuery(undefined, {
       enabled: shouldLoadDashboardNotifications,
@@ -497,7 +516,7 @@ export default function AdminPage() {
     );
   }
 
-  const permittedTabs = VALID_TABS.filter((tab) =>
+  const permittedTabs = VALID_TABS.filter(tab =>
     tab === "facilitySchedule"
       ? canManageAdminTab(user, "facilities")
       : canManageAdminTab(user, tab)
@@ -513,8 +532,9 @@ export default function AdminPage() {
             페이지별 관리 권한만 있습니다
           </h2>
           <p className="text-gray-500 text-sm leading-6 mb-6">
-            이 계정은 특정 게시판이나 갤러리 화면에서 직접 글쓰기, 사진 업로드, 수정 버튼을 사용할 수 있습니다.
-            홈페이지 메뉴에서 담당 화면으로 이동해주세요.
+            이 계정은 특정 게시판이나 갤러리 화면에서 직접 글쓰기, 사진 업로드,
+            수정 버튼을 사용할 수 있습니다. 홈페이지 메뉴에서 담당 화면으로
+            이동해주세요.
           </p>
           <Link href="/" className="text-sm text-gray-400 hover:text-gray-600">
             ← 홈페이지로 돌아가기
@@ -528,19 +548,16 @@ export default function AdminPage() {
     requestedTab && permittedTabs.includes(requestedTab)
       ? requestedTab
       : (permittedTabs[0] ?? "youtube");
-  const visibleTabGroups = TAB_GROUPS.map((group) => ({
+  const visibleTabGroups = TAB_GROUPS.map(group => ({
     ...group,
-    tabs: group.tabs.filter((tab) => permittedTabs.includes(tab)),
-  })).filter((group) => group.tabs.length > 0);
+    tabs: group.tabs.filter(tab => permittedTabs.includes(tab)),
+  })).filter(group => group.tabs.length > 0);
   const activeTabInfo = TABS_BY_ID[activeTab];
   const activeGroup = TAB_GROUPS.find(group => group.tabs.includes(activeTab));
   const notificationTotalCount = notificationSummary?.totalCount ?? 0;
   const hasNewAdminNotifications = notificationTotalCount > 0;
-  const scrollToNotificationPanel = () => {
-    document
-      .getElementById("admin-new-notifications")
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
+  const openNotificationsView = () =>
+    setLocation("/admin_joych_2026?view=notifications");
 
   return (
     <div
@@ -622,12 +639,12 @@ export default function AdminPage() {
 
             <button
               type="button"
-              onClick={scrollToNotificationPanel}
+              onClick={openNotificationsView}
               className={`mb-4 flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${
                 hasNewAdminNotifications
                   ? "border-red-200 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100"
                   : "border-[#D7F0D8] bg-[#F7FBF7] text-[#1B5E20] hover:border-[#A5D6A7] hover:bg-[#F1F8F2]"
-              }`}
+              } ${isNotificationsView ? "ring-2 ring-[#1B5E20]/20" : ""}`}
             >
               <span
                 className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
@@ -667,7 +684,8 @@ export default function AdminPage() {
             <nav className="flex gap-3 overflow-x-auto pb-1 lg:block lg:min-h-0 lg:flex-1 lg:space-y-5 lg:overflow-x-hidden lg:overflow-y-auto lg:pb-0 lg:pr-1">
               {visibleTabGroups.map(group => {
                 const isCollapsed = collapsedMenuGroups[group.title] ?? false;
-                const hasActiveTab = group.tabs.includes(activeTab);
+                const hasActiveTab =
+                  !isNotificationsView && group.tabs.includes(activeTab);
 
                 return (
                   <section
@@ -694,15 +712,19 @@ export default function AdminPage() {
                       </span>
                       <span className="mt-0.5 flex shrink-0 items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-[#1B5E20] shadow-sm">
                         {group.tabs.length}개
-                        <i className={`fas fa-chevron-${isCollapsed ? "down" : "up"} text-[10px] text-gray-400`}></i>
+                        <i
+                          className={`fas fa-chevron-${isCollapsed ? "down" : "up"} text-[10px] text-gray-400`}
+                        ></i>
                       </span>
                     </button>
                     {!isCollapsed && (
                       <div className="space-y-1">
                         {group.tabs.map(tabId => {
                           const tab = TABS_BY_ID[tabId];
-                          const isActive = activeTab === tab.id;
-                          const notificationCount = notificationCountsByTab[tab.id] ?? 0;
+                          const isActive =
+                            !isNotificationsView && activeTab === tab.id;
+                          const notificationCount =
+                            notificationCountsByTab[tab.id] ?? 0;
 
                           return (
                             <button
@@ -740,7 +762,9 @@ export default function AdminPage() {
                                 </span>
                                 <span
                                   className={`block truncate text-xs ${
-                                    isActive ? "text-[#D7F0D8]" : "text-gray-500"
+                                    isActive
+                                      ? "text-[#D7F0D8]"
+                                      : "text-gray-500"
                                   }`}
                                 >
                                   {tab.status}
@@ -759,44 +783,49 @@ export default function AdminPage() {
 
           <main className="min-w-0 space-y-5">
             {/* 선택 탭 요약 */}
-            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[#E8F5E9] text-[#1B5E20]">
-                    <i className={`fas ${activeTabInfo.icon}`}></i>
-                  </div>
-                  <div>
-                    <div className="mb-1 flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-[#0F172A] px-2.5 py-1 text-xs font-semibold text-white">
-                        {activeGroup?.title ?? "관리 메뉴"}
-                      </span>
-                      <span className="rounded-full border border-[#A5D6A7] bg-[#F1F8F2] px-2.5 py-1 text-xs font-semibold text-[#1B5E20]">
-                        {activeTabInfo.status}
-                      </span>
+            {!isNotificationsView && (
+              <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[#E8F5E9] text-[#1B5E20]">
+                      <i className={`fas ${activeTabInfo.icon}`}></i>
                     </div>
-                    <h2
-                      className="text-xl font-bold text-gray-900"
-                      style={{ fontFamily: "'Noto Serif KR', serif" }}
-                    >
-                      {activeTabInfo.label}
-                    </h2>
-                    <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-                      {activeTabInfo.description}
-                    </p>
+                    <div>
+                      <div className="mb-1 flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-[#0F172A] px-2.5 py-1 text-xs font-semibold text-white">
+                          {activeGroup?.title ?? "관리 메뉴"}
+                        </span>
+                        <span className="rounded-full border border-[#A5D6A7] bg-[#F1F8F2] px-2.5 py-1 text-xs font-semibold text-[#1B5E20]">
+                          {activeTabInfo.status}
+                        </span>
+                      </div>
+                      <h2
+                        className="text-xl font-bold text-gray-900"
+                        style={{ fontFamily: "'Noto Serif KR', serif" }}
+                      >
+                        {activeTabInfo.label}
+                      </h2>
+                      <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
+                        {activeTabInfo.description}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 sm:min-w-[150px]">
+                    <span className="block text-xs font-semibold text-gray-400">
+                      현재 화면
+                    </span>
+                    <span className="mt-1 block font-bold text-[#0F172A]">
+                      활성화됨
+                    </span>
                   </div>
                 </div>
-                <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 sm:min-w-[150px]">
-                  <span className="block text-xs font-semibold text-gray-400">
-                    현재 화면
-                  </span>
-                  <span className="mt-1 block font-bold text-[#0F172A]">
-                    활성화됨
-                  </span>
-                </div>
-              </div>
-            </section>
+              </section>
+            )}
 
-            <section id="admin-new-notifications" className="scroll-mt-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <section
+              id="admin-new-notifications"
+              className="scroll-mt-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
+            >
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <div className="flex items-center gap-2">
@@ -804,18 +833,22 @@ export default function AdminPage() {
                       <i className="fas fa-bell text-sm"></i>
                     </span>
                     <div>
-                      <h2 className="text-sm font-bold text-gray-900">새로 확인할 항목</h2>
+                      <h2 className="text-sm font-bold text-gray-900">
+                        새로 확인할 항목
+                      </h2>
                       <p className="mt-0.5 text-xs text-gray-500">
                         최근 글과 아직 처리하지 않은 신청을 한눈에 확인합니다.
                       </p>
                     </div>
                   </div>
                 </div>
-                <span className={`inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
-                  (notificationSummary?.totalCount ?? 0) > 0
-                    ? "bg-red-50 text-red-600"
-                    : "bg-[#E8F5E9] text-[#1B5E20]"
-                }`}>
+                <span
+                  className={`inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
+                    (notificationSummary?.totalCount ?? 0) > 0
+                      ? "bg-red-50 text-red-600"
+                      : "bg-[#E8F5E9] text-[#1B5E20]"
+                  }`}
+                >
                   {notificationsLoading ? (
                     <>
                       <i className="fas fa-spinner animate-spin"></i>
@@ -823,7 +856,13 @@ export default function AdminPage() {
                     </>
                   ) : (
                     <>
-                      <i className={(notificationSummary?.totalCount ?? 0) > 0 ? "fas fa-circle-exclamation" : "fas fa-check"}></i>
+                      <i
+                        className={
+                          (notificationSummary?.totalCount ?? 0) > 0
+                            ? "fas fa-circle-exclamation"
+                            : "fas fa-check"
+                        }
+                      ></i>
                       {(notificationSummary?.totalCount ?? 0) > 0
                         ? `${notificationSummary?.totalCount ?? 0}건`
                         : "새 항목 없음"}
@@ -834,33 +873,45 @@ export default function AdminPage() {
 
               {notificationsLoading ? (
                 <div className="grid gap-3 md:grid-cols-3">
-                  {[0, 1, 2].map((item) => (
-                    <div key={item} className="h-20 animate-pulse rounded-lg bg-gray-100" />
+                  {[0, 1, 2].map(item => (
+                    <div
+                      key={item}
+                      className="h-20 animate-pulse rounded-lg bg-gray-100"
+                    />
                   ))}
                 </div>
               ) : (notificationSummary?.totalCount ?? 0) > 0 ? (
                 <div className="space-y-4">
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {notificationSummary?.groups.map((group) => {
+                    {notificationSummary?.groups.map(group => {
                       const targetTab = group.tab as Tab;
                       return (
                         <button
                           key={group.key}
                           type="button"
-                          onClick={() => permittedTabs.includes(targetTab) && setActiveTab(targetTab)}
+                          onClick={() =>
+                            permittedTabs.includes(targetTab) &&
+                            setActiveTab(targetTab)
+                          }
                           className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-left transition-colors hover:border-[#A5D6A7] hover:bg-[#F1F8F2]"
                         >
                           <div className="mb-2 flex items-center justify-between gap-2">
-                            <span className="text-sm font-bold text-gray-900">{group.label}</span>
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                              group.tone === "pending"
-                                ? "bg-red-500 text-white"
-                                : "bg-[#1B5E20] text-white"
-                            }`}>
+                            <span className="text-sm font-bold text-gray-900">
+                              {group.label}
+                            </span>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                                group.tone === "pending"
+                                  ? "bg-red-500 text-white"
+                                  : "bg-[#1B5E20] text-white"
+                              }`}
+                            >
                               {formatBadgeCount(group.count)}
                             </span>
                           </div>
-                          <p className="text-xs leading-5 text-gray-500">{group.description}</p>
+                          <p className="text-xs leading-5 text-gray-500">
+                            {group.description}
+                          </p>
                         </button>
                       );
                     })}
@@ -868,22 +919,27 @@ export default function AdminPage() {
 
                   {notificationSummary?.items.length ? (
                     <div className="divide-y divide-gray-100 rounded-lg border border-gray-100">
-                      {notificationSummary.items.map((item) => {
+                      {notificationSummary.items.map(item => {
                         const targetTab = item.tab as Tab;
                         return (
                           <button
                             key={item.id}
                             type="button"
-                            onClick={() => permittedTabs.includes(targetTab) && setActiveTab(targetTab)}
+                            onClick={() =>
+                              permittedTabs.includes(targetTab) &&
+                              setActiveTab(targetTab)
+                            }
                             className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition-colors hover:bg-gray-50"
                           >
                             <span className="min-w-0">
                               <span className="mb-1 flex items-center gap-2">
-                                <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                                  item.tone === "pending"
-                                    ? "bg-red-50 text-red-600"
-                                    : "bg-[#E8F5E9] text-[#1B5E20]"
-                                }`}>
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                                    item.tone === "pending"
+                                      ? "bg-red-50 text-red-600"
+                                      : "bg-[#E8F5E9] text-[#1B5E20]"
+                                  }`}
+                                >
                                   {item.label}
                                 </span>
                                 <span className="text-[11px] text-gray-400">
@@ -912,26 +968,30 @@ export default function AdminPage() {
             </section>
 
             {/* 탭 콘텐츠 */}
-            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
-              {activeTab === "settings" && <SettingsTab />}
-              {activeTab === "facilities" && <AdminFacilitiesTab />}
-              {activeTab === "facilitySchedule" && <AdminFacilitiesTab mode="buildingSchedule" />}
-              {activeTab === "reservations" && <AdminReservationsTab />}
-              {activeTab === "memberOptions" && <AdminMemberOptionsTab />}
-              {activeTab === "permissions" && <AdminPermissionsTab />}
-              {activeTab === "menuAccess" && <AdminMenuAccessTab />}
-              {activeTab === "members" && <AdminMembersTab />}
-              {activeTab === "staff" && <AdminStaffTab />}
-              {activeTab === "missionReports" && <AdminMissionReportsTab />}
-              {activeTab === "testimonies" && <AdminTestimoniesTab />}
-              {activeTab === "freeBoard" && <AdminFreeBoardTab />}
-              {activeTab === "supportRequests" && <AdminSupportRequestsTab />}
-              {activeTab === "courses" && <AdminCoursesTab />}
-              {activeTab === "bulletins" && <AdminBulletinsTab />}
-              {activeTab === "youtube" && <YoutubeAdminTab />}
-              {activeTab === "popups" && <AdminPopupsTab />}
-              {activeTab === "history" && <AdminChurchHistoryTab />}
-            </div>
+            {!isNotificationsView && (
+              <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+                {activeTab === "settings" && <SettingsTab />}
+                {activeTab === "facilities" && <AdminFacilitiesTab />}
+                {activeTab === "facilitySchedule" && (
+                  <AdminFacilitiesTab mode="buildingSchedule" />
+                )}
+                {activeTab === "reservations" && <AdminReservationsTab />}
+                {activeTab === "memberOptions" && <AdminMemberOptionsTab />}
+                {activeTab === "permissions" && <AdminPermissionsTab />}
+                {activeTab === "menuAccess" && <AdminMenuAccessTab />}
+                {activeTab === "members" && <AdminMembersTab />}
+                {activeTab === "staff" && <AdminStaffTab />}
+                {activeTab === "missionReports" && <AdminMissionReportsTab />}
+                {activeTab === "testimonies" && <AdminTestimoniesTab />}
+                {activeTab === "freeBoard" && <AdminFreeBoardTab />}
+                {activeTab === "supportRequests" && <AdminSupportRequestsTab />}
+                {activeTab === "courses" && <AdminCoursesTab />}
+                {activeTab === "bulletins" && <AdminBulletinsTab />}
+                {activeTab === "youtube" && <YoutubeAdminTab />}
+                {activeTab === "popups" && <AdminPopupsTab />}
+                {activeTab === "history" && <AdminChurchHistoryTab />}
+              </div>
+            )}
           </main>
         </div>
       </div>
