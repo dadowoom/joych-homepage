@@ -42,6 +42,8 @@ type AdminReservationRow = Pick<
   facilityName?: string | null;
   userName?: string | null;
   userEmail?: string | null;
+  memberPosition?: string | null;
+  memberPhone?: string | null;
 };
 
 type ReservationGroup = {
@@ -74,6 +76,26 @@ function formatTime(ts: number | Date | string) {
 
 function formatShortDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
+}
+
+function getLocalDateKey(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function getReservationName(reservation: AdminReservationRow) {
+  return reservation.reserverName || reservation.userName || "이름 없음";
+}
+
+function getReservationPosition(reservation: AdminReservationRow) {
+  return reservation.memberPosition || reservation.department || "-";
+}
+
+function getReservationPhone(reservation: AdminReservationRow) {
+  return reservation.reserverPhone || reservation.memberPhone || "-";
+}
+
+function formatReservationTimeRange(reservation: Pick<AdminReservationRow, "startTime" | "endTime">) {
+  return `${reservation.startTime}~${reservation.endTime}`;
 }
 
 function getGroupStatus(items: AdminReservationRow[]): ReservationStatus {
@@ -437,7 +459,8 @@ export default function AdminReservationsTab() {
                   {isExpanded && (
                     <div className="px-4 pb-4 bg-gray-50 border-t border-gray-100 text-sm">
                       <div className="grid grid-cols-2 gap-x-6 gap-y-2 mt-3">
-                        <div><span className="text-gray-500 text-xs">연락처</span><p className="font-medium">{r.reserverPhone}</p></div>
+                        <div><span className="text-gray-500 text-xs">연락처</span><p className="font-medium">{getReservationPhone(r)}</p></div>
+                        <div><span className="text-gray-500 text-xs">직분</span><p className="font-medium">{getReservationPosition(r)}</p></div>
                         <div><span className="text-gray-500 text-xs">예상 인원</span><p className="font-medium">{r.attendees}명</p></div>
                         <div><span className="text-gray-500 text-xs">사용 목적</span><p className="font-medium">{r.purpose}</p></div>
                         <div><span className="text-gray-500 text-xs">신청 일시</span><p className="font-medium">{formatTime(r.createdAt)}</p></div>
@@ -481,19 +504,13 @@ export default function AdminReservationsTab() {
   );
 }
 
-// ── 달력 뷰 컴포넌트 ──────────────────────────────────────────
-type ReservationRow = Pick<Reservation, 'id' | 'facilityId' | 'reservationDate' | 'status'> & {
-  reserverName: string;
-  facilityName?: string | null;
-  userEmail?: string | null;
-};
-
 function CalendarView({ reservations, facilityFilter, facilities }: {
-  reservations: ReservationRow[];
+  reservations: AdminReservationRow[];
   facilityFilter: number | undefined;
   facilities: Facility[];
 }) {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(() => getLocalDateKey());
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -506,12 +523,22 @@ function CalendarView({ reservations, facilityFilter, facilities }: {
   for (let i = 1; i <= daysInMonth; i++) days.push(i);
 
   // 날짜별 예약 수 집계
-  const reservationsByDate: Record<string, any[]> = {};
+  const reservationsByDate: Record<string, AdminReservationRow[]> = {};
   reservations.forEach(r => {
     const key = r.reservationDate;
     if (!reservationsByDate[key]) reservationsByDate[key] = [];
     reservationsByDate[key].push(r);
   });
+  Object.values(reservationsByDate).forEach(items => {
+    items.sort((a, b) =>
+      a.startTime.localeCompare(b.startTime)
+      || (a.facilityName ?? "").localeCompare(b.facilityName ?? "")
+      || getReservationName(a).localeCompare(getReservationName(b))
+    );
+  });
+
+  const selectedReservations = reservationsByDate[selectedDate] ?? [];
+  const selectedDateLabel = formatDate(selectedDate);
 
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
@@ -538,6 +565,12 @@ function CalendarView({ reservations, facilityFilter, facilities }: {
         ))}
       </div>
 
+      {facilityFilter && (
+        <div className="mb-3 rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-xs text-green-800">
+          현재 시설 필터: {facilities.find(f => f.id === facilityFilter)?.name ?? "선택 시설"}
+        </div>
+      )}
+
       {/* 날짜 그리드 */}
       <div className="grid grid-cols-7 gap-1">
         {days.map((day, idx) => {
@@ -546,15 +579,22 @@ function CalendarView({ reservations, facilityFilter, facilities }: {
           const dayReservations = reservationsByDate[dateKey] ?? [];
           const pending = dayReservations.filter(r => r.status === "pending").length;
           const approved = dayReservations.filter(r => r.status === "approved").length;
-          const isToday = new Date().toISOString().split("T")[0] === dateKey;
+          const isToday = getLocalDateKey() === dateKey;
+          const isSelected = selectedDate === dateKey;
           const isSun = (idx % 7) === 0;
           const isSat = (idx % 7) === 6;
 
           return (
-            <div
+            <button
               key={day}
-              className={"min-h-[60px] rounded-lg p-1.5 border transition-colors " + (
-                isToday ? "border-[#1B5E20] bg-[#F1F8E9]" : "border-gray-100 hover:border-gray-300"
+              type="button"
+              onClick={() => setSelectedDate(dateKey)}
+              className={"group relative min-h-[74px] rounded-lg border p-1.5 text-left transition-colors " + (
+                isSelected
+                  ? "border-[#1B5E20] bg-[#F1F8E9] ring-1 ring-[#1B5E20]"
+                  : isToday
+                  ? "border-[#1B5E20]/40 bg-[#F8FCF8]"
+                  : "border-gray-100 hover:border-gray-300"
               )}
             >
               <p className={"text-xs font-medium mb-1 " + (isToday ? "text-[#1B5E20]" : isSun ? "text-red-500" : isSat ? "text-blue-500" : "text-gray-700")}>
@@ -570,7 +610,34 @@ function CalendarView({ reservations, facilityFilter, facilities }: {
                   승인 {approved}
                 </div>
               )}
-            </div>
+              {dayReservations.length > 0 && (
+                <div className="mt-1 hidden text-[10px] leading-4 text-gray-500 sm:block">
+                  {dayReservations.slice(0, 2).map(reservation => (
+                    <p key={reservation.id} className="truncate">
+                      {reservation.startTime} {getReservationName(reservation)}
+                    </p>
+                  ))}
+                  {dayReservations.length > 2 && <p className="text-gray-400">+{dayReservations.length - 2}건</p>}
+                </div>
+              )}
+              {dayReservations.length > 0 && (
+                <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-72 -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-3 text-left shadow-lg group-hover:block">
+                  <p className="mb-2 text-xs font-bold text-gray-800">{formatDate(dateKey)} 예약</p>
+                  <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
+                    {dayReservations.map(reservation => (
+                      <div key={reservation.id} className="rounded-md border border-gray-100 bg-gray-50 px-2 py-1.5">
+                        <p className="truncate text-xs font-semibold text-gray-800">
+                          {formatReservationTimeRange(reservation)} · {getReservationName(reservation)}
+                        </p>
+                        <p className="mt-0.5 truncate text-[11px] text-gray-500">
+                          {reservation.facilityName ?? "시설"} · {getReservationPosition(reservation)} · {getReservationPhone(reservation)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </button>
           );
         })}
       </div>
@@ -579,6 +646,57 @@ function CalendarView({ reservations, facilityFilter, facilities }: {
       <div className="flex gap-4 mt-4 text-xs text-gray-500">
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-100 border border-amber-200 inline-block"></span>승인 대기</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-100 border border-green-200 inline-block"></span>승인 완료</span>
+      </div>
+
+      <div className="mt-5 rounded-xl border border-gray-200 bg-white">
+        <div className="flex flex-col gap-1 border-b border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-bold text-gray-800">{selectedDateLabel} 예약 상세</p>
+            <p className="text-xs text-gray-500">날짜를 누르면 해당 날짜 예약자 정보가 바로 바뀝니다.</p>
+          </div>
+          <span className="text-xs font-medium text-[#1B5E20]">총 {selectedReservations.length}건</span>
+        </div>
+
+        {selectedReservations.length === 0 ? (
+          <div className="px-4 py-8 text-center text-sm text-gray-400">
+            이 날짜에는 예약이 없습니다.
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {selectedReservations.map(reservation => {
+              const st = STATUS_LABELS[reservation.status] ?? STATUS_LABELS.pending;
+              return (
+                <div key={reservation.id} className="grid gap-3 px-4 py-3 text-sm md:grid-cols-[120px_minmax(0,1fr)_120px_150px_120px] md:items-center">
+                  <div>
+                    <p className="text-xs text-gray-400">시간</p>
+                    <p className="font-semibold text-gray-900">{formatReservationTimeRange(reservation)}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-400">시설 / 목적</p>
+                    <p className="truncate font-semibold text-gray-900">{reservation.facilityName ?? "시설"} · {reservation.purpose}</p>
+                    {reservation.notes && <p className="mt-0.5 truncate text-xs text-gray-500">요청: {reservation.notes}</p>}
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">이름 / 직분</p>
+                    <p className="font-semibold text-gray-900">{getReservationName(reservation)}</p>
+                    <p className="text-xs text-gray-500">{getReservationPosition(reservation)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">전화번호</p>
+                    <p className="font-semibold text-gray-900">{getReservationPhone(reservation)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">상태 / 인원</p>
+                    <span className={"inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium " + st.color}>
+                      {st.icon} {st.label}
+                    </span>
+                    <p className="mt-1 text-xs text-gray-500">{reservation.attendees}명</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

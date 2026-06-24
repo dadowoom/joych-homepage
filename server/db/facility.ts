@@ -260,6 +260,8 @@ export async function getAllReservations(facilityId?: number) {
       facilityName: facilities.name,
       userName: churchMembers.name,
       userEmail: churchMembers.email,
+      memberPosition: churchMembers.position,
+      memberPhone: churchMembers.phone,
     })
     .from(reservations)
     .leftJoin(facilities, eq(reservations.facilityId, facilities.id))
