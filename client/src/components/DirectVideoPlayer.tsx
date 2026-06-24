@@ -43,18 +43,16 @@ function normalizeSource(src: string) {
   return trimmed;
 }
 
-function getPlayableSrc(src: string, forceNoRange: boolean) {
+function getPlayableSrc(src: string) {
   if (typeof window === "undefined") return src;
 
   try {
     const url = new URL(normalizeSource(src), window.location.origin);
     const proxiedSrc = getSermonVideoProxySrc(url);
     if (proxiedSrc) {
-      const directVideoUrl = new URL(proxiedSrc, window.location.origin);
-      if (forceNoRange) {
-        directVideoUrl.searchParams.set("skipRange", "1");
-      }
-      return directVideoUrl.toString();
+      // Mobile browsers stream mp4 files with Range requests, so keep direct
+      // sermon files on the same-origin proxy without disabling byte ranges.
+      return new URL(proxiedSrc, window.location.origin).toString();
     }
 
     const current = new URL(window.location.href);
@@ -100,34 +98,20 @@ function getLegacyOriginalUrl(src: string) {
 export default function DirectVideoPlayer({ src, title, className }: DirectVideoPlayerProps) {
   const [hasError, setHasError] = useState(false);
   const [isLegacyUnavailable, setIsLegacyUnavailable] = useState(false);
-  const [forceNoRange, setForceNoRange] = useState(false);
-  const [attemptedFallback, setAttemptedFallback] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const playableSrc = useMemo(() => getPlayableSrc(src, forceNoRange), [src, forceNoRange]);
+  const playableSrc = useMemo(() => getPlayableSrc(src), [src]);
   const videoType = useMemo(() => getVideoType(playableSrc), [playableSrc]);
   const legacyOriginalUrl = useMemo(() => getLegacyOriginalUrl(playableSrc), [playableSrc]);
 
   useEffect(() => {
     setHasError(false);
     setIsLegacyUnavailable(false);
-    setAttemptedFallback(false);
-    setForceNoRange(false);
   }, [src]);
 
-  const triggerNoRangeFallback = useCallback(() => {
-    if (!forceNoRange && !attemptedFallback && playableSrc.includes("/api/direct-video-proxy")) {
-      setAttemptedFallback(true);
-      setForceNoRange(true);
-      return true;
-    }
-    return false;
-  }, [attemptedFallback, forceNoRange, playableSrc]);
-
   const handleError = useCallback(() => {
-    if (triggerNoRangeFallback()) return;
     setHasError(true);
     setIsLegacyUnavailable(Boolean(legacyOriginalUrl));
-  }, [triggerNoRangeFallback, legacyOriginalUrl]);
+  }, [legacyOriginalUrl]);
 
   const errorTitle = isLegacyUnavailable
     ? "구형 영상 파일을 바로 재생할 수 없습니다."
