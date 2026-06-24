@@ -38,6 +38,7 @@ import { coursesRouter } from "./courses";
 import { bulletinsRouter } from "./bulletins";
 import { adminPermissionsRouter } from "./adminPermissions";
 import { historyRouter } from "./history";
+import { notificationsRouter } from "./notifications";
 
 export const cmsRouter = router({
   notices: noticesRouter,
@@ -57,4 +58,5 @@ export const cmsRouter = router({
   bulletins: bulletinsRouter,
   adminPermissions: adminPermissionsRouter,
   history: historyRouter,
+  notifications: notificationsRouter,
 });
