@@ -95,6 +95,29 @@ export async function listVisitRequests(limit = 100) {
     .limit(limit);
 }
 
+export async function listPublicVisitRequests(limit = 100) {
+  const db = await requireDb();
+  return db
+    .select({
+      id: visitRequests.id,
+      organizationName: visitRequests.organizationName,
+      applicantName: visitRequests.applicantName,
+      visitDate: visitRequests.visitDate,
+      visitTime: visitRequests.visitTime,
+      headcount: visitRequests.headcount,
+      visitorType: visitRequests.visitorType,
+      purpose: visitRequests.purpose,
+      message: visitRequests.message,
+      status: visitRequests.status,
+      adminMemo: visitRequests.adminMemo,
+      createdAt: visitRequests.createdAt,
+    })
+    .from(visitRequests)
+    .where(ne(visitRequests.status, "archived"))
+    .orderBy(desc(visitRequests.createdAt))
+    .limit(limit);
+}
+
 export async function updateVisitRequestStatus(
   id: number,
   data: { status: VisitRequestStatus; adminMemo?: string | null }

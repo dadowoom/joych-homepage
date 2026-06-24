@@ -17,6 +17,7 @@ import {
   getMemberById,
   listPublicBulletinAdRequests,
   listPublicSubtitleRequests,
+  listPublicVisitRequests,
 } from "../db";
 
 const requiredText = (max: number, message: string) =>
@@ -169,6 +170,8 @@ export const supportRouter = router({
   listSubtitles: publicProcedure.query(() => listPublicSubtitleRequests()),
 
   listBulletinAds: publicProcedure.query(() => listPublicBulletinAdRequests()),
+
+  listVisits: publicProcedure.query(() => listPublicVisitRequests()),
 
   submitPrayer: publicProcedure
     .input(
