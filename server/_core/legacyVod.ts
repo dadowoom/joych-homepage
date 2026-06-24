@@ -248,6 +248,18 @@ function getApprovedDirectVideoUrl(req: Request) {
   }
 }
 
+function getApprovedDirectVideoPathUrl(req: Request) {
+  const rawPath = req.params[0];
+  if (typeof rawPath !== "string" || !rawPath) return null;
+
+  try {
+    const url = new URL(`http://sermon.joych.org/${rawPath}`);
+    return isAllowedSermonMp4Url(url) ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 function getUpstreamVideoRange(req: Request) {
   const clientRange = typeof req.headers.range === "string" ? req.headers.range.trim() : "";
   if (clientRange) return clientRange;
@@ -352,6 +364,16 @@ async function sendDirectVideoProxy(req: Request, res: Response) {
   await sendApprovedVideoStream(req, res, sourceUrl.toString(), "[DirectVideoProxy]");
 }
 
+async function sendDirectVideoPathProxy(req: Request, res: Response) {
+  const sourceUrl = getApprovedDirectVideoPathUrl(req);
+  if (!sourceUrl) {
+    res.status(400).json({ error: "Invalid direct video path" });
+    return;
+  }
+
+  await sendApprovedVideoStream(req, res, sourceUrl.toString(), "[DirectVideoPathProxy]");
+}
+
 export function registerLegacyVodRoutes(app: Express) {
   app.get("/api/legacy-vod/:pageCode/:num/:vodType/info", async (req, res) => {
     const params = getRequestParams(req);
@@ -382,6 +404,8 @@ export function registerLegacyVodRoutes(app: Express) {
 
   app.get("/api/legacy-vod/:pageCode/:num/:vodType.mp4", sendLegacyVodStream);
   app.head("/api/legacy-vod/:pageCode/:num/:vodType.mp4", sendLegacyVodStream);
+  app.get("/api/direct-video/*", sendDirectVideoPathProxy);
+  app.head("/api/direct-video/*", sendDirectVideoPathProxy);
   app.get("/api/direct-video-proxy", sendDirectVideoProxy);
   app.head("/api/direct-video-proxy", sendDirectVideoProxy);
 }

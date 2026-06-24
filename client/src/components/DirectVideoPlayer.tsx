@@ -30,7 +30,7 @@ function getSermonVideoProxySrc(url: URL) {
     url.pathname.toLowerCase().endsWith(".mp4");
 
   return isAllowedHttpMp4
-    ? `/api/direct-video-proxy?url=${encodeURIComponent(url.toString())}`
+    ? `/api/direct-video${url.pathname}`
     : null;
 }
 
@@ -50,8 +50,8 @@ function getPlayableSrc(src: string) {
     const url = new URL(normalizeSource(src), window.location.origin);
     const proxiedSrc = getSermonVideoProxySrc(url);
     if (proxiedSrc) {
-      // Mobile browsers stream mp4 files with Range requests, so keep direct
-      // sermon files on the same-origin proxy without disabling byte ranges.
+      // Keep sermon files on a same-origin .mp4 URL. iOS video playback is
+      // less forgiving with query-string proxy URLs than ordinary page fetches.
       return new URL(proxiedSrc, window.location.origin).toString();
     }
 
