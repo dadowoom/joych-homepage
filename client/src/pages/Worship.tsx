@@ -887,36 +887,56 @@ export function Bulletin() {
             const pages = getBulletinPages(bulletin);
             const coverPage = pages[0] ?? null;
             const hasCoverImage = coverPage ? isImageBulletin(coverPage.fileMime, coverPage.fileName) : false;
+            const isGridMode = viewMode === "grid";
             return (
-              <article key={bulletin.id} className={viewMode === "grid" ? "overflow-hidden border border-gray-200 bg-white p-2.5 sm:p-4" : "p-4"}>
-                <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
-                  <span>번호 {filteredBulletins.length - index}</span>
-                  <span>{formatBulletinDate(bulletin.bulletinDate)}</span>
-                </div>
-                <Link href={`/worship/bulletin/${bulletin.id}`} className="mb-2 block">
-                  <div className="relative overflow-hidden border border-gray-200 bg-gray-50">
-                    <div className="relative aspect-[3/4] w-full">
-                      {hasCoverImage && coverPage ? (
-                        <img
-                          src={coverPage.fileUrl}
-                          alt={`${bulletin.title} 대표이미지`}
-                          className="absolute inset-0 h-full w-full object-contain p-2"
-                        />
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="text-xs text-gray-300">이미지 미리보기 없음</span>
-                        </div>
-                      )}
+              <article key={bulletin.id} className={isGridMode ? "overflow-hidden border border-gray-200 bg-white p-2.5 sm:p-4" : "p-4"}>
+                {isGridMode ? (
+                  <>
+                    <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
+                      <span>번호 {filteredBulletins.length - index}</span>
+                      <span>{formatBulletinDate(bulletin.bulletinDate)}</span>
                     </div>
-                  </div>
-                </Link>
-                <Link
-                  href={`/worship/bulletin/${bulletin.id}`}
-                  className={viewMode === "grid" ? "block w-full text-left text-sm font-bold leading-5 text-gray-900" : "block w-full text-left text-base font-bold text-gray-900"}
-                >
-                  {bulletin.title}
-                </Link>
-                <p className="mt-1 text-xs font-medium text-[#1B5E20]">관리자 · 첨부 {pages.length}장</p>
+                    <Link href={`/worship/bulletin/${bulletin.id}`} className="mb-2 block">
+                      <div className="relative overflow-hidden border border-gray-200 bg-gray-50">
+                        <div className="relative aspect-[3/4] w-full">
+                          {hasCoverImage && coverPage ? (
+                            <img
+                              src={coverPage.fileUrl}
+                              alt={`${bulletin.title} 대표이미지`}
+                              className="absolute inset-0 h-full w-full object-contain p-2"
+                            />
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <span className="text-xs text-gray-300">이미지 미리보기 없음</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </Link>
+                    <Link
+                      href={`/worship/bulletin/${bulletin.id}`}
+                      className="block w-full text-left text-sm font-bold leading-5 text-gray-900"
+                    >
+                      {bulletin.title}
+                    </Link>
+                    <p className="mt-1 text-xs font-medium text-[#1B5E20]">관리자 · 첨부 {pages.length}장</p>
+                  </>
+                ) : (
+                  <Link href={`/worship/bulletin/${bulletin.id}`} className="flex items-center gap-3 text-left">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-50 text-xs font-semibold text-gray-500">
+                      {filteredBulletins.length - index}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-gray-900">{bulletin.title}</span>
+                      <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+                        <span>{formatBulletinDate(bulletin.bulletinDate)}</span>
+                        <span className="text-gray-300">|</span>
+                        <span>첨부 {pages.length}장</span>
+                      </span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-gray-300" />
+                  </Link>
+                )}
               </article>
             );
           })}
