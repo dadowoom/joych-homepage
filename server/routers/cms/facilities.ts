@@ -24,6 +24,11 @@ import {
 import { storagePut } from "../../storage";
 import { validateImage } from "./upload";
 import {
+  FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY,
+  MAX_FACILITY_RESERVATION_MAX_MONTHS,
+  MIN_FACILITY_RESERVATION_MAX_MONTHS,
+} from "@shared/facilityReservationPolicy";
+import {
   getFacilities,
   getFacilityById,
   createFacility,
@@ -63,11 +68,18 @@ const facilityPageSettingKeys = [
   "facility_guide_step3_desc",
   "facility_guide_step4_title",
   "facility_guide_step4_desc",
+  FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY,
 ] as const;
 const facilityPageSettingSchema = z.object({
   key: z.enum(facilityPageSettingKeys),
   value: z.string().trim().max(5000, "설정값은 5000자 이하로 입력해주세요."),
 });
+
+const reservationMaxMonthsSettingSchema = z.coerce
+  .number()
+  .int("예약 가능 기간은 정수로 입력해주세요.")
+  .min(MIN_FACILITY_RESERVATION_MAX_MONTHS, `예약 가능 기간은 최소 ${MIN_FACILITY_RESERVATION_MAX_MONTHS}개월 이상이어야 합니다.`)
+  .max(MAX_FACILITY_RESERVATION_MAX_MONTHS, `예약 가능 기간은 최대 ${MAX_FACILITY_RESERVATION_MAX_MONTHS}개월까지 설정할 수 있습니다.`);
 
 function toMinutes(time: string) {
   const [hour, minute] = time.split(":").map(Number);
@@ -184,9 +196,11 @@ export const facilitiesRouter = router({
     update: facilityProcedure
       .input(facilityPageSettingSchema)
       .mutation(({ input }) => {
-        const value = input.key.endsWith("_url")
-          ? safeHrefSchema.parse(input.value)
-          : input.value;
+        const value = input.key === FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY
+          ? String(reservationMaxMonthsSettingSchema.parse(input.value))
+          : input.key.endsWith("_url")
+            ? safeHrefSchema.parse(input.value)
+            : input.value;
         return upsertSiteSetting(input.key, value);
       }),
   }),

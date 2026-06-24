@@ -21,6 +21,11 @@ import {
   hasFacilityReservationRuleOverride,
 } from "@shared/facilityReservationEligibility";
 import {
+  getFacilityReservationMaxMonths,
+  getReservationMaxDateKey,
+  isReservationDateAfterMax,
+} from "@shared/facilityReservationPolicy";
+import {
   getVisibleHeroSlides,
   getVisibleQuickMenus,
   getPublishedNotices,
@@ -593,13 +598,23 @@ export const homeRouter = router({
       }
 
       const reservationDates = buildReservationDates(input.reservationDate, input.repeat);
+      const todayDateKey = todayKstDateKey();
+      const reservationSettings = await getSiteSettings();
+      const reservationMaxMonths = getFacilityReservationMaxMonths(reservationSettings);
+      const reservationMaxDateKey = getReservationMaxDateKey(todayDateKey, reservationMaxMonths);
       const hours = await getFacilityHours(input.facilityId);
       const blocked = await getBlockedDates(input.facilityId);
       for (const reservationDate of reservationDates) {
-        if (reservationDate < todayKstDateKey()) {
+        if (reservationDate < todayDateKey) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: "지난 날짜는 예약할 수 없습니다.",
+          });
+        }
+        if (!canBypassReservationRules && isReservationDateAfterMax(reservationDate, reservationMaxDateKey)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `시설 예약은 최대 ${reservationMaxMonths}개월 후(${reservationMaxDateKey})까지만 신청할 수 있습니다.`,
           });
         }
         assertReservationStartsInFuture(reservationDate, input.startTime);

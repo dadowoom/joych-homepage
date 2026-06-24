@@ -11,6 +11,7 @@ const dbMocks = vi.hoisted(() => ({
   createReservation: vi.fn(),
   createReservationIfAvailable: vi.fn(),
   getMemberById: vi.fn(),
+  getSiteSettings: vi.fn(),
 }));
 
 const joseMocks = vi.hoisted(() => ({
@@ -40,6 +41,7 @@ vi.mock("./db", async (importOriginal) => {
     getAdminReservationDetailsByDate: dbMocks.getAdminReservationDetailsByDate,
     createReservation: dbMocks.createReservation,
     createReservationIfAvailable: dbMocks.createReservationIfAvailable,
+    getSiteSettings: dbMocks.getSiteSettings,
   };
 });
 
@@ -143,6 +145,7 @@ describe("facility reservation lead-time guard", () => {
     dbMocks.getAdminReservationDetailsByDate.mockResolvedValue([]);
     dbMocks.createReservation.mockResolvedValue(100);
     dbMocks.createReservationIfAvailable.mockResolvedValue(100);
+    dbMocks.getSiteSettings.mockResolvedValue({});
   });
 
   it("keeps public facility reservation lookups free of private fields", async () => {
@@ -261,6 +264,44 @@ describe("facility reservation lead-time guard", () => {
         startTime: "15:00",
         endTime: "16:00",
         userId: 1,
+      }),
+    );
+  });
+
+  it("blocks normal members when the reservation date is after the configured future window", async () => {
+    dbMocks.getSiteSettings.mockResolvedValue({ facility_reservation_max_months: "3" });
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(
+      caller.home.createReservation(reservationInput({
+        reservationDate: "2026-09-17",
+        startTime: "15:00",
+        endTime: "16:00",
+      }))
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+
+    expect(dbMocks.createReservationIfAvailable).not.toHaveBeenCalled();
+  });
+
+  it("uses the admin-configured reservation future window", async () => {
+    dbMocks.getSiteSettings.mockResolvedValue({ facility_reservation_max_months: "4" });
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(
+      caller.home.createReservation(reservationInput({
+        reservationDate: "2026-10-16",
+        startTime: "15:00",
+        endTime: "16:00",
+      }))
+    ).resolves.toMatchObject({ id: 100, status: "pending", count: 1 });
+
+    expect(dbMocks.createReservationIfAvailable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reservationDate: "2026-10-16",
+        startTime: "15:00",
+        endTime: "16:00",
       }),
     );
   });

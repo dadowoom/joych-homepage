@@ -80,6 +80,7 @@ const SETTING_KEYS = [
   "facility_guide_step3_desc",
   "facility_guide_step4_title",
   "facility_guide_step4_desc",
+  "facility_reservation_max_months",
   "home_feature_cards",
   "home_church_intro_section",
   "home_worship_section",

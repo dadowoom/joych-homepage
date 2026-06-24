@@ -13,7 +13,13 @@ import type { FacilityBlockedDate } from "../../../drizzle/schema";
 import { toast } from "sonner";
 import { Loader2, ChevronRight, Clock, Users, MapPin, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getKstDateKey, getReservationLeadDateKey, getReservationTimeRestriction } from "@/lib/facilityReservationTime";
+import {
+  getKstDateKey,
+  getReservationDateRangeRestriction,
+  getReservationLeadDateKey,
+  getReservationMaxDateKey,
+  getReservationTimeRestriction,
+} from "@/lib/facilityReservationTime";
 import {
   generateReservationTimePoints,
   getReservationSlotSelectionState,
@@ -249,9 +255,11 @@ export default function FacilityApply() {
     retry: false,
     refetchOnWindowFocus: false,
   });
+  const { data: reservationSettings } = trpc.home.settings.useQuery();
   const isApprovedMember = Boolean(memberMe);
   const hasReservationOverride = hasFacilityReservationRuleOverride(memberMe ?? {});
   const canReserveFacility = isApprovedMember && !hasFacilityReservationBlockedMemberMarker(memberMe ?? {});
+  const reservationMaxDateKey = getReservationMaxDateKey(reservationSettings);
 
   // URL 쿼리 파라미터에서 날짜/시간 읽기
   const searchString = useSearch();
@@ -384,6 +392,13 @@ export default function FacilityApply() {
   const disabledTimeSlots = useMemo(() => {
     const disabled = new Map<string, string>();
     if (!form.date) return disabled;
+    const dateRangeRestriction = getReservationDateRangeRestriction(form.date, reservationSettings, {
+      enforceMaxDate: !hasReservationOverride,
+    });
+    if (dateRangeRestriction) {
+      allTimeSlots.forEach((slot) => disabled.set(slot, dateRangeRestriction));
+      return disabled;
+    }
     allTimeSlots.forEach((slot) => {
       const restriction = getReservationTimeRestriction(form.date, slot, {
         enforceLeadTime: !hasReservationOverride,
@@ -391,7 +406,7 @@ export default function FacilityApply() {
       if (restriction) disabled.set(slot, restriction);
     });
     return disabled;
-  }, [allTimeSlots, form.date, hasReservationOverride]);
+  }, [allTimeSlots, form.date, hasReservationOverride, reservationSettings]);
 
   const selectableBookedSlots = useMemo(() => {
     return hasReservationOverride ? new Set<string>() : bookedSlots;
@@ -401,6 +416,13 @@ export default function FacilityApply() {
   const blockedDateSet = useMemo(() => {
     return new Set((blockedDates ?? []).map(b => b.blockedDate));
   }, [blockedDates]);
+
+  const selectedDateRangeRestriction = useMemo(() => {
+    if (!form.date) return null;
+    return getReservationDateRangeRestriction(form.date, reservationSettings, {
+      enforceMaxDate: !hasReservationOverride,
+    });
+  }, [form.date, hasReservationOverride, reservationSettings]);
 
   // ── 이벤트 핸들러 ─────────────────────────────────────────
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
@@ -424,6 +446,7 @@ export default function FacilityApply() {
     if (!form.department.trim()) return "소속 부서/단체를 입력해 주세요.";
     if (!form.purpose) return "사용 목적을 선택해 주세요.";
     if (!form.date) return "사용 날짜를 선택해 주세요.";
+    if (selectedDateRangeRestriction) return selectedDateRangeRestriction;
     if (blockedDateSet.has(form.date) && !hasReservationOverride) return "해당 날짜는 예약이 불가능합니다.";
     if (!form.startTime) return "시작 시간을 선택해 주세요.";
     if (!form.endTime) return "종료 시간을 선택해 주세요.";
@@ -441,6 +464,10 @@ export default function FacilityApply() {
       if (form.repeatUntilDate < form.date) {
         return "반복 종료일은 사용 날짜보다 이전일 수 없습니다.";
       }
+      const repeatDateRangeRestriction = getReservationDateRangeRestriction(form.repeatUntilDate, reservationSettings, {
+        enforceMaxDate: !hasReservationOverride,
+      });
+      if (repeatDateRangeRestriction) return repeatDateRangeRestriction;
     }
     if (!form.agreePrivacy) return "개인정보 수집·이용에 동의해 주세요.";
     // 선택한 시간대에 이미 예약이 있는지 확인
@@ -651,6 +678,7 @@ export default function FacilityApply() {
                       value={form.date}
                       onChange={handleChange}
                       min={hasReservationOverride ? getKstDateKey() : getReservationLeadDateKey()}
+                      max={hasReservationOverride ? undefined : reservationMaxDateKey}
                       className={inputClass}
                     />
                   )}
@@ -664,6 +692,11 @@ export default function FacilityApply() {
                       <AlertCircle className="w-3 h-3" /> 해당 날짜는 예약이 불가능합니다.
                     </p>
                   )}
+                  {selectedDateRangeRestriction && (
+                    <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" /> {selectedDateRangeRestriction}
+                    </p>
+                  )}
                   {form.date && hasReservationOverride && (
                     <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" /> 예약 예외 권한으로 운영 제한을 넘어 신청할 수 있습니다.
@@ -672,7 +705,7 @@ export default function FacilityApply() {
                 </Field>
 
                 {/* 시간 선택 — 슬롯 버튼 방식 */}
-                {form.date && (hasReservationOverride || !todayHour || todayHour.isOpen) && (hasReservationOverride || !blockedDateSet.has(form.date)) && (
+                {form.date && !selectedDateRangeRestriction && (hasReservationOverride || !todayHour || todayHour.isOpen) && (hasReservationOverride || !blockedDateSet.has(form.date)) && (
                   <Field
                     label="사용 시간"
                     required
@@ -728,6 +761,7 @@ export default function FacilityApply() {
                         value={form.repeatUntilDate}
                         onChange={handleChange}
                         min={form.date || getReservationLeadDateKey()}
+                        max={hasReservationOverride ? undefined : reservationMaxDateKey}
                         aria-label="반복 종료일"
                         className={inputClass}
                       />

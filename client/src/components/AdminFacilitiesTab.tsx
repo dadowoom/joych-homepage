@@ -35,6 +35,13 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import type { Facility, FacilityBlockedDate, FacilityImage } from "../../../drizzle/schema";
 import {
+  DEFAULT_FACILITY_RESERVATION_MAX_MONTHS,
+  FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY,
+  MAX_FACILITY_RESERVATION_MAX_MONTHS,
+  MIN_FACILITY_RESERVATION_MAX_MONTHS,
+  normalizeFacilityReservationMaxMonths,
+} from "@shared/facilityReservationPolicy";
+import {
   Plus, Pencil, Trash2, Loader2, ChevronDown, ChevronUp,
   Upload, X, Clock, Calendar, Users, CheckCircle2,
   Settings, Save, Ban, ImageIcon, Building2, GripVertical,
@@ -61,7 +68,9 @@ const FACILITY_PAGE_SETTING_FIELDS = [
 ] as const;
 
 type FacilityBuilding = typeof FACILITY_BUILDINGS[number]["value"];
-type FacilityPageSettingKey = typeof FACILITY_PAGE_SETTING_FIELDS[number]["key"];
+type FacilityPageSettingKey =
+  | typeof FACILITY_PAGE_SETTING_FIELDS[number]["key"]
+  | typeof FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY;
 type FacilitySubTab = "list" | "pageSettings";
 const MONDAY_FIRST_DAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
 
@@ -79,7 +88,9 @@ function createFacilityPageSettingDrafts(): Record<FacilityPageSettingKey, strin
   return FACILITY_PAGE_SETTING_FIELDS.reduce((drafts, field) => {
     drafts[field.key] = "";
     return drafts;
-  }, {} as Record<FacilityPageSettingKey, string>);
+  }, {
+    [FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY]: String(DEFAULT_FACILITY_RESERVATION_MAX_MONTHS),
+  } as Record<FacilityPageSettingKey, string>);
 }
 
 function createDefaultHours(): FacilityHoursForm {
@@ -516,6 +527,9 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
       FACILITY_PAGE_SETTING_FIELDS.forEach((field) => {
         next[field.key] = pageSettings[field.key] ?? "";
       });
+      next[FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY] = String(
+        normalizeFacilityReservationMaxMonths(pageSettings[FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY]),
+      );
       return next;
     });
   }, [pageSettings]);
@@ -614,12 +628,28 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
 
   async function savePageSettings() {
     try {
+      const reservationMaxMonths = Number(
+        pageSettingDrafts[FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY] || DEFAULT_FACILITY_RESERVATION_MAX_MONTHS,
+      );
+      if (
+        !Number.isInteger(reservationMaxMonths) ||
+        reservationMaxMonths < MIN_FACILITY_RESERVATION_MAX_MONTHS ||
+        reservationMaxMonths > MAX_FACILITY_RESERVATION_MAX_MONTHS
+      ) {
+        toast.error(`예약 가능 기간은 ${MIN_FACILITY_RESERVATION_MAX_MONTHS}~${MAX_FACILITY_RESERVATION_MAX_MONTHS}개월 사이의 정수로 입력해주세요.`);
+        return;
+      }
+
       for (const field of FACILITY_PAGE_SETTING_FIELDS) {
         await updateFacilityPageSetting.mutateAsync({
           key: field.key,
           value: pageSettingDrafts[field.key],
         });
       }
+      await updateFacilityPageSetting.mutateAsync({
+        key: FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY,
+        value: String(reservationMaxMonths),
+      });
       await utils.home.settings.invalidate();
       toast.success("시설예약 페이지 문구가 저장되었습니다.");
     } catch (error) {
@@ -967,6 +997,31 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
               {updateFacilityPageSetting.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               문구 저장
             </button>
+          </div>
+          <div className="mb-4 rounded-xl border border-white/70 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-bold text-gray-900">예약 가능 기간</p>
+                <p className="mt-1 text-xs leading-5 text-gray-500">
+                  일반 성도는 오늘 기준 설정한 개월 수 이후 날짜를 예약할 수 없습니다.
+                </p>
+              </div>
+              <label className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={MIN_FACILITY_RESERVATION_MAX_MONTHS}
+                  max={MAX_FACILITY_RESERVATION_MAX_MONTHS}
+                  step={1}
+                  value={pageSettingDrafts[FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY]}
+                  onChange={(e) => updatePageSettingDraft(FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY, e.target.value)}
+                  className="w-24 rounded-lg border border-gray-200 px-3 py-2 text-right text-sm font-semibold focus:border-[#1B5E20] focus:outline-none"
+                />
+                <span className="text-sm font-medium text-gray-700">개월</span>
+              </label>
+            </div>
+            <p className="mt-2 text-[11px] text-gray-400">
+              기본값은 {DEFAULT_FACILITY_RESERVATION_MAX_MONTHS}개월이며, {MIN_FACILITY_RESERVATION_MAX_MONTHS}~{MAX_FACILITY_RESERVATION_MAX_MONTHS}개월 사이에서 설정할 수 있습니다.
+            </p>
           </div>
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.95fr_1.05fr]">
             <div className="rounded-xl border border-white/70 bg-white p-5 shadow-sm">

@@ -11,7 +11,12 @@ import type { Facility, FacilityHour, FacilityImage, FacilityBlockedDate } from 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Users, MapPin, Clock, ChevronLeft, ChevronRight, Phone, AlertCircle, CalendarCheck, Loader2 } from "lucide-react";
-import { getReservationTimeRestriction, hasReservableStartTime } from "@/lib/facilityReservationTime";
+import {
+  getFacilityReservationMaxMonths,
+  getReservationMaxDateKey,
+  getReservationTimeRestriction,
+  hasReservableStartTime,
+} from "@/lib/facilityReservationTime";
 import {
   generateReservationTimePoints,
   getReservationSlotSelectionState,
@@ -554,12 +559,16 @@ function ReservationCalendar({
   facilityId,
   selectedDate,
   slotMinutes,
+  reservationMaxDateKey,
+  reservationMaxMonths,
   onSelectDate,
   hasReservationOverride,
 }: {
   facilityId: number;
   selectedDate: string;
   slotMinutes?: number | null;
+  reservationMaxDateKey: string;
+  reservationMaxMonths: number;
   onSelectDate: (date: string) => void;
   hasReservationOverride: boolean;
 }) {
@@ -597,6 +606,11 @@ function ReservationCalendar({
     else setViewMonth(m => m + 1);
   }
 
+  const nextMonthIndex = viewMonth === 11 ? 0 : viewMonth + 1;
+  const nextMonthYear = viewMonth === 11 ? viewYear + 1 : viewYear;
+  const nextMonthFirstDateKey = `${nextMonthYear}-${String(nextMonthIndex + 1).padStart(2, "0")}-01`;
+  const isNextMonthUnavailable = !hasReservationOverride && nextMonthFirstDateKey > reservationMaxDateKey;
+
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-5">
       <div className="flex items-center justify-between mb-4">
@@ -604,7 +618,11 @@ function ReservationCalendar({
           <ChevronLeft size={16} />
         </button>
         <h3 className="font-bold text-gray-800 text-sm">{viewYear}년 {viewMonth + 1}월</h3>
-        <button onClick={nextMonth} className="p-1 hover:bg-gray-100 rounded-full">
+        <button
+          onClick={nextMonth}
+          disabled={isNextMonthUnavailable}
+          className="p-1 hover:bg-gray-100 rounded-full disabled:cursor-not-allowed disabled:opacity-30"
+        >
           <ChevronRight size={16} />
         </button>
       </div>
@@ -613,6 +631,11 @@ function ReservationCalendar({
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-100 border border-red-300 inline-block"></span>예약불가</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-[#1B5E20] inline-block"></span>선택됨</span>
       </div>
+      {!hasReservationOverride && (
+        <p className="mb-3 rounded-lg bg-gray-50 px-3 py-2 text-center text-[11px] text-gray-500">
+          예약은 최대 {reservationMaxMonths}개월 후({reservationMaxDateKey})까지만 가능합니다.
+        </p>
+      )}
       <div className="grid grid-cols-7 gap-1 text-center text-xs mb-1">
         {DAY_LABELS.map((d, i) => (
           <div key={i} className={`font-medium py-1 ${i === 0 ? "text-red-400" : i === 6 ? "text-blue-400" : "text-gray-500"}`}>
@@ -626,6 +649,7 @@ function ReservationCalendar({
           const dateStr = toDateStr(day);
           const date = new Date(dateStr);
           const isPast = date < today;
+          const isAfterReservationWindow = !hasReservationOverride && dateStr > reservationMaxDateKey;
           const isBlocked = blockedSet.has(dateStr);
           const dayHour = hours?.find((h: FacilityHour) => h.dayOfWeek === date.getDay());
           const hoursLoaded = Boolean(hours);
@@ -640,7 +664,7 @@ function ReservationCalendar({
               })
             : true;
           const isSelected = selectedDate === dateStr;
-          const isUnavailable = isPast || (!hasReservationOverride && (isBlocked || isClosed || !hasAvailableStartTime));
+          const isUnavailable = isPast || (!hasReservationOverride && (isAfterReservationWindow || isBlocked || isClosed || !hasAvailableStartTime));
 
           return (
             <button
@@ -679,8 +703,11 @@ export default function FacilityDetail() {
     retry: false,
     refetchOnWindowFocus: false,
   });
+  const { data: reservationSettings } = trpc.home.settings.useQuery();
   const isApprovedMember = Boolean(memberMe);
   const hasReservationOverride = hasFacilityReservationRuleOverride(memberMe ?? {});
+  const reservationMaxMonths = getFacilityReservationMaxMonths(reservationSettings);
+  const reservationMaxDateKey = getReservationMaxDateKey(reservationSettings);
   const activeBuilding = useMemo(() => {
     const requestedBuilding = new URLSearchParams(searchString).get("building");
     return normalizeFacilityBuilding(requestedBuilding ?? facility?.building);
@@ -858,6 +885,8 @@ export default function FacilityDetail() {
                 facilityId={facilityId}
                 selectedDate={selectedDate}
                 slotMinutes={facility?.slotMinutes ?? 60}
+                reservationMaxDateKey={reservationMaxDateKey}
+                reservationMaxMonths={reservationMaxMonths}
                 onSelectDate={handleSelectDate}
                 hasReservationOverride={hasReservationOverride}
               />

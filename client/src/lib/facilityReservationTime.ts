@@ -2,12 +2,36 @@ const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 export const RESERVATION_LEAD_TIME_MS = 24 * 60 * 60 * 1000;
 
+export {
+  DEFAULT_FACILITY_RESERVATION_MAX_MONTHS,
+  FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY,
+  MAX_FACILITY_RESERVATION_MAX_MONTHS,
+  MIN_FACILITY_RESERVATION_MAX_MONTHS,
+  getFacilityReservationMaxMonths,
+} from "@shared/facilityReservationPolicy";
+
+import {
+  getFacilityReservationMaxMonths,
+  getReservationMaxDateKey as getReservationMaxDateKeyFromToday,
+  isReservationDateAfterMax,
+} from "@shared/facilityReservationPolicy";
+
 export function getKstDateKey(date = new Date()) {
   return new Date(date.getTime() + KST_OFFSET_MS).toISOString().slice(0, 10);
 }
 
 export function getReservationLeadDateKey(date = new Date()) {
   return getKstDateKey(new Date(date.getTime() + RESERVATION_LEAD_TIME_MS));
+}
+
+export function getReservationMaxDateKey(
+  settings: Record<string, string | null | undefined> | null | undefined,
+  date = new Date(),
+) {
+  return getReservationMaxDateKeyFromToday(
+    getKstDateKey(date),
+    getFacilityReservationMaxMonths(settings),
+  );
 }
 
 export function getKstDateTime(dateKey: string, time: string) {
@@ -39,6 +63,22 @@ export function getReservationTimeRestriction(
   if (diff <= 0) return "이미 지난 시간입니다.";
   if (enforceLeadTime && diff < RESERVATION_LEAD_TIME_MS) {
     return "시설 예약은 현재 시각 기준 최소 24시간 이후부터 신청할 수 있습니다.";
+  }
+  return null;
+}
+
+export function getReservationDateRangeRestriction(
+  dateKey: string,
+  settings: Record<string, string | null | undefined> | null | undefined,
+  options: { enforceMaxDate?: boolean } = {},
+) {
+  const { enforceMaxDate = true } = options;
+  if (!dateKey) return null;
+
+  const maxMonths = getFacilityReservationMaxMonths(settings);
+  const maxDateKey = getReservationMaxDateKey(settings);
+  if (enforceMaxDate && isReservationDateAfterMax(dateKey, maxDateKey)) {
+    return `시설 예약은 최대 ${maxMonths}개월 후(${maxDateKey})까지만 신청할 수 있습니다.`;
   }
   return null;
 }
