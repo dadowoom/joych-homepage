@@ -115,10 +115,10 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
 
   const errorTitle = isLegacyUnavailable
     ? "구형 영상 파일을 바로 재생할 수 없습니다."
-    : "영상 재생을 다시 시도하고 있습니다.";
+    : "영상 재생에 문제가 있습니다.";
   const errorDescription = isLegacyUnavailable
     ? "이 자료는 옛 홈페이지의 WMV/MMS 형식이라 mp4 원본 확인이 필요합니다."
-    : "새 창에서 열면 브라우저가 직접 재생을 다시 시도합니다.";
+    : "새 창에서 열면 브라우저가 영상만 따로 다시 엽니다.";
   const errorHref = isLegacyUnavailable && legacyOriginalUrl ? legacyOriginalUrl : playableSrc;
   const errorLinkText = isLegacyUnavailable ? "옛 영상 페이지 열기" : "새 창에서 영상 열기";
 

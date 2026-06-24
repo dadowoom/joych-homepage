@@ -16,6 +16,7 @@ export type LegacyVodInfo = {
 const LEGACY_VOD_INFO_URL = "http://www.joych.org/core/xml/vod/vodInfo.xml.html";
 const LEGACY_VOD_REFERER_BASE =
   "http://www.joych.org/core/module/vod/skin_001/vodIframe.html";
+const DEFAULT_VIDEO_RANGE = "bytes=0-1048575";
 const LEGACY_VOD_CACHE_TTL_MS = 10 * 60 * 1000;
 const LEGACY_VOD_CACHE = new Map<
   string,
@@ -247,21 +248,30 @@ function getApprovedDirectVideoUrl(req: Request) {
   }
 }
 
+function getUpstreamVideoRange(req: Request) {
+  const clientRange = typeof req.headers.range === "string" ? req.headers.range.trim() : "";
+  if (clientRange) return clientRange;
+
+  // Some mobile browsers probe mp4 metadata without sending Range first.
+  // Keep those GET requests in streaming mode instead of starting a full-file download.
+  return req.method === "GET" ? DEFAULT_VIDEO_RANGE : null;
+}
+
 async function sendApprovedVideoStream(
   req: Request,
   res: Response,
   sourceUrl: string,
   logPrefix: string
 ) {
+  const upstreamRange = getUpstreamVideoRange(req);
   const controller = new AbortController();
   req.on("close", () => controller.abort());
 
   try {
     const upstream = await fetch(sourceUrl, {
+      method: req.method === "HEAD" ? "HEAD" : "GET",
       headers: {
-        // Preserve byte-range streaming. Mobile browsers may stop playback if
-        // mp4 files are forced into a full-file download instead of 206 chunks.
-        ...(req.headers.range ? { Range: req.headers.range } : {}),
+        ...(upstreamRange ? { Range: upstreamRange } : {}),
         Referer: "http://www.joych.org/",
         "User-Agent": "Mozilla/5.0",
       },
