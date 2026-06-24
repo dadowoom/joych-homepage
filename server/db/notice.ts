@@ -7,7 +7,7 @@
  *   - createNotice / updateNotice / deleteNotice: 공지사항 CRUD
  */
 
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { InsertNotice, notices } from "../../drizzle/schema";
 import { getDb } from "./connection";
 
@@ -44,6 +44,14 @@ export async function getAllNotices() {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(notices).orderBy(desc(notices.createdAt));
+}
+
+export async function incrementNoticeViewCount(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(notices)
+    .set({ viewCount: sql`${notices.viewCount} + 1` })
+    .where(and(eq(notices.id, id), eq(notices.isPublished, true)));
 }
 
 /**

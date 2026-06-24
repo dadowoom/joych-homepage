@@ -4,7 +4,7 @@
  * 포함: JoyfulTV / WorshipSchedule / Bulletin
  */
 
-import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
@@ -473,6 +473,7 @@ function BulletinUploadPanel() {
 }
 
 export function BulletinDetail() {
+  const utils = trpc.useUtils();
   const params = useParams<{ id?: string }>();
   const bulletinId = Number(params.id);
   const { user, loading: authLoading } = useAuth();
@@ -489,6 +490,7 @@ export function BulletinDetail() {
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);
   const [lightboxPageIndex, setLightboxPageIndex] = useState<number | null>(null);
   const touchStartXRef = useRef<number | null>(null);
+  const viewedBulletinIdsRef = useRef<Set<number>>(new Set());
   const { parentLabel, sideMenuItems } = getSupportSideMenuItems(allMenus, "/worship/bulletin");
   const bulletin = Number.isFinite(bulletinId)
     ? bulletins.find((item) => item.id === bulletinId) ?? null
@@ -498,6 +500,19 @@ export function BulletinDetail() {
   const pageIndex = Math.min(selectedPageIndex, maxPageIndex);
   const page = pages[pageIndex] ?? null;
   const lightboxPage = lightboxPageIndex !== null ? pages[lightboxPageIndex] : null;
+
+  const trackBulletinView = trpc.home.trackBulletinView.useMutation({
+    onSuccess: () => {
+      void utils.home.bulletins.invalidate();
+    },
+  });
+
+  useEffect(() => {
+    if (!canReadBulletins || !bulletin?.id || viewedBulletinIdsRef.current.has(bulletin.id)) return;
+
+    viewedBulletinIdsRef.current.add(bulletin.id);
+    trackBulletinView.mutate({ id: bulletin.id });
+  }, [bulletin?.id, canReadBulletins]);
 
   const movePage = (direction: -1 | 1) => {
     setSelectedPageIndex((current) => Math.min(Math.max(current + direction, 0), maxPageIndex));
@@ -554,6 +569,8 @@ export function BulletinDetail() {
               등록일 {formatBulletinDate(bulletin.bulletinDate)}
               <span className="mx-2 text-gray-300">|</span>
               첨부 {pages.length}개
+              <span className="mx-2 text-gray-300">|</span>
+              조회수 {bulletin.viewCount ?? 0}
             </div>
             <div className="grid gap-6 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_240px]">
               <div
@@ -845,6 +862,7 @@ export function Bulletin() {
               <col className="w-32" />
               <col className="w-32" />
               <col className="w-24" />
+              <col className="w-20" />
             </colgroup>
             <thead className="border-t-2 border-[#62B5D1] bg-[#EAF8FC] text-[#0F607A]">
               <tr>
@@ -853,6 +871,7 @@ export function Bulletin() {
                 <th scope="col" className="px-3 py-3 text-center font-semibold">작성자</th>
                 <th scope="col" className="px-3 py-3 text-center font-semibold">등록일</th>
                 <th scope="col" className="px-3 py-3 text-center font-semibold">첨부</th>
+                <th scope="col" className="px-3 py-3 text-center font-semibold">조회수</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -873,6 +892,7 @@ export function Bulletin() {
                     <td className="px-3 py-3 text-center text-gray-600">관리자</td>
                     <td className="px-3 py-3 text-center text-gray-500">{formatBulletinDate(bulletin.bulletinDate)}</td>
                     <td className="px-3 py-3 text-center text-gray-500">{pageCount}</td>
+                    <td className="px-3 py-3 text-center text-gray-500">{bulletin.viewCount ?? 0}</td>
                   </tr>
                 );
               })}
@@ -919,7 +939,7 @@ export function Bulletin() {
                     >
                       {bulletin.title}
                     </Link>
-                    <p className="mt-1 text-xs font-medium text-[#1B5E20]">관리자 · 첨부 {pages.length}장</p>
+                    <p className="mt-1 text-xs font-medium text-[#1B5E20]">관리자 · 첨부 {pages.length}장 · 조회수 {bulletin.viewCount ?? 0}</p>
                   </>
                 ) : (
                   <Link href={`/worship/bulletin/${bulletin.id}`} className="flex items-center gap-3 text-left">
@@ -932,6 +952,8 @@ export function Bulletin() {
                         <span>{formatBulletinDate(bulletin.bulletinDate)}</span>
                         <span className="text-gray-300">|</span>
                         <span>첨부 {pages.length}장</span>
+                        <span className="text-gray-300">|</span>
+                        <span>조회수 {bulletin.viewCount ?? 0}</span>
                       </span>
                     </span>
                     <ChevronRight className="h-4 w-4 shrink-0 text-gray-300" />
@@ -962,6 +984,8 @@ export function Bulletin() {
               등록일 {formatBulletinDate(selectedBulletin.bulletinDate)}
               <span className="mx-2 text-gray-300">|</span>
               첨부 {selectedPages.length}개
+              <span className="mx-2 text-gray-300">|</span>
+              조회수 {selectedBulletin.viewCount ?? 0}
             </div>
             <div className="grid gap-6 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_240px]">
               <div className="bg-gray-50 p-3 sm:p-5">

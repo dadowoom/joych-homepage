@@ -213,6 +213,76 @@ try {
 NODE
 fi
 
+MIGRATION_0044="${APP_DIR}/drizzle/0044_board_view_counts.sql"
+if [[ -f "${MIGRATION_0044}" ]]; then
+  echo "[deploy] database migration: board view counts"
+  if [[ -f "${APP_DIR}/.env" ]]; then
+    set -a
+    # shellcheck disable=SC1091
+    . "${APP_DIR}/.env"
+    set +a
+  fi
+  node --input-type=module <<'NODE'
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required for migration 0044.");
+}
+
+const url = new URL(databaseUrl);
+const databaseName = url.pathname.replace(/^\//, "");
+if (!databaseName) {
+  throw new Error("DATABASE_URL must include a database name.");
+}
+
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id VARCHAR(128) PRIMARY KEY,
+      applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  const [rows] = await connection.query(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    ["0044_board_view_counts"],
+  );
+
+  if (rows.length > 0) {
+    console.log("[deploy] migration 0044 already applied");
+  } else {
+    async function hasColumn(tableName, columnName) {
+      const [columns] = await connection.execute(
+        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+        [databaseName, tableName, columnName],
+      );
+      return Number(columns?.[0]?.count ?? 0) > 0;
+    }
+
+    if (!(await hasColumn("notices", "viewCount"))) {
+      await connection.query("ALTER TABLE `notices` ADD COLUMN `viewCount` int NOT NULL DEFAULT 0 AFTER `authorId`");
+    }
+    if (!(await hasColumn("free_board_posts", "view_count"))) {
+      await connection.query("ALTER TABLE `free_board_posts` ADD COLUMN `view_count` int NOT NULL DEFAULT 0 AFTER `status`");
+    }
+    if (!(await hasColumn("bulletins", "view_count"))) {
+      await connection.query("ALTER TABLE `bulletins` ADD COLUMN `view_count` int NOT NULL DEFAULT 0 AFTER `author_id`");
+    }
+
+    await connection.query(
+      "INSERT INTO app_migrations (id) VALUES (?)",
+      ["0044_board_view_counts"],
+    );
+    console.log("[deploy] migration 0044 applied");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

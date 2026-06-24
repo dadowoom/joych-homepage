@@ -6,7 +6,7 @@
  *   - 공개 주보 목록 조회
  */
 
-import { asc, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import {
   type Bulletin,
   bulletinImages,
@@ -58,6 +58,13 @@ export async function listAdminBulletins(limit = 200) {
     .orderBy(desc(bulletins.bulletinDate), desc(bulletins.createdAt))
     .limit(limit);
   return attachBulletinImages(rows);
+}
+
+export async function incrementBulletinViewCount(id: number) {
+  const db = await requireDb();
+  await db.update(bulletins)
+    .set({ viewCount: sql`${bulletins.viewCount} + 1` })
+    .where(and(eq(bulletins.id, id), eq(bulletins.status, "published")));
 }
 
 export async function createBulletin(data: InsertBulletin) {

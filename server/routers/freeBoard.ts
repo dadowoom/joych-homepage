@@ -7,6 +7,7 @@ import {
   getFreeBoardPostById,
   getFreeBoardPostsByAuthor,
   getPublishedFreeBoardPosts,
+  incrementFreeBoardPostViewCount,
   updateFreeBoardPost,
   updateFreeBoardPostStatus,
 } from "../db";
@@ -29,6 +30,10 @@ function normalizePostInput(input: z.infer<typeof postInputSchema>) {
 
 export const freeBoardRouter = router({
   posts: publicProcedure.query(() => getPublishedFreeBoardPosts()),
+
+  trackPostView: publicProcedure
+    .input(z.object({ id: idSchema }))
+    .mutation(({ input }) => incrementFreeBoardPostViewCount(input.id)),
 
   myPosts: memberProtectedProcedure.query(({ ctx }) =>
     getFreeBoardPostsByAuthor(ctx.memberId),

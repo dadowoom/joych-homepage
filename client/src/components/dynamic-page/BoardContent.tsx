@@ -126,6 +126,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
   const [newCategoryLabel, setNewCategoryLabel] = useState("");
   const imageInputRef = useRef<HTMLInputElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const viewedNoticeIdsRef = useRef<Set<number>>(new Set());
 
   const getBlankForm = (): NoticeFormState => ({
     category: isAdminResource ? ADMIN_RESOURCE_CATEGORY : DEFAULT_NOTICE_CATEGORY_LABEL,
@@ -220,6 +221,14 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
     onError: (error) => toast.error(`분류 저장 실패: ${error.message}`),
   });
 
+  const trackNoticeViewMutation = trpc.home.trackNoticeView.useMutation({
+    onSuccess: () => {
+      void utils.home.notices.invalidate();
+      void utils.home.noticeBoard.invalidate();
+      void utils.home.adminResourceBoard.invalidate();
+    },
+  });
+
   const sortedNotices = useMemo(() => {
     return [...(notices ?? [])].sort((a, b) => {
       if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
@@ -232,6 +241,17 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
     setActiveCategory(visibleNoticeCategories[0] ?? NOTICE_ALL_CATEGORY_LABEL);
     setPage(1);
   }, [activeCategory, isAdminResource, visibleNoticeCategories]);
+
+  const handleToggleNotice = (noticeId: number) => {
+    const willOpen = expandedId !== noticeId;
+    setExpandedId(willOpen ? noticeId : null);
+
+    // 같은 목록 화면에서 같은 글을 접었다 펼쳐도 조회수가 계속 오르지 않게 막는다.
+    if (!willOpen || viewedNoticeIdsRef.current.has(noticeId)) return;
+
+    viewedNoticeIdsRef.current.add(noticeId);
+    trackNoticeViewMutation.mutate({ id: noticeId });
+  };
 
   const categoryFilteredNotices = isAdminResource || activeCategory === NOTICE_ALL_CATEGORY_LABEL
     ? sortedNotices
@@ -866,7 +886,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
                         <td className="px-3 py-3">
                           <button
                             type="button"
-                            onClick={() => setExpandedId(isExpanded ? null : notice.id)}
+                            onClick={() => handleToggleNotice(notice.id)}
                             className="block max-w-full truncate text-left text-gray-800 hover:text-[#1B5E20]"
                             aria-expanded={isExpanded}
                           >
@@ -952,7 +972,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setExpandedId(isExpanded ? null : notice.id)}
+                    onClick={() => handleToggleNotice(notice.id)}
                     className="block w-full text-left text-base font-bold text-gray-900"
                     aria-expanded={isExpanded}
                   >

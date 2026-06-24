@@ -212,6 +212,8 @@ export const notices = mysqlTable("notices", {
   isPinned: boolean("isPinned").notNull().default(false),
   /** 작성자 (users.id 참조) */
   authorId: int("authorId"),
+  /** 게시글 조회수 */
+  viewCount: int("viewCount").notNull().default(0),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -226,6 +228,8 @@ export const freeBoardPosts = mysqlTable("free_board_posts", {
   title: varchar("title", { length: 256 }).notNull(),
   content: text("content").notNull(),
   status: mysqlEnum("status", ["published", "hidden", "deleted"]).notNull().default("published"),
+  /** 게시글 조회수 */
+  viewCount: int("view_count").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
@@ -674,6 +678,8 @@ export const bulletins = mysqlTable("bulletins", {
   fileMime: varchar("file_mime", { length: 128 }),
   status: mysqlEnum("status", ["published", "hidden", "archived"]).notNull().default("published"),
   authorId: int("author_id"),
+  /** 주보 상세 조회수 */
+  viewCount: int("view_count").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 }, (table) => [

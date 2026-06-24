@@ -25,6 +25,7 @@ import {
   getVisibleQuickMenus,
   getPublishedNotices,
   getPublishedNoticesByCategory,
+  incrementNoticeViewCount,
   getActiveNoticePopups,
   getVisibleAffiliates,
   getVisibleGalleryItems,
@@ -54,6 +55,7 @@ import {
   getVisibleStaffMembers,
   getAllStaffTitleOptions,
   listPublishedBulletins,
+  incrementBulletinViewCount,
   getPublicHistory,
   getVisibleCourses,
   getVisibleCourseById,
@@ -287,6 +289,10 @@ export const homeRouter = router({
   /** 교회 소식 게시판 전체 목록 (공개된 것만) */
   noticeBoard: publicProcedure.query(() => getPublishedNotices(100)),
 
+  trackNoticeView: publicProcedure
+    .input(z.object({ id: idSchema }))
+    .mutation(({ input }) => incrementNoticeViewCount(input.id)),
+
   /** 행정자료 게시판 전체 목록 (공개된 것만) */
   adminResourceBoard: publicProcedure.query(() => getPublishedNoticesByCategory("행정자료", 100)),
 
@@ -331,6 +337,18 @@ export const homeRouter = router({
     }
     return listPublishedBulletins();
   }),
+
+  trackBulletinView: publicProcedure
+    .input(z.object({ id: idSchema }))
+    .mutation(({ input, ctx }) => {
+      if (!ctx.memberId && !hasAdminContentPermission(ctx.user, "content:bulletins")) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "주보 보기는 성도 로그인 후 이용할 수 있습니다.",
+        });
+      }
+      return incrementBulletinViewCount(input.id);
+    }),
 
   /** 공개 강좌 단건 */
   course: publicProcedure

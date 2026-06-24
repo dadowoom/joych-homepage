@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { ChevronLeft, ChevronRight, FileText, Pencil, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
@@ -47,6 +47,7 @@ export function FreeBoardContent() {
   const [searchKeyword, setSearchKeyword] = useState("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const viewedPostIdsRef = useRef<Set<number>>(new Set());
 
   const resetForm = () => {
     setShowForm(false);
@@ -81,6 +82,23 @@ export function FreeBoardContent() {
     },
     onError: (error) => toast.error(error.message),
   });
+
+  const trackPostView = trpc.freeBoard.trackPostView.useMutation({
+    onSuccess: () => {
+      void utils.freeBoard.posts.invalidate();
+    },
+  });
+
+  const handleTogglePost = (postId: number) => {
+    const willOpen = expandedId !== postId;
+    setExpandedId(willOpen ? postId : null);
+
+    // 같은 목록 화면에서 같은 글을 여러 번 열고 닫아도 조회수가 반복 증가하지 않게 한다.
+    if (!willOpen || viewedPostIdsRef.current.has(postId)) return;
+
+    viewedPostIdsRef.current.add(postId);
+    trackPostView.mutate({ id: postId });
+  };
 
   const submit = () => {
     const payload = { title, content };
@@ -270,6 +288,7 @@ export function FreeBoardContent() {
                 <col />
                 <col className="w-32" />
                 <col className="w-32" />
+                <col className="w-20" />
               </colgroup>
               <thead className="border-t-2 border-[#62B5D1] bg-[#EAF8FC] text-[#0F607A]">
                 <tr>
@@ -277,6 +296,7 @@ export function FreeBoardContent() {
                   <th scope="col" className="px-3 py-3 text-center font-semibold">제목</th>
                   <th scope="col" className="px-3 py-3 text-center font-semibold">작성자</th>
                   <th scope="col" className="px-3 py-3 text-center font-semibold">등록일</th>
+                  <th scope="col" className="px-3 py-3 text-center font-semibold">조회수</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -291,7 +311,7 @@ export function FreeBoardContent() {
                         <td className="px-3 py-3">
                           <button
                             type="button"
-                            onClick={() => setExpandedId(isExpanded ? null : post.id)}
+                            onClick={() => handleTogglePost(post.id)}
                             className="block max-w-full truncate text-left text-gray-800 hover:text-[#1B5E20]"
                             aria-expanded={isExpanded}
                           >
@@ -300,10 +320,11 @@ export function FreeBoardContent() {
                         </td>
                         <td className="px-3 py-3 text-center text-gray-600">{post.authorName ?? "성도"}</td>
                         <td className="px-3 py-3 text-center text-gray-500">{formatDate(post.createdAt)}</td>
+                        <td className="px-3 py-3 text-center text-gray-500">{post.viewCount ?? 0}</td>
                       </tr>
                       {isExpanded && (
                         <tr className="bg-gray-50/70">
-                          <td colSpan={4} className="px-8 py-5">
+                          <td colSpan={5} className="px-8 py-5">
                             <div className="border-l-2 border-[#1B5E20]/30 pl-4">
                               <RichTextViewer
                                 html={post.content}
@@ -355,7 +376,7 @@ export function FreeBoardContent() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setExpandedId(isExpanded ? null : post.id)}
+                    onClick={() => handleTogglePost(post.id)}
                     className="block w-full text-left text-base font-bold text-gray-900"
                     aria-expanded={isExpanded}
                   >
@@ -363,6 +384,7 @@ export function FreeBoardContent() {
                   </button>
                   <div className="mt-1 flex items-center justify-between gap-2">
                     <span className="text-xs font-medium text-[#1B5E20]">{post.authorName ?? "성도"}</span>
+                    <span className="text-xs text-gray-500">조회수 {post.viewCount ?? 0}</span>
                     {isOwner && (
                       <div className="flex gap-1">
                         <button

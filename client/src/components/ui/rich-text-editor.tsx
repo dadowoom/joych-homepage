@@ -30,6 +30,7 @@ import {
   Baseline,
   Bold,
   Columns3,
+  Eraser,
   Heading2,
   Heading3,
   Image as ImageIcon,
@@ -45,6 +46,7 @@ import {
   Rows3,
   Strikethrough,
   Table as TableIcon,
+  Trash2,
   Underline as UnderlineIcon,
   Undo2,
   Unlink
@@ -89,6 +91,12 @@ const TABLE_PRESET_OPTIONS = [
   { label: "헤더", value: "header" },
   { label: "구분", value: "soft" },
   { label: "강조", value: "strong" },
+];
+const TABLE_SIZE_OPTIONS = [
+  { label: "2x2", rows: 2, cols: 2 },
+  { label: "3x3", rows: 3, cols: 3 },
+  { label: "4x4", rows: 4, cols: 4 },
+  { label: "5x4", rows: 5, cols: 4 },
 ];
 const formattingSelectClassName =
   "h-8 min-w-[5rem] border border-gray-200 bg-white px-2 text-xs text-gray-700 outline-none transition hover:border-[#1B5E20] focus:border-[#1B5E20]";
@@ -356,15 +364,19 @@ function ToolbarButton({
   editor,
   label,
   isActive,
+  disabled,
   onClick,
   children,
 }: {
   editor: Editor;
   label: string;
   isActive?: boolean;
+  disabled?: boolean;
   onClick: () => void;
   children: ReactNode;
 }) {
+  const isDisabled = disabled || !editor.isEditable;
+
   return (
     <button
       type="button"
@@ -373,13 +385,15 @@ function ToolbarButton({
       aria-pressed={isActive}
       onMouseDown={(event) => {
         event.preventDefault();
+        if (isDisabled) return;
         onClick();
       }}
       className={cn(
         "inline-flex h-8 w-8 items-center justify-center border border-gray-200 bg-white text-gray-700 transition hover:border-[#1B5E20] hover:bg-[#F1F8E9] hover:text-[#1B5E20]",
         isActive && "border-[#1B5E20] bg-[#EAF6EA] text-[#1B5E20]",
+        isDisabled && "cursor-not-allowed opacity-40 hover:border-gray-200 hover:bg-white hover:text-gray-700",
       )}
-      disabled={!editor.isEditable}
+      disabled={isDisabled}
     >
       {children}
     </button>
@@ -461,6 +475,9 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
   const currentCellVerticalAlign = String(
     tableCellAttributes.verticalAlign ?? tableHeaderAttributes.verticalAlign ?? "",
   );
+  const hasSelection = !editor.state.selection.empty;
+  const canUndo = editor.can().chain().focus().undo().run();
+  const canRedo = editor.can().chain().focus().redo().run();
 
   const handleFontFamilyChange = (value: string) => {
     const nextOption = FONT_FAMILY_OPTIONS.find((option) => option.value === value);
@@ -490,8 +507,31 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
     editor.chain().focus().setColor(value).run();
   };
 
+  const insertTable = (rows: number, cols: number) => {
+    editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
+  };
+
   const insertDefaultTable = () => {
-    editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+    insertTable(3, 3);
+  };
+
+  const deleteSelection = () => {
+    editor.chain().focus().deleteSelection().run();
+  };
+
+  const deleteCurrentBlock = () => {
+    if (hasSelection) {
+      deleteSelection();
+      return;
+    }
+
+    // 사용자가 말하는 "줄 삭제"를 편집기 내부에서는 현재 문단/블록 삭제로 처리한다.
+    editor.chain().focus().selectParentNode().deleteSelection().run();
+  };
+
+  const clearFormatting = () => {
+    editor.chain().focus().unsetAllMarks().clearNodes().run();
+    clearEditorStoredMarks(editor);
   };
 
   const handleCellBackgroundColorChange = (value: string) => {
@@ -613,6 +653,15 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
         <ToolbarButton editor={editor} label="구분선" onClick={() => editor.chain().focus().setHorizontalRule().run()}>
           <Minus className="h-4 w-4" />
         </ToolbarButton>
+        <ToolbarButton editor={editor} label="선택 삭제" disabled={!hasSelection} onClick={deleteSelection}>
+          <Trash2 className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton editor={editor} label="현재 줄 삭제" onClick={deleteCurrentBlock}>
+          <span className="text-[10px] font-semibold">줄X</span>
+        </ToolbarButton>
+        <ToolbarButton editor={editor} label="서식 지우기" onClick={clearFormatting}>
+          <Eraser className="h-4 w-4" />
+        </ToolbarButton>
         <span className="mx-1 h-8 w-px bg-gray-200" />
         <ToolbarButton editor={editor} label="링크" isActive={editor.isActive("link")} onClick={setLink}>
           <LinkIcon className="h-4 w-4" />
@@ -626,6 +675,24 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
         <ToolbarButton editor={editor} label="표 만들기" isActive={editor.isActive("table")} onClick={insertDefaultTable}>
           <TableIcon className="h-4 w-4" />
         </ToolbarButton>
+        <select
+          aria-label="표 크기 선택"
+          className={tableToolSelectClassName}
+          defaultValue=""
+          onChange={(event) => {
+            const option = TABLE_SIZE_OPTIONS.find((item) => item.label === event.target.value);
+            if (!option) return;
+            insertTable(option.rows, option.cols);
+            event.target.value = "";
+          }}
+        >
+          <option value="">표 크기</option>
+          {TABLE_SIZE_OPTIONS.map((option) => (
+            <option key={option.label} value={option.label}>
+              {option.label}
+            </option>
+          ))}
+        </select>
         {editor.isActive("table") && (
           <>
             <label className="flex h-8 items-center gap-2 border border-gray-200 bg-white px-2 text-xs text-gray-700 transition hover:border-[#1B5E20]">
@@ -713,10 +780,10 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
           </>
         )}
         <span className="mx-1 h-8 w-px bg-gray-200" />
-        <ToolbarButton editor={editor} label="실행 취소" onClick={() => editor.chain().focus().undo().run()}>
+        <ToolbarButton editor={editor} label="실행 취소" disabled={!canUndo} onClick={() => editor.chain().focus().undo().run()}>
           <Undo2 className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton editor={editor} label="다시 실행" onClick={() => editor.chain().focus().redo().run()}>
+        <ToolbarButton editor={editor} label="다시 실행" disabled={!canRedo} onClick={() => editor.chain().focus().redo().run()}>
           <Redo2 className="h-4 w-4" />
         </ToolbarButton>
       </div>
@@ -898,11 +965,11 @@ export function RichTextViewer({ html, className }: RichTextViewerProps) {
       <div
         data-rich-text-id={viewerId}
         className={cn(
-          "rich-text-viewer max-w-none text-sm leading-7 text-gray-700",
+          "rich-text-viewer max-w-none overflow-x-auto text-sm leading-7 text-gray-700",
           "[&_a]:text-[#1B5E20] [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-[#D8E8DA] [&_blockquote]:pl-4 [&_blockquote]:text-gray-600",
           "[&_h2]:mb-3 [&_h2]:mt-5 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-[#001B3A] [&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:text-lg [&_h3]:font-bold [&_h3]:text-[#001B3A]",
           "min-w-0 break-words [overflow-wrap:anywhere] [&_*]:max-w-full [&_hr]:my-5 [&_hr]:border-gray-200 [&_img]:mx-auto [&_img]:my-5 [&_img]:h-auto [&_img]:max-w-full [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:my-2 [&_ul]:ml-5 [&_ul]:list-disc",
-          "[&_section]:my-4 [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-gray-200 [&_td]:px-3 [&_td]:py-2 [&_th]:border [&_th]:border-gray-200 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2",
+          "[&_section]:my-4 [&_table]:my-4 [&_table]:min-w-full [&_table]:border-collapse [&_td]:border [&_td]:border-gray-200 [&_td]:px-3 [&_td]:py-2 [&_th]:border [&_th]:border-gray-200 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2",
           className,
         )}
         dangerouslySetInnerHTML={{ __html: cleanHtml }}

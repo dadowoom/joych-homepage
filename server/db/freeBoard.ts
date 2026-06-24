@@ -1,4 +1,4 @@
-import { desc, eq, inArray, ne } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import type { ResultSetHeader } from "mysql2";
 import {
   churchMembers,
@@ -80,6 +80,14 @@ export async function getFreeBoardPostsByAuthor(memberId: number) {
     .where(eq(freeBoardPosts.authorMemberId, memberId))
     .orderBy(desc(freeBoardPosts.createdAt), desc(freeBoardPosts.id));
   return hydrateFreeBoardPosts(rows.filter(post => post.status !== "deleted"));
+}
+
+export async function incrementFreeBoardPostViewCount(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(freeBoardPosts)
+    .set({ viewCount: sql`${freeBoardPosts.viewCount} + 1` })
+    .where(and(eq(freeBoardPosts.id, id), eq(freeBoardPosts.status, "published")));
 }
 
 export async function createFreeBoardPost(data: InsertFreeBoardPost) {
