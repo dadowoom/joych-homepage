@@ -374,9 +374,23 @@ function getCurrentTableCellNodeRange(editor: Editor) {
   return null;
 }
 
+function getCurrentTableCellFocusPosition(editor: Editor) {
+  const range = getCurrentTableCellNodeRange(editor);
+  return range ? range.from + 1 : editor.state.selection.from;
+}
+
 function confirmEditorAction(message: string) {
   if (typeof window === "undefined") return true;
   return window.confirm(message);
+}
+
+function focusEditorAt(editor: Editor, position?: number) {
+  if (editor.isDestroyed) return;
+  if (typeof position === "number") {
+    editor.commands.focus(position);
+    return;
+  }
+  editor.commands.focus();
 }
 
 function ToolbarButton({
@@ -543,9 +557,17 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
     editor.chain().focus().deleteSelection().run();
   };
 
+  const confirmActionAndKeepFocus = (message: string, focusPosition = editor.state.selection.from) => {
+    const confirmed = confirmEditorAction(message);
+    if (!confirmed) focusEditorAt(editor, focusPosition);
+    return confirmed;
+  };
+
   const deleteCurrentBlock = () => {
+    const focusPosition = editor.state.selection.from;
+
     if (hasSelection) {
-      if (confirmEditorAction("선택한 내용을 삭제할까요?")) deleteSelection();
+      if (confirmActionAndKeepFocus("선택한 내용을 삭제할까요?", focusPosition)) deleteSelection();
       return;
     }
 
@@ -555,8 +577,8 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
     }
 
     // 사용자가 말하는 "줄 삭제"를 편집기 내부에서는 현재 문단/블록 삭제로 처리한다.
-    if (!confirmEditorAction("현재 줄(문단)을 삭제할까요?")) return;
-    editor.chain().focus().selectParentNode().deleteSelection().run();
+    if (!confirmActionAndKeepFocus("현재 줄(문단)을 삭제할까요?", focusPosition)) return;
+    editor.chain().focus(focusPosition).selectParentNode().deleteSelection().run();
   };
 
   const clearFormatting = () => {
@@ -567,7 +589,8 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
   const clearCurrentCell = () => {
     const range = getCurrentTableCellNodeRange(editor);
     if (!range) return;
-    if (!confirmEditorAction("현재 셀 안의 내용만 삭제할까요? 셀 자체는 유지됩니다.")) return;
+    const focusPosition = getCurrentTableCellFocusPosition(editor);
+    if (!confirmActionAndKeepFocus("현재 셀 안의 내용만 삭제할까요? 셀 자체는 유지됩니다.", focusPosition)) return;
     // 셀 자체와 배경색/정렬은 남기고, 안쪽 내용만 빈 문단으로 교체한다.
     const emptyCell = range.node.type.createAndFill(range.node.attrs);
     if (!emptyCell) return;
@@ -576,18 +599,21 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
   };
 
   const deleteCurrentRow = () => {
-    if (!confirmEditorAction("현재 행 전체를 삭제할까요?")) return;
-    editor.chain().focus().deleteRow().run();
+    const focusPosition = getCurrentTableCellFocusPosition(editor);
+    if (!confirmActionAndKeepFocus("현재 행 전체를 삭제할까요?", focusPosition)) return;
+    editor.chain().focus(focusPosition).deleteRow().run();
   };
 
   const deleteCurrentColumn = () => {
-    if (!confirmEditorAction("현재 열 전체를 삭제할까요?")) return;
-    editor.chain().focus().deleteColumn().run();
+    const focusPosition = getCurrentTableCellFocusPosition(editor);
+    if (!confirmActionAndKeepFocus("현재 열 전체를 삭제할까요?", focusPosition)) return;
+    editor.chain().focus(focusPosition).deleteColumn().run();
   };
 
   const deleteCurrentTable = () => {
-    if (!confirmEditorAction("표 전체를 삭제할까요?")) return;
-    editor.chain().focus().deleteTable().run();
+    const focusPosition = getCurrentTableCellFocusPosition(editor);
+    if (!confirmActionAndKeepFocus("표 전체를 삭제할까요?", focusPosition)) return;
+    editor.chain().focus(focusPosition).deleteTable().run();
   };
 
   const insertLineBreak = () => {
@@ -724,7 +750,7 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
           <CornerDownLeft className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton editor={editor} label="선택 삭제" disabled={!hasSelection} variant="danger" onClick={() => {
-          if (confirmEditorAction("선택한 내용을 삭제할까요?")) deleteSelection();
+          if (confirmActionAndKeepFocus("선택한 내용을 삭제할까요?")) deleteSelection();
         }}>
           <Trash2 className="h-4 w-4" />
         </ToolbarButton>
