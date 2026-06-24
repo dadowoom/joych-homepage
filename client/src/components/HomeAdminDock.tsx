@@ -28,9 +28,12 @@ const LABEL_LOGOUT = "\uB85C\uADF8\uC544\uC6C3";
 const LABEL_LOGGING_OUT = "\uB85C\uADF8\uC544\uC6C3 \uC911";
 const LABEL_CLOSE = "\uD3B8\uC9D1 \uB3C4\uAD6C \uB2EB\uAE30";
 const LABEL_OPEN = "\uD3B8\uC9D1 \uB3C4\uAD6C \uC5F4\uAE30";
+const LABEL_NEW_NOTIFICATION = "\uC0C8 \uC54C\uB9BC";
+const LABEL_COUNT_UNIT = "\uAC74";
 
 type HomeAdminDockProps = {
   loggingOut: boolean;
+  notificationCount?: number;
   open: boolean;
   onClose: () => void;
   onLogout: () => void;
@@ -52,6 +55,10 @@ type ActionButtonProps = {
   tone?: "default" | "accent";
   featured?: boolean;
 };
+
+function formatNotificationCount(count: number) {
+  return count > 99 ? "99+" : String(count);
+}
 
 function ActionButton({
   icon,
@@ -105,6 +112,7 @@ function ActionButton({
 
 export default function HomeAdminDock({
   loggingOut,
+  notificationCount = 0,
   open,
   onClose,
   onLogout,
@@ -119,6 +127,7 @@ export default function HomeAdminDock({
 }: HomeAdminDockProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const hasNotifications = notificationCount > 0;
 
   useEffect(() => {
     if (!open) return;
@@ -215,8 +224,12 @@ export default function HomeAdminDock({
             <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
               <ActionButton
                 icon={<Shield className="size-4" />}
-                label={LABEL_DASHBOARD}
-                href="/admin_joych_2026"
+                label={
+                  hasNotifications
+                    ? `${LABEL_DASHBOARD} - ${LABEL_NEW_NOTIFICATION} ${formatNotificationCount(notificationCount)}${LABEL_COUNT_UNIT}`
+                    : LABEL_DASHBOARD
+                }
+                href="/admin_joych_2026#admin-new-notifications"
                 tone="accent"
               />
               <button
@@ -240,12 +253,17 @@ export default function HomeAdminDock({
         aria-expanded={open}
         aria-label={LABEL_OPEN}
         className={cn(
-          "flex items-center gap-3 rounded-full border border-[#184D1D]/10 px-4 py-3 text-white shadow-[0_18px_45px_rgba(27,94,32,0.28)] transition-all",
+          "relative flex items-center gap-3 rounded-full border border-[#184D1D]/10 px-4 py-3 text-white shadow-[0_18px_45px_rgba(27,94,32,0.28)] transition-all",
           open
             ? "bg-[#174D1A] hover:bg-[#174D1A]"
             : "bg-[#1B5E20] hover:-translate-y-0.5 hover:bg-[#174D1A]"
         )}
       >
+        {hasNotifications && (
+          <span className="absolute -right-1 -top-1 flex min-w-6 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white ring-2 ring-white">
+            {formatNotificationCount(notificationCount)}
+          </span>
+        )}
         <span className="flex size-10 items-center justify-center rounded-full bg-white/12">
           <PencilLine className="size-4" />
         </span>

@@ -534,6 +534,13 @@ export default function AdminPage() {
   })).filter((group) => group.tabs.length > 0);
   const activeTabInfo = TABS_BY_ID[activeTab];
   const activeGroup = TAB_GROUPS.find(group => group.tabs.includes(activeTab));
+  const notificationTotalCount = notificationSummary?.totalCount ?? 0;
+  const hasNewAdminNotifications = notificationTotalCount > 0;
+  const scrollToNotificationPanel = () => {
+    document
+      .getElementById("admin-new-notifications")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
     <div
@@ -612,6 +619,50 @@ export default function AdminPage() {
                 {permittedTabs.length}개
               </span>
             </div>
+
+            <button
+              type="button"
+              onClick={scrollToNotificationPanel}
+              className={`mb-4 flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${
+                hasNewAdminNotifications
+                  ? "border-red-200 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100"
+                  : "border-[#D7F0D8] bg-[#F7FBF7] text-[#1B5E20] hover:border-[#A5D6A7] hover:bg-[#F1F8F2]"
+              }`}
+            >
+              <span
+                className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                  hasNewAdminNotifications
+                    ? "bg-white text-red-500"
+                    : "bg-white text-[#1B5E20]"
+                }`}
+              >
+                {hasNewAdminNotifications && (
+                  <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-red-500 ring-2 ring-white" />
+                )}
+                <i className="fas fa-bell text-sm"></i>
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center justify-between gap-2">
+                  <span className="truncate text-sm font-bold">새 알림</span>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                      hasNewAdminNotifications
+                        ? "bg-red-500 text-white"
+                        : "bg-[#E8F5E9] text-[#1B5E20]"
+                    }`}
+                  >
+                    {notificationsLoading
+                      ? "확인중"
+                      : hasNewAdminNotifications
+                        ? `${formatBadgeCount(notificationTotalCount)}건`
+                        : "없음"}
+                  </span>
+                </span>
+                <span className="mt-0.5 block text-xs leading-4 opacity-80">
+                  새 접수와 처리 대기를 먼저 확인
+                </span>
+              </span>
+            </button>
 
             <nav className="flex gap-3 overflow-x-auto pb-1 lg:block lg:min-h-0 lg:flex-1 lg:space-y-5 lg:overflow-x-hidden lg:overflow-y-auto lg:pb-0 lg:pr-1">
               {visibleTabGroups.map(group => {
@@ -745,7 +796,7 @@ export default function AdminPage() {
               </div>
             </section>
 
-            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <section id="admin-new-notifications" className="scroll-mt-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <div className="flex items-center gap-2">

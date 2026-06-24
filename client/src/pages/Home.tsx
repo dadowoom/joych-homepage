@@ -553,6 +553,12 @@ export default function Home() {
       window.location.reload();
     },
   });
+  const { data: notificationSummary } = trpc.cms.notifications.summary.useQuery(undefined, {
+    enabled: isAdmin,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+  const notificationCount = notificationSummary?.totalCount ?? 0;
 
   // 영상이 끝나면 다음 슬라이드로 전환
   const handleVideoEnded = () => {
@@ -587,6 +593,7 @@ export default function Home() {
         <>
           <HomeAdminDock
             loggingOut={logoutMutation.isPending}
+            notificationCount={notificationCount}
             open={adminToolsOpen}
             onClose={() => setAdminToolsOpen(false)}
             onLogout={() => logoutMutation.mutate()}

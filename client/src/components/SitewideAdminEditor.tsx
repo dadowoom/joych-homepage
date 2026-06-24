@@ -36,6 +36,12 @@ export default function SitewideAdminEditor() {
       window.location.reload();
     },
   });
+  const { data: notificationSummary } = trpc.cms.notifications.summary.useQuery(undefined, {
+    enabled: isAdmin,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+  const notificationCount = notificationSummary?.totalCount ?? 0;
 
   if (!isAdmin) {
     return null;
@@ -45,6 +51,7 @@ export default function SitewideAdminEditor() {
     <>
       <HomeAdminDock
         loggingOut={logoutMutation.isPending}
+        notificationCount={notificationCount}
         open={adminToolsOpen}
         onClose={() => setAdminToolsOpen(false)}
         onLogout={() => logoutMutation.mutate()}
