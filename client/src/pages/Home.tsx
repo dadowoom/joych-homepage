@@ -395,6 +395,28 @@ function isExternalHref(href: string) {
   return href.startsWith("http://") || href.startsWith("https://");
 }
 
+const QUICK_MENU_INTERNAL_HOSTS = new Set([
+  "newjoych.co.kr",
+  "www.newjoych.co.kr",
+]);
+
+function normalizeQuickMenuHref(href: string) {
+  if (!isExternalHref(href)) return href;
+
+  try {
+    const url = new URL(href);
+    const currentHost =
+      typeof window !== "undefined" ? window.location.host : "";
+    if (url.host === currentHost || QUICK_MENU_INTERNAL_HOSTS.has(url.host)) {
+      return `${url.pathname}${url.search}${url.hash}` || "/";
+    }
+  } catch {
+    return href;
+  }
+
+  return href;
+}
+
 type HomeGalleryCard = {
   albumKey?: string | null;
   albumTitle?: string | null;
@@ -1111,19 +1133,15 @@ export default function Home() {
                       return (
                         <span className={`${cls} cursor-default`}>{inner}</span>
                       );
-                    return isExternalHref(href) ? (
-                      <a
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={cls}
-                      >
-                        {inner}
-                      </a>
-                    ) : (
-                      <Link href={href} className={cls}>
+                    const quickMenuHref = normalizeQuickMenuHref(href);
+                    return quickMenuHref.startsWith("/") ? (
+                      <Link href={quickMenuHref} className={cls}>
                         {inner}
                       </Link>
+                    ) : (
+                      <a href={quickMenuHref} className={cls}>
+                        {inner}
+                      </a>
                     );
                   })()}
                 </li>
