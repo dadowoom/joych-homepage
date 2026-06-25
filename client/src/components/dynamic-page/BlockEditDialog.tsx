@@ -3,7 +3,7 @@
  * 관리자가 에디터 페이지에서 블록을 추가하거나 수정할 때 사용하는 팝업입니다.
  * 블록 종류(텍스트, 이미지, 유튜브, 버튼, 구분선)에 따라 다른 입력 폼을 보여줍니다.
  */
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Code2, Eye, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -266,12 +266,6 @@ export function BlockEditDialog({
   const uploadMutation = trpc.cms.blocks.uploadImage.useMutation();
   const visualEditorSafeHtml = useMemo(() => isVisualEditorSafeHtml(html), [html]);
 
-  useEffect(() => {
-    if (!visualEditorSafeHtml && htmlEditMode === "visual") {
-      setHtmlEditMode("source");
-    }
-  }, [htmlEditMode, visualEditorSafeHtml]);
-
   const imgCount =
     blockType === "image-single" ? 1 : blockType === "image-double" ? 2 : 3;
 
@@ -428,8 +422,7 @@ export function BlockEditDialog({
             <div className="space-y-3">
               {!visualEditorSafeHtml && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-                  현재 HTML에는 스타일, class, 또는 고급 레이아웃 태그가 포함되어 있어 시각 편집기로 열면 기존 소스가 깨질 수 있습니다.
-                  이 경우에는 HTML 소스 또는 미리보기 모드로만 수정해주세요.
+                  현재 HTML에 편집기가 모르는 태그나 직접 입력한 소스가 있습니다. 편집기로 열 수는 있지만 저장 전 미리보기로 모양을 확인해주세요.
                 </div>
               )}
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -451,7 +444,6 @@ export function BlockEditDialog({
                         variant={active ? "default" : "ghost"}
                         size="sm"
                         className={active ? "bg-green-700 hover:bg-green-800" : "text-gray-600"}
-                        disabled={item.value === "visual" && !visualEditorSafeHtml}
                         onClick={() => setHtmlEditMode(item.value)}
                       >
                         <Icon className="h-4 w-4" />
