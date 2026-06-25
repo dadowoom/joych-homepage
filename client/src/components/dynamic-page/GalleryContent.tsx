@@ -238,6 +238,12 @@ function readFileAsBase64(file: File) {
   });
 }
 
+function sortGalleryUploadFiles(files: File[]) {
+  return [...files].sort((a, b) =>
+    a.name.localeCompare(b.name, "ko-KR", { numeric: true, sensitivity: "base" })
+  );
+}
+
 function SortableGalleryOrderItem({
   item,
   index,
@@ -440,7 +446,7 @@ export function GalleryContent() {
   });
 
   const handleFilesChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
+    const files = sortGalleryUploadFiles(Array.from(event.target.files ?? []));
     if (files.length === 0) return;
 
     const title = albumTitle.trim();
@@ -474,7 +480,8 @@ export function GalleryContent() {
     const albumKey = `gallery-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const albumSortOrder = Math.floor(Date.now() / 1000);
     try {
-      for (const file of files) {
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index];
         const base64 = await readFileAsBase64(file);
         const { url } = await uploadGalleryImage.mutateAsync({
           base64,
@@ -488,6 +495,7 @@ export function GalleryContent() {
           albumSortOrder,
           caption: "",
           gridSpan: "col-span-1 row-span-1",
+          sortOrder: index + 1,
         });
       }
 
@@ -575,7 +583,7 @@ export function GalleryContent() {
 
   const handleAddDetailPhotos = async (event: ChangeEvent<HTMLInputElement>) => {
     if (!detailGroup) return;
-    const files = Array.from(event.target.files ?? []);
+    const files = sortGalleryUploadFiles(Array.from(event.target.files ?? []));
     if (files.length === 0) return;
     if (!validateGalleryFiles(files)) {
       event.target.value = "";

@@ -73,7 +73,25 @@ const VISUAL_EDITOR_ALLOWED_TAGS = new Set([
   "u",
   "ul",
 ]);
-const VISUAL_EDITOR_STYLE_TAGS = new Set(["col", "h2", "h3", "p", "span", "table", "td", "th"]);
+const VISUAL_EDITOR_STYLE_TAGS = new Set([
+  "a",
+  "blockquote",
+  "col",
+  "h2",
+  "h3",
+  "img",
+  "li",
+  "ol",
+  "p",
+  "span",
+  "strong",
+  "table",
+  "td",
+  "th",
+  "tr",
+  "u",
+  "ul",
+]);
 const STYLE_BLOCK_PATTERN = /<\s*style\b[^>]*>[\s\S]*?<\s*\/\s*style\s*>/i;
 const OPENING_TAG_PATTERN = /<([a-z0-9-]+)\b([^>]*)>/gi;
 
@@ -89,8 +107,6 @@ function isVisualEditorSafeHtml(value: string) {
     const attributes = String(match[2] ?? "");
 
     if (!VISUAL_EDITOR_ALLOWED_TAGS.has(tagName)) return false;
-    if (/\sclass\s*=/i.test(attributes)) return false;
-    if (/\s(?:id|data-[\w-]+)\s*=/i.test(attributes)) return false;
     if (/\sstyle\s*=/i.test(attributes) && !VISUAL_EDITOR_STYLE_TAGS.has(tagName)) return false;
   }
 

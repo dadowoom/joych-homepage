@@ -588,32 +588,40 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
   const canUndo = editor.can().chain().focus().undo().run();
   const canRedo = editor.can().chain().focus().redo().run();
 
+  const restoreCurrentTextSelection = () => {
+    const { from, to } = editor.state.selection;
+    return editor.chain().focus().setTextSelection({ from, to });
+  };
+
   const handleFontFamilyChange = (value: string) => {
+    const chain = restoreCurrentTextSelection();
     const nextOption = FONT_FAMILY_OPTIONS.find((option) => option.value === value);
     if (!nextOption?.fontFamily) {
-      editor.chain().focus().unsetFontFamily().run();
+      chain.unsetFontFamily().run();
       return;
     }
 
-    editor.chain().focus().setFontFamily(nextOption.fontFamily).run();
+    chain.setFontFamily(nextOption.fontFamily).run();
   };
 
   const handleFontSizeChange = (value: string) => {
+    const chain = restoreCurrentTextSelection();
     if (!value) {
-      editor.chain().focus().unsetFontSize().run();
+      chain.unsetFontSize().run();
       return;
     }
 
-    editor.chain().focus().setFontSize(`${value}px`).run();
+    chain.setFontSize(`${value}px`).run();
   };
 
   const handleTextColorChange = (value: string) => {
+    const chain = restoreCurrentTextSelection();
     if (!value || value === DEFAULT_TEXT_COLOR) {
-      editor.chain().focus().unsetColor().run();
+      chain.unsetColor().run();
       return;
     }
 
-    editor.chain().focus().setColor(value).run();
+    chain.setColor(value).run();
   };
 
   const insertTable = (rows: number, cols: number) => {
