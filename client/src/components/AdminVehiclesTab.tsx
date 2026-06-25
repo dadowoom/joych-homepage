@@ -5,7 +5,7 @@
  * - 차량예약을 볼 수 있고 신청할 수 있는 성도 그룹 설정
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -16,12 +16,15 @@ import {
   CheckCircle2,
   Clock,
   Car,
+  ImageIcon,
   KeyRound,
   Loader2,
   Pencil,
   Plus,
   Save,
+  Star,
   Trash2,
+  Upload,
   Users,
   XCircle,
 } from "lucide-react";
@@ -34,6 +37,9 @@ type FieldType = "position" | "department" | "district" | "baptism";
 // 차량예약은 당분간 직분 기준으로만 메뉴 노출/신청 권한을 관리합니다.
 // 나중에 부서/구역 기준이 필요하면 이 배열에 다시 추가하면 됩니다.
 const VEHICLE_ACCESS_FIELD_TYPES: FieldType[] = ["position"];
+const VEHICLE_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"]);
+const MAX_VEHICLE_IMAGE_BYTES = 10 * 1024 * 1024;
+const TIME_24H_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 type VehicleRow = {
   id: number;
@@ -55,6 +61,17 @@ type VehicleRow = {
   openTime: string;
   closeTime: string;
   thumbnailUrl?: string | null;
+};
+
+type VehicleImageRow = {
+  id: number;
+  vehicleId: number;
+  imageUrl: string;
+  fileKey?: string | null;
+  caption?: string | null;
+  isThumbnail: boolean;
+  sortOrder: number;
+  createdAt?: Date | string;
 };
 
 type VehicleReservationRow = {
@@ -145,11 +162,42 @@ function formatDate(dateKey: string) {
     : date.toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" });
 }
 
+// 관리자 화면에서는 브라우저 언어 설정에 흔들리지 않도록 HH:MM 24시간제로 통일합니다.
+function normalizeTimeValue(value: string) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+  if (!match) return value.trim();
+  return `${String(Number(match[1])).padStart(2, "0")}:${match[2]}`;
+}
+
+function formatTime(value?: string | null) {
+  if (!value) return "--:--";
+  const normalized = normalizeTimeValue(value);
+  return TIME_24H_RE.test(normalized) ? normalized : value;
+}
+
+function formatTimeRange(start?: string | null, end?: string | null) {
+  return `${formatTime(start)}~${formatTime(end)}`;
+}
+
 function formatCreatedAt(value: Date | string) {
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime())
     ? ""
-    : date.toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+    : date.toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function readImageFileAsBase64(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result ?? "");
+      const [, base64] = result.split(",");
+      if (!base64) reject(new Error("이미지 파일을 읽지 못했습니다."));
+      else resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 function getNextSortOrder(rows: VehicleRow[]) {
@@ -183,6 +231,10 @@ export default function AdminVehiclesTab() {
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [rejectComment, setRejectComment] = useState("");
   const [accessDraft, setAccessDraft] = useState<AccessRuleDraft[] | null>(null);
+  const [imageVehicleId, setImageVehicleId] = useState<number | null>(null);
+  const [uploadingVehicleImage, setUploadingVehicleImage] = useState(false);
+  const [busyImageId, setBusyImageId] = useState<number | null>(null);
+  const vehicleImageInputRef = useRef<HTMLInputElement | null>(null);
 
   const { data: vehicles = [], isLoading: vehiclesLoading } = trpc.cms.vehicles.list.useQuery(undefined, {
     refetchInterval: 30000,
@@ -194,10 +246,16 @@ export default function AdminVehiclesTab() {
     );
   const { data: memberOptions = [] } = trpc.members.adminFieldOptions.useQuery();
   const { data: accessRules = [], isLoading: accessLoading } = trpc.cms.vehicles.accessRules.list.useQuery(undefined);
+  const { data: vehicleImages = [], isLoading: vehicleImagesLoading } = trpc.cms.vehicles.images.list.useQuery(
+    { vehicleId: imageVehicleId ?? 1 },
+    { enabled: imageVehicleId !== null }
+  );
 
   const vehicleRows = vehicles as VehicleRow[];
   const reservationRows = reservations as VehicleReservationRow[];
   const accessRuleRows = accessRules as AccessRuleDraft[];
+  const vehicleImageRows = vehicleImages as VehicleImageRow[];
+  const imageVehicle = vehicleRows.find(vehicle => vehicle.id === imageVehicleId) ?? null;
 
   const createVehicle = trpc.cms.vehicles.create.useMutation({
     onSuccess: () => {
@@ -258,6 +316,9 @@ export default function AdminVehiclesTab() {
     },
     onError: (error) => toast.error(error.message),
   });
+  const uploadVehicleImage = trpc.cms.vehicles.images.upload.useMutation();
+  const deleteVehicleImage = trpc.cms.vehicles.images.delete.useMutation();
+  const setVehicleThumbnailMutation = trpc.cms.vehicles.images.setThumbnail.useMutation();
 
   const stats = useMemo(() => ({
     total: reservationRows.length,
@@ -289,20 +350,31 @@ export default function AdminVehiclesTab() {
     .filter(rule => VEHICLE_ACCESS_FIELD_TYPES.includes(rule.fieldType));
   const selectedAccessKeys = new Set(displayedAccessRules.map(getRuleKey));
 
+  function invalidateVehicleImages(vehicleId: number) {
+    utils.cms.vehicles.images.list.invalidate({ vehicleId });
+    utils.cms.vehicles.list.invalidate();
+    utils.home.vehicles.invalidate();
+    utils.home.vehicle.invalidate({ id: vehicleId });
+    utils.home.vehicleImages.invalidate({ vehicleId });
+  }
+
   function resetForm() {
     setShowForm(false);
     setEditingId(null);
+    setImageVehicleId(null);
     setForm(EMPTY_FORM);
   }
 
   function startCreate() {
     setForm(EMPTY_FORM);
     setEditingId(null);
+    setImageVehicleId(null);
     setShowForm(true);
   }
 
   function startEdit(vehicle: VehicleRow) {
     setEditingId(vehicle.id);
+    setImageVehicleId(null);
     setForm({
       name: vehicle.name,
       description: vehicle.description ?? "",
@@ -325,6 +397,12 @@ export default function AdminVehiclesTab() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  function openImageManager(vehicle: VehicleRow) {
+    setImageVehicleId(vehicle.id);
+    setShowForm(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   function updateForm<K extends keyof VehicleForm>(key: K, value: VehicleForm[K]) {
     setForm(prev => ({ ...prev, [key]: value }));
   }
@@ -334,7 +412,14 @@ export default function AdminVehiclesTab() {
       toast.error("차량 이름을 입력해주세요.");
       return;
     }
-    if (form.openTime >= form.closeTime) {
+
+    const openTime = normalizeTimeValue(form.openTime);
+    const closeTime = normalizeTimeValue(form.closeTime);
+    if (!TIME_24H_RE.test(openTime) || !TIME_24H_RE.test(closeTime)) {
+      toast.error("운영 시간은 09:00처럼 24시간제로 입력해주세요.");
+      return;
+    }
+    if (openTime >= closeTime) {
       toast.error("시작 시간은 종료 시간보다 빨라야 합니다.");
       return;
     }
@@ -343,12 +428,13 @@ export default function AdminVehiclesTab() {
       return;
     }
 
+    const payload = { ...form, openTime, closeTime };
     if (editingId) {
-      updateVehicle.mutate({ id: editingId, ...form });
+      updateVehicle.mutate({ id: editingId, ...payload });
       return;
     }
     createVehicle.mutate({
-      ...form,
+      ...payload,
       sortOrder: getNextSortOrder(vehicleRows),
     });
   }
@@ -361,6 +447,74 @@ export default function AdminVehiclesTab() {
   function removeReservation(row: VehicleReservationRow) {
     if (!confirm("차량 예약을 삭제하시겠습니까? 삭제 후에는 되돌릴 수 없습니다.")) return;
     deleteReservation.mutate({ id: row.id });
+  }
+
+  async function handleVehicleImageUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !imageVehicleId) return;
+    if (!VEHICLE_IMAGE_MIME_TYPES.has(file.type)) {
+      toast.error("차량 이미지는 jpg, png, webp, gif 파일만 업로드할 수 있습니다.");
+      return;
+    }
+    if (file.size > MAX_VEHICLE_IMAGE_BYTES) {
+      toast.error("차량 이미지는 최대 10MB까지 업로드할 수 있습니다.");
+      return;
+    }
+
+    setUploadingVehicleImage(true);
+    try {
+      const base64 = await readImageFileAsBase64(file);
+      await uploadVehicleImage.mutateAsync({
+        vehicleId: imageVehicleId,
+        base64,
+        mimeType: file.type,
+        caption: "",
+        isThumbnail: vehicleImageRows.length === 0,
+      });
+      invalidateVehicleImages(imageVehicleId);
+      toast.success("차량 이미지가 등록되었습니다.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "차량 이미지 업로드에 실패했습니다.");
+    } finally {
+      setUploadingVehicleImage(false);
+    }
+  }
+
+  async function handleVehicleThumbnail(image: VehicleImageRow) {
+    if (!imageVehicleId || image.isThumbnail) return;
+    setBusyImageId(image.id);
+    try {
+      await setVehicleThumbnailMutation.mutateAsync({ vehicleId: imageVehicleId, imageId: image.id });
+      invalidateVehicleImages(imageVehicleId);
+      toast.success("대표 이미지가 변경되었습니다.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "대표 이미지 변경에 실패했습니다.");
+    } finally {
+      setBusyImageId(null);
+    }
+  }
+
+  async function handleVehicleImageDelete(image: VehicleImageRow) {
+    if (!imageVehicleId) return;
+    if (!confirm("차량 이미지를 삭제하시겠습니까?")) return;
+
+    setBusyImageId(image.id);
+    try {
+      await deleteVehicleImage.mutateAsync({ id: image.id });
+      const nextThumbnail = image.isThumbnail
+        ? vehicleImageRows.find(row => row.id !== image.id)
+        : null;
+      if (nextThumbnail) {
+        await setVehicleThumbnailMutation.mutateAsync({ vehicleId: imageVehicleId, imageId: nextThumbnail.id });
+      }
+      invalidateVehicleImages(imageVehicleId);
+      toast.success("차량 이미지가 삭제되었습니다.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "차량 이미지 삭제에 실패했습니다.");
+    } finally {
+      setBusyImageId(null);
+    }
   }
 
   function toggleAccessRule(fieldType: FieldType, fieldValue: string, checked: boolean) {
@@ -424,6 +578,7 @@ export default function AdminVehiclesTab() {
             type="button"
             onClick={() => {
               if (showForm) resetForm();
+              setImageVehicleId(null);
               setMode(item.id as AdminVehicleTabMode);
             }}
             className={`flex items-center gap-3 rounded-lg px-4 py-3 text-left transition-colors ${
@@ -540,18 +695,28 @@ export default function AdminVehiclesTab() {
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-gray-600">운영 시작</span>
                 <input
-                  type="time"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-2][0-9]:[0-5][0-9]"
+                  maxLength={5}
+                  placeholder="09:00"
                   value={form.openTime}
                   onChange={(e) => updateForm("openTime", e.target.value)}
+                  onBlur={() => updateForm("openTime", normalizeTimeValue(form.openTime))}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
                 />
               </label>
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-gray-600">운영 종료</span>
                 <input
-                  type="time"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-2][0-9]:[0-5][0-9]"
+                  maxLength={5}
+                  placeholder="22:00"
                   value={form.closeTime}
                   onChange={(e) => updateForm("closeTime", e.target.value)}
+                  onBlur={() => updateForm("closeTime", normalizeTimeValue(form.closeTime))}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
                 />
               </label>
@@ -608,6 +773,99 @@ export default function AdminVehiclesTab() {
         </div>
       )}
 
+      {mode === "vehicles" && !showForm && imageVehicle && (
+        <div className="rounded-xl border border-emerald-100 bg-white p-5 shadow-sm">
+          <input
+            ref={vehicleImageInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="hidden"
+            onChange={handleVehicleImageUpload}
+          />
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#E8F5E9] text-[#1B5E20]">
+                <ImageIcon className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-gray-900">{imageVehicle.name} 이미지 관리</h4>
+                <p className="mt-1 text-xs text-gray-500">
+                  첫 이미지는 자동으로 대표 이미지가 됩니다. 대표 이미지는 사용자 차량예약 화면에도 표시됩니다.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => vehicleImageInputRef.current?.click()}
+                disabled={uploadingVehicleImage}
+                className="bg-[#1B5E20] text-white hover:bg-[#2E7D32]"
+              >
+                {uploadingVehicleImage ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1 h-3.5 w-3.5" />}
+                이미지 추가
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => setImageVehicleId(null)}>
+                닫기
+              </Button>
+            </div>
+          </div>
+
+          {vehicleImagesLoading ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="h-6 w-6 animate-spin text-[#1B5E20]" />
+            </div>
+          ) : vehicleImageRows.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 py-10 text-center text-sm text-gray-400">
+              등록된 차량 이미지가 없습니다. 이미지 추가 버튼으로 사진을 넣어주세요.
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {vehicleImageRows.map(image => (
+                <div key={image.id} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+                  <div className="relative aspect-video bg-gray-100">
+                    <img
+                      src={image.imageUrl}
+                      alt={`${imageVehicle.name} 차량 이미지`}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                    {image.isThumbnail && (
+                      <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-[#1B5E20] px-2 py-1 text-xs font-medium text-white">
+                        <Star className="h-3 w-3 fill-current" /> 대표
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2 p-3">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={image.isThumbnail || busyImageId === image.id}
+                      onClick={() => handleVehicleThumbnail(image)}
+                    >
+                      {busyImageId === image.id && !image.isThumbnail ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Star className="mr-1 h-3.5 w-3.5" />}
+                      대표 지정
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={busyImageId === image.id}
+                      className="border-red-200 text-red-600 hover:bg-red-50"
+                      onClick={() => handleVehicleImageDelete(image)}
+                    >
+                      {busyImageId === image.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1 h-3.5 w-3.5" />}
+                      삭제
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {mode === "vehicles" && !showForm && (
         <div className="space-y-3">
           {vehicleRows.length === 0 ? (
@@ -642,11 +900,14 @@ export default function AdminVehiclesTab() {
                       </span>
                     </div>
                     <p className="mt-1 text-sm text-gray-500">
-                      {vehicle.location || "출발 장소 미입력"} · {vehicle.openTime}~{vehicle.closeTime} · {vehicle.slotMinutes}분 단위 · 정원 {vehicle.capacity}명
+                      {vehicle.location || "출발 장소 미입력"} · {formatTimeRange(vehicle.openTime, vehicle.closeTime)} · {vehicle.slotMinutes}분 단위 · 정원 {vehicle.capacity}명
                     </p>
                     {vehicle.description && <p className="mt-1 line-clamp-1 text-xs text-gray-400">{vehicle.description}</p>}
                   </div>
                   <div className="flex shrink-0 gap-2">
+                    <Button size="sm" variant="outline" onClick={() => openImageManager(vehicle)}>
+                      <ImageIcon className="mr-1 h-3.5 w-3.5" /> 이미지
+                    </Button>
                     <Button size="sm" variant="outline" onClick={() => startEdit(vehicle)}>
                       <Pencil className="mr-1 h-3.5 w-3.5" /> 수정
                     </Button>
@@ -722,7 +983,7 @@ export default function AdminVehiclesTab() {
                             <span className="text-xs text-gray-400">신청 {formatCreatedAt(row.createdAt)}</span>
                           </div>
                           <p className="font-bold text-gray-900">
-                            {row.vehicleName ?? "차량"} · {formatDate(row.reservationDate)} {row.startTime}~{row.endTime}
+                            {row.vehicleName ?? "차량"} · {formatDate(row.reservationDate)} {formatTimeRange(row.startTime, row.endTime)}
                           </p>
                           <p className="mt-1 text-sm text-gray-500">
                             {getReservationName(row)} · {getReservationPosition(row)} · {getReservationPhone(row)} · {row.passengers}명
