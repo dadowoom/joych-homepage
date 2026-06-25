@@ -172,7 +172,21 @@ jobs:
             if (items.length) return items[0];
             const [subs] = await conn.query("SELECT 'sub' AS kind, id, label, href FROM menu_sub_items WHERE href = ? LIMIT 1", ["/worship/schedule"]);
             if (subs.length) return subs[0];
-            throw new Error("Could not find /worship/schedule menu target.");
+            const [itemCandidates] = await conn.query(
+              "SELECT 'item' AS kind, id, label, href FROM menu_items WHERE pageType = 'editor' AND (REPLACE(label, ' ', '') IN ('예배안내', '예배시간안내') OR href LIKE '%예배%안내%' OR href LIKE '%schedule%') ORDER BY id LIMIT 10",
+            );
+            const [subCandidates] = await conn.query(
+              "SELECT 'sub' AS kind, id, label, href FROM menu_sub_items WHERE pageType = 'editor' AND (REPLACE(label, ' ', '') IN ('예배안내', '예배시간안내') OR href LIKE '%예배%안내%' OR href LIKE '%schedule%') ORDER BY id LIMIT 10",
+            );
+            const candidates = [...itemCandidates, ...subCandidates];
+            if (candidates.length === 1) return candidates[0];
+            if (candidates.length > 1) {
+              console.log("[candidates]");
+              for (const candidate of candidates) {
+                console.log(`${candidate.kind} id=${candidate.id} label=${candidate.label} href=${candidate.href ?? ""}`);
+              }
+            }
+            throw new Error("Could not find a unique worship schedule menu target.");
           }
 
           function conditionFor(target, alias = "") {
