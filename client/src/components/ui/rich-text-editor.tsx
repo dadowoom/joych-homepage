@@ -396,7 +396,11 @@ function getSelectedTableCellNodeRanges(editor: Editor) {
 
 function getCurrentTableCellFocusPosition(editor: Editor) {
   const range = getCurrentTableCellNodeRange(editor);
-  return range ? range.from + 1 : editor.state.selection.from;
+  if (!range) return editor.state.selection.from;
+
+  // 표 셀 안에는 보통 문단 노드가 한 겹 더 있어서 셀 시작점 바로 다음보다
+  // 실제 글 입력 위치에 가까운 지점으로 포커스를 되돌리는 편이 표 명령 실행에 안정적이다.
+  return Math.min(range.from + 2, range.to - 1);
 }
 
 function confirmEditorAction(message: string) {
@@ -541,7 +545,7 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
     tableCellAttributes.verticalAlign ?? tableHeaderAttributes.verticalAlign ?? "",
   );
   const hasSelection = !editor.state.selection.empty;
-  const isInTable = editor.isActive("table");
+  const isInTable = Boolean(getCurrentTableCellNodeRange(editor)) || editor.isActive("table");
   const tableToolDisabled = !isInTable;
   const canUndo = editor.can().chain().focus().undo().run();
   const canRedo = editor.can().chain().focus().redo().run();
@@ -654,7 +658,11 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
   const deleteCurrentTable = () => {
     const focusPosition = getCurrentTableCellFocusPosition(editor);
     if (!confirmActionAndKeepFocus("표 전체를 삭제할까요?", focusPosition)) return;
-    editor.chain().focus(focusPosition).deleteTable().run();
+    const didDelete = editor.chain().focus(focusPosition).deleteTable().run();
+    if (!didDelete) {
+      window.alert("표 안의 셀을 한 번 클릭한 뒤 다시 표 삭제를 눌러주세요.");
+      focusEditorAt(editor, focusPosition);
+    }
   };
 
   const insertLineBreak = () => {
