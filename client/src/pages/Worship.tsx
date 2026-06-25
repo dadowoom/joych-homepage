@@ -276,6 +276,7 @@ function getBulletinPages(bulletin: BulletinWithPages) {
 }
 
 const MAX_BULLETIN_UPLOAD_BYTES = 8 * 1024 * 1024;
+const BULLETIN_PAGE_SIZE_OPTIONS = [30, 50] as const;
 const MAX_BULLETIN_UPLOAD_COUNT = 12;
 const ALLOWED_BULLETIN_UPLOAD_RE = /\.(jpg|jpeg|png)$/i;
 
@@ -766,11 +767,18 @@ export function Bulletin() {
   const [lightbox, setLightbox] = useState<{ bulletinId: number; pageIndex: number } | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
+  const [pageSize, setPageSize] = useState<(typeof BULLETIN_PAGE_SIZE_OPTIONS)[number]>(30);
+  const [page, setPage] = useState(1);
   const touchStartXRef = useRef<number | null>(null);
   const { parentLabel, sideMenuItems } = getSupportSideMenuItems(allMenus, "/worship/bulletin");
   const filteredBulletins = searchKeyword.trim()
     ? bulletins.filter((bulletin) => bulletin.title.toLowerCase().includes(searchKeyword.trim().toLowerCase()))
     : bulletins;
+  const totalPages = Math.max(1, Math.ceil(filteredBulletins.length / pageSize));
+  const activePage = Math.min(page, totalPages);
+  const pageStart = (activePage - 1) * pageSize;
+  const visibleBulletins = filteredBulletins.slice(pageStart, pageStart + pageSize);
+  const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1);
   const selectedBulletin = filteredBulletins.find((bulletin) => bulletin.id === expandedId) ?? null;
   const selectedPages = selectedBulletin ? getBulletinPages(selectedBulletin) : [];
   const maxSelectedPageIndex = Math.max(selectedPages.length - 1, 0);
@@ -781,6 +789,12 @@ export function Bulletin() {
   const lightboxPage = lightbox ? lightboxPages[lightbox.pageIndex] : null;
   const lightboxTitle = lightboxBulletin?.title ?? "주보";
   const closeLightbox = () => setLightbox(null);
+  useEffect(() => {
+    setPage(1);
+  }, [searchKeyword, pageSize]);
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
   const moveSelectedPage = (direction: -1 | 1) => {
     setSelectedPageIndex((current) => Math.min(Math.max(current + direction, 0), maxSelectedPageIndex));
   };
@@ -821,34 +835,49 @@ export function Bulletin() {
             <ViewModeToggle value={viewMode} onChange={setViewMode} />
             <span>새 글 0 / {filteredBulletins.length}</span>
           </div>
-          <form
-            className="flex min-w-0 justify-end gap-1"
-            onSubmit={(event) => {
-              event.preventDefault();
-              setSearchKeyword(searchInput);
-            }}
-          >
-            <select
-              className="h-8 rounded-none border border-gray-300 bg-white px-2 text-xs text-gray-700 outline-none focus:border-[#1B5E20]"
-              aria-label="검색 조건"
-              defaultValue="title"
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <label className="flex items-center justify-end gap-1 text-xs text-gray-500">
+              <span className="sr-only">한 페이지 표시 개수</span>
+              <select
+                value={pageSize}
+                onChange={(event) => setPageSize(Number(event.target.value) as (typeof BULLETIN_PAGE_SIZE_OPTIONS)[number])}
+                className="h-8 rounded-none border border-gray-300 bg-white px-2 text-xs text-gray-700 outline-none focus:border-[#1B5E20]"
+                aria-label="한 페이지 표시 개수"
+              >
+                {BULLETIN_PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>{size}개 보기</option>
+                ))}
+              </select>
+            </label>
+            <form
+              className="flex min-w-0 justify-end gap-1"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setSearchKeyword(searchInput);
+              }}
             >
-              <option value="title">제목</option>
-            </select>
-            <input
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              className="h-8 min-w-0 flex-1 rounded-none border border-gray-300 px-2 text-xs outline-none focus:border-[#1B5E20] md:w-56"
-              aria-label="검색어"
-            />
-            <button
-              type="submit"
-              className="h-8 border border-[#86C5D8] px-2 text-xs text-[#1B5E20] hover:bg-[#F1F8E9]"
-              aria-label="검색"
-            >
-              검색
-            </button>
-          </form>
+              <select
+                className="h-8 rounded-none border border-gray-300 bg-white px-2 text-xs text-gray-700 outline-none focus:border-[#1B5E20]"
+                aria-label="검색 조건"
+                defaultValue="title"
+              >
+                <option value="title">제목</option>
+              </select>
+              <input
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                className="h-8 min-w-0 flex-1 rounded-none border border-gray-300 px-2 text-xs outline-none focus:border-[#1B5E20] md:w-56"
+                aria-label="검색어"
+              />
+              <button
+                type="submit"
+                className="h-8 border border-[#86C5D8] px-2 text-xs text-[#1B5E20] hover:bg-[#F1F8E9]"
+                aria-label="검색"
+              >
+                검색
+              </button>
+            </form>
+          </div>
         </div>
 
         {isLoading ? (
@@ -875,11 +904,11 @@ export function Bulletin() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredBulletins.map((bulletin, index) => {
+              {visibleBulletins.map((bulletin, index) => {
                 const pageCount = getBulletinPages(bulletin).length;
                 return (
                   <tr key={bulletin.id} className="transition-colors hover:bg-gray-50">
-                    <td className="px-3 py-3 text-center text-gray-500">{filteredBulletins.length - index}</td>
+                    <td className="px-3 py-3 text-center text-gray-500">{filteredBulletins.length - (pageStart + index)}</td>
                     <td className="px-3 py-3">
                       <Link
                         href={`/worship/bulletin/${bulletin.id}`}
@@ -903,7 +932,7 @@ export function Bulletin() {
 
         {!isLoading && (
           <div className={viewMode === "grid" ? "grid grid-cols-2 gap-3 md:grid-cols-2 md:gap-4" : "divide-y divide-gray-100 border border-gray-200 bg-white md:hidden"}>
-          {filteredBulletins.map((bulletin, index) => {
+          {visibleBulletins.map((bulletin, index) => {
             const pages = getBulletinPages(bulletin);
             const coverPage = pages[0] ?? null;
             const hasCoverImage = coverPage ? isImageBulletin(coverPage.fileMime, coverPage.fileName) : false;
@@ -913,7 +942,7 @@ export function Bulletin() {
                 {isGridMode ? (
                   <>
                     <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
-                      <span>번호 {filteredBulletins.length - index}</span>
+                      <span>번호 {filteredBulletins.length - (pageStart + index)}</span>
                       <span>{formatBulletinDate(bulletin.bulletinDate)}</span>
                     </div>
                     <Link href={`/worship/bulletin/${bulletin.id}`} className="mb-2 block">
@@ -944,7 +973,7 @@ export function Bulletin() {
                 ) : (
                   <Link href={`/worship/bulletin/${bulletin.id}`} className="flex items-center gap-3 text-left">
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-50 text-xs font-semibold text-gray-500">
-                      {filteredBulletins.length - index}
+                      {filteredBulletins.length - (pageStart + index)}
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold text-gray-900">{bulletin.title}</span>
@@ -969,6 +998,44 @@ export function Bulletin() {
           <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50 py-20">
             <i className="fas fa-file-alt mb-3 text-4xl text-gray-300" />
             <p className="text-sm text-gray-400">해당 조건의 주보가 없습니다.</p>
+          </div>
+        )}
+
+        {!isLoading && filteredBulletins.length > 0 && totalPages > 1 && (
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-1">
+            <button
+              type="button"
+              onClick={() => setPage(Math.max(1, activePage - 1))}
+              disabled={activePage === 1}
+              className="inline-flex h-8 w-8 items-center justify-center border border-gray-200 text-gray-500 hover:border-[#1B5E20]/40 hover:text-[#1B5E20] disabled:opacity-40"
+              aria-label="이전 페이지"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            {pageNumbers.map((pageNumber) => (
+              <button
+                key={pageNumber}
+                type="button"
+                onClick={() => setPage(pageNumber)}
+                className={`inline-flex h-8 min-w-8 items-center justify-center border px-2 text-sm ${
+                  activePage === pageNumber
+                    ? "border-[#1B5E20] bg-[#1B5E20] text-white"
+                    : "border-gray-200 text-gray-500 hover:border-[#1B5E20]/40 hover:text-[#1B5E20]"
+                }`}
+                aria-current={activePage === pageNumber ? "page" : undefined}
+              >
+                {pageNumber}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setPage(Math.min(totalPages, activePage + 1))}
+              disabled={activePage === totalPages}
+              className="inline-flex h-8 w-8 items-center justify-center border border-gray-200 text-gray-500 hover:border-[#1B5E20]/40 hover:text-[#1B5E20] disabled:opacity-40"
+              aria-label="다음 페이지"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
         )}
 
