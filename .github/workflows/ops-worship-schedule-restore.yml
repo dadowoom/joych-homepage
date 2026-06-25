@@ -268,7 +268,7 @@ jobs:
             await conn.end();
           }
           NODE
-REMOTE_SCRIPT
+          REMOTE_SCRIPT
 
           if [[ -n "${SSH_PRIVATE_KEY}" ]]; then
             ssh -i ~/.ssh/joych_deploy_key -p "${JOYCH_SSH_PORT}" "${SSH_USER}@${SSH_HOST}" "${remote_command}" < /tmp/worship-schedule-restore.sh
