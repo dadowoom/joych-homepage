@@ -15,6 +15,7 @@ import {
   CalendarCheck,
   CheckCircle2,
   Clock,
+  Car,
   KeyRound,
   Loader2,
   Pencil,
@@ -29,6 +30,10 @@ type AdminVehicleTabMode = "vehicles" | "reservations" | "access";
 type VehicleStatusFilter = "all" | "pending" | "approved" | "rejected" | "cancelled";
 type VehicleReservationStatus = "pending" | "approved" | "rejected" | "cancelled";
 type FieldType = "position" | "department" | "district" | "baptism";
+
+// 차량예약은 당분간 직분 기준으로만 메뉴 노출/신청 권한을 관리합니다.
+// 나중에 부서/구역 기준이 필요하면 이 배열에 다시 추가하면 됩니다.
+const VEHICLE_ACCESS_FIELD_TYPES: FieldType[] = ["position"];
 
 type VehicleRow = {
   id: number;
@@ -280,7 +285,8 @@ export default function AdminVehiclesTab() {
     return groups;
   }, [memberOptions]);
 
-  const displayedAccessRules = accessDraft ?? accessRuleRows.filter(rule => rule.isActive);
+  const displayedAccessRules = (accessDraft ?? accessRuleRows.filter(rule => rule.isActive))
+    .filter(rule => VEHICLE_ACCESS_FIELD_TYPES.includes(rule.fieldType));
   const selectedAccessKeys = new Set(displayedAccessRules.map(getRuleKey));
 
   function resetForm() {
@@ -373,8 +379,9 @@ export default function AdminVehiclesTab() {
 
   function saveAccessRules() {
     const rules = (accessDraft ?? accessRuleRows.filter(rule => rule.isActive))
+      .filter(rule => VEHICLE_ACCESS_FIELD_TYPES.includes(rule.fieldType))
       .map((rule, index) => ({
-        fieldType: rule.fieldType,
+        fieldType: "position" as const,
         fieldValue: rule.fieldValue,
         isActive: true,
         sortOrder: index + 1,
@@ -611,6 +618,18 @@ export default function AdminVehiclesTab() {
             vehicleRows.map(vehicle => (
               <div key={vehicle.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  {vehicle.thumbnailUrl ? (
+                    <img
+                      src={vehicle.thumbnailUrl}
+                      alt={vehicle.name}
+                      className="h-20 w-28 shrink-0 rounded-lg object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="flex h-20 w-28 shrink-0 items-center justify-center rounded-lg bg-[#E8F5E9] text-[#1B5E20]">
+                      <Car className="h-8 w-8" />
+                    </div>
+                  )}
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h4 className="font-bold text-gray-900">{vehicle.name}</h4>
@@ -808,7 +827,7 @@ export default function AdminVehiclesTab() {
             <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[#1B5E20]" /></div>
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
-              {(Object.keys(FIELD_TYPE_LABELS) as FieldType[]).map(fieldType => (
+              {VEHICLE_ACCESS_FIELD_TYPES.map(fieldType => (
                 <section key={fieldType} className="rounded-xl border border-gray-100 bg-gray-50 p-4">
                   <div className="mb-3 flex items-center justify-between">
                     <div>

@@ -74,7 +74,7 @@ const vehicleUpdateSchema = vehicleBaseSchema.partial().extend({
 });
 
 const accessRuleSchema = z.object({
-  fieldType: z.enum(["position", "department", "district", "baptism"]),
+  fieldType: z.literal("position"),
   fieldValue: requiredTextSchema(64, "그룹 값을 선택해주세요."),
   isActive: z.boolean().default(true),
   sortOrder: z.number().int().min(0).max(10000).default(0),

@@ -164,25 +164,36 @@ function VehicleHero() {
 
 function VehicleCard({ vehicle }: { vehicle: VehicleRow }) {
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#E8F5E9] text-[#1B5E20]">
-        <Car className="h-8 w-8" />
+    <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+      {vehicle.thumbnailUrl ? (
+        <img
+          src={vehicle.thumbnailUrl}
+          alt={vehicle.name}
+          className="h-44 w-full object-cover"
+          loading="lazy"
+        />
+      ) : (
+        <div className="flex h-44 w-full items-center justify-center bg-[#E8F5E9] text-[#1B5E20]">
+          <Car className="h-12 w-12" />
+        </div>
+      )}
+      <div className="p-5">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <h3 className="text-lg font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>{vehicle.name}</h3>
+          {vehicle.plateNumber && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{vehicle.plateNumber}</span>}
+        </div>
+        {vehicle.description && <p className="mb-4 line-clamp-2 text-sm leading-6 text-gray-500">{vehicle.description}</p>}
+        <div className="mb-5 space-y-2 text-sm text-gray-600">
+          {vehicle.location && <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-[#1B5E20]" /> {vehicle.location}</p>}
+          <p className="flex items-center gap-2"><Users className="h-4 w-4 text-[#1B5E20]" /> 최대 {vehicle.capacity}명</p>
+          <p className="flex items-center gap-2"><Clock className="h-4 w-4 text-[#1B5E20]" /> {vehicle.openTime}~{vehicle.closeTime} · {vehicle.slotMinutes}분 단위</p>
+        </div>
+        <Link href={`/support/vehicle/${vehicle.id}/apply`}>
+          <Button className="w-full bg-[#1B5E20] text-white hover:bg-[#2E7D32]" disabled={!vehicle.isReservable}>
+            {vehicle.isReservable ? "예약 신청" : "예약 중단"}
+          </Button>
+        </Link>
       </div>
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <h3 className="text-lg font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>{vehicle.name}</h3>
-        {vehicle.plateNumber && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{vehicle.plateNumber}</span>}
-      </div>
-      {vehicle.description && <p className="mb-4 line-clamp-2 text-sm leading-6 text-gray-500">{vehicle.description}</p>}
-      <div className="mb-5 space-y-2 text-sm text-gray-600">
-        {vehicle.location && <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-[#1B5E20]" /> {vehicle.location}</p>}
-        <p className="flex items-center gap-2"><Users className="h-4 w-4 text-[#1B5E20]" /> 최대 {vehicle.capacity}명</p>
-        <p className="flex items-center gap-2"><Clock className="h-4 w-4 text-[#1B5E20]" /> {vehicle.openTime}~{vehicle.closeTime} · {vehicle.slotMinutes}분 단위</p>
-      </div>
-      <Link href={`/support/vehicle/${vehicle.id}/apply`}>
-        <Button className="w-full bg-[#1B5E20] text-white hover:bg-[#2E7D32]" disabled={!vehicle.isReservable}>
-          {vehicle.isReservable ? "예약 신청" : "예약 중단"}
-        </Button>
-      </Link>
     </div>
   );
 }

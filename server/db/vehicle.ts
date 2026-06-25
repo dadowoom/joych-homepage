@@ -184,8 +184,8 @@ export async function getVehicleReservationAccessRules(onlyActive = false) {
     .from(vehicleReservationAccessRules)
     .orderBy(asc(vehicleReservationAccessRules.fieldType), asc(vehicleReservationAccessRules.sortOrder), asc(vehicleReservationAccessRules.id));
   return onlyActive
-    ? query.where(eq(vehicleReservationAccessRules.isActive, true))
-    : query;
+    ? query.where(and(eq(vehicleReservationAccessRules.isActive, true), eq(vehicleReservationAccessRules.fieldType, "position")))
+    : query.where(eq(vehicleReservationAccessRules.fieldType, "position"));
 }
 
 export async function replaceVehicleReservationAccessRules(
@@ -193,10 +193,11 @@ export async function replaceVehicleReservationAccessRules(
 ) {
   const db = await getDb();
   if (!db) return;
+  const positionRules = rules.filter((rule) => rule.fieldType === "position");
   await db.transaction(async (tx) => {
-    await tx.delete(vehicleReservationAccessRules);
-    if (rules.length > 0) {
-      await tx.insert(vehicleReservationAccessRules).values(rules);
+    await tx.delete(vehicleReservationAccessRules).where(eq(vehicleReservationAccessRules.fieldType, "position"));
+    if (positionRules.length > 0) {
+      await tx.insert(vehicleReservationAccessRules).values(positionRules);
     }
   });
 }
