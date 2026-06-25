@@ -171,7 +171,7 @@ export function BlockEditDialog({
     if (!block?.content) return "";
     try {
       const c = JSON.parse(block.content);
-      return normalizeHtmlBlockValue(c.html ?? c.text ?? "");
+      return formatHtmlSource(normalizeHtmlBlockValue(c.html ?? c.text ?? ""));
     } catch {
       return "";
     }
