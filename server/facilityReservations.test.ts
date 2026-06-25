@@ -320,7 +320,7 @@ describe("facility reservation lead-time guard", () => {
       }))
     ).resolves.toMatchObject({ id: 100, status: "pending", count: 1 });
 
-    expect(dbMocks.createReservation).toHaveBeenCalledWith(
+    expect(dbMocks.createReservationIfAvailable).toHaveBeenCalledWith(
       expect.objectContaining({
         reservationDate: "2026-06-16",
         startTime: "16:00",
@@ -328,7 +328,7 @@ describe("facility reservation lead-time guard", () => {
         userId: 1,
       }),
     );
-    expect(dbMocks.createReservationIfAvailable).not.toHaveBeenCalled();
+    expect(dbMocks.createReservation).not.toHaveBeenCalled();
   });
 
   it("lets reservation managers update facility reservation time", async () => {
@@ -347,7 +347,7 @@ describe("facility reservation lead-time guard", () => {
     });
   });
 
-  it("lets reservation exception members bypass closed days, blocked dates, and overlaps", async () => {
+  it("lets reservation exception members bypass closed days and blocked dates when the time is free", async () => {
     dbMocks.getMemberById.mockResolvedValue({
       ...approvedMember,
       canReserveFacility: true,
@@ -373,13 +373,7 @@ describe("facility reservation lead-time guard", () => {
         reason: "maintenance",
       },
     ]);
-    dbMocks.getReservationsByDate.mockResolvedValue([
-      {
-        startTime: "15:00",
-        endTime: "16:00",
-        status: "approved",
-      },
-    ]);
+    dbMocks.getReservationsByDate.mockResolvedValue([]);
 
     const caller = appRouter.createCaller(createContext());
 
@@ -387,7 +381,7 @@ describe("facility reservation lead-time guard", () => {
       caller.home.createReservation(reservationInput({ startTime: "15:00", endTime: "16:00" }))
     ).resolves.toMatchObject({ id: 100, status: "pending", count: 1 });
 
-    expect(dbMocks.createReservation).toHaveBeenCalledWith(
+    expect(dbMocks.createReservationIfAvailable).toHaveBeenCalledWith(
       expect.objectContaining({
         reservationDate: "2026-06-17",
         startTime: "15:00",
@@ -395,7 +389,35 @@ describe("facility reservation lead-time guard", () => {
         userId: 1,
       }),
     );
+    expect(dbMocks.createReservation).not.toHaveBeenCalled();
+  });
+
+  it("blocks reservation exception members when the selected time overlaps an existing reservation", async () => {
+    dbMocks.getMemberById.mockResolvedValue({
+      ...approvedMember,
+      canReserveFacility: true,
+    });
+    dbMocks.getReservationsByDate.mockResolvedValue([
+      {
+        startTime: "15:00",
+        endTime: "16:00",
+        status: "approved",
+        purpose: "Choir rehearsal",
+        reserverName: "Reservation Member",
+      },
+    ]);
+
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(
+      caller.home.createReservation(reservationInput({ startTime: "15:00", endTime: "16:00" }))
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      message: expect.stringContaining("Choir rehearsal"),
+    });
+
     expect(dbMocks.createReservationIfAvailable).not.toHaveBeenCalled();
+    expect(dbMocks.createReservation).not.toHaveBeenCalled();
   });
 
   it("blocks reservation managers when the selected time has already passed", async () => {

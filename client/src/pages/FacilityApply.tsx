@@ -343,10 +343,6 @@ export default function FacilityApply() {
     return disabled;
   }, [allTimeSlots, form.date, hasReservationOverride, reservationSettings]);
 
-  const selectableBookedSlots = useMemo(() => {
-    return hasReservationOverride ? new Set<string>() : bookedSlots;
-  }, [bookedSlots, hasReservationOverride]);
-
   // 날짜 비활성화 여부
   const blockedDateSet = useMemo(() => {
     return new Set((blockedDates ?? []).map(b => b.blockedDate));
@@ -410,13 +406,11 @@ export default function FacilityApply() {
     const [eh, em] = form.endTime.split(":").map(Number);
     let cur = sh * 60 + sm;
     const end = eh * 60 + em;
-    if (!hasReservationOverride) {
-      while (cur < end) {
-        const h = Math.floor(cur / 60).toString().padStart(2, "0");
-        const m = (cur % 60).toString().padStart(2, "0");
-        if (bookedSlots.has(`${h}:${m}`)) return "선택하신 시간대에 이미 예약이 있습니다. 다른 시간을 선택해 주세요.";
-        cur += unitMinutes;
-      }
+    while (cur < end) {
+      const h = Math.floor(cur / 60).toString().padStart(2, "0");
+      const m = (cur % 60).toString().padStart(2, "0");
+      if (bookedSlots.has(`${h}:${m}`)) return "선택하신 시간대에 이미 예약이 있습니다. 다른 시간을 선택해 주세요.";
+      cur += unitMinutes;
     }
     return null;
   }
@@ -663,7 +657,7 @@ export default function FacilityApply() {
                         )}
                         <TimeSlotPicker
                           allSlots={allTimeSlots}
-                          bookedSlots={selectableBookedSlots}
+                          bookedSlots={bookedSlots}
                           disabledSlots={disabledTimeSlots}
                           startTime={form.startTime}
                           endTime={form.endTime}

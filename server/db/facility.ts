@@ -18,8 +18,13 @@ import {
 import { getDb } from "./connection";
 
 export class ReservationOverlapError extends Error {
-  constructor(public readonly startTime: string, public readonly endTime: string) {
-    super(`해당 시간대(${startTime}~${endTime})에 이미 예약이 있습니다. 다른 시간을 선택해 주세요.`);
+  constructor(
+    public readonly startTime: string,
+    public readonly endTime: string,
+    public readonly reservationDate?: string,
+  ) {
+    const datePrefix = reservationDate ? `${reservationDate} ` : "";
+    super(`${datePrefix}해당 시간대(${startTime}~${endTime})에 이미 예약이 있습니다. 다른 시간을 선택해 주세요.`);
   }
 }
 
@@ -395,7 +400,7 @@ export async function createReservationIfAvailable(data: Omit<InsertReservation,
         .limit(1);
 
       if (overlapping[0]) {
-        throw new ReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime);
+        throw new ReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime, data.reservationDate);
       }
 
       const [result] = await tx.insert(reservations).values(data).$returningId();
@@ -493,7 +498,7 @@ export async function updateReservationDetails(id: number, data: ReservationDeta
     .limit(1);
 
   if (overlapping[0]) {
-    throw new ReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime);
+    throw new ReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime, nextReservationDate);
   }
 
   await db.update(reservations)
@@ -538,7 +543,7 @@ export async function updateReservationGroupDetails(
       .limit(1);
 
     if (overlapping[0]) {
-      throw new ReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime);
+      throw new ReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime, row.reservationDate);
     }
   }
 

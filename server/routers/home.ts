@@ -48,7 +48,6 @@ import {
   getBlockedDates,
   getReservationsByDate,
   getAdminReservationDetailsByDate,
-  createReservation as insertReservation,
   createReservationIfAvailable,
   deleteReservationsByIds,
   getMyReservations,
@@ -761,18 +760,20 @@ export const homeRouter = router({
         // ⑥ 같은 시설/날짜의 시간대 겹침 확인 (중복 예약 방지)
         }
 
-        if (!canBypassReservationRules) {
+        // 예외 권한자는 날짜/운영 제한은 넘길 수 있지만,
+        // 이미 잡힌 예약 시간과 겹치는 것은 누구에게도 허용하지 않는다.
         const existing = await getReservationsByDate(input.facilityId, reservationDate);
         const activeReservations = existing.filter(r => r.status !== "cancelled" && r.status !== "rejected");
         for (const r of activeReservations) {
           const overlap = input.startTime < r.endTime && input.endTime > r.startTime;
           if (overlap) {
+            const reservationTitle = [r.purpose, r.reserverName].filter(Boolean).join(" / ");
+            const reservationSuffix = reservationTitle ? ` (${reservationTitle})` : "";
             throw new TRPCError({
               code: "CONFLICT",
-              message: `${reservationDate} 해당 시간대(${r.startTime}~${r.endTime})에 이미 예약이 있습니다. 다른 시간을 선택해 주세요.`,
+              message: `${reservationDate} ${r.startTime}~${r.endTime}${reservationSuffix} 예약과 시간이 겹칩니다. 중복 예약은 저장되지 않았습니다. 기존 예약을 확인한 뒤 다른 시간을 선택해 주세요.`,
             });
           }
-        }
         }
       }
 
@@ -798,9 +799,7 @@ export const homeRouter = router({
             recurrenceLabel,
             recurrenceSequence: recurrenceGroupId ? index + 1 : 0,
           };
-          const id = canBypassReservationRules
-            ? await insertReservation(reservationData)
-            : await createReservationIfAvailable(reservationData);
+          const id = await createReservationIfAvailable(reservationData);
           if (!id) {
             throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "예약 신청 저장에 실패했습니다." });
           }

@@ -416,7 +416,7 @@ function TimeSlotPanel({
 
           <ReservationTimelinePicker
             allSlots={allSlots}
-            bookedSlots={hasReservationOverride ? new Set<string>() : bookedSlots}
+            bookedSlots={bookedSlots}
             disabledSlots={disabledSlots}
             startTime={startTime}
             endTime={endTime}
