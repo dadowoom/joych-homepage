@@ -420,3 +420,10 @@ export async function deleteGalleryItem(id: number) {
   if (!db) return;
   await db.delete(galleryItems).where(eq(galleryItems.id, id));
 }
+
+/** Delete every photo that belongs to one gallery album/post. */
+export async function deleteGalleryItems(ids: number[]) {
+  const db = await getDb();
+  if (!db || ids.length === 0) return;
+  await db.delete(galleryItems).where(inArray(galleryItems.id, ids));
+}

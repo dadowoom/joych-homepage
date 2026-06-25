@@ -392,6 +392,7 @@ export function GalleryContent() {
   const [editingPhotoId, setEditingPhotoId] = useState<number | null>(null);
   const [isSavingDetail, setIsSavingDetail] = useState(false);
   const [isAddingDetailPhotos, setIsAddingDetailPhotos] = useState(false);
+  const [deletingAlbumKey, setDeletingAlbumKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (!detailGroup) {
@@ -420,6 +421,7 @@ export function GalleryContent() {
   const updateGalleryItem = trpc.cms.content.gallery.update.useMutation();
   const updateGalleryAlbum = trpc.cms.content.gallery.updateAlbum.useMutation();
   const deleteGalleryItem = trpc.cms.content.gallery.delete.useMutation();
+  const deleteGalleryAlbum = trpc.cms.content.gallery.deleteAlbum.useMutation();
   const reorderGalleryAlbums = trpc.cms.content.gallery.reorderAlbums.useMutation({
     onSuccess: () => {
       setLocalOrder(null);
@@ -673,6 +675,32 @@ export function GalleryContent() {
     }
   };
 
+  const handleDeleteAlbum = async (group: GalleryGroup) => {
+    if (!canManage || group.images.length === 0) return;
+
+    const shouldDelete = window.confirm(
+      `"${group.title}" 앨범 전체를 삭제할까요?\n\n사진 ${group.images.length}개가 함께 삭제되며, 삭제 후에는 되돌릴 수 없습니다.`
+    );
+    if (!shouldDelete) return;
+
+    setDeletingAlbumKey(group.key);
+    try {
+      await deleteGalleryAlbum.mutateAsync({
+        ids: group.images.map((image) => image.id),
+      });
+      await refreshGallery();
+      if (detailGroupKey === group.key) {
+        navigate(buildGalleryHref(location, searchString));
+      }
+      toast.success("앨범을 삭제했습니다.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "앨범 삭제 중 문제가 발생했습니다.";
+      toast.error(`앨범 삭제 실패: ${message}`);
+    } finally {
+      setDeletingAlbumKey(null);
+    }
+  };
+
   const handleGroupDragEnd = (group: GalleryGroup, event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -915,6 +943,17 @@ export function GalleryContent() {
                 >
                   {isDetailEditing ? <X className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
                   {isDetailEditing ? "수정 닫기" : "앨범 수정"}
+                </button>
+              )}
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteAlbum(detailGroup)}
+                  disabled={deletingAlbumKey === detailGroup.key}
+                  className="inline-flex h-8 items-center justify-center gap-1.5 self-start border border-red-200 bg-white px-3 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:self-auto"
+                >
+                  {deletingAlbumKey === detailGroup.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  앨범 삭제
                 </button>
               )}
             </header>
@@ -1216,6 +1255,7 @@ export function GalleryContent() {
                     <col className="w-32" />
                     <col className="w-32" />
                     <col className="w-20" />
+                    {canManage && <col className="w-24" />}
                   </colgroup>
                   <thead className="border-t-2 border-[#62B5D1] bg-[#EAF8FC] text-[#0F607A]">
                     <tr>
@@ -1224,6 +1264,7 @@ export function GalleryContent() {
                       <th scope="col" className="px-3 py-3 text-center font-semibold">작성자</th>
                       <th scope="col" className="px-3 py-3 text-center font-semibold">등록일</th>
                       <th scope="col" className="px-3 py-3 text-center font-semibold">첨부</th>
+                      {canManage && <th scope="col" className="px-3 py-3 text-center font-semibold">관리</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -1249,6 +1290,19 @@ export function GalleryContent() {
                           <td className="px-3 py-3 text-center text-gray-600">관리자</td>
                           <td className="px-3 py-3 text-center text-gray-500">{formatGalleryDate(group.createdAt)}</td>
                           <td className="px-3 py-3 text-center text-gray-500">{group.images.length}</td>
+                          {canManage && (
+                            <td className="px-3 py-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteAlbum(group)}
+                                disabled={deletingAlbumKey === group.key}
+                                className="inline-flex h-7 items-center justify-center gap-1 border border-red-200 bg-white px-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {deletingAlbumKey === group.key ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                                삭제
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       );
                     })}
@@ -1262,27 +1316,39 @@ export function GalleryContent() {
                   const detailHref = buildGalleryHref(location, searchString, group.key);
 
                   return (
-                    <a
-                      key={group.key}
-                      href={detailHref}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        navigate(detailHref);
-                      }}
-                      className="group text-center focus:outline-none"
-                    >
-                      <span className="mx-auto block overflow-hidden bg-gray-100 ring-1 ring-gray-200 transition group-hover:ring-[#86C5D8]">
-                        <img
-                          src={thumbnail.imageUrl}
-                          alt={group.title}
-                          loading="lazy"
-                          className="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-105"
-                        />
-                      </span>
-                      <span className="mt-2 block break-keep text-xs leading-5 text-gray-700 group-hover:text-[#1B5E20]">
-                        {group.title}
-                      </span>
-                    </a>
+                    <div key={group.key} className="relative text-center">
+                      <a
+                        href={detailHref}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          navigate(detailHref);
+                        }}
+                        className="group block focus:outline-none"
+                      >
+                        <span className="mx-auto block overflow-hidden bg-gray-100 ring-1 ring-gray-200 transition group-hover:ring-[#86C5D8]">
+                          <img
+                            src={thumbnail.imageUrl}
+                            alt={group.title}
+                            loading="lazy"
+                            className="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-105"
+                          />
+                        </span>
+                        <span className="mt-2 block break-keep text-xs leading-5 text-gray-700 group-hover:text-[#1B5E20]">
+                          {group.title}
+                        </span>
+                      </a>
+                      {canManage && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAlbum(group)}
+                          disabled={deletingAlbumKey === group.key}
+                          className="absolute right-2 top-2 inline-flex h-8 items-center justify-center gap-1 rounded-full border border-red-200 bg-white/95 px-2 text-xs font-semibold text-red-600 shadow-sm hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {deletingAlbumKey === group.key ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                          삭제
+                        </button>
+                      )}
+                    </div>
                   );
                 })}
               </div>

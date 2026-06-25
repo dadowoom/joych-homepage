@@ -41,6 +41,7 @@ import {
   updateGalleryAlbumItems,
   createGalleryItem,
   deleteGalleryItem,
+  deleteGalleryItems,
   reorderGalleryAlbums,
   upsertSiteSetting,
   getAllQuickMenus,
@@ -308,6 +309,9 @@ export const contentRouter = router({
     delete: contentProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(({ input }) => deleteGalleryItem(input.id)),
+    deleteAlbum: contentProcedure
+      .input(z.object({ ids: z.array(z.number().int().positive()).min(1).max(500) }))
+      .mutation(({ input }) => deleteGalleryItems(input.ids)),
     /** 갤러리 순서 일괄 변경 */
     reorder: contentProcedure
       .input(z.array(z.object({
