@@ -345,6 +345,10 @@ export default function AdminPage() {
   const [collapsedMenuGroups, setCollapsedMenuGroups] = useState<
     Record<string, boolean>
   >(() => Object.fromEntries(TAB_GROUPS.map(group => [group.title, true])));
+  const [isNotificationGroupsCollapsed, setIsNotificationGroupsCollapsed] =
+    useState(false);
+  const [isNotificationItemsCollapsed, setIsNotificationItemsCollapsed] =
+    useState(false);
   const toggleMenuGroup = (title: string) => {
     setCollapsedMenuGroups(prev => ({
       ...prev,
@@ -897,82 +901,140 @@ export default function AdminPage() {
                   </div>
                 ) : (notificationSummary?.totalCount ?? 0) > 0 ? (
                   <div className="space-y-4">
-                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      {notificationSummary?.groups.map(group => {
-                        const targetTab = group.tab as Tab;
-                        return (
-                          <button
-                            key={group.key}
-                            type="button"
-                            onClick={() =>
-                              permittedTabs.includes(targetTab) &&
-                              setActiveTab(targetTab)
-                            }
-                            className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-left transition-colors hover:border-[#A5D6A7] hover:bg-[#F1F8F2]"
-                          >
-                            <div className="mb-2 flex items-center justify-between gap-2">
-                              <span className="text-sm font-bold text-gray-900">
-                                {group.label}
-                              </span>
-                              <span
-                                className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                                  group.tone === "pending"
-                                    ? "bg-red-500 text-white"
-                                    : "bg-[#1B5E20] text-white"
-                                }`}
+                    <section className="overflow-hidden rounded-lg border border-gray-100">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setIsNotificationGroupsCollapsed(current => !current)
+                        }
+                        aria-expanded={!isNotificationGroupsCollapsed}
+                        className="flex w-full items-center justify-between gap-3 bg-gray-50 px-4 py-3 text-left transition-colors hover:bg-[#F1F8F2]"
+                      >
+                        <span>
+                          <span className="block text-sm font-bold text-gray-900">
+                            알림 종류
+                          </span>
+                          <span className="block text-xs text-gray-500">
+                            새 글, 새 신청 등 유형별 알림을 접어서 볼 수 있습니다.
+                          </span>
+                        </span>
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-[#1B5E20] shadow-sm">
+                          {notificationSummary?.groups.length ?? 0}개
+                          <i
+                            className={`fas fa-chevron-${
+                              isNotificationGroupsCollapsed ? "down" : "up"
+                            } text-[10px] text-gray-400`}
+                          ></i>
+                        </span>
+                      </button>
+                      {!isNotificationGroupsCollapsed && (
+                        <div className="grid gap-3 border-t border-gray-100 p-3 md:grid-cols-2 xl:grid-cols-3">
+                          {notificationSummary?.groups.map(group => {
+                            const targetTab = group.tab as Tab;
+                            return (
+                              <button
+                                key={group.key}
+                                type="button"
+                                onClick={() =>
+                                  permittedTabs.includes(targetTab) &&
+                                  setActiveTab(targetTab)
+                                }
+                                className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-left transition-colors hover:border-[#A5D6A7] hover:bg-[#F1F8F2]"
                               >
-                                {formatBadgeCount(group.count)}
-                              </span>
-                            </div>
-                            <p className="text-xs leading-5 text-gray-500">
-                              {group.description}
-                            </p>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {notificationSummary?.items.length ? (
-                      <div className="divide-y divide-gray-100 rounded-lg border border-gray-100">
-                        {notificationSummary.items.map(item => {
-                          const targetTab = item.tab as Tab;
-                          return (
-                            <button
-                              key={item.id}
-                              type="button"
-                              onClick={() =>
-                                permittedTabs.includes(targetTab) &&
-                                setActiveTab(targetTab)
-                              }
-                              className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition-colors hover:bg-gray-50"
-                            >
-                              <span className="min-w-0">
-                                <span className="mb-1 flex items-center gap-2">
+                                <div className="mb-2 flex items-center justify-between gap-2">
+                                  <span className="text-sm font-bold text-gray-900">
+                                    {group.label}
+                                  </span>
                                   <span
-                                    className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                                      item.tone === "pending"
-                                        ? "bg-red-50 text-red-600"
-                                        : "bg-[#E8F5E9] text-[#1B5E20]"
+                                    className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                                      group.tone === "pending"
+                                        ? "bg-red-500 text-white"
+                                        : "bg-[#1B5E20] text-white"
                                     }`}
                                   >
-                                    {item.label}
+                                    {formatBadgeCount(group.count)}
                                   </span>
-                                  <span className="text-[11px] text-gray-400">
-                                    {formatNotificationDate(item.createdAt)}
+                                </div>
+                                <p className="text-xs leading-5 text-gray-500">
+                                  {group.description}
+                                </p>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </section>
+
+                    {notificationSummary?.items.length ? (
+                      <section className="overflow-hidden rounded-lg border border-gray-100">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setIsNotificationItemsCollapsed(current => !current)
+                          }
+                          aria-expanded={!isNotificationItemsCollapsed}
+                          className="flex w-full items-center justify-between gap-3 bg-gray-50 px-4 py-3 text-left transition-colors hover:bg-[#F1F8F2]"
+                        >
+                          <span>
+                            <span className="block text-sm font-bold text-gray-900">
+                              상세 목록
+                            </span>
+                            <span className="block text-xs text-gray-500">
+                              실제 새 글과 신청 목록을 접어서 볼 수 있습니다.
+                            </span>
+                          </span>
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-[#1B5E20] shadow-sm">
+                            {notificationSummary.items.length}건
+                            <i
+                              className={`fas fa-chevron-${
+                                isNotificationItemsCollapsed ? "down" : "up"
+                              } text-[10px] text-gray-400`}
+                            ></i>
+                          </span>
+                        </button>
+                        {!isNotificationItemsCollapsed && (
+                          <div className="divide-y divide-gray-100 border-t border-gray-100">
+                            {notificationSummary.items.map(item => {
+                              const targetTab = item.tab as Tab;
+                              return (
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  onClick={() =>
+                                    permittedTabs.includes(targetTab) &&
+                                    setActiveTab(targetTab)
+                                  }
+                                  className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition-colors hover:bg-gray-50"
+                                >
+                                  <span className="min-w-0">
+                                    <span className="mb-1 flex items-center gap-2">
+                                      <span
+                                        className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                                          item.tone === "pending"
+                                            ? "bg-red-50 text-red-600"
+                                            : "bg-[#E8F5E9] text-[#1B5E20]"
+                                        }`}
+                                      >
+                                        {item.label}
+                                      </span>
+                                      <span className="text-[11px] text-gray-400">
+                                        {formatNotificationDate(item.createdAt)}
+                                      </span>
+                                    </span>
+                                    <span className="block truncate text-sm font-semibold text-gray-900">
+                                      {item.title}
+                                    </span>
+                                    <span className="mt-0.5 block truncate text-xs text-gray-500">
+                                      {item.meta}
+                                    </span>
                                   </span>
-                                </span>
-                                <span className="block truncate text-sm font-semibold text-gray-900">
-                                  {item.title}
-                                </span>
-                                <span className="mt-0.5 block truncate text-xs text-gray-500">
-                                  {item.meta}
-                                </span>
-                              </span>
-                              <i className="fas fa-chevron-right shrink-0 text-xs text-gray-300"></i>
-                            </button>
-                          );
-                        })}
-                      </div>
+                                  <i className="fas fa-chevron-right shrink-0 text-xs text-gray-300"></i>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </section>
                     ) : null}
                   </div>
                 ) : (
