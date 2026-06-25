@@ -1,6 +1,9 @@
 name: Ops Worship Schedule Restore
 
 on:
+  push:
+    branches:
+      - codex/signup-hardening
   workflow_dispatch:
     inputs:
       mode:
@@ -64,8 +67,8 @@ jobs:
 
       - name: Run worship schedule restore operation
         env:
-          MODE: ${{ inputs.mode }}
-          BACKUP: ${{ inputs.backup }}
+          MODE: ${{ inputs.mode || 'list' }}
+          BACKUP: ${{ inputs.backup || '' }}
           SSH_HOST: ${{ secrets.JOYCH_SSH_HOST }}
           SSH_USER: ${{ secrets.JOYCH_SSH_USER }}
           SSH_PRIVATE_KEY: ${{ secrets.JOYCH_SSH_PRIVATE_KEY }}
