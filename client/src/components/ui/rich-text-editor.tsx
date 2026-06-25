@@ -704,7 +704,7 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
   };
 
   return (
-    <div className="sticky top-0 z-10 border-b border-gray-200 bg-gray-50">
+    <div className="sticky top-0 z-30 border-b border-gray-200 bg-gray-50 shadow-sm">
       <div className="flex flex-wrap items-center gap-1 p-2">
         <ToolbarButton editor={editor} label="실행 취소 (Ctrl+Z)" disabled={!canUndo} variant="primary" onClick={() => editor.chain().focus().undo().run()}>
           <Undo2 className="h-4 w-4" />
@@ -1085,7 +1085,7 @@ export function RichTextEditor({
   }
 
   return (
-    <div id={id} className={cn("w-full max-w-full min-w-0 overflow-hidden border border-gray-300 bg-white focus-within:border-[#1B5E20]", className)}>
+    <div id={id} className={cn("w-full max-w-full min-w-0 overflow-visible border border-gray-300 bg-white focus-within:border-[#1B5E20]", className)}>
       <RichTextToolbar editor={editor} />
       <div
         className={cn("cursor-text", minHeightClassName)}
