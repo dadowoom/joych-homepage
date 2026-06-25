@@ -41,6 +41,7 @@ export const STATIC_ADMIN_PERMISSIONS: AdminPermissionDefinition[] = [
   { key: "content:courses", label: "강좌 관리", group: "접수/예약 관리", tab: "courses" },
   { key: "content:reservations", label: "예약 승인/예외 예약", group: "접수/예약 관리", tab: "reservations" },
   { key: "content:facilities", label: "시설 관리", group: "접수/예약 관리", tab: "facilities" },
+  { key: "content:vehicles", label: "차량예약 관리", group: "차량예약", tab: "vehicles" },
   { key: "content:missionReports", label: "선교보고 관리", group: "성도/사역 관리", tab: "missionReports" },
 ];
 

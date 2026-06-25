@@ -42,3 +42,4 @@ export * from "./course";
 export * from "./bulletin";
 export * from "./adminPermissions";
 export * from "./history";
+export * from "./vehicle";

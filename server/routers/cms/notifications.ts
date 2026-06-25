@@ -24,6 +24,8 @@ import {
   subtitleRequests,
   testimonyComments,
   testimonyPosts,
+  vehicleReservations,
+  vehicles,
   visitRequests,
   youtubePlaylists,
   youtubeVideos,
@@ -48,6 +50,7 @@ type NotificationTab =
   | "notices"
   | "testimonies"
   | "reservations"
+  | "vehicles"
   | "supportRequests"
   | "courses"
   | "missionReports"
@@ -480,6 +483,51 @@ export const notificationsRouter = router({
           title: `${row.facilityName ?? "시설"} ${row.reservationDate} ${row.startTime}`,
           meta: row.reserverName,
           tab: "reservations",
+          createdAt: row.createdAt,
+          tone: "pending",
+        }))
+      );
+    }
+
+    if (hasPermission(ctx.user, "content:vehicles")) {
+      const where = eq(vehicleReservations.status, "pending");
+      const [countRow] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(vehicleReservations)
+        .where(where);
+      const rows = await db
+        .select({
+          id: vehicleReservations.id,
+          reserverName: vehicleReservations.reserverName,
+          reservationDate: vehicleReservations.reservationDate,
+          startTime: vehicleReservations.startTime,
+          vehicleName: vehicles.name,
+          createdAt: vehicleReservations.createdAt,
+        })
+        .from(vehicleReservations)
+        .leftJoin(vehicles, eq(vehicleReservations.vehicleId, vehicles.id))
+        .where(where)
+        .orderBy(desc(vehicleReservations.createdAt), desc(vehicleReservations.id))
+        .limit(MAX_GROUP_ITEMS);
+
+      addGroup(
+        groups,
+        items,
+        {
+          key: "vehicleReservationPending",
+          label: "승인 대기 차량예약",
+          description: "아직 승인 또는 거절하지 않은 차량 예약입니다.",
+          tab: "vehicles",
+          count: toCount(countRow?.count),
+          tone: "pending",
+        },
+        rows.map(row => ({
+          id: `vehicleReservation:${row.id}`,
+          groupKey: "vehicleReservationPending",
+          label: "차량예약",
+          title: `${row.vehicleName ?? "차량"} ${row.reservationDate} ${row.startTime}`,
+          meta: row.reserverName,
+          tab: "vehicles",
           createdAt: row.createdAt,
           tone: "pending",
         }))

@@ -54,6 +54,18 @@ import {
   getMyReservations,
   getReservationById,
   updateReservationStatus,
+  canMemberUseVehicleReservation,
+  createVehicleReservationIfAvailable,
+  getAdminVehicleReservationDetailsByDate,
+  getMyVehicleReservations,
+  getVehicleById,
+  getVehicleImages,
+  getVehicleReservationById,
+  getVehicleReservationsByDate,
+  getVehicles,
+  updateVehicleReservationStatus,
+  VehicleReservationLockError,
+  VehicleReservationOverlapError,
   getPageBlocks,
   getStaticPageContentByHref,
   getStoredTranslation,
@@ -87,6 +99,42 @@ function getMenuReadAccess(ctx: { user?: unknown; memberId?: number | null }) {
   return ctx.user || ctx.memberId ? "member" : "guest";
 }
 
+type MenuTreeNode = {
+  href?: string | null;
+  items?: MenuTreeNode[];
+  subItems?: MenuTreeNode[];
+};
+
+function isVehicleReservationHref(href: string | null | undefined) {
+  return href === "/support/vehicle" ||
+    href === "/admin/vehicle" ||
+    Boolean(href?.startsWith("/support/vehicle/"));
+}
+
+function filterVehicleReservationMenu<T extends MenuTreeNode>(node: T, canUseVehicleReservation: boolean): T | null {
+  if (canUseVehicleReservation) return node;
+  if (isVehicleReservationHref(node.href)) return null;
+
+  const nextNode: MenuTreeNode = { ...node };
+  if (node.items) {
+    nextNode.items = node.items
+      .map(item => filterVehicleReservationMenu(item, canUseVehicleReservation))
+      .filter((item): item is MenuTreeNode => Boolean(item));
+  }
+  if (node.subItems) {
+    nextNode.subItems = node.subItems
+      .map(item => filterVehicleReservationMenu(item, canUseVehicleReservation))
+      .filter((item): item is MenuTreeNode => Boolean(item));
+  }
+  return nextNode as T;
+}
+
+async function canContextUseVehicleReservation(ctx: { memberId?: number | null }) {
+  if (!ctx.memberId) return false;
+  const member = await getMemberById(ctx.memberId);
+  return canMemberUseVehicleReservation(member);
+}
+
 const staticPageHrefSchema = z.string().trim().min(1).max(128).regex(/^\//);
 const staffCategorySchema = z.string().trim().min(1).max(64).regex(/^[a-z0-9][a-z0-9_-]{0,63}$/);
 const translationLocaleSchema = z.enum(["ja"]);
@@ -103,6 +151,11 @@ const MIN_RESERVATION_LEAD_TIME_MS = 24 * 60 * 60 * 1000;
 async function getVisibleFacilityById(id: number) {
   const facility = await getFacilityById(id);
   return facility?.isVisible ? facility : null;
+}
+
+async function getVisibleVehicleById(id: number) {
+  const vehicle = await getVehicleById(id);
+  return vehicle?.isVisible ? vehicle : null;
 }
 
 function toMinutes(time: string): number | null {
@@ -461,7 +514,13 @@ export const homeRouter = router({
   // ─── 네비게이션 메뉴 ────────────────────────────────────────────────────────
 
   /** 상단 GNB 메뉴 전체 목록 (서브메뉴 포함, 공개된 것만) */
-  menus: publicProcedure.query(({ ctx }) => getVisibleMenus(getMenuReadAccess(ctx))),
+  menus: publicProcedure.query(async ({ ctx }) => {
+    const menuList = await getVisibleMenus(getMenuReadAccess(ctx));
+    const canUseVehicleReservation = await canContextUseVehicleReservation(ctx);
+    return menuList
+      .map(menu => filterVehicleReservationMenu(menu, canUseVehicleReservation))
+      .filter((menu): menu is NonNullable<typeof menu> => Boolean(menu));
+  }),
 
   /** 2단 메뉴 단건 조회 (동적 페이지 렌더링용) */
   menuItem: publicProcedure
@@ -476,12 +535,22 @@ export const homeRouter = router({
   /** href(경로)로 2단 메뉴 조회 — 예배영상 페이지의 playlistId 연결에 사용 */
   menuItemByHref: publicProcedure
     .input(z.object({ href: hrefLookupSchema }))
-    .query(({ input, ctx }) => getVisibleMenuItemByHref(input.href, getMenuReadAccess(ctx))),
+    .query(async ({ input, ctx }) => {
+      if (isVehicleReservationHref(input.href) && !(await canContextUseVehicleReservation(ctx))) {
+        return null;
+      }
+      return getVisibleMenuItemByHref(input.href, getMenuReadAccess(ctx));
+    }),
 
   /** href(경로)로 3단 메뉴 조회 — 예배영상 페이지의 playlistId 연결에 사용 */
   menuSubItemByHref: publicProcedure
     .input(z.object({ href: hrefLookupSchema }))
-    .query(({ input, ctx }) => getVisibleMenuSubItemByHref(input.href, getMenuReadAccess(ctx))),
+    .query(async ({ input, ctx }) => {
+      if (isVehicleReservationHref(input.href) && !(await canContextUseVehicleReservation(ctx))) {
+        return null;
+      }
+      return getVisibleMenuSubItemByHref(input.href, getMenuReadAccess(ctx));
+    }),
 
   // ─── 시설 조회 (성도용) ─────────────────────────────────────────────────────
 
@@ -780,6 +849,180 @@ export const homeRouter = router({
         });
       }
       await updateReservationStatus(input.id, "cancelled");
+      return { success: true };
+    }),
+
+  // ─── 차량 예약 (성도용, 지정 그룹만) ─────────────────────────────────────
+
+  vehicleReservationAccess: memberProtectedProcedure
+    .query(async ({ ctx }) => {
+      const member = await getMemberById(ctx.memberId);
+      return { canUse: await canMemberUseVehicleReservation(member) };
+    }),
+
+  vehicles: memberProtectedProcedure
+    .query(async ({ ctx }) => {
+      const member = await getMemberById(ctx.memberId);
+      if (!(await canMemberUseVehicleReservation(member))) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "차량예약은 지정된 성도 그룹만 이용할 수 있습니다. 관리자에게 문의해 주세요.",
+        });
+      }
+      return getVehicles(true);
+    }),
+
+  vehicle: memberProtectedProcedure
+    .input(z.object({ id: idSchema }))
+    .query(async ({ input, ctx }) => {
+      const member = await getMemberById(ctx.memberId);
+      if (!(await canMemberUseVehicleReservation(member))) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "차량예약은 지정된 성도 그룹만 이용할 수 있습니다. 관리자에게 문의해 주세요.",
+        });
+      }
+      return getVisibleVehicleById(input.id);
+    }),
+
+  vehicleImages: memberProtectedProcedure
+    .input(z.object({ vehicleId: idSchema }))
+    .query(async ({ input, ctx }) => {
+      const member = await getMemberById(ctx.memberId);
+      if (!(await canMemberUseVehicleReservation(member))) return [];
+      const vehicle = await getVisibleVehicleById(input.vehicleId);
+      if (!vehicle) return [];
+      return getVehicleImages(input.vehicleId);
+    }),
+
+  vehicleReservationsByDate: memberProtectedProcedure
+    .input(z.object({
+      vehicleId: idSchema,
+      date: z.string().regex(DATE_RE, "날짜 형식이 올바르지 않습니다."),
+    }))
+    .query(async ({ input, ctx }) => {
+      const member = await getMemberById(ctx.memberId);
+      if (!(await canMemberUseVehicleReservation(member))) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "차량예약은 지정된 성도 그룹만 이용할 수 있습니다.",
+        });
+      }
+      const vehicle = await getVisibleVehicleById(input.vehicleId);
+      if (!vehicle) return [];
+      if (hasAdminContentPermission(ctx.user, "content:vehicles")) {
+        return getAdminVehicleReservationDetailsByDate(input.vehicleId, input.date);
+      }
+      const rows = await getVehicleReservationsByDate(input.vehicleId, input.date);
+      return rows.map(({ startTime, endTime, status }) => ({ startTime, endTime, status }));
+    }),
+
+  createVehicleReservation: memberProtectedProcedure
+    .input(z.object({
+      vehicleId: idSchema,
+      reserverName: z.string().min(1, "예약자 이름을 입력해주세요."),
+      reserverPhone: z.string().optional(),
+      reservationDate: z.string().regex(DATE_RE, "예약 날짜 형식이 올바르지 않습니다."),
+      startTime: z.string().regex(TIME_RE, "시작 시간 형식이 올바르지 않습니다."),
+      endTime: z.string().regex(TIME_RE, "종료 시간 형식이 올바르지 않습니다."),
+      purpose: z.string().min(1, "사용 목적을 입력해주세요."),
+      department: z.string().optional(),
+      passengers: z.number().int().min(1, "탑승 인원은 1명 이상이어야 합니다.").default(1),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const member = await getMemberById(ctx.memberId);
+      if (!(await canMemberUseVehicleReservation(member))) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "차량예약은 지정된 성도 그룹만 신청할 수 있습니다. 관리자에게 문의해 주세요.",
+        });
+      }
+
+      const vehicle = await getVehicleById(input.vehicleId);
+      if (!vehicle || !vehicle.isVisible) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "차량을 찾을 수 없습니다." });
+      }
+      if (!vehicle.isReservable) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "현재 예약이 불가능한 차량입니다." });
+      }
+
+      const startMinutes = toMinutes(input.startTime);
+      const endMinutes = toMinutes(input.endTime);
+      const openMinutes = toMinutes(vehicle.openTime);
+      const closeMinutes = toMinutes(vehicle.closeTime);
+      if (startMinutes === null || endMinutes === null || openMinutes === null || closeMinutes === null) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "예약 시간 형식이 올바르지 않습니다." });
+      }
+      if (input.reservationDate < todayKstDateKey()) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "지난 날짜는 예약할 수 없습니다." });
+      }
+      assertReservationStartsInFuture(input.reservationDate, input.startTime);
+      if (startMinutes >= endMinutes) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "시작 시간은 종료 시간보다 빨라야 합니다." });
+      }
+      if (startMinutes < openMinutes || endMinutes > closeMinutes) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `차량 예약은 운영 시간(${vehicle.openTime}~${vehicle.closeTime}) 내에서만 가능합니다.`,
+        });
+      }
+
+      const slotMinutes = vehicle.slotMinutes > 0 ? vehicle.slotMinutes : 60;
+      const durationMinutes = endMinutes - startMinutes;
+      if ((startMinutes - openMinutes) % slotMinutes !== 0 || (endMinutes - openMinutes) % slotMinutes !== 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `${slotMinutes}분 단위로만 예약할 수 있습니다.` });
+      }
+      const selectedSlots = durationMinutes / slotMinutes;
+      if (selectedSlots < vehicle.minSlots) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `최소 ${vehicle.minSlots}개 시간 단위 이상 예약해야 합니다.` });
+      }
+      if (selectedSlots > vehicle.maxSlots) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `최대 ${vehicle.maxSlots}개 시간 단위까지만 예약할 수 있습니다.` });
+      }
+      if (input.passengers > vehicle.capacity) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `최대 탑승 인원(${vehicle.capacity}명)을 초과할 수 없습니다.` });
+      }
+
+      const status: "approved" | "pending" = vehicle.approvalType === "auto" ? "approved" : "pending";
+      try {
+        const id = await createVehicleReservationIfAvailable({
+          ...input,
+          userId: ctx.memberId,
+          status,
+        });
+        if (!id) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "차량 예약 신청 저장에 실패했습니다." });
+        }
+        return { id, status };
+      } catch (error) {
+        if (error instanceof VehicleReservationOverlapError) {
+          throw new TRPCError({ code: "CONFLICT", message: error.message });
+        }
+        if (error instanceof VehicleReservationLockError) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: error.message });
+        }
+        throw error;
+      }
+    }),
+
+  myVehicleReservations: memberProtectedProcedure
+    .query(({ ctx }) => getMyVehicleReservations(ctx.memberId)),
+
+  cancelVehicleReservation: memberProtectedProcedure
+    .input(z.object({ id: idSchema }))
+    .mutation(async ({ input, ctx }) => {
+      const reservation = await getVehicleReservationById(input.id);
+      if (!reservation) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "차량 예약을 찾을 수 없습니다." });
+      }
+      if (reservation.userId !== ctx.memberId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "본인의 차량 예약만 취소할 수 있습니다." });
+      }
+      if (reservation.status !== "pending" && reservation.status !== "approved") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "취소할 수 없는 예약 상태입니다." });
+      }
+      await updateVehicleReservationStatus(input.id, "cancelled");
       return { success: true };
     }),
 

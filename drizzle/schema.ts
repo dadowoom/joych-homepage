@@ -915,6 +915,100 @@ export type Reservation = typeof reservations.$inferSelect;
 export type InsertReservation = typeof reservations.$inferInsert;
 
 // ─────────────────────────────────────────────
+// 차량 예약 시스템
+// 시설예약과 분리해서 운영합니다. 차량은 차단일 없이 매일 같은 시간대 안에서
+// 이미 예약된 시간만 막는 구조입니다.
+// ─────────────────────────────────────────────
+
+export const vehicles = mysqlTable("vehicles", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 128 }).notNull(),
+  description: text("description"),
+  plateNumber: varchar("plate_number", { length: 64 }),
+  location: varchar("location", { length: 128 }),
+  driverInfo: varchar("driver_info", { length: 128 }),
+  capacity: int("capacity").notNull().default(5),
+  slotMinutes: int("slot_minutes").notNull().default(60),
+  minSlots: int("min_slots").notNull().default(1),
+  maxSlots: int("max_slots").notNull().default(8),
+  approvalType: mysqlEnum("approval_type", ["auto", "manual"]).notNull().default("manual"),
+  isReservable: boolean("is_reservable").notNull().default(true),
+  isVisible: boolean("is_visible").notNull().default(true),
+  notice: text("notice"),
+  caution: text("caution"),
+  sortOrder: int("sort_order").notNull().default(0),
+  openTime: varchar("open_time", { length: 5 }).notNull().default("09:00"),
+  closeTime: varchar("close_time", { length: 5 }).notNull().default("22:00"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("vehicles_visible_sort_idx").on(table.isVisible, table.sortOrder),
+]);
+
+export type Vehicle = typeof vehicles.$inferSelect;
+export type InsertVehicle = typeof vehicles.$inferInsert;
+
+export const vehicleImages = mysqlTable("vehicle_images", {
+  id: int("id").autoincrement().primaryKey(),
+  vehicleId: int("vehicle_id").notNull(),
+  imageUrl: text("image_url").notNull(),
+  fileKey: varchar("file_key", { length: 512 }),
+  caption: varchar("caption", { length: 128 }),
+  isThumbnail: boolean("is_thumbnail").notNull().default(false),
+  sortOrder: int("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("vehicle_images_vehicle_order_idx").on(table.vehicleId, table.isThumbnail, table.sortOrder),
+]);
+
+export type VehicleImage = typeof vehicleImages.$inferSelect;
+export type InsertVehicleImage = typeof vehicleImages.$inferInsert;
+
+export const vehicleReservations = mysqlTable("vehicle_reservations", {
+  id: int("id").autoincrement().primaryKey(),
+  vehicleId: int("vehicle_id").notNull(),
+  userId: int("user_id").notNull(),
+  reserverName: varchar("reserver_name", { length: 64 }).notNull(),
+  reserverPhone: varchar("reserver_phone", { length: 32 }),
+  reservationDate: varchar("reservation_date", { length: 10 }).notNull(),
+  startTime: varchar("start_time", { length: 5 }).notNull(),
+  endTime: varchar("end_time", { length: 5 }).notNull(),
+  purpose: varchar("purpose", { length: 256 }).notNull(),
+  department: varchar("department", { length: 128 }),
+  passengers: int("passengers").notNull().default(1),
+  notes: text("notes"),
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "cancelled"]).notNull().default("pending"),
+  adminComment: text("admin_comment"),
+  processedBy: int("processed_by"),
+  processedAt: timestamp("processed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("vehicle_reservations_vehicle_date_idx").on(table.vehicleId, table.reservationDate),
+  index("vehicle_reservations_status_created_idx").on(table.status, table.createdAt),
+  index("vehicle_reservations_user_created_idx").on(table.userId, table.createdAt),
+]);
+
+export type VehicleReservation = typeof vehicleReservations.$inferSelect;
+export type InsertVehicleReservation = typeof vehicleReservations.$inferInsert;
+
+export const vehicleReservationAccessRules = mysqlTable("vehicle_reservation_access_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  fieldType: varchar("field_type", { length: 32 }).notNull(),
+  fieldValue: varchar("field_value", { length: 64 }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: int("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("vehicle_access_field_value_unique").on(table.fieldType, table.fieldValue),
+  index("vehicle_access_active_idx").on(table.isActive, table.sortOrder),
+]);
+
+export type VehicleReservationAccessRule = typeof vehicleReservationAccessRules.$inferSelect;
+export type InsertVehicleReservationAccessRule = typeof vehicleReservationAccessRules.$inferInsert;
+
+// ─────────────────────────────────────────────
 // 교육/강좌 신청 시스템
 // ─────────────────────────────────────────────
 

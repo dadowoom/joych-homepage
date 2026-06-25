@@ -25,6 +25,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { useIsMobile } from "@/hooks/useMobile";
 import AdminFacilitiesTab from "@/components/AdminFacilitiesTab";
 import AdminReservationsTab from "@/components/AdminReservationsTab";
+import AdminVehiclesTab from "@/components/AdminVehiclesTab";
 import AdminMemberOptionsTab from "@/components/AdminMemberOptionsTab";
 import AdminMembersTab from "@/components/AdminMembersTab";
 import AdminMissionReportsTab from "@/components/AdminMissionReportsTab";
@@ -52,6 +53,7 @@ type Tab =
   | "facilities"
   | "facilitySchedule"
   | "reservations"
+  | "vehicles"
   | "memberOptions"
   | "members"
   | "staff"
@@ -194,6 +196,13 @@ const TABS: TabItem[] = [
     status: "승인 처리",
   },
   {
+    id: "vehicles",
+    label: "차량예약",
+    icon: "fa-van-shuttle",
+    description: "차량을 등록하고 차량 예약 신청과 이용 가능 그룹을 관리합니다.",
+    status: "차량 예약",
+  },
+  {
     id: "supportRequests",
     label: "접수 관리",
     icon: "fa-inbox",
@@ -249,6 +258,11 @@ const TAB_GROUPS: TabGroup[] = [
       "supportRequests",
       "courses",
     ],
+  },
+  {
+    title: "차량예약",
+    description: "차량 등록과 예약 처리",
+    tabs: ["vehicles"],
   },
 ];
 
@@ -978,6 +992,7 @@ export default function AdminPage() {
                   <AdminFacilitiesTab mode="buildingSchedule" />
                 )}
                 {activeTab === "reservations" && <AdminReservationsTab />}
+                {activeTab === "vehicles" && <AdminVehiclesTab />}
                 {activeTab === "memberOptions" && <AdminMemberOptionsTab />}
                 {activeTab === "permissions" && <AdminPermissionsTab />}
                 {activeTab === "menuAccess" && <AdminMenuAccessTab />}

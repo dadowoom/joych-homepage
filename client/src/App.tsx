@@ -24,6 +24,21 @@ const FacilityList = lazy(() => import("./pages/FacilityList"));
 const FacilityDetail = lazy(() => import("./pages/FacilityDetail"));
 const FacilityApply = lazy(() => import("./pages/FacilityApply"));
 const MyReservations = lazy(() => import("./pages/MyReservations"));
+const VehicleReservationList = lazy(() =>
+  import("./pages/VehicleReservations").then(module => ({
+    default: module.VehicleReservationList,
+  }))
+);
+const VehicleReservationApply = lazy(() =>
+  import("./pages/VehicleReservations").then(module => ({
+    default: module.VehicleReservationApply,
+  }))
+);
+const MyVehicleReservations = lazy(() =>
+  import("./pages/VehicleReservations").then(module => ({
+    default: module.MyVehicleReservations,
+  }))
+);
 const CourseList = lazy(() => import("./pages/CourseList"));
 const MissionList = lazy(() => import("./pages/MissionList"));
 const MissionDetail = lazy(() => import("./pages/MissionDetail"));
@@ -218,9 +233,6 @@ const PrayerRequest = lazy(() =>
 const Offering = lazy(() =>
   import("./pages/Community").then(module => ({ default: module.Offering }))
 );
-const VehicleGuide = lazy(() =>
-  import("./pages/Community").then(module => ({ default: module.VehicleGuide }))
-);
 const NewMemberGuide = lazy(() =>
   import("./pages/Community").then(module => ({
     default: module.NewMemberGuide,
@@ -406,7 +418,9 @@ function Router() {
 
       {/* 행정지원 */}
       <Route path="/support/offering" component={Offering} />
-      <Route path="/support/vehicle" component={VehicleGuide} />
+      <Route path="/support/vehicle/my-reservations" component={MyVehicleReservations} />
+      <Route path="/support/vehicle/:id/apply" component={VehicleReservationApply} />
+      <Route path="/support/vehicle" component={VehicleReservationList} />
       <Route path="/support/new-member" component={NewMemberGuide} />
       <Route path="/support/store" component={JoyfulStore} />
       <Route path="/support/bulletin-ad" component={BulletinAdRequestPage} />
@@ -417,7 +431,7 @@ function Router() {
 
       {/* 행정지원 - 기존 공개 URL 호환 */}
       <Route path="/admin/offering" component={Offering} />
-      <Route path="/admin/vehicle" component={VehicleGuide} />
+      <Route path="/admin/vehicle" component={VehicleReservationList} />
       <Route path="/admin/new-member" component={NewMemberGuide} />
       <Route path="/admin/store" component={JoyfulStore} />
       <Route path="/admin/bulletin-ad" component={BulletinAdRequestPage} />
