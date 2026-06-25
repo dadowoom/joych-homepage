@@ -24,14 +24,14 @@ export const SUPPORT_REQUEST_ADMIN_PERMISSION_KEYS = [
 ];
 
 export const STATIC_ADMIN_PERMISSIONS: AdminPermissionDefinition[] = [
-  { key: "content:youtube", label: "예배영상 관리", group: "콘텐츠/노출 관리", tab: "youtube" },
-  { key: "content:bulletins", label: "주보 관리", group: "콘텐츠/노출 관리", tab: "bulletins" },
-  { key: "content:testimonies", label: "생명 간증 관리", group: "콘텐츠/노출 관리", tab: "testimonies" },
-  { key: "content:freeBoard", label: "자유게시판 관리", group: "콘텐츠/노출 관리", tab: "freeBoard" },
-  { key: "content:popups", label: "팝업 관리", group: "콘텐츠/노출 관리", tab: "popups" },
-  { key: "content:history", label: "교회연혁 관리", group: "콘텐츠/노출 관리", tab: "history" },
-  { key: "content:gallery", label: "갤러리/사진 관리", group: "콘텐츠/노출 관리" },
-  { key: "content:notices", label: "공지사항 관리", group: "콘텐츠/노출 관리" },
+  { key: "content:youtube", label: "예배영상 관리", group: "콘텐츠/노출 관리", tab: "youtube", description: "영상 등록, 수정, 노출/숨김을 관리합니다." },
+  { key: "content:bulletins", label: "주보 관리", group: "콘텐츠/노출 관리", tab: "bulletins", description: "주보 파일 등록, 수정, 공개/숨김을 관리합니다." },
+  { key: "content:testimonies", label: "생명 간증 관리", group: "콘텐츠/노출 관리", tab: "testimonies", description: "간증 글과 댓글의 공개/숨김/삭제 상태를 관리합니다." },
+  { key: "content:freeBoard", label: "자유게시판 관리", group: "콘텐츠/노출 관리", tab: "freeBoard", description: "자유게시판 글의 공개/숨김/삭제 상태를 관리합니다." },
+  { key: "content:popups", label: "팝업 관리", group: "콘텐츠/노출 관리", tab: "popups", description: "팝업 등록, 수정, 노출/숨김을 관리합니다." },
+  { key: "content:history", label: "교회연혁 관리", group: "콘텐츠/노출 관리", tab: "history", description: "교회연혁 등록, 수정, 노출/숨김을 관리합니다." },
+  { key: "content:gallery", label: "갤러리/사진 관리", group: "콘텐츠/노출 관리", description: "갤러리 사진과 앨범의 등록, 수정, 노출/숨김을 관리합니다." },
+  { key: "content:notices", label: "공지사항 관리", group: "콘텐츠/노출 관리", description: "공지사항 작성, 수정, 게시/숨김을 관리합니다." },
   { key: SUPPORT_REQUEST_ROOT_PERMISSION_KEY, label: "접수 관리 전체", group: "접수/예약 관리", tab: "supportRequests" },
   { key: SUPPORT_REQUEST_PERMISSION_KEYS.bulletinAds, label: "주보 광고신청 관리", group: "접수/예약 관리", tab: "supportRequests" },
   { key: SUPPORT_REQUEST_PERMISSION_KEYS.subtitles, label: "자막 신청 관리", group: "접수/예약 관리", tab: "supportRequests" },

@@ -19,6 +19,7 @@ export default function AdminPermissionsTab() {
   const [submittedSearchTerm, setSubmittedSearchTerm] = useState("");
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
   const permissionsQuery = trpc.cms.adminPermissions.list.useQuery({
     searchTerm: submittedSearchTerm,
@@ -70,6 +71,19 @@ export default function AdminPermissionsTab() {
     );
   };
 
+  const togglePermissionGroup = (group: string) => {
+    setCollapsedGroups((current) => ({
+      ...current,
+      [group]: !current[group],
+    }));
+  };
+
+  const setAllPermissionGroupsCollapsed = (collapsed: boolean) => {
+    setCollapsedGroups(
+      Object.fromEntries(groupedPermissions.map(([group]) => [group, collapsed])),
+    );
+  };
+
   const handleSave = () => {
     if (!selectedSubject) {
       toast.error("권한을 부여할 성도를 선택해주세요.");
@@ -110,6 +124,7 @@ export default function AdminPermissionsTab() {
         </h3>
         <p className="mt-1 text-sm leading-6 text-gray-500">
           승인된 성도 계정에 필요한 게시판, 갤러리, 영상, 접수 관리 권한만 선택해서 부여합니다.
+          게시판 권한에는 글을 보이게 하거나 숨기는 관리까지 포함됩니다.
         </p>
       </div>
 
@@ -206,45 +221,93 @@ export default function AdminPermissionsTab() {
             </button>
           </div>
 
-          <div className="space-y-5">
-            {groupedPermissions.map(([group, groupPermissions]) => (
-              <div key={group} className="rounded-xl border border-gray-100 bg-gray-50/60 p-4">
-                <h5 className="font-semibold text-gray-900">{group}</h5>
-                <div className="mt-3 grid gap-2 md:grid-cols-2">
-                  {groupPermissions.map((permission) => {
-                    const checked = selectedKeys.includes(permission.key);
+          <div className="mb-4 flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-gray-500">
+              권한 그룹을 접거나 펼쳐서 필요한 항목만 확인할 수 있습니다.
+            </p>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={() => setAllPermissionGroupsCollapsed(false)}
+                className="rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-semibold text-gray-700 transition-colors hover:border-[#A5D6A7] hover:text-[#1B5E20]"
+              >
+                전체 펼치기
+              </button>
+              <button
+                type="button"
+                onClick={() => setAllPermissionGroupsCollapsed(true)}
+                className="rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-semibold text-gray-700 transition-colors hover:border-[#A5D6A7] hover:text-[#1B5E20]"
+              >
+                전체 접기
+              </button>
+            </div>
+          </div>
 
-                    return (
-                      <label
-                        key={permission.key}
-                        className={`flex cursor-pointer items-start gap-3 rounded-lg border bg-white p-3 transition-colors ${
-                          checked
-                            ? "border-[#1B5E20] ring-1 ring-[#A5D6A7]"
-                            : "border-gray-200 hover:border-[#A5D6A7]"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleKey(permission.key)}
-                          className="mt-1 h-4 w-4 accent-[#1B5E20]"
-                        />
-                        <span className="min-w-0">
-                          <span className="block text-sm font-semibold text-gray-900">
-                            {permission.label}
-                          </span>
-                          {permission.description && (
-                            <span className="mt-1 block text-xs text-gray-500">
-                              {permission.description}
+          <div className="space-y-5">
+            {groupedPermissions.map(([group, groupPermissions]) => {
+              const isCollapsed = collapsedGroups[group] ?? false;
+              const selectedCount = groupPermissions.filter((permission) =>
+                selectedKeys.includes(permission.key),
+              ).length;
+
+              return (
+                <div key={group} className="rounded-xl border border-gray-100 bg-gray-50/60 p-4">
+                  <button
+                    type="button"
+                    onClick={() => togglePermissionGroup(group)}
+                    className="flex w-full items-center justify-between gap-3 text-left"
+                  >
+                    <span>
+                      <span className="block font-semibold text-gray-900">{group}</span>
+                      <span className="mt-1 block text-xs text-gray-500">
+                        선택 {selectedCount}개 / 전체 {groupPermissions.length}개
+                      </span>
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-[#1B5E20] shadow-sm">
+                      {isCollapsed ? "펼치기" : "접기"}
+                      <i
+                        className={`fas fa-chevron-${isCollapsed ? "down" : "up"} text-[10px]`}
+                      ></i>
+                    </span>
+                  </button>
+                  {!isCollapsed && (
+                    <div className="mt-3 grid gap-2 md:grid-cols-2">
+                      {groupPermissions.map((permission) => {
+                        const checked = selectedKeys.includes(permission.key);
+
+                        return (
+                          <label
+                            key={permission.key}
+                            className={`flex cursor-pointer items-start gap-3 rounded-lg border bg-white p-3 transition-colors ${
+                              checked
+                                ? "border-[#1B5E20] ring-1 ring-[#A5D6A7]"
+                                : "border-gray-200 hover:border-[#A5D6A7]"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleKey(permission.key)}
+                              className="mt-1 h-4 w-4 accent-[#1B5E20]"
+                            />
+                            <span className="min-w-0">
+                              <span className="block text-sm font-semibold text-gray-900">
+                                {permission.label}
+                              </span>
+                              {permission.description && (
+                                <span className="mt-1 block text-xs text-gray-500">
+                                  {permission.description}
+                                </span>
+                              )}
                             </span>
-                          )}
-                        </span>
-                      </label>
-                    );
-                  })}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       </div>
