@@ -374,6 +374,43 @@ function getCurrentTableCellNodeRange(editor: Editor) {
   return null;
 }
 
+function getCurrentTableNodeRange(editor: Editor) {
+  const { $from } = editor.state.selection;
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    const node = $from.node(depth);
+    if (node.type.name === "table") {
+      return {
+        from: $from.before(depth),
+        to: $from.after(depth),
+      };
+    }
+  }
+  return null;
+}
+
+function getTableNodeRanges(editor: Editor) {
+  const ranges: Array<{ from: number; to: number }> = [];
+  editor.state.doc.descendants((node, position) => {
+    if (node.type.name !== "table") return true;
+    ranges.push({ from: position, to: position + node.nodeSize });
+    return false;
+  });
+  return ranges;
+}
+
+function getNearestTableNodeRange(editor: Editor) {
+  const currentRange = getCurrentTableNodeRange(editor);
+  if (currentRange) return currentRange;
+
+  const cursorPosition = editor.state.selection.from;
+  return getTableNodeRanges(editor)
+    .sort((a, b) => {
+      const distanceA = cursorPosition < a.from ? a.from - cursorPosition : cursorPosition > a.to ? cursorPosition - a.to : 0;
+      const distanceB = cursorPosition < b.from ? b.from - cursorPosition : cursorPosition > b.to ? cursorPosition - b.to : 0;
+      return distanceA - distanceB;
+    })[0] ?? null;
+}
+
 function getSelectedTableCellNodeRanges(editor: Editor) {
   const ranges: Array<{ from: number; to: number }> = [];
   const { doc, selection } = editor.state;
@@ -546,6 +583,7 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
   );
   const hasSelection = !editor.state.selection.empty;
   const isInTable = Boolean(getCurrentTableCellNodeRange(editor)) || editor.isActive("table");
+  const hasTable = getTableNodeRanges(editor).length > 0;
   const tableToolDisabled = !isInTable;
   const canUndo = editor.can().chain().focus().undo().run();
   const canRedo = editor.can().chain().focus().redo().run();
@@ -656,13 +694,19 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
   };
 
   const deleteCurrentTable = () => {
-    const focusPosition = getCurrentTableCellFocusPosition(editor);
-    if (!confirmActionAndKeepFocus("표 전체를 삭제할까요?", focusPosition)) return;
-    const didDelete = editor.chain().focus(focusPosition).deleteTable().run();
-    if (!didDelete) {
-      window.alert("표 안의 셀을 한 번 클릭한 뒤 다시 표 삭제를 눌러주세요.");
-      focusEditorAt(editor, focusPosition);
+    const tableRange = getNearestTableNodeRange(editor);
+    if (!tableRange) {
+      window.alert("삭제할 표가 없습니다.");
+      focusEditorAt(editor);
+      return;
     }
+
+    const focusPosition = Math.min(tableRange.from + 1, tableRange.to - 1);
+    if (!confirmActionAndKeepFocus("표 전체를 삭제할까요?", focusPosition)) return;
+
+    const transaction = editor.state.tr.delete(tableRange.from, tableRange.to).scrollIntoView();
+    editor.view.dispatch(transaction);
+    focusEditorAt(editor, Math.min(tableRange.from, editor.state.doc.content.size));
   };
 
   const insertLineBreak = () => {
@@ -942,7 +986,7 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
             <ToolbarButton editor={editor} label={isInTable ? "헤더 셀" : "표 셀을 클릭하면 헤더 셀 설정 가능"} disabled={tableToolDisabled} onClick={() => editor.chain().focus().toggleHeaderCell().run()}>
               <Baseline className="h-4 w-4" />
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "표 삭제" : "표 셀을 클릭하면 표 삭제 가능"} disabled={tableToolDisabled} variant="danger" wide onClick={deleteCurrentTable}>
+            <ToolbarButton editor={editor} label={hasTable ? "표 전체 삭제" : "삭제할 표가 없습니다"} disabled={!hasTable} variant="danger" wide onClick={deleteCurrentTable}>
               표 삭제
             </ToolbarButton>
           </>
