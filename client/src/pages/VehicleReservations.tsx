@@ -3,7 +3,7 @@
  * 지정된 성도 그룹만 목록/신청 화면에 접근할 수 있습니다.
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Link, useLocation, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -82,6 +82,24 @@ const STATUS_LABELS = {
   rejected: { label: "거절", color: "bg-red-100 text-red-700", icon: <AlertCircle className="h-3.5 w-3.5" /> },
   cancelled: { label: "취소", color: "bg-gray-100 text-gray-500", icon: <AlertCircle className="h-3.5 w-3.5" /> },
 } as const;
+
+function Field({ label, required, children, hint }: {
+  label: string;
+  required?: boolean;
+  children: ReactNode;
+  hint?: string;
+}) {
+  return (
+    <div>
+      <label className="mb-1.5 block text-sm font-medium text-gray-700">
+        {label}
+        {required && <span className="ml-1 text-red-500">*</span>}
+      </label>
+      {children}
+      {hint && <p className="mt-1 text-xs text-gray-400">{hint}</p>}
+    </div>
+  );
+}
 
 function getKstDateKey(date = new Date()) {
   return new Date(date.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -462,28 +480,42 @@ export function VehicleReservationApply() {
                 </div>
 
                 <div className="mt-5">
-                  <p className="mb-2 text-xs font-medium text-gray-600">사용 시간 *</p>
-                  {form.date ? (
-                    <ReservationTimelinePicker
-                      allSlots={allTimeSlots}
-                      bookedSlots={bookedSlots}
-                      disabledSlots={disabledSlots}
-                      startTime={form.startTime}
-                      endTime={form.endTime}
-                      onSelect={(start, end) => setForm(prev => ({ ...prev, startTime: start, endTime: end }))}
-                      slotMinutes={unitMinutes}
-                      maxSlots={vehicleRow.maxSlots}
-                    />
-                  ) : (
-                    <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-5 text-center text-sm text-gray-400">
-                      날짜를 먼저 선택해주세요.
-                    </div>
-                  )}
-                  {form.startTime && form.endTime && (
-                    <p className="mt-2 text-sm font-medium text-[#1B5E20]">
-                      선택 시간: {form.startTime}~{form.endTime}
-                    </p>
-                  )}
+                  <Field
+                    label="사용 시간"
+                    required
+                    hint={`${unitMinutes}분 단위 · 시작 시간 클릭 후 종료 시간 클릭`}
+                  >
+                    {!form.date ? (
+                      <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-5 text-center text-sm text-gray-400">
+                        날짜를 먼저 선택해주세요.
+                      </div>
+                    ) : allTimeSlots.length === 0 ? (
+                      <p className="rounded-lg bg-gray-50 px-3 py-4 text-center text-sm text-gray-500">
+                        해당 날짜의 운영 시간 정보가 없습니다.
+                      </p>
+                    ) : (
+                      <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                        {form.startTime && (
+                          <div className="mb-3 flex items-center gap-2 rounded-lg bg-[#E8F5E9] px-3 py-2 text-sm font-medium text-[#1B5E20]">
+                            <Clock className="h-4 w-4 shrink-0" />
+                            {form.endTime
+                              ? `선택된 시간: ${form.startTime} ~ ${form.endTime}`
+                              : `시작: ${form.startTime} — 종료 시간을 선택하세요`}
+                          </div>
+                        )}
+                        <ReservationTimelinePicker
+                          allSlots={allTimeSlots}
+                          bookedSlots={bookedSlots}
+                          disabledSlots={disabledSlots}
+                          startTime={form.startTime}
+                          endTime={form.endTime}
+                          onSelect={(start, end) => setForm(prev => ({ ...prev, startTime: start, endTime: end }))}
+                          slotMinutes={unitMinutes}
+                          maxSlots={vehicleRow.maxSlots}
+                        />
+                      </div>
+                    )}
+                  </Field>
                 </div>
 
                 <label className="mt-5 block">
