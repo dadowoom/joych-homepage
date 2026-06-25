@@ -92,7 +92,21 @@ export async function getVehicleById(id: number) {
   const db = await getDb();
   if (!db) return null;
   const rows = await db.select().from(vehicles).where(eq(vehicles.id, id)).limit(1);
-  return rows[0] ?? null;
+  const vehicle = rows[0] ?? null;
+  if (!vehicle) return null;
+
+  // 목록 화면과 상세/신청 화면이 같은 대표 사진을 쓰도록 단건 조회에도 썸네일을 붙입니다.
+  const images = await db
+    .select({ imageUrl: vehicleImages.imageUrl })
+    .from(vehicleImages)
+    .where(eq(vehicleImages.vehicleId, id))
+    .orderBy(desc(vehicleImages.isThumbnail), asc(vehicleImages.sortOrder), asc(vehicleImages.id))
+    .limit(1);
+
+  return {
+    ...vehicle,
+    thumbnailUrl: images[0]?.imageUrl ?? null,
+  };
 }
 
 export async function createVehicle(data: Omit<InsertVehicle, "id" | "createdAt" | "updatedAt">) {
