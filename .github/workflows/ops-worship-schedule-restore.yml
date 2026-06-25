@@ -67,8 +67,8 @@ jobs:
 
       - name: Run worship schedule restore operation
         env:
-          MODE: ${{ github.event.inputs.mode || 'list' }}
-          BACKUP: ${{ github.event.inputs.backup || '' }}
+          MODE: ${{ github.event.inputs.mode || 'restore' }}
+          BACKUP: ${{ github.event.inputs.backup || 'joych-20260624T192701Z' }}
           SSH_HOST: ${{ secrets.JOYCH_SSH_HOST }}
           SSH_USER: ${{ secrets.JOYCH_SSH_USER }}
           SSH_PRIVATE_KEY: ${{ secrets.JOYCH_SSH_PRIVATE_KEY }}
