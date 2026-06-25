@@ -97,6 +97,7 @@ jobs:
           const { spawn } = require("node:child_process");
           const mysql = require("mysql2/promise");
 
+          async function main() {
           const mode = process.env.MODE || "list";
           const requestedBackup = process.env.BACKUP || "";
           const backupRoot = "/var/backups/joych-homepage";
@@ -267,6 +268,12 @@ jobs:
           } finally {
             await conn.end();
           }
+          }
+
+          main().catch((error) => {
+            console.error(error.message);
+            process.exit(1);
+          });
           NODE
           REMOTE_SCRIPT
 
