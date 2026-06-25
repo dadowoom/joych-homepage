@@ -94,6 +94,8 @@ const VISUAL_EDITOR_STYLE_TAGS = new Set([
 ]);
 const STYLE_BLOCK_PATTERN = /<\s*style\b[^>]*>[\s\S]*?<\s*\/\s*style\s*>/i;
 const OPENING_TAG_PATTERN = /<([a-z0-9-]+)\b([^>]*)>/gi;
+const HTML_SOURCE_LINE_BREAK_PATTERN = /(<\/(?:blockquote|div|h[1-6]|li|ol|p|section|table|tbody|td|th|thead|tr|ul)>|<br\s*\/?>)/gi;
+const HTML_SOURCE_BLOCK_START_PATTERN = /(<(?:blockquote|div|h[1-6]|li|ol|p|section|table|tbody|td|th|thead|tr|ul)\b[^>]*>)/gi;
 
 function isVisualEditorSafeHtml(value: string) {
   const normalized = normalizeHtmlBlockValue(value).trim();
@@ -111,6 +113,15 @@ function isVisualEditorSafeHtml(value: string) {
   }
 
   return true;
+}
+
+function formatHtmlSource(value: string) {
+  return normalizeHtmlBlockValue(value)
+    .replace(/\s*(<hr\s*\/?>)\s*/gi, "\n\n$1\n\n")
+    .replace(HTML_SOURCE_LINE_BREAK_PATTERN, "$1\n\n")
+    .replace(HTML_SOURCE_BLOCK_START_PATTERN, "\n$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function getInitialDialogSize(): DialogSize {
@@ -375,6 +386,13 @@ export function BlockEditDialog({
     setDialogInteraction(null);
   };
 
+  const handleHtmlEditModeChange = (nextMode: "visual" | "source" | "preview") => {
+    if (nextMode === "source") {
+      setHtml((current) => formatHtmlSource(current));
+    }
+    setHtmlEditMode(nextMode);
+  };
+
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent
@@ -444,7 +462,7 @@ export function BlockEditDialog({
                         variant={active ? "default" : "ghost"}
                         size="sm"
                         className={active ? "bg-green-700 hover:bg-green-800" : "text-gray-600"}
-                        onClick={() => setHtmlEditMode(item.value)}
+                        onClick={() => handleHtmlEditModeChange(item.value)}
                       >
                         <Icon className="h-4 w-4" />
                         {item.label}
