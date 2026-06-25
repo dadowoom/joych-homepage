@@ -759,12 +759,10 @@ export function VehicleReservationApply() {
   const [form, setForm] = useState({
     reserverName: "",
     reserverPhone: "",
-    department: "",
     purpose: "",
     date: initialSearchParams.get("date") ?? "",
     startTime: initialSearchParams.get("startTime") ?? "",
     endTime: initialSearchParams.get("endTime") ?? "",
-    passengers: "",
     notes: "",
     agreePrivacy: false,
   });
@@ -847,14 +845,11 @@ export function VehicleReservationApply() {
     if (!memberMe) return "성도 로그인 후 신청할 수 있습니다.";
     if (!form.reserverName.trim()) return "신청자 이름을 입력해주세요.";
     if (!form.reserverPhone.trim()) return "연락처를 입력해주세요.";
-    if (!form.department.trim()) return "소속 부서/단체를 입력해주세요.";
     if (!form.purpose) return "사용 목적을 선택해주세요.";
     if (!form.date) return "사용 날짜를 선택해주세요.";
     if (form.date < getKstDateKey()) return "지난 날짜는 예약할 수 없습니다.";
     if (!form.startTime || !form.endTime) return "사용 시간을 선택해주세요.";
     if (form.startTime >= form.endTime) return "종료 시간은 시작 시간보다 늦어야 합니다.";
-    if (!form.passengers || Number(form.passengers) < 1) return "탑승 인원을 입력해주세요.";
-    if (Number(form.passengers) > vehicleRow.capacity) return `최대 탑승 인원(${vehicleRow.capacity}명)을 초과할 수 없습니다.`;
     if (!form.agreePrivacy) return "개인정보 수집·이용에 동의해주세요.";
     let cur = toMinutes(form.startTime);
     const end = toMinutes(form.endTime);
@@ -883,8 +878,7 @@ export function VehicleReservationApply() {
       startTime: form.startTime,
       endTime: form.endTime,
       purpose: form.purpose,
-      department: form.department || undefined,
-      passengers: Number(form.passengers),
+      passengers: 1,
       notes: form.notes || undefined,
     });
   }
@@ -980,11 +974,6 @@ export function VehicleReservationApply() {
                   </div>
 
                   <label className="block">
-                    <span className="mb-1 block text-xs font-medium text-gray-600">소속 부서/단체 *</span>
-                    <input value={form.department} onChange={(e) => updateForm("department", e.target.value)} placeholder="예: 청년부, 찬양팀, 외부단체명" className={inputClass} />
-                  </label>
-
-                  <label className="block">
                     <span className="mb-1 block text-xs font-medium text-gray-600">사용 목적 *</span>
                     <select value={form.purpose} onChange={(e) => updateForm("purpose", e.target.value)} className={inputClass}>
                       <option value="">선택해 주세요</option>
@@ -1038,19 +1027,13 @@ export function VehicleReservationApply() {
                   )}
 
                   <label className="block">
-                    <span className="mb-1 block text-xs font-medium text-gray-600">탑승 인원 *</span>
-                    <input type="number" min={1} max={vehicleRow.capacity} value={form.passengers} onChange={(e) => updateForm("passengers", e.target.value)} placeholder={`1 ~ ${vehicleRow.capacity}`} className={inputClass} />
-                    <p className="mt-1 text-xs text-gray-400">최대 탑승 인원: {vehicleRow.capacity}명</p>
-                  </label>
-
-                  <label className="block">
                     <span className="mb-1 block text-xs font-medium text-gray-600">추가 요청사항</span>
                     <textarea value={form.notes} onChange={(e) => updateForm("notes", e.target.value)} rows={4} placeholder="운행 목적, 짐/장비, 특이사항 등을 입력해 주세요. (선택)" className={inputClass} />
                   </label>
 
                   <label className="flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-3 text-sm text-gray-600">
                     <input type="checkbox" checked={form.agreePrivacy} onChange={(e) => updateForm("agreePrivacy", e.target.checked)} className="mt-1" />
-                    <span>차량예약 처리를 위해 이름, 연락처, 소속, 신청 내용을 수집·이용하는 데 동의합니다.</span>
+                    <span>차량예약 처리를 위해 이름, 연락처, 신청 내용을 수집·이용하는 데 동의합니다.</span>
                   </label>
 
                   {vehicleRow.isReservable ? (
@@ -1154,7 +1137,7 @@ export function MyVehicleReservations() {
                           {row.vehicleName ?? "차량"} · {formatDate(row.reservationDate)}
                         </h3>
                         <p className="mt-1 text-sm text-gray-500">
-                          {row.startTime}~{row.endTime} · {row.purpose} · {row.passengers}명
+                          {row.startTime}~{row.endTime} · {row.purpose}
                         </p>
                         {row.adminComment && <p className="mt-1 text-xs text-red-600">관리자 메모: {row.adminComment}</p>}
                       </div>
