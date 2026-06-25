@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { TrpcContext } from "./_core/context";
+import type { TrpcContext, TrpcUser } from "./_core/context";
 
 const dbMocks = vi.hoisted(() => ({
   canMemberUseVehicleReservation: vi.fn(),
@@ -75,17 +75,30 @@ const reservableVehicle = {
   updatedAt: new Date("2026-01-01T00:00:00.000Z"),
 };
 
-function createContext(): TrpcContext {
+function createAdminUser(): TrpcUser {
   return {
-    user: null,
-    memberId: null,
-    memberName: null,
+    id: 10,
+    openId: "admin-user",
+    name: "Vehicle Admin",
+    email: "admin@example.com",
+    loginMethod: "manus",
+    role: "user",
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+    lastSignedIn: new Date("2026-01-01T00:00:00.000Z"),
+    contentPermissions: ["content:vehicles"],
+  };
+}
+
+function createContext(user: TrpcUser | null = null, withMemberCookie = true): TrpcContext {
+  return {
+    user,
+    memberId: withMemberCookie ? 1 : null,
+    memberName: withMemberCookie ? "Vehicle Member" : null,
     req: {
       protocol: "https",
       headers: {},
-      cookies: {
-        church_member_session: "test-member-token",
-      },
+      cookies: withMemberCookie ? { church_member_session: "test-member-token" } : {},
     } as TrpcContext["req"],
     res: {} as TrpcContext["res"],
   };
@@ -173,6 +186,36 @@ describe("vehicle reservations", () => {
       },
     ]);
     expect(dbMocks.getAdminVehicleReservationDetailsByDate).toHaveBeenCalledWith(1, "2026-06-17");
+  });
+
+  it("lets vehicle admins read vehicle pages without a member reservation group", async () => {
+    dbMocks.canMemberUseVehicleReservation.mockResolvedValue(false);
+    dbMocks.getAdminVehicleReservationDetailsByDate.mockResolvedValue([
+      {
+        id: 8,
+        vehicleId: 1,
+        startTime: "13:00",
+        endTime: "14:00",
+        status: "pending",
+        reserverName: "Admin Visible Member",
+      },
+    ]);
+    const caller = appRouter.createCaller(createContext(createAdminUser(), false));
+
+    await expect(caller.home.vehicleReservationAccess()).resolves.toEqual({ canUse: true });
+    await expect(caller.home.vehicles()).resolves.toEqual([reservableVehicle]);
+    await expect(
+      caller.home.vehicleReservationsByDate({ vehicleId: 1, date: "2026-06-17" })
+    ).resolves.toMatchObject([
+      {
+        id: 8,
+        startTime: "13:00",
+        endTime: "14:00",
+        status: "pending",
+        reserverName: "Admin Visible Member",
+      },
+    ]);
+    expect(dbMocks.canMemberUseVehicleReservation).not.toHaveBeenCalled();
   });
 
   it("creates vehicle reservations through the overlap-safe insert path", async () => {

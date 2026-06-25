@@ -128,7 +128,10 @@ function filterVehicleReservationMenu<T extends MenuTreeNode>(node: T, canUseVeh
   return nextNode as T;
 }
 
-async function canContextUseVehicleReservation(ctx: { memberId?: number | null }) {
+type AdminPermissionUser = Parameters<typeof hasAdminContentPermission>[0];
+
+async function canContextUseVehicleReservation(ctx: { user?: AdminPermissionUser; memberId?: number | null }) {
+  if (hasAdminContentPermission(ctx.user, "content:vehicles")) return true;
   if (!ctx.memberId) return false;
   const member = await getMemberById(ctx.memberId);
   return canMemberUseVehicleReservation(member);
@@ -853,16 +856,17 @@ export const homeRouter = router({
 
   // ─── 차량 예약 (성도용, 지정 그룹만) ─────────────────────────────────────
 
-  vehicleReservationAccess: memberProtectedProcedure
+  vehicleReservationAccess: publicProcedure
     .query(async ({ ctx }) => {
+      if (hasAdminContentPermission(ctx.user, "content:vehicles")) return { canUse: true };
+      if (!ctx.memberId) return { canUse: false };
       const member = await getMemberById(ctx.memberId);
       return { canUse: await canMemberUseVehicleReservation(member) };
     }),
 
-  vehicles: memberProtectedProcedure
+  vehicles: publicProcedure
     .query(async ({ ctx }) => {
-      const member = await getMemberById(ctx.memberId);
-      if (!(await canMemberUseVehicleReservation(member))) {
+      if (!(await canContextUseVehicleReservation(ctx))) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "차량예약은 지정된 성도 그룹만 이용할 수 있습니다. 관리자에게 문의해 주세요.",
@@ -871,11 +875,10 @@ export const homeRouter = router({
       return getVehicles(true);
     }),
 
-  vehicle: memberProtectedProcedure
+  vehicle: publicProcedure
     .input(z.object({ id: idSchema }))
     .query(async ({ input, ctx }) => {
-      const member = await getMemberById(ctx.memberId);
-      if (!(await canMemberUseVehicleReservation(member))) {
+      if (!(await canContextUseVehicleReservation(ctx))) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "차량예약은 지정된 성도 그룹만 이용할 수 있습니다. 관리자에게 문의해 주세요.",
@@ -884,24 +887,22 @@ export const homeRouter = router({
       return getVisibleVehicleById(input.id);
     }),
 
-  vehicleImages: memberProtectedProcedure
+  vehicleImages: publicProcedure
     .input(z.object({ vehicleId: idSchema }))
     .query(async ({ input, ctx }) => {
-      const member = await getMemberById(ctx.memberId);
-      if (!(await canMemberUseVehicleReservation(member))) return [];
+      if (!(await canContextUseVehicleReservation(ctx))) return [];
       const vehicle = await getVisibleVehicleById(input.vehicleId);
       if (!vehicle) return [];
       return getVehicleImages(input.vehicleId);
     }),
 
-  vehicleReservationsByDate: memberProtectedProcedure
+  vehicleReservationsByDate: publicProcedure
     .input(z.object({
       vehicleId: idSchema,
       date: z.string().regex(DATE_RE, "날짜 형식이 올바르지 않습니다."),
     }))
     .query(async ({ input, ctx }) => {
-      const member = await getMemberById(ctx.memberId);
-      if (!(await canMemberUseVehicleReservation(member))) {
+      if (!(await canContextUseVehicleReservation(ctx))) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "차량예약은 지정된 성도 그룹만 이용할 수 있습니다.",
