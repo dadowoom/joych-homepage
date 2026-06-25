@@ -61,7 +61,6 @@ import {
   getVehicleById,
   getVehicleImages,
   getVehicleReservationById,
-  getVehicleReservationsByDate,
   getVehicles,
   updateVehicleReservationStatus,
   VehicleReservationLockError,
@@ -910,11 +909,8 @@ export const homeRouter = router({
       }
       const vehicle = await getVisibleVehicleById(input.vehicleId);
       if (!vehicle) return [];
-      if (hasAdminContentPermission(ctx.user, "content:vehicles")) {
-        return getAdminVehicleReservationDetailsByDate(input.vehicleId, input.date);
-      }
-      const rows = await getVehicleReservationsByDate(input.vehicleId, input.date);
-      return rows.map(({ startTime, endTime, status }) => ({ startTime, endTime, status }));
+      // 차량예약은 허용된 성도 그룹만 접근하므로, 시설예약처럼 예약자 정보를 함께 보여줍니다.
+      return getAdminVehicleReservationDetailsByDate(input.vehicleId, input.date);
     }),
 
   createVehicleReservation: memberProtectedProcedure

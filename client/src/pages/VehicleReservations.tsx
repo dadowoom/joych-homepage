@@ -121,7 +121,7 @@ function isActiveReservation(row: ReservationByDateRow) {
   return row.status !== "rejected" && row.status !== "cancelled";
 }
 
-function hasAdminReservationDetails(row: ReservationByDateRow) {
+function hasReservationDetails(row: ReservationByDateRow) {
   return Boolean(
     row.reserverName ||
     row.userName ||
@@ -391,14 +391,14 @@ function VehicleTimeSlotPanel({
     return map;
   }, [reservationRows, vehicle.slotMinutes]);
 
-  const adminReservations = useMemo(
-    () => reservationRows.filter((reservation) => isActiveReservation(reservation) && hasAdminReservationDetails(reservation)),
+  const visibleReservations = useMemo(
+    () => reservationRows.filter((reservation) => isActiveReservation(reservation) && hasReservationDetails(reservation)),
     [reservationRows]
   );
 
   function renderDisabledTooltip(slot: string, disabledReason?: string) {
     const reservation = reservationBySlot.get(slot);
-    if (!reservation || !hasAdminReservationDetails(reservation)) {
+    if (!reservation || !hasReservationDetails(reservation)) {
       return disabledReason ?? "예약 불가";
     }
     return (
@@ -436,14 +436,14 @@ function VehicleTimeSlotPanel({
         />
       )}
 
-      {adminReservations.length > 0 && (
+      {visibleReservations.length > 0 && (
         <div className="mt-3 rounded-lg border border-green-100 bg-green-50/60 p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-xs font-bold text-[#1B5E20]">관리자용 예약 상세</p>
-            <p className="text-[10px] text-gray-400">관리자에게만 표시</p>
+            <p className="text-xs font-bold text-[#1B5E20]">예약 상세</p>
+            <p className="text-[10px] text-gray-400">예약 가능 그룹에게 표시</p>
           </div>
           <div className="space-y-2">
-            {adminReservations.map((reservation, index) => (
+            {visibleReservations.map((reservation, index) => (
               <div
                 key={reservation.id ?? `${reservation.startTime}-${reservation.endTime}-${index}`}
                 className="rounded-md border border-white bg-white/90 p-2 text-xs text-gray-700 shadow-sm"
