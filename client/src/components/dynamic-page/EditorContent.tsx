@@ -124,7 +124,7 @@ export function EditorContent({
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl min-w-0 overflow-x-hidden">
+    <div className="mx-auto w-full max-w-5xl min-w-0 overflow-x-hidden">
       {/* 관리자 편집 툴바 */}
       {isAdmin && (
         <div className="mb-6 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">

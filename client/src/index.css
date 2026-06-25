@@ -139,8 +139,11 @@
   }
 
   .rich-text-viewer table {
-    width: 100%;
+    width: max-content;
+    min-width: 100%;
+    max-width: none;
     border-collapse: collapse;
+    table-layout: auto;
   }
 
   .rich-text-viewer th,
@@ -148,6 +151,7 @@
     border: 1px solid color-mix(in oklch, var(--border), black 4%);
     padding: 0.75rem;
     vertical-align: top;
+    min-width: 7rem;
   }
 
   .rich-text-viewer th {
@@ -267,6 +271,7 @@
     .rich-text-viewer th,
     .rich-text-viewer td {
       padding: 0.6rem;
+      min-width: 6.5rem;
     }
   }
 }
