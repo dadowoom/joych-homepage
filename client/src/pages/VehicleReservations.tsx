@@ -3,7 +3,7 @@
  * 지정된 성도 그룹만 목록/신청 화면에 접근할 수 있습니다.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -773,6 +773,17 @@ export function VehicleReservationApply() {
     retry: false,
     refetchOnWindowFocus: false,
   });
+
+  // 로그인한 성도 정보가 늦게 도착해도 신청자 이름/연락처를 자동으로 채웁니다.
+  useEffect(() => {
+    if (!memberMe) return;
+    setForm(prev => ({
+      ...prev,
+      reserverName: prev.reserverName || memberMe.name || "",
+      reserverPhone: prev.reserverPhone || memberMe.phone || "",
+    }));
+  }, [memberMe]);
+
   const { data: vehicle, isLoading, error } = trpc.home.vehicle.useQuery(
     { id: vehicleId },
     { enabled: !!vehicleId && !Number.isNaN(vehicleId), retry: false }

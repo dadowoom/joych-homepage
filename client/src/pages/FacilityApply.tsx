@@ -237,6 +237,16 @@ export default function FacilityApply() {
     }));
   }, [urlDate, urlStartTime, urlEndTime]);
 
+  // 로그인한 성도 정보가 늦게 도착해도 신청자 이름/연락처를 자동으로 채웁니다.
+  useEffect(() => {
+    if (!memberMe) return;
+    setForm(prev => ({
+      ...prev,
+      reserverName: prev.reserverName || memberMe.name || "",
+      reserverPhone: prev.reserverPhone || memberMe.phone || "",
+    }));
+  }, [memberMe]);
+
   // ── API 쿼리 ─────────────────────────────────────────────
   const { data: facility, isLoading: loadingFacility } = trpc.home.facility.useQuery(
     { id: facilityId },
