@@ -39,7 +39,7 @@ type FieldType = "position" | "department" | "district" | "baptism";
 const VEHICLE_ACCESS_FIELD_TYPES: FieldType[] = ["position"];
 const VEHICLE_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"]);
 const MAX_VEHICLE_IMAGE_BYTES = 10 * 1024 * 1024;
-const TIME_24H_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const TIME_24H_RE = /^(([01]\d|2[0-3]):[0-5]\d|24:00)$/;
 
 type VehicleRow = {
   id: number;
@@ -143,8 +143,8 @@ const EMPTY_FORM: VehicleForm = {
   isVisible: true,
   notice: "",
   caution: "",
-  openTime: "09:00",
-  closeTime: "22:00",
+  openTime: "00:00",
+  closeTime: "24:00",
 };
 
 const FIELD_TYPE_LABELS: Record<FieldType, string> = {
@@ -744,9 +744,9 @@ export default function AdminVehiclesTab() {
                 <input
                   type="text"
                   inputMode="numeric"
-                  pattern="[0-2][0-9]:[0-5][0-9]"
+                  pattern="(([01][0-9]|2[0-3]):[0-5][0-9]|24:00)"
                   maxLength={5}
-                  placeholder="09:00"
+                  placeholder="00:00"
                   value={form.openTime}
                   onChange={(e) => updateForm("openTime", e.target.value)}
                   onBlur={() => updateForm("openTime", normalizeTimeValue(form.openTime))}
@@ -758,9 +758,9 @@ export default function AdminVehiclesTab() {
                 <input
                   type="text"
                   inputMode="numeric"
-                  pattern="[0-2][0-9]:[0-5][0-9]"
+                  pattern="(([01][0-9]|2[0-3]):[0-5][0-9]|24:00)"
                   maxLength={5}
-                  placeholder="22:00"
+                  placeholder="24:00"
                   value={form.closeTime}
                   onChange={(e) => updateForm("closeTime", e.target.value)}
                   onBlur={() => updateForm("closeTime", normalizeTimeValue(form.closeTime))}

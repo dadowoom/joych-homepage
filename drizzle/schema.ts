@@ -937,8 +937,8 @@ export const vehicles = mysqlTable("vehicles", {
   notice: text("notice"),
   caution: text("caution"),
   sortOrder: int("sort_order").notNull().default(0),
-  openTime: varchar("open_time", { length: 5 }).notNull().default("09:00"),
-  closeTime: varchar("close_time", { length: 5 }).notNull().default("22:00"),
+  openTime: varchar("open_time", { length: 5 }).notNull().default("00:00"),
+  closeTime: varchar("close_time", { length: 5 }).notNull().default("24:00"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 }, (table) => [

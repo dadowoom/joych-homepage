@@ -15,8 +15,8 @@ CREATE TABLE `vehicles` (
   `notice` text,
   `caution` text,
   `sort_order` int NOT NULL DEFAULT 0,
-  `open_time` varchar(5) NOT NULL DEFAULT '09:00',
-  `close_time` varchar(5) NOT NULL DEFAULT '22:00',
+  `open_time` varchar(5) NOT NULL DEFAULT '00:00',
+  `close_time` varchar(5) NOT NULL DEFAULT '24:00',
   `created_at` timestamp NOT NULL DEFAULT (now()),
   `updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT `vehicles_id` PRIMARY KEY(`id`)

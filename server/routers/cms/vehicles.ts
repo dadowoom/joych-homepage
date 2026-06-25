@@ -23,7 +23,7 @@ import {
   updateVehicle,
 } from "../../db";
 
-const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const TIME_RE = /^(([01]\d|2[0-3]):[0-5]\d|24:00)$/;
 const idSchema = z.number().int().positive();
 const timeSchema = z.string().regex(TIME_RE, "시간은 HH:MM 형식으로 입력해주세요.");
 const vehicleProcedure = adminPermissionProcedure("content:vehicles");
@@ -55,8 +55,8 @@ const vehicleBaseSchema = z.object({
   notice: optionalTextSchema(10000),
   caution: optionalTextSchema(10000),
   sortOrder: z.number().int().min(0).max(10000).optional(),
-  openTime: timeSchema.default("09:00"),
-  closeTime: timeSchema.default("22:00"),
+  openTime: timeSchema.default("00:00"),
+  closeTime: timeSchema.default("24:00"),
 }).superRefine((value, ctx) => {
   if (value.maxSlots < value.minSlots) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["maxSlots"], message: "최대 예약 시간은 최소 예약 시간보다 크거나 같아야 합니다." });

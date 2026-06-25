@@ -458,6 +458,57 @@ try {
 NODE
 fi
 
+MIGRATION_0048="${APP_DIR}/drizzle/0048_vehicle_reservation_24h.sql"
+if [[ -f "${MIGRATION_0048}" ]]; then
+  echo "[deploy] database migration: vehicle reservation 24h window"
+  if [[ -f "${APP_DIR}/.env" ]]; then
+    set -a
+    # shellcheck disable=SC1091
+    . "${APP_DIR}/.env"
+    set +a
+  fi
+  node --input-type=module <<'NODE'
+import fs from "node:fs/promises";
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required for migration 0048.");
+}
+
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id VARCHAR(128) PRIMARY KEY,
+      applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  const [rows] = await connection.query(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    ["0048_vehicle_reservation_24h"],
+  );
+
+  if (rows.length > 0) {
+    console.log("[deploy] migration 0048 already applied");
+  } else {
+    const sql = await fs.readFile("drizzle/0048_vehicle_reservation_24h.sql", "utf8");
+    for (const statement of sql.split(";").map((part) => part.trim()).filter(Boolean)) {
+      await connection.query(statement);
+    }
+    await connection.query(
+      "INSERT INTO app_migrations (id) VALUES (?)",
+      ["0048_vehicle_reservation_24h"],
+    );
+    console.log("[deploy] migration 0048 applied");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

@@ -250,6 +250,54 @@ describe("vehicle reservations", () => {
     );
   });
 
+  it("allows same-day future vehicle reservations without the facility 24-hour lead guard", async () => {
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(
+      caller.home.createVehicleReservation(vehicleReservationInput({
+        reservationDate: "2026-06-16",
+        startTime: "16:00",
+        endTime: "17:00",
+      })),
+    ).resolves.toMatchObject({
+      id: 200,
+      status: "pending",
+    });
+    expect(dbMocks.createVehicleReservationIfAvailable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reservationDate: "2026-06-16",
+        startTime: "16:00",
+        endTime: "17:00",
+      }),
+    );
+  });
+
+  it("allows the final 23:00 to 24:00 slot for 24-hour vehicles", async () => {
+    dbMocks.getVehicleById.mockResolvedValue({
+      ...reservableVehicle,
+      openTime: "00:00",
+      closeTime: "24:00",
+      maxSlots: 24,
+    });
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(
+      caller.home.createVehicleReservation(vehicleReservationInput({
+        startTime: "23:00",
+        endTime: "24:00",
+      })),
+    ).resolves.toMatchObject({
+      id: 200,
+      status: "pending",
+    });
+    expect(dbMocks.createVehicleReservationIfAvailable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startTime: "23:00",
+        endTime: "24:00",
+      }),
+    );
+  });
+
   it("lets individually permitted vehicle managers create reservations outside the group rule", async () => {
     dbMocks.canMemberUseVehicleReservation.mockResolvedValue(false);
     const caller = appRouter.createCaller(createContext(createAdminUser()));

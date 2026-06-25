@@ -33,8 +33,8 @@ SELECT
   '차량 사용 목적, 탑승 인원, 사용 시간을 입력해 신청해주세요.',
   '예약 신청 후 관리자 승인까지 완료되어야 사용할 수 있습니다.',
   1,
-  '09:00',
-  '22:00'
+  '00:00',
+  '24:00'
 WHERE NOT EXISTS (
   SELECT 1 FROM `vehicles` WHERE `name` = '스타리아' LIMIT 1
 );
@@ -61,8 +61,8 @@ SET
   `is_visible` = true,
   `notice` = COALESCE(NULLIF(`notice`, ''), '차량 사용 목적, 탑승 인원, 사용 시간을 입력해 신청해주세요.'),
   `caution` = COALESCE(NULLIF(`caution`, ''), '예약 신청 후 관리자 승인까지 완료되어야 사용할 수 있습니다.'),
-  `open_time` = '09:00',
-  `close_time` = '22:00',
+  `open_time` = '00:00',
+  `close_time` = '24:00',
   `sort_order` = CASE WHEN `sort_order` = 0 THEN 1 ELSE `sort_order` END
 WHERE `id` = @staria_vehicle_id;
 

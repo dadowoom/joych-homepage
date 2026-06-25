@@ -90,7 +90,7 @@ import {
 import { getStaticPageSeed } from "@shared/staticPageContent";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const TIME_RE = /^\d{2}:\d{2}$/;
+const TIME_RE = /^(([01]\d|2[0-3]):[0-5]\d|24:00)$/;
 const idSchema = z.number().int().positive();
 const hrefLookupSchema = z.string().trim().min(1).max(256);
 
@@ -163,6 +163,7 @@ async function getVisibleVehicleById(id: number) {
 function toMinutes(time: string): number | null {
   if (!TIME_RE.test(time)) return null;
   const [hour, minute] = time.split(":").map(Number);
+  if (hour === 24 && minute === 0) return 24 * 60;
   if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
   return hour * 60 + minute;
 }

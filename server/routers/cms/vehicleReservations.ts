@@ -18,7 +18,7 @@ import {
 
 const idSchema = z.number().int().positive();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "날짜 형식이 올바르지 않습니다.");
-const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "시간은 HH:MM 형식으로 입력해주세요.");
+const timeSchema = z.string().regex(/^(([01]\d|2[0-3]):[0-5]\d|24:00)$/, "시간은 HH:MM 형식으로 입력해주세요.");
 const vehicleReservationProcedure = adminPermissionProcedure("content:vehicles");
 
 function toMinutes(time: string) {
