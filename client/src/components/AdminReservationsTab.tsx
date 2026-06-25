@@ -58,6 +58,12 @@ type ReservationGroup = {
   endDate: string;
 };
 
+type ReservationTimeEditForm = {
+  reservationDate: string;
+  startTime: string;
+  endTime: string;
+};
+
 const STATUS_LABELS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   pending:   { label: "승인 대기", color: "bg-amber-100 text-amber-700",  icon: <Clock className="w-3 h-3" /> },
   approved:  { label: "승인 완료", color: "bg-green-100 text-green-700",  icon: <CheckCircle2 className="w-3 h-3" /> },
@@ -152,6 +158,12 @@ export default function AdminReservationsTab() {
   const [rejectingKey, setRejectingKey] = useState<string | null>(null);
   const [rejectComment, setRejectComment] = useState("");
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [timeEditForm, setTimeEditForm] = useState<ReservationTimeEditForm>({
+    reservationDate: "",
+    startTime: "",
+    endTime: "",
+  });
 
   // 시설 목록 (필터용)
   const { data: facilities } = trpc.home.facilities.useQuery();
@@ -196,6 +208,24 @@ export default function AdminReservationsTab() {
       toast.success("반복 예약 묶음이 거절됐습니다.");
     },
     onError: () => toast.error("거절 처리에 실패했습니다."),
+  });
+
+  const updateTimeMutation = trpc.cms.reservations.updateTime.useMutation({
+    onSuccess: () => {
+      utils.cms.reservations.list.invalidate();
+      setEditingKey(null);
+      toast.success("예약 시간이 수정되었습니다.");
+    },
+    onError: (error) => toast.error(error.message || "예약 시간 수정에 실패했습니다."),
+  });
+
+  const updateGroupTimeMutation = trpc.cms.reservations.updateGroupTime.useMutation({
+    onSuccess: () => {
+      utils.cms.reservations.list.invalidate();
+      setEditingKey(null);
+      toast.success("반복 예약 시간이 수정되었습니다.");
+    },
+    onError: (error) => toast.error(error.message || "반복 예약 시간 수정에 실패했습니다."),
   });
 
   const deleteMutation = trpc.cms.reservations.delete.useMutation({
@@ -257,6 +287,42 @@ export default function AdminReservationsTab() {
       return;
     }
     deleteMutation.mutate({ id: group.first.id });
+  };
+
+  const startEditTime = (group: ReservationGroup) => {
+    setRejectingKey(null);
+    setExpandedKey(group.key);
+    setEditingKey(group.key);
+    setTimeEditForm({
+      reservationDate: group.first.reservationDate,
+      startTime: group.first.startTime,
+      endTime: group.first.endTime,
+    });
+  };
+
+  const saveReservationTime = (group: ReservationGroup) => {
+    if (!timeEditForm.startTime || !timeEditForm.endTime) {
+      toast.error("시작 시간과 종료 시간을 입력해주세요.");
+      return;
+    }
+    if (timeEditForm.startTime >= timeEditForm.endTime) {
+      toast.error("시작 시간은 종료 시간보다 빨라야 합니다.");
+      return;
+    }
+    if (group.isRecurring && group.groupId) {
+      updateGroupTimeMutation.mutate({
+        groupId: group.groupId,
+        startTime: timeEditForm.startTime,
+        endTime: timeEditForm.endTime,
+      });
+      return;
+    }
+    updateTimeMutation.mutate({
+      id: group.first.id,
+      reservationDate: timeEditForm.reservationDate,
+      startTime: timeEditForm.startTime,
+      endTime: timeEditForm.endTime,
+    });
   };
 
   return (
@@ -358,7 +424,15 @@ export default function AdminReservationsTab() {
               const dateSummary = group.isRecurring
                 ? `${formatShortDate(group.startDate)} ~ ${formatShortDate(group.endDate)} · ${group.count}회`
                 : formatDate(r.reservationDate);
-              const isMutating = approveMutation.isPending || approveGroupMutation.isPending || rejectMutation.isPending || rejectGroupMutation.isPending || deleteMutation.isPending || deleteGroupMutation.isPending;
+              const isMutating =
+                approveMutation.isPending ||
+                approveGroupMutation.isPending ||
+                rejectMutation.isPending ||
+                rejectGroupMutation.isPending ||
+                updateTimeMutation.isPending ||
+                updateGroupTimeMutation.isPending ||
+                deleteMutation.isPending ||
+                deleteGroupMutation.isPending;
               return (
                 <div key={group.key} className="border border-gray-200 rounded-xl overflow-hidden">
                   {/* 요약 행 */}
@@ -411,6 +485,15 @@ export default function AdminReservationsTab() {
                       <Button
                         size="sm"
                         variant="outline"
+                        className="text-xs h-7 px-2.5"
+                        onClick={e => { e.stopPropagation(); startEditTime(group); }}
+                        disabled={isMutating}
+                      >
+                        시간 수정
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
                         className="border-red-200 text-red-600 hover:bg-red-50 text-xs h-7 px-2.5"
                         onClick={e => { e.stopPropagation(); deleteReservation(group); }}
                         disabled={isMutating}
@@ -452,6 +535,63 @@ export default function AdminReservationsTab() {
                           취소
                         </Button>
                       </div>
+                    </div>
+                  )}
+
+                  {editingKey === group.key && (
+                    <div className="px-4 pb-4 bg-green-50 border-t border-green-100">
+                      <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-end">
+                        <label className="block">
+                          <span className="mb-1 block text-xs font-medium text-green-800">예약 날짜</span>
+                          <input
+                            type="date"
+                            value={timeEditForm.reservationDate}
+                            disabled={group.isRecurring}
+                            onChange={e => setTimeEditForm(prev => ({ ...prev, reservationDate: e.target.value }))}
+                            className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200 disabled:bg-gray-100 disabled:text-gray-400"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="mb-1 block text-xs font-medium text-green-800">시작 시간</span>
+                          <input
+                            type="time"
+                            value={timeEditForm.startTime}
+                            onChange={e => setTimeEditForm(prev => ({ ...prev, startTime: e.target.value }))}
+                            className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="mb-1 block text-xs font-medium text-green-800">종료 시간</span>
+                          <input
+                            type="time"
+                            value={timeEditForm.endTime}
+                            onChange={e => setTimeEditForm(prev => ({ ...prev, endTime: e.target.value }))}
+                            className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"
+                          />
+                        </label>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="bg-[#1B5E20] text-white hover:bg-[#2E7D32]"
+                            onClick={() => saveReservationTime(group)}
+                            disabled={isMutating}
+                          >
+                            저장
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setEditingKey(null)}
+                          >
+                            취소
+                          </Button>
+                        </div>
+                      </div>
+                      {group.isRecurring && (
+                        <p className="mt-2 text-xs text-green-700">
+                          반복 예약은 날짜는 유지하고 모든 회차의 시간만 한 번에 수정합니다.
+                        </p>
+                      )}
                     </div>
                   )}
 

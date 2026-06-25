@@ -4,7 +4,7 @@
  * 차량별 운영 시간 안에서 기존 예약 시간만 중복 방지합니다.
  */
 
-import { and, asc, desc, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lt, ne, or, sql } from "drizzle-orm";
 import {
   churchMembers,
   InsertVehicle,
@@ -390,6 +390,47 @@ export async function createVehicleReservationIfAvailable(
       await tx.execute(sql`SELECT RELEASE_LOCK(${lockKey})`);
     }
   });
+}
+
+export type VehicleReservationDetailsUpdate = {
+  reservationDate?: string;
+  startTime?: string;
+  endTime?: string;
+};
+
+export async function updateVehicleReservationDetails(id: number, data: VehicleReservationDetailsUpdate) {
+  const db = await getDb();
+  if (!db) return false;
+  const current = await db.select().from(vehicleReservations).where(eq(vehicleReservations.id, id)).limit(1);
+  const reservation = current[0];
+  if (!reservation) return false;
+
+  const nextReservationDate = data.reservationDate ?? reservation.reservationDate;
+  const nextStartTime = data.startTime ?? reservation.startTime;
+  const nextEndTime = data.endTime ?? reservation.endTime;
+
+  const overlapping = await db
+    .select({ startTime: vehicleReservations.startTime, endTime: vehicleReservations.endTime })
+    .from(vehicleReservations)
+    .where(and(
+      eq(vehicleReservations.vehicleId, reservation.vehicleId),
+      eq(vehicleReservations.reservationDate, nextReservationDate),
+      ne(vehicleReservations.id, id),
+      or(
+        eq(vehicleReservations.status, "pending"),
+        eq(vehicleReservations.status, "approved"),
+      ),
+      lt(vehicleReservations.startTime, nextEndTime),
+      gt(vehicleReservations.endTime, nextStartTime),
+    ))
+    .limit(1);
+
+  if (overlapping[0]) {
+    throw new VehicleReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime);
+  }
+
+  await db.update(vehicleReservations).set(data).where(eq(vehicleReservations.id, id));
+  return true;
 }
 
 export async function updateVehicleReservationStatus(

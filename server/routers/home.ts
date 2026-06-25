@@ -929,7 +929,10 @@ export const homeRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const member = await getMemberById(ctx.memberId);
-      if (!(await canMemberUseVehicleReservation(member))) {
+      const canUseVehicleReservation =
+        hasAdminContentPermission(ctx.user, "content:vehicles") ||
+        await canMemberUseVehicleReservation(member);
+      if (!canUseVehicleReservation) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "차량예약은 지정된 성도 그룹만 신청할 수 있습니다. 관리자에게 문의해 주세요.",

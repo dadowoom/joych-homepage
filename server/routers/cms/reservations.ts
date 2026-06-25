@@ -20,13 +20,24 @@ import {
   deleteReservationGroup,
   getAllReservations,
   getReservationById,
+  ReservationOverlapError,
+  updateReservationDetails,
+  updateReservationGroupDetails,
   updateReservationGroupStatus,
   updateReservationStatus,
 } from "../../db";
 
 const idSchema = z.number().int().positive();
 const groupIdSchema = z.string().min(1).max(80);
+const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "날짜 형식이 올바르지 않습니다.");
+const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "시간은 HH:MM 형식으로 입력해주세요.");
 const reservationProcedure = adminPermissionProcedure("content:reservations");
+
+function assertTimeOrder(startTime: string, endTime: string) {
+  if (startTime >= endTime) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "시작 시간은 종료 시간보다 빨라야 합니다." });
+  }
+}
 
 export const reservationsRouter = router({
   /**
@@ -41,6 +52,58 @@ export const reservationsRouter = router({
   get: reservationProcedure
     .input(z.object({ id: idSchema }))
     .query(({ input }) => getReservationById(input.id)),
+
+  updateTime: reservationProcedure
+    .input(z.object({
+      id: idSchema,
+      reservationDate: dateSchema,
+      startTime: timeSchema,
+      endTime: timeSchema,
+    }))
+    .mutation(async ({ input }) => {
+      assertTimeOrder(input.startTime, input.endTime);
+      try {
+        const updated = await updateReservationDetails(input.id, {
+          reservationDate: input.reservationDate,
+          startTime: input.startTime,
+          endTime: input.endTime,
+        });
+        if (!updated) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "예약을 찾을 수 없습니다." });
+        }
+        return { success: true };
+      } catch (error) {
+        if (error instanceof ReservationOverlapError) {
+          throw new TRPCError({ code: "CONFLICT", message: error.message });
+        }
+        throw error;
+      }
+    }),
+
+  updateGroupTime: reservationProcedure
+    .input(z.object({
+      groupId: groupIdSchema,
+      startTime: timeSchema,
+      endTime: timeSchema,
+    }))
+    .mutation(async ({ input }) => {
+      assertTimeOrder(input.startTime, input.endTime);
+      try {
+        const updated = await updateReservationGroupDetails(input.groupId, {
+          startTime: input.startTime,
+          endTime: input.endTime,
+        });
+        if (!updated) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "반복 예약 묶음을 찾을 수 없습니다." });
+        }
+        return { success: true };
+      } catch (error) {
+        if (error instanceof ReservationOverlapError) {
+          throw new TRPCError({ code: "CONFLICT", message: error.message });
+        }
+        throw error;
+      }
+    }),
 
   /**
    * 예약 승인 (관리자)

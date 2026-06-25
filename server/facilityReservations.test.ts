@@ -12,6 +12,7 @@ const dbMocks = vi.hoisted(() => ({
   createReservationIfAvailable: vi.fn(),
   getMemberById: vi.fn(),
   getSiteSettings: vi.fn(),
+  updateReservationDetails: vi.fn(),
 }));
 
 const joseMocks = vi.hoisted(() => ({
@@ -42,6 +43,7 @@ vi.mock("./db", async (importOriginal) => {
     createReservation: dbMocks.createReservation,
     createReservationIfAvailable: dbMocks.createReservationIfAvailable,
     getSiteSettings: dbMocks.getSiteSettings,
+    updateReservationDetails: dbMocks.updateReservationDetails,
   };
 });
 
@@ -146,6 +148,7 @@ describe("facility reservation lead-time guard", () => {
     dbMocks.createReservation.mockResolvedValue(100);
     dbMocks.createReservationIfAvailable.mockResolvedValue(100);
     dbMocks.getSiteSettings.mockResolvedValue({});
+    dbMocks.updateReservationDetails.mockResolvedValue(true);
   });
 
   it("keeps public facility reservation lookups free of private fields", async () => {
@@ -326,6 +329,22 @@ describe("facility reservation lead-time guard", () => {
       }),
     );
     expect(dbMocks.createReservationIfAvailable).not.toHaveBeenCalled();
+  });
+
+  it("lets reservation managers update facility reservation time", async () => {
+    const caller = appRouter.createCaller(createContext(createUserWithReservationPermission()));
+
+    await expect(caller.cms.reservations.updateTime({
+      id: 10,
+      reservationDate: "2026-06-17",
+      startTime: "16:00",
+      endTime: "17:00",
+    })).resolves.toEqual({ success: true });
+    expect(dbMocks.updateReservationDetails).toHaveBeenCalledWith(10, {
+      reservationDate: "2026-06-17",
+      startTime: "16:00",
+      endTime: "17:00",
+    });
   });
 
   it("lets reservation exception members bypass closed days, blocked dates, and overlaps", async () => {

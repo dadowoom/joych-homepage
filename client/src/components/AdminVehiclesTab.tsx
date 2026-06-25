@@ -96,6 +96,12 @@ type VehicleReservationRow = {
   memberPhone?: string | null;
 };
 
+type VehicleReservationTimeEditForm = {
+  reservationDate: string;
+  startTime: string;
+  endTime: string;
+};
+
 type AccessRuleDraft = {
   fieldType: FieldType;
   fieldValue: string;
@@ -230,6 +236,12 @@ export default function AdminVehiclesTab() {
   const [reservationStatusFilter, setReservationStatusFilter] = useState<VehicleStatusFilter>("all");
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [rejectComment, setRejectComment] = useState("");
+  const [editingReservationId, setEditingReservationId] = useState<number | null>(null);
+  const [reservationTimeForm, setReservationTimeForm] = useState<VehicleReservationTimeEditForm>({
+    reservationDate: "",
+    startTime: "",
+    endTime: "",
+  });
   const [accessDraft, setAccessDraft] = useState<AccessRuleDraft[] | null>(null);
   const [imageVehicleId, setImageVehicleId] = useState<number | null>(null);
   const [uploadingVehicleImage, setUploadingVehicleImage] = useState(false);
@@ -298,6 +310,14 @@ export default function AdminVehiclesTab() {
       toast.success("차량 예약이 거절되었습니다.");
     },
     onError: (error) => toast.error(error.message),
+  });
+  const updateReservationTime = trpc.cms.vehicleReservations.updateTime.useMutation({
+    onSuccess: () => {
+      utils.cms.vehicleReservations.list.invalidate();
+      setEditingReservationId(null);
+      toast.success("차량 예약 시간이 수정되었습니다.");
+    },
+    onError: (error) => toast.error(error.message || "차량 예약 시간 수정에 실패했습니다."),
   });
   const deleteReservation = trpc.cms.vehicleReservations.delete.useMutation({
     onSuccess: () => {
@@ -449,6 +469,33 @@ export default function AdminVehiclesTab() {
     deleteReservation.mutate({ id: row.id });
   }
 
+  function startReservationTimeEdit(row: VehicleReservationRow) {
+    setRejectingId(null);
+    setEditingReservationId(row.id);
+    setReservationTimeForm({
+      reservationDate: row.reservationDate,
+      startTime: row.startTime,
+      endTime: row.endTime,
+    });
+  }
+
+  function saveReservationTime(row: VehicleReservationRow) {
+    if (!reservationTimeForm.reservationDate || !reservationTimeForm.startTime || !reservationTimeForm.endTime) {
+      toast.error("예약 날짜와 시간을 입력해주세요.");
+      return;
+    }
+    if (reservationTimeForm.startTime >= reservationTimeForm.endTime) {
+      toast.error("시작 시간은 종료 시간보다 빨라야 합니다.");
+      return;
+    }
+    updateReservationTime.mutate({
+      id: row.id,
+      reservationDate: reservationTimeForm.reservationDate,
+      startTime: reservationTimeForm.startTime,
+      endTime: reservationTimeForm.endTime,
+    });
+  }
+
   async function handleVehicleImageUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -545,7 +592,7 @@ export default function AdminVehiclesTab() {
 
   const isSavingVehicle = createVehicle.isPending || updateVehicle.isPending;
   const isMutatingReservation =
-    approveReservation.isPending || rejectReservation.isPending || deleteReservation.isPending;
+    approveReservation.isPending || rejectReservation.isPending || updateReservationTime.isPending || deleteReservation.isPending;
 
   if (vehiclesLoading) {
     return <div className="flex justify-center py-16"><Loader2 className="h-7 w-7 animate-spin text-[#1B5E20]" /></div>;
@@ -1019,6 +1066,14 @@ export default function AdminVehiclesTab() {
                           <Button
                             size="sm"
                             variant="outline"
+                            disabled={isMutatingReservation}
+                            onClick={() => startReservationTimeEdit(row)}
+                          >
+                            시간 수정
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
                             className="border-red-200 text-red-600 hover:bg-red-50"
                             disabled={isMutatingReservation}
                             onClick={() => removeReservation(row)}
@@ -1051,6 +1106,54 @@ export default function AdminVehiclesTab() {
                           </div>
                         </div>
                       )}
+
+                      {editingReservationId === row.id && (
+                        <div className="mt-3 rounded-lg border border-green-100 bg-green-50 p-3">
+                          <p className="mb-2 text-xs font-medium text-green-800">예약 날짜/시간 수정</p>
+                          <div className="grid gap-3 md:grid-cols-4">
+                            <label className="block">
+                              <span className="mb-1 block text-xs text-green-800">예약 날짜</span>
+                              <input
+                                type="date"
+                                value={reservationTimeForm.reservationDate}
+                                onChange={(e) => setReservationTimeForm(prev => ({ ...prev, reservationDate: e.target.value }))}
+                                className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="mb-1 block text-xs text-green-800">시작 시간</span>
+                              <input
+                                type="time"
+                                value={reservationTimeForm.startTime}
+                                onChange={(e) => setReservationTimeForm(prev => ({ ...prev, startTime: e.target.value }))}
+                                className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="mb-1 block text-xs text-green-800">종료 시간</span>
+                              <input
+                                type="time"
+                                value={reservationTimeForm.endTime}
+                                onChange={(e) => setReservationTimeForm(prev => ({ ...prev, endTime: e.target.value }))}
+                                className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"
+                              />
+                            </label>
+                            <div className="flex items-end gap-2">
+                              <Button
+                                size="sm"
+                                className="bg-[#1B5E20] text-white hover:bg-[#2E7D32]"
+                                disabled={isMutatingReservation}
+                                onClick={() => saveReservationTime(row)}
+                              >
+                                저장
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => setEditingReservationId(null)}>
+                                취소
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1071,6 +1174,7 @@ export default function AdminVehiclesTab() {
               <p className="mt-1 text-xs leading-5 text-gray-500">
                 여기서 체크된 성도 그룹만 차량예약 메뉴를 볼 수 있고 신청할 수 있습니다.
                 아무것도 체크하지 않으면 일반 성도는 차량예약을 이용할 수 없습니다.
+                특정 성도 한 명에게만 열어줄 때는 운영 설정 &gt; 관리 권한에서 차량예약 관리를 체크해주세요.
               </p>
             </div>
             <Button

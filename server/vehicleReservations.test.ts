@@ -7,7 +7,9 @@ const dbMocks = vi.hoisted(() => ({
   getAdminVehicleReservationDetailsByDate: vi.fn(),
   getMemberById: vi.fn(),
   getVehicleById: vi.fn(),
+  getVehicleReservationById: vi.fn(),
   getVehicles: vi.fn(),
+  updateVehicleReservationDetails: vi.fn(),
 }));
 
 const joseMocks = vi.hoisted(() => ({
@@ -35,7 +37,9 @@ vi.mock("./db", async (importOriginal) => {
     getAdminVehicleReservationDetailsByDate: dbMocks.getAdminVehicleReservationDetailsByDate,
     getMemberById: dbMocks.getMemberById,
     getVehicleById: dbMocks.getVehicleById,
+    getVehicleReservationById: dbMocks.getVehicleReservationById,
     getVehicles: dbMocks.getVehicles,
+    updateVehicleReservationDetails: dbMocks.updateVehicleReservationDetails,
   };
 });
 
@@ -139,9 +143,18 @@ describe("vehicle reservations", () => {
     dbMocks.getMemberById.mockResolvedValue(approvedVehicleMember);
     dbMocks.canMemberUseVehicleReservation.mockResolvedValue(true);
     dbMocks.getVehicleById.mockResolvedValue(reservableVehicle);
+    dbMocks.getVehicleReservationById.mockResolvedValue({
+      id: 10,
+      vehicleId: 1,
+      reservationDate: "2026-06-17",
+      startTime: "10:00",
+      endTime: "11:00",
+      status: "pending",
+    });
     dbMocks.getVehicles.mockResolvedValue([reservableVehicle]);
     dbMocks.getAdminVehicleReservationDetailsByDate.mockResolvedValue([]);
     dbMocks.createVehicleReservationIfAvailable.mockResolvedValue(200);
+    dbMocks.updateVehicleReservationDetails.mockResolvedValue(true);
   });
 
   it("blocks vehicle reservation pages for members outside the selected position group", async () => {
@@ -235,6 +248,39 @@ describe("vehicle reservations", () => {
         status: "pending",
       }),
     );
+  });
+
+  it("lets individually permitted vehicle managers create reservations outside the group rule", async () => {
+    dbMocks.canMemberUseVehicleReservation.mockResolvedValue(false);
+    const caller = appRouter.createCaller(createContext(createAdminUser()));
+
+    await expect(caller.home.createVehicleReservation(vehicleReservationInput())).resolves.toMatchObject({
+      id: 200,
+      status: "pending",
+    });
+    expect(dbMocks.canMemberUseVehicleReservation).not.toHaveBeenCalled();
+    expect(dbMocks.createVehicleReservationIfAvailable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        vehicleId: 1,
+        userId: 1,
+      }),
+    );
+  });
+
+  it("lets vehicle managers update reservation time", async () => {
+    const caller = appRouter.createCaller(createContext(createAdminUser(), false));
+
+    await expect(caller.cms.vehicleReservations.updateTime({
+      id: 10,
+      reservationDate: "2026-06-17",
+      startTime: "12:00",
+      endTime: "13:00",
+    })).resolves.toEqual({ success: true });
+    expect(dbMocks.updateVehicleReservationDetails).toHaveBeenCalledWith(10, {
+      reservationDate: "2026-06-17",
+      startTime: "12:00",
+      endTime: "13:00",
+    });
   });
 
   it("rejects overlapping vehicle reservations with a conflict error", async () => {
