@@ -4,7 +4,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { Link, useLocation, useParams } from "wouter";
+import { Link, useLocation, useParams, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import ReservationTimelinePicker from "@/components/facility/ReservationTimelinePicker";
@@ -238,7 +238,7 @@ function VehicleCard({ vehicle }: { vehicle: VehicleRow }) {
           <p className="flex items-center gap-2"><Users className="h-4 w-4 text-[#1B5E20]" /> 최대 {vehicle.capacity}명</p>
           <p className="flex items-center gap-2"><Clock className="h-4 w-4 text-[#1B5E20]" /> {vehicle.openTime}~{vehicle.closeTime} · {vehicle.slotMinutes}분 단위</p>
         </div>
-        <Link href={`/support/vehicle/${vehicle.id}/apply`}>
+        <Link href={`/support/vehicle/${vehicle.id}`}>
           <Button className="w-full bg-[#1B5E20] text-white hover:bg-[#2E7D32]" disabled={!vehicle.isReservable}>
             {vehicle.isReservable ? "예약 신청" : "예약 중단"}
           </Button>
@@ -513,18 +513,257 @@ export function VehicleReservationList() {
   );
 }
 
+export function VehicleReservationDetail() {
+  const params = useParams<{ id: string }>();
+  const vehicleId = Number(params.id);
+  const [, navigate] = useLocation();
+  const [selectedDate, setSelectedDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+
+  const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const { data: vehicle, isLoading, error } = trpc.home.vehicle.useQuery(
+    { id: vehicleId },
+    { enabled: !!vehicleId && !Number.isNaN(vehicleId), retry: false }
+  );
+  const { data: reservationsByDate } = trpc.home.vehicleReservationsByDate.useQuery(
+    { vehicleId, date: selectedDate },
+    { enabled: !!vehicleId && !!selectedDate, retry: false }
+  );
+
+  const vehicleRow = vehicle as VehicleRow | null | undefined;
+  const unitMinutes = vehicleRow?.slotMinutes ?? 60;
+  const reservationRows = useMemo(
+    () => (reservationsByDate ?? []) as ReservationByDateRow[],
+    [reservationsByDate]
+  );
+  const allTimeSlots = useMemo(() => {
+    if (!vehicleRow) return [];
+    return generateReservationTimePoints(vehicleRow.openTime, vehicleRow.closeTime, unitMinutes);
+  }, [unitMinutes, vehicleRow]);
+
+  const bookedSlots = useMemo(() => {
+    const booked = new Set<string>();
+    reservationRows.forEach(row => {
+      if (!isActiveReservation(row)) return;
+      let cur = toMinutes(row.startTime);
+      const end = toMinutes(row.endTime);
+      while (cur < end) {
+        booked.add(`${String(Math.floor(cur / 60)).padStart(2, "0")}:${String(cur % 60).padStart(2, "0")}`);
+        cur += unitMinutes;
+      }
+    });
+    return booked;
+  }, [reservationRows, unitMinutes]);
+
+  const disabledSlots = useMemo(() => {
+    const disabled = new Map<string, string>();
+    if (!selectedDate) return disabled;
+    const today = getKstDateKey();
+    if (selectedDate < today) {
+      allTimeSlots.forEach(slot => disabled.set(slot, "지난 날짜는 예약할 수 없습니다."));
+      return disabled;
+    }
+    if (selectedDate === today) {
+      const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+      allTimeSlots.forEach(slot => {
+        if (toMinutes(slot) <= currentMinutes) disabled.set(slot, "이미 지난 시간입니다.");
+      });
+    }
+    return disabled;
+  }, [allTimeSlots, selectedDate]);
+
+  function handleSelectDate(date: string) {
+    setSelectedDate(date);
+    setStartTime("");
+    setEndTime("");
+  }
+
+  function handleApply() {
+    if (!selectedDate) return;
+    if (!memberMe) {
+      navigate(getLoginHref(`/support/vehicle/${vehicleId}`));
+      return;
+    }
+    const query = new URLSearchParams({ date: selectedDate });
+    if (startTime) query.set("startTime", startTime);
+    if (endTime) query.set("endTime", endTime);
+    navigate(`/support/vehicle/${vehicleId}/apply?${query.toString()}`);
+  }
+
+  const applyLabel = useMemo(() => {
+    if (!selectedDate) return "날짜를 먼저 선택하세요";
+    if (!startTime) return `${selectedDate} - 시간을 선택하세요`;
+    if (!endTime) return `${selectedDate} ${startTime} - 종료 시간을 선택하세요`;
+    return `${selectedDate} ${startTime}~${endTime} 차량예약 신청`;
+  }, [selectedDate, startTime, endTime]);
+
+  if (error) {
+    return <AccessBlocked message={error.message} next={`/support/vehicle/${vehicleId}`} />;
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#F7F7F5]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#1B5E20]" />
+      </div>
+    );
+  }
+
+  if (!vehicleRow) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#F7F7F5]">
+        <div className="text-center">
+          <AlertCircle className="mx-auto mb-3 h-12 w-12 text-gray-300" />
+          <p className="mb-4 text-gray-500">차량 정보를 찾을 수 없습니다.</p>
+          <Link href="/support/vehicle" className="font-medium text-[#1B5E20] hover:underline">차량 목록으로 돌아가기</Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#F7F7F5]">
+      <VehicleHero />
+      <section className="py-10">
+        <div className="container">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+            <div className="space-y-6 lg:col-span-2">
+              {vehicleRow.thumbnailUrl ? (
+                <div className="overflow-hidden rounded-xl bg-gray-100">
+                  <img src={vehicleRow.thumbnailUrl} alt={vehicleRow.name} className="aspect-video w-full object-cover" />
+                </div>
+              ) : (
+                <div className="flex aspect-video items-center justify-center rounded-xl bg-gray-100 text-gray-300">
+                  <Car className="h-16 w-16" />
+                </div>
+              )}
+
+              <div className="rounded-xl border border-gray-100 bg-white p-6">
+                <h2 className="mb-4 text-base font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+                  차량 정보
+                </h2>
+                <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
+                  <div className="rounded-lg bg-[#F1F8E9] p-3 text-center">
+                    <Users className="mx-auto mb-1 text-[#1B5E20]" size={20} />
+                    <p className="text-xs text-gray-500">탑승 인원</p>
+                    <p className="font-bold text-gray-800">{vehicleRow.capacity}명</p>
+                  </div>
+                  <div className="rounded-lg bg-[#F1F8E9] p-3 text-center">
+                    <MapPin className="mx-auto mb-1 text-[#1B5E20]" size={20} />
+                    <p className="text-xs text-gray-500">위치</p>
+                    <p className="text-sm font-bold text-gray-800">{vehicleRow.location || "교회 주차장"}</p>
+                  </div>
+                  <div className="rounded-lg bg-[#F1F8E9] p-3 text-center">
+                    <Clock className="mx-auto mb-1 text-[#1B5E20]" size={20} />
+                    <p className="text-xs text-gray-500">예약 단위</p>
+                    <p className="text-sm font-bold text-gray-800">{vehicleRow.slotMinutes}분 단위</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+                    {vehicleRow.name}
+                  </h3>
+                  {vehicleRow.plateNumber && (
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{vehicleRow.plateNumber}</span>
+                  )}
+                </div>
+                {vehicleRow.description && <p className="mt-3 text-sm leading-6 text-gray-600">{vehicleRow.description}</p>}
+                {vehicleRow.driverInfo && <p className="mt-2 text-sm text-gray-500">담당/기사: {vehicleRow.driverInfo}</p>}
+              </div>
+
+              {vehicleRow.notice && (
+                <div className="rounded-xl border border-blue-100 bg-blue-50 p-6">
+                  <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-gray-900">
+                    <CalendarCheck className="text-blue-500" size={18} />
+                    이용 안내
+                  </h2>
+                  <p className="whitespace-pre-line text-sm leading-6 text-gray-700">{vehicleRow.notice}</p>
+                </div>
+              )}
+
+              {vehicleRow.caution && (
+                <div className="rounded-xl border border-amber-100 bg-amber-50 p-6">
+                  <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-gray-900">
+                    <AlertCircle className="text-amber-500" size={18} />
+                    이용 시 주의사항
+                  </h2>
+                  <p className="whitespace-pre-line text-sm leading-6 text-gray-700">{vehicleRow.caution}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-5">
+              <VehicleReservationCalendar selectedDate={selectedDate} onSelectDate={handleSelectDate} />
+
+              {selectedDate && (
+                <VehicleTimeSlotPanel
+                  vehicle={vehicleRow}
+                  selectedDate={selectedDate}
+                  allSlots={allTimeSlots}
+                  bookedSlots={bookedSlots}
+                  disabledSlots={disabledSlots}
+                  reservationRows={reservationRows}
+                  startTime={startTime}
+                  endTime={endTime}
+                  onSelectTime={(start, end) => {
+                    setStartTime(start);
+                    setEndTime(end);
+                  }}
+                />
+              )}
+
+              {vehicleRow.isReservable ? (
+                <Button
+                  type="button"
+                  disabled={!selectedDate || memberLoading}
+                  onClick={handleApply}
+                  className="w-full rounded-xl bg-[#1B5E20] py-6 text-base font-bold text-white hover:bg-[#2E7D32] disabled:opacity-50"
+                >
+                  <CalendarCheck className="mr-2 h-5 w-5" />
+                  {applyLabel}
+                </Button>
+              ) : (
+                <div className="rounded-xl bg-gray-100 p-5 text-center text-gray-500">
+                  <p className="mb-1 font-bold">현재 예약 불가</p>
+                  <p className="text-xs">관리자에게 문의해 주세요.</p>
+                </div>
+              )}
+
+              <VehicleInquiryCard />
+
+              <Link href="/support/vehicle">
+                <Button type="button" variant="outline" className="w-full">
+                  <ChevronLeft className="mr-1 h-4 w-4" /> 차량 목록으로
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function VehicleReservationApply() {
   const params = useParams<{ id: string }>();
   const vehicleId = Number(params.id);
   const [, navigate] = useLocation();
+  const searchString = useSearch();
+  const initialSearchParams = useMemo(() => new URLSearchParams(searchString), [searchString]);
+  const vehicleDetailHref = `/support/vehicle/${vehicleId}`;
   const [form, setForm] = useState({
     reserverName: "",
     reserverPhone: "",
     department: "",
     purpose: "",
-    date: "",
-    startTime: "",
-    endTime: "",
+    date: initialSearchParams.get("date") ?? "",
+    startTime: initialSearchParams.get("startTime") ?? "",
+    endTime: initialSearchParams.get("endTime") ?? "",
     passengers: "",
     notes: "",
     agreePrivacy: false,
@@ -633,7 +872,7 @@ export function VehicleReservationApply() {
     const errorMessage = validate();
     if (errorMessage) {
       toast.error(errorMessage);
-      if (errorMessage.includes("로그인")) navigate(getLoginHref(`/support/vehicle/${vehicleId}/apply`));
+      if (errorMessage.includes("로그인")) navigate(getLoginHref(`/support/vehicle/${vehicleId}/apply${searchString ? `?${searchString}` : ""}`));
       return;
     }
     createReservation.mutate({
@@ -656,6 +895,187 @@ export function VehicleReservationApply() {
     if (!form.endTime) return `${form.date} ${form.startTime} — 종료 시간을 선택하세요`;
     return `${form.date} ${form.startTime}~${form.endTime} 차량예약 신청`;
   }, [form.date, form.startTime, form.endTime]);
+
+  if (vehicleRow && !error && !isLoading) {
+    const hasQueryDate = Boolean(initialSearchParams.get("date"));
+    const inputClass = "w-full rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-800 transition-colors focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:bg-gray-50 disabled:text-gray-400";
+
+    return (
+      <div className="min-h-screen bg-[#F7F7F5]">
+        <VehicleHero />
+        <section className="py-10">
+          <div className="container max-w-3xl">
+            {submitted ? (
+              <div className="rounded-xl border border-gray-100 bg-white p-10 text-center shadow-sm">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#E8F5E9] text-[#1B5E20]">
+                  {reservedStatus === "approved" ? <CheckCircle2 className="h-9 w-9" /> : <Clock className="h-9 w-9" />}
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+                  {reservedStatus === "approved" ? "차량 예약이 승인되었습니다" : "차량 예약 신청이 접수되었습니다"}
+                </h2>
+                <p className="mt-3 text-sm text-gray-500">담당자가 확인한 뒤 필요한 경우 연락드립니다.</p>
+                <div className="mt-7 flex justify-center gap-2">
+                  <Link href="/support/vehicle"><Button variant="outline">차량 목록</Button></Link>
+                  <Link href="/support/vehicle/my-reservations"><Button className="bg-[#1B5E20] text-white hover:bg-[#2E7D32]">내 예약 현황</Button></Link>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={submit} noValidate>
+                <div className="mb-6 flex items-center gap-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+                  {vehicleRow.thumbnailUrl ? (
+                    <img src={vehicleRow.thumbnailUrl} alt={vehicleRow.name} className="h-16 w-16 shrink-0 rounded-lg object-cover" />
+                  ) : (
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-gray-100">
+                      <Car className="h-7 w-7 text-gray-300" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    {vehicleRow.location && <p className="mb-0.5 text-xs text-gray-400">{vehicleRow.location}</p>}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>{vehicleRow.name}</p>
+                      {vehicleRow.plateNumber && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{vehicleRow.plateNumber}</span>}
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                      <span className="flex items-center gap-1"><Users className="h-3 w-3" /> 최대 {vehicleRow.capacity}명</span>
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {vehicleRow.slotMinutes}분 단위</span>
+                    </div>
+                  </div>
+                  <Link href={vehicleDetailHref} className="shrink-0 text-xs text-gray-400 transition-colors hover:text-[#1B5E20]">
+                    ← 변경
+                  </Link>
+                </div>
+
+                {!memberMe && (
+                  <div className="mb-6 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <AlertCircle className="h-5 w-5 shrink-0 text-amber-500" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-amber-800">성도 로그인이 필요합니다</p>
+                      <p className="mt-0.5 text-xs text-amber-600">차량 예약은 권한이 있는 성도만 신청할 수 있습니다.</p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="shrink-0 bg-amber-500 text-white hover:bg-amber-600"
+                      onClick={() => navigate(getLoginHref(`/support/vehicle/${vehicleId}/apply${searchString ? `?${searchString}` : ""}`))}
+                    >
+                      로그인
+                    </Button>
+                  </div>
+                )}
+
+                <div className="space-y-5 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+                  <h2 className="border-b border-gray-100 pb-3 text-base font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+                    신청자 정보
+                  </h2>
+
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-medium text-gray-600">신청자 이름 *</span>
+                      <input value={form.reserverName} onChange={(e) => updateForm("reserverName", e.target.value)} placeholder="이름을 입력해 주세요" className={inputClass} />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-medium text-gray-600">연락처 *</span>
+                      <input type="tel" value={form.reserverPhone} onChange={(e) => updateForm("reserverPhone", e.target.value)} placeholder="010-0000-0000" className={inputClass} />
+                    </label>
+                  </div>
+
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-gray-600">소속 부서/단체 *</span>
+                    <input value={form.department} onChange={(e) => updateForm("department", e.target.value)} placeholder="예: 청년부, 찬양팀, 외부단체명" className={inputClass} />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-gray-600">사용 목적 *</span>
+                    <select value={form.purpose} onChange={(e) => updateForm("purpose", e.target.value)} className={inputClass}>
+                      <option value="">선택해 주세요</option>
+                      {PURPOSE_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
+
+                  <h2 className="border-b border-gray-100 pb-3 pt-2 text-base font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+                    사용 일정
+                  </h2>
+
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-gray-600">사용 날짜 *</span>
+                    {hasQueryDate ? (
+                      <div className="flex items-center gap-2">
+                        <div className={`${inputClass} flex cursor-default items-center gap-2 bg-gray-50`}>
+                          <CalendarCheck className="h-4 w-4 shrink-0 text-[#1B5E20]" />
+                          <span className="font-medium text-gray-800">{form.date}</span>
+                        </div>
+                        <Link href={vehicleDetailHref} className="shrink-0 whitespace-nowrap text-xs text-[#1B5E20] hover:underline">
+                          날짜 변경
+                        </Link>
+                      </div>
+                    ) : (
+                      <input
+                        type="date"
+                        value={form.date}
+                        onChange={(e) => updateForm("date", e.target.value)}
+                        min={getKstDateKey()}
+                        className={inputClass}
+                      />
+                    )}
+                  </label>
+
+                  {form.date && (
+                    <div>
+                      <span className="mb-1 block text-xs font-medium text-gray-600">사용 시간 *</span>
+                      <VehicleTimeSlotPanel
+                        vehicle={vehicleRow}
+                        selectedDate={form.date}
+                        allSlots={allTimeSlots}
+                        bookedSlots={bookedSlots}
+                        disabledSlots={disabledSlots}
+                        reservationRows={reservationRows}
+                        startTime={form.startTime}
+                        endTime={form.endTime}
+                        onSelectTime={(start, end) => setForm(prev => ({ ...prev, startTime: start, endTime: end }))}
+                      />
+                      <p className="mt-2 text-xs text-gray-400">{vehicleRow.slotMinutes}분 단위 - 시작 시간을 클릭한 뒤 종료 시간을 클릭하세요.</p>
+                    </div>
+                  )}
+
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-gray-600">탑승 인원 *</span>
+                    <input type="number" min={1} max={vehicleRow.capacity} value={form.passengers} onChange={(e) => updateForm("passengers", e.target.value)} placeholder={`1 ~ ${vehicleRow.capacity}`} className={inputClass} />
+                    <p className="mt-1 text-xs text-gray-400">최대 탑승 인원: {vehicleRow.capacity}명</p>
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-gray-600">추가 요청사항</span>
+                    <textarea value={form.notes} onChange={(e) => updateForm("notes", e.target.value)} rows={4} placeholder="운행 목적, 짐/장비, 특이사항 등을 입력해 주세요. (선택)" className={inputClass} />
+                  </label>
+
+                  <label className="flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-3 text-sm text-gray-600">
+                    <input type="checkbox" checked={form.agreePrivacy} onChange={(e) => updateForm("agreePrivacy", e.target.checked)} className="mt-1" />
+                    <span>차량예약 처리를 위해 이름, 연락처, 소속, 신청 내용을 수집·이용하는 데 동의합니다.</span>
+                  </label>
+
+                  {vehicleRow.isReservable ? (
+                    <Button
+                      type="submit"
+                      disabled={createReservation.isPending}
+                      className="w-full rounded-xl bg-[#1B5E20] py-6 text-base font-bold text-white hover:bg-[#2E7D32] disabled:opacity-50"
+                    >
+                      {createReservation.isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CalendarCheck className="mr-2 h-5 w-5" />}
+                      {applyLabel}
+                    </Button>
+                  ) : (
+                    <div className="rounded-xl bg-gray-100 p-5 text-center text-gray-500">
+                      <p className="mb-1 font-bold">현재 예약 불가</p>
+                      <p className="text-xs">관리자에게 문의해 주세요.</p>
+                    </div>
+                  )}
+                </div>
+              </form>
+            )}
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   if (error) {
     return <AccessBlocked message={error.message} next={`/support/vehicle/${vehicleId}/apply`} />;
@@ -680,184 +1100,6 @@ export function VehicleReservationApply() {
       </div>
     );
   }
-
-  return (
-    <div className="min-h-screen bg-[#F7F7F5]">
-      <VehicleHero />
-      <section className="py-10">
-        <div className="container">
-          {submitted ? (
-            <div className="mx-auto max-w-3xl rounded-xl border border-gray-100 bg-white p-10 text-center shadow-sm">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#E8F5E9] text-[#1B5E20]">
-                {reservedStatus === "approved" ? <CheckCircle2 className="h-9 w-9" /> : <Clock className="h-9 w-9" />}
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-                {reservedStatus === "approved" ? "차량 예약이 승인되었습니다" : "차량 예약 신청이 접수되었습니다"}
-              </h2>
-              <p className="mt-3 text-sm text-gray-500">담당자 확인 후 필요한 경우 연락드리겠습니다.</p>
-              <div className="mt-7 flex justify-center gap-2">
-                <Link href="/support/vehicle"><Button variant="outline">차량 목록</Button></Link>
-                <Link href="/support/vehicle/my-reservations"><Button className="bg-[#1B5E20] text-white hover:bg-[#2E7D32]">내 예약 현황</Button></Link>
-              </div>
-            </div>
-          ) : (
-            <form onSubmit={submit} noValidate>
-              <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-                <div className="space-y-6 lg:col-span-2">
-                  {vehicleRow.thumbnailUrl ? (
-                    <div className="overflow-hidden rounded-xl bg-gray-100">
-                      <img src={vehicleRow.thumbnailUrl} alt={vehicleRow.name} className="aspect-video w-full object-cover" />
-                    </div>
-                  ) : (
-                    <div className="flex aspect-video items-center justify-center rounded-xl bg-gray-100 text-gray-300">
-                      <Car className="h-16 w-16" />
-                    </div>
-                  )}
-
-                  <div className="rounded-xl border border-gray-100 bg-white p-6">
-                    <h2 className="mb-4 text-base font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-                      차량 정보
-                    </h2>
-                    <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
-                      <div className="rounded-lg bg-[#F1F8E9] p-3 text-center">
-                        <Users className="mx-auto mb-1 text-[#1B5E20]" size={20} />
-                        <p className="text-xs text-gray-500">탑승 인원</p>
-                        <p className="font-bold text-gray-800">{vehicleRow.capacity}명</p>
-                      </div>
-                      <div className="rounded-lg bg-[#F1F8E9] p-3 text-center">
-                        <MapPin className="mx-auto mb-1 text-[#1B5E20]" size={20} />
-                        <p className="text-xs text-gray-500">위치</p>
-                        <p className="text-sm font-bold text-gray-800">{vehicleRow.location || "교회 주차장"}</p>
-                      </div>
-                      <div className="rounded-lg bg-[#F1F8E9] p-3 text-center">
-                        <Clock className="mx-auto mb-1 text-[#1B5E20]" size={20} />
-                        <p className="text-xs text-gray-500">예약 단위</p>
-                        <p className="text-sm font-bold text-gray-800">{vehicleRow.slotMinutes}분 단위</p>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-                        {vehicleRow.name}
-                      </h3>
-                      {vehicleRow.plateNumber && (
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{vehicleRow.plateNumber}</span>
-                      )}
-                    </div>
-                    {vehicleRow.description && <p className="mt-3 text-sm leading-6 text-gray-600">{vehicleRow.description}</p>}
-                    {vehicleRow.driverInfo && <p className="mt-2 text-sm text-gray-500">담당/기사: {vehicleRow.driverInfo}</p>}
-                  </div>
-
-                  {vehicleRow.notice && (
-                    <div className="rounded-xl border border-blue-100 bg-blue-50 p-6">
-                      <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-gray-900">
-                        <CalendarCheck className="text-blue-500" size={18} />
-                        이용 안내
-                      </h2>
-                      <p className="whitespace-pre-line text-sm leading-6 text-gray-700">{vehicleRow.notice}</p>
-                    </div>
-                  )}
-
-                  {vehicleRow.caution && (
-                    <div className="rounded-xl border border-amber-100 bg-amber-50 p-6">
-                      <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-gray-900">
-                        <AlertCircle className="text-amber-500" size={18} />
-                        이용 시 주의사항
-                      </h2>
-                      <p className="whitespace-pre-line text-sm leading-6 text-gray-700">{vehicleRow.caution}</p>
-                    </div>
-                  )}
-
-                  <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-                    <h3 className="mb-4 text-sm font-bold text-gray-900">신청 정보</h3>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <label className="block">
-                        <span className="mb-1 block text-xs font-medium text-gray-600">신청자 이름 *</span>
-                        <input value={form.reserverName} onChange={(e) => updateForm("reserverName", e.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-[#1B5E20] focus:outline-none" />
-                      </label>
-                      <label className="block">
-                        <span className="mb-1 block text-xs font-medium text-gray-600">연락처 *</span>
-                        <input value={form.reserverPhone} onChange={(e) => updateForm("reserverPhone", e.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-[#1B5E20] focus:outline-none" />
-                      </label>
-                      <label className="block">
-                        <span className="mb-1 block text-xs font-medium text-gray-600">소속 부서/단체 *</span>
-                        <input value={form.department} onChange={(e) => updateForm("department", e.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-[#1B5E20] focus:outline-none" />
-                      </label>
-                      <label className="block">
-                        <span className="mb-1 block text-xs font-medium text-gray-600">사용 목적 *</span>
-                        <select value={form.purpose} onChange={(e) => updateForm("purpose", e.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-[#1B5E20] focus:outline-none">
-                          <option value="">선택해주세요</option>
-                          {PURPOSE_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
-                        </select>
-                      </label>
-                      <label className="block md:col-span-2">
-                        <span className="mb-1 block text-xs font-medium text-gray-600">탑승 인원 *</span>
-                        <input type="number" min={1} max={vehicleRow.capacity} value={form.passengers} onChange={(e) => updateForm("passengers", e.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-[#1B5E20] focus:outline-none" />
-                      </label>
-                    </div>
-
-                    <label className="mt-5 block">
-                      <span className="mb-1 block text-xs font-medium text-gray-600">추가 요청사항</span>
-                      <textarea value={form.notes} onChange={(e) => updateForm("notes", e.target.value)} rows={4} className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-[#1B5E20] focus:outline-none" />
-                    </label>
-
-                    <label className="mt-5 flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-3 text-sm text-gray-600">
-                      <input type="checkbox" checked={form.agreePrivacy} onChange={(e) => updateForm("agreePrivacy", e.target.checked)} className="mt-1" />
-                      <span>차량예약 처리를 위해 이름, 연락처, 소속, 신청 내용을 수집·이용하는 데 동의합니다.</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="space-y-5">
-                  <VehicleReservationCalendar
-                    selectedDate={form.date}
-                    onSelectDate={(date) => setForm(prev => ({ ...prev, date, startTime: "", endTime: "" }))}
-                  />
-
-                  {form.date && (
-                    <VehicleTimeSlotPanel
-                      vehicle={vehicleRow}
-                      selectedDate={form.date}
-                      allSlots={allTimeSlots}
-                      bookedSlots={bookedSlots}
-                      disabledSlots={disabledSlots}
-                      reservationRows={reservationRows}
-                      startTime={form.startTime}
-                      endTime={form.endTime}
-                      onSelectTime={(start, end) => setForm(prev => ({ ...prev, startTime: start, endTime: end }))}
-                    />
-                  )}
-
-                  {vehicleRow.isReservable ? (
-                    <Button
-                      type="submit"
-                      disabled={!form.date || createReservation.isPending}
-                      className="w-full rounded-xl bg-[#1B5E20] py-6 text-base font-bold text-white hover:bg-[#2E7D32] disabled:opacity-50"
-                    >
-                      {createReservation.isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CalendarCheck className="mr-2 h-5 w-5" />}
-                      {applyLabel}
-                    </Button>
-                  ) : (
-                    <div className="rounded-xl bg-gray-100 p-5 text-center text-gray-500">
-                      <p className="mb-1 font-bold">현재 예약 불가</p>
-                      <p className="text-xs">관리자에게 문의해 주세요.</p>
-                    </div>
-                  )}
-
-                  <VehicleInquiryCard />
-
-                  <Link href="/support/vehicle">
-                    <Button type="button" variant="outline" className="w-full">
-                      <ChevronLeft className="mr-1 h-4 w-4" /> 차량 목록으로
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </form>
-          )}
-        </div>
-      </section>
-    </div>
-  );
 }
 
 export function MyVehicleReservations() {

@@ -34,6 +34,11 @@ const VehicleReservationApply = lazy(() =>
     default: module.VehicleReservationApply,
   }))
 );
+const VehicleReservationDetail = lazy(() =>
+  import("./pages/VehicleReservations").then(module => ({
+    default: module.VehicleReservationDetail,
+  }))
+);
 const MyVehicleReservations = lazy(() =>
   import("./pages/VehicleReservations").then(module => ({
     default: module.MyVehicleReservations,
@@ -420,6 +425,7 @@ function Router() {
       <Route path="/support/offering" component={Offering} />
       <Route path="/support/vehicle/my-reservations" component={MyVehicleReservations} />
       <Route path="/support/vehicle/:id/apply" component={VehicleReservationApply} />
+      <Route path="/support/vehicle/:id" component={VehicleReservationDetail} />
       <Route path="/support/vehicle" component={VehicleReservationList} />
       <Route path="/support/new-member" component={NewMemberGuide} />
       <Route path="/support/store" component={JoyfulStore} />
