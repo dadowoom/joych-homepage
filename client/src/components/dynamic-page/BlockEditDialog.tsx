@@ -124,6 +124,16 @@ function formatHtmlSource(value: string) {
     .trim();
 }
 
+function getInitialHtmlSource(content?: string) {
+  if (!content) return "";
+  try {
+    const c = JSON.parse(content);
+    return formatHtmlSource(normalizeHtmlBlockValue(c.html ?? c.text ?? ""));
+  } catch {
+    return "";
+  }
+}
+
 function getInitialDialogSize(): DialogSize {
   if (typeof window === "undefined") return { width: 1040, height: 780 };
   return {
@@ -167,15 +177,10 @@ export function BlockEditDialog({
       return "";
     }
   });
-  const [html, setHtml] = useState(() => {
-    if (!block?.content) return "";
-    try {
-      const c = JSON.parse(block.content);
-      return formatHtmlSource(normalizeHtmlBlockValue(c.html ?? c.text ?? ""));
-    } catch {
-      return "";
-    }
-  });
+  const [html, setHtml] = useState(() => getInitialHtmlSource(block?.content));
+  const [htmlSourceDraft, setHtmlSourceDraft] = useState(() =>
+    getInitialHtmlSource(block?.content)
+  );
   const [htmlEditMode, setHtmlEditMode] = useState<"visual" | "source" | "preview">("source");
   const [urls, setUrls] = useState<string[]>(() => {
     if (!block?.content) return [];
@@ -305,7 +310,10 @@ export function BlockEditDialog({
   };
 
   const buildContent = () => {
-    if (blockType === "html-rich") return JSON.stringify({ html });
+    if (blockType === "html-rich") {
+      const htmlForSave = htmlEditMode === "source" ? htmlSourceDraft : html;
+      return JSON.stringify({ html: htmlForSave });
+    }
     if (blockType.startsWith("text"))
       return JSON.stringify({ text, fontSize, align });
     if (blockType.startsWith("image"))
@@ -387,8 +395,13 @@ export function BlockEditDialog({
   };
 
   const handleHtmlEditModeChange = (nextMode: "visual" | "source" | "preview") => {
+    const currentHtml = htmlEditMode === "source" ? htmlSourceDraft : html;
     if (nextMode === "source") {
-      setHtml((current) => formatHtmlSource(current));
+      const formatted = formatHtmlSource(currentHtml);
+      setHtml(formatted);
+      setHtmlSourceDraft(formatted);
+    } else {
+      setHtml(currentHtml);
     }
     setHtmlEditMode(nextMode);
   };
@@ -483,8 +496,11 @@ export function BlockEditDialog({
               {htmlEditMode === "source" && (
                 <textarea
                   className="min-h-[420px] w-full resize-y overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-gray-200 bg-white px-3 py-3 font-mono text-xs leading-6 text-gray-900 outline-none [overflow-wrap:anywhere] focus:border-green-600 focus:ring-2 focus:ring-green-100"
-                  value={html}
-                  onChange={(event) => setHtml(event.target.value)}
+                  value={htmlSourceDraft}
+                  onChange={(event) => {
+                    setHtmlSourceDraft(event.target.value);
+                    setHtml(event.target.value);
+                  }}
                   placeholder="<section>본문 HTML을 입력해주세요.</section>"
                   wrap="soft"
                 />
