@@ -822,150 +822,152 @@ export default function AdminPage() {
               </section>
             )}
 
-            <section
-              id="admin-new-notifications"
-              className="scroll-mt-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
-            >
-              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-50 text-red-500">
-                      <i className="fas fa-bell text-sm"></i>
-                    </span>
-                    <div>
-                      <h2 className="text-sm font-bold text-gray-900">
-                        새로 확인할 항목
-                      </h2>
-                      <p className="mt-0.5 text-xs text-gray-500">
-                        최근 글과 아직 처리하지 않은 신청을 한눈에 확인합니다.
-                      </p>
+            {isNotificationsView && (
+              <section
+                id="admin-new-notifications"
+                className="scroll-mt-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
+              >
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-50 text-red-500">
+                        <i className="fas fa-bell text-sm"></i>
+                      </span>
+                      <div>
+                        <h2 className="text-sm font-bold text-gray-900">
+                          새로 확인할 항목
+                        </h2>
+                        <p className="mt-0.5 text-xs text-gray-500">
+                          최근 글과 아직 처리하지 않은 신청을 한눈에 확인합니다.
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <span
-                  className={`inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
-                    (notificationSummary?.totalCount ?? 0) > 0
-                      ? "bg-red-50 text-red-600"
-                      : "bg-[#E8F5E9] text-[#1B5E20]"
-                  }`}
-                >
-                  {notificationsLoading ? (
-                    <>
-                      <i className="fas fa-spinner animate-spin"></i>
-                      확인 중
-                    </>
-                  ) : (
-                    <>
-                      <i
-                        className={
-                          (notificationSummary?.totalCount ?? 0) > 0
-                            ? "fas fa-circle-exclamation"
-                            : "fas fa-check"
-                        }
-                      ></i>
-                      {(notificationSummary?.totalCount ?? 0) > 0
-                        ? `${notificationSummary?.totalCount ?? 0}건`
-                        : "새 항목 없음"}
-                    </>
-                  )}
-                </span>
-              </div>
-
-              {notificationsLoading ? (
-                <div className="grid gap-3 md:grid-cols-3">
-                  {[0, 1, 2].map(item => (
-                    <div
-                      key={item}
-                      className="h-20 animate-pulse rounded-lg bg-gray-100"
-                    />
-                  ))}
-                </div>
-              ) : (notificationSummary?.totalCount ?? 0) > 0 ? (
-                <div className="space-y-4">
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {notificationSummary?.groups.map(group => {
-                      const targetTab = group.tab as Tab;
-                      return (
-                        <button
-                          key={group.key}
-                          type="button"
-                          onClick={() =>
-                            permittedTabs.includes(targetTab) &&
-                            setActiveTab(targetTab)
+                  <span
+                    className={`inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
+                      (notificationSummary?.totalCount ?? 0) > 0
+                        ? "bg-red-50 text-red-600"
+                        : "bg-[#E8F5E9] text-[#1B5E20]"
+                    }`}
+                  >
+                    {notificationsLoading ? (
+                      <>
+                        <i className="fas fa-spinner animate-spin"></i>
+                        확인 중
+                      </>
+                    ) : (
+                      <>
+                        <i
+                          className={
+                            (notificationSummary?.totalCount ?? 0) > 0
+                              ? "fas fa-circle-exclamation"
+                              : "fas fa-check"
                           }
-                          className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-left transition-colors hover:border-[#A5D6A7] hover:bg-[#F1F8F2]"
-                        >
-                          <div className="mb-2 flex items-center justify-between gap-2">
-                            <span className="text-sm font-bold text-gray-900">
-                              {group.label}
-                            </span>
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                                group.tone === "pending"
-                                  ? "bg-red-500 text-white"
-                                  : "bg-[#1B5E20] text-white"
-                              }`}
-                            >
-                              {formatBadgeCount(group.count)}
-                            </span>
-                          </div>
-                          <p className="text-xs leading-5 text-gray-500">
-                            {group.description}
-                          </p>
-                        </button>
-                      );
-                    })}
-                  </div>
+                        ></i>
+                        {(notificationSummary?.totalCount ?? 0) > 0
+                          ? `${notificationSummary?.totalCount ?? 0}건`
+                          : "새 항목 없음"}
+                      </>
+                    )}
+                  </span>
+                </div>
 
-                  {notificationSummary?.items.length ? (
-                    <div className="divide-y divide-gray-100 rounded-lg border border-gray-100">
-                      {notificationSummary.items.map(item => {
-                        const targetTab = item.tab as Tab;
+                {notificationsLoading ? (
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {[0, 1, 2].map(item => (
+                      <div
+                        key={item}
+                        className="h-20 animate-pulse rounded-lg bg-gray-100"
+                      />
+                    ))}
+                  </div>
+                ) : (notificationSummary?.totalCount ?? 0) > 0 ? (
+                  <div className="space-y-4">
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {notificationSummary?.groups.map(group => {
+                        const targetTab = group.tab as Tab;
                         return (
                           <button
-                            key={item.id}
+                            key={group.key}
                             type="button"
                             onClick={() =>
                               permittedTabs.includes(targetTab) &&
                               setActiveTab(targetTab)
                             }
-                            className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition-colors hover:bg-gray-50"
+                            className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-left transition-colors hover:border-[#A5D6A7] hover:bg-[#F1F8F2]"
                           >
-                            <span className="min-w-0">
-                              <span className="mb-1 flex items-center gap-2">
-                                <span
-                                  className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                                    item.tone === "pending"
-                                      ? "bg-red-50 text-red-600"
-                                      : "bg-[#E8F5E9] text-[#1B5E20]"
-                                  }`}
-                                >
-                                  {item.label}
-                                </span>
-                                <span className="text-[11px] text-gray-400">
-                                  {formatNotificationDate(item.createdAt)}
-                                </span>
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                              <span className="text-sm font-bold text-gray-900">
+                                {group.label}
                               </span>
-                              <span className="block truncate text-sm font-semibold text-gray-900">
-                                {item.title}
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                                  group.tone === "pending"
+                                    ? "bg-red-500 text-white"
+                                    : "bg-[#1B5E20] text-white"
+                                }`}
+                              >
+                                {formatBadgeCount(group.count)}
                               </span>
-                              <span className="mt-0.5 block truncate text-xs text-gray-500">
-                                {item.meta}
-                              </span>
-                            </span>
-                            <i className="fas fa-chevron-right shrink-0 text-xs text-gray-300"></i>
+                            </div>
+                            <p className="text-xs leading-5 text-gray-500">
+                              {group.description}
+                            </p>
                           </button>
                         );
                       })}
                     </div>
-                  ) : null}
-                </div>
-              ) : (
-                <div className="rounded-lg border border-[#D7F0D8] bg-[#F1F8F2] px-4 py-3 text-sm text-[#1B5E20]">
-                  지금은 새로 확인할 글이나 처리 대기 신청이 없습니다.
-                </div>
-              )}
-            </section>
+
+                    {notificationSummary?.items.length ? (
+                      <div className="divide-y divide-gray-100 rounded-lg border border-gray-100">
+                        {notificationSummary.items.map(item => {
+                          const targetTab = item.tab as Tab;
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() =>
+                                permittedTabs.includes(targetTab) &&
+                                setActiveTab(targetTab)
+                              }
+                              className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition-colors hover:bg-gray-50"
+                            >
+                              <span className="min-w-0">
+                                <span className="mb-1 flex items-center gap-2">
+                                  <span
+                                    className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                                      item.tone === "pending"
+                                        ? "bg-red-50 text-red-600"
+                                        : "bg-[#E8F5E9] text-[#1B5E20]"
+                                    }`}
+                                  >
+                                    {item.label}
+                                  </span>
+                                  <span className="text-[11px] text-gray-400">
+                                    {formatNotificationDate(item.createdAt)}
+                                  </span>
+                                </span>
+                                <span className="block truncate text-sm font-semibold text-gray-900">
+                                  {item.title}
+                                </span>
+                                <span className="mt-0.5 block truncate text-xs text-gray-500">
+                                  {item.meta}
+                                </span>
+                              </span>
+                              <i className="fas fa-chevron-right shrink-0 text-xs text-gray-300"></i>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-[#D7F0D8] bg-[#F1F8F2] px-4 py-3 text-sm text-[#1B5E20]">
+                    지금은 새로 확인할 글이나 처리 대기 신청이 없습니다.
+                  </div>
+                )}
+              </section>
+            )}
 
             {/* 탭 콘텐츠 */}
             {!isNotificationsView && (
