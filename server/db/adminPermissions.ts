@@ -14,6 +14,15 @@ import { getDb } from "./connection";
 
 const MEMBER_ADMIN_OPEN_ID_PREFIX = "member:";
 
+function getActiveAdminPermissionKeySet() {
+  return new Set(STATIC_ADMIN_PERMISSIONS.map((definition) => definition.key));
+}
+
+function filterActiveAdminPermissionKeys(permissionKeys: string[]) {
+  const activeKeys = getActiveAdminPermissionKeySet();
+  return permissionKeys.filter((key) => activeKeys.has(key));
+}
+
 export function memberAdminOpenId(memberId: number) {
   return `${MEMBER_ADMIN_OPEN_ID_PREFIX}${memberId}`;
 }
@@ -39,7 +48,7 @@ export async function getAdminPermissionKeysForUser(userId: number) {
     .from(adminContentPermissions)
     .where(eq(adminContentPermissions.userId, userId))
     .orderBy(asc(adminContentPermissions.permissionKey));
-  return rows.map((row) => row.permissionKey);
+  return filterActiveAdminPermissionKeys(rows.map((row) => row.permissionKey));
 }
 
 export async function getAllAdminPermissionDefinitions() {
@@ -90,7 +99,9 @@ export async function getMemberAdminPermissionAssignments(searchTerm = "") {
         .where(inArray(adminContentPermissions.userId, userIds))
     : [];
   const permissionKeysByUserId = new Map<number, string[]>();
+  const activePermissionKeys = getActiveAdminPermissionKeySet();
   for (const permission of permissionRows) {
+    if (!activePermissionKeys.has(permission.permissionKey)) continue;
     const list = permissionKeysByUserId.get(permission.userId) ?? [];
     list.push(permission.permissionKey);
     permissionKeysByUserId.set(permission.userId, list);
