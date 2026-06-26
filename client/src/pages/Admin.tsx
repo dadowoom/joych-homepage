@@ -52,6 +52,7 @@ import {
 type Tab =
   | "settings"
   | "facilities"
+  | "externalFacilities"
   | "facilitySchedule"
   | "reservations"
   | "vehicles"
@@ -183,6 +184,13 @@ const TABS: TabItem[] = [
     status: "예약 자원",
   },
   {
+    id: "externalFacilities",
+    label: "외부인 시설",
+    icon: "fa-door-open",
+    description: "외부인에게 공개한 시설과 외부인 전용 운영 시간을 관리합니다.",
+    status: "외부 예약",
+  },
+  {
     id: "facilitySchedule",
     label: "시설 스케줄",
     icon: "fa-clock",
@@ -255,6 +263,7 @@ const TAB_GROUPS: TabGroup[] = [
     description: "시설과 요청 처리",
     tabs: [
       "facilities",
+      "externalFacilities",
       "facilitySchedule",
       "reservations",
       "supportRequests",
@@ -552,7 +561,7 @@ export default function AdminPage() {
   }
 
   const permittedTabs = VALID_TABS.filter(tab =>
-    tab === "facilitySchedule"
+    tab === "facilitySchedule" || tab === "externalFacilities"
       ? canManageAdminTab(user, "facilities")
       : canManageAdminTab(user, tab)
   );
@@ -1142,6 +1151,9 @@ export default function AdminPage() {
               <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
                 {activeTab === "settings" && <SettingsTab />}
                 {activeTab === "facilities" && <AdminFacilitiesTab />}
+                {activeTab === "externalFacilities" && (
+                  <AdminFacilitiesTab mode="external" />
+                )}
                 {activeTab === "facilitySchedule" && (
                   <AdminFacilitiesTab mode="buildingSchedule" />
                 )}

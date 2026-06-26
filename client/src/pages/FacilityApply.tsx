@@ -282,10 +282,15 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     { facilityId },
     { enabled: !!facilityId }
   );
-  const { data: facilityHours } = trpc.home.facilityHours.useQuery(
+  const memberFacilityHoursQuery = trpc.home.facilityHours.useQuery(
     { facilityId },
-    { enabled: !!facilityId }
+    { enabled: !isExternal && !!facilityId }
   );
+  const externalFacilityHoursQuery = trpc.home.externalFacilityHours.useQuery(
+    { facilityId },
+    { enabled: isExternal && !!facilityId }
+  );
+  const facilityHours = isExternal ? externalFacilityHoursQuery.data : memberFacilityHoursQuery.data;
   const { data: blockedDates } = trpc.home.facilityBlockedDates.useQuery(
     { facilityId },
     { enabled: !!facilityId }

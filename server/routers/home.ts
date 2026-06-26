@@ -49,6 +49,7 @@ import {
   getExternalReservableFacilityById,
   getFacilityImages,
   getFacilityHours,
+  getExternalFacilityHours,
   getBlockedDates,
   getReservationsByDate,
   getAdminReservationDetailsByDate,
@@ -616,6 +617,15 @@ export const homeRouter = router({
       return getFacilityHours(input.facilityId);
     }),
 
+  /** 외부인 예약 화면 전용 시설 운영 시간 */
+  externalFacilityHours: publicProcedure
+    .input(z.object({ facilityId: idSchema }))
+    .query(async ({ input }) => {
+      const facility = await getExternalReservableFacilityById(input.facilityId);
+      if (!facility) return [];
+      return getExternalFacilityHours(input.facilityId);
+    }),
+
   /** 시설 차단 날짜 목록 (예약 불가 날짜) */
   facilityBlockedDates: publicProcedure
     .input(z.object({ facilityId: idSchema }))
@@ -699,7 +709,7 @@ export const homeRouter = router({
 
       assertReservationLeadTime(input.reservationDate, input.startTime);
 
-      const hours = await getFacilityHours(input.facilityId);
+      const hours = await getExternalFacilityHours(input.facilityId);
       const reservationDateObject = parseDateKey(input.reservationDate);
       const reservationDayOfWeek = reservationDateObject?.getUTCDay() ?? 0;
       const dayHour = hours.find(h => h.dayOfWeek === reservationDayOfWeek);

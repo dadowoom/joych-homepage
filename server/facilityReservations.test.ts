@@ -7,6 +7,7 @@ const dbMocks = vi.hoisted(() => ({
   getExternalReservableFacilityById: vi.fn(),
   getExternalReservableFacilities: vi.fn(),
   getFacilityHours: vi.fn(),
+  getExternalFacilityHours: vi.fn(),
   getBlockedDates: vi.fn(),
   getReservationsByDate: vi.fn(),
   getAdminReservationDetailsByDate: vi.fn(),
@@ -41,6 +42,7 @@ vi.mock("./db", async (importOriginal) => {
     getExternalReservableFacilityById: dbMocks.getExternalReservableFacilityById,
     getExternalReservableFacilities: dbMocks.getExternalReservableFacilities,
     getFacilityHours: dbMocks.getFacilityHours,
+    getExternalFacilityHours: dbMocks.getExternalFacilityHours,
     getBlockedDates: dbMocks.getBlockedDates,
     getReservationsByDate: dbMocks.getReservationsByDate,
     getAdminReservationDetailsByDate: dbMocks.getAdminReservationDetailsByDate,
@@ -166,6 +168,7 @@ describe("facility reservation lead-time guard", () => {
     dbMocks.getExternalReservableFacilityById.mockResolvedValue(reservableFacility);
     dbMocks.getExternalReservableFacilities.mockResolvedValue([reservableFacility]);
     dbMocks.getFacilityHours.mockResolvedValue([]);
+    dbMocks.getExternalFacilityHours.mockResolvedValue([]);
     dbMocks.getBlockedDates.mockResolvedValue([]);
     dbMocks.getReservationsByDate.mockResolvedValue([]);
     dbMocks.getAdminReservationDetailsByDate.mockResolvedValue([]);

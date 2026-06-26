@@ -71,7 +71,7 @@ type FacilityBuilding = typeof FACILITY_BUILDINGS[number]["value"];
 type FacilityPageSettingKey =
   | typeof FACILITY_PAGE_SETTING_FIELDS[number]["key"]
   | typeof FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY;
-type FacilitySubTab = "list" | "pageSettings";
+type FacilitySubTab = "list" | "pageSettings" | "externalSchedule";
 const MONDAY_FIRST_DAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
 
 const DEFAULT_HOURS = DAY_LABELS.map((_, i) => ({
@@ -449,7 +449,7 @@ function ImageUploadArea({
   );
 }
 
-type AdminFacilitiesTabMode = "facilities" | "buildingSchedule";
+type AdminFacilitiesTabMode = "facilities" | "buildingSchedule" | "external";
 
 type AdminFacilitiesTabProps = {
   mode?: AdminFacilitiesTabMode;
@@ -461,6 +461,14 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
   const { data: facilities, isLoading } = trpc.home.facilities.useQuery();
   const { data: pageSettings } = trpc.home.settings.useQuery();
   const facilityRows = facilities ?? [];
+  const isExternalMode = mode === "external";
+  const isFacilityResourceMode = mode === "facilities" || isExternalMode;
+  const facilityRowsForMode = useMemo(
+    () => isExternalMode
+      ? facilityRows.filter((facility) => Boolean(facility.isExternalReservable))
+      : facilityRows,
+    [facilityRows, isExternalMode],
+  );
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -483,28 +491,38 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const buildingCounts = useMemo(() => {
     const counts = new Map<FacilityBuilding, number>(FACILITY_BUILDINGS.map((building) => [building.value, 0]));
-    facilityRows.forEach((facility) => {
+    facilityRowsForMode.forEach((facility) => {
       const building = normalizeFacilityBuilding(facility.building);
       counts.set(building, (counts.get(building) ?? 0) + 1);
     });
     return counts;
-  }, [facilityRows]);
+  }, [facilityRowsForMode]);
   const activeBuildingOption = FACILITY_BUILDINGS.find((building) => building.value === activeBuilding) ?? FACILITY_BUILDINGS[1];
   const activeFacilities = useMemo(
-    () => facilityRows
+    () => facilityRowsForMode
       .filter((facility) => normalizeFacilityBuilding(facility.building) === activeBuilding)
       .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.id - b.id),
-    [activeBuilding, facilityRows],
+    [activeBuilding, facilityRowsForMode],
   );
 
   const { data: blockedDates } = trpc.cms.facilities.blockedDates.list.useQuery(
     { facilityId: expandedId ?? undefined },
     { enabled: expandedId !== null }
   );
-  const { data: editingFacilityHours, isFetching: isFetchingFacilityHours } = trpc.cms.facilities.hours.list.useQuery(
+  const memberEditingFacilityHoursQuery = trpc.cms.facilities.hours.list.useQuery(
     { facilityId: editingId ?? 0 },
-    { enabled: editingId !== null }
+    { enabled: editingId !== null && !isExternalMode }
   );
+  const externalEditingFacilityHoursQuery = trpc.cms.facilities.externalHours.list.useQuery(
+    { facilityId: editingId ?? 0 },
+    { enabled: editingId !== null && isExternalMode }
+  );
+  const editingFacilityHours = isExternalMode
+    ? externalEditingFacilityHoursQuery.data
+    : memberEditingFacilityHoursQuery.data;
+  const isFetchingFacilityHours = isExternalMode
+    ? externalEditingFacilityHoursQuery.isFetching
+    : memberEditingFacilityHoursQuery.isFetching;
   const { data: editingFacilityImages } = trpc.cms.facilities.images.list.useQuery(
     { facilityId: editingId ?? 0 },
     { enabled: editingId !== null }
@@ -573,6 +591,8 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
       }
       utils.home.facilities.invalidate();
       utils.home.facility.invalidate();
+      utils.home.externalFacilities.invalidate();
+      utils.home.externalFacility.invalidate();
       resetForm();
       if (imageUploadFailed) {
         toast.error("시설은 등록됐지만 일부 사진 업로드에 실패했습니다. 수정 화면에서 다시 추가해 주세요.");
@@ -587,7 +607,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
     onSuccess: async () => {
       if (editingId) {
         for (const h of hours) {
-          await upsertHour.mutateAsync({
+          await upsertHourForMode({
             facilityId: editingId,
             dayOfWeek: h.dayOfWeek,
             isOpen: h.isOpen,
@@ -600,6 +620,12 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
       }
       utils.home.facilities.invalidate();
       utils.home.facility.invalidate();
+      utils.home.externalFacilities.invalidate();
+      utils.home.externalFacility.invalidate();
+      if (editingId) {
+        utils.home.externalFacilityHours.invalidate({ facilityId: editingId });
+        utils.cms.facilities.externalHours.list.invalidate({ facilityId: editingId });
+      }
       resetForm();
       toast.success("시설 정보가 수정되었습니다.");
     },
@@ -607,13 +633,20 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
   });
 
   const deleteFacility = trpc.cms.facilities.delete.useMutation({
-    onSuccess: () => { utils.home.facilities.invalidate(); utils.home.facility.invalidate(); toast.success("시설이 삭제되었습니다."); },
+    onSuccess: () => {
+      utils.home.facilities.invalidate();
+      utils.home.facility.invalidate();
+      utils.home.externalFacilities.invalidate();
+      utils.home.externalFacility.invalidate();
+      toast.success("시설이 삭제되었습니다.");
+    },
     onError: (e) => toast.error(e.message || "삭제에 실패했습니다."),
   });
 
   const reorderFacility = trpc.cms.facilities.reorder.useMutation({
     onSuccess: () => {
       utils.home.facilities.invalidate();
+      utils.home.externalFacilities.invalidate();
       toast.success("시설 순서가 저장되었습니다.");
     },
     onError: (e) => toast.error(e.message || "순서 저장에 실패했습니다."),
@@ -623,9 +656,22 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
   const deleteImageMutation = trpc.cms.facilities.images.delete.useMutation();
   const setThumbnailMutation = trpc.cms.facilities.images.setThumbnail.useMutation();
   const upsertHour = trpc.cms.facilities.hours.upsert.useMutation();
+  const upsertExternalHour = trpc.cms.facilities.externalHours.upsert.useMutation();
   const updateFacilityPageSetting = trpc.cms.facilities.pageSettings.update.useMutation({
     onSuccess: () => utils.home.settings.invalidate(),
   });
+
+  async function upsertHourForMode(input: {
+    facilityId: number;
+    dayOfWeek: number;
+    isOpen: boolean;
+    openTime: string;
+    closeTime: string;
+    breakStart: string | null;
+    breakEnd: string | null;
+  }) {
+    return isExternalMode ? upsertExternalHour.mutateAsync(input) : upsertHour.mutateAsync(input);
+  }
 
   function updatePageSettingDraft(key: FacilityPageSettingKey, value: string) {
     setPageSettingDrafts(prev => ({ ...prev, [key]: value }));
@@ -687,7 +733,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
   }
 
   async function applyBuildingSchedule(building: FacilityBuilding) {
-    const targetFacilities = facilityRows.filter((facility) => normalizeFacilityBuilding(facility.building) === building);
+    const targetFacilities = facilityRowsForMode.filter((facility) => normalizeFacilityBuilding(facility.building) === building);
     const buildingLabel = getFacilityBuildingLabel(building);
 
     if (targetFacilities.length === 0) {
@@ -705,7 +751,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
       const draftHours = buildingScheduleDrafts[building];
       for (const facility of targetFacilities) {
         for (const hour of draftHours) {
-          await upsertHour.mutateAsync({
+          await upsertHourForMode({
             facilityId: facility.id,
             dayOfWeek: hour.dayOfWeek,
             isOpen: hour.isOpen,
@@ -719,7 +765,9 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
 
       await Promise.all(targetFacilities.flatMap((facility) => [
         utils.cms.facilities.hours.list.invalidate({ facilityId: facility.id }),
+        utils.cms.facilities.externalHours.list.invalidate({ facilityId: facility.id }),
         utils.home.facilityHours.invalidate({ facilityId: facility.id }),
+        utils.home.externalFacilityHours.invalidate({ facilityId: facility.id }),
       ]));
       toast.success(`${buildingLabel} 시설 ${targetFacilities.length}개의 스케줄을 일괄 적용했습니다.`);
     } catch (error) {
@@ -905,6 +953,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
   }
 
   function handleDragEnd(event: DragEndEvent) {
+    if (isExternalMode) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     const oldIndex = activeFacilities.findIndex((facility) => facility.id === active.id);
@@ -917,7 +966,21 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
     });
   }
 
-  const isSaving = createFacility.isPending || updateFacility.isPending || Boolean(editingId && isFetchingFacilityHours);
+  const isSaving = createFacility.isPending || updateFacility.isPending || upsertExternalHour.isPending || Boolean(editingId && isFetchingFacilityHours);
+  const title = mode === "buildingSchedule"
+    ? "\uc2dc\uc124 \uc2a4\ucf00\uc904"
+    : isExternalMode
+      ? "\uc678\ubd80\uc778 \uc2dc\uc124 \uad00\ub9ac"
+      : "\uc2dc\uc124 \uad00\ub9ac";
+  const description = mode === "buildingSchedule"
+    ? "\uc131\ub3c4 \uc608\uc57d \ud654\uba74\uc5d0\uc11c \uc0ac\uc6a9\ud558\ub294 \uacf5\ud1b5 \uc608\uc57d \uac00\ub2a5 \uc2dc\uac04\uc744 \uad00\ub9ac\ud569\ub2c8\ub2e4."
+    : isExternalMode
+      ? "\uc678\ubd80\uc778\uc5d0\uac8c \uacf5\uac1c\ud55c \uc2dc\uc124\ub9cc \ubaa8\uc544 \ubcf4\uace0, \uc678\ubd80\uc778 \uc608\uc57d \ud654\uba74 \uc804\uc6a9 \uc6b4\uc601 \uc2dc\uac04\uc744 \uad00\ub9ac\ud569\ub2c8\ub2e4."
+      : "\uc2dc\uc124\uc744 \ub4f1\ub85d\ud558\uace0 \uc6b4\uc601 \uc2dc\uac04, \uc608\uc57d \uc870\uac74\uc744 \uc124\uc815\ud569\ub2c8\ub2e4.";
+  const scheduleTitle = isExternalMode ? "\uc678\ubd80\uc778 \uc804\uc6a9 \uc2a4\ucf00\uc904 \uc77c\uad04\uc801\uc6a9" : "\uac74\ubb3c\ubcc4 \uc2a4\ucf00\uc904 \uc77c\uad04\uc801\uc6a9";
+  const scheduleDescription = isExternalMode
+    ? "\uc678\ubd80\uc778\uc5d0\uac8c \uacf5\uac1c\ub41c \uc2dc\uc124\uc5d0\ub9cc \uc801\uc6a9\ub429\ub2c8\ub2e4. \uc131\ub3c4\uc6a9 \uc2dc\uc124 \uc2dc\uac04\ud45c\ub294 \ubc14\ub00c\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4."
+    : "\uacf5\ud1b5 \uc608\uc57d \uac00\ub2a5 \uc2dc\uac04\uc744 \uba3c\uc800 \uc801\uc6a9\ud558\uace0 \uc608\uc678 \uc2dc\uc124\uc740 \uc2dc\uc124 \uad00\ub9ac\uc5d0\uc11c \uac1c\ubcc4 \uc870\uc815\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.";
 
   if (isLoading) {
     return <div className="flex items-center justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-[#1B5E20]" /></div>;
@@ -928,14 +991,8 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-bold text-gray-800">
-            {mode === "buildingSchedule" ? "시설 공통 스케줄" : "시설 관리"}
-          </h3>
-          <p className="text-sm text-gray-500">
-            {mode === "buildingSchedule"
-              ? "하영인관과 복지관의 공통 예약 가능 시간을 일괄 적용합니다."
-              : "시설을 등록하고 운영 시간, 예약 조건을 설정합니다."}
-          </p>
+          <h3 className="text-lg font-bold text-gray-800">{title}</h3>
+          <p className="text-sm text-gray-500">{description}</p>
         </div>
         {mode === "facilities" && activeFacilitySubTab === "list" && !showForm && (
           <button onClick={startCreate}
@@ -993,6 +1050,60 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
                 activeFacilitySubTab === "pageSettings" ? "text-white/75" : "text-gray-400"
               }`}>
                 상단 히어로와 4단계 안내 문구 수정
+              </span>
+            </span>
+          </button>
+        </div>
+      )}
+
+      {mode === "external" && (
+        <div className="grid grid-cols-1 gap-3 rounded-xl border border-blue-100 bg-blue-50/50 p-2 shadow-sm sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setActiveFacilitySubTab("list")}
+            className={`flex items-center gap-3 rounded-lg px-4 py-3 text-left transition-colors ${
+              activeFacilitySubTab === "list"
+                ? "bg-[#1B5E20] text-white shadow-sm"
+                : "bg-white text-gray-600 hover:bg-blue-50"
+            }`}
+          >
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+              activeFacilitySubTab === "list" ? "bg-white/15" : "bg-blue-50"
+            }`}>
+              <Building2 className="h-4 w-4" />
+            </span>
+            <span>
+              <span className="block text-sm font-bold">외부인 공개 시설</span>
+              <span className={`mt-0.5 block text-xs ${
+                activeFacilitySubTab === "list" ? "text-white/75" : "text-gray-500"
+              }`}>
+                외부인 예약 공개 체크 시설만 표시
+              </span>
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (showForm) resetForm();
+              setActiveFacilitySubTab("externalSchedule");
+            }}
+            className={`flex items-center gap-3 rounded-lg px-4 py-3 text-left transition-colors ${
+              activeFacilitySubTab === "externalSchedule"
+                ? "bg-[#1B5E20] text-white shadow-sm"
+                : "bg-white text-gray-600 hover:bg-blue-50"
+            }`}
+          >
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+              activeFacilitySubTab === "externalSchedule" ? "bg-white/15" : "bg-blue-50"
+            }`}>
+              <Clock className="h-4 w-4" />
+            </span>
+            <span>
+              <span className="block text-sm font-bold">외부인 전용 스케줄</span>
+              <span className={`mt-0.5 block text-xs ${
+                activeFacilitySubTab === "externalSchedule" ? "text-white/75" : "text-gray-500"
+              }`}>
+                성도용 시간과 별도로 운영 시간 관리
               </span>
             </span>
           </button>
@@ -1113,22 +1224,23 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
         </div>
       )}
 
-      {mode === "buildingSchedule" && (
+      {(mode === "buildingSchedule" || (mode === "external" && activeFacilitySubTab === "externalSchedule")) && (
         <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
               <h4 className="flex items-center gap-2 text-sm font-bold text-gray-900">
                 <Clock className="h-4 w-4 text-[#1B5E20]" />
-                건물별 스케줄 일괄적용
+                {scheduleTitle}
               </h4>
               <p className="mt-1 text-xs text-gray-500">
-                공통 예약 가능 시간을 먼저 적용한 뒤, 예외 시설은 시설 관리에서 개별 조정할 수 있습니다.
+                {scheduleDescription}
               </p>
             </div>
             <p className="rounded-full bg-[#E8F5E9] px-3 py-1 text-xs font-medium text-[#1B5E20]">
               월요일 기본 휴무
             </p>
           </div>
+          {mode === "buildingSchedule" && (
           <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -1165,6 +1277,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
               </div>
             </div>
           </div>
+          )}
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             {FACILITY_BUILDINGS.map((building) => {
               const count = buildingCounts.get(building.value) ?? 0;
@@ -1202,7 +1315,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
         </div>
       )}
 
-      {mode === "facilities" && activeFacilitySubTab === "list" && showForm && (
+      {isFacilityResourceMode && activeFacilitySubTab === "list" && showForm && (
         <div className="bg-gray-50 rounded-xl border border-gray-200 p-5 space-y-5">
           <div className="flex items-center justify-between">
             <h4 className="font-bold text-gray-800">{editingId ? "시설 수정" : "새 시설 등록"}</h4>
@@ -1331,7 +1444,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
           {/* 운영 시간 */}
           <div>
             <h5 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-1.5">
-              <Clock className="w-4 h-4" /> 요일별 운영 시간
+              <Clock className="w-4 h-4" /> {isExternalMode ? "외부인 전용 요일별 운영 시간" : "요일별 운영 시간"}
             </h5>
             <HoursEditor hours={hours} onChange={setHours} />
           </div>
@@ -1367,11 +1480,15 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
       )}
 
       {/* 시설 목록 */}
-      {mode === "facilities" && activeFacilitySubTab === "list" && (facilityRows.length === 0 ? (
+      {isFacilityResourceMode && activeFacilitySubTab === "list" && (facilityRowsForMode.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <Settings className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p>등록된 시설이 없습니다.</p>
-          <p className="text-sm mt-1">"시설 등록" 버튼을 눌러 첫 시설을 등록해 보세요.</p>
+          <p>{isExternalMode ? "외부인에게 공개된 시설이 없습니다." : "등록된 시설이 없습니다."}</p>
+          <p className="text-sm mt-1">
+            {isExternalMode
+              ? "시설 관리에서 필요한 시설의 외부인 예약 공개를 먼저 체크해 주세요."
+              : "\"시설 등록\" 버튼을 눌러 첫 시설을 등록해 보세요."}
+          </p>
         </div>
       ) : (
         <div className="space-y-5">

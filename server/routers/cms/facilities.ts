@@ -40,6 +40,8 @@ import {
   deleteFacilityImage,
   getFacilityHours,
   upsertFacilityHour,
+  getExternalFacilityHours,
+  upsertExternalFacilityHour,
   getBlockedDates,
   addBlockedDate,
   deleteBlockedDate,
@@ -320,6 +322,16 @@ export const facilitiesRouter = router({
   }),
 
   // ─── 예약 차단 날짜 관리 ────────────────────────────────────────────────────
+  externalHours: router({
+    list: publicProcedure
+      .input(z.object({ facilityId: idSchema }))
+      .query(({ input }) => getExternalFacilityHours(input.facilityId)),
+
+    upsert: facilityProcedure
+      .input(facilityHourSchema)
+      .mutation(({ input }) => upsertExternalFacilityHour(input)),
+  }),
+
   blockedDates: router({
     /** 차단 날짜 목록 조회 (공개) */
     list: publicProcedure

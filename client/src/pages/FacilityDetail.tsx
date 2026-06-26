@@ -40,6 +40,19 @@ function getFacilityApplyHref(facilityId: number, audience: FacilityAudience) {
   return audience === "external" ? `/facility/external/${facilityId}/apply` : `/facility/${facilityId}/apply`;
 }
 
+function useFacilityHoursForAudience(facilityId: number, audience: FacilityAudience) {
+  const memberHoursQuery = trpc.home.facilityHours.useQuery(
+    { facilityId },
+    { enabled: audience === "member" && !!facilityId }
+  );
+  const externalHoursQuery = trpc.home.externalFacilityHours.useQuery(
+    { facilityId },
+    { enabled: audience === "external" && !!facilityId }
+  );
+
+  return audience === "external" ? externalHoursQuery : memberHoursQuery;
+}
+
 function formatDayRanges(days: number[]) {
   const sortedDays = days
     .filter(day => day >= 0 && day < DAY_LABELS.length)
@@ -165,8 +178,8 @@ function getReservationStatusLabel(status: string) {
   return status;
 }
 
-function FacilityInquiryCard({ facilityId }: { facilityId: number }) {
-  const { data: hours } = trpc.home.facilityHours.useQuery({ facilityId });
+function FacilityInquiryCard({ facilityId, audience }: { facilityId: number; audience: FacilityAudience }) {
+  const { data: hours } = useFacilityHoursForAudience(facilityId, audience);
   const hoursSummary = useMemo(() => formatOperatingHoursSummary(hours), [hours]);
 
   return (
@@ -183,8 +196,8 @@ function FacilityInquiryCard({ facilityId }: { facilityId: number }) {
 
 
 // ── 운영 시간 표시 ──────────────────────────────────────────
-function HoursTable({ facilityId }: { facilityId: number }) {
-  const { data: hours } = trpc.home.facilityHours.useQuery({ facilityId });
+function HoursTable({ facilityId, audience }: { facilityId: number; audience: FacilityAudience }) {
+  const { data: hours } = useFacilityHoursForAudience(facilityId, audience);
   if (!hours || hours.length === 0) return null;
 
   return (
@@ -261,6 +274,7 @@ function TimeSlotPanel({
   endTime,
   onSelectTime,
   hasReservationOverride,
+  audience,
 }: {
   facilityId: number;
   facility: Facility | null | undefined;
@@ -269,12 +283,13 @@ function TimeSlotPanel({
   endTime: string;
   onSelectTime: (start: string, end: string) => void;
   hasReservationOverride: boolean;
+  audience: FacilityAudience;
 }) {
   const dayOfWeek = new Date(selectedDate).getDay();
   const slotMinutes = facility?.slotMinutes ?? 60;
   const maxSlots = facility?.maxSlots ?? 8;
 
-  const { data: hours } = trpc.home.facilityHours.useQuery({ facilityId });
+  const { data: hours } = useFacilityHoursForAudience(facilityId, audience);
   const { data: reservations, isLoading } = trpc.home.facilityReservationsByDate.useQuery(
     { facilityId, date: selectedDate },
     { enabled: !!selectedDate }
@@ -485,6 +500,7 @@ function ReservationCalendar({
   reservationMaxMonths,
   onSelectDate,
   hasReservationOverride,
+  audience,
 }: {
   facilityId: number;
   selectedDate: string;
@@ -493,12 +509,13 @@ function ReservationCalendar({
   reservationMaxMonths: number;
   onSelectDate: (date: string) => void;
   hasReservationOverride: boolean;
+  audience: FacilityAudience;
 }) {
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
 
   const { data: blockedDates } = trpc.home.facilityBlockedDates.useQuery({ facilityId });
-  const { data: hours } = trpc.home.facilityHours.useQuery({ facilityId });
+  const { data: hours } = useFacilityHoursForAudience(facilityId, audience);
 
   const blockedSet = useMemo(() => {
     return new Set((blockedDates ?? []).map((b: FacilityBlockedDate) => b.blockedDate));
@@ -806,7 +823,7 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
               )}
 
               {/* 운영 시간 */}
-              <HoursTable facilityId={facilityId} />
+              <HoursTable facilityId={facilityId} audience={audience} />
             </div>
 
             {/* 오른쪽: 달력 + 시간대 현황 + 예약 버튼 */}
@@ -819,6 +836,7 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
                 reservationMaxMonths={reservationMaxMonths}
                 onSelectDate={handleSelectDate}
                 hasReservationOverride={hasReservationOverride}
+                audience={audience}
               />
 
               {/* 날짜 선택 시 시간대 현황 + 선택 패널 표시 */}
@@ -831,6 +849,7 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
                   endTime={endTime}
                   onSelectTime={handleSelectTime}
                   hasReservationOverride={hasReservationOverride}
+                  audience={audience}
                 />
               )}
 
@@ -852,7 +871,7 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
               )}
 
               {/* 문의 */}
-              <FacilityInquiryCard facilityId={facilityId} />
+              <FacilityInquiryCard facilityId={facilityId} audience={audience} />
 
               {/* 목록으로 */}
               <button onClick={() => window.history.back()} className="w-full text-center text-sm text-gray-400 hover:text-[#1B5E20] transition-colors cursor-pointer py-2 flex items-center justify-center gap-1">

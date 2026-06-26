@@ -12,8 +12,8 @@
 
 import { eq, asc, desc, and, or, isNull, lt, gt, sql, inArray, ne, notInArray } from "drizzle-orm";
 import {
-  facilities, facilityImages, facilityHours, facilityBlockedDates, reservations, churchMembers,
-  InsertFacility, InsertFacilityImage, InsertFacilityHour, InsertFacilityBlockedDate, InsertReservation,
+  facilities, facilityImages, facilityHours, externalFacilityHours, facilityBlockedDates, reservations, churchMembers,
+  InsertFacility, InsertFacilityImage, InsertFacilityHour, InsertExternalFacilityHour, InsertFacilityBlockedDate, InsertReservation,
 } from "../../drizzle/schema";
 import { getDb } from "./connection";
 
@@ -200,6 +200,23 @@ export async function getFacilityHours(facilityId: number) {
   });
 }
 
+/** 외부인 예약 화면 전용 운영 시간 조회 */
+export async function getExternalFacilityHours(facilityId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select().from(externalFacilityHours)
+    .where(eq(externalFacilityHours.facilityId, facilityId))
+    .orderBy(asc(externalFacilityHours.dayOfWeek), desc(externalFacilityHours.id));
+  const seen = new Set<number>();
+  const uniqueRows = rows.filter((row) => {
+    if (seen.has(row.dayOfWeek)) return false;
+    seen.add(row.dayOfWeek);
+    return true;
+  });
+
+  return uniqueRows.length > 0 ? uniqueRows : getFacilityHours(facilityId);
+}
+
 /** 시설 운영 시간 저장 (없으면 생성, 있으면 수정) */
 export async function upsertFacilityHour(data: Omit<InsertFacilityHour, 'id' | 'createdAt' | 'updatedAt'>) {
   const db = await getDb();
@@ -218,6 +235,23 @@ export async function upsertFacilityHour(data: Omit<InsertFacilityHour, 'id' | '
 }
 
 // ─── 차단 날짜 ────────────────────────────────────────────────────────────────
+
+/** 외부인 예약 화면 전용 운영 시간 저장 */
+export async function upsertExternalFacilityHour(data: Omit<InsertExternalFacilityHour, 'id' | 'createdAt' | 'updatedAt'>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.transaction(async (tx) => {
+    await tx.delete(externalFacilityHours).where(and(
+      eq(externalFacilityHours.facilityId, data.facilityId),
+      eq(externalFacilityHours.dayOfWeek, data.dayOfWeek),
+    ));
+    await tx.insert(externalFacilityHours).values({
+      ...data,
+      breakStart: data.breakStart ?? null,
+      breakEnd: data.breakEnd ?? null,
+    });
+  });
+}
 
 /** 예약 차단 날짜 목록 조회 */
 export async function getBlockedDates(facilityId?: number) {

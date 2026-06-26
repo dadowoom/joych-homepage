@@ -897,6 +897,24 @@ export const facilityHours = mysqlTable("facility_hours", {
 export type FacilityHour = typeof facilityHours.$inferSelect;
 export type InsertFacilityHour = typeof facilityHours.$inferInsert;
 
+export const externalFacilityHours = mysqlTable("external_facility_hours", {
+  id: int("id").autoincrement().primaryKey(),
+  facilityId: int("facilityId").notNull(),
+  dayOfWeek: int("dayOfWeek").notNull(),
+  isOpen: boolean("isOpen").notNull().default(true),
+  openTime: varchar("openTime", { length: 5 }).notNull().default("09:00"),
+  closeTime: varchar("closeTime", { length: 5 }).notNull().default("22:00"),
+  breakStart: varchar("breakStart", { length: 5 }),
+  breakEnd: varchar("breakEnd", { length: 5 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("external_facility_hours_facility_day_unique").on(table.facilityId, table.dayOfWeek),
+]);
+
+export type ExternalFacilityHour = typeof externalFacilityHours.$inferSelect;
+export type InsertExternalFacilityHour = typeof externalFacilityHours.$inferInsert;
+
 /**
  * facility_blocked_dates: 시설 특정 날짜 차단 테이블
  * 공휴일, 교회 행사 등 특정 날짜에 예약을 차단합니다.
