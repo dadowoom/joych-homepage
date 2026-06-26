@@ -942,7 +942,6 @@ export type InsertReservation = typeof reservations.$inferInsert;
 export const vehicles = mysqlTable("vehicles", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 128 }).notNull(),
-  imageUrl: text("imageUrl"),
   description: text("description"),
   plateNumber: varchar("plate_number", { length: 64 }),
   location: varchar("location", { length: 128 }),
