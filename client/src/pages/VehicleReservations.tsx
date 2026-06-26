@@ -8,6 +8,9 @@ import { Link, useLocation, useParams, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import ReservationTimelinePicker from "@/components/facility/ReservationTimelinePicker";
+import ReservationConflictDialog, {
+  isReservationConflictMessage,
+} from "@/components/facility/ReservationConflictDialog";
 import { generateReservationTimePoints } from "@/lib/facilitySlotSelection";
 import { toast } from "sonner";
 import {
@@ -768,6 +771,7 @@ export function VehicleReservationApply() {
   });
   const [submitted, setSubmitted] = useState(false);
   const [reservedStatus, setReservedStatus] = useState<"pending" | "approved">("pending");
+  const [reservationConflictMessage, setReservationConflictMessage] = useState<string | null>(null);
 
   const { data: memberMe } = trpc.members.me.useQuery(undefined, {
     retry: false,
@@ -797,7 +801,7 @@ export function VehicleReservationApply() {
       setReservedStatus(data.status);
       setSubmitted(true);
     },
-    onError: (err) => toast.error(err.message || "차량 예약 신청 중 오류가 발생했습니다."),
+    onError: (err) => showReservationError(err.message || "차량 예약 신청 중 오류가 발생했습니다."),
   });
 
   const vehicleRow = vehicle as VehicleRow | null | undefined;
@@ -851,6 +855,14 @@ export function VehicleReservationApply() {
     }));
   }
 
+  function showReservationError(message: string) {
+    if (isReservationConflictMessage(message)) {
+      setReservationConflictMessage(message);
+      return;
+    }
+    toast.error(message);
+  }
+
   function validate() {
     if (!vehicleRow) return "차량 정보를 찾을 수 없습니다.";
     if (!memberMe) return "성도 로그인 후 신청할 수 있습니다.";
@@ -877,7 +889,7 @@ export function VehicleReservationApply() {
     e.preventDefault();
     const errorMessage = validate();
     if (errorMessage) {
-      toast.error(errorMessage);
+      showReservationError(errorMessage);
       if (errorMessage.includes("로그인")) navigate(getLoginHref(`/support/vehicle/${vehicleId}/apply${searchString ? `?${searchString}` : ""}`));
       return;
     }
@@ -901,12 +913,20 @@ export function VehicleReservationApply() {
     return `${form.date} ${form.startTime}~${form.endTime} 차량예약 신청`;
   }, [form.date, form.startTime, form.endTime]);
 
+  const conflictDialog = (
+    <ReservationConflictDialog
+      message={reservationConflictMessage}
+      onClose={() => setReservationConflictMessage(null)}
+    />
+  );
+
   if (vehicleRow && !error && !isLoading) {
     const hasQueryDate = Boolean(initialSearchParams.get("date"));
     const inputClass = "w-full rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-800 transition-colors focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:bg-gray-50 disabled:text-gray-400";
 
     return (
       <div className="min-h-screen bg-[#F7F7F5]">
+        {conflictDialog}
         <VehicleHero />
         <section className="py-10">
           <div className="container max-w-3xl">
@@ -1078,6 +1098,7 @@ export function VehicleReservationApply() {
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F7F7F5]">
+        {conflictDialog}
         <Loader2 className="h-8 w-8 animate-spin text-[#1B5E20]" />
       </div>
     );
@@ -1086,6 +1107,7 @@ export function VehicleReservationApply() {
   if (!vehicleRow) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F7F7F5]">
+        {conflictDialog}
         <div className="text-center">
           <AlertCircle className="mx-auto mb-3 h-12 w-12 text-gray-300" />
           <p className="mb-4 text-gray-500">차량 정보를 찾을 수 없습니다.</p>

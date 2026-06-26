@@ -1,4 +1,5 @@
 import { and, desc, eq, gte, ne, sql } from "drizzle-orm";
+import { z } from "zod";
 import {
   STATIC_ADMIN_PERMISSIONS,
   SUPPORT_REQUEST_PERMISSION_KEYS,
@@ -8,6 +9,7 @@ import { adminAnyPermissionProcedure, router } from "../../_core/trpc";
 import { getDb } from "../../db";
 import { hasAdminContentPermission } from "../../db/adminPermissions";
 import {
+  adminNotificationReadStates,
   bulletinAdRequests,
   bulletins,
   churchMembers,
@@ -21,6 +23,7 @@ import {
   notices,
   prayerRequests,
   reservations,
+  siteSettings,
   subtitleRequests,
   testimonyComments,
   testimonyPosts,
@@ -31,16 +34,40 @@ import {
   youtubeVideos,
 } from "../../../drizzle/schema";
 
-// 관리자 첫 화면 알림은 별도 읽음 테이블 없이 계산합니다.
+// 관리자 첫 화면 알림은 게시글/신청 데이터를 직접 모아 계산합니다.
 // - 게시글/댓글: 최근 7일 등록분
 // - 예약/접수/신청: 아직 처리하지 않은 pending/new 상태
+// - 관리자가 확인 완료한 종류는 다음 새 항목이 올라올 때까지 숨깁니다.
 const RECENT_DAYS = 7;
 const MAX_RECENT_ITEMS = 50;
 const MAX_GROUP_ITEMS = 8;
+const ADMIN_NOTIFICATION_BASELINE_KEY = "admin_notification_baseline_at";
 
 const ADMIN_NOTIFICATION_PERMISSION_KEYS = Array.from(
   new Set(STATIC_ADMIN_PERMISSIONS.map(permission => permission.key))
 );
+
+const NOTIFICATION_GROUP_KEYS = [
+  "noticeRecent",
+  "bulletinRecent",
+  "youtubeVideoRecent",
+  "popupRecent",
+  "freeBoardRecent",
+  "testimonyPostRecent",
+  "testimonyCommentRecent",
+  "reservationPending",
+  "vehicleReservationPending",
+  "courseRecent",
+  "courseApplicationPending",
+  "missionReportRecent",
+  "missionReportPending",
+  "memberPending",
+  "prayerRequestNew",
+  "newMemberRequestNew",
+  "visitRequestNew",
+  "subtitleRequestNew",
+  "bulletinAdRequestNew",
+] as const;
 
 type NotificationTab =
   | "bulletins"
@@ -57,9 +84,10 @@ type NotificationTab =
   | "members";
 
 type NotificationTone = "recent" | "pending";
+type NotificationGroupKey = (typeof NOTIFICATION_GROUP_KEYS)[number];
 
 type NotificationGroup = {
-  key: string;
+  key: NotificationGroupKey;
   label: string;
   description: string;
   tab: NotificationTab;
@@ -69,7 +97,7 @@ type NotificationGroup = {
 
 type NotificationItem = {
   id: string;
-  groupKey: string;
+  groupKey: NotificationGroupKey;
   label: string;
   title: string;
   meta: string;
@@ -80,6 +108,19 @@ type NotificationItem = {
 
 function toCount(value: unknown) {
   return Number(value ?? 0);
+}
+
+function parseDateSetting(value: string | null | undefined) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function latestDate(...dates: Array<Date | null | undefined>) {
+  return dates.reduce<Date>((latest, date) => {
+    if (!date || Number.isNaN(date.getTime())) return latest;
+    return date.getTime() > latest.getTime() ? date : latest;
+  }, new Date(0));
 }
 
 function hasPermission(
@@ -118,6 +159,7 @@ export const notificationsRouter = router({
     if (!db) {
       return {
         recentDays: RECENT_DAYS,
+        baselineAt: null,
         totalCount: 0,
         groups: [] as NotificationGroup[],
         items: [] as NotificationItem[],
@@ -129,11 +171,37 @@ export const notificationsRouter = router({
     const recentCutoff = new Date(
       Date.now() - RECENT_DAYS * 24 * 60 * 60 * 1000
     );
+    const [baselineRow] = await db
+      .select({ settingValue: siteSettings.settingValue })
+      .from(siteSettings)
+      .where(eq(siteSettings.settingKey, ADMIN_NOTIFICATION_BASELINE_KEY))
+      .limit(1);
+    const baselineAt = parseDateSetting(baselineRow?.settingValue);
+    const readRows = await db
+      .select({
+        groupKey: adminNotificationReadStates.groupKey,
+        lastSeenAt: adminNotificationReadStates.lastSeenAt,
+      })
+      .from(adminNotificationReadStates)
+      .where(eq(adminNotificationReadStates.userId, ctx.user.id));
+    const lastSeenByGroup = new Map(
+      readRows.map(row => [row.groupKey, row.lastSeenAt] as const)
+    );
+    const cutoffFor = (
+      groupKey: NotificationGroupKey,
+      mode: NotificationTone
+    ) =>
+      latestDate(
+        baselineAt,
+        lastSeenByGroup.get(groupKey),
+        mode === "recent" ? recentCutoff : null
+      );
 
     if (hasPermission(ctx.user, "content:notices")) {
+      const groupKey = "noticeRecent";
       const where = and(
         eq(notices.isPublished, true),
-        gte(notices.createdAt, recentCutoff)
+        gte(notices.createdAt, cutoffFor(groupKey, "recent"))
       );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -155,7 +223,7 @@ export const notificationsRouter = router({
         groups,
         items,
         {
-          key: "noticeRecent",
+          key: groupKey,
           label: "새 공지사항",
           description: `최근 ${RECENT_DAYS}일 안에 등록된 공지/소식입니다.`,
           tab: "notices",
@@ -164,7 +232,7 @@ export const notificationsRouter = router({
         },
         rows.map(row => ({
           id: `notice:${row.id}`,
-          groupKey: "noticeRecent",
+          groupKey,
           label: row.category || "공지사항",
           title: row.title,
           meta: "최근 등록 공지",
@@ -176,9 +244,10 @@ export const notificationsRouter = router({
     }
 
     if (hasPermission(ctx.user, "content:bulletins")) {
+      const groupKey = "bulletinRecent";
       const where = and(
         eq(bulletins.status, "published"),
-        gte(bulletins.createdAt, recentCutoff)
+        gte(bulletins.createdAt, cutoffFor(groupKey, "recent"))
       );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -200,7 +269,7 @@ export const notificationsRouter = router({
         groups,
         items,
         {
-          key: "bulletinRecent",
+          key: groupKey,
           label: "새 주보",
           description: `최근 ${RECENT_DAYS}일 안에 등록된 주보입니다.`,
           tab: "bulletins",
@@ -209,7 +278,7 @@ export const notificationsRouter = router({
         },
         rows.map(row => ({
           id: `bulletin:${row.id}`,
-          groupKey: "bulletinRecent",
+          groupKey,
           label: "주보",
           title: row.title,
           meta: row.bulletinDate,
@@ -221,9 +290,10 @@ export const notificationsRouter = router({
     }
 
     if (hasPermission(ctx.user, "content:youtube")) {
+      const groupKey = "youtubeVideoRecent";
       const where = and(
         eq(youtubeVideos.isVisible, true),
-        gte(youtubeVideos.createdAt, recentCutoff)
+        gte(youtubeVideos.createdAt, cutoffFor(groupKey, "recent"))
       );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -249,7 +319,7 @@ export const notificationsRouter = router({
         groups,
         items,
         {
-          key: "youtubeVideoRecent",
+          key: groupKey,
           label: "새 예배/영상",
           description: `최근 ${RECENT_DAYS}일 안에 등록된 조이풀TV 영상입니다.`,
           tab: "youtube",
@@ -258,7 +328,7 @@ export const notificationsRouter = router({
         },
         rows.map(row => ({
           id: `youtubeVideo:${row.id}`,
-          groupKey: "youtubeVideoRecent",
+          groupKey,
           label: "조이풀TV",
           title: row.title,
           meta: row.playlistTitle ?? "영상 목록",
@@ -270,9 +340,10 @@ export const notificationsRouter = router({
     }
 
     if (hasPermission(ctx.user, "content:popups")) {
+      const groupKey = "popupRecent";
       const where = and(
         eq(noticePopups.isActive, true),
-        gte(noticePopups.createdAt, recentCutoff)
+        gte(noticePopups.createdAt, cutoffFor(groupKey, "recent"))
       );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -294,7 +365,7 @@ export const notificationsRouter = router({
         groups,
         items,
         {
-          key: "popupRecent",
+          key: groupKey,
           label: "새 팝업",
           description: `최근 ${RECENT_DAYS}일 안에 등록된 팝업/배너입니다.`,
           tab: "popups",
@@ -303,7 +374,7 @@ export const notificationsRouter = router({
         },
         rows.map(row => ({
           id: `popup:${row.id}`,
-          groupKey: "popupRecent",
+          groupKey,
           label: "팝업",
           title: row.title,
           meta: row.placement,
@@ -315,9 +386,10 @@ export const notificationsRouter = router({
     }
 
     if (hasPermission(ctx.user, "content:freeBoard")) {
+      const groupKey = "freeBoardRecent";
       const where = and(
         ne(freeBoardPosts.status, "deleted"),
-        gte(freeBoardPosts.createdAt, recentCutoff)
+        gte(freeBoardPosts.createdAt, cutoffFor(groupKey, "recent"))
       );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -338,7 +410,7 @@ export const notificationsRouter = router({
         groups,
         items,
         {
-          key: "freeBoardRecent",
+          key: groupKey,
           label: "자유게시판 새 글",
           description: `최근 ${RECENT_DAYS}일 안에 올라온 자유게시판 글입니다.`,
           tab: "freeBoard",
@@ -347,7 +419,7 @@ export const notificationsRouter = router({
         },
         rows.map(row => ({
           id: `freeBoard:${row.id}`,
-          groupKey: "freeBoardRecent",
+          groupKey,
           label: "자유게시판",
           title: row.title,
           meta: "최근 등록 글",
@@ -359,9 +431,10 @@ export const notificationsRouter = router({
     }
 
     if (hasPermission(ctx.user, "content:testimonies")) {
+      const postGroupKey = "testimonyPostRecent";
       const postWhere = and(
         ne(testimonyPosts.status, "deleted"),
-        gte(testimonyPosts.createdAt, recentCutoff)
+        gte(testimonyPosts.createdAt, cutoffFor(postGroupKey, "recent"))
       );
       const [postCountRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -382,7 +455,7 @@ export const notificationsRouter = router({
         groups,
         items,
         {
-          key: "testimonyPostRecent",
+          key: postGroupKey,
           label: "간증 새 글",
           description: `최근 ${RECENT_DAYS}일 안에 올라온 간증 글입니다.`,
           tab: "testimonies",
@@ -391,7 +464,7 @@ export const notificationsRouter = router({
         },
         postRows.map(row => ({
           id: `testimonyPost:${row.id}`,
-          groupKey: "testimonyPostRecent",
+          groupKey: postGroupKey,
           label: "간증 글",
           title: row.title,
           meta: "최근 등록 글",
@@ -401,9 +474,10 @@ export const notificationsRouter = router({
         }))
       );
 
+      const commentGroupKey = "testimonyCommentRecent";
       const commentWhere = and(
         ne(testimonyComments.status, "deleted"),
-        gte(testimonyComments.createdAt, recentCutoff)
+        gte(testimonyComments.createdAt, cutoffFor(commentGroupKey, "recent"))
       );
       const [commentCountRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -424,7 +498,7 @@ export const notificationsRouter = router({
         groups,
         items,
         {
-          key: "testimonyCommentRecent",
+          key: commentGroupKey,
           label: "간증 새 댓글",
           description: `최근 ${RECENT_DAYS}일 안에 올라온 간증 댓글입니다.`,
           tab: "testimonies",
@@ -433,7 +507,7 @@ export const notificationsRouter = router({
         },
         commentRows.map(row => ({
           id: `testimonyComment:${row.id}`,
-          groupKey: "testimonyCommentRecent",
+          groupKey: commentGroupKey,
           label: "간증 댓글",
           title: row.content.slice(0, 40) || "새 댓글",
           meta: "최근 등록 댓글",
@@ -445,7 +519,11 @@ export const notificationsRouter = router({
     }
 
     if (hasPermission(ctx.user, "content:reservations")) {
-      const where = eq(reservations.status, "pending");
+      const groupKey = "reservationPending";
+      const where = and(
+        eq(reservations.status, "pending"),
+        gte(reservations.createdAt, cutoffFor(groupKey, "pending"))
+      );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
         .from(reservations)
@@ -469,7 +547,7 @@ export const notificationsRouter = router({
         groups,
         items,
         {
-          key: "reservationPending",
+          key: groupKey,
           label: "승인 대기 예약",
           description: "아직 승인 또는 거절하지 않은 시설 예약입니다.",
           tab: "reservations",
@@ -478,7 +556,7 @@ export const notificationsRouter = router({
         },
         rows.map(row => ({
           id: `reservation:${row.id}`,
-          groupKey: "reservationPending",
+          groupKey,
           label: "시설 예약",
           title: `${row.facilityName ?? "시설"} ${row.reservationDate} ${row.startTime}`,
           meta: row.reserverName,
@@ -490,7 +568,11 @@ export const notificationsRouter = router({
     }
 
     if (hasPermission(ctx.user, "content:vehicles")) {
-      const where = eq(vehicleReservations.status, "pending");
+      const groupKey = "vehicleReservationPending";
+      const where = and(
+        eq(vehicleReservations.status, "pending"),
+        gte(vehicleReservations.createdAt, cutoffFor(groupKey, "pending"))
+      );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
         .from(vehicleReservations)
@@ -507,14 +589,17 @@ export const notificationsRouter = router({
         .from(vehicleReservations)
         .leftJoin(vehicles, eq(vehicleReservations.vehicleId, vehicles.id))
         .where(where)
-        .orderBy(desc(vehicleReservations.createdAt), desc(vehicleReservations.id))
+        .orderBy(
+          desc(vehicleReservations.createdAt),
+          desc(vehicleReservations.id)
+        )
         .limit(MAX_GROUP_ITEMS);
 
       addGroup(
         groups,
         items,
         {
-          key: "vehicleReservationPending",
+          key: groupKey,
           label: "승인 대기 차량예약",
           description: "아직 승인 또는 거절하지 않은 차량 예약입니다.",
           tab: "vehicles",
@@ -523,7 +608,7 @@ export const notificationsRouter = router({
         },
         rows.map(row => ({
           id: `vehicleReservation:${row.id}`,
-          groupKey: "vehicleReservationPending",
+          groupKey,
           label: "차량예약",
           title: `${row.vehicleName ?? "차량"} ${row.reservationDate} ${row.startTime}`,
           meta: row.reserverName,
@@ -535,9 +620,10 @@ export const notificationsRouter = router({
     }
 
     if (hasPermission(ctx.user, "content:courses")) {
+      const courseGroupKey = "courseRecent";
       const courseRecentWhere = and(
         ne(courses.status, "archived"),
-        gte(courses.createdAt, recentCutoff)
+        gte(courses.createdAt, cutoffFor(courseGroupKey, "recent"))
       );
       const [courseRecentCountRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -559,7 +645,7 @@ export const notificationsRouter = router({
         groups,
         items,
         {
-          key: "courseRecent",
+          key: courseGroupKey,
           label: "새 강좌",
           description: `최근 ${RECENT_DAYS}일 안에 등록된 교육/강좌입니다.`,
           tab: "courses",
@@ -568,7 +654,7 @@ export const notificationsRouter = router({
         },
         courseRecentRows.map(row => ({
           id: `course:${row.id}`,
-          groupKey: "courseRecent",
+          groupKey: courseGroupKey,
           label: "강좌",
           title: row.title,
           meta: row.status,
@@ -578,7 +664,14 @@ export const notificationsRouter = router({
         }))
       );
 
-      const where = eq(courseApplications.status, "pending");
+      const applicationGroupKey = "courseApplicationPending";
+      const where = and(
+        eq(courseApplications.status, "pending"),
+        gte(
+          courseApplications.createdAt,
+          cutoffFor(applicationGroupKey, "pending")
+        )
+      );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
         .from(courseApplications)
@@ -603,7 +696,7 @@ export const notificationsRouter = router({
         groups,
         items,
         {
-          key: "courseApplicationPending",
+          key: applicationGroupKey,
           label: "승인 대기 강좌 신청",
           description: "아직 승인 또는 거절하지 않은 강좌 신청입니다.",
           tab: "courses",
@@ -612,7 +705,7 @@ export const notificationsRouter = router({
         },
         rows.map(row => ({
           id: `courseApplication:${row.id}`,
-          groupKey: "courseApplicationPending",
+          groupKey: applicationGroupKey,
           label: "강좌 신청",
           title: row.courseTitle ?? "강좌 신청",
           meta: row.applicantName,
@@ -624,9 +717,10 @@ export const notificationsRouter = router({
     }
 
     if (hasPermission(ctx.user, "content:missionReports")) {
+      const recentGroupKey = "missionReportRecent";
       const recentWhere = and(
         eq(missionReports.status, "published"),
-        gte(missionReports.createdAt, recentCutoff)
+        gte(missionReports.createdAt, cutoffFor(recentGroupKey, "recent"))
       );
       const [recentCountRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -648,7 +742,7 @@ export const notificationsRouter = router({
         groups,
         items,
         {
-          key: "missionReportRecent",
+          key: recentGroupKey,
           label: "새 선교보고",
           description: `최근 ${RECENT_DAYS}일 안에 게시된 선교보고입니다.`,
           tab: "missionReports",
@@ -657,7 +751,7 @@ export const notificationsRouter = router({
         },
         recentRows.map(row => ({
           id: `missionReportRecent:${row.id}`,
-          groupKey: "missionReportRecent",
+          groupKey: recentGroupKey,
           label: "선교보고",
           title: row.title,
           meta: row.reportDate,
@@ -667,7 +761,11 @@ export const notificationsRouter = router({
         }))
       );
 
-      const where = eq(missionReports.status, "pending");
+      const pendingGroupKey = "missionReportPending";
+      const where = and(
+        eq(missionReports.status, "pending"),
+        gte(missionReports.createdAt, cutoffFor(pendingGroupKey, "pending"))
+      );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
         .from(missionReports)
@@ -688,7 +786,7 @@ export const notificationsRouter = router({
         groups,
         items,
         {
-          key: "missionReportPending",
+          key: pendingGroupKey,
           label: "검토 대기 선교보고",
           description: "아직 게시 승인하지 않은 선교보고입니다.",
           tab: "missionReports",
@@ -697,7 +795,7 @@ export const notificationsRouter = router({
         },
         rows.map(row => ({
           id: `missionReport:${row.id}`,
-          groupKey: "missionReportPending",
+          groupKey: pendingGroupKey,
           label: "선교보고",
           title: row.title,
           meta: row.reportDate,
@@ -709,7 +807,11 @@ export const notificationsRouter = router({
     }
 
     if (ctx.user.role === "admin") {
-      const where = eq(churchMembers.status, "pending");
+      const groupKey = "memberPending";
+      const where = and(
+        eq(churchMembers.status, "pending"),
+        gte(churchMembers.createdAt, cutoffFor(groupKey, "pending"))
+      );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
         .from(churchMembers)
@@ -730,7 +832,7 @@ export const notificationsRouter = router({
         groups,
         items,
         {
-          key: "memberPending",
+          key: groupKey,
           label: "승인 대기 성도",
           description: "가입 후 아직 승인하지 않은 성도 계정입니다.",
           tab: "members",
@@ -739,7 +841,7 @@ export const notificationsRouter = router({
         },
         rows.map(row => ({
           id: `member:${row.id}`,
-          groupKey: "memberPending",
+          groupKey,
           label: "성도 가입",
           title: row.name,
           meta: row.phone ?? "연락처 없음",
@@ -753,7 +855,11 @@ export const notificationsRouter = router({
     if (
       hasSupportPermission(ctx.user, SUPPORT_REQUEST_PERMISSION_KEYS.prayers)
     ) {
-      const where = eq(prayerRequests.status, "new");
+      const groupKey = "prayerRequestNew";
+      const where = and(
+        eq(prayerRequests.status, "new"),
+        gte(prayerRequests.createdAt, cutoffFor(groupKey, "pending"))
+      );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
         .from(prayerRequests)
@@ -774,7 +880,7 @@ export const notificationsRouter = router({
         groups,
         items,
         {
-          key: "prayerRequestNew",
+          key: groupKey,
           label: "새 기도 요청",
           description: "아직 확인 처리하지 않은 기도 요청입니다.",
           tab: "supportRequests",
@@ -783,7 +889,7 @@ export const notificationsRouter = router({
         },
         rows.map(row => ({
           id: `prayerRequest:${row.id}`,
-          groupKey: "prayerRequestNew",
+          groupKey,
           label: "기도 요청",
           title: row.category,
           meta: row.name,
@@ -797,7 +903,11 @@ export const notificationsRouter = router({
     if (
       hasSupportPermission(ctx.user, SUPPORT_REQUEST_PERMISSION_KEYS.newMembers)
     ) {
-      const where = eq(newMemberRequests.status, "new");
+      const groupKey = "newMemberRequestNew";
+      const where = and(
+        eq(newMemberRequests.status, "new"),
+        gte(newMemberRequests.createdAt, cutoffFor(groupKey, "pending"))
+      );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
         .from(newMemberRequests)
@@ -818,7 +928,7 @@ export const notificationsRouter = router({
         groups,
         items,
         {
-          key: "newMemberRequestNew",
+          key: groupKey,
           label: "새가족 새 문의",
           description: "아직 연락 처리하지 않은 새가족 문의입니다.",
           tab: "supportRequests",
@@ -827,7 +937,7 @@ export const notificationsRouter = router({
         },
         rows.map(row => ({
           id: `newMemberRequest:${row.id}`,
-          groupKey: "newMemberRequestNew",
+          groupKey,
           label: "새가족 문의",
           title: row.name,
           meta: row.phone,
@@ -841,7 +951,11 @@ export const notificationsRouter = router({
     if (
       hasSupportPermission(ctx.user, SUPPORT_REQUEST_PERMISSION_KEYS.visits)
     ) {
-      const where = eq(visitRequests.status, "new");
+      const groupKey = "visitRequestNew";
+      const where = and(
+        eq(visitRequests.status, "new"),
+        gte(visitRequests.createdAt, cutoffFor(groupKey, "pending"))
+      );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
         .from(visitRequests)
@@ -863,7 +977,7 @@ export const notificationsRouter = router({
         groups,
         items,
         {
-          key: "visitRequestNew",
+          key: groupKey,
           label: "새 탐방 신청",
           description: "아직 연락 처리하지 않은 탐방 신청입니다.",
           tab: "supportRequests",
@@ -872,7 +986,7 @@ export const notificationsRouter = router({
         },
         rows.map(row => ({
           id: `visitRequest:${row.id}`,
-          groupKey: "visitRequestNew",
+          groupKey,
           label: "탐방 신청",
           title: row.organizationName,
           meta: `${row.applicantName} · ${row.visitDate}`,
@@ -886,7 +1000,11 @@ export const notificationsRouter = router({
     if (
       hasSupportPermission(ctx.user, SUPPORT_REQUEST_PERMISSION_KEYS.subtitles)
     ) {
-      const where = eq(subtitleRequests.status, "new");
+      const groupKey = "subtitleRequestNew";
+      const where = and(
+        eq(subtitleRequests.status, "new"),
+        gte(subtitleRequests.createdAt, cutoffFor(groupKey, "pending"))
+      );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
         .from(subtitleRequests)
@@ -907,7 +1025,7 @@ export const notificationsRouter = router({
         groups,
         items,
         {
-          key: "subtitleRequestNew",
+          key: groupKey,
           label: "새 자막 신청",
           description: "아직 검토 처리하지 않은 자막 신청입니다.",
           tab: "supportRequests",
@@ -916,7 +1034,7 @@ export const notificationsRouter = router({
         },
         rows.map(row => ({
           id: `subtitleRequest:${row.id}`,
-          groupKey: "subtitleRequestNew",
+          groupKey,
           label: "자막 신청",
           title: row.title,
           meta: row.authorName,
@@ -933,7 +1051,11 @@ export const notificationsRouter = router({
         SUPPORT_REQUEST_PERMISSION_KEYS.bulletinAds
       )
     ) {
-      const where = eq(bulletinAdRequests.status, "new");
+      const groupKey = "bulletinAdRequestNew";
+      const where = and(
+        eq(bulletinAdRequests.status, "new"),
+        gte(bulletinAdRequests.createdAt, cutoffFor(groupKey, "pending"))
+      );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
         .from(bulletinAdRequests)
@@ -957,7 +1079,7 @@ export const notificationsRouter = router({
         groups,
         items,
         {
-          key: "bulletinAdRequestNew",
+          key: groupKey,
           label: "새 주보 광고신청",
           description: "아직 검토 처리하지 않은 주보 광고신청입니다.",
           tab: "supportRequests",
@@ -966,7 +1088,7 @@ export const notificationsRouter = router({
         },
         rows.map(row => ({
           id: `bulletinAdRequest:${row.id}`,
-          groupKey: "bulletinAdRequestNew",
+          groupKey,
           label: "주보 광고신청",
           title: row.title,
           meta: row.authorName,
@@ -983,9 +1105,58 @@ export const notificationsRouter = router({
 
     return {
       recentDays: RECENT_DAYS,
+      baselineAt,
       totalCount: groups.reduce((sum, group) => sum + group.count, 0),
       groups,
       items: sortedItems,
     };
+  }),
+  markGroupRead: adminAnyPermissionProcedure(ADMIN_NOTIFICATION_PERMISSION_KEYS)
+    .input(z.object({ groupKey: z.enum(NOTIFICATION_GROUP_KEYS) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { ok: false };
+
+      const now = new Date();
+      await db
+        .insert(adminNotificationReadStates)
+        .values({
+          userId: ctx.user.id,
+          groupKey: input.groupKey,
+          lastSeenAt: now,
+        })
+        .onDuplicateKeyUpdate({
+          set: {
+            lastSeenAt: now,
+            updatedAt: now,
+          },
+        });
+
+      return { ok: true };
+    }),
+  markAllRead: adminAnyPermissionProcedure(
+    ADMIN_NOTIFICATION_PERMISSION_KEYS
+  ).mutation(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return { ok: false };
+
+    const now = new Date();
+    for (const groupKey of NOTIFICATION_GROUP_KEYS) {
+      await db
+        .insert(adminNotificationReadStates)
+        .values({
+          userId: ctx.user.id,
+          groupKey,
+          lastSeenAt: now,
+        })
+        .onDuplicateKeyUpdate({
+          set: {
+            lastSeenAt: now,
+            updatedAt: now,
+          },
+        });
+    }
+
+    return { ok: true };
   }),
 });

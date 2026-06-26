@@ -20,6 +20,7 @@
 
 import { useMemo, useState } from "react";
 import { Link, useSearch, useLocation } from "wouter";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -199,7 +200,8 @@ const TABS: TabItem[] = [
     id: "vehicles",
     label: "차량예약",
     icon: "fa-van-shuttle",
-    description: "차량을 등록하고 차량 예약 신청과 이용 가능 그룹을 관리합니다.",
+    description:
+      "차량을 등록하고 차량 예약 신청과 이용 가능 그룹을 관리합니다.",
     status: "차량 예약",
   },
   {
@@ -328,6 +330,7 @@ export default function AdminPage() {
   const [, setLocation] = useLocation();
 
   const searchParams = new URLSearchParams(searchString);
+  const utils = trpc.useUtils();
   const isNotificationsView = searchParams.get("view") === "notifications";
   const tabFromUrl = searchParams.get("tab") as Tab | null;
   const requestedTab: Tab | null =
@@ -392,6 +395,20 @@ export default function AdminPage() {
       enabled: shouldLoadDashboardNotifications,
       staleTime: 30_000,
       refetchInterval: 60_000,
+    });
+  const markNotificationGroupRead =
+    trpc.cms.notifications.markGroupRead.useMutation({
+      onSuccess: () => {
+        void utils.cms.notifications.summary.invalidate();
+        toast.success("알림을 확인 완료로 표시했습니다.");
+      },
+    });
+  const markAllNotificationsRead =
+    trpc.cms.notifications.markAllRead.useMutation({
+      onSuccess: () => {
+        void utils.cms.notifications.summary.invalidate();
+        toast.success("현재 알림을 모두 확인 완료로 표시했습니다.");
+      },
     });
   const notificationCountsByTab = useMemo(() => {
     const counts: Partial<Record<Tab, number>> = {};
@@ -861,33 +878,52 @@ export default function AdminPage() {
                       </div>
                     </div>
                   </div>
-                  <span
-                    className={`inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
-                      (notificationSummary?.totalCount ?? 0) > 0
-                        ? "bg-red-50 text-red-600"
-                        : "bg-[#E8F5E9] text-[#1B5E20]"
-                    }`}
-                  >
-                    {notificationsLoading ? (
-                      <>
-                        <i className="fas fa-spinner animate-spin"></i>
-                        확인 중
-                      </>
-                    ) : (
-                      <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
+                        (notificationSummary?.totalCount ?? 0) > 0
+                          ? "bg-red-50 text-red-600"
+                          : "bg-[#E8F5E9] text-[#1B5E20]"
+                      }`}
+                    >
+                      {notificationsLoading ? (
+                        <>
+                          <i className="fas fa-spinner animate-spin"></i>
+                          확인 중
+                        </>
+                      ) : (
+                        <>
+                          <i
+                            className={
+                              (notificationSummary?.totalCount ?? 0) > 0
+                                ? "fas fa-circle-exclamation"
+                                : "fas fa-check"
+                            }
+                          ></i>
+                          {(notificationSummary?.totalCount ?? 0) > 0
+                            ? `${notificationSummary?.totalCount ?? 0}건`
+                            : "새 항목 없음"}
+                        </>
+                      )}
+                    </span>
+                    {(notificationSummary?.totalCount ?? 0) > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => markAllNotificationsRead.mutate()}
+                        disabled={markAllNotificationsRead.isPending}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition-colors hover:border-[#A5D6A7] hover:text-[#1B5E20] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
                         <i
-                          className={
-                            (notificationSummary?.totalCount ?? 0) > 0
-                              ? "fas fa-circle-exclamation"
-                              : "fas fa-check"
-                          }
+                          className={`fas ${
+                            markAllNotificationsRead.isPending
+                              ? "fa-spinner animate-spin"
+                              : "fa-check"
+                          }`}
                         ></i>
-                        {(notificationSummary?.totalCount ?? 0) > 0
-                          ? `${notificationSummary?.totalCount ?? 0}건`
-                          : "새 항목 없음"}
-                      </>
+                        전체 확인 완료
+                      </button>
                     )}
-                  </span>
+                  </div>
                 </div>
 
                 {notificationsLoading ? (
@@ -915,7 +951,8 @@ export default function AdminPage() {
                             알림 종류
                           </span>
                           <span className="block text-xs text-gray-500">
-                            새 글, 새 신청 등 유형별 알림을 접어서 볼 수 있습니다.
+                            새 글, 새 신청 등 유형별 알림을 접어서 볼 수
+                            있습니다.
                           </span>
                         </span>
                         <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-[#1B5E20] shadow-sm">
@@ -931,15 +968,12 @@ export default function AdminPage() {
                         <div className="grid gap-3 border-t border-gray-100 p-3 md:grid-cols-2 xl:grid-cols-3">
                           {notificationSummary?.groups.map(group => {
                             const targetTab = group.tab as Tab;
+                            const canOpenTarget =
+                              permittedTabs.includes(targetTab);
                             return (
-                              <button
+                              <article
                                 key={group.key}
-                                type="button"
-                                onClick={() =>
-                                  permittedTabs.includes(targetTab) &&
-                                  setActiveTab(targetTab)
-                                }
-                                className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-left transition-colors hover:border-[#A5D6A7] hover:bg-[#F1F8F2]"
+                                className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-left"
                               >
                                 <div className="mb-2 flex items-center justify-between gap-2">
                                   <span className="text-sm font-bold text-gray-900">
@@ -955,10 +989,44 @@ export default function AdminPage() {
                                     {formatBadgeCount(group.count)}
                                   </span>
                                 </div>
-                                <p className="text-xs leading-5 text-gray-500">
+                                <p className="min-h-[40px] text-xs leading-5 text-gray-500">
                                   {group.description}
                                 </p>
-                              </button>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      canOpenTarget && setActiveTab(targetTab)
+                                    }
+                                    disabled={!canOpenTarget}
+                                    className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#A5D6A7] bg-white px-3 text-xs font-semibold text-[#1B5E20] transition-colors hover:bg-[#F1F8F2] disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <i className="fas fa-arrow-right text-[10px]"></i>
+                                    메뉴 열기
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      markNotificationGroupRead.mutate({
+                                        groupKey: group.key,
+                                      })
+                                    }
+                                    disabled={
+                                      markNotificationGroupRead.isPending
+                                    }
+                                    className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-600 transition-colors hover:border-gray-300 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    <i
+                                      className={`fas ${
+                                        markNotificationGroupRead.isPending
+                                          ? "fa-spinner animate-spin"
+                                          : "fa-check"
+                                      } text-[10px]`}
+                                    ></i>
+                                    확인 완료
+                                  </button>
+                                </div>
+                              </article>
                             );
                           })}
                         </div>
@@ -996,17 +1064,21 @@ export default function AdminPage() {
                           <div className="divide-y divide-gray-100 border-t border-gray-100">
                             {notificationSummary.items.map(item => {
                               const targetTab = item.tab as Tab;
+                              const canOpenTarget =
+                                permittedTabs.includes(targetTab);
                               return (
-                                <button
+                                <div
                                   key={item.id}
-                                  type="button"
-                                  onClick={() =>
-                                    permittedTabs.includes(targetTab) &&
-                                    setActiveTab(targetTab)
-                                  }
-                                  className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition-colors hover:bg-gray-50"
+                                  className="flex w-full items-center justify-between gap-4 px-4 py-3"
                                 >
-                                  <span className="min-w-0">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      canOpenTarget && setActiveTab(targetTab)
+                                    }
+                                    disabled={!canOpenTarget}
+                                    className="min-w-0 flex-1 text-left transition-colors hover:text-[#1B5E20] disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
                                     <span className="mb-1 flex items-center gap-2">
                                       <span
                                         className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
@@ -1027,9 +1099,29 @@ export default function AdminPage() {
                                     <span className="mt-0.5 block truncate text-xs text-gray-500">
                                       {item.meta}
                                     </span>
-                                  </span>
-                                  <i className="fas fa-chevron-right shrink-0 text-xs text-gray-300"></i>
-                                </button>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      markNotificationGroupRead.mutate({
+                                        groupKey: item.groupKey,
+                                      })
+                                    }
+                                    disabled={
+                                      markNotificationGroupRead.isPending
+                                    }
+                                    className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-600 transition-colors hover:border-[#A5D6A7] hover:text-[#1B5E20] disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    <i
+                                      className={`fas ${
+                                        markNotificationGroupRead.isPending
+                                          ? "fa-spinner animate-spin"
+                                          : "fa-check"
+                                      } text-[10px]`}
+                                    ></i>
+                                    확인
+                                  </button>
+                                </div>
                               );
                             })}
                           </div>

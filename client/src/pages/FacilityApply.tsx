@@ -13,6 +13,9 @@ import type { FacilityBlockedDate } from "../../../drizzle/schema";
 import { toast } from "sonner";
 import { Loader2, ChevronRight, Clock, Users, MapPin, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import ReservationConflictDialog, {
+  isReservationConflictMessage,
+} from "@/components/facility/ReservationConflictDialog";
 import ReservationTimelinePicker from "@/components/facility/ReservationTimelinePicker";
 import {
   getKstDateKey,
@@ -236,6 +239,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
   const [reservedStatus, setReservedStatus] = useState<string>("pending");
   const [reservedCount, setReservedCount] = useState(1);
   const [reservedRecurrenceLabel, setReservedRecurrenceLabel] = useState<string | null>(null);
+  const [reservationConflictMessage, setReservationConflictMessage] = useState<string | null>(null);
 
   // URL 파라미터 변경 시 폼 동기화
   useEffect(() => {
@@ -301,14 +305,14 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
   const createMemberReservation = trpc.home.createReservation.useMutation({
     onSuccess: onReservationCreated,
     onError: (err) => {
-      toast.error(err.message || "예약 신청 중 오류가 발생했습니다.");
+      showReservationError(err.message || "예약 신청 중 오류가 발생했습니다.");
     },
   });
 
   const createExternalReservation = trpc.home.createExternalReservation.useMutation({
     onSuccess: onReservationCreated,
     onError: (err) => {
-      toast.error(err.message || "예약 신청 중 오류가 발생했습니다.");
+      showReservationError(err.message || "예약 신청 중 오류가 발생했습니다.");
     },
   });
 
@@ -398,6 +402,14 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     setForm(prev => ({ ...prev, startTime: start, endTime: end }));
   }
 
+  function showReservationError(message: string) {
+    if (isReservationConflictMessage(message)) {
+      setReservationConflictMessage(message);
+      return;
+    }
+    toast.error(message);
+  }
+
   function validate(): string | null {
     if (!form.reserverName.trim()) return "신청자 이름을 입력해 주세요.";
     if (!form.reserverPhone.trim()) return "연락처를 입력해 주세요.";
@@ -454,7 +466,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
       return;
     }
     const error = validate();
-    if (error) { toast.error(error); return; }
+    if (error) { showReservationError(error); return; }
     const payload = {
       facilityId,
       reserverName: form.reserverName,
@@ -483,9 +495,17 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
   }
 
   // ── 로딩/에러 상태 ────────────────────────────────────────
+  const conflictDialog = (
+    <ReservationConflictDialog
+      message={reservationConflictMessage}
+      onClose={() => setReservationConflictMessage(null)}
+    />
+  );
+
   if (loadingFacility) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F7F7F5]">
+        {conflictDialog}
         <Loader2 className="w-8 h-8 animate-spin text-[#1B5E20]" />
       </div>
     );
@@ -494,6 +514,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
   if (!facility) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F7F7F5]">
+        {conflictDialog}
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 mb-4">시설 정보를 찾을 수 없습니다.</p>
@@ -508,6 +529,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
 
   return (
     <div className="min-h-screen bg-[#F7F7F5]">
+      {conflictDialog}
       {/* 상단 배너 */}
       <section className="bg-[#1B5E20] py-10">
         <div className="container text-white">

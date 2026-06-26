@@ -43,6 +43,21 @@ export const adminContentPermissions = mysqlTable("admin_content_permissions", {
 export type AdminContentPermission = typeof adminContentPermissions.$inferSelect;
 export type InsertAdminContentPermission = typeof adminContentPermissions.$inferInsert;
 
+export const adminNotificationReadStates = mysqlTable("admin_notification_read_states", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("user_id").notNull(),
+  groupKey: varchar("group_key", { length: 128 }).notNull(),
+  lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("admin_notification_read_states_user_group_unique").on(table.userId, table.groupKey),
+  index("admin_notification_read_states_user_id_idx").on(table.userId),
+]);
+
+export type AdminNotificationReadState = typeof adminNotificationReadStates.$inferSelect;
+export type InsertAdminNotificationReadState = typeof adminNotificationReadStates.$inferInsert;
+
 // ─────────────────────────────────────────────
 // CMS: 섹션 마스터 테이블
 // 메인 페이지의 모든 섹션을 관리합니다.
