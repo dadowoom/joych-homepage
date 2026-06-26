@@ -77,6 +77,11 @@ fi
 echo "[deploy] extract artifact"
 rm -rf "${APP_DIR}/dist"
 tar -xzf "${ARTIFACT}" -C "${APP_DIR}"
+if [[ -d "${BACKUP_DIR}/dist/public/assets" ]]; then
+  echo "[deploy] preserve previous browser asset chunks"
+  mkdir -p "${APP_DIR}/dist/public/assets"
+  find "${BACKUP_DIR}/dist/public/assets" -maxdepth 1 -type f -exec cp -n {} "${APP_DIR}/dist/public/assets/" \;
+fi
 
 echo "[deploy] install production dependencies"
 if command -v pnpm >/dev/null 2>&1; then
