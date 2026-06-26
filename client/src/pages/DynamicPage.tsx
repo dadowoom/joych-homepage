@@ -67,6 +67,10 @@ function decodePath(path: string) {
   }
 }
 
+function normalizeDynamicHref(path: string | null | undefined) {
+  return decodePath(path ?? "").replace(/[\s-]+/g, "");
+}
+
 const CODE_BACKED_PAGE_ALIASES = new Map<string, string>([
   ["/page/교회소개-담임목사-저서", "/about/pastor/books"],
   ["/page/교회소개-담임목사-소개-담임목사저서", "/about/pastor/books"],
@@ -82,7 +86,13 @@ const CODE_BACKED_PAGE_ALIASES = new Map<string, string>([
 function getCodeBackedPageAlias(href: string | null | undefined) {
   const value = href?.trim();
   if (!value) return null;
-  return CODE_BACKED_PAGE_ALIASES.get(decodePath(value)) ?? null;
+  const decodedValue = decodePath(value);
+  const directAlias = CODE_BACKED_PAGE_ALIASES.get(decodedValue);
+  if (directAlias) return directAlias;
+  if (normalizeDynamicHref(decodedValue).includes("/page/시설사용예약외부인")) {
+    return "/facility/external";
+  }
+  return null;
 }
 
 function getCanonicalInternalHref(href: string | null | undefined, legacyHref: string) {
@@ -132,6 +142,13 @@ function isSubtitleRequestMenuItem(item: DynamicPageItem) {
 
 function isVisitRequestMenuItem(item: DynamicPageItem) {
   return item.label.replace(/\s+/g, "") === "탐방신청";
+}
+
+function isExternalFacilityReservationMenuItem(item: DynamicPageItem) {
+  return (
+    item.label.replace(/\s+/g, "") === "외부인" &&
+    normalizeDynamicHref(item.href).includes("시설사용예약외부인")
+  );
 }
 
 function getRepresentativeSubItemHref(subItems: DynamicPageSubItem[] | undefined) {
@@ -266,6 +283,7 @@ function MenuItemPageContent({
   const shouldRedirectToBulletinAd = isBulletinAdRequestMenuItem(item);
   const shouldRedirectToSubtitle = isSubtitleRequestMenuItem(item);
   const shouldRedirectToVisitRequest = isVisitRequestMenuItem(item);
+  const shouldRedirectToExternalFacility = isExternalFacilityReservationMenuItem(item);
   const firstSubItemHref = getFirstSubItemHref(allMenus, item.id);
   const shouldRedirectToFirstSubItem =
     !staffCategory &&
@@ -291,6 +309,10 @@ function MenuItemPageContent({
       setLocation("/support/tour");
       return;
     }
+    if (shouldRedirectToExternalFacility) {
+      setLocation("/facility/external");
+      return;
+    }
     if (shouldRedirectToFirstSubItem && firstSubItemHref) {
       setLocation(firstSubItemHref);
     }
@@ -301,6 +323,7 @@ function MenuItemPageContent({
     shouldRedirectToBulletinView,
     shouldRedirectToSubtitle,
     shouldRedirectToVisitRequest,
+    shouldRedirectToExternalFacility,
     shouldRedirectToFirstSubItem,
   ]);
 
@@ -320,7 +343,7 @@ function MenuItemPageContent({
     );
   }
 
-  if (shouldRedirectToBulletinView || shouldRedirectToBulletinAd || shouldRedirectToSubtitle || shouldRedirectToVisitRequest) {
+  if (shouldRedirectToBulletinView || shouldRedirectToBulletinAd || shouldRedirectToSubtitle || shouldRedirectToVisitRequest || shouldRedirectToExternalFacility) {
     return <LoadingDynamicPage />;
   }
 
@@ -395,6 +418,7 @@ function MenuSubItemPageContent({
   const shouldRedirectToBulletinAd = isBulletinAdRequestMenuItem(item);
   const shouldRedirectToSubtitle = isSubtitleRequestMenuItem(item);
   const shouldRedirectToVisitRequest = isVisitRequestMenuItem(item);
+  const shouldRedirectToExternalFacility = isExternalFacilityReservationMenuItem(item);
 
   useEffect(() => {
     if (shouldRedirectToBulletinView) {
@@ -411,10 +435,14 @@ function MenuSubItemPageContent({
     }
     if (shouldRedirectToVisitRequest) {
       setLocation("/support/tour");
+      return;
     }
-  }, [setLocation, shouldRedirectToBulletinAd, shouldRedirectToBulletinView, shouldRedirectToSubtitle, shouldRedirectToVisitRequest]);
+    if (shouldRedirectToExternalFacility) {
+      setLocation("/facility/external");
+    }
+  }, [setLocation, shouldRedirectToBulletinAd, shouldRedirectToBulletinView, shouldRedirectToSubtitle, shouldRedirectToVisitRequest, shouldRedirectToExternalFacility]);
 
-  if (shouldRedirectToBulletinView || shouldRedirectToBulletinAd || shouldRedirectToSubtitle || shouldRedirectToVisitRequest) {
+  if (shouldRedirectToBulletinView || shouldRedirectToBulletinAd || shouldRedirectToSubtitle || shouldRedirectToVisitRequest || shouldRedirectToExternalFacility) {
     return <LoadingDynamicPage />;
   }
 

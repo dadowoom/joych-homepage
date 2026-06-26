@@ -24,12 +24,26 @@ function normalizeMenuLabel(label: string) {
   return label.replace(/\s+/g, "");
 }
 
-function getSpecialMenuHref(label?: string | null) {
+function decodeMenuHref(href?: string | null) {
+  try {
+    return decodeURIComponent(href ?? "");
+  } catch {
+    return href ?? "";
+  }
+}
+
+function normalizeMenuHref(href?: string | null) {
+  return decodeMenuHref(href).replace(/[\s-]+/g, "");
+}
+
+function getSpecialMenuHref(label?: string | null, href?: string | null) {
   const normalized = normalizeMenuLabel(label ?? "");
+  const normalizedHref = normalizeMenuHref(href);
   if (normalized === "주보보기") return "/worship/bulletin";
   if (normalized === "주보광고신청") return "/support/bulletin-ad";
   if (normalized === "자막신청") return "/support/subtitle";
   if (normalized === "탐방신청") return "/support/tour";
+  if (normalized === "외부인" && normalizedHref.includes("시설사용예약외부인")) return "/facility/external";
   return null;
 }
 
@@ -51,7 +65,7 @@ function getRepresentativeSubItemHref(item: unknown) {
   };
   const subItems = data.subItems ?? [];
   const bulletinView = subItems.find((sub) => normalizeMenuLabel(sub.label ?? "") === "주보보기");
-  return getSpecialMenuHref(bulletinView?.label) ?? getUsableHref(bulletinView?.href) ?? getUsableHref(subItems.find((sub) => getUsableHref(sub.href))?.href);
+  return getSpecialMenuHref(bulletinView?.label, bulletinView?.href) ?? getUsableHref(bulletinView?.href) ?? getUsableHref(subItems.find((sub) => getUsableHref(sub.href))?.href);
 }
 
 function hasOwnSecondLevelContent(item: unknown) {
@@ -66,7 +80,7 @@ function hasOwnSecondLevelContent(item: unknown) {
 }
 
 function getSecondLevelHref(item: unknown, hasSubItems: boolean) {
-  const specialHref = getSpecialMenuHref((item as { label?: string | null }).label);
+  const specialHref = getSpecialMenuHref((item as { label?: string | null }).label, (item as { href?: string | null }).href);
   if (specialHref) return specialHref;
 
   if (hasSubItems) {
@@ -81,7 +95,7 @@ function getSecondLevelHref(item: unknown, hasSubItems: boolean) {
 }
 
 function getThirdLevelHref(item: { label?: string | null; href?: string | null }) {
-  return getSpecialMenuHref(item.label) ?? getUsableHref(item.href);
+  return getSpecialMenuHref(item.label, item.href) ?? getUsableHref(item.href);
 }
 
 const fallbackMenus = toFallbackMenuTree();
