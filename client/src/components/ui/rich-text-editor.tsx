@@ -454,6 +454,31 @@ function focusEditorAt(editor: Editor, position?: number) {
   editor.commands.focus();
 }
 
+function getNearestTableCellFocusPosition(editor: Editor, referencePosition = editor.state.selection.from) {
+  const cellRanges: Array<{ from: number; to: number }> = [];
+
+  editor.state.doc.descendants((node, position) => {
+    if (node.type.name !== "tableCell" && node.type.name !== "tableHeader") return true;
+    cellRanges.push({ from: position, to: position + node.nodeSize });
+    return false;
+  });
+
+  const nearestCell = cellRanges
+    .sort((a, b) => Math.abs(a.from - referencePosition) - Math.abs(b.from - referencePosition))[0];
+
+  if (!nearestCell) return null;
+  return Math.min(nearestCell.from + 2, nearestCell.to - 1);
+}
+
+function focusNearestTableCell(editor: Editor, referencePosition = editor.state.selection.from) {
+  const nextCellPosition = getNearestTableCellFocusPosition(editor, referencePosition);
+  if (nextCellPosition === null) {
+    focusEditorAt(editor, Math.min(referencePosition, editor.state.doc.content.size));
+    return;
+  }
+  focusEditorAt(editor, nextCellPosition);
+}
+
 function createEmptyParagraph(editor: Editor) {
   const paragraph = editor.schema.nodes.paragraph;
   return paragraph?.createAndFill() ?? paragraph?.create() ?? null;
@@ -692,13 +717,17 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
   const deleteCurrentRow = () => {
     const focusPosition = getCurrentTableCellFocusPosition(editor);
     if (!confirmActionAndKeepFocus("현재 행 전체를 삭제할까요?", focusPosition)) return;
-    editor.chain().focus(focusPosition).deleteRow().run();
+    if (editor.chain().focus(focusPosition).deleteRow().run()) {
+      focusNearestTableCell(editor, focusPosition);
+    }
   };
 
   const deleteCurrentColumn = () => {
     const focusPosition = getCurrentTableCellFocusPosition(editor);
     if (!confirmActionAndKeepFocus("현재 열 전체를 삭제할까요?", focusPosition)) return;
-    editor.chain().focus(focusPosition).deleteColumn().run();
+    if (editor.chain().focus(focusPosition).deleteColumn().run()) {
+      focusNearestTableCell(editor, focusPosition);
+    }
   };
 
   const deleteCurrentTable = () => {
