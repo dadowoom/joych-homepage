@@ -17,6 +17,8 @@ import {
 } from "../../drizzle/schema";
 import { getDb } from "./connection";
 
+const ACTIVE_RESERVATION_STATUSES = ["pending", "checking", "approved"] as const;
+
 export class ReservationOverlapError extends Error {
   constructor(
     public readonly startTime: string,
@@ -86,6 +88,19 @@ export async function getFacilityById(id: number) {
   if (!db) return null;
   const rows = await db.select().from(facilities).where(eq(facilities.id, id)).limit(1);
   return rows[0] ?? null;
+}
+
+/** 외부인에게 공개된 시설 목록 조회 */
+export async function getExternalReservableFacilities() {
+  const rows = await getFacilities(true);
+  return rows.filter((facility) => facility.isExternalReservable && facility.isReservable);
+}
+
+/** 외부인에게 공개된 시설 단건 조회 */
+export async function getExternalReservableFacilityById(id: number) {
+  const facility = await getFacilityById(id);
+  if (!facility?.isVisible || !facility.isReservable || !facility.isExternalReservable) return null;
+  return facility;
 }
 
 /** 시설 생성 */
@@ -245,6 +260,7 @@ export async function getAllReservations(facilityId?: number) {
       id: reservations.id,
       facilityId: reservations.facilityId,
       userId: reservations.userId,
+      reservationType: reservations.reservationType,
       reserverName: reservations.reserverName,
       reserverPhone: reservations.reserverPhone,
       reservationDate: reservations.reservationDate,
@@ -288,6 +304,7 @@ export async function getMyReservations(userId: number) {
       id: reservations.id,
       facilityId: reservations.facilityId,
       userId: reservations.userId,
+      reservationType: reservations.reservationType,
       reserverName: reservations.reserverName,
       reserverPhone: reservations.reserverPhone,
       reservationDate: reservations.reservationDate,
@@ -334,6 +351,7 @@ export async function getAdminReservationDetailsByDate(facilityId: number, date:
       id: reservations.id,
       facilityId: reservations.facilityId,
       userId: reservations.userId,
+      reservationType: reservations.reservationType,
       reserverName: reservations.reserverName,
       reserverPhone: reservations.reserverPhone,
       reservationDate: reservations.reservationDate,
@@ -390,10 +408,7 @@ export async function createReservationIfAvailable(data: Omit<InsertReservation,
         .where(and(
           eq(reservations.facilityId, data.facilityId),
           eq(reservations.reservationDate, data.reservationDate),
-          or(
-            eq(reservations.status, "pending"),
-            eq(reservations.status, "approved"),
-          ),
+          inArray(reservations.status, ACTIVE_RESERVATION_STATUSES),
           lt(reservations.startTime, data.endTime),
           gt(reservations.endTime, data.startTime),
         ))
@@ -488,10 +503,7 @@ export async function updateReservationDetails(id: number, data: ReservationDeta
       eq(reservations.facilityId, reservation.facilityId),
       eq(reservations.reservationDate, nextReservationDate),
       ne(reservations.id, id),
-      or(
-        eq(reservations.status, "pending"),
-        eq(reservations.status, "approved"),
-      ),
+      inArray(reservations.status, ACTIVE_RESERVATION_STATUSES),
       lt(reservations.startTime, nextEndTime),
       gt(reservations.endTime, nextStartTime),
     ))
@@ -533,10 +545,7 @@ export async function updateReservationGroupDetails(
         eq(reservations.facilityId, row.facilityId),
         eq(reservations.reservationDate, row.reservationDate),
         notInArray(reservations.id, groupIds),
-        or(
-          eq(reservations.status, "pending"),
-          eq(reservations.status, "approved"),
-        ),
+        inArray(reservations.status, ACTIVE_RESERVATION_STATUSES),
         lt(reservations.startTime, nextEndTime),
         gt(reservations.endTime, nextStartTime),
       ))
@@ -559,7 +568,7 @@ export async function updateReservationGroupDetails(
  */
 export async function updateReservationStatus(
   id: number,
-  status: "pending" | "approved" | "rejected" | "cancelled",
+  status: "pending" | "checking" | "approved" | "rejected" | "cancelled",
   adminComment?: string,
   adminUserId?: number
 ) {
@@ -581,7 +590,7 @@ export async function updateReservationStatus(
 /** 반복 예약 묶음 상태 변경 (승인/거절/취소) */
 export async function updateReservationGroupStatus(
   recurrenceGroupId: string,
-  status: "pending" | "approved" | "rejected" | "cancelled",
+  status: "pending" | "checking" | "approved" | "rejected" | "cancelled",
   adminComment?: string,
   adminUserId?: number
 ) {
@@ -609,6 +618,7 @@ export async function getReservationById(id: number) {
       id: reservations.id,
       facilityId: reservations.facilityId,
       userId: reservations.userId,
+      reservationType: reservations.reservationType,
       reserverName: reservations.reserverName,
       reserverPhone: reservations.reserverPhone,
       reservationDate: reservations.reservationDate,

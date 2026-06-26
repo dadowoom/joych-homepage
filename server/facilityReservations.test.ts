@@ -4,6 +4,8 @@ import type { TrpcContext, TrpcUser } from "./_core/context";
 
 const dbMocks = vi.hoisted(() => ({
   getFacilityById: vi.fn(),
+  getExternalReservableFacilityById: vi.fn(),
+  getExternalReservableFacilities: vi.fn(),
   getFacilityHours: vi.fn(),
   getBlockedDates: vi.fn(),
   getReservationsByDate: vi.fn(),
@@ -36,6 +38,8 @@ vi.mock("./db", async (importOriginal) => {
   return {
     ...actual,
     getFacilityById: dbMocks.getFacilityById,
+    getExternalReservableFacilityById: dbMocks.getExternalReservableFacilityById,
+    getExternalReservableFacilities: dbMocks.getExternalReservableFacilities,
     getFacilityHours: dbMocks.getFacilityHours,
     getBlockedDates: dbMocks.getBlockedDates,
     getReservationsByDate: dbMocks.getReservationsByDate,
@@ -67,6 +71,7 @@ const reservableFacility = {
   imageUrl: null,
   isVisible: true,
   isReservable: true,
+  isExternalReservable: true,
   approvalType: "manual",
   openTime: "09:00",
   closeTime: "21:00",
@@ -110,6 +115,7 @@ function createContext(user: TrpcUser | null = null): TrpcContext {
 }
 
 type ReservationInput = Parameters<ReturnType<typeof appRouter.createCaller>["home"]["createReservation"]>[0];
+type ExternalReservationInput = Parameters<ReturnType<typeof appRouter.createCaller>["home"]["createExternalReservation"]>[0];
 
 function reservationInput(overrides: Partial<ReservationInput> = {}): ReservationInput {
   return {
@@ -121,6 +127,22 @@ function reservationInput(overrides: Partial<ReservationInput> = {}): Reservatio
     endTime: "15:30",
     purpose: "Team meeting",
     department: "Youth",
+    attendees: 5,
+    notes: "",
+    ...overrides,
+  };
+}
+
+function externalReservationInput(overrides: Partial<ExternalReservationInput> = {}): ExternalReservationInput {
+  return {
+    facilityId: 1,
+    reserverName: "External Visitor",
+    reserverPhone: "01099998888",
+    reservationDate: "2026-06-17",
+    startTime: "15:00",
+    endTime: "16:00",
+    purpose: "External meeting",
+    department: "Guest Group",
     attendees: 5,
     notes: "",
     ...overrides,
@@ -141,6 +163,8 @@ describe("facility reservation lead-time guard", () => {
     });
     dbMocks.getMemberById.mockResolvedValue(approvedMember);
     dbMocks.getFacilityById.mockResolvedValue(reservableFacility);
+    dbMocks.getExternalReservableFacilityById.mockResolvedValue(reservableFacility);
+    dbMocks.getExternalReservableFacilities.mockResolvedValue([reservableFacility]);
     dbMocks.getFacilityHours.mockResolvedValue([]);
     dbMocks.getBlockedDates.mockResolvedValue([]);
     dbMocks.getReservationsByDate.mockResolvedValue([]);
@@ -220,6 +244,48 @@ describe("facility reservation lead-time guard", () => {
       caller.home.createReservation(reservationInput({ startTime: "15:00", endTime: "16:00" }))
     ).resolves.toMatchObject({ id: 100, status: "pending", count: 1 });
     expect(dbMocks.createReservationIfAvailable).toHaveBeenCalled();
+  });
+
+  it("allows public external facility reservation requests without member login", async () => {
+    const caller = appRouter.createCaller(createContext(null));
+
+    await expect(
+      caller.home.createExternalReservation(externalReservationInput())
+    ).resolves.toMatchObject({ id: 100, status: "pending", count: 1 });
+
+    expect(dbMocks.getExternalReservableFacilityById).toHaveBeenCalledWith(1);
+    expect(dbMocks.createReservationIfAvailable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: null,
+        reservationType: "external",
+        status: "pending",
+        reservationDate: "2026-06-17",
+        startTime: "15:00",
+        endTime: "16:00",
+      }),
+    );
+  });
+
+  it("blocks external facility reservation requests when the selected time overlaps an existing reservation", async () => {
+    dbMocks.getReservationsByDate.mockResolvedValue([
+      {
+        startTime: "15:30",
+        endTime: "16:30",
+        status: "checking",
+        purpose: "Existing reservation",
+        reserverName: "Reservation Member",
+      },
+    ]);
+
+    const caller = appRouter.createCaller(createContext(null));
+
+    await expect(
+      caller.home.createExternalReservation(externalReservationInput())
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+
+    expect(dbMocks.createReservationIfAvailable).not.toHaveBeenCalled();
   });
 
   it("blocks external-category members even if the reservation flag is enabled", async () => {

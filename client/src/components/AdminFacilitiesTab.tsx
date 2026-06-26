@@ -134,6 +134,7 @@ interface FacilityForm {
   minSlots: number;
   maxSlots: number;
   approvalType: "auto" | "manual";
+  isExternalReservable: boolean;
   notice: string;
 }
 
@@ -157,6 +158,7 @@ const EMPTY_FORM: FacilityForm = {
   minSlots: 1,
   maxSlots: 8,
   approvalType: "manual",
+  isExternalReservable: false,
   notice: "",
 };
 
@@ -256,6 +258,9 @@ function SortableFacilityRow({
               <CheckCircle2 className="w-3 h-3" />
               {facility.approvalType === "auto" ? "자동 승인" : "수동 승인"}
             </span>
+            {facility.isExternalReservable && (
+              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">외부인 공개</span>
+            )}
             <span>{facility.pricePerHour === 0 ? "무료" : `${facility.pricePerHour.toLocaleString()}원/시간`}</span>
           </div>
         </div>
@@ -869,6 +874,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
       minSlots: f.minSlots,
       maxSlots: f.maxSlots,
       approvalType: f.approvalType as "auto" | "manual",
+      isExternalReservable: Boolean(f.isExternalReservable),
       notice: f.notice ?? "",
     });
     setImages([]);
@@ -1305,6 +1311,20 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
                   <option value="auto">자동 승인 (즉시 승인)</option>
                 </select>
               </div>
+              <label className="col-span-2 md:col-span-3 flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={form.isExternalReservable}
+                  onChange={e => setForm(p => ({ ...p, isExternalReservable: e.target.checked }))}
+                  className="mt-1 h-4 w-4 rounded border-blue-300 text-[#1B5E20]"
+                />
+                <span>
+                  <span className="block text-sm font-bold text-blue-900">외부인 예약 공개</span>
+                  <span className="mt-0.5 block text-xs leading-5 text-blue-700">
+                    체크하면 시설사용예약 &gt; 외부인 화면에 노출되고, 비회원도 이름/연락처를 입력해 예약을 신청할 수 있습니다.
+                  </span>
+                </span>
+              </label>
             </div>
           </div>
 

@@ -26,13 +26,18 @@ import { hasFacilityReservationRuleOverride } from "@shared/facilityReservationE
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
 type FacilityBuilding = "hayoungin" | "welfare";
+type FacilityAudience = "member" | "external";
 
 function normalizeFacilityBuilding(building: string | null | undefined): FacilityBuilding {
   return building === "hayoungin" ? "hayoungin" : "welfare";
 }
 
-function getFacilityListHref(building: FacilityBuilding) {
-  return `/facility?building=${building}`;
+function getFacilityListHref(building: FacilityBuilding, audience: FacilityAudience = "member") {
+  return audience === "external" ? `/facility/external?building=${building}` : `/facility?building=${building}`;
+}
+
+function getFacilityApplyHref(facilityId: number, audience: FacilityAudience) {
+  return audience === "external" ? `/facility/external/${facilityId}/apply` : `/facility/${facilityId}/apply`;
 }
 
 function formatDayRanges(days: number[]) {
@@ -603,7 +608,7 @@ function ReservationCalendar({
 }
 
 // ── 메인 상세 페이지 ───────────────────────────────────────
-export default function FacilityDetail() {
+function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }) {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const searchString = useSearch();
@@ -611,25 +616,33 @@ export default function FacilityDetail() {
   const [selectedDate, setSelectedDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const isExternal = audience === "external";
 
-  const { data: facility, isLoading } = trpc.home.facility.useQuery(
+  const memberFacilityQuery = trpc.home.facility.useQuery(
     { id: facilityId },
-    { enabled: !isNaN(facilityId) }
+    { enabled: !isNaN(facilityId) && !isExternal }
   );
+  const externalFacilityQuery = trpc.home.externalFacility.useQuery(
+    { id: facilityId },
+    { enabled: !isNaN(facilityId) && isExternal }
+  );
+  const facility = isExternal ? externalFacilityQuery.data : memberFacilityQuery.data;
+  const isLoading = isExternal ? externalFacilityQuery.isLoading : memberFacilityQuery.isLoading;
   const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, {
+    enabled: !isExternal,
     retry: false,
     refetchOnWindowFocus: false,
   });
   const { data: reservationSettings } = trpc.home.settings.useQuery();
-  const isApprovedMember = Boolean(memberMe);
-  const hasReservationOverride = hasFacilityReservationRuleOverride(memberMe ?? {});
+  const isApprovedMember = isExternal || Boolean(memberMe);
+  const hasReservationOverride = !isExternal && hasFacilityReservationRuleOverride(memberMe ?? {});
   const reservationMaxMonths = getFacilityReservationMaxMonths(reservationSettings);
   const reservationMaxDateKey = getReservationMaxDateKey(reservationSettings);
   const activeBuilding = useMemo(() => {
     const requestedBuilding = new URLSearchParams(searchString).get("building");
     return normalizeFacilityBuilding(requestedBuilding ?? facility?.building);
   }, [facility?.building, searchString]);
-  const facilityListHref = getFacilityListHref(activeBuilding);
+  const facilityListHref = getFacilityListHref(activeBuilding, audience);
 
   function goToMemberLogin() {
     const nextPath = `/facility/${facilityId}${searchString ? `?${searchString}` : ""}`;
@@ -656,7 +669,7 @@ export default function FacilityDetail() {
   // 예약 신청 버튼 클릭
   function handleApply() {
     if (!selectedDate) return;
-    if (!isApprovedMember) {
+    if (!isExternal && !isApprovedMember) {
       goToMemberLogin();
       return;
     }
@@ -666,7 +679,7 @@ export default function FacilityDetail() {
     });
     if (startTime) params.set("startTime", startTime);
     if (endTime) params.set("endTime", endTime);
-    navigate(`/facility/${facilityId}/apply?${params.toString()}`);
+    navigate(`${getFacilityApplyHref(facilityId, audience)}?${params.toString()}`);
   }
 
   // 버튼 라벨
@@ -825,7 +838,7 @@ export default function FacilityDetail() {
               {facility.isReservable ? (
                 <Button
                   className="w-full bg-[#1B5E20] hover:bg-[#2E7D32] text-white py-6 text-base font-bold rounded-xl disabled:opacity-50"
-                  disabled={!selectedDate || memberLoading}
+                  disabled={!selectedDate || (!isExternal && memberLoading)}
                   onClick={handleApply}
                 >
                   <CalendarCheck size={20} className="mr-2" />
@@ -852,3 +865,13 @@ export default function FacilityDetail() {
     </div>
   );
 }
+
+export function ExternalFacilityDetail() {
+  return <FacilityDetail audience="external" />;
+}
+
+function MemberFacilityDetail() {
+  return <FacilityDetail audience="member" />;
+}
+
+export default MemberFacilityDetail;

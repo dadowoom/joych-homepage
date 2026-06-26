@@ -769,6 +769,8 @@ export const facilities = mysqlTable("facilities", {
   approvalType: mysqlEnum("approvalType", ["auto", "manual"]).notNull().default("manual"),
   /** 예약 가능 여부 (false = 예약 중단) */
   isReservable: boolean("isReservable").notNull().default(true),
+  /** 외부인 비회원 예약 공개 여부 */
+  isExternalReservable: boolean("isExternalReservable").notNull().default(false),
   /** 노출 여부 */
   isVisible: boolean("isVisible").notNull().default(true),
   /** 이용 안내 (마크다운 지원) */
@@ -873,8 +875,10 @@ export const reservations = mysqlTable("reservations", {
   id: int("id").autoincrement().primaryKey(),
   /** 시설 ID */
   facilityId: int("facilityId").notNull(),
-  /** 예약자 성도 ID (church_members.id 참조) */
-  userId: int("userId").notNull(),
+  /** 예약자 성도 ID (외부인 예약은 null) */
+  userId: int("userId"),
+  /** 예약 구분: member(성도) / external(외부인) */
+  reservationType: mysqlEnum("reservationType", ["member", "external"]).notNull().default("member"),
   /** 예약자 이름 (비로그인 예약 또는 대리 예약 시) */
   reserverName: varchar("reserverName", { length: 64 }).notNull(),
   /** 예약자 연락처 */
@@ -893,8 +897,8 @@ export const reservations = mysqlTable("reservations", {
   attendees: int("attendees").notNull().default(1),
   /** 추가 요청사항 */
   notes: text("notes"),
-  /** 예약 상태: pending(대기) / approved(승인) / rejected(거절) / cancelled(취소) */
-  status: mysqlEnum("status", ["pending", "approved", "rejected", "cancelled"]).notNull().default("pending"),
+  /** 예약 상태: pending(대기) / checking(확인중) / approved(승인) / rejected(거절) / cancelled(취소) */
+  status: mysqlEnum("status", ["pending", "checking", "approved", "rejected", "cancelled"]).notNull().default("pending"),
   /** 반복 예약 묶음 ID */
   recurrenceGroupId: varchar("recurrenceGroupId", { length: 64 }),
   /** 반복 예약 설명 */

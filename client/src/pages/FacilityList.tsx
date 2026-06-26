@@ -17,6 +17,7 @@ const FACILITY_BUILDINGS = [
 ] as const;
 
 type FacilityBuilding = typeof FACILITY_BUILDINGS[number]["value"];
+type FacilityAudience = "member" | "external";
 type SiteSettings = Record<string, string>;
 
 const DEFAULT_FACILITY_HERO_BACKGROUND =
@@ -74,19 +75,24 @@ function getFacilityBuildingFromSearch(searchString: string) {
   return normalizeFacilityBuilding(new URLSearchParams(searchString).get("building"));
 }
 
-function getFacilityListHref(building: FacilityBuilding) {
-  return `/facility?building=${building}`;
+function getFacilityListHref(building: FacilityBuilding, audience: FacilityAudience = "member") {
+  return audience === "external" ? `/facility/external?building=${building}` : `/facility?building=${building}`;
 }
 
-function getFacilityDetailHref(facilityId: number, building: FacilityBuilding) {
-  return `/facility/${facilityId}?building=${building}`;
+function getFacilityDetailHref(facilityId: number, building: FacilityBuilding, audience: FacilityAudience = "member") {
+  return audience === "external"
+    ? `/facility/external/${facilityId}?building=${building}`
+    : `/facility/${facilityId}?building=${building}`;
 }
 
 // ── 상단 배너 ──────────────────────────────────────────────
-function FacilityHero({ settings }: { settings?: SiteSettings }) {
-  const eyebrow = getSettingText(settings, "facility_hero_eyebrow", FACILITY_HERO_DEFAULTS.eyebrow);
-  const title = getSettingText(settings, "facility_hero_title", FACILITY_HERO_DEFAULTS.title);
-  const description = getSettingText(settings, "facility_hero_description", FACILITY_HERO_DEFAULTS.description);
+function FacilityHero({ settings, audience }: { settings?: SiteSettings; audience: FacilityAudience }) {
+  const isExternal = audience === "external";
+  const eyebrow = isExternal ? "External Reservation" : getSettingText(settings, "facility_hero_eyebrow", FACILITY_HERO_DEFAULTS.eyebrow);
+  const title = isExternal ? "외부인 시설 사용 예약" : getSettingText(settings, "facility_hero_title", FACILITY_HERO_DEFAULTS.title);
+  const description = isExternal
+    ? "외부 기관과 방문자를 위해 공유된 시설을 예약 신청할 수 있습니다.\n예약 신청 후 담당자 확인을 거쳐 승인됩니다."
+    : getSettingText(settings, "facility_hero_description", FACILITY_HERO_DEFAULTS.description);
   const backgroundUrl = getSettingText(settings, "facility_hero_background_url", FACILITY_HERO_DEFAULTS.backgroundUrl);
 
   return (
@@ -111,13 +117,27 @@ function FacilityHero({ settings }: { settings?: SiteSettings }) {
   );
 }
 
+export function ExternalFacilityList() {
+  return <FacilityList audience="external" />;
+}
+
+function MemberFacilityList() {
+  return <FacilityList audience="member" />;
+}
+
+export default MemberFacilityList;
+
 // ── 이용 안내 요약 배너 ────────────────────────────────────
-function FacilityGuide({ settings }: { settings?: SiteSettings }) {
+function FacilityGuide({ settings, audience }: { settings?: SiteSettings; audience: FacilityAudience }) {
   const steps = FACILITY_GUIDE_DEFAULTS.map((step) => ({
     icon: step.icon,
     title: getSettingText(settings, step.titleKey, step.title),
     desc: getSettingText(settings, step.descKey, step.desc),
   }));
+  if (audience === "external") {
+    steps[0] = { ...steps[0], title: "공개 시설 선택", desc: "외부인에게 공유된 시설만 표시됩니다" };
+    steps[3] = { ...steps[3], title: "담당자 확인", desc: "확인중/승인완료 상태로 처리됩니다" };
+  }
   return (
     <section className="bg-[#F1F8E9] border-b border-green-100 py-6">
       <div className="container">
@@ -140,7 +160,7 @@ function FacilityGuide({ settings }: { settings?: SiteSettings }) {
 }
 
 // ── 시설 카드 ──────────────────────────────────────────────
-function FacilityCard({ facility, activeBuilding }: { facility: Facility; activeBuilding: FacilityBuilding }) {
+function FacilityCard({ facility, activeBuilding, audience }: { facility: Facility; activeBuilding: FacilityBuilding; audience: FacilityAudience }) {
   const { data: images } = trpc.home.facilityImages.useQuery({ facilityId: facility.id });
   const thumbnail = images?.find((img: FacilityImage) => img.isThumbnail) ?? images?.[0];
 
@@ -201,7 +221,7 @@ function FacilityCard({ facility, activeBuilding }: { facility: Facility; active
           )}
         </div>
 
-        <Link href={getFacilityDetailHref(facility.id, activeBuilding)}>
+        <Link href={getFacilityDetailHref(facility.id, activeBuilding, audience)}>
           <Button
             className="w-full bg-[#1B5E20] hover:bg-[#2E7D32] text-white"
             disabled={!facility.isReservable}
@@ -215,8 +235,12 @@ function FacilityCard({ facility, activeBuilding }: { facility: Facility; active
 }
 
 // ── 메인 페이지 컴포넌트 ───────────────────────────────────
-export default function FacilityList() {
-  const { data: facilities, isLoading } = trpc.home.facilities.useQuery();
+function FacilityList({ audience = "member" }: { audience?: FacilityAudience }) {
+  const isExternal = audience === "external";
+  const memberFacilitiesQuery = trpc.home.facilities.useQuery(undefined, { enabled: !isExternal });
+  const externalFacilitiesQuery = trpc.home.externalFacilities.useQuery(undefined, { enabled: isExternal });
+  const facilities = isExternal ? externalFacilitiesQuery.data : memberFacilitiesQuery.data;
+  const isLoading = isExternal ? externalFacilitiesQuery.isLoading : memberFacilitiesQuery.isLoading;
   const { data: settings } = trpc.home.settings.useQuery();
   const searchString = useSearch();
   const [, navigate] = useLocation();
@@ -239,19 +263,21 @@ export default function FacilityList() {
 
   return (
     <div className="min-h-screen bg-[#F7F7F5]">
-      <FacilityHero settings={settings as SiteSettings | undefined} />
-      <FacilityGuide settings={settings as SiteSettings | undefined} />
+      <FacilityHero settings={settings as SiteSettings | undefined} audience={audience} />
+      <FacilityGuide settings={settings as SiteSettings | undefined} audience={audience} />
 
       <section className="py-12">
         <div className="container">
-          <div className="mb-6 flex justify-end">
-            <Link href="/facility/my-reservations">
-              <Button variant="outline" className="border-[#1B5E20] text-[#1B5E20] hover:bg-green-50">
-                <CalendarCheck size={16} className="mr-2" />
-                내 예약 현황
-              </Button>
-            </Link>
-          </div>
+          {!isExternal && (
+            <div className="mb-6 flex justify-end">
+              <Link href="/facility/my-reservations">
+                <Button variant="outline" className="border-[#1B5E20] text-[#1B5E20] hover:bg-green-50">
+                  <CalendarCheck size={16} className="mr-2" />
+                  내 예약 현황
+                </Button>
+              </Link>
+            </div>
+          )}
 
           {/* 건물 분류 */}
           {!isLoading && facilities && facilities.length > 0 && (
@@ -272,7 +298,7 @@ export default function FacilityList() {
                     <button
                       key={building.value}
                       type="button"
-                      onClick={() => navigate(getFacilityListHref(building.value))}
+                      onClick={() => navigate(getFacilityListHref(building.value, audience))}
                       className={`flex items-center justify-between rounded-xl border px-5 py-4 text-left transition-all ${
                         isActive
                           ? "border-[#1B5E20] bg-[#F1F8E9] shadow-sm"
@@ -309,7 +335,7 @@ export default function FacilityList() {
           ) : !facilities || facilities.length === 0 ? (
             <div className="text-center py-20 text-gray-400">
               <CalendarCheck size={48} className="mx-auto mb-4 opacity-30" />
-              <p className="text-lg">등록된 시설이 없습니다.</p>
+              <p className="text-lg">{isExternal ? "외부인에게 공개된 시설이 없습니다." : "등록된 시설이 없습니다."}</p>
               <p className="text-sm mt-2">관리자에게 문의해 주세요.</p>
             </div>
           ) : visibleFacilities.length === 0 ? (
@@ -321,7 +347,7 @@ export default function FacilityList() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {visibleFacilities.map((f: Facility) => (
-                <FacilityCard key={f.id} facility={f} activeBuilding={activeBuilding} />
+                <FacilityCard key={f.id} facility={f} activeBuilding={activeBuilding} audience={audience} />
               ))}
             </div>
           )}

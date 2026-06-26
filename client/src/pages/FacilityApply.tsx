@@ -37,17 +37,20 @@ const PURPOSE_OPTIONS = [
 
 type RepeatType = "none" | "daily" | "weekly" | "monthly-weekday";
 type FacilityBuilding = "hayoungin" | "welfare";
+type FacilityAudience = "member" | "external";
 
 function normalizeFacilityBuilding(building: string | null | undefined): FacilityBuilding {
   return building === "hayoungin" ? "hayoungin" : "welfare";
 }
 
-function getFacilityListHref(building: FacilityBuilding) {
-  return `/facility?building=${building}`;
+function getFacilityListHref(building: FacilityBuilding, audience: FacilityAudience) {
+  return audience === "external" ? `/facility/external?building=${building}` : `/facility?building=${building}`;
 }
 
-function getFacilityDetailHref(facilityId: number, building: FacilityBuilding) {
-  return `/facility/${facilityId}?building=${building}`;
+function getFacilityDetailHref(facilityId: number, building: FacilityBuilding, audience: FacilityAudience) {
+  return audience === "external"
+    ? `/facility/external/${facilityId}?building=${building}`
+    : `/facility/${facilityId}?building=${building}`;
 }
 
 const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
@@ -79,12 +82,13 @@ function Field({ label, required, children, hint }: {
 }
 
 // ── 완료 화면 ────────────────────────────────────────────────
-function SuccessScreen({ facilityName, status, count, recurrenceLabel, facilityListHref, onReset }: {
+function SuccessScreen({ facilityName, status, count, recurrenceLabel, facilityListHref, showMyReservations = true, onReset }: {
   facilityName: string;
   status: string;
   count: number;
   recurrenceLabel?: string | null;
   facilityListHref: string;
+  showMyReservations?: boolean;
   onReset: () => void;
 }) {
   const isPending = status === "pending";
@@ -121,11 +125,13 @@ function SuccessScreen({ facilityName, status, count, recurrenceLabel, facilityL
             시설 목록으로
           </button>
         </Link>
-        <Link href="/facility/my-reservations">
-          <button className="px-5 py-2.5 rounded-lg bg-[#1B5E20] text-white text-sm hover:bg-[#2E7D32] transition-colors">
-            내 예약 현황 보기
-          </button>
-        </Link>
+        {showMyReservations && (
+          <Link href="/facility/my-reservations">
+            <button className="px-5 py-2.5 rounded-lg bg-[#1B5E20] text-white text-sm hover:bg-[#2E7D32] transition-colors">
+              내 예약 현황 보기
+            </button>
+          </Link>
+        )}
         <button
           onClick={onReset}
           className="px-5 py-2.5 rounded-lg border border-gray-200 text-gray-600 text-sm hover:bg-gray-50 transition-colors"
@@ -172,18 +178,20 @@ function TimeSlotPicker({
 }
 
 // ── 메인 컴포넌트 ────────────────────────────────────────────
-export default function FacilityApply() {
+function FacilityApply({ audience = "member" }: { audience?: FacilityAudience }) {
   const params = useParams<{ id: string }>();
   const facilityId = Number(params.id);
+  const isExternal = audience === "external";
   const [, navigate] = useLocation();
   const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, {
     retry: false,
     refetchOnWindowFocus: false,
+    enabled: !isExternal,
   });
   const { data: reservationSettings } = trpc.home.settings.useQuery();
-  const isApprovedMember = Boolean(memberMe);
-  const hasReservationOverride = hasFacilityReservationRuleOverride(memberMe ?? {});
-  const canReserveFacility = isApprovedMember && !hasFacilityReservationBlockedMemberMarker(memberMe ?? {});
+  const isApprovedMember = isExternal || Boolean(memberMe);
+  const hasReservationOverride = !isExternal && hasFacilityReservationRuleOverride(memberMe ?? {});
+  const canReserveFacility = isExternal || (isApprovedMember && !hasFacilityReservationBlockedMemberMarker(memberMe ?? {}));
   const reservationMaxDateKey = getReservationMaxDateKey(reservationSettings);
 
   // URL 쿼리 파라미터에서 날짜/시간 읽기
@@ -199,7 +207,9 @@ export default function FacilityApply() {
   }, [searchString]);
 
   function goToMemberLogin() {
-    const nextPath = `/facility/${facilityId}/apply${searchString ? `?${searchString}` : ""}`;
+    const nextPath = isExternal
+      ? `/facility/external/${facilityId}/apply${searchString ? `?${searchString}` : ""}`
+      : `/facility/${facilityId}/apply${searchString ? `?${searchString}` : ""}`;
     const loginParams = new URLSearchParams({
       social: "facility_member_required",
       next: nextPath,
@@ -248,16 +258,22 @@ export default function FacilityApply() {
   }, [memberMe]);
 
   // ── API 쿼리 ─────────────────────────────────────────────
-  const { data: facility, isLoading: loadingFacility } = trpc.home.facility.useQuery(
+  const memberFacilityQuery = trpc.home.facility.useQuery(
     { id: facilityId },
-    { enabled: !!facilityId && !isNaN(facilityId) }
+    { enabled: !isExternal && !!facilityId && !isNaN(facilityId) }
   );
+  const externalFacilityQuery = trpc.home.externalFacility.useQuery(
+    { id: facilityId },
+    { enabled: isExternal && !!facilityId && !isNaN(facilityId) }
+  );
+  const facility = isExternal ? externalFacilityQuery.data : memberFacilityQuery.data;
+  const loadingFacility = isExternal ? externalFacilityQuery.isLoading : memberFacilityQuery.isLoading;
   const activeBuilding = useMemo(
     () => normalizeFacilityBuilding(urlBuilding || facility?.building),
     [facility?.building, urlBuilding],
   );
-  const facilityListHref = getFacilityListHref(activeBuilding);
-  const facilityDetailHref = getFacilityDetailHref(facilityId, activeBuilding);
+  const facilityListHref = getFacilityListHref(activeBuilding, audience);
+  const facilityDetailHref = getFacilityDetailHref(facilityId, activeBuilding, audience);
   const { data: facilityImages } = trpc.home.facilityImages.useQuery(
     { facilityId },
     { enabled: !!facilityId }
@@ -275,17 +291,28 @@ export default function FacilityApply() {
     { enabled: !!facilityId && !!form.date }
   );
 
-  const createReservation = trpc.home.createReservation.useMutation({
-    onSuccess: (data) => {
-      setReservedStatus(data.status);
-      setReservedCount(data.count ?? 1);
-      setReservedRecurrenceLabel(data.recurrenceLabel ?? null);
-      setSubmitted(true);
-    },
+  const onReservationCreated = (data: { status: string; count?: number | null; recurrenceLabel?: string | null }) => {
+    setReservedStatus(data.status);
+    setReservedCount(data.count ?? 1);
+    setReservedRecurrenceLabel(data.recurrenceLabel ?? null);
+    setSubmitted(true);
+  };
+
+  const createMemberReservation = trpc.home.createReservation.useMutation({
+    onSuccess: onReservationCreated,
     onError: (err) => {
       toast.error(err.message || "예약 신청 중 오류가 발생했습니다.");
     },
   });
+
+  const createExternalReservation = trpc.home.createExternalReservation.useMutation({
+    onSuccess: onReservationCreated,
+    onError: (err) => {
+      toast.error(err.message || "예약 신청 중 오류가 발생했습니다.");
+    },
+  });
+
+  const isSubmitting = isExternal ? createExternalReservation.isPending : createMemberReservation.isPending;
 
   // ── 시간 슬롯 계산 ────────────────────────────────────────
   const dayOfWeek = form.date ? getDayOfWeek(form.date) : -1;
@@ -388,7 +415,7 @@ export default function FacilityApply() {
     if (timeRestriction) return timeRestriction;
     if (!form.attendees || Number(form.attendees) < 1) return "예상 인원을 입력해 주세요.";
     if (facility && Number(form.attendees) > facility.capacity && !hasReservationOverride) return `최대 수용 인원(${facility.capacity}명)을 초과합니다.`;
-    if (form.repeatType !== "none") {
+    if (!isExternal && form.repeatType !== "none") {
       if (!form.repeatUntilDate) {
         return "반복 종료일을 선택해 주세요.";
       }
@@ -417,18 +444,18 @@ export default function FacilityApply() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!isApprovedMember) {
+    if (!isExternal && !isApprovedMember) {
       toast.error("시설 사용 예약은 승인 완료된 성도만 신청할 수 있습니다.");
       goToMemberLogin();
       return;
     }
-    if (!canReserveFacility) {
+    if (!isExternal && !canReserveFacility) {
       toast.error("시설 사용 예약은 교회 등록 성도만 신청할 수 있습니다. 관리자에게 문의해 주세요.");
       return;
     }
     const error = validate();
     if (error) { toast.error(error); return; }
-    createReservation.mutate({
+    const payload = {
       facilityId,
       reserverName: form.reserverName,
       reserverPhone: form.reserverPhone,
@@ -439,6 +466,15 @@ export default function FacilityApply() {
       department: form.department || undefined,
       attendees: Number(form.attendees),
       notes: form.notes || undefined,
+    };
+
+    if (isExternal) {
+      createExternalReservation.mutate(payload);
+      return;
+    }
+
+    createMemberReservation.mutate({
+      ...payload,
       repeat: form.repeatType === "none" ? undefined : {
         type: form.repeatType,
         untilDate: form.repeatUntilDate,
@@ -478,7 +514,9 @@ export default function FacilityApply() {
           <nav className="flex items-center gap-2 text-xs text-green-200 mb-3 flex-wrap">
             <Link href="/" className="hover:text-white transition-colors">홈</Link>
             <ChevronRight className="w-3 h-3" />
-            <Link href={facilityListHref} className="hover:text-white transition-colors">시설 사용 예약</Link>
+            <Link href={facilityListHref} className="hover:text-white transition-colors">
+              {isExternal ? "외부인 시설 예약" : "시설 사용 예약"}
+            </Link>
             <ChevronRight className="w-3 h-3" />
             <Link href={facilityDetailHref} className="hover:text-white transition-colors">{facility.name}</Link>
             <ChevronRight className="w-3 h-3" />
@@ -501,6 +539,7 @@ export default function FacilityApply() {
                 count={reservedCount}
                 recurrenceLabel={reservedRecurrenceLabel}
                 facilityListHref={facilityListHref}
+                showMyReservations={!isExternal}
                 onReset={() => { setSubmitted(false); setForm(prev => ({ ...prev, date: "", startTime: "", endTime: "", repeatType: "none", repeatUntilDate: "" })); }}
               />
             </div>
@@ -529,7 +568,7 @@ export default function FacilityApply() {
               </div>
 
               {/* 로그인 안내 — 로딩 중에는 숨겨서 깜빡임 방지 */}
-              {!memberLoading && !isApprovedMember && (
+              {!isExternal && !memberLoading && !isApprovedMember && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-center gap-3">
                   <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
                   <div className="flex-1">
@@ -545,7 +584,7 @@ export default function FacilityApply() {
                   </Button>
                 </div>
               )}
-              {!memberLoading && isApprovedMember && !canReserveFacility && (
+              {!isExternal && !memberLoading && isApprovedMember && !canReserveFacility && (
                 <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-center gap-3">
                   <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
                   <div className="flex-1">
@@ -670,38 +709,39 @@ export default function FacilityApply() {
                   </Field>
                 )}
 
-                {/* 반복 예약 */}
-                <Field label="반복 예약" hint="선택한 날짜와 시간 기준으로 여러 날짜의 예약을 한 번에 신청합니다.">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <select
-                      name="repeatType"
-                      value={form.repeatType}
-                      onChange={handleChange}
-                      className={inputClass}
-                    >
-                      {REPEAT_OPTIONS.map(option => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                    {form.repeatType !== "none" && (
-                      <input
-                        type="date"
-                        name="repeatUntilDate"
-                        value={form.repeatUntilDate}
+                {!isExternal && (
+                  <Field label="반복 예약" hint="선택한 날짜와 시간 기준으로 여러 날짜의 예약을 한 번에 신청합니다.">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <select
+                        name="repeatType"
+                        value={form.repeatType}
                         onChange={handleChange}
-                        min={form.date || getReservationLeadDateKey()}
-                        max={hasReservationOverride ? undefined : reservationMaxDateKey}
-                        aria-label="반복 종료일"
                         className={inputClass}
-                      />
+                      >
+                        {REPEAT_OPTIONS.map(option => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                      {form.repeatType !== "none" && (
+                        <input
+                          type="date"
+                          name="repeatUntilDate"
+                          value={form.repeatUntilDate}
+                          onChange={handleChange}
+                          min={form.date || getReservationLeadDateKey()}
+                          max={hasReservationOverride ? undefined : reservationMaxDateKey}
+                          aria-label="반복 종료일"
+                          className={inputClass}
+                        />
+                      )}
+                    </div>
+                    {form.repeatType !== "none" && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        종료일을 넘지 않는 날짜까지만 자동 생성됩니다. 예: 화요일에 시작한 매주 반복은 종료일을 넘지 않는 마지막 화요일까지만 신청됩니다.
+                      </p>
                     )}
-                  </div>
-                  {form.repeatType !== "none" && (
-                    <p className="text-xs text-gray-400 mt-1">
-                      종료일을 넘지 않는 날짜까지만 자동 생성됩니다. 예: 화요일에 시작한 매주 반복은 종료일을 넘지 않는 마지막 화요일까지만 신청됩니다.
-                    </p>
-                  )}
-                </Field>
+                  </Field>
+                )}
 
                 {/* 예상 인원 */}
                 <Field label="예상 인원" required hint={("최대 수용 인원: " + facility.capacity.toLocaleString() + "명")}>
@@ -752,10 +792,10 @@ export default function FacilityApply() {
                 {/* 제출 버튼 */}
                 <button
                   type="submit"
-                  disabled={createReservation.isPending || memberLoading}
+                  disabled={isSubmitting || (!isExternal && memberLoading)}
                   className="w-full bg-[#1B5E20] text-white py-3.5 rounded-xl font-bold text-base hover:bg-[#2E7D32] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {createReservation.isPending ? (
+                  {isSubmitting ? (
                     <><Loader2 className="w-5 h-5 animate-spin" /> 신청 중...</>
                   ) : (
                     <><Calendar className="w-5 h-5" /> 예약 신청하기</>
@@ -769,3 +809,13 @@ export default function FacilityApply() {
     </div>
   );
 }
+
+export function ExternalFacilityApply() {
+  return <FacilityApply audience="external" />;
+}
+
+function MemberFacilityApply() {
+  return <FacilityApply audience="member" />;
+}
+
+export default MemberFacilityApply;

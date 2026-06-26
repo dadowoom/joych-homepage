@@ -128,6 +128,26 @@ export const reservationsRouter = router({
       updateReservationGroupStatus(input.groupId, "approved", input.comment, ctx.user.id)
     ),
 
+  /** 예약 확인중 처리 (관리자) */
+  markChecking: reservationProcedure
+    .input(z.object({
+      id: idSchema,
+      comment: optionalTextSchema(20000),
+    }))
+    .mutation(({ input, ctx }) =>
+      updateReservationStatus(input.id, "checking", input.comment, ctx.user.id)
+    ),
+
+  /** 반복 예약 묶음 확인중 처리 (관리자) */
+  markCheckingGroup: reservationProcedure
+    .input(z.object({
+      groupId: groupIdSchema,
+      comment: optionalTextSchema(20000),
+    }))
+    .mutation(({ input, ctx }) =>
+      updateReservationGroupStatus(input.groupId, "checking", input.comment, ctx.user.id)
+    ),
+
   /**
    * 예약 거절 (관리자)
    * - 거절 시 reason(거절 사유)을 반드시 입력해야 함
@@ -149,6 +169,26 @@ export const reservationsRouter = router({
     }))
     .mutation(({ input, ctx }) =>
       updateReservationGroupStatus(input.groupId, "rejected", input.comment, ctx.user.id)
+    ),
+
+  /** 예약 취소 처리 (관리자) */
+  cancel: reservationProcedure
+    .input(z.object({
+      id: idSchema,
+      comment: optionalTextSchema(20000),
+    }))
+    .mutation(({ input, ctx }) =>
+      updateReservationStatus(input.id, "cancelled", input.comment, ctx.user.id)
+    ),
+
+  /** 반복 예약 묶음 취소 처리 (관리자) */
+  cancelGroup: reservationProcedure
+    .input(z.object({
+      groupId: groupIdSchema,
+      comment: optionalTextSchema(20000),
+    }))
+    .mutation(({ input, ctx }) =>
+      updateReservationGroupStatus(input.groupId, "cancelled", input.comment, ctx.user.id)
     ),
 
   delete: reservationProcedure

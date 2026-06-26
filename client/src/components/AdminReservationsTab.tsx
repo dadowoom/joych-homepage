@@ -14,7 +14,7 @@ import type { Reservation, Facility } from "../../../drizzle/schema";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, Clock, AlertCircle, Calendar, List, ChevronDown, Trash2 } from "lucide-react";
 
-type StatusFilter = "all" | "pending" | "approved" | "rejected" | "cancelled";
+type StatusFilter = "all" | "pending" | "checking" | "approved" | "rejected" | "cancelled";
 type ViewMode = "list" | "calendar";
 type ReservationStatus = Reservation["status"];
 
@@ -23,6 +23,7 @@ type AdminReservationRow = Pick<
   | "id"
   | "facilityId"
   | "userId"
+  | "reservationType"
   | "reserverName"
   | "reserverPhone"
   | "reservationDate"
@@ -66,6 +67,7 @@ type ReservationTimeEditForm = {
 
 const STATUS_LABELS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   pending:   { label: "승인 대기", color: "bg-amber-100 text-amber-700",  icon: <Clock className="w-3 h-3" /> },
+  checking:  { label: "확인중",    color: "bg-blue-100 text-blue-700",    icon: <AlertCircle className="w-3 h-3" /> },
   approved:  { label: "승인 완료", color: "bg-green-100 text-green-700",  icon: <CheckCircle2 className="w-3 h-3" /> },
   rejected:  { label: "거절",      color: "bg-red-100 text-red-700",      icon: <XCircle className="w-3 h-3" /> },
   cancelled: { label: "취소",      color: "bg-gray-100 text-gray-500",    icon: <AlertCircle className="w-3 h-3" /> },
@@ -93,6 +95,7 @@ function getReservationName(reservation: AdminReservationRow) {
 }
 
 function getReservationPosition(reservation: AdminReservationRow) {
+  if (reservation.reservationType === "external") return reservation.department || "외부인";
   return reservation.memberPosition || reservation.department || "-";
 }
 
@@ -106,6 +109,7 @@ function formatReservationTimeRange(reservation: Pick<AdminReservationRow, "star
 
 function getGroupStatus(items: AdminReservationRow[]): ReservationStatus {
   if (items.some(r => r.status === "pending")) return "pending";
+  if (items.some(r => r.status === "checking")) return "checking";
   if (items.every(r => r.status === "approved")) return "approved";
   if (items.some(r => r.status === "rejected")) return "rejected";
   if (items.some(r => r.status === "cancelled")) return "cancelled";
@@ -210,6 +214,38 @@ export default function AdminReservationsTab() {
     onError: () => toast.error("거절 처리에 실패했습니다."),
   });
 
+  const markCheckingMutation = trpc.cms.reservations.markChecking.useMutation({
+    onSuccess: () => {
+      utils.cms.reservations.list.invalidate();
+      toast.success("예약 상태를 확인중으로 변경했습니다.");
+    },
+    onError: () => toast.error("확인중 처리에 실패했습니다."),
+  });
+
+  const markCheckingGroupMutation = trpc.cms.reservations.markCheckingGroup.useMutation({
+    onSuccess: () => {
+      utils.cms.reservations.list.invalidate();
+      toast.success("반복 예약 묶음을 확인중으로 변경했습니다.");
+    },
+    onError: () => toast.error("확인중 처리에 실패했습니다."),
+  });
+
+  const cancelMutation = trpc.cms.reservations.cancel.useMutation({
+    onSuccess: () => {
+      utils.cms.reservations.list.invalidate();
+      toast.success("예약이 취소 처리되었습니다.");
+    },
+    onError: () => toast.error("취소 처리에 실패했습니다."),
+  });
+
+  const cancelGroupMutation = trpc.cms.reservations.cancelGroup.useMutation({
+    onSuccess: () => {
+      utils.cms.reservations.list.invalidate();
+      toast.success("반복 예약 묶음이 취소 처리되었습니다.");
+    },
+    onError: () => toast.error("취소 처리에 실패했습니다."),
+  });
+
   const updateTimeMutation = trpc.cms.reservations.updateTime.useMutation({
     onSuccess: () => {
       utils.cms.reservations.list.invalidate();
@@ -257,8 +293,10 @@ export default function AdminReservationsTab() {
   const stats = {
     total: groupedReservations.length,
     pending: groupedReservations.filter(group => group.status === "pending").length,
+    checking: groupedReservations.filter(group => group.status === "checking").length,
     approved: groupedReservations.filter(group => group.status === "approved").length,
     rejected: groupedReservations.filter(group => group.status === "rejected").length,
+    cancelled: groupedReservations.filter(group => group.status === "cancelled").length,
   };
 
   const approveReservation = (group: ReservationGroup) => {
@@ -275,6 +313,26 @@ export default function AdminReservationsTab() {
       return;
     }
     rejectMutation.mutate({ id: group.first.id, comment: rejectComment });
+  };
+
+  const markReservationChecking = (group: ReservationGroup) => {
+    if (group.isRecurring && group.groupId) {
+      markCheckingGroupMutation.mutate({ groupId: group.groupId });
+      return;
+    }
+    markCheckingMutation.mutate({ id: group.first.id });
+  };
+
+  const cancelReservationStatus = (group: ReservationGroup) => {
+    const message = group.isRecurring
+      ? "반복 예약 묶음을 모두 취소 처리하시겠습니까?"
+      : "예약을 취소 처리하시겠습니까?";
+    if (!confirm(message)) return;
+    if (group.isRecurring && group.groupId) {
+      cancelGroupMutation.mutate({ groupId: group.groupId });
+      return;
+    }
+    cancelMutation.mutate({ id: group.first.id });
   };
 
   const deleteReservation = (group: ReservationGroup) => {
@@ -349,12 +407,14 @@ export default function AdminReservationsTab() {
       </div>
 
       {/* 통계 카드 */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 mb-5">
         {[
           { label: "전체", value: stats.total, color: "bg-gray-50 border-gray-200", textColor: "text-gray-700" },
           { label: "승인 대기", value: stats.pending, color: "bg-amber-50 border-amber-200", textColor: "text-amber-700" },
+          { label: "확인중", value: stats.checking, color: "bg-blue-50 border-blue-200", textColor: "text-blue-700" },
           { label: "승인 완료", value: stats.approved, color: "bg-green-50 border-green-200", textColor: "text-green-700" },
           { label: "거절", value: stats.rejected, color: "bg-red-50 border-red-200", textColor: "text-red-700" },
+          { label: "취소", value: stats.cancelled, color: "bg-gray-50 border-gray-200", textColor: "text-gray-500" },
         ].map(s => (
           <div key={s.label} className={"rounded-xl border p-3 text-center " + s.color}>
             <p className={"text-2xl font-bold " + s.textColor}>{s.value}</p>
@@ -381,7 +441,7 @@ export default function AdminReservationsTab() {
         </div>
 
         {/* 상태 필터 */}
-        {(["all", "pending", "approved", "rejected", "cancelled"] as StatusFilter[]).map(s => (
+        {(["all", "pending", "checking", "approved", "rejected", "cancelled"] as StatusFilter[]).map(s => (
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
@@ -394,6 +454,9 @@ export default function AdminReservationsTab() {
             {s === "all" ? "전체" : STATUS_LABELS[s]?.label ?? s}
             {s === "pending" && stats.pending > 0 && (
               <span className="ml-1.5 bg-amber-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{stats.pending}</span>
+            )}
+            {s === "checking" && stats.checking > 0 && (
+              <span className="ml-1.5 bg-blue-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{stats.checking}</span>
             )}
           </button>
         ))}
@@ -429,6 +492,10 @@ export default function AdminReservationsTab() {
                 approveGroupMutation.isPending ||
                 rejectMutation.isPending ||
                 rejectGroupMutation.isPending ||
+                markCheckingMutation.isPending ||
+                markCheckingGroupMutation.isPending ||
+                cancelMutation.isPending ||
+                cancelGroupMutation.isPending ||
                 updateTimeMutation.isPending ||
                 updateGroupTimeMutation.isPending ||
                 deleteMutation.isPending ||
@@ -443,6 +510,11 @@ export default function AdminReservationsTab() {
                     <div className={"flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium shrink-0 " + st.color}>
                       {st.icon} {st.label}
                     </div>
+                    {r.reservationType === "external" && (
+                      <div className="px-2 py-1 rounded-full text-xs font-medium shrink-0 bg-sky-50 text-sky-700">
+                        외부인
+                      </div>
+                    )}
                     {group.isRecurring && (
                       <div className="px-2 py-1 rounded-full text-xs font-medium shrink-0 bg-blue-50 text-blue-700">
                         반복 {group.count}회
@@ -453,12 +525,23 @@ export default function AdminReservationsTab() {
                         {r.facilityName ?? "시설"} — {r.reserverName}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        {dateSummary} · {r.startTime}~{r.endTime} · {r.department}
+                        {dateSummary} · {r.startTime}~{r.endTime} · {getReservationPosition(r)}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {group.status === "pending" && (
+                      {(group.status === "pending" || group.status === "checking") && (
                         <>
+                          {group.status === "pending" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-blue-300 text-blue-600 hover:bg-blue-50 text-xs h-7 px-3"
+                              onClick={e => { e.stopPropagation(); markReservationChecking(group); }}
+                              disabled={isMutating}
+                            >
+                              확인중
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             className="bg-green-600 hover:bg-green-700 text-white text-xs h-7 px-3"
@@ -477,10 +560,21 @@ export default function AdminReservationsTab() {
                           </Button>
                         </>
                       )}
-                      {group.status !== "pending" && (
+                      {group.status !== "pending" && group.status !== "checking" && (
                         <span className="hidden sm:inline-flex text-xs text-gray-400">
                           처리 완료
                         </span>
+                      )}
+                      {group.status !== "cancelled" && group.status !== "rejected" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-gray-300 text-gray-600 hover:bg-gray-50 text-xs h-7 px-2.5"
+                          onClick={e => { e.stopPropagation(); cancelReservationStatus(group); }}
+                          disabled={isMutating}
+                        >
+                          취소 처리
+                        </Button>
                       )}
                       <Button
                         size="sm"
@@ -600,7 +694,7 @@ export default function AdminReservationsTab() {
                     <div className="px-4 pb-4 bg-gray-50 border-t border-gray-100 text-sm">
                       <div className="grid grid-cols-2 gap-x-6 gap-y-2 mt-3">
                         <div><span className="text-gray-500 text-xs">연락처</span><p className="font-medium">{getReservationPhone(r)}</p></div>
-                        <div><span className="text-gray-500 text-xs">직분</span><p className="font-medium">{getReservationPosition(r)}</p></div>
+                        <div><span className="text-gray-500 text-xs">직분/구분</span><p className="font-medium">{getReservationPosition(r)}</p></div>
                         <div><span className="text-gray-500 text-xs">예상 인원</span><p className="font-medium">{r.attendees}명</p></div>
                         <div><span className="text-gray-500 text-xs">사용 목적</span><p className="font-medium">{r.purpose}</p></div>
                         <div><span className="text-gray-500 text-xs">신청 일시</span><p className="font-medium">{formatTime(r.createdAt)}</p></div>
@@ -718,6 +812,7 @@ function CalendarView({ reservations, facilityFilter, facilities }: {
           const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
           const dayReservations = reservationsByDate[dateKey] ?? [];
           const pending = dayReservations.filter(r => r.status === "pending").length;
+          const checking = dayReservations.filter(r => r.status === "checking").length;
           const approved = dayReservations.filter(r => r.status === "approved").length;
           const isToday = getLocalDateKey() === dateKey;
           const isSelected = selectedDate === dateKey;
@@ -743,6 +838,11 @@ function CalendarView({ reservations, facilityFilter, facilities }: {
               {pending > 0 && (
                 <div className="text-[10px] bg-amber-100 text-amber-700 rounded px-1 py-0.5 mb-0.5 truncate">
                   대기 {pending}
+                </div>
+              )}
+              {checking > 0 && (
+                <div className="text-[10px] bg-blue-100 text-blue-700 rounded px-1 py-0.5 mb-0.5 truncate">
+                  확인 {checking}
                 </div>
               )}
               {approved > 0 && (
@@ -785,6 +885,7 @@ function CalendarView({ reservations, facilityFilter, facilities }: {
       {/* 범례 */}
       <div className="flex gap-4 mt-4 text-xs text-gray-500">
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-100 border border-amber-200 inline-block"></span>승인 대기</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-100 border border-blue-200 inline-block"></span>확인중</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-100 border border-green-200 inline-block"></span>승인 완료</span>
       </div>
 
@@ -819,7 +920,9 @@ function CalendarView({ reservations, facilityFilter, facilities }: {
                   <div>
                     <p className="text-xs text-gray-400">이름 / 직분</p>
                     <p className="font-semibold text-gray-900">{getReservationName(reservation)}</p>
-                    <p className="text-xs text-gray-500">{getReservationPosition(reservation)}</p>
+                    <p className="text-xs text-gray-500">
+                      {reservation.reservationType === "external" ? "외부인 · " : ""}{getReservationPosition(reservation)}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-400">전화번호</p>

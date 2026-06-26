@@ -43,6 +43,8 @@ import {
   getVisibleMenuSubItemByHref,
   getFacilities,
   getFacilityById,
+  getExternalReservableFacilities,
+  getExternalReservableFacilityById,
   getFacilityImages,
   getFacilityHours,
   getBlockedDates,
@@ -564,6 +566,14 @@ export const homeRouter = router({
     .input(z.object({ id: idSchema }))
     .query(({ input }) => getVisibleFacilityById(input.id)),
 
+  /** 외부인 예약에 공개된 시설 목록 */
+  externalFacilities: publicProcedure.query(() => getExternalReservableFacilities()),
+
+  /** 외부인 예약에 공개된 시설 단건 조회 */
+  externalFacility: publicProcedure
+    .input(z.object({ id: idSchema }))
+    .query(({ input }) => getExternalReservableFacilityById(input.id)),
+
   /** 시설 사진 목록 */
   facilityImages: publicProcedure
     .input(z.object({ facilityId: idSchema }))
@@ -610,6 +620,153 @@ export const homeRouter = router({
       const rows = await getReservationsByDate(input.facilityId, input.date);
       // 공개 화면에는 시간대와 상태만 반환 — 개인정보 필드 제거
       return rows.map(({ startTime, endTime, status }) => ({ startTime, endTime, status }));
+    }),
+
+  /**
+   * 외부인 시설 예약 신청
+   * - 로그인 없이 신청할 수 있지만, 관리자가 외부인 공개로 체크한 시설만 허용합니다.
+   * - 시간표와 중복 방지는 성도 예약과 같은 reservations 테이블/락을 공유합니다.
+   */
+  createExternalReservation: publicProcedure
+    .input(z.object({
+      facilityId: idSchema,
+      reserverName: z.string().trim().min(1, "예약자 이름을 입력해주세요.").max(64, "예약자 이름은 64자 이하로 입력해주세요."),
+      reserverPhone: z.string().trim().min(1, "연락처를 입력해주세요.").max(32, "연락처는 32자 이하로 입력해주세요."),
+      reservationDate: z.string().regex(DATE_RE, "예약 날짜 형식이 올바르지 않습니다."),
+      startTime: z.string().regex(TIME_RE, "시작 시간 형식이 올바르지 않습니다."),
+      endTime: z.string().regex(TIME_RE, "종료 시간 형식이 올바르지 않습니다."),
+      purpose: z.string().trim().min(1, "사용 목적을 입력해주세요.").max(256, "사용 목적은 256자 이하로 입력해주세요."),
+      department: z.string().trim().max(128, "소속/단체는 128자 이하로 입력해주세요.").optional(),
+      attendees: z.number().int().min(1, "사용 인원은 1명 이상이어야 합니다.").default(1),
+      notes: z.string().trim().max(2000, "추가 요청사항은 2000자 이하로 입력해주세요.").optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const startMinutes = toMinutes(input.startTime);
+      const endMinutes = toMinutes(input.endTime);
+      if (startMinutes === null || endMinutes === null) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "예약 시간 형식이 올바르지 않습니다." });
+      }
+      if (startMinutes >= endMinutes) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "시작 시간은 종료 시간보다 빨라야 합니다." });
+      }
+
+      const facility = await getExternalReservableFacilityById(input.facilityId);
+      if (!facility) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "외부인 예약이 가능한 시설을 찾을 수 없습니다." });
+      }
+      if (input.attendees > facility.capacity) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `최대 수용 인원(${facility.capacity}명)을 초과할 수 없습니다.` });
+      }
+
+      const todayDateKey = todayKstDateKey();
+      if (input.reservationDate < todayDateKey) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "지난 날짜는 예약할 수 없습니다." });
+      }
+
+      const reservationSettings = await getSiteSettings();
+      const reservationMaxMonths = getFacilityReservationMaxMonths(reservationSettings);
+      const reservationMaxDateKey = getReservationMaxDateKey(todayDateKey, reservationMaxMonths);
+      if (isReservationDateAfterMax(input.reservationDate, reservationMaxDateKey)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `시설 예약은 최대 ${reservationMaxMonths}개월 후(${reservationMaxDateKey})까지만 신청할 수 있습니다.`,
+        });
+      }
+
+      assertReservationLeadTime(input.reservationDate, input.startTime);
+
+      const hours = await getFacilityHours(input.facilityId);
+      const reservationDateObject = parseDateKey(input.reservationDate);
+      const reservationDayOfWeek = reservationDateObject?.getUTCDay() ?? 0;
+      const dayHour = hours.find(h => h.dayOfWeek === reservationDayOfWeek);
+      if (dayHour && !dayHour.isOpen) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `${input.reservationDate}은 시설 운영일이 아닙니다.` });
+      }
+
+      const openTime = dayHour?.openTime ?? facility.openTime;
+      const closeTime = dayHour?.closeTime ?? facility.closeTime;
+      const openMinutes = toMinutes(openTime);
+      const closeMinutes = toMinutes(closeTime);
+      if (openMinutes === null || closeMinutes === null) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "시설 운영 시간이 올바르지 않습니다. 관리자에게 문의해주세요." });
+      }
+      if (startMinutes < openMinutes || endMinutes > closeMinutes) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `${input.reservationDate}은 운영 시간(${openTime}~${closeTime}) 내에서만 예약 가능합니다.`,
+        });
+      }
+
+      const slotMinutes = facility.slotMinutes > 0 ? facility.slotMinutes : 60;
+      const durationMinutes = endMinutes - startMinutes;
+      if ((startMinutes - openMinutes) % slotMinutes !== 0 || (endMinutes - openMinutes) % slotMinutes !== 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `${slotMinutes}분 단위로만 예약할 수 있습니다.` });
+      }
+      const selectedSlots = durationMinutes / slotMinutes;
+      if (selectedSlots < facility.minSlots) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `최소 ${facility.minSlots}개 시간 단위 이상 예약해야 합니다.` });
+      }
+      if (selectedSlots > facility.maxSlots) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `최대 ${facility.maxSlots}개 시간 단위까지만 예약할 수 있습니다.` });
+      }
+
+      if (dayHour?.breakStart && dayHour.breakEnd) {
+        const breakStart = toMinutes(dayHour.breakStart);
+        const breakEnd = toMinutes(dayHour.breakEnd);
+        if (breakStart !== null && breakEnd !== null && startMinutes < breakEnd && endMinutes > breakStart) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `${input.reservationDate} 휴게 시간(${dayHour.breakStart}~${dayHour.breakEnd})에는 예약할 수 없습니다.` });
+        }
+      }
+
+      const blocked = await getBlockedDates(input.facilityId);
+      for (const b of blocked) {
+        if (b.blockedDate !== input.reservationDate) continue;
+        if (!b.isPartialBlock) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `${input.reservationDate}은 예약이 차단된 날입니다.${b.reason ? ` (${b.reason})` : ""}` });
+        }
+        if (b.blockStart && b.blockEnd && input.startTime < b.blockEnd && input.endTime > b.blockStart) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `${input.reservationDate} 해당 시간대(${b.blockStart}~${b.blockEnd})는 예약이 차단되어 있습니다.${b.reason ? ` (${b.reason})` : ""}`,
+          });
+        }
+      }
+
+      const existing = await getReservationsByDate(input.facilityId, input.reservationDate);
+      const activeReservations = existing.filter(r => r.status !== "cancelled" && r.status !== "rejected");
+      for (const r of activeReservations) {
+        const overlap = input.startTime < r.endTime && input.endTime > r.startTime;
+        if (overlap) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `${input.reservationDate} ${r.startTime}~${r.endTime} 예약과 시간이 겹칩니다. 중복 예약은 저장되지 않았습니다. 다른 시간을 선택해 주세요.`,
+          });
+        }
+      }
+
+      try {
+        const id = await createReservationIfAvailable({
+          ...input,
+          userId: null,
+          reservationType: "external",
+          status: "pending",
+          recurrenceGroupId: null,
+          recurrenceLabel: null,
+          recurrenceSequence: 0,
+        });
+        if (!id) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "예약 신청 저장에 실패했습니다." });
+        }
+        return { id, status: "pending" as const, count: 1, recurrenceLabel: null };
+      } catch (error) {
+        if (error instanceof ReservationOverlapError) {
+          throw new TRPCError({ code: "CONFLICT", message: error.message });
+        }
+        if (error instanceof ReservationLockError) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: error.message });
+        }
+        throw error;
+      }
     }),
 
   // ─── 예약 신청 (성도 로그인 필요) ───────────────────────────────────────────
@@ -794,6 +951,7 @@ export const homeRouter = router({
             ...baseInput,
             reservationDate,
             userId: ctx.memberId,
+            reservationType: "member" as const,
             status,
             recurrenceGroupId,
             recurrenceLabel,

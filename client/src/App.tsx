@@ -23,6 +23,21 @@ const MemberSocialComplete = lazy(() => import("./pages/MemberSocialComplete"));
 const FacilityList = lazy(() => import("./pages/FacilityList"));
 const FacilityDetail = lazy(() => import("./pages/FacilityDetail"));
 const FacilityApply = lazy(() => import("./pages/FacilityApply"));
+const ExternalFacilityList = lazy(() =>
+  import("./pages/FacilityList").then(module => ({
+    default: module.ExternalFacilityList,
+  }))
+);
+const ExternalFacilityDetail = lazy(() =>
+  import("./pages/FacilityDetail").then(module => ({
+    default: module.ExternalFacilityDetail,
+  }))
+);
+const ExternalFacilityApply = lazy(() =>
+  import("./pages/FacilityApply").then(module => ({
+    default: module.ExternalFacilityApply,
+  }))
+);
 const MyReservations = lazy(() => import("./pages/MyReservations"));
 const VehicleReservationList = lazy(() =>
   import("./pages/VehicleReservations").then(module => ({
@@ -453,6 +468,9 @@ function Router() {
       <Route path="/member/social-complete" component={MemberSocialComplete} />
       <Route path="/member/my-page" component={MemberMyPage} />
 
+      <Route path="/facility/external/:id/apply" component={ExternalFacilityApply} />
+      <Route path="/facility/external/:id" component={ExternalFacilityDetail} />
+      <Route path="/facility/external" component={ExternalFacilityList} />
       <Route path="/facility" component={FacilityList} />
       <Route path="/facility/my-reservations" component={MyReservations} />
       <Route path="/facility/:id/apply" component={FacilityApply} />
