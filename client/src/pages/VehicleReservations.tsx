@@ -638,7 +638,7 @@ export function VehicleReservationDetail() {
             <div className="space-y-6 lg:col-span-2">
               {vehicleRow.thumbnailUrl ? (
                 <div className="overflow-hidden rounded-xl bg-gray-100">
-                  <img src={vehicleRow.thumbnailUrl} alt={vehicleRow.name} className="aspect-video w-full object-cover" />
+                  <img src={vehicleRow.thumbnailUrl} alt={vehicleRow.name} className="aspect-video w-full object-cover"  loading="lazy"/>
                 </div>
               ) : (
                 <div className="flex aspect-video items-center justify-center rounded-xl bg-gray-100 text-gray-300">
@@ -948,7 +948,7 @@ export function VehicleReservationApply() {
               <form onSubmit={submit} noValidate>
                 <div className="mb-6 flex items-center gap-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
                   {vehicleRow.thumbnailUrl ? (
-                    <img src={vehicleRow.thumbnailUrl} alt={vehicleRow.name} className="h-16 w-16 shrink-0 rounded-lg object-cover" />
+                    <img src={vehicleRow.thumbnailUrl} alt={vehicleRow.name} className="h-16 w-16 shrink-0 rounded-lg object-cover"  loading="lazy"/>
                   ) : (
                     <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-gray-100">
                       <Car className="h-7 w-7 text-gray-300" />

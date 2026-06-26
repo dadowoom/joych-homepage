@@ -409,7 +409,7 @@ export function JoyfulStore() {
           {filtered.map(item => (
             <div key={item.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
               <div className="relative aspect-square">
-                <img src={item.img} alt={item.name} className="w-full h-full object-cover" />
+                <img src={item.img} alt={item.name} className="w-full h-full object-cover"  loading="lazy"/>
                 {item.badge && (
                   <span className="absolute top-2 left-2 bg-[#1B5E20] text-white text-xs px-2 py-0.5 rounded-full">{item.badge}</span>
                 )}

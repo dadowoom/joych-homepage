@@ -96,7 +96,7 @@ function SortableVideoItem({
           src={thumbnailUrl}
           alt={video.title}
           className="h-9 w-16 shrink-0 rounded bg-gray-100 object-cover"
-        />
+         loading="lazy"/>
       ) : (
         <div className="flex h-9 w-16 shrink-0 items-center justify-center rounded bg-[#eef4ed] text-[#1B5E20]">
           <Youtube className="h-4 w-4 opacity-70" />

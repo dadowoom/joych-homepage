@@ -575,7 +575,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
               {/* 선택된 시설 요약 */}
               <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm mb-6 flex items-center gap-4">
                 {thumbnailImage ? (
-                  <img src={thumbnailImage.imageUrl} alt={facility.name} className="w-16 h-16 rounded-lg object-cover shrink-0" />
+                  <img src={thumbnailImage.imageUrl} alt={facility.name} className="w-16 h-16 rounded-lg object-cover shrink-0"  loading="lazy"/>
                 ) : (
                   <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
                     <MapPin className="w-6 h-6 text-gray-300" />

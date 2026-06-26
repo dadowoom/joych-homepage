@@ -337,7 +337,7 @@ export default function HomeSectionsEditPanel({
                   src={card.imageUrl}
                   alt={card.title}
                   className="h-36 w-full rounded-lg object-cover"
-                />
+                 loading="lazy"/>
                 <div className="grid gap-3 md:grid-cols-2">
                   <Input
                     value={card.badge}
@@ -445,7 +445,7 @@ export default function HomeSectionsEditPanel({
               src={churchIntroSection.backgroundImage}
               alt={churchIntroSection.title}
               className="h-40 w-full rounded-lg object-cover"
-            />
+             loading="lazy"/>
             <Input
               value={churchIntroSection.eyebrow}
               onChange={event =>
@@ -538,7 +538,7 @@ export default function HomeSectionsEditPanel({
               src={worshipSection.backgroundImage}
               alt={worshipSection.title}
               className="h-40 w-full rounded-lg object-cover"
-            />
+             loading="lazy"/>
             <Input
               value={worshipSection.eyebrow}
               onChange={event =>

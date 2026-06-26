@@ -728,7 +728,7 @@ function NoticeBoardContent({
                   onError={(event) => {
                     (event.target as HTMLImageElement).style.display = "none";
                   }}
-                />
+                 loading="lazy"/>
                 <button
                   type="button"
                   onClick={() => setFormState((previous) => ({ ...previous, thumbnailUrl: "" }))}
@@ -1052,7 +1052,7 @@ function NoticeBoardContent({
                                 onError={(event) => {
                                   (event.target as HTMLImageElement).style.display = "none";
                                 }}
-                              />
+                               loading="lazy"/>
                             )}
                             <div className="whitespace-pre-line border-l-2 border-[#1B5E20]/30 pl-4 text-sm leading-7 text-gray-700">
                               {notice.content ? <RichTextViewer html={notice.content} /> : "등록된 본문 내용이 없습니다."}
@@ -1136,7 +1136,7 @@ function NoticeBoardContent({
                           onError={(event) => {
                             (event.target as HTMLImageElement).style.display = "none";
                           }}
-                        />
+                         loading="lazy"/>
                       )}
                       {notice.content ? <RichTextViewer html={notice.content} /> : <p>등록된 본문 내용이 없습니다.</p>}
                       {attachment.url && (

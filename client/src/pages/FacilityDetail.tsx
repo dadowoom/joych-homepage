@@ -244,7 +244,7 @@ function ImageGallery({ facilityId, name }: { facilityId: number; name: string }
   return (
     <div>
       <div className="rounded-xl overflow-hidden mb-2 aspect-video">
-        <img src={images[active]?.imageUrl} alt={name} className="w-full h-full object-cover" />
+        <img src={images[active]?.imageUrl} alt={name} className="w-full h-full object-cover"  loading="lazy"/>
       </div>
       {images.length > 1 && (
         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -256,7 +256,7 @@ function ImageGallery({ facilityId, name }: { facilityId: number; name: string }
                 active === i ? "border-[#1B5E20]" : "border-transparent"
               }`}
             >
-              <img src={img.imageUrl} alt="" className="w-full h-full object-cover" />
+              <img src={img.imageUrl} alt="" className="w-full h-full object-cover"  loading="lazy"/>
             </button>
           ))}
         </div>

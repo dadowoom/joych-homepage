@@ -676,7 +676,7 @@ export function PastorBookDetailPage({ params }: RouteComponentProps<{ id: strin
           <header className="grid gap-8 lg:grid-cols-[260px_1fr]">
             <div className="flex min-h-80 items-center justify-center border border-gray-200 bg-gray-50 p-4">
               {currentBook.coverImageUrl ? (
-                <img src={currentBook.coverImageUrl} alt={currentBook.title} className="max-h-full max-w-full object-contain" />
+                <img src={currentBook.coverImageUrl} alt={currentBook.title} className="max-h-full max-w-full object-contain"  loading="lazy"/>
               ) : (
                 <ImageIcon className="h-14 w-14 text-gray-300" />
               )}

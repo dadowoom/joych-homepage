@@ -620,7 +620,7 @@ export function BlockEditDialog({
                         src={urls[i]}
                         alt=""
                         className="w-full h-32 object-cover rounded"
-                      />
+                       loading="lazy"/>
                       <button
                         className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
                         onClick={() =>

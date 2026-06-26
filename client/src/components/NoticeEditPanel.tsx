@@ -314,7 +314,7 @@ export default function NoticeEditPanel({
                 alt="썸네일 미리보기"
                 className="w-full h-24 object-cover rounded border border-gray-200"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-              />
+               loading="lazy"/>
               <button
                 type="button"
                 className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
@@ -511,7 +511,7 @@ export default function NoticeEditPanel({
                         alt={notice.title}
                         className="w-12 h-12 object-cover rounded border border-gray-200 shrink-0"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                      />
+                       loading="lazy"/>
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
