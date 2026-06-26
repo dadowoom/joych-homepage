@@ -418,6 +418,11 @@ export function BlockEditDialog({
           marginLeft: `${dialogOffset.x}px`,
           marginTop: `${dialogOffset.y}px`,
         }}
+        onInteractOutside={(event) => {
+          // 바깥 화면을 실수로 눌러도 작성 중인 HTML 편집 내용이 날아가지 않게
+          // 저장/취소/닫기 버튼으로만 편집창을 닫도록 한다.
+          event.preventDefault();
+        }}
         onPointerMove={handleDialogPointerMove}
         onPointerUp={handleDialogInteractionEnd}
         onPointerCancel={handleDialogInteractionEnd}

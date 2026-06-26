@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type MutableRefObject,
   type ReactNode } from "react";
 import Color from "@tiptap/extension-color";
 import Image from "@tiptap/extension-image";
@@ -374,6 +375,42 @@ function getCurrentTableCellNodeRange(editor: Editor) {
   return null;
 }
 
+function getTableCellNodeRangeAtPosition(editor: Editor, position: number) {
+  const safePosition = Math.max(
+    0,
+    Math.min(Math.floor(position), editor.state.doc.content.size),
+  );
+  const $position = editor.state.doc.resolve(safePosition);
+
+  for (let depth = $position.depth; depth > 0; depth -= 1) {
+    const node = $position.node(depth);
+    if (node.type.name === "tableCell" || node.type.name === "tableHeader") {
+      return {
+        node,
+        from: $position.before(depth),
+        to: $position.after(depth),
+      };
+    }
+  }
+
+  return null;
+}
+
+function getTableCellFocusPositionAtPosition(editor: Editor, position: number) {
+  const range = getTableCellNodeRangeAtPosition(editor, position);
+  if (!range) return null;
+
+  return Math.min(range.from + 2, range.to - 1);
+}
+
+function getValidRememberedTableCellFocusPosition(
+  editor: Editor,
+  position: number | null,
+) {
+  if (typeof position !== "number" || !Number.isFinite(position)) return null;
+  return getTableCellFocusPositionAtPosition(editor, position);
+}
+
 function getCurrentTableNodeRange(editor: Editor) {
   const { $from } = editor.state.selection;
   for (let depth = $from.depth; depth > 0; depth -= 1) {
@@ -479,6 +516,87 @@ function focusNearestTableCell(editor: Editor, referencePosition = editor.state.
   focusEditorAt(editor, nextCellPosition);
 }
 
+function getClickedTableCellFocusPosition(
+  view: Editor["view"],
+  event: MouseEvent,
+) {
+  if (!(event.target instanceof HTMLElement)) return null;
+  if (event.target.closest(".column-resize-handle")) return null;
+
+  const cell = event.target.closest("td, th");
+  if (!cell || !view.dom.contains(cell)) return null;
+
+  const coordsPosition = view.posAtCoords({
+    left: event.clientX,
+    top: event.clientY,
+  });
+  if (coordsPosition) {
+    const position = getTableCellFocusPositionFromDocPosition(
+      view.state.doc,
+      coordsPosition.pos,
+    );
+    if (position !== null) return position;
+  }
+
+  try {
+    return getTableCellFocusPositionFromDocPosition(
+      view.state.doc,
+      view.posAtDOM(cell, 0),
+    );
+  } catch {
+    return null;
+  }
+}
+
+function getTableCellFocusPositionFromDocPosition(
+  doc: Editor["state"]["doc"],
+  position: number,
+) {
+  const safePosition = Math.max(
+    0,
+    Math.min(Math.floor(position), doc.content.size),
+  );
+  const $position = doc.resolve(safePosition);
+
+  for (let depth = $position.depth; depth > 0; depth -= 1) {
+    const node = $position.node(depth);
+    if (node.type.name === "tableCell" || node.type.name === "tableHeader") {
+      const from = $position.before(depth);
+      const to = $position.after(depth);
+      return Math.min(from + 2, to - 1);
+    }
+  }
+
+  return null;
+}
+
+function focusTableCellIfClickMissed(
+  view: Editor["view"],
+  focusPosition: number,
+) {
+  window.requestAnimationFrame(() => {
+    const doc = view.state.doc;
+    const targetCellPosition = getTableCellFocusPositionFromDocPosition(
+      doc,
+      focusPosition,
+    );
+    if (targetCellPosition === null) return;
+
+    const currentCellPosition = getTableCellFocusPositionFromDocPosition(
+      doc,
+      view.state.selection.from,
+    );
+    if (currentCellPosition === targetCellPosition) return;
+
+    const SelectionConstructor = view.state.selection.constructor as unknown as {
+      near: (resolvedPosition: ReturnType<typeof doc.resolve>) => typeof view.state.selection;
+    };
+    const selection = SelectionConstructor.near(doc.resolve(targetCellPosition));
+    view.focus();
+    view.dispatch(view.state.tr.setSelection(selection).scrollIntoView());
+  });
+}
+
 function createEmptyParagraph(editor: Editor) {
   const paragraph = editor.schema.nodes.paragraph;
   return paragraph?.createAndFill() ?? paragraph?.create() ?? null;
@@ -531,7 +649,13 @@ function ToolbarButton({
   );
 }
 
-function RichTextToolbar({ editor }: { editor: Editor }) {
+function RichTextToolbar({
+  editor,
+  lastTableCellFocusPositionRef,
+}: {
+  editor: Editor;
+  lastTableCellFocusPositionRef: MutableRefObject<number | null>;
+}) {
   const [isImageInputOpen, setIsImageInputOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -607,7 +731,18 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
     tableCellAttributes.verticalAlign ?? tableHeaderAttributes.verticalAlign ?? "",
   );
   const hasSelection = !editor.state.selection.empty;
-  const isInTable = Boolean(getCurrentTableCellNodeRange(editor)) || editor.isActive("table");
+  const currentTableCellRange = getCurrentTableCellNodeRange(editor);
+  const rememberedTableCellFocusPosition =
+    currentTableCellRange || editor.isFocused
+      ? null
+      : getValidRememberedTableCellFocusPosition(
+          editor,
+          lastTableCellFocusPositionRef.current,
+        );
+  const isInTable =
+    Boolean(currentTableCellRange) ||
+    Boolean(rememberedTableCellFocusPosition) ||
+    editor.isActive("table");
   const hasTable = getTableNodeRanges(editor).length > 0;
   const tableToolDisabled = !isInTable;
   const canUndo = editor.can().chain().focus().undo().run();
@@ -617,6 +752,30 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
     const { from, to } = editor.state.selection;
     return editor.chain().focus().setTextSelection({ from, to });
   };
+
+  const getTableFocusPosition = () => {
+    const currentPosition = getCurrentTableCellFocusPosition(editor);
+    if (getCurrentTableCellNodeRange(editor)) {
+      lastTableCellFocusPositionRef.current = currentPosition;
+      return currentPosition;
+    }
+
+    const rememberedPosition = getValidRememberedTableCellFocusPosition(
+      editor,
+      lastTableCellFocusPositionRef.current,
+    );
+    if (rememberedPosition !== null) return rememberedPosition;
+
+    return editor.state.selection.from;
+  };
+
+  const focusRememberedTableCell = () => {
+    const focusPosition = getTableFocusPosition();
+    focusEditorAt(editor, focusPosition);
+    return focusPosition;
+  };
+
+  const tableCommand = () => editor.chain().focus(getTableFocusPosition());
 
   const handleFontFamilyChange = (value: string) => {
     const chain = restoreCurrentTextSelection();
@@ -691,9 +850,9 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
   };
 
   const clearCurrentCell = () => {
+    const focusPosition = focusRememberedTableCell();
     const ranges = getSelectedTableCellNodeRanges(editor);
     if (!ranges.length) return;
-    const focusPosition = getCurrentTableCellFocusPosition(editor);
     const message =
       ranges.length > 1
         ? `${ranges.length}개 셀 안의 내용만 삭제할까요? 셀 자체는 유지됩니다.`
@@ -715,7 +874,7 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
   };
 
   const deleteCurrentRow = () => {
-    const focusPosition = getCurrentTableCellFocusPosition(editor);
+    const focusPosition = focusRememberedTableCell();
     if (!confirmActionAndKeepFocus("현재 행 전체를 삭제할까요?", focusPosition)) return;
     if (editor.chain().focus(focusPosition).deleteRow().run()) {
       focusNearestTableCell(editor, focusPosition);
@@ -723,7 +882,7 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
   };
 
   const deleteCurrentColumn = () => {
-    const focusPosition = getCurrentTableCellFocusPosition(editor);
+    const focusPosition = focusRememberedTableCell();
     if (!confirmActionAndKeepFocus("현재 열 전체를 삭제할까요?", focusPosition)) return;
     if (editor.chain().focus(focusPosition).deleteColumn().run()) {
       focusNearestTableCell(editor, focusPosition);
@@ -731,6 +890,7 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
   };
 
   const deleteCurrentTable = () => {
+    focusRememberedTableCell();
     const tableRange = getNearestTableNodeRange(editor);
     if (!tableRange) {
       window.alert("삭제할 표가 없습니다.");
@@ -760,23 +920,23 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
   };
 
   const handleCellBackgroundColorChange = (value: string) => {
-    editor.chain().focus().setCellAttribute("backgroundColor", value).run();
+    tableCommand().setCellAttribute("backgroundColor", value).run();
   };
 
   const clearCellBackgroundColor = () => {
-    editor.chain().focus().setCellAttribute("backgroundColor", null).run();
+    tableCommand().setCellAttribute("backgroundColor", null).run();
   };
 
   const handleCellAlignChange = (value: string) => {
-    editor.chain().focus().setCellAttribute("align", value || null).run();
+    tableCommand().setCellAttribute("align", value || null).run();
   };
 
   const handleCellVerticalAlignChange = (value: string) => {
-    editor.chain().focus().setCellAttribute("verticalAlign", value || null).run();
+    tableCommand().setCellAttribute("verticalAlign", value || null).run();
   };
 
   const applyTablePreset = (preset: string) => {
-    const chain = editor.chain().focus();
+    const chain = tableCommand();
     if (preset === "header") {
       chain.setCellAttribute("backgroundColor", "#e8f5e9").setCellAttribute("align", "center").setCellAttribute("verticalAlign", "middle").run();
       return;
@@ -987,16 +1147,16 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
                 </option>
               ))}
             </select>
-            <ToolbarButton editor={editor} label={isInTable ? "위에 행 추가" : "표 셀을 클릭하면 위에 행 추가 가능"} disabled={tableToolDisabled} wide onClick={() => editor.chain().focus().addRowBefore().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "위에 행 추가" : "표 셀을 클릭하면 위에 행 추가 가능"} disabled={tableToolDisabled} wide onClick={() => tableCommand().addRowBefore().run()}>
               행+위
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "아래에 행 추가" : "표 셀을 클릭하면 아래에 행 추가 가능"} disabled={tableToolDisabled} wide onClick={() => editor.chain().focus().addRowAfter().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "아래에 행 추가" : "표 셀을 클릭하면 아래에 행 추가 가능"} disabled={tableToolDisabled} wide onClick={() => tableCommand().addRowAfter().run()}>
               행+아래
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "왼쪽에 열 추가" : "표 셀을 클릭하면 왼쪽에 열 추가 가능"} disabled={tableToolDisabled} wide onClick={() => editor.chain().focus().addColumnBefore().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "왼쪽에 열 추가" : "표 셀을 클릭하면 왼쪽에 열 추가 가능"} disabled={tableToolDisabled} wide onClick={() => tableCommand().addColumnBefore().run()}>
               열+왼쪽
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "오른쪽에 열 추가" : "표 셀을 클릭하면 오른쪽에 열 추가 가능"} disabled={tableToolDisabled} wide onClick={() => editor.chain().focus().addColumnAfter().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "오른쪽에 열 추가" : "표 셀을 클릭하면 오른쪽에 열 추가 가능"} disabled={tableToolDisabled} wide onClick={() => tableCommand().addColumnAfter().run()}>
               열+오른쪽
             </ToolbarButton>
             <ToolbarButton editor={editor} label={isInTable ? "셀 내용 삭제" : "표 셀을 클릭하면 셀 내용 삭제 가능"} disabled={tableToolDisabled} variant="danger" wide onClick={clearCurrentCell}>
@@ -1008,19 +1168,19 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
             <ToolbarButton editor={editor} label={isInTable ? "열 삭제" : "표 셀을 클릭하면 열 삭제 가능"} disabled={tableToolDisabled} variant="danger" wide onClick={deleteCurrentColumn}>
               열 삭제
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "셀 병합" : "표 셀을 클릭하면 셀 병합 가능"} disabled={tableToolDisabled} wide onClick={() => editor.chain().focus().mergeCells().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "셀 병합" : "표 셀을 클릭하면 셀 병합 가능"} disabled={tableToolDisabled} wide onClick={() => tableCommand().mergeCells().run()}>
               병합
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "셀 분할" : "표 셀을 클릭하면 셀 분할 가능"} disabled={tableToolDisabled} wide onClick={() => editor.chain().focus().splitCell().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "셀 분할" : "표 셀을 클릭하면 셀 분할 가능"} disabled={tableToolDisabled} wide onClick={() => tableCommand().splitCell().run()}>
               분할
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "헤더 행" : "표 셀을 클릭하면 헤더 행 설정 가능"} disabled={tableToolDisabled} wide onClick={() => editor.chain().focus().toggleHeaderRow().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "헤더 행" : "표 셀을 클릭하면 헤더 행 설정 가능"} disabled={tableToolDisabled} wide onClick={() => tableCommand().toggleHeaderRow().run()}>
               H행
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "헤더 열" : "표 셀을 클릭하면 헤더 열 설정 가능"} disabled={tableToolDisabled} wide onClick={() => editor.chain().focus().toggleHeaderColumn().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "헤더 열" : "표 셀을 클릭하면 헤더 열 설정 가능"} disabled={tableToolDisabled} wide onClick={() => tableCommand().toggleHeaderColumn().run()}>
               H열
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "헤더 셀" : "표 셀을 클릭하면 헤더 셀 설정 가능"} disabled={tableToolDisabled} onClick={() => editor.chain().focus().toggleHeaderCell().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "헤더 셀" : "표 셀을 클릭하면 헤더 셀 설정 가능"} disabled={tableToolDisabled} onClick={() => tableCommand().toggleHeaderCell().run()}>
               <Baseline className="h-4 w-4" />
             </ToolbarButton>
             <ToolbarButton editor={editor} label={hasTable ? "표 전체 삭제" : "삭제할 표가 없습니다"} disabled={!hasTable} variant="danger" wide onClick={deleteCurrentTable}>
@@ -1092,6 +1252,8 @@ export function RichTextEditor({
   minHeightClassName = "min-h-64",
   className,
 }: RichTextEditorProps) {
+  const lastTableCellFocusPositionRef = useRef<number | null>(null);
+  const [, setEditorStateVersion] = useState(0);
   const extensions = useMemo(
     () => [
       StarterKit.configure({
@@ -1148,6 +1310,19 @@ export function RichTextEditor({
           minHeightClassName,
         ),
       },
+      handleDOMEvents: {
+        mousedown: (view, event) => {
+          if (event.button !== 0) return false;
+
+          const focusPosition = getClickedTableCellFocusPosition(view, event);
+          if (focusPosition === null) return false;
+
+          // 빈 표 셀의 여백을 누르면 브라우저 기본 동작만으로는 커서가
+          // 셀 안으로 안 들어가는 경우가 있어, 기본 클릭 처리 후 한 번 보정한다.
+          focusTableCellIfClickMissed(view, focusPosition);
+          return false;
+        },
+      },
     },
     onUpdate: ({ editor: currentEditor }) => {
       const html = currentEditor.getHTML();
@@ -1165,6 +1340,40 @@ export function RichTextEditor({
     }
   }, [editor, value]);
 
+  useEffect(() => {
+    if (!editor) return;
+
+    const syncToolbarState = () => {
+      const currentCellRange = getCurrentTableCellNodeRange(editor);
+      if (currentCellRange) {
+        lastTableCellFocusPositionRef.current =
+          getCurrentTableCellFocusPosition(editor);
+      } else if (
+        getValidRememberedTableCellFocusPosition(
+          editor,
+          lastTableCellFocusPositionRef.current,
+        ) === null
+      ) {
+        lastTableCellFocusPositionRef.current = null;
+      }
+
+      setEditorStateVersion((version) => (version + 1) % 100000);
+    };
+
+    editor.on("selectionUpdate", syncToolbarState);
+    editor.on("transaction", syncToolbarState);
+    editor.on("focus", syncToolbarState);
+    editor.on("blur", syncToolbarState);
+    syncToolbarState();
+
+    return () => {
+      editor.off("selectionUpdate", syncToolbarState);
+      editor.off("transaction", syncToolbarState);
+      editor.off("focus", syncToolbarState);
+      editor.off("blur", syncToolbarState);
+    };
+  }, [editor]);
+
   if (!editor) {
     return (
       <div className={cn("w-full max-w-full min-w-0 overflow-hidden border border-gray-300 bg-white px-3 py-3 text-sm text-gray-400", minHeightClassName, className)}>
@@ -1175,7 +1384,10 @@ export function RichTextEditor({
 
   return (
     <div id={id} className={cn("w-full max-w-full min-w-0 overflow-visible border border-gray-300 bg-white focus-within:border-[#1B5E20]", className)}>
-      <RichTextToolbar editor={editor} />
+      <RichTextToolbar
+        editor={editor}
+        lastTableCellFocusPositionRef={lastTableCellFocusPositionRef}
+      />
       <div
         className={cn("cursor-text", minHeightClassName)}
         onMouseDown={(event) => {
