@@ -10,14 +10,21 @@ import { useMemo, useState } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
+import ReservationTimelinePicker from "@/components/facility/ReservationTimelinePicker";
+import { getReservationTimeRestriction } from "@/lib/facilityReservationTime";
+import { generateReservationTimePoints } from "@/lib/facilitySlotSelection";
 import { toast } from "sonner";
 import {
+  AlertCircle,
   Ban,
   BookOpen,
   Building2,
   Calendar,
+  CalendarCheck,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Image as ImageIcon,
   Loader2,
@@ -35,6 +42,20 @@ type Course = inferRouterOutputs<AppRouter>["cms"]["courses"]["list"][number];
 type CourseApplication = inferRouterOutputs<AppRouter>["cms"]["courses"]["applications"][number];
 type CourseStatus = Course["status"];
 type ApplicationStatus = CourseApplication["status"];
+
+type CourseFacilityReservationRow = {
+  id?: number | null;
+  startTime: string;
+  endTime: string;
+  status: string;
+  reserverName?: string | null;
+  reserverPhone?: string | null;
+  purpose?: string | null;
+  department?: string | null;
+  userName?: string | null;
+  memberPosition?: string | null;
+  memberPhone?: string | null;
+};
 
 const STATUS_LABELS: Record<CourseStatus, { label: string; color: string }> = {
   draft: { label: "준비중", color: "bg-gray-100 text-gray-600" },
@@ -76,6 +97,7 @@ const EMPTY_FORM = {
 
 const COURSE_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"]);
 const MAX_COURSE_IMAGE_BYTES = 10 * 1024 * 1024;
+const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
 function emptyToNull(value: string) {
   const trimmed = value.trim();
@@ -112,6 +134,73 @@ function formatCreatedAt(value: Date | string | number) {
   });
 }
 
+function getLocalDateKey(date = new Date()) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function parseDateKey(dateKey: string) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  if ([year, month, day].some(Number.isNaN)) return null;
+  return new Date(year, month - 1, day);
+}
+
+function buildMonthCells(monthDate: Date) {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  return [
+    ...Array(firstDay).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
+  ] as Array<number | null>;
+}
+
+function isActiveReservation(row: CourseFacilityReservationRow) {
+  return row.status !== "rejected" && row.status !== "cancelled";
+}
+
+function addReservationSlots(
+  target: Set<string> | Map<string, CourseFacilityReservationRow>,
+  reservation: CourseFacilityReservationRow,
+  slotMinutes: number,
+) {
+  const [startHour, startMinute] = reservation.startTime.split(":").map(Number);
+  const [endHour, endMinute] = reservation.endTime.split(":").map(Number);
+  if ([startHour, startMinute, endHour, endMinute].some(Number.isNaN)) return;
+
+  let current = startHour * 60 + startMinute;
+  const end = endHour * 60 + endMinute;
+  while (current < end) {
+    const slot = `${String(Math.floor(current / 60)).padStart(2, "0")}:${String(current % 60).padStart(2, "0")}`;
+    if (target instanceof Map) {
+      target.set(slot, reservation);
+    } else {
+      target.add(slot);
+    }
+    current += slotMinutes;
+  }
+}
+
+function getReservationDisplayName(row: CourseFacilityReservationRow) {
+  return row.reserverName || row.userName || "예약자";
+}
+
+function getReservationDisplayMeta(row: CourseFacilityReservationRow) {
+  const position = row.memberPosition || row.department || "소속 미입력";
+  const phone = row.reserverPhone || row.memberPhone || "연락처 미입력";
+  return `${position} · ${phone}`;
+}
+
+function formatDateLabel(dateKey: string) {
+  const date = parseDateKey(dateKey);
+  if (!date) return dateKey;
+  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 (${DAY_LABELS[date.getDay()]})`;
+}
+
 export default function AdminCoursesTab() {
   const utils = trpc.useUtils();
   const [showForm, setShowForm] = useState(false);
@@ -123,6 +212,11 @@ export default function AdminCoursesTab() {
   const [reviewComment, setReviewComment] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
   const [uploadingCourseImage, setUploadingCourseImage] = useState(false);
+  const [facilityPickerOpen, setFacilityPickerOpen] = useState(false);
+  const [facilityPickerDate, setFacilityPickerDate] = useState("");
+  const [facilityPickerStartTime, setFacilityPickerStartTime] = useState("");
+  const [facilityPickerEndTime, setFacilityPickerEndTime] = useState("");
+  const [facilityPickerMonth, setFacilityPickerMonth] = useState(() => new Date());
 
   const { data: courses = [], isLoading } = trpc.cms.courses.list.useQuery();
   const { data: facilities = [] } = trpc.home.facilities.useQuery();
@@ -195,10 +289,202 @@ export default function AdminCoursesTab() {
     return new Map(facilities.map(facility => [facility.id, facility]));
   }, [facilities]);
 
+  const selectedFacilityId = form.facilityId ? Number(form.facilityId) : 0;
+  const selectedFacility = selectedFacilityId ? facilityById.get(selectedFacilityId) : null;
+  const editingCourse = useMemo(() => {
+    return editingId ? courses.find(course => course.id === editingId) ?? null : null;
+  }, [courses, editingId]);
+
+  const { data: facilityPickerHours = [] } = trpc.home.facilityHours.useQuery(
+    { facilityId: selectedFacilityId },
+    { enabled: facilityPickerOpen && selectedFacilityId > 0 },
+  );
+  const { data: facilityPickerBlockedDates = [] } = trpc.home.facilityBlockedDates.useQuery(
+    { facilityId: selectedFacilityId },
+    { enabled: facilityPickerOpen && selectedFacilityId > 0 },
+  );
+  const { data: facilityPickerReservations = [], isLoading: loadingFacilityPickerReservations } =
+    trpc.home.facilityReservationsByDate.useQuery(
+      { facilityId: selectedFacilityId, date: facilityPickerDate },
+      { enabled: facilityPickerOpen && selectedFacilityId > 0 && Boolean(facilityPickerDate) },
+    );
+
+  const facilityPickerDay = useMemo(() => {
+    const date = parseDateKey(facilityPickerDate);
+    return date ? date.getDay() : -1;
+  }, [facilityPickerDate]);
+
+  const facilityPickerDayHour = useMemo(() => {
+    return facilityPickerHours.find(hour => hour.dayOfWeek === facilityPickerDay) ?? null;
+  }, [facilityPickerDay, facilityPickerHours]);
+
+  const facilityPickerSlotMinutes = Math.max(1, Number(selectedFacility?.slotMinutes) || 60);
+  const facilityPickerMaxSlots = Math.max(1, Number(selectedFacility?.maxSlots) || 8);
+
+  const facilityPickerRows = useMemo(() => {
+    return (facilityPickerReservations ?? []) as CourseFacilityReservationRow[];
+  }, [facilityPickerReservations]);
+
+  const facilityPickerAllSlots = useMemo(() => {
+    if (!selectedFacility || !facilityPickerDate) return [];
+    if (facilityPickerDayHour && !facilityPickerDayHour.isOpen) return [];
+    const openTime = facilityPickerDayHour?.openTime ?? selectedFacility.openTime ?? "09:00";
+    const closeTime = facilityPickerDayHour?.closeTime ?? selectedFacility.closeTime ?? "22:00";
+    return generateReservationTimePoints(openTime, closeTime, facilityPickerSlotMinutes);
+  }, [facilityPickerDate, facilityPickerDayHour, facilityPickerSlotMinutes, selectedFacility]);
+
+  const facilityPickerBookedSlots = useMemo(() => {
+    const set = new Set<string>();
+    const currentReservationId = editingCourse?.facilityReservationId ?? null;
+    facilityPickerRows.forEach(row => {
+      if (!isActiveReservation(row)) return;
+      if (currentReservationId && row.id === currentReservationId) return;
+      addReservationSlots(set, row, facilityPickerSlotMinutes);
+    });
+    return set;
+  }, [editingCourse?.facilityReservationId, facilityPickerRows, facilityPickerSlotMinutes]);
+
+  const facilityPickerReservationBySlot = useMemo(() => {
+    const map = new Map<string, CourseFacilityReservationRow>();
+    const currentReservationId = editingCourse?.facilityReservationId ?? null;
+    facilityPickerRows.forEach(row => {
+      if (!isActiveReservation(row)) return;
+      if (currentReservationId && row.id === currentReservationId) return;
+      addReservationSlots(map, row, facilityPickerSlotMinutes);
+    });
+    return map;
+  }, [editingCourse?.facilityReservationId, facilityPickerRows, facilityPickerSlotMinutes]);
+
+  const facilityPickerBlockedForDate = useMemo(() => {
+    return facilityPickerBlockedDates.filter(blocked => blocked.blockedDate === facilityPickerDate);
+  }, [facilityPickerBlockedDates, facilityPickerDate]);
+
+  const facilityPickerDisabledSlots = useMemo(() => {
+    const disabled = new Map<string, string>();
+    if (!facilityPickerDate) return disabled;
+
+    const fullDayBlock = facilityPickerBlockedForDate.find(blocked => !blocked.isPartialBlock);
+    if (fullDayBlock) {
+      facilityPickerAllSlots.forEach(slot => {
+        disabled.set(slot, fullDayBlock.reason || "예약 불가 날짜입니다.");
+      });
+      return disabled;
+    }
+
+    facilityPickerAllSlots.forEach((slot, index) => {
+      const nextSlot = facilityPickerAllSlots[index + 1] ?? slot;
+      const timeRestriction = getReservationTimeRestriction(facilityPickerDate, slot, {
+        enforceLeadTime: false,
+      });
+      if (timeRestriction) {
+        disabled.set(slot, timeRestriction);
+        return;
+      }
+
+      const partialBlock = facilityPickerBlockedForDate.find(blocked =>
+        blocked.isPartialBlock &&
+        blocked.blockStart &&
+        blocked.blockEnd &&
+        slot < blocked.blockEnd &&
+        nextSlot > blocked.blockStart
+      );
+      if (partialBlock) {
+        disabled.set(slot, partialBlock.reason || "예약 불가 시간입니다.");
+        return;
+      }
+
+      if (
+        facilityPickerDayHour?.breakStart &&
+        facilityPickerDayHour.breakEnd &&
+        slot < facilityPickerDayHour.breakEnd &&
+        nextSlot > facilityPickerDayHour.breakStart
+      ) {
+        disabled.set(slot, "휴게/점검 시간입니다.");
+      }
+    });
+
+    return disabled;
+  }, [facilityPickerAllSlots, facilityPickerBlockedForDate, facilityPickerDate, facilityPickerDayHour]);
+
+  const facilityPickerMonthDays = useMemo(() => buildMonthCells(facilityPickerMonth), [facilityPickerMonth]);
+
   function resetForm() {
     setShowForm(false);
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setFacilityPickerOpen(false);
+  }
+
+  function openFacilityPicker() {
+    const initialDate = form.startDate || getLocalDateKey();
+    const parsedDate = parseDateKey(initialDate) ?? new Date();
+    setFacilityPickerDate(initialDate);
+    setFacilityPickerStartTime(form.startTime);
+    setFacilityPickerEndTime(form.endTime);
+    setFacilityPickerMonth(parsedDate);
+    setFacilityPickerOpen(true);
+  }
+
+  function moveFacilityPickerMonth(direction: -1 | 1) {
+    setFacilityPickerMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + direction, 1));
+  }
+
+  function handleFacilityPickerDateSelect(dateKey: string) {
+    setFacilityPickerDate(dateKey);
+    setFacilityPickerStartTime("");
+    setFacilityPickerEndTime("");
+  }
+
+  function handleFacilityPickerTimeSelect(start: string, end: string) {
+    setFacilityPickerStartTime(start);
+    setFacilityPickerEndTime(end);
+  }
+
+  function applyFacilityPickerSelection() {
+    if (!form.facilityId) {
+      toast.error("시설을 먼저 선택해주세요.");
+      return;
+    }
+    if (!facilityPickerDate) {
+      toast.error("시설예약 날짜를 선택해주세요.");
+      return;
+    }
+    if (!facilityPickerStartTime || !facilityPickerEndTime) {
+      toast.error("시설예약 시간을 선택해주세요.");
+      return;
+    }
+
+    setForm(prev => ({
+      ...prev,
+      startDate: facilityPickerDate,
+      endDate: prev.endDate && prev.endDate >= facilityPickerDate ? prev.endDate : facilityPickerDate,
+      startTime: facilityPickerStartTime,
+      endTime: facilityPickerEndTime,
+    }));
+    setFacilityPickerOpen(false);
+    toast.success("선택한 시설예약 시간이 강좌 일정에 반영됐습니다.");
+  }
+
+  function clearFacilityReservationLink() {
+    setForm(prev => ({ ...prev, facilityId: "" }));
+    setFacilityPickerStartTime("");
+    setFacilityPickerEndTime("");
+    toast.success("시설예약 연결을 해제했습니다. 강좌 일정은 그대로 유지됩니다.");
+  }
+
+  function renderFacilityPickerTooltip(slot: string, disabledReason?: string) {
+    const reservation = facilityPickerReservationBySlot.get(slot);
+    if (!reservation) return disabledReason ?? "예약 불가";
+
+    return (
+      <div className="space-y-0.5">
+        <p className="font-semibold text-white">
+          {getReservationDisplayName(reservation)} · {reservation.startTime}~{reservation.endTime}
+        </p>
+        <p className="text-gray-200">{getReservationDisplayMeta(reservation)}</p>
+        {reservation.purpose && <p className="line-clamp-2 text-gray-300">{reservation.purpose}</p>}
+      </div>
+    );
   }
 
   function startEdit(course: Course) {
@@ -511,7 +797,11 @@ export default function AdminCoursesTab() {
                 </label>
                 <select
                   value={form.facilityId}
-                  onChange={e => setForm(prev => ({ ...prev, facilityId: e.target.value }))}
+                  onChange={e => {
+                    setForm(prev => ({ ...prev, facilityId: e.target.value }));
+                    setFacilityPickerStartTime("");
+                    setFacilityPickerEndTime("");
+                  }}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20] bg-white"
                 >
                   <option value="">시설예약 연결 안 함</option>
@@ -521,8 +811,33 @@ export default function AdminCoursesTab() {
                     </option>
                   ))}
                 </select>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <button
+                    type="button"
+                    onClick={openFacilityPicker}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#1B5E20] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#2E7D32]"
+                  >
+                    <CalendarCheck className="w-4 h-4" />
+                    달력/시간표로 선택
+                  </button>
+                  {form.facilityId && (
+                    <button
+                      type="button"
+                      onClick={clearFacilityReservationLink}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 transition-colors hover:border-red-200 hover:text-red-500"
+                    >
+                      <X className="w-4 h-4" />
+                      시설예약 연결 해제
+                    </button>
+                  )}
+                  {form.facilityId && form.startDate && form.startTime && form.endTime && (
+                    <span className="text-xs font-medium text-[#1B5E20]">
+                      {form.startDate} {form.startTime}~{form.endTime} 연결 예정
+                    </span>
+                  )}
+                </div>
                 <p className="text-[11px] text-gray-500 mt-2">
-                  시설을 선택하고 강좌 시작일/시간을 입력한 뒤 저장하면 시설예약이 자동 생성됩니다. 강좌 취소 또는 삭제 시 연결 예약도 자동 취소됩니다.
+                  시설예약은 선택사항입니다. 시설을 연결하면 저장 시 강좌 시작일 기준으로 시설예약이 자동 생성됩니다. 강좌 취소 또는 삭제 시 연결 예약도 자동 취소됩니다.
                 </p>
               </div>
               <div>
@@ -764,6 +1079,218 @@ export default function AdminCoursesTab() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {facilityPickerOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-3">
+          <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-gray-100 bg-white px-5 py-4">
+              <div>
+                <h4 className="text-base font-bold text-gray-900">강좌 시설예약 선택</h4>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  시설예약이 필요한 강좌만 선택하세요. 적용 후 저장하면 시설예약이 연결됩니다.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFacilityPickerOpen(false)}
+                className="rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="grid gap-4 p-5 lg:grid-cols-[320px_1fr]">
+              <div className="space-y-4">
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                  <label className="mb-2 flex items-center gap-1.5 text-xs font-bold text-gray-700">
+                    <Building2 className="h-4 w-4 text-[#1B5E20]" />
+                    예약할 시설
+                  </label>
+                  <select
+                    value={form.facilityId}
+                    onChange={e => {
+                      setForm(prev => ({ ...prev, facilityId: e.target.value }));
+                      setFacilityPickerStartTime("");
+                      setFacilityPickerEndTime("");
+                    }}
+                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
+                  >
+                    <option value="">시설 선택 안 함</option>
+                    {facilities.map(facility => (
+                      <option key={facility.id} value={facility.id}>
+                        {facility.name}{facility.location ? ` · ${facility.location}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
+                    시설을 선택하지 않으면 강좌만 등록되고 시설예약은 생성되지 않습니다.
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-gray-100 bg-white p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => moveFacilityPickerMonth(-1)}
+                      className="rounded-full p-1.5 text-gray-500 hover:bg-gray-100"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <p className="text-sm font-bold text-gray-900">
+                      {facilityPickerMonth.getFullYear()}년 {facilityPickerMonth.getMonth() + 1}월
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => moveFacilityPickerMonth(1)}
+                      className="rounded-full p-1.5 text-gray-500 hover:bg-gray-100"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] font-medium">
+                    {DAY_LABELS.map((day, index) => (
+                      <div key={day} className={index === 0 ? "text-red-400" : index === 6 ? "text-blue-400" : "text-gray-500"}>
+                        {day}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-1 text-center text-xs">
+                    {facilityPickerMonthDays.map((day, index) => {
+                      if (!day) return <div key={`empty-${index}`} className="h-8" />;
+
+                      const dateKey = `${facilityPickerMonth.getFullYear()}-${String(facilityPickerMonth.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                      const date = parseDateKey(dateKey);
+                      const dayHour = date ? facilityPickerHours.find(hour => hour.dayOfWeek === date.getDay()) : null;
+                      const isPast = dateKey < getLocalDateKey();
+                      const fullBlocked = facilityPickerBlockedDates.some(blocked => blocked.blockedDate === dateKey && !blocked.isPartialBlock);
+                      const isClosed = Boolean(dayHour && !dayHour.isOpen);
+                      const isSelected = facilityPickerDate === dateKey;
+                      const isUnavailable = isPast || fullBlocked || isClosed;
+
+                      return (
+                        <button
+                          key={dateKey}
+                          type="button"
+                          disabled={isUnavailable}
+                          onClick={() => handleFacilityPickerDateSelect(dateKey)}
+                          className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full font-medium transition-colors ${
+                            isSelected
+                              ? "bg-[#1B5E20] text-white"
+                              : isUnavailable
+                              ? "cursor-not-allowed text-gray-300"
+                              : "border border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
+                          }`}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-gray-400">
+                    <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-full border border-green-200 bg-green-50" />예약 가능</span>
+                    <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-full bg-gray-200" />선택 불가</span>
+                    <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-full bg-[#1B5E20]" />선택됨</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-xl border border-green-100 bg-green-50/60 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="flex items-center gap-1.5 text-sm font-bold text-[#1B5E20]">
+                        <CalendarCheck className="h-4 w-4" />
+                        {facilityPickerDate ? formatDateLabel(facilityPickerDate) : "날짜를 선택해주세요"}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {selectedFacility
+                          ? `${selectedFacility.name}${selectedFacility.location ? ` · ${selectedFacility.location}` : ""}`
+                          : "먼저 시설을 선택하면 해당 시설의 예약 시간표가 표시됩니다."}
+                      </p>
+                    </div>
+                    {facilityPickerStartTime && facilityPickerEndTime && (
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#1B5E20] shadow-sm">
+                        {facilityPickerStartTime}~{facilityPickerEndTime} 선택
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {!selectedFacility ? (
+                  <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-12 text-center text-sm text-gray-400">
+                    시설을 선택하면 달력과 시간표로 예약 가능 시간을 확인할 수 있습니다.
+                  </div>
+                ) : !facilityPickerDate ? (
+                  <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-12 text-center text-sm text-gray-400">
+                    왼쪽 달력에서 예약 날짜를 선택해주세요.
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-gray-100 bg-white p-4">
+                    {facilityPickerDayHour && !facilityPickerDayHour.isOpen && (
+                      <div className="mb-3 flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-500">
+                        <AlertCircle className="h-4 w-4" />
+                        이 날짜는 해당 시설 휴무일입니다.
+                      </div>
+                    )}
+
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs text-gray-500">
+                        운영 시간: {facilityPickerDayHour?.openTime ?? selectedFacility.openTime} ~ {facilityPickerDayHour?.closeTime ?? selectedFacility.closeTime}
+                      </p>
+                      <p className="text-xs text-gray-400">시설예약과 같은 가로 시간표 방식입니다.</p>
+                    </div>
+
+                    {loadingFacilityPickerReservations ? (
+                      <div className="flex items-center justify-center py-12">
+                        <Loader2 className="h-5 w-5 animate-spin text-[#1B5E20]" />
+                      </div>
+                    ) : facilityPickerAllSlots.length === 0 ? (
+                      <div className="rounded-lg bg-gray-50 px-3 py-8 text-center text-sm text-gray-400">
+                        선택 가능한 운영 시간이 없습니다.
+                      </div>
+                    ) : (
+                      <ReservationTimelinePicker
+                        allSlots={facilityPickerAllSlots}
+                        bookedSlots={facilityPickerBookedSlots}
+                        disabledSlots={facilityPickerDisabledSlots}
+                        startTime={facilityPickerStartTime}
+                        endTime={facilityPickerEndTime}
+                        onSelect={handleFacilityPickerTimeSelect}
+                        slotMinutes={facilityPickerSlotMinutes}
+                        maxSlots={facilityPickerMaxSlots}
+                        renderDisabledTooltip={renderFacilityPickerTooltip}
+                      />
+                    )}
+
+                    <div className="mt-4 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-[11px] leading-relaxed text-gray-500">
+                      적용을 누르면 강좌 시작일과 시간이 위 선택값으로 채워집니다. 최종 시설예약 생성은 강좌 저장 버튼을 눌렀을 때 처리됩니다.
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-gray-100 bg-white px-5 py-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setFacilityPickerOpen(false)}
+                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+              >
+                닫기
+              </button>
+              <button
+                type="button"
+                onClick={applyFacilityPickerSelection}
+                className="rounded-lg bg-[#1B5E20] px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-[#2E7D32]"
+              >
+                선택한 시설예약 적용
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
