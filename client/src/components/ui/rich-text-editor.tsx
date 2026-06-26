@@ -732,13 +732,12 @@ function RichTextToolbar({
   );
   const hasSelection = !editor.state.selection.empty;
   const currentTableCellRange = getCurrentTableCellNodeRange(editor);
-  const rememberedTableCellFocusPosition =
-    currentTableCellRange || editor.isFocused
-      ? null
-      : getValidRememberedTableCellFocusPosition(
-          editor,
-          lastTableCellFocusPositionRef.current,
-        );
+  const rememberedTableCellFocusPosition = currentTableCellRange
+    ? null
+    : getValidRememberedTableCellFocusPosition(
+        editor,
+        lastTableCellFocusPositionRef.current,
+      );
   const isInTable =
     Boolean(currentTableCellRange) ||
     Boolean(rememberedTableCellFocusPosition) ||
