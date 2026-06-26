@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Building2,
   House,
@@ -132,7 +132,68 @@ export default function HomeAdminDock({
 }: HomeAdminDockProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const [dockPlacement, setDockPlacement] = useState({
+    rightOffset: 0,
+    useLeftFallback: false,
+  });
   const hasNotifications = notificationCount > 0;
+
+  useEffect(() => {
+    const updateDockPlacement = () => {
+      const openRightPanels = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-slot="sheet-content"][data-state="open"]')
+      ).filter((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0
+          && rect.height > 0
+          && rect.right >= window.innerWidth - 4
+          && rect.left < window.innerWidth - 48;
+      });
+
+      const rightPanel = openRightPanels
+        .map((element) => element.getBoundingClientRect())
+        .sort((a, b) => a.left - b.left)[0];
+
+      if (!rightPanel) {
+        setDockPlacement((current) => (
+          current.rightOffset === 0 && !current.useLeftFallback
+            ? current
+            : { rightOffset: 0, useLeftFallback: false }
+        ));
+        return;
+      }
+
+      const panelWidth = Math.ceil(window.innerWidth - rightPanel.left);
+      const hasEnoughSpaceBesidePanel = rightPanel.left >= 260;
+      const nextPlacement = hasEnoughSpaceBesidePanel
+        ? { rightOffset: panelWidth + 16, useLeftFallback: false }
+        : { rightOffset: 0, useLeftFallback: true };
+
+      setDockPlacement((current) => (
+        current.rightOffset === nextPlacement.rightOffset &&
+          current.useLeftFallback === nextPlacement.useLeftFallback
+          ? current
+          : nextPlacement
+      ));
+    };
+
+    updateDockPlacement();
+    const animationFrame = window.requestAnimationFrame(updateDockPlacement);
+    const observer = new MutationObserver(updateDockPlacement);
+    observer.observe(document.body, {
+      attributes: true,
+      childList: true,
+      subtree: true,
+      attributeFilter: ["class", "data-state", "style"],
+    });
+    window.addEventListener("resize", updateDockPlacement);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      observer.disconnect();
+      window.removeEventListener("resize", updateDockPlacement);
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -164,7 +225,17 @@ export default function HomeAdminDock({
   }, [onClose, open]);
 
   return (
-    <div className="fixed right-4 bottom-4 z-[120] sm:right-6 sm:bottom-6">
+    <div
+      className={cn(
+        "fixed bottom-4 z-[120] transition-[left,right,transform] duration-200 sm:bottom-6",
+        dockPlacement.useLeftFallback ? "left-4 sm:left-6" : "right-4 sm:right-6"
+      )}
+      style={
+        !dockPlacement.useLeftFallback && dockPlacement.rightOffset > 0
+          ? { right: dockPlacement.rightOffset }
+          : undefined
+      }
+    >
       {open && (
         <div
           ref={panelRef}
