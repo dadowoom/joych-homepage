@@ -41,6 +41,7 @@ import { historyRouter } from "./history";
 import { notificationsRouter } from "./notifications";
 import { vehiclesRouter } from "./vehicles";
 import { vehicleReservationsRouter } from "./vehicleReservations";
+import { dynamicBoardsRouter } from "./dynamicBoards";
 
 export const cmsRouter = router({
   notices: noticesRouter,
@@ -63,4 +64,5 @@ export const cmsRouter = router({
   notifications: notificationsRouter,
   vehicles: vehiclesRouter,
   vehicleReservations: vehicleReservationsRouter,
+  dynamicBoards: dynamicBoardsRouter,
 });

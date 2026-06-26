@@ -48,37 +48,15 @@ type NoticeBoardMode = "notice" | "adminResource";
 
 type CustomBoard = {
   label: string;
-  category: string;
-  legacyCategory?: string;
+  menuItemId?: number;
+  menuSubItemId?: number;
 };
 
-const MENU_BOARD_CATEGORY_PREFIX = "menu-board:";
-
-function getStableBoardHash(value: string) {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(36);
-}
-
-function getCustomBoard({ label, href, menuItemId, menuSubItemId }: BoardContentProps): CustomBoard {
-  const rawKey = menuSubItemId
-    ? `sub${menuSubItemId}`
-    : menuItemId
-      ? `item${menuItemId}`
-      : href?.trim() || label?.trim() || "menu-board";
-  const legacyRawKey = href?.trim() || label?.trim();
-  const category = `${MENU_BOARD_CATEGORY_PREFIX}${getStableBoardHash(rawKey)}`;
-  const legacyCategory = legacyRawKey
-    ? `${MENU_BOARD_CATEGORY_PREFIX}${getStableBoardHash(legacyRawKey)}`
-    : undefined;
-
+function getCustomBoard({ label, menuItemId, menuSubItemId }: BoardContentProps): CustomBoard {
   return {
     label: label?.trim() || "게시판",
-    category,
-    legacyCategory: legacyCategory && legacyCategory !== category ? legacyCategory : undefined,
+    menuItemId,
+    menuSubItemId,
   };
 }
 
@@ -86,31 +64,12 @@ function normalizeNoticeCategory(category?: string | null) {
   return sanitizeNoticePostCategory(category);
 }
 
-function normalizeBoardHref(value?: string | null) {
-  const trimmed = value?.trim() ?? "";
-  if (!trimmed) return "";
-  try {
-    return decodeURIComponent(trimmed);
-  } catch {
-    return trimmed;
-  }
-}
-
-function isNoticeBoardPage(label?: string, href?: string | null) {
+function isNoticeBoardPage(label?: string) {
   const normalizedLabel = (label ?? "").replace(/\s+/g, "").toLowerCase();
-  const normalizedHref = normalizeBoardHref(href).replace(/\/+$/, "");
-  const knownNoticeHrefs = new Set([
-    "/page/행정지원-공지사항",
-    "/community/news",
-    "/notice",
-    "/notices",
-    "/hot-news",
-  ]);
   return (
     normalizedLabel === "공지사항" ||
     normalizedLabel === "교회소식" ||
-    normalizedLabel === "hotnews" ||
-    knownNoticeHrefs.has(normalizedHref)
+    normalizedLabel === "hotnews"
   );
 }
 
@@ -184,6 +143,11 @@ function NoticeBoardContent({
   const utils = trpc.useUtils();
   const isAdminResource = mode === "adminResource";
   const isCustomBoard = Boolean(customBoard);
+  const customBoardSource = customBoard?.menuSubItemId
+    ? { menuSubItemId: customBoard.menuSubItemId }
+    : customBoard?.menuItemId
+      ? { menuItemId: customBoard.menuItemId }
+      : undefined;
   const [activeCategory, setActiveCategory] = useState("전체");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
@@ -204,7 +168,7 @@ function NoticeBoardContent({
   const getBlankForm = (): NoticeFormState => ({
     category: isAdminResource
       ? ADMIN_RESOURCE_CATEGORY
-      : customBoard?.category ?? DEFAULT_NOTICE_CATEGORY_LABEL,
+      : DEFAULT_NOTICE_CATEGORY_LABEL,
     title: "",
     content: "",
     thumbnailUrl: "",
@@ -217,13 +181,9 @@ function NoticeBoardContent({
   const [formState, setFormState] = useState<NoticeFormState>(getBlankForm);
   const noticeQuery = trpc.home.noticeBoard.useQuery(undefined, { enabled: !isAdminResource && !isCustomBoard });
   const adminResourceQuery = trpc.home.adminResourceBoard.useQuery(undefined, { enabled: isAdminResource });
-  const customBoardQuery = trpc.home.menuBoard.useQuery(
-    { category: customBoard?.category ?? `${MENU_BOARD_CATEGORY_PREFIX}0` },
-    { enabled: isCustomBoard },
-  );
-  const legacyCustomBoardQuery = trpc.home.menuBoard.useQuery(
-    { category: customBoard?.legacyCategory ?? `${MENU_BOARD_CATEGORY_PREFIX}0` },
-    { enabled: isCustomBoard && Boolean(customBoard?.legacyCategory) },
+  const customBoardQuery = trpc.home.dynamicBoardPosts.useQuery(
+    customBoardSource ?? { menuItemId: 0 },
+    { enabled: isCustomBoard && Boolean(customBoardSource) },
   );
   const { data: settings } = trpc.home.settings.useQuery(undefined, { enabled: !isAdminResource && !isCustomBoard });
   const noticeCategorySettings = useMemo(
@@ -239,17 +199,12 @@ function NoticeBoardContent({
     [noticeCategorySettings],
   );
   const notices = isCustomBoard
-    ? [
-        ...(customBoardQuery.data ?? []),
-        ...(legacyCustomBoardQuery.data ?? []).filter((notice) =>
-          !(customBoardQuery.data ?? []).some((current) => current.id === notice.id)
-        ),
-      ]
+    ? customBoardQuery.data
     : isAdminResource
       ? adminResourceQuery.data
       : noticeQuery.data;
   const isLoading = isCustomBoard
-    ? customBoardQuery.isLoading || legacyCustomBoardQuery.isLoading
+    ? customBoardQuery.isLoading
     : isAdminResource
       ? adminResourceQuery.isLoading
       : noticeQuery.isLoading;
@@ -270,11 +225,8 @@ function NoticeBoardContent({
     void utils.home.notices.invalidate();
     void utils.home.noticeBoard.invalidate();
     void utils.home.adminResourceBoard.invalidate();
-    if (customBoard) {
-      void utils.home.menuBoard.invalidate({ category: customBoard.category });
-      if (customBoard.legacyCategory) {
-        void utils.home.menuBoard.invalidate({ category: customBoard.legacyCategory });
-      }
+    if (customBoardSource) {
+      void utils.home.dynamicBoardPosts.invalidate(customBoardSource);
     }
     void utils.home.settings.invalidate();
   };
@@ -317,6 +269,36 @@ function NoticeBoardContent({
     onError: (error) => toast.error(`삭제 실패: ${error.message}`),
   });
 
+  const createDynamicPostMutation = trpc.cms.dynamicBoards.createPost.useMutation({
+    onSuccess: () => {
+      toast.success("게시글이 등록됐습니다.");
+      setFormMode(null);
+      setFormState(getBlankForm());
+      invalidateNoticeData();
+    },
+    onError: (error) => toast.error(`등록 실패: ${error.message}`),
+  });
+
+  const updateDynamicPostMutation = trpc.cms.dynamicBoards.updatePost.useMutation({
+    onSuccess: () => {
+      toast.success("게시글이 수정됐습니다.");
+      setFormMode(null);
+      setEditingNoticeId(null);
+      invalidateNoticeData();
+    },
+    onError: (error) => toast.error(`수정 실패: ${error.message}`),
+  });
+
+  const deleteDynamicPostMutation = trpc.cms.dynamicBoards.deletePost.useMutation({
+    onSuccess: () => {
+      toast.success("게시글이 삭제됐습니다.");
+      setFormMode(null);
+      setEditingNoticeId(null);
+      invalidateNoticeData();
+    },
+    onError: (error) => toast.error(`삭제 실패: ${error.message}`),
+  });
+
   const updateCategoriesMutation = trpc.cms.notices.categories.update.useMutation({
     onSuccess: () => {
       toast.success("공지사항 분류가 저장됐습니다.");
@@ -330,6 +312,14 @@ function NoticeBoardContent({
       void utils.home.notices.invalidate();
       void utils.home.noticeBoard.invalidate();
       void utils.home.adminResourceBoard.invalidate();
+    },
+  });
+
+  const trackDynamicPostViewMutation = trpc.home.trackDynamicBoardPostView.useMutation({
+    onSuccess: () => {
+      if (customBoardSource) {
+        void utils.home.dynamicBoardPosts.invalidate(customBoardSource);
+      }
     },
   });
 
@@ -354,17 +344,21 @@ function NoticeBoardContent({
     if (!willOpen || viewedNoticeIdsRef.current.has(noticeId)) return;
 
     viewedNoticeIdsRef.current.add(noticeId);
+    if (isCustomBoard) {
+      trackDynamicPostViewMutation.mutate({ id: noticeId });
+      return;
+    }
     trackNoticeViewMutation.mutate({ id: noticeId });
   };
 
   const categoryFilteredNotices = isAdminResource || isCustomBoard || activeCategory === NOTICE_ALL_CATEGORY_LABEL
     ? sortedNotices
-    : sortedNotices.filter((notice) => normalizeNoticeCategory(notice.category) === activeCategory);
+    : sortedNotices.filter((notice) => normalizeNoticeCategory(getPostCategory(notice)) === activeCategory);
   const normalizedKeyword = searchKeyword.trim().toLowerCase();
   const filteredNotices = normalizedKeyword
     ? categoryFilteredNotices.filter((notice) => {
         const titleText = notice.title.toLowerCase();
-        const categoryText = normalizeNoticeCategory(notice.category).toLowerCase();
+        const categoryText = normalizeNoticeCategory(getPostCategory(notice)).toLowerCase();
         const contentText = toPlainText(notice.content).toLowerCase();
         if (!isAdminResource && !isCustomBoard && effectiveSearchField === "category") return categoryText.includes(normalizedKeyword);
         if (effectiveSearchField === "content") return contentText.includes(normalizedKeyword);
@@ -394,17 +388,18 @@ function NoticeBoardContent({
   };
 
   const openEditForm = (notice: NonNullable<typeof notices>[number]) => {
+    const attachment = getPostAttachment(notice);
     setFormMode("edit");
     setEditingNoticeId(notice.id);
     setFormState({
       category: isAdminResource
         ? ADMIN_RESOURCE_CATEGORY
-        : customBoard?.category ?? sanitizeNoticePostCategory(notice.category, writeNoticeCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
+        : sanitizeNoticePostCategory(getPostCategory(notice), writeNoticeCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
       title: notice.title,
       content: notice.content ?? "",
       thumbnailUrl: notice.thumbnailUrl ?? "",
-      attachmentName: notice.attachmentName ?? "",
-      attachmentUrl: notice.attachmentUrl ?? "",
+      attachmentName: attachment.name,
+      attachmentUrl: attachment.url,
       isPublished: notice.isPublished,
       isPinned: notice.isPinned,
     });
@@ -492,7 +487,7 @@ function NoticeBoardContent({
     const payload = {
       category: isAdminResource
         ? ADMIN_RESOURCE_CATEGORY
-        : customBoard?.category ?? sanitizeNoticePostCategory(formState.category, writeNoticeCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
+        : sanitizeNoticePostCategory(formState.category, writeNoticeCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
       title,
       content: formState.content.trim() || undefined,
       thumbnailUrl: formState.thumbnailUrl.trim(),
@@ -501,6 +496,34 @@ function NoticeBoardContent({
       isPublished: formState.isPublished,
       isPinned: formState.isPinned,
     };
+
+    if (isCustomBoard) {
+      if (!customBoardSource) {
+        toast.error("게시판 연결 정보를 찾을 수 없습니다. 메뉴를 다시 저장한 뒤 시도해주세요.");
+        return;
+      }
+      const dynamicPayload = {
+        ...customBoardSource,
+        title,
+        content: formState.content.trim() || undefined,
+        thumbnailUrl: formState.thumbnailUrl.trim(),
+        isPublished: formState.isPublished,
+        isPinned: formState.isPinned,
+      };
+      if (formMode === "edit" && editingNoticeId) {
+        updateDynamicPostMutation.mutate({
+          id: editingNoticeId,
+          title,
+          content: dynamicPayload.content,
+          thumbnailUrl: dynamicPayload.thumbnailUrl,
+          isPublished: dynamicPayload.isPublished,
+          isPinned: dynamicPayload.isPinned,
+        });
+        return;
+      }
+      createDynamicPostMutation.mutate(dynamicPayload);
+      return;
+    }
 
     if (formMode === "edit" && editingNoticeId) {
       updateMutation.mutate({ id: editingNoticeId, ...payload });
@@ -513,6 +536,10 @@ function NoticeBoardContent({
   const handleDelete = (id: number) => {
     const message = isAdminResource ? "이 행정자료를 삭제할까요?" : isCustomBoard ? "이 게시글을 삭제할까요?" : "이 공지사항을 삭제할까요?";
     if (!window.confirm(message)) return;
+    if (isCustomBoard) {
+      deleteDynamicPostMutation.mutate({ id });
+      return;
+    }
     deleteMutation.mutate({ id });
   };
 
@@ -623,7 +650,10 @@ function NoticeBoardContent({
 
   const renderNoticeForm = () => {
     if (!canManageNotices || !formMode) return null;
-    const isSaving = createMutation.isPending || updateMutation.isPending;
+    const isSaving = createMutation.isPending
+      || updateMutation.isPending
+      || createDynamicPostMutation.isPending
+      || updateDynamicPostMutation.isPending;
     const formTitle = formMode === "edit" ? `${createButtonLabel.replace("작성", "수정")}` : createButtonLabel;
 
     return (
@@ -810,10 +840,10 @@ function NoticeBoardContent({
         <div className="flex flex-wrap justify-between gap-2 border-t border-gray-100 px-5 py-4">
           <div>
             {formMode === "edit" && editingNoticeId && (
-              <button
-                type="button"
-                onClick={() => handleDelete(editingNoticeId)}
-                disabled={deleteMutation.isPending}
+                <button
+                  type="button"
+                  onClick={() => handleDelete(editingNoticeId)}
+                  disabled={deleteMutation.isPending || deleteDynamicPostMutation.isPending}
                 className="inline-flex h-9 items-center gap-2 border border-red-200 px-3 text-sm font-medium text-red-500 hover:bg-red-50 disabled:opacity-50"
               >
                 <Trash2 className="h-4 w-4" />
@@ -982,7 +1012,8 @@ function NoticeBoardContent({
                 {visibleNotices.map((notice, index) => {
                   const postNumber = notice.isPinned ? "공지" : String(filteredNotices.length - (pageStart + index));
                   const isExpanded = expandedId === notice.id;
-                  const displayCategory = normalizeNoticeCategory(notice.category);
+                  const displayCategory = normalizeNoticeCategory(getPostCategory(notice));
+                  const attachment = getPostAttachment(notice);
                   return (
                     <Fragment key={notice.id}>
                       <tr className="transition-colors hover:bg-gray-50">
@@ -1002,7 +1033,7 @@ function NoticeBoardContent({
                               <span className="mr-2 text-xs text-[#1B5E20]">[{displayCategory}]</span>
                             )}
                             {notice.title}
-                            {notice.attachmentUrl && <Paperclip className="ml-2 inline h-3.5 w-3.5 text-[#1B5E20]" />}
+                            {attachment.url && <Paperclip className="ml-2 inline h-3.5 w-3.5 text-[#1B5E20]" />}
                             {notice.thumbnailUrl && <span className="ml-2 text-[#0F8FB3]">▣</span>}
                           </button>
                         </td>
@@ -1026,16 +1057,16 @@ function NoticeBoardContent({
                             <div className="whitespace-pre-line border-l-2 border-[#1B5E20]/30 pl-4 text-sm leading-7 text-gray-700">
                               {notice.content ? <RichTextViewer html={notice.content} /> : "등록된 본문 내용이 없습니다."}
                             </div>
-                            {notice.attachmentUrl && (
+                            {attachment.url && (
                               <div className="mt-4">
                                 <a
-                                  href={notice.attachmentUrl}
+                                  href={attachment.url}
                                   target="_blank"
                                   rel="noreferrer"
                                   className="inline-flex items-center gap-2 border border-[#1B5E20]/20 bg-white px-3 py-2 text-sm text-[#1B5E20] hover:bg-[#F1F8E9]"
                                 >
                                   <Paperclip className="h-4 w-4" />
-                                  <span>{notice.attachmentName || ATTACHMENT_LABEL}</span>
+                                  <span>{attachment.name || ATTACHMENT_LABEL}</span>
                                 </a>
                               </div>
                             )}
@@ -1071,7 +1102,8 @@ function NoticeBoardContent({
             {visibleNotices.map((notice, index) => {
               const postNumber = notice.isPinned ? "공지" : String(filteredNotices.length - (pageStart + index));
               const isExpanded = expandedId === notice.id;
-              const displayCategory = normalizeNoticeCategory(notice.category);
+              const displayCategory = normalizeNoticeCategory(getPostCategory(notice));
+              const attachment = getPostAttachment(notice);
               return (
                 <article key={notice.id} className={viewMode === "grid" ? "border border-gray-200 bg-white p-4" : "p-4"}>
                   <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
@@ -1088,7 +1120,7 @@ function NoticeBoardContent({
                       <span className="mr-2 text-xs text-[#1B5E20]">[{displayCategory}]</span>
                     )}
                     {notice.title}
-                    {notice.attachmentUrl && <Paperclip className="ml-2 inline h-3.5 w-3.5 text-[#1B5E20]" />}
+                    {attachment.url && <Paperclip className="ml-2 inline h-3.5 w-3.5 text-[#1B5E20]" />}
                   </button>
                   <div className="mt-1 flex flex-wrap gap-2 text-xs text-gray-500">
                     <span className="font-medium text-[#1B5E20]">관리자</span>
@@ -1107,16 +1139,16 @@ function NoticeBoardContent({
                         />
                       )}
                       {notice.content ? <RichTextViewer html={notice.content} /> : <p>등록된 본문 내용이 없습니다.</p>}
-                      {notice.attachmentUrl && (
+                      {attachment.url && (
                         <div className="mt-4">
                           <a
-                            href={notice.attachmentUrl}
+                            href={attachment.url}
                             target="_blank"
                             rel="noreferrer"
                             className="inline-flex items-center gap-2 border border-[#1B5E20]/20 bg-white px-3 py-2 text-sm text-[#1B5E20] hover:bg-[#F1F8E9]"
                           >
                             <Paperclip className="h-4 w-4" />
-                            <span>{notice.attachmentName || ATTACHMENT_LABEL}</span>
+                            <span>{attachment.name || ATTACHMENT_LABEL}</span>
                           </a>
                         </div>
                       )}
@@ -1193,9 +1225,24 @@ export function BoardContent({ label, href, menuItemId, menuSubItemId }: BoardCo
   if (isAdminResourcePage(label, href)) {
     return <NoticeBoardContent mode="adminResource" />;
   }
-  if (isNoticeBoardPage(label, href)) {
+  if (isNoticeBoardPage(label)) {
     return <NoticeBoardContent />;
   }
   return <NoticeBoardContent customBoard={getCustomBoard({ label, href, menuItemId, menuSubItemId })} />;
+}
+
+function getPostCategory(post: unknown) {
+  if (typeof post !== "object" || post === null) return undefined;
+  const value = (post as { category?: unknown }).category;
+  return typeof value === "string" ? value : undefined;
+}
+
+function getPostAttachment(post: unknown) {
+  if (typeof post !== "object" || post === null) return { name: "", url: "" };
+  const value = post as { attachmentName?: unknown; attachmentUrl?: unknown };
+  return {
+    name: typeof value.attachmentName === "string" ? value.attachmentName : "",
+    url: typeof value.attachmentUrl === "string" ? value.attachmentUrl : "",
+  };
 }
 

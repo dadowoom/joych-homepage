@@ -238,6 +238,45 @@ export const notices = mysqlTable("notices", {
 export type Notice = typeof notices.$inferSelect;
 export type InsertNotice = typeof notices.$inferInsert;
 
+// ─────────────────────────────────────────────
+// CMS: 동적 메뉴 전용 게시판
+// ─────────────────────────────────────────────
+export const dynamicBoards = mysqlTable("dynamic_boards", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 2단 메뉴(menu_items.id)와 연결된 게시판. 2단/3단 중 하나만 사용합니다. */
+  menuItemId: int("menu_item_id"),
+  /** 3단 메뉴(menu_sub_items.id)와 연결된 게시판. 2단/3단 중 하나만 사용합니다. */
+  menuSubItemId: int("menu_sub_item_id"),
+  title: varchar("title", { length: 128 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("dynamic_boards_menu_item_idx").on(table.menuItemId),
+  uniqueIndex("dynamic_boards_menu_sub_item_idx").on(table.menuSubItemId),
+]);
+
+export type DynamicBoard = typeof dynamicBoards.$inferSelect;
+export type InsertDynamicBoard = typeof dynamicBoards.$inferInsert;
+
+export const dynamicBoardPosts = mysqlTable("dynamic_board_posts", {
+  id: int("id").autoincrement().primaryKey(),
+  boardId: int("board_id").notNull(),
+  title: varchar("title", { length: 256 }).notNull(),
+  content: text("content"),
+  thumbnailUrl: text("thumbnail_url"),
+  isPublished: boolean("is_published").notNull().default(true),
+  isPinned: boolean("is_pinned").notNull().default(false),
+  authorId: int("author_id"),
+  viewCount: int("view_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("dynamic_board_posts_board_visible_idx").on(table.boardId, table.isPublished, table.createdAt),
+]);
+
+export type DynamicBoardPost = typeof dynamicBoardPosts.$inferSelect;
+export type InsertDynamicBoardPost = typeof dynamicBoardPosts.$inferInsert;
+
 // Free board: member-authored community posts
 export const freeBoardPosts = mysqlTable("free_board_posts", {
   id: int("id").autoincrement().primaryKey(),

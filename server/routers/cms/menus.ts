@@ -45,6 +45,7 @@ import {
   updateMenuSubItem,
   deleteMenuSubItem,
   createYoutubePlaylist,
+  ensureDynamicBoard,
 } from "../../db";
 import {
   makeUniqueMenuPageHref,
@@ -154,6 +155,11 @@ export const menusRouter = router({
         }
       }
 
+      // board 타입이면 메뉴 전용 게시판 방을 생성합니다.
+      if (input.pageType === "board") {
+        await ensureDynamicBoard({ menuItemId: newId, boardTitle: input.label });
+      }
+
       if (Object.keys(updates).length > 0) {
         await updateMenuItem(newId, updates);
       }
@@ -190,6 +196,11 @@ export const menusRouter = router({
             data.playlistId = plResult.insertId;
           }
         }
+      }
+
+      if (data.pageType === "board") {
+        const existing = await getMenuItemById(id);
+        await ensureDynamicBoard({ menuItemId: id, boardTitle: data.label ?? existing?.label });
       }
 
       return updateMenuItem(id, data);
@@ -249,6 +260,10 @@ export const menusRouter = router({
 
       const newId = await createMenuSubItem(subItemData);
 
+      if (newId && input.pageType === "board") {
+        await ensureDynamicBoard({ menuSubItemId: newId, boardTitle: input.label });
+      }
+
       // href가 없으면 동적 페이지 URL 자동 설정
       if (newId && !input.href) {
         const tree = await getAllMenus();
@@ -291,6 +306,11 @@ export const menusRouter = router({
             data.playlistId = plResult.insertId;
           }
         }
+      }
+
+      if (data.pageType === "board") {
+        const existing = await getMenuSubItemById(id);
+        await ensureDynamicBoard({ menuSubItemId: id, boardTitle: data.label ?? existing?.label });
       }
 
       return updateMenuSubItem(id, data);

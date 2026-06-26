@@ -31,6 +31,8 @@ import {
   getPublishedNotices,
   getPublishedNoticesByCategory,
   incrementNoticeViewCount,
+  getPublishedDynamicBoardPosts,
+  incrementDynamicBoardPostViewCount,
   getActiveNoticePopups,
   getVisibleAffiliates,
   getVisibleGalleryItems,
@@ -95,6 +97,13 @@ const TIME_RE = /^(([01]\d|2[0-3]):[0-5]\d|24:00)$/;
 const idSchema = z.number().int().positive();
 const hrefLookupSchema = z.string().trim().min(1).max(256);
 const menuBoardCategorySchema = z.string().trim().regex(/^menu-board:[a-z0-9]{1,16}$/);
+const dynamicBoardSourceSchema = z.object({
+  menuItemId: idSchema.optional(),
+  menuSubItemId: idSchema.optional(),
+}).refine(
+  value => Boolean(value.menuItemId) !== Boolean(value.menuSubItemId),
+  "2단 메뉴 또는 3단 메뉴 중 하나만 선택해주세요.",
+);
 
 function getMenuReadAccess(ctx: { user?: unknown; memberId?: number | null }) {
   return ctx.user || ctx.memberId ? "member" : "guest";
@@ -357,6 +366,15 @@ export const homeRouter = router({
   menuBoard: publicProcedure
     .input(z.object({ category: menuBoardCategorySchema }))
     .query(({ input }) => getPublishedNoticesByCategory(input.category, 100)),
+
+  /** 메뉴별 독립 게시판 목록 */
+  dynamicBoardPosts: publicProcedure
+    .input(dynamicBoardSourceSchema)
+    .query(({ input }) => getPublishedDynamicBoardPosts(input, 100)),
+
+  trackDynamicBoardPostView: publicProcedure
+    .input(z.object({ id: idSchema }))
+    .mutation(({ input }) => incrementDynamicBoardPostViewCount(input.id)),
 
   trackNoticeView: publicProcedure
     .input(z.object({ id: idSchema }))

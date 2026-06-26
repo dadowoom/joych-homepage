@@ -35,6 +35,7 @@ export * from "./youtube";
 export * from "./mission";
 export * from "./testimony";
 export * from "./freeBoard";
+export * from "./dynamicBoard";
 export * from "./staff";
 export * from "./popup";
 export * from "./support";
