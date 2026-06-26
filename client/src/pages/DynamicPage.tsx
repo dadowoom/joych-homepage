@@ -228,7 +228,14 @@ function renderContent(
     case "gallery":
       return <GalleryContent />;
     case "board":
-      return <BoardContent label={label} href={href} />;
+      return (
+        <BoardContent
+          label={label}
+          href={href}
+          menuItemId={menuItemId}
+          menuSubItemId={menuSubItemId}
+        />
+      );
     case "youtube":
       return <YoutubeContent label={label} playlistId={playlistId} />;
     case "editor":

@@ -22,6 +22,8 @@ import {
 type BoardContentProps = {
   label?: string;
   href?: string | null;
+  menuItemId?: number;
+  menuSubItemId?: number;
 };
 
 type NoticeFormState = {
@@ -47,6 +49,7 @@ type NoticeBoardMode = "notice" | "adminResource";
 type CustomBoard = {
   label: string;
   category: string;
+  legacyCategory?: string;
 };
 
 const MENU_BOARD_CATEGORY_PREFIX = "menu-board:";
@@ -60,11 +63,22 @@ function getStableBoardHash(value: string) {
   return (hash >>> 0).toString(36);
 }
 
-function getCustomBoard(label?: string, href?: string | null): CustomBoard {
-  const rawKey = href?.trim() || label?.trim() || "menu-board";
+function getCustomBoard({ label, href, menuItemId, menuSubItemId }: BoardContentProps): CustomBoard {
+  const rawKey = menuSubItemId
+    ? `sub${menuSubItemId}`
+    : menuItemId
+      ? `item${menuItemId}`
+      : href?.trim() || label?.trim() || "menu-board";
+  const legacyRawKey = href?.trim() || label?.trim();
+  const category = `${MENU_BOARD_CATEGORY_PREFIX}${getStableBoardHash(rawKey)}`;
+  const legacyCategory = legacyRawKey
+    ? `${MENU_BOARD_CATEGORY_PREFIX}${getStableBoardHash(legacyRawKey)}`
+    : undefined;
+
   return {
     label: label?.trim() || "게시판",
-    category: `${MENU_BOARD_CATEGORY_PREFIX}${getStableBoardHash(rawKey)}`,
+    category,
+    legacyCategory: legacyCategory && legacyCategory !== category ? legacyCategory : undefined,
   };
 }
 
@@ -72,9 +86,19 @@ function normalizeNoticeCategory(category?: string | null) {
   return sanitizeNoticePostCategory(category);
 }
 
+function normalizeBoardHref(value?: string | null) {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return "";
+  try {
+    return decodeURIComponent(trimmed);
+  } catch {
+    return trimmed;
+  }
+}
+
 function isNoticeBoardPage(label?: string, href?: string | null) {
   const normalizedLabel = (label ?? "").replace(/\s+/g, "").toLowerCase();
-  const normalizedHref = (href ?? "").trim();
+  const normalizedHref = normalizeBoardHref(href).replace(/\/+$/, "");
   const knownNoticeHrefs = new Set([
     "/page/행정지원-공지사항",
     "/community/news",
@@ -197,6 +221,10 @@ function NoticeBoardContent({
     { category: customBoard?.category ?? `${MENU_BOARD_CATEGORY_PREFIX}0` },
     { enabled: isCustomBoard },
   );
+  const legacyCustomBoardQuery = trpc.home.menuBoard.useQuery(
+    { category: customBoard?.legacyCategory ?? `${MENU_BOARD_CATEGORY_PREFIX}0` },
+    { enabled: isCustomBoard && Boolean(customBoard?.legacyCategory) },
+  );
   const { data: settings } = trpc.home.settings.useQuery(undefined, { enabled: !isAdminResource && !isCustomBoard });
   const noticeCategorySettings = useMemo(
     () => parseNoticeCategorySettings(settings?.[NOTICE_CATEGORY_SETTINGS_KEY]),
@@ -211,12 +239,17 @@ function NoticeBoardContent({
     [noticeCategorySettings],
   );
   const notices = isCustomBoard
-    ? customBoardQuery.data
+    ? [
+        ...(customBoardQuery.data ?? []),
+        ...(legacyCustomBoardQuery.data ?? []).filter((notice) =>
+          !(customBoardQuery.data ?? []).some((current) => current.id === notice.id)
+        ),
+      ]
     : isAdminResource
       ? adminResourceQuery.data
       : noticeQuery.data;
   const isLoading = isCustomBoard
-    ? customBoardQuery.isLoading
+    ? customBoardQuery.isLoading || legacyCustomBoardQuery.isLoading
     : isAdminResource
       ? adminResourceQuery.isLoading
       : noticeQuery.isLoading;
@@ -239,6 +272,9 @@ function NoticeBoardContent({
     void utils.home.adminResourceBoard.invalidate();
     if (customBoard) {
       void utils.home.menuBoard.invalidate({ category: customBoard.category });
+      if (customBoard.legacyCategory) {
+        void utils.home.menuBoard.invalidate({ category: customBoard.legacyCategory });
+      }
     }
     void utils.home.settings.invalidate();
   };
@@ -1150,7 +1186,7 @@ function NoticeBoardContent({
   );
 }
 
-export function BoardContent({ label, href }: BoardContentProps = {}) {
+export function BoardContent({ label, href, menuItemId, menuSubItemId }: BoardContentProps = {}) {
   if (isFreeBoardPage(label, href)) {
     return <FreeBoardContent />;
   }
@@ -1160,6 +1196,6 @@ export function BoardContent({ label, href }: BoardContentProps = {}) {
   if (isNoticeBoardPage(label, href)) {
     return <NoticeBoardContent />;
   }
-  return <NoticeBoardContent customBoard={getCustomBoard(label, href)} />;
+  return <NoticeBoardContent customBoard={getCustomBoard({ label, href, menuItemId, menuSubItemId })} />;
 }
 
