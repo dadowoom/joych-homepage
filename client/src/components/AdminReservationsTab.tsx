@@ -95,8 +95,15 @@ function getReservationName(reservation: AdminReservationRow) {
 }
 
 function getReservationPosition(reservation: AdminReservationRow) {
+  if (reservation.reservationType === "course") return "강좌";
   if (reservation.reservationType === "external") return reservation.department || "외부인";
   return reservation.memberPosition || reservation.department || "-";
+}
+
+function getReservationTypePrefix(reservation: AdminReservationRow) {
+  if (reservation.reservationType === "external") return "외부인 · ";
+  if (reservation.reservationType === "course") return "강좌 · ";
+  return "";
 }
 
 function getReservationPhone(reservation: AdminReservationRow) {
@@ -921,7 +928,7 @@ function CalendarView({ reservations, facilityFilter, facilities }: {
                     <p className="text-xs text-gray-400">이름 / 직분</p>
                     <p className="font-semibold text-gray-900">{getReservationName(reservation)}</p>
                     <p className="text-xs text-gray-500">
-                      {reservation.reservationType === "external" ? "외부인 · " : ""}{getReservationPosition(reservation)}
+                      {getReservationTypePrefix(reservation)}{getReservationPosition(reservation)}
                     </p>
                   </div>
                   <div>

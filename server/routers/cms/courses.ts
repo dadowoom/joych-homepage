@@ -8,13 +8,16 @@
  */
 
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { adminPermissionProcedure, router } from "../../_core/trpc";
-import { optionalTextSchema, requiredTextSchema } from "../../_core/contentValidation";
+import { optionalTextSchema, requiredTextSchema, safeAssetUrlSchema } from "../../_core/contentValidation";
 import {
   createCourse,
   deleteCourse,
   getCourseApplications,
   getCoursesForAdmin,
+  ReservationLockError,
+  ReservationOverlapError,
   updateCourse,
   updateCourseApplicationStatus,
 } from "../../db";
@@ -25,7 +28,7 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const idSchema = z.number().int().positive();
 const nullableDateSchema = z.string().regex(DATE_RE, "날짜는 YYYY-MM-DD 형식으로 입력해주세요.").nullable().optional();
 const nullableTimeSchema = z.string().regex(TIME_RE, "시간은 HH:MM 형식으로 입력해주세요.").nullable().optional();
-const courseStatusSchema = z.enum(["draft", "open", "closed", "archived"]);
+const courseStatusSchema = z.enum(["draft", "open", "closed", "cancelled", "archived"]);
 const applicationStatusSchema = z.enum(["pending", "approved", "rejected", "cancelled"]);
 const courseProcedure = adminPermissionProcedure("content:courses");
 
@@ -40,12 +43,14 @@ function compareNullableTime(start?: string | null, end?: string | null) {
 const courseShape = {
   title: requiredTextSchema(128, "강좌명을 입력해주세요."),
   summary: optionalTextSchema(500),
+  imageUrl: safeAssetUrlSchema.nullable().optional(),
   description: optionalTextSchema(10000),
   instructor: optionalTextSchema(64),
   location: optionalTextSchema(128),
   target: optionalTextSchema(128),
   fee: optionalTextSchema(128),
   capacity: z.number().int().min(0).max(100000).default(0),
+  facilityId: z.number().int().positive().nullable().optional(),
   startDate: nullableDateSchema,
   endDate: nullableDateSchema,
   startTime: nullableTimeSchema,
@@ -86,23 +91,49 @@ const courseUpdateSchema = z.object(courseShape).partial().extend({
   id: idSchema,
 }).superRefine(validateCourseDatesAndTimes);
 
+function handleCourseReservationError(error: unknown) {
+  if (error instanceof ReservationOverlapError) {
+    throw new TRPCError({ code: "CONFLICT", message: error.message });
+  }
+  if (error instanceof ReservationLockError) {
+    throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: error.message });
+  }
+  throw error;
+}
+
 export const coursesRouter = router({
   list: courseProcedure.query(() => getCoursesForAdmin()),
 
   create: courseProcedure
     .input(courseBaseSchema)
-    .mutation(({ input }) => createCourse(input)),
+    .mutation(async ({ input }) => {
+      try {
+        return await createCourse(input);
+      } catch (error) {
+        handleCourseReservationError(error);
+      }
+    }),
 
   update: courseProcedure
     .input(courseUpdateSchema)
-    .mutation(({ input }) => {
+    .mutation(async ({ input }) => {
       const { id, ...data } = input;
-      return updateCourse(id, data);
+      try {
+        return await updateCourse(id, data);
+      } catch (error) {
+        handleCourseReservationError(error);
+      }
     }),
 
   delete: courseProcedure
     .input(z.object({ id: idSchema }))
-    .mutation(({ input }) => deleteCourse(input.id)),
+    .mutation(async ({ input }) => {
+      try {
+        return await deleteCourse(input.id);
+      } catch (error) {
+        handleCourseReservationError(error);
+      }
+    }),
 
   applications: courseProcedure
     .input(z.object({ courseId: idSchema.optional() }))

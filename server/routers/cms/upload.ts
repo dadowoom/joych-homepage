@@ -196,6 +196,19 @@ export const uploadRouter = router({
       const { url } = await storagePut(key, buffer, input.mimeType);
       return { url };
     }),
+  courseImage: adminAnyPermissionProcedure(["content:courses"])
+    .input(z.object({
+      base64: z.string(),
+      fileName: z.string(),
+      mimeType: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const { buffer, ext } = validateImage(input.base64, input.mimeType);
+      sanitizeFileName(input.fileName);
+      const key = `course-images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { url } = await storagePut(key, buffer, input.mimeType);
+      return { url };
+    }),
   /**
    * 갤러리 이미지 업로드
    * - S3 경로: gallery-images/{timestamp}-{random}.{ext}

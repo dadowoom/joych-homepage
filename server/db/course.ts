@@ -11,14 +11,22 @@ import { and, asc, desc, eq, or, sql } from "drizzle-orm";
 import type { ResultSetHeader } from "mysql2";
 import {
   churchMembers,
+  Course,
   courseApplications,
   courses,
   InsertCourse,
   InsertCourseApplication,
+  InsertReservation,
 } from "../../drizzle/schema";
 import { getDb } from "./connection";
+import {
+  createReservationIfAvailable,
+  getReservationById,
+  updateReservationDetails,
+  updateReservationStatus,
+} from "./facility";
 
-export type CourseStatus = "draft" | "open" | "closed" | "archived";
+export type CourseStatus = "draft" | "open" | "closed" | "cancelled" | "archived";
 export type CourseApplicationStatus = "pending" | "approved" | "rejected" | "cancelled";
 
 export class CourseApplicationConflictError extends Error {
@@ -72,6 +80,97 @@ function summarizeApplications(rows: { courseId: number; status: CourseApplicati
   }
 
   return counts;
+}
+
+function truncateText(value: string, maxLength: number) {
+  return value.length > maxLength ? value.slice(0, maxLength) : value;
+}
+
+function hasCourseReservationSchedule(course: Pick<Course, "facilityId" | "startDate" | "startTime" | "endTime" | "status">) {
+  return course.status !== "cancelled"
+    && Boolean(course.facilityId && course.startDate && course.startTime && course.endTime);
+}
+
+function buildCourseReservationData(course: Pick<Course, "id" | "title" | "capacity" | "facilityId" | "startDate" | "endDate" | "startTime" | "endTime">): Omit<InsertReservation, "id" | "createdAt" | "updatedAt"> {
+  if (!course.facilityId || !course.startDate || !course.startTime || !course.endTime) {
+    throw new Error("강좌 시설예약을 만들려면 시설, 시작일, 시작 시간, 종료 시간이 필요합니다.");
+  }
+
+  const title = course.title || "강좌";
+  const dateRange = course.endDate && course.endDate !== course.startDate
+    ? ` 강좌 기간: ${course.startDate}~${course.endDate}`
+    : "";
+
+  return {
+    facilityId: course.facilityId,
+    userId: null,
+    reservationType: "course",
+    reserverName: truncateText(`[강좌] ${title}`, 64),
+    reserverPhone: null,
+    reservationDate: course.startDate,
+    startTime: course.startTime,
+    endTime: course.endTime,
+    purpose: truncateText(`강좌 운영: ${title}`, 256),
+    department: "강좌",
+    attendees: Math.max(1, Number(course.capacity) || 1),
+    notes: truncateText(`강좌관리에서 자동 생성된 시설예약입니다.${dateRange}`, 1000),
+    status: "approved",
+    recurrenceGroupId: null,
+    recurrenceLabel: null,
+    recurrenceSequence: 0,
+    adminComment: null,
+    processedBy: null,
+    processedAt: null,
+  };
+}
+
+function mergeCourseData(current: Course, data: Partial<InsertCourse>): Course {
+  return {
+    ...current,
+    ...data,
+    updatedAt: current.updatedAt,
+    createdAt: current.createdAt,
+  } as Course;
+}
+
+async function cancelLinkedCourseReservation(reservationId: number | null | undefined, reason: string) {
+  if (!reservationId) return;
+  await updateReservationStatus(reservationId, "cancelled", reason);
+}
+
+async function syncCourseFacilityReservation(current: Course | null, nextCourse: Course) {
+  const currentReservationId = current?.facilityReservationId ?? null;
+
+  if (!hasCourseReservationSchedule(nextCourse)) {
+    await cancelLinkedCourseReservation(currentReservationId, "강좌 취소 또는 시설예약 연결 해제로 자동 취소되었습니다.");
+    return currentReservationId;
+  }
+
+  if (currentReservationId) {
+    const currentReservation = await getReservationById(currentReservationId);
+    const canReuseReservation = currentReservation
+      && currentReservation.status !== "cancelled"
+      && currentReservation.facilityId === nextCourse.facilityId;
+
+    if (canReuseReservation) {
+      await updateReservationDetails(currentReservationId, {
+        reservationDate: nextCourse.startDate ?? undefined,
+        startTime: nextCourse.startTime ?? undefined,
+        endTime: nextCourse.endTime ?? undefined,
+        purpose: truncateText(`강좌 운영: ${nextCourse.title}`, 256),
+        department: "강좌",
+        attendees: Math.max(1, Number(nextCourse.capacity) || 1),
+        notes: `강좌관리에서 자동 수정된 시설예약입니다.${nextCourse.endDate && nextCourse.endDate !== nextCourse.startDate ? ` 강좌 기간: ${nextCourse.startDate}~${nextCourse.endDate}` : ""}`,
+      });
+      return currentReservationId;
+    }
+  }
+
+  const nextReservationId = await createReservationIfAvailable(buildCourseReservationData(nextCourse));
+  if (currentReservationId) {
+    await cancelLinkedCourseReservation(currentReservationId, "강좌 시설 변경으로 기존 시설예약이 자동 취소되었습니다.");
+  }
+  return nextReservationId;
 }
 
 export async function getCoursesForAdmin() {
@@ -148,18 +247,44 @@ export async function createCourse(data: Omit<InsertCourse, "id" | "createdAt" |
   const db = await getDb();
   if (!db) return null;
   const [result] = await db.insert(courses).values(data).$returningId();
-  return result?.id ?? null;
+  const courseId = result?.id ?? null;
+  if (!courseId) return null;
+
+  const createdCourse = await getCourseById(courseId);
+  if (!createdCourse) return courseId;
+
+  let linkedReservationId: number | null | undefined = null;
+  try {
+    linkedReservationId = await syncCourseFacilityReservation(null, createdCourse);
+    if (linkedReservationId && linkedReservationId !== createdCourse.facilityReservationId) {
+      await db.update(courses).set({ facilityReservationId: linkedReservationId }).where(eq(courses.id, courseId));
+    }
+    return courseId;
+  } catch (error) {
+    await cancelLinkedCourseReservation(linkedReservationId, "강좌 등록 실패로 시설예약이 자동 취소되었습니다.");
+    await db.delete(courses).where(eq(courses.id, courseId));
+    throw error;
+  }
 }
 
 export async function updateCourse(id: number, data: Partial<InsertCourse>) {
   const db = await getDb();
   if (!db) return;
-  await db.update(courses).set(data).where(eq(courses.id, id));
+  const current = await getCourseById(id);
+  if (!current) return;
+
+  const nextCourse = mergeCourseData(current, data);
+  const reservationId = await syncCourseFacilityReservation(current, nextCourse);
+  await db.update(courses)
+    .set({ ...data, facilityReservationId: reservationId ?? null })
+    .where(eq(courses.id, id));
 }
 
 export async function deleteCourse(id: number) {
   const db = await getDb();
   if (!db) return;
+  const current = await getCourseById(id);
+  await cancelLinkedCourseReservation(current?.facilityReservationId, "강좌 삭제로 시설예약이 자동 취소되었습니다.");
   await db.delete(courseApplications).where(eq(courseApplications.courseId, id));
   await db.delete(courses).where(eq(courses.id, id));
 }

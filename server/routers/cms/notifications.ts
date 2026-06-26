@@ -623,6 +623,7 @@ export const notificationsRouter = router({
       const courseGroupKey = "courseRecent";
       const courseRecentWhere = and(
         ne(courses.status, "archived"),
+        ne(courses.status, "cancelled"),
         gte(courses.createdAt, cutoffFor(courseGroupKey, "recent"))
       );
       const [courseRecentCountRow] = await db

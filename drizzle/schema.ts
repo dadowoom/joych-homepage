@@ -893,7 +893,7 @@ export const reservations = mysqlTable("reservations", {
   /** 예약자 성도 ID (외부인 예약은 null) */
   userId: int("userId"),
   /** 예약 구분: member(성도) / external(외부인) */
-  reservationType: mysqlEnum("reservationType", ["member", "external"]).notNull().default("member"),
+  reservationType: mysqlEnum("reservationType", ["member", "external", "course"]).notNull().default("member"),
   /** 예약자 이름 (비로그인 예약 또는 대리 예약 시) */
   reserverName: varchar("reserverName", { length: 64 }).notNull(),
   /** 예약자 연락처 */
@@ -942,6 +942,7 @@ export type InsertReservation = typeof reservations.$inferInsert;
 export const vehicles = mysqlTable("vehicles", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 128 }).notNull(),
+  imageUrl: text("imageUrl"),
   description: text("description"),
   plateNumber: varchar("plate_number", { length: 64 }),
   location: varchar("location", { length: 128 }),
@@ -1041,6 +1042,7 @@ export const courses = mysqlTable("courses", {
   title: varchar("title", { length: 128 }).notNull(),
   /** 목록용 한 줄 소개 */
   summary: varchar("summary", { length: 500 }),
+  imageUrl: text("imageUrl"),
   /** 상세 안내 */
   description: text("description"),
   /** 강사/담당자 */
@@ -1053,6 +1055,8 @@ export const courses = mysqlTable("courses", {
   fee: varchar("fee", { length: 128 }),
   /** 정원: 0이면 제한 없음 */
   capacity: int("capacity").notNull().default(0),
+  facilityId: int("facilityId"),
+  facilityReservationId: int("facilityReservationId"),
   /** 강좌 시작일 */
   startDate: varchar("startDate", { length: 10 }),
   /** 강좌 종료일 */
@@ -1066,7 +1070,7 @@ export const courses = mysqlTable("courses", {
   /** 신청 마감일 */
   applyEndDate: varchar("applyEndDate", { length: 10 }),
   /** 상태: draft(준비) / open(신청중) / closed(마감) / archived(보관) */
-  status: mysqlEnum("status", ["draft", "open", "closed", "archived"]).notNull().default("draft"),
+  status: mysqlEnum("status", ["draft", "open", "closed", "cancelled", "archived"]).notNull().default("draft"),
   /** 공개 노출 여부 */
   isVisible: boolean("isVisible").notNull().default(true),
   /** 신청 전 안내 문구 */
@@ -1078,6 +1082,8 @@ export const courses = mysqlTable("courses", {
 }, (table) => [
   index("courses_status_visible_sort_idx").on(table.status, table.isVisible, table.sortOrder),
   index("courses_apply_window_idx").on(table.applyStartDate, table.applyEndDate),
+  index("courses_facility_idx").on(table.facilityId),
+  index("courses_facility_reservation_idx").on(table.facilityReservationId),
 ]);
 
 export type Course = typeof courses.$inferSelect;

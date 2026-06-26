@@ -253,6 +253,13 @@ export default function CourseList() {
                 const canReapply = !application || application.status === "rejected" || application.status === "cancelled";
                 return (
                   <div key={course.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                    {course.imageUrl && (
+                      <img
+                        src={course.imageUrl}
+                        alt=""
+                        className="h-52 w-full object-cover bg-gray-100"
+                      />
+                    )}
                     <div className="p-5">
                       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                         <div className="flex-1 min-w-0">

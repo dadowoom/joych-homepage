@@ -14,15 +14,18 @@ import { toast } from "sonner";
 import {
   Ban,
   BookOpen,
+  Building2,
   Calendar,
   CheckCircle2,
   ChevronDown,
   Clock,
+  Image as ImageIcon,
   Loader2,
   Pencil,
   Plus,
   Save,
   Trash2,
+  Upload,
   Users,
   X,
   XCircle,
@@ -37,6 +40,7 @@ const STATUS_LABELS: Record<CourseStatus, { label: string; color: string }> = {
   draft: { label: "준비중", color: "bg-gray-100 text-gray-600" },
   open: { label: "신청중", color: "bg-green-100 text-green-700" },
   closed: { label: "마감", color: "bg-amber-100 text-amber-700" },
+  cancelled: { label: "취소", color: "bg-red-100 text-red-700" },
   archived: { label: "보관", color: "bg-slate-100 text-slate-500" },
 };
 
@@ -50,12 +54,14 @@ const APPLICATION_STATUS: Record<ApplicationStatus, { label: string; color: stri
 const EMPTY_FORM = {
   title: "",
   summary: "",
+  imageUrl: "",
   description: "",
   instructor: "",
   location: "",
   target: "",
   fee: "",
   capacity: 0,
+  facilityId: "",
   startDate: "",
   endDate: "",
   startTime: "",
@@ -68,9 +74,21 @@ const EMPTY_FORM = {
   sortOrder: 0,
 };
 
+const COURSE_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"]);
+const MAX_COURSE_IMAGE_BYTES = 10 * 1024 * 1024;
+
 function emptyToNull(value: string) {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function readFileAsBase64(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? "").replace(/^data:[^;]+;base64,/, ""));
+    reader.onerror = () => reject(new Error("이미지 파일을 읽지 못했습니다."));
+    reader.readAsDataURL(file);
+  });
 }
 
 function formatDateRange(course: Pick<Course, "startDate" | "endDate" | "startTime" | "endTime">) {
@@ -104,12 +122,15 @@ export default function AdminCoursesTab() {
   const [reviewingId, setReviewingId] = useState<number | null>(null);
   const [reviewComment, setReviewComment] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
+  const [uploadingCourseImage, setUploadingCourseImage] = useState(false);
 
   const { data: courses = [], isLoading } = trpc.cms.courses.list.useQuery();
+  const { data: facilities = [] } = trpc.home.facilities.useQuery();
   const { data: applications = [], isLoading: loadingApplications } = trpc.cms.courses.applications.useQuery(
     { courseId: expandedCourseId ?? undefined },
     { enabled: expandedCourseId !== null, refetchInterval: 30000 },
   );
+  const uploadCourseImage = trpc.cms.upload.courseImage.useMutation();
 
   const createCourse = trpc.cms.courses.create.useMutation({
     onSuccess: () => {
@@ -170,6 +191,10 @@ export default function AdminCoursesTab() {
     approved: courses.reduce((sum, course) => sum + course.approvedCount, 0),
   }), [courses]);
 
+  const facilityById = useMemo(() => {
+    return new Map(facilities.map(facility => [facility.id, facility]));
+  }, [facilities]);
+
   function resetForm() {
     setShowForm(false);
     setEditingId(null);
@@ -182,12 +207,14 @@ export default function AdminCoursesTab() {
     setForm({
       title: course.title,
       summary: course.summary ?? "",
+      imageUrl: course.imageUrl ?? "",
       description: course.description ?? "",
       instructor: course.instructor ?? "",
       location: course.location ?? "",
       target: course.target ?? "",
       fee: course.fee ?? "",
       capacity: course.capacity,
+      facilityId: course.facilityId ? String(course.facilityId) : "",
       startDate: course.startDate ?? "",
       endDate: course.endDate ?? "",
       startTime: course.startTime ?? "",
@@ -205,12 +232,14 @@ export default function AdminCoursesTab() {
     return {
       title: form.title,
       summary: form.summary,
+      imageUrl: emptyToNull(form.imageUrl),
       description: form.description,
       instructor: form.instructor,
       location: form.location,
       target: form.target,
       fee: form.fee,
       capacity: Number(form.capacity) || 0,
+      facilityId: form.facilityId ? Number(form.facilityId) : null,
       startDate: emptyToNull(form.startDate),
       endDate: emptyToNull(form.endDate),
       startTime: emptyToNull(form.startTime),
@@ -234,6 +263,38 @@ export default function AdminCoursesTab() {
       updateCourse.mutate({ id: editingId, ...payload });
     } else {
       createCourse.mutate(payload);
+    }
+  }
+
+  async function handleCourseImageUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    if (!COURSE_IMAGE_MIME_TYPES.has(file.type)) {
+      toast.error("jpg, png, webp, gif 이미지만 업로드할 수 있습니다.");
+      return;
+    }
+    if (file.size > MAX_COURSE_IMAGE_BYTES) {
+      toast.error("대표 사진은 10MB 이하로 업로드해주세요.");
+      return;
+    }
+
+    try {
+      setUploadingCourseImage(true);
+      const base64 = await readFileAsBase64(file);
+      const result = await uploadCourseImage.mutateAsync({
+        base64,
+        fileName: file.name,
+        mimeType: file.type,
+      });
+      setForm(prev => ({ ...prev, imageUrl: result.url }));
+      toast.success("강좌 대표 사진이 업로드되었습니다.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "대표 사진 업로드에 실패했습니다.";
+      toast.error(message);
+    } finally {
+      setUploadingCourseImage(false);
     }
   }
 
@@ -299,6 +360,7 @@ export default function AdminCoursesTab() {
                 <option value="draft">준비중</option>
                 <option value="open">신청중</option>
                 <option value="closed">마감</option>
+                <option value="cancelled">취소</option>
                 <option value="archived">보관</option>
               </select>
             </div>
@@ -310,6 +372,54 @@ export default function AdminCoursesTab() {
                 placeholder="목록에 보일 짧은 안내를 입력하세요."
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]"
               />
+            </div>
+            <div className="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="w-full md:w-48 h-32 rounded-lg bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center shrink-0">
+                  {form.imageUrl ? (
+                    <img src={form.imageUrl} alt="강좌 대표 사진" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="text-center text-gray-300">
+                      <ImageIcon className="w-8 h-8 mx-auto mb-1" />
+                      <p className="text-xs">대표 사진</p>
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="block text-xs font-medium text-gray-600">대표 사진</label>
+                    {form.imageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setForm(prev => ({ ...prev, imageUrl: "" }))}
+                        className="text-xs text-red-500 hover:text-red-700"
+                      >
+                        사진 제거
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <label className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#1B5E20] text-white text-sm font-medium hover:bg-[#2E7D32] cursor-pointer transition-colors">
+                      {uploadingCourseImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                      사진 업로드
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        onChange={handleCourseImageUpload}
+                        disabled={uploadingCourseImage}
+                        className="hidden"
+                      />
+                    </label>
+                    <input
+                      value={form.imageUrl}
+                      onChange={e => setForm(prev => ({ ...prev, imageUrl: e.target.value }))}
+                      placeholder="이미지 URL 직접 입력"
+                      className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]"
+                    />
+                  </div>
+                  <p className="text-[11px] text-gray-400">강좌 목록과 상세 카드에 표시됩니다. jpg, png, webp, gif / 최대 10MB</p>
+                </div>
+              </div>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">강사/담당자</label>
@@ -394,6 +504,27 @@ export default function AdminCoursesTab() {
                 <label className="block text-xs font-medium text-gray-600 mb-1">종료 시간</label>
                 <input type="time" value={form.endTime} onChange={e => setForm(prev => ({ ...prev, endTime: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]" />
               </div>
+              <div className="md:col-span-4 rounded-xl border border-green-100 bg-green-50/40 p-4">
+                <label className="text-xs font-medium text-gray-700 mb-2 flex items-center gap-1.5">
+                  <Building2 className="w-4 h-4 text-[#1B5E20]" />
+                  진행 시설 / 시설예약 연결
+                </label>
+                <select
+                  value={form.facilityId}
+                  onChange={e => setForm(prev => ({ ...prev, facilityId: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20] bg-white"
+                >
+                  <option value="">시설예약 연결 안 함</option>
+                  {facilities.map(facility => (
+                    <option key={facility.id} value={facility.id}>
+                      {facility.name}{facility.location ? ` · ${facility.location}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-gray-500 mt-2">
+                  시설을 선택하고 강좌 시작일/시간을 입력한 뒤 저장하면 시설예약이 자동 생성됩니다. 강좌 취소 또는 삭제 시 연결 예약도 자동 취소됩니다.
+                </p>
+              </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">신청 시작일</label>
                 <input type="date" value={form.applyStartDate} onChange={e => setForm(prev => ({ ...prev, applyStartDate: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]" />
@@ -454,7 +585,7 @@ export default function AdminCoursesTab() {
       )}
 
       <div className="flex flex-wrap gap-2">
-        {(["all", "draft", "open", "closed", "archived"] as const).map(status => (
+        {(["all", "draft", "open", "closed", "cancelled", "archived"] as const).map(status => (
           <button
             key={status}
             onClick={() => setStatusFilter(status)}
@@ -478,12 +609,17 @@ export default function AdminCoursesTab() {
           {filteredCourses.map(course => {
             const status = STATUS_LABELS[course.status];
             const expanded = expandedCourseId === course.id;
+            const linkedFacility = course.facilityId ? facilityById.get(course.facilityId) : null;
             return (
               <div key={course.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="flex items-center gap-3 p-4">
-                  <div className="w-12 h-12 rounded-lg bg-[#E8F5E9] text-[#1B5E20] flex items-center justify-center shrink-0">
-                    <BookOpen className="w-5 h-5" />
-                  </div>
+                  {course.imageUrl ? (
+                    <img src={course.imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0 bg-gray-100" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-lg bg-[#E8F5E9] text-[#1B5E20] flex items-center justify-center shrink-0">
+                      <BookOpen className="w-5 h-5" />
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-bold text-gray-900">{course.title}</p>
@@ -495,6 +631,8 @@ export default function AdminCoursesTab() {
                       {course.location && <span>{course.location}</span>}
                       {course.instructor && <span>{course.instructor}</span>}
                       <span className="flex items-center gap-1"><Users className="w-3 h-3" />{course.capacity > 0 ? `${course.activeCount}/${course.capacity}명` : `${course.activeCount}명`}</span>
+                      {linkedFacility && <span className="text-[#1B5E20]">시설예약: {linkedFacility.name}</span>}
+                      {course.facilityReservationId && <span className="text-blue-600">예약 연결됨</span>}
                       {course.pendingCount > 0 && <span className="text-amber-600">대기 {course.pendingCount}</span>}
                     </div>
                   </div>
@@ -511,7 +649,7 @@ export default function AdminCoursesTab() {
                     </button>
                     <button
                       onClick={() => {
-                        if (confirm(`"${course.title}" 강좌를 삭제하시겠습니까?\n신청 내역도 함께 삭제됩니다.`)) {
+                        if (confirm(`"${course.title}" 강좌를 삭제하시겠습니까?\n신청 내역은 삭제되고, 연결된 시설예약은 자동 취소됩니다.`)) {
                           deleteCourse.mutate({ id: course.id });
                         }
                       }}
