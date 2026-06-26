@@ -40,6 +40,37 @@ function todayKstDateKey() {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
+function dateKeyToUtcTime(dateKey: string) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return Date.UTC(year, month - 1, day);
+}
+
+function formatDisplayDate(dateKey: string) {
+  return dateKey.replaceAll("-", ".");
+}
+
+function getApplyDeadlineInfo(course: Pick<Course, "applyEndDate" | "status">) {
+  if (!course.applyEndDate) return null;
+
+  const daysLeft = Math.round(
+    (dateKeyToUtcTime(course.applyEndDate) - dateKeyToUtcTime(todayKstDateKey())) / 86_400_000,
+  );
+
+  if (course.status !== "open" || daysLeft < 0) {
+    return {
+      dateLabel: `신청 마감 ${formatDisplayDate(course.applyEndDate)}`,
+      ddayLabel: "마감됨",
+      color: "bg-gray-100 text-gray-500",
+    };
+  }
+
+  return {
+    dateLabel: `신청 마감 ${formatDisplayDate(course.applyEndDate)}`,
+    ddayLabel: daysLeft === 0 ? "오늘 마감" : `D-${daysLeft}`,
+    color: daysLeft <= 3 ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-700",
+  };
+}
+
 function formatCourseDate(course: Pick<Course, "startDate" | "endDate" | "startTime" | "endTime">) {
   const date = course.startDate && course.endDate && course.startDate !== course.endDate
     ? `${course.startDate} ~ ${course.endDate}`
@@ -248,6 +279,7 @@ export default function CourseList() {
             <div className="space-y-4">
               {courses.map(course => {
                 const applyState = getApplyState(course);
+                const deadlineInfo = getApplyDeadlineInfo(course);
                 const application = applicationByCourseId.get(course.id);
                 const selected = selectedCourseId === course.id;
                 const canReapply = !application || application.status === "rejected" || application.status === "cancelled";
@@ -300,15 +332,22 @@ export default function CourseList() {
                               <span>{course.capacity > 0 ? `${course.activeCount}/${course.capacity}명` : `${course.activeCount}명 신청`}</span>
                             </div>
                           </div>
-                          {(course.target || course.fee || course.applyEndDate) && (
+                          {(course.target || course.fee) && (
                             <div className="mt-4 flex flex-wrap gap-2 text-xs">
                               {course.target && <span className="bg-gray-50 text-gray-500 px-2 py-1 rounded-full">대상: {course.target}</span>}
                               {course.fee && <span className="bg-gray-50 text-gray-500 px-2 py-1 rounded-full">{course.fee}</span>}
-                              {course.applyEndDate && <span className="bg-amber-50 text-amber-600 px-2 py-1 rounded-full">마감: {course.applyEndDate}</span>}
                             </div>
                           )}
                         </div>
                         <div className="md:w-36 shrink-0">
+                          {deadlineInfo && (
+                            <div className="mb-2 rounded-lg border border-amber-100 bg-white px-3 py-2 text-center">
+                              <p className="text-[11px] font-medium text-gray-500">{deadlineInfo.dateLabel}</p>
+                              <p className={`mt-1 inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ${deadlineInfo.color}`}>
+                                {deadlineInfo.ddayLabel}
+                              </p>
+                            </div>
+                          )}
                           {application && application.status === "pending" ? (
                             <button
                               onClick={() => {
