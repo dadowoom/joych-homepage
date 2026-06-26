@@ -26,6 +26,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Download,
   Image as ImageIcon,
   Loader2,
   Pencil,
@@ -132,6 +133,39 @@ function formatCreatedAt(value: Date | string | number) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatCsvDateTime(value?: Date | string | number | null) {
+  if (!value) return "";
+  return new Date(value).toLocaleString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function escapeCsvCell(value: unknown) {
+  const text = String(value ?? "").replace(/\r?\n/g, " ").trim();
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function downloadCsvFile(fileName: string, rows: unknown[][]) {
+  const csv = rows.map(row => row.map(escapeCsvCell).join(",")).join("\r\n");
+  const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function sanitizeFileName(value: string) {
+  return value.replace(/[\\/:*?"<>|]/g, "_").replace(/\s+/g, "_").slice(0, 80);
 }
 
 function getLocalDateKey(date = new Date()) {
@@ -277,6 +311,39 @@ export default function AdminCoursesTab() {
       applicationFilter === "all" || application.status === applicationFilter
     );
   }, [applications, applicationFilter]);
+
+  const exportCourse = useMemo(() => {
+    return expandedCourseId ? courses.find(course => course.id === expandedCourseId) ?? null : null;
+  }, [courses, expandedCourseId]);
+
+  const downloadApplicationsCsv = () => {
+    if (!exportCourse || filteredApplications.length === 0) {
+      toast.error("다운로드할 신청자 명단이 없습니다.");
+      return;
+    }
+
+    const rows = [
+      ["강좌명", "강좌 일정", "상태", "신청자명", "연락처", "이메일", "부서", "직분", "신청 메모", "관리자 메모", "신청일", "처리일"],
+      ...filteredApplications.map(application => [
+        application.courseTitle ?? exportCourse.title,
+        formatDateRange(exportCourse),
+        APPLICATION_STATUS[application.status]?.label ?? application.status,
+        application.applicantName,
+        application.applicantPhone || application.memberPhone || "",
+        application.applicantEmail || application.memberEmail || "",
+        application.memberDepartment ?? "",
+        application.memberPosition ?? "",
+        application.memo ?? "",
+        application.adminComment ?? "",
+        formatCsvDateTime(application.createdAt),
+        formatCsvDateTime(application.processedAt),
+      ]),
+    ];
+
+    const statusLabel = applicationFilter === "all" ? "전체" : APPLICATION_STATUS[applicationFilter].label;
+    const fileName = `${sanitizeFileName(exportCourse.title)}_신청자명단_${statusLabel}_${getLocalDateKey()}.csv`;
+    downloadCsvFile(fileName, rows);
+  };
 
   const stats = useMemo(() => ({
     total: courses.length,
@@ -980,7 +1047,17 @@ export default function AdminCoursesTab() {
                   <div className="border-t border-gray-100 bg-gray-50 p-4">
                     <div className="flex items-center justify-between gap-3 mb-3">
                       <h5 className="text-sm font-bold text-gray-700">신청자 명단</h5>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={downloadApplicationsCsv}
+                          disabled={loadingApplications || filteredApplications.length === 0}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-white px-3 py-1 text-[11px] font-bold text-[#1B5E20] transition-colors hover:bg-[#F1F8E9] disabled:cursor-not-allowed disabled:opacity-40"
+                          title="현재 필터의 신청자 명단을 엑셀에서 열 수 있는 CSV 파일로 다운로드합니다."
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          엑셀 다운로드
+                        </button>
                         {(["all", "pending", "approved", "rejected", "cancelled"] as const).map(statusKey => (
                           <button
                             key={statusKey}
