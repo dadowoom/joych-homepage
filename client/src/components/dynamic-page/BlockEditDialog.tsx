@@ -4,7 +4,7 @@
  * 블록 종류(텍스트, 이미지, 유튜브, 버튼, 구분선)에 따라 다른 입력 폼을 보여줍니다.
  */
 import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Code2, Eye, Pencil, Plus } from "lucide-react";
+import { Code2, Eye, Pencil, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -407,9 +407,10 @@ export function BlockEditDialog({
   };
 
   return (
-    <Dialog open onOpenChange={onClose}>
+    <Dialog open onOpenChange={() => {}}>
       <DialogContent
         className="flex max-w-none flex-col overflow-hidden p-0 sm:max-w-none"
+        showCloseButton={false}
         style={{
           width: `${dialogSize.width}px`,
           height: `${dialogSize.height}px`,
@@ -427,6 +428,14 @@ export function BlockEditDialog({
         onPointerUp={handleDialogInteractionEnd}
         onPointerCancel={handleDialogInteractionEnd}
       >
+        <button
+          type="button"
+          aria-label="편집창 닫기"
+          className="absolute right-4 top-4 z-10 rounded-sm p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600"
+          onClick={onClose}
+        >
+          <X className="h-4 w-4" />
+        </button>
         <DialogHeader
           className="cursor-move select-none border-b border-gray-100 px-6 py-5"
           onPointerDown={handleDialogMoveStart}
