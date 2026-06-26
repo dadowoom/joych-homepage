@@ -113,7 +113,7 @@ function SortableGalleryItem({
             src={item.imageUrl}
             alt={item.caption ?? ""}
             className="w-full h-28 object-cover rounded border border-gray-200"
-          />
+           loading="lazy"/>
           <Input
             value={editCaption}
             onChange={(e) => setEditCaption(e.target.value)}
@@ -160,7 +160,7 @@ function SortableGalleryItem({
             alt={item.caption ?? ""}
             className="w-14 h-14 object-cover rounded border border-gray-200 shrink-0"
             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-          />
+           loading="lazy"/>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-800 truncate">
               {item.caption || <span className="text-gray-400 italic">설명 없음</span>}

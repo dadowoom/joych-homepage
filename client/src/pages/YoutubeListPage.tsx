@@ -34,7 +34,7 @@ function getThumbnailUrl(video: {
 
 function VideoThumbnail({ title, src }: { title: string; src: string | null }) {
   if (src) {
-    return <img src={src} alt={title} className="h-full w-full object-cover" />;
+    return <img src={src} alt={title} className="h-full w-full object-cover"  loading="lazy"/>;
   }
 
   return (

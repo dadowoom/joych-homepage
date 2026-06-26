@@ -927,7 +927,7 @@ export default function AdminStaffTab() {
             <label className={labelClass}>프로필 사진</label>
             <div className="w-36 h-36 rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center">
               {form.imageUrl ? (
-                <img src={form.imageUrl} alt="" className="w-full h-full object-cover" />
+                <img src={form.imageUrl} alt="" className="w-full h-full object-cover"  loading="lazy"/>
               ) : (
                 <ImageIcon className="w-10 h-10 text-gray-300" />
               )}
@@ -1154,7 +1154,7 @@ export default function AdminStaffTab() {
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0">
                         {member.imageUrl ? (
-                          <img src={member.imageUrl} alt="" className="w-full h-full object-cover" />
+                          <img src={member.imageUrl} alt="" className="w-full h-full object-cover"  loading="lazy"/>
                         ) : (
                           <ImageIcon className="w-6 h-6 text-gray-300" />
                         )}

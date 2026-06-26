@@ -88,7 +88,7 @@ export function JoyfulTV() {
         {/* 최신 영상 (큰 카드) */}
         <div className="bg-white rounded-2xl overflow-hidden shadow-sm mb-10">
           <div className="relative aspect-video bg-gray-900">
-            <img src={SERMON_VIDEOS[0].thumb} alt="최신 설교" className="w-full h-full object-cover opacity-80" />
+            <img src={SERMON_VIDEOS[0].thumb} alt="최신 설교" className="w-full h-full object-cover opacity-80"  loading="lazy"/>
             <div className="absolute inset-0 flex items-center justify-center">
               <Link href={SERMON_VIDEOS[0].href} className="w-20 h-20 rounded-full bg-white/90 hover:bg-white transition-colors flex items-center justify-center shadow-xl">
                 <i className="fas fa-play text-[#1B5E20] text-2xl ml-1"></i>
@@ -119,7 +119,7 @@ export function JoyfulTV() {
           {filtered.map(v => (
             <Link key={v.id} href={v.href} className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow group cursor-pointer">
               <div className="relative aspect-video bg-gray-100">
-                <img src={v.thumb} alt={v.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                <img src={v.thumb} alt={v.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"  loading="lazy"/>
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                   <i className="fas fa-play text-white text-2xl opacity-0 group-hover:opacity-100 transition-opacity"></i>
                 </div>
@@ -624,7 +624,7 @@ export function BulletinDetail() {
                           src={page.fileUrl}
                           alt={`${bulletin.title} ${pageIndex + 1}페이지`}
                           className="h-auto w-full object-contain"
-                        />
+                         loading="lazy"/>
                         <span className="flex items-center justify-center gap-1 border-t border-gray-100 py-2 text-xs text-gray-400 group-hover:text-[#1B5E20]">
                           <ZoomIn className="h-3.5 w-3.5" />
                           이미지를 누르면 크게 볼 수 있습니다.
@@ -740,7 +740,7 @@ export function BulletinDetail() {
               src={lightboxPage.fileUrl}
               alt={`${bulletin?.title ?? "주보"} ${lightboxPageIndex + 1}페이지`}
               className="mx-auto h-auto w-[min(920px,calc(100vw-24px))] max-w-none bg-white sm:w-[min(920px,calc(100vw-64px))]"
-            />
+             loading="lazy"/>
           </div>
         </div>
       )}
@@ -953,7 +953,7 @@ export function Bulletin() {
                               src={coverPage.fileUrl}
                               alt={`${bulletin.title} 대표이미지`}
                               className="absolute inset-0 h-full w-full object-contain p-2"
-                            />
+                             loading="lazy"/>
                           ) : (
                             <div className="absolute inset-0 flex items-center justify-center">
                               <span className="text-xs text-gray-300">이미지 미리보기 없음</span>
@@ -1105,7 +1105,7 @@ export function Bulletin() {
                           src={mobilePage.fileUrl}
                           alt={`${selectedBulletin.title} ${mobilePageIndex + 1}페이지`}
                           className="h-auto w-full object-contain"
-                        />
+                         loading="lazy"/>
                         <span className="flex items-center justify-center gap-1 border-t border-gray-100 py-2 text-xs text-gray-400">
                           <ZoomIn className="h-3.5 w-3.5" />
                           이미지를 누르면 크게 볼 수 있습니다.
@@ -1144,7 +1144,7 @@ export function Bulletin() {
                               src={page.fileUrl}
                               alt={`${selectedBulletin.title} ${index + 1}페이지`}
                               className="h-auto w-full object-contain"
-                            />
+                             loading="lazy"/>
                             <span className="flex items-center justify-center gap-1 border-t border-gray-100 py-2 text-xs text-gray-400 group-hover:text-[#1B5E20]">
                               <ZoomIn className="h-3.5 w-3.5" />
                               이미지를 클릭하면 크게 볼 수 있습니다.
@@ -1261,7 +1261,7 @@ export function Bulletin() {
               src={lightboxPage.fileUrl}
               alt={`${lightboxTitle} ${lightbox.pageIndex + 1}페이지`}
               className="mx-auto h-auto w-full max-w-full bg-white"
-            />
+             loading="lazy"/>
           </div>
         </div>
       )}

@@ -126,7 +126,7 @@ export default function MissionList() {
                   src={m.profileImage ?? "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80"}
                   alt={m.name}
                   className="w-12 h-12 rounded-full object-cover border-2 border-white"
-                />
+                 loading="lazy"/>
                 <span className="text-xs font-medium whitespace-nowrap">{m.name.replace(" 선교사", "")}</span>
               </button>
             ))}
@@ -177,7 +177,7 @@ export default function MissionList() {
                         src={report.thumbnailUrl ?? report.images[0] ?? "https://images.unsplash.com/photo-1555636222-cae831e670b3?w=600&q=80"}
                         alt={report.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
+                       loading="lazy"/>
                       <span className="absolute top-3 left-3 bg-[#1B5E20]/90 text-white text-xs px-2.5 py-1 rounded-full">
                         {CONTINENT_LABELS[report.missionary.continent]}
                       </span>
@@ -188,7 +188,7 @@ export default function MissionList() {
                           src={report.missionary.profileImage ?? "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80"}
                           alt={report.missionary.name}
                           className="w-9 h-9 rounded-full object-cover border-2 border-[#E8F5E9]"
-                        />
+                         loading="lazy"/>
                         <div>
                           <p className="text-sm font-semibold text-gray-800">{report.missionary.name}</p>
                           <p className="text-xs text-gray-400">{report.missionary.region}</p>

@@ -243,7 +243,7 @@ export function InlineEditForm({
           <p className="text-[10px] text-gray-600 font-semibold">페이지 이미지</p>
           {pageImageUrl && (
             <div className="relative flex h-40 w-full items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50">
-              <img src={pageImageUrl} alt="페이지 이미지" className="max-h-full max-w-full object-contain" />
+              <img src={pageImageUrl} alt="페이지 이미지" className="max-h-full max-w-full object-contain"  loading="lazy"/>
               <button
                 type="button"
                 onClick={() => setPageImageUrl(null)}

@@ -137,7 +137,7 @@ export default function NoticePopupLayer() {
               src={activePopup.imageUrl}
               alt=""
               className="mt-3 max-h-44 w-full rounded-xl object-cover"
-            />
+             loading="lazy"/>
           )}
           <div className="mt-4 flex flex-col gap-2">
             <PopupLink popup={activePopup} />
@@ -177,7 +177,7 @@ export default function NoticePopupLayer() {
             src={activePopup.imageUrl}
             alt=""
             className="max-h-64 w-full object-cover"
-          />
+           loading="lazy"/>
         )}
         <div className="p-6">
           <h2

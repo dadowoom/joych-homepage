@@ -129,7 +129,7 @@ export default function TestimonyList() {
                           src={post.thumbnailUrl ?? post.images[0]}
                           alt={post.title}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
+                         loading="lazy"/>
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
                           <i className="fas fa-quote-left text-[#1B5E20]/30 text-5xl"></i>
@@ -297,7 +297,7 @@ export function TestimonyDetail() {
                   src={imageUrl}
                   alt={`${post.title} 이미지 ${index + 1}`}
                   className="w-full rounded-xl object-cover max-h-[420px] bg-gray-100"
-                />
+                 loading="lazy"/>
               ))}
             </div>
           )}
@@ -603,7 +603,7 @@ export function TestimonyEditor() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {images.map((image, index) => (
                   <div key={`${image.imageUrl}-${index}`} className="relative group">
-                    <img src={image.imageUrl} alt={`업로드 이미지 ${index + 1}`} className="w-full aspect-square object-cover rounded-xl bg-gray-100" />
+                    <img src={image.imageUrl} alt={`업로드 이미지 ${index + 1}`} className="w-full aspect-square object-cover rounded-xl bg-gray-100"  loading="lazy"/>
                     <button
                       type="button"
                       onClick={() => setImages(prev => prev.filter((_, i) => i !== index))}

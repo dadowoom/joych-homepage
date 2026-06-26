@@ -330,7 +330,7 @@ export function PastorBookEditorDialog({ open, book, onClose, onSaved }: PastorB
                 <div className="space-y-3">
                   {images.map((image) => (
                     <div key={image.id} className="rounded-lg border border-gray-200 p-2">
-                      <img src={image.imageUrl} alt="" className="h-40 w-full rounded-md bg-gray-50 object-contain" />
+                      <img src={image.imageUrl} alt="" className="h-40 w-full rounded-md bg-gray-50 object-contain"  loading="lazy"/>
                       <div className="mt-2 flex items-center justify-between gap-2">
                         <button
                           type="button"
@@ -440,7 +440,7 @@ function SortablePastorBookRow({
       </button>
       <div className="flex h-28 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-50">
         {book.coverImageUrl ? (
-          <img src={book.coverImageUrl} alt="" className="h-full w-full object-contain" />
+          <img src={book.coverImageUrl} alt="" className="h-full w-full object-contain"  loading="lazy"/>
         ) : (
           <ImageIcon className="h-8 w-8 text-gray-300" />
         )}

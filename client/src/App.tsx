@@ -267,46 +267,14 @@ const JoyfulStore = lazy(() =>
   import("./pages/Community").then(module => ({ default: module.JoyfulStore }))
 );
 
-const SunMeetingPage = lazy(() =>
-  import("./pages/CommunityExtra").then(module => ({
-    default: module.SunMeetingPage,
-  }))
-);
-const OrganizationPage = lazy(() =>
-  import("./pages/CommunityExtra").then(module => ({
-    default: module.OrganizationPage,
-  }))
-);
-const ClubPage = lazy(() =>
-  import("./pages/CommunityExtra").then(module => ({
-    default: module.ClubPage,
-  }))
-);
-const SubtitleRequestPage = lazy(() =>
-  import("./pages/CommunityExtra").then(module => ({
-    default: module.SubtitleRequestPage,
-  }))
-);
-const BulletinAdRequestPage = lazy(() =>
-  import("./pages/CommunityExtra").then(module => ({
-    default: module.BulletinAdRequestPage,
-  }))
-);
-const OnlineOfficePage = lazy(() =>
-  import("./pages/CommunityExtra").then(module => ({
-    default: module.OnlineOfficePage,
-  }))
-);
-const VisitRequestPage = lazy(() =>
-  import("./pages/CommunityExtra").then(module => ({
-    default: module.VisitRequestPage,
-  }))
-);
-const DonationReceiptPage = lazy(() =>
-  import("./pages/CommunityExtra").then(module => ({
-    default: module.DonationReceiptPage,
-  }))
-);
+const SunMeetingPage = lazy(() => import("./pages/community/SunMeetingPage"));
+const OrganizationPage = lazy(() => import("./pages/community/OrganizationPage"));
+const ClubPage = lazy(() => import("./pages/community/ClubPage"));
+const SubtitleRequestPage = lazy(() => import("./pages/community/SubtitleRequestPage"));
+const BulletinAdRequestPage = lazy(() => import("./pages/community/BulletinAdRequestPage"));
+const OnlineOfficePage = lazy(() => import("./pages/community/OnlineOfficePage"));
+const VisitRequestPage = lazy(() => import("./pages/community/VisitRequestPage"));
+const DonationReceiptPage = lazy(() => import("./pages/community/DonationReceiptPage"));
 
 const DomesticMission = lazy(() =>
   import("./pages/Mission").then(module => ({

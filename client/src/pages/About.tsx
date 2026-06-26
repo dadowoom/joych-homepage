@@ -76,7 +76,7 @@ export function PastorGreeting() {
 src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/pastor-profile-new_c659c67e.jpg"
                    alt="담임목사 박진석"
                   className="w-full h-full object-cover object-top"
-                />
+                 loading="lazy"/>
               </div>
             </div>
             {/* 기본 정보 */}
@@ -120,7 +120,7 @@ src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekr
                 src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/pastor-greeting_dbd99752.png"
                 alt="담임목사 인사말"
                 className="w-full h-auto block"
-              />
+               loading="lazy"/>
             </div>
           </div>
           <div className="px-8 pb-6 flex flex-col items-end gap-1 border-t border-gray-100">

@@ -730,7 +730,7 @@ export default function AdminCoursesTab() {
               <div className="flex flex-col md:flex-row gap-4">
                 <div className="aspect-[3/4] w-full max-w-40 md:w-36 rounded-lg bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center shrink-0">
                   {form.imageUrl ? (
-                    <img src={form.imageUrl} alt="강좌 대표 사진" className="w-full h-full object-contain" />
+                    <img src={form.imageUrl} alt="강좌 대표 사진" className="w-full h-full object-contain"  loading="lazy"/>
                   ) : (
                     <div className="text-center text-gray-300">
                       <ImageIcon className="w-8 h-8 mx-auto mb-1" />
@@ -996,7 +996,7 @@ export default function AdminCoursesTab() {
               <div key={course.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="flex items-center gap-3 p-4">
                   {course.imageUrl ? (
-                    <img src={course.imageUrl} alt="" className="w-11 h-14 rounded-md object-contain shrink-0 bg-gray-50 ring-1 ring-gray-100" />
+                    <img src={course.imageUrl} alt="" className="w-11 h-14 rounded-md object-contain shrink-0 bg-gray-50 ring-1 ring-gray-100"  loading="lazy"/>
                   ) : (
                     <div className="w-11 h-14 rounded-md bg-[#E8F5E9] text-[#1B5E20] flex items-center justify-center shrink-0">
                       <BookOpen className="w-5 h-5" />

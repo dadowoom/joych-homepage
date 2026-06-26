@@ -293,7 +293,7 @@ export default function CourseList() {
                               src={course.imageUrl}
                               alt={`${course.title} 포스터`}
                               className="h-full w-full object-contain bg-gray-50"
-                            />
+                             loading="lazy"/>
                           </div>
                         </div>
                       )}

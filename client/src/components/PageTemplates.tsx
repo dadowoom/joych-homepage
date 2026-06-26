@@ -81,7 +81,7 @@ export function VideoListPage({ title, subtitle, breadcrumb, videos }: VideoList
                   src={video.thumbnail}
                   alt={video.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
+                 loading="lazy"/>
                 <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                   <div className="w-14 h-14 bg-white/90 rounded-full flex items-center justify-center">
                     <Play className="w-6 h-6 text-[#2d6a4f] ml-1" fill="currentColor" />
@@ -146,7 +146,7 @@ export function MinistryPage({ title, breadcrumb, info }: MinistryPageProps) {
           <div className="md:flex">
             {info.image && (
               <div className="md:w-2/5">
-                <img src={info.image} alt={info.name} className="w-full h-64 md:h-full object-cover" />
+                <img src={info.image} alt={info.name} className="w-full h-64 md:h-full object-cover"  loading="lazy"/>
               </div>
             )}
             <div className="p-8 md:flex-1">
@@ -160,7 +160,7 @@ export function MinistryPage({ title, breadcrumb, info }: MinistryPageProps) {
               {info.leader && (
                 <div className="mt-6 flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
                   {info.leader.photo && (
-                    <img src={info.leader.photo} alt={info.leader.name} className="w-12 h-12 rounded-full object-cover" />
+                    <img src={info.leader.photo} alt={info.leader.name} className="w-12 h-12 rounded-full object-cover"  loading="lazy"/>
                   )}
                   <div>
                     <p className="text-xs text-gray-500">{info.leader.title}</p>
@@ -239,7 +239,7 @@ export function DepartmentPage({ breadcrumb, info }: DepartmentPageProps) {
         <div className="bg-white rounded-2xl shadow-sm p-8 mb-8">
           <div className="md:flex gap-8 items-start">
             {info.image && (
-              <img src={info.image} alt={info.name} className="w-full md:w-64 h-48 object-cover rounded-xl mb-6 md:mb-0 shrink-0" />
+              <img src={info.image} alt={info.name} className="w-full md:w-64 h-48 object-cover rounded-xl mb-6 md:mb-0 shrink-0"  loading="lazy"/>
             )}
             <div>
               <div className="inline-block bg-[#2d6a4f]/10 text-[#2d6a4f] text-sm font-semibold px-3 py-1 rounded-full mb-3">
@@ -356,7 +356,7 @@ export function BoardPage({ title, subtitle, breadcrumb, items, categories }: Bo
           {items.map((item, i) => (
             <div key={item.id} className={`flex items-center gap-4 p-5 hover:bg-gray-50 transition-colors cursor-pointer ${i !== items.length - 1 ? "border-b border-gray-100" : ""}`}>
               {item.thumbnail && (
-                <img src={item.thumbnail} alt={item.title} className="w-16 h-16 rounded-lg object-cover shrink-0" />
+                <img src={item.thumbnail} alt={item.title} className="w-16 h-16 rounded-lg object-cover shrink-0"  loading="lazy"/>
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">

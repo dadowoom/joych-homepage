@@ -241,7 +241,7 @@ function SortableFacilityRow({
           <GripVertical className="w-4 h-4" />
         </button>
         {facility.thumbnailUrl ? (
-          <img src={facility.thumbnailUrl} alt={facility.name} className="w-14 h-14 rounded-lg object-cover shrink-0" />
+          <img src={facility.thumbnailUrl} alt={facility.name} className="w-14 h-14 rounded-lg object-cover shrink-0"  loading="lazy"/>
         ) : (
           <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
             <ImageIcon className="w-6 h-6 text-gray-300" />
@@ -416,7 +416,7 @@ function ImageUploadArea({
       <div className="flex flex-wrap gap-2 mb-2">
         {images.map((img, idx) => (
           <div key={idx} className="relative group w-20 h-20 rounded-lg overflow-hidden border border-gray-200">
-            <img src={img.imageUrl} alt="" className="w-full h-full object-cover" />
+            <img src={img.imageUrl} alt="" className="w-full h-full object-cover"  loading="lazy"/>
             {img.isThumbnail && (
               <span className="absolute bottom-0 left-0 right-0 bg-[#1B5E20]/80 text-white text-[9px] text-center py-0.5">대표</span>
             )}

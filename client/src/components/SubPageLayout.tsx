@@ -273,7 +273,7 @@ export default function SubPageLayout({
                   src={LOGO_URL}
                   alt="기쁨의교회"
                   className="h-8 w-auto object-contain"
-                />
+                 loading="lazy"/>
               </div>
               <p className="mt-2 text-xs text-gray-600">since 1946 대한예수교장로회</p>
             </div>
