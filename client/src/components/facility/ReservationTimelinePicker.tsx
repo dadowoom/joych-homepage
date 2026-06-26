@@ -165,7 +165,7 @@ export default function ReservationTimelinePicker({
                     disabled={isDisabled}
                     title={isDisabled && typeof disabledReason === "string" ? disabledReason : undefined}
                     onClick={() => handleSegmentClick(start, end)}
-                    className={`flex h-14 min-w-[68px] flex-col items-center justify-center border-r border-white/80 px-2 text-[11px] font-bold transition-colors last:border-r-0 ${
+                    className={`flex h-14 min-w-[68px] flex-col items-center justify-center border-r border-gray-200 px-2 text-[11px] font-bold transition-colors last:border-r-0 ${
                       isDisabled
                         ? isBooked
                           ? "cursor-not-allowed bg-red-100 text-red-500 line-through"
@@ -190,14 +190,6 @@ export default function ReservationTimelinePicker({
                 </div>
               );
             })}
-          </div>
-          <div className="mt-1 flex">
-            {segments.map(({ start, end }, index) => (
-              <div key={`${start}-${end}-tick`} className="min-w-[68px] px-1 text-[10px] text-gray-400">
-                <span>{start}</span>
-                {index === segments.length - 1 && <span className="float-right">{end}</span>}
-              </div>
-            ))}
           </div>
         </div>
       </div>
