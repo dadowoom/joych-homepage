@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { RichTextEditor, RichTextViewer } from "@/components/ui/rich-text-editor";
 import { trpc } from "@/lib/trpc";
-import { BLOCK_TYPES } from "./BlockRenderer";
+import { BLOCK_TYPES, HTML_EDITOR_BLOCK_TYPE } from "./BlockRenderer";
 import { normalizeHtmlBlockValue } from "./htmlBlockUtils";
 
 type DialogSize = {
@@ -310,7 +310,7 @@ export function BlockEditDialog({
   };
 
   const buildContent = () => {
-    if (blockType === "html-rich") {
+    if (blockType === HTML_EDITOR_BLOCK_TYPE) {
       const htmlForSave = htmlEditMode === "source" ? htmlSourceDraft : html;
       return JSON.stringify({ html: htmlForSave });
     }
@@ -448,8 +448,8 @@ export function BlockEditDialog({
             </select>
           </div>
 
-          {/* HTML 편집기 블록 */}
-          {blockType === "html-rich" && (
+          {/* HTML 편집기 블록: 2단/3단 신규 페이지 모두 공통 RichTextEditor를 사용합니다. */}
+          {blockType === HTML_EDITOR_BLOCK_TYPE && (
             <div className="space-y-3">
               {!visualEditorSafeHtml && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">

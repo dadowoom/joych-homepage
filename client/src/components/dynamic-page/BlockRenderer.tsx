@@ -34,9 +34,13 @@ export function parseContent(raw: string): BlockContent {
   }
 }
 
+// 2단/3단 동적 페이지의 HTML 블록은 모두 이 타입 하나를 사용합니다.
+// 새 HTML 편집 페이지를 추가할 때도 별도 편집기를 만들지 말고 공통 RichTextEditor/RichTextViewer 흐름을 재사용하세요.
+export const HTML_EDITOR_BLOCK_TYPE = "html-rich" as const;
+
 // ─── 블록 타입 선택지 (BlockEditDialog에서도 사용) ────────────────────────────
 export const BLOCK_TYPES = [
-  { value: "html-rich", label: "HTML 편집기", icon: "H" },
+  { value: HTML_EDITOR_BLOCK_TYPE, label: "HTML 편집기", icon: "H" },
   { value: "text-h1", label: "제목 1 (H1)", icon: "T" },
   { value: "text-h2", label: "제목 2 (H2)", icon: "T" },
   { value: "text-h3", label: "제목 3 (H3)", icon: "T" },
@@ -101,7 +105,7 @@ export function BlockRenderer({
   };
 
   switch (block.blockType) {
-    case "html-rich":
+    case HTML_EDITOR_BLOCK_TYPE:
       return (
         <RichTextViewer
           className="my-6 max-w-full text-base leading-8"

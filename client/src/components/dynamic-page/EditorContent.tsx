@@ -9,7 +9,7 @@ import { Edit3, Pencil, ChevronUp, ChevronDown, Eye, EyeOff, Trash2, Plus } from
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { BlockRenderer } from "./BlockRenderer";
+import { BlockRenderer, HTML_EDITOR_BLOCK_TYPE } from "./BlockRenderer";
 import { BlockEditDialog } from "./BlockEditDialog";
 import { toast } from "sonner";
 
@@ -24,6 +24,8 @@ export function EditorContent({
   const isAdmin = user?.role === "admin";
   const utils = trpc.useUtils();
 
+  // 2단(menuItemId), 3단(menuSubItemId) 페이지 모두 같은 블록 저장/편집 흐름을 사용합니다.
+  // HTML 편집기 버그가 메뉴마다 달라지지 않도록 새 블록도 공통 HTML_EDITOR_BLOCK_TYPE으로 시작합니다.
   // 공개용: isVisible=true 블록만
   const { data: blocks, isLoading } = trpc.home.pageBlocks.useQuery(
     { menuItemId, menuSubItemId },
@@ -139,7 +141,7 @@ export function EditorContent({
             className="bg-green-700 hover:bg-green-800 text-white"
             onClick={() => {
               setIsNewBlock(true);
-              setEditingBlock({ blockType: "html-rich", content: "{\"html\":\"\"}" });
+              setEditingBlock({ blockType: HTML_EDITOR_BLOCK_TYPE, content: "{\"html\":\"\"}" });
             }}
           >
             <Plus className="w-4 h-4 mr-1" /> 블록 추가
