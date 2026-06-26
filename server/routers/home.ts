@@ -80,6 +80,8 @@ import {
   getPublicHistory,
   getVisibleCourses,
   getVisibleCourseById,
+  getVisiblePastorBooks,
+  getPastorBookById,
   createOrReopenCourseApplication,
   getMyCourseApplications,
   cancelMyCourseApplication,
@@ -414,6 +416,14 @@ export const homeRouter = router({
 
   /** 공개 강좌 목록 */
   courses: publicProcedure.query(() => getVisibleCourses()),
+
+  /** 담임목사 저서 목록 */
+  pastorBooks: publicProcedure.query(() => getVisiblePastorBooks()),
+
+  /** 담임목사 저서 상세 */
+  pastorBook: publicProcedure
+    .input(z.object({ id: idSchema }))
+    .query(({ input }) => getPastorBookById(input.id, false)),
 
   /** 성도 이상 주보 목록 */
   bulletins: publicProcedure.query(({ ctx }) => {

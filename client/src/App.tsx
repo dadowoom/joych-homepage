@@ -110,6 +110,11 @@ const PastorBooksPage = lazy(() =>
     default: module.PastorBooksPage,
   }))
 );
+const PastorBookDetailPage = lazy(() =>
+  import("./pages/ChurchIntro").then(module => ({
+    default: module.PastorBookDetailPage,
+  }))
+);
 const WhiteBookPage = lazy(() =>
   import("./pages/ChurchIntro").then(module => ({
     default: module.WhiteBookPage,
@@ -350,6 +355,7 @@ function Router() {
       <Route path="/about/pastor" component={PastorGreeting} />
       <Route path="/about/history" component={ChurchHistory} />
       <Route path="/about/vision" component={ChurchVision} />
+      <Route path="/about/pastor/books/:id" component={PastorBookDetailPage} />
       <Route path="/about/pastor/books" component={PastorBooksPage} />
       <Route path="/about/staff/associate" component={StaffPage} />
       <Route path="/about/staff" component={StaffPage} />

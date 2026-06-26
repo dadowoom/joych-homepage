@@ -4,10 +4,14 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import type { RouteComponentProps } from "wouter";
-import { ArrowLeft, CalendarDays, ChevronRight, Bus, BookOpen, ExternalLink, Heart, Mail, Palette, Phone, UserRound } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronRight, Bus, BookOpen, Heart, Image as ImageIcon, Mail, Palette, Pencil, Phone, Plus, UserRound } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { PastorBookEditorDialog } from "@/components/AdminPastorBooksTab";
+import { RichTextViewer } from "@/components/ui/rich-text-editor";
+import { canManageBoardContent } from "@/lib/contentPermissions";
 import SubPageLayout from "@/components/SubPageLayout";
 
 function PageWrapper({ title, breadcrumb, children }: { title: string; breadcrumb: string[]; children: React.ReactNode }) {
@@ -486,109 +490,46 @@ export function StaffPage({
 }
 
 // ── 담임목사 저서 ──
-const PASTOR_BOOKS = [
-  {
-    num: "48406",
-    title: "생선 아카데미 인간론⑧ 『하나님과 화목하라』 : 하나님의 주권과 인간의 자유의지",
-    imageUrl: "/pastor-books/48406.png",
-    publishedAt: "2023.05.18",
-  },
-  {
-    num: "48405",
-    title: "생선 아카데미 인간론⑦ 『고난을 이기는 법』 : 고난은 축복의 밑거름입니다",
-    imageUrl: "/pastor-books/48405.jpg",
-    publishedAt: "2023.05.18",
-  },
-  {
-    num: "48202",
-    title: "생선 아카데미 인간론⑥ 『영광에서 영광으로』 : 승리의 면류관을 얻는 방법",
-    imageUrl: "/pastor-books/48202.png",
-    publishedAt: "2022.10.22",
-  },
-  {
-    num: "47951",
-    title: "생선 아카데미 인간론⑤ 『그리스도로 옷 입은 사람』 : 하늘의 영광 속에 거하는 삶",
-    imageUrl: "/pastor-books/47951.jpg",
-    publishedAt: "2022.09.25",
-  },
-  {
-    num: "47950",
-    title: "생선 아카데미 인간론④ 『일하는 인간』 : 하나님나라 통치의 동역자",
-    imageUrl: "/pastor-books/47950.jpg",
-    publishedAt: "2022.09.25",
-  },
-  {
-    num: "47519",
-    title: "생선 아카데미 인간론③ 『푯대를 향하여』 : 그리스도인의 영적 성장 단계",
-    imageUrl: "/pastor-books/47519.png",
-    publishedAt: "2022.02.03",
-  },
-  {
-    num: "47518",
-    title: "생선 아카데미 인간론② 『토기장이와 그릇』 : 하나님의 절대주권과 인간의 사명",
-    imageUrl: "/pastor-books/47518.png",
-    publishedAt: "2022.02.03",
-  },
-  {
-    num: "47517",
-    title: "생선 아카데미 인간론① 『본향을 향하여』 : 인간은 어디로부터 와서 어디로 가는가?",
-    imageUrl: "/pastor-books/47517.png",
-    publishedAt: "2022.02.03",
-  },
-  {
-    num: "47104",
-    title: "열두 물멧돌",
-    imageUrl: "/pastor-books/47104.png",
-    publishedAt: "2020.12.14",
-  },
-  {
-    num: "45367",
-    title: "그의 기이한 빛으로 들어가라",
-    imageUrl: "/pastor-books/45367.jpg",
-    publishedAt: "2019.03.21",
-  },
-  {
-    num: "34550",
-    title: "실종된 천국을 회복하라",
-    imageUrl: "/pastor-books/34550.jpg",
-    publishedAt: "2015.01.16",
-  },
-  {
-    num: "476",
-    title: "은혜, 아직 끝나지 않았다.",
-    imageUrl: "/pastor-books/476.jpg",
-    publishedAt: "2013.03.30",
-  },
-  {
-    num: "475",
-    title: "받은 복을 세어 보아라",
-    imageUrl: "/pastor-books/475.jpg",
-    publishedAt: "2011.06.03",
-  },
-  {
-    num: "474",
-    title: "기독교 교육과 리더십",
-    imageUrl: "/pastor-books/474.jpg",
-    publishedAt: "2010.04.04",
-  },
-  {
-    num: "473",
-    title: "리더십 바톤터치",
-    imageUrl: "/pastor-books/473.gif",
-    publishedAt: "2009.03.01",
-  },
-];
+type PastorBookPublicItem = {
+  id: number;
+  title: string;
+  summary: string | null;
+  contentHtml: string | null;
+  publishedAt: string | null;
+  externalUrl: string | null;
+  isVisible: boolean;
+  sortOrder: number;
+  coverImageUrl?: string | null;
+  images?: { id: number; imageUrl: string; isThumbnail: boolean }[];
+};
 
-function getPastorBookDetailUrl(num: string) {
-  return `http://www.joych.org/main/sub.html?Mode=view&boardID=www12&num=${num}&page=0&keyfield=&key=&bCate=`;
+function getPastorBookDetailUrl(id: number) {
+  return `/about/pastor/books/${id}`;
 }
 
 export function PastorBooksPage() {
+  const { user } = useAuth();
+  const utils = trpc.useUtils();
   const { data: menuTree } = trpc.home.menus.useQuery();
+  const { data: pastorBooks = [], isLoading } = trpc.home.pastorBooks.useQuery();
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [selectedBook, setSelectedBook] = useState<PastorBookPublicItem | null>(null);
+  const canManage = canManageBoardContent(user, "content:pastorBooks");
   const sideMenuItems = useMemo(
     () => getStaffSideMenuItems(menuTree, "담임목사 저서"),
     [menuTree],
   );
+  const books = pastorBooks as PastorBookPublicItem[];
+
+  function openCreate() {
+    setSelectedBook(null);
+    setEditorOpen(true);
+  }
+
+  function openEdit(book: PastorBookPublicItem) {
+    setSelectedBook(book);
+    setEditorOpen(true);
+  }
 
   return (
     <SubPageLayout
@@ -603,44 +544,183 @@ export function PastorBooksPage() {
             박진석 담임목사의 저서를 한곳에서 확인할 수 있습니다.
           </p>
         </div>
-        <p className="text-sm text-gray-400">총 {PASTOR_BOOKS.length}권</p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-gray-400">총 {books.length}권</p>
+          {canManage && (
+            <button
+              type="button"
+              onClick={openCreate}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#1B5E20] px-3 py-2 text-xs font-semibold text-white hover:bg-[#2E7D32]"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              저서 추가
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {PASTOR_BOOKS.map((book) => (
-          <a
-            key={book.num}
-            href={getPastorBookDetailUrl(book.num)}
-            target="_blank"
-            rel="noreferrer"
-            className="group block border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md"
+      {isLoading ? (
+        <p className="py-12 text-center text-gray-500">불러오는 중...</p>
+      ) : books.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-gray-200 py-16 text-center text-sm text-gray-400">
+          등록된 저서가 없습니다.
+        </div>
+      ) : (
+        <div className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {books.map((book) => (
+            <article key={book.id} className="group relative border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md">
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={() => openEdit(book)}
+                  className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-[#1B5E20] shadow-sm ring-1 ring-[#D7F0D8] hover:bg-[#F1F8F2]"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  수정
+                </button>
+              )}
+              <Link href={getPastorBookDetailUrl(book.id)} className="block">
+                <div className="flex h-64 items-center justify-center overflow-hidden bg-gray-50">
+                  {book.coverImageUrl ? (
+                    <img
+                      src={book.coverImageUrl}
+                      alt={book.title}
+                      loading="lazy"
+                      className="max-h-full max-w-full object-contain transition-transform group-hover:scale-[1.02]"
+                    />
+                  ) : (
+                    <ImageIcon className="h-12 w-12 text-gray-300" />
+                  )}
+                </div>
+                <div className="pt-4">
+                  <h2 className="min-h-12 text-sm font-semibold leading-6 text-gray-800 group-hover:text-[#1B5E20]">
+                    {book.title}
+                  </h2>
+                  {book.summary && <p className="mt-2 line-clamp-2 text-xs leading-5 text-gray-500">{book.summary}</p>}
+                  <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3 text-xs text-gray-400">
+                    <span className="inline-flex items-center gap-1">
+                      <CalendarDays className="h-3.5 w-3.5" />
+                      {book.publishedAt || "날짜 미등록"}
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-[#1B5E20]">
+                      보기
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            </article>
+          ))}
+        </div>
+      )}
+
+      <PastorBookEditorDialog
+        open={editorOpen}
+        book={selectedBook}
+        onClose={() => setEditorOpen(false)}
+        onSaved={() => {
+          utils.home.pastorBooks.invalidate();
+        }}
+      />
+    </SubPageLayout>
+  );
+}
+
+export function PastorBookDetailPage({ params }: RouteComponentProps<{ id: string }>) {
+  const bookId = Number(params.id);
+  const { user } = useAuth();
+  const utils = trpc.useUtils();
+  const { data: menuTree } = trpc.home.menus.useQuery();
+  const { data: book, isLoading } = trpc.home.pastorBook.useQuery(
+    { id: Number.isFinite(bookId) ? bookId : 0 },
+    { enabled: Number.isFinite(bookId) && bookId > 0 },
+  );
+  const [editorOpen, setEditorOpen] = useState(false);
+  const canManage = canManageBoardContent(user, "content:pastorBooks");
+  const sideMenuItems = useMemo(
+    () => getStaffSideMenuItems(menuTree, "담임목사 저서"),
+    [menuTree],
+  );
+  const currentBook = book as PastorBookPublicItem | null | undefined;
+
+  return (
+    <SubPageLayout
+      pageTitle="담임목사 저서"
+      parentLabel="교회소개"
+      sideMenuItems={sideMenuItems}
+    >
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4">
+        <Link href="/about/pastor/books" className="inline-flex items-center gap-2 text-sm font-semibold text-[#1B5E20] hover:underline">
+          <ArrowLeft className="h-4 w-4" />
+          목록으로
+        </Link>
+        {canManage && currentBook && (
+          <button
+            type="button"
+            onClick={() => setEditorOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[#1B5E20] px-3 py-2 text-xs font-semibold text-white hover:bg-[#2E7D32]"
           >
-            <div className="flex h-64 items-center justify-center overflow-hidden bg-gray-50">
-              <img
-                src={book.imageUrl}
-                alt={book.title}
-                loading="lazy"
-                className="max-h-full max-w-full object-contain transition-transform group-hover:scale-[1.02]"
-              />
-            </div>
-            <div className="pt-4">
-              <h2 className="min-h-12 text-sm font-semibold leading-6 text-gray-800 group-hover:text-[#1B5E20]">
-                {book.title}
-              </h2>
-              <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3 text-xs text-gray-400">
-                <span className="inline-flex items-center gap-1">
-                  <CalendarDays className="h-3.5 w-3.5" />
-                  {book.publishedAt}
-                </span>
-                <span className="inline-flex items-center gap-1 text-[#1B5E20]">
-                  보기
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </span>
-              </div>
-            </div>
-          </a>
-        ))}
+            <Pencil className="h-3.5 w-3.5" />
+            이 저서 수정
+          </button>
+        )}
       </div>
+
+      {isLoading ? (
+        <p className="py-16 text-center text-gray-500">불러오는 중...</p>
+      ) : !currentBook ? (
+        <div className="rounded-xl border border-dashed border-gray-200 py-16 text-center text-sm text-gray-400">
+          저서를 찾을 수 없습니다.
+        </div>
+      ) : (
+        <article className="space-y-8">
+          <header className="grid gap-8 lg:grid-cols-[260px_1fr]">
+            <div className="flex min-h-80 items-center justify-center border border-gray-200 bg-gray-50 p-4">
+              {currentBook.coverImageUrl ? (
+                <img src={currentBook.coverImageUrl} alt={currentBook.title} className="max-h-full max-w-full object-contain" />
+              ) : (
+                <ImageIcon className="h-14 w-14 text-gray-300" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-[#1B5E20]">Pastor Book</p>
+              <h1 className="mt-3 font-['Noto_Serif_KR'] text-3xl font-bold leading-tight text-gray-900">
+                {currentBook.title}
+              </h1>
+              {currentBook.publishedAt && (
+                <p className="mt-4 inline-flex items-center gap-2 text-sm text-gray-500">
+                  <CalendarDays className="h-4 w-4" />
+                  {currentBook.publishedAt}
+                </p>
+              )}
+              {currentBook.summary && (
+                <p className="mt-5 rounded-lg bg-[#F1F8F2] px-4 py-3 text-sm leading-7 text-gray-700">
+                  {currentBook.summary}
+                </p>
+              )}
+            </div>
+          </header>
+
+          <section className="border-t border-gray-100 pt-8">
+            {currentBook.contentHtml ? (
+              <RichTextViewer html={currentBook.contentHtml} />
+            ) : (
+              <div className="rounded-xl border border-dashed border-gray-200 py-16 text-center text-sm text-gray-400">
+                아직 등록된 본문 내용이 없습니다.
+              </div>
+            )}
+          </section>
+        </article>
+      )}
+
+      <PastorBookEditorDialog
+        open={editorOpen}
+        book={currentBook ?? null}
+        onClose={() => setEditorOpen(false)}
+        onSaved={() => {
+          utils.home.pastorBook.invalidate({ id: bookId });
+          utils.home.pastorBooks.invalidate();
+        }}
+      />
     </SubPageLayout>
   );
 }

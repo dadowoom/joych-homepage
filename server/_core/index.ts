@@ -27,6 +27,7 @@ const TRPC_UPLOAD_PROCEDURES = [
   "cms.upload.pageImage",
   "cms.blocks.uploadImage",
   "cms.facilities.images.upload",
+  "cms.pastorBooks.images.upload",
   "cms.bulletins.create",
   "mission.uploadImage",
   "testimony.uploadImage",

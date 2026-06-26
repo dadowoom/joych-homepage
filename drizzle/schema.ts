@@ -1183,6 +1183,47 @@ export type CourseApplication = typeof courseApplications.$inferSelect;
 export type InsertCourseApplication = typeof courseApplications.$inferInsert;
 
 // ─────────────────────────────────────────────
+// 담임목사 저서
+// ─────────────────────────────────────────────
+
+export const pastorBooks = mysqlTable("pastor_books", {
+  id: int("id").autoincrement().primaryKey(),
+  legacyNum: varchar("legacy_num", { length: 32 }),
+  title: varchar("title", { length: 255 }).notNull(),
+  summary: varchar("summary", { length: 500 }),
+  contentHtml: text("content_html"),
+  publishedAt: varchar("published_at", { length: 10 }),
+  externalUrl: text("external_url"),
+  isVisible: boolean("is_visible").notNull().default(true),
+  sortOrder: int("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("pastor_books_legacy_num_unique").on(table.legacyNum),
+  index("pastor_books_visible_sort_idx").on(table.isVisible, table.sortOrder),
+  index("pastor_books_published_idx").on(table.publishedAt),
+]);
+
+export type PastorBook = typeof pastorBooks.$inferSelect;
+export type InsertPastorBook = typeof pastorBooks.$inferInsert;
+
+export const pastorBookImages = mysqlTable("pastor_book_images", {
+  id: int("id").autoincrement().primaryKey(),
+  bookId: int("book_id").notNull(),
+  imageUrl: text("image_url").notNull(),
+  fileKey: varchar("file_key", { length: 512 }),
+  caption: varchar("caption", { length: 128 }),
+  isThumbnail: boolean("is_thumbnail").notNull().default(false),
+  sortOrder: int("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("pastor_book_images_book_order_idx").on(table.bookId, table.isThumbnail, table.sortOrder),
+]);
+
+export type PastorBookImage = typeof pastorBookImages.$inferSelect;
+export type InsertPastorBookImage = typeof pastorBookImages.$inferInsert;
+
+// ─────────────────────────────────────────────
 // 선교보고 시스템
 // ─────────────────────────────────────────────
 

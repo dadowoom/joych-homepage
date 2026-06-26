@@ -40,6 +40,7 @@ import AdminBulletinsTab from "@/components/AdminBulletinsTab";
 import AdminPermissionsTab from "@/components/AdminPermissionsTab";
 import AdminMenuAccessTab from "@/components/AdminMenuAccessTab";
 import AdminChurchHistoryTab from "@/components/AdminChurchHistoryTab";
+import AdminPastorBooksTab from "@/components/AdminPastorBooksTab";
 import YoutubeAdminTab from "@/components/YoutubeAdminTab";
 import { SettingsTab } from "@/components/admin/SettingsTab";
 import {
@@ -68,6 +69,7 @@ type Tab =
   | "youtube"
   | "popups"
   | "history"
+  | "pastorBooks"
   | "menuAccess"
   | "permissions";
 
@@ -154,6 +156,13 @@ const TABS: TabItem[] = [
     description:
       "교회연혁의 년대와 연도별 내용을 등록하고 노출 상태를 관리합니다.",
     status: "연혁 관리",
+  },
+  {
+    id: "pastorBooks",
+    label: "담임목사 저서",
+    icon: "fa-book-open",
+    description: "담임목사 저서 목록, 대표 이미지, 상세 본문을 관리합니다.",
+    status: "저서 관리",
   },
   {
     id: "members",
@@ -251,6 +260,7 @@ const TAB_GROUPS: TabGroup[] = [
       "freeBoard",
       "popups",
       "history",
+      "pastorBooks",
     ],
   },
   {
@@ -1173,6 +1183,7 @@ export default function AdminPage() {
                 {activeTab === "youtube" && <YoutubeAdminTab />}
                 {activeTab === "popups" && <AdminPopupsTab />}
                 {activeTab === "history" && <AdminChurchHistoryTab />}
+                {activeTab === "pastorBooks" && <AdminPastorBooksTab />}
               </div>
             )}
           </main>

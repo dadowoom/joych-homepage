@@ -28,6 +28,7 @@ export const STATIC_ADMIN_PERMISSIONS: AdminPermissionDefinition[] = [
   { key: "content:bulletins", label: "주보 관리", group: "콘텐츠/노출 관리", tab: "bulletins", description: "주보 파일 등록, 수정, 공개/숨김을 관리합니다." },
   { key: "content:testimonies", label: "생명 간증 관리", group: "콘텐츠/노출 관리", tab: "testimonies", description: "간증 글과 댓글의 공개/숨김/삭제 상태를 관리합니다." },
   { key: "content:history", label: "교회연혁 관리", group: "콘텐츠/노출 관리", tab: "history", description: "교회연혁 등록, 수정, 노출/숨김을 관리합니다." },
+  { key: "content:pastorBooks", label: "담임목사 저서 관리", group: "콘텐츠/노출 관리", tab: "pastorBooks", description: "담임목사 저서 등록, 본문 편집, 대표 이미지를 관리합니다." },
   { key: "content:gallery", label: "갤러리/사진 관리", group: "콘텐츠/노출 관리", description: "갤러리 사진과 앨범의 등록, 수정, 노출/숨김을 관리합니다." },
   { key: "content:notices", label: "공지사항 관리", group: "콘텐츠/노출 관리", description: "공지사항 작성, 수정, 게시/숨김을 관리합니다." },
   { key: SUPPORT_REQUEST_PERMISSION_KEYS.bulletinAds, label: "주보 광고신청 관리", group: "접수/예약 관리", tab: "supportRequests" },

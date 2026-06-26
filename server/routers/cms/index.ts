@@ -18,6 +18,7 @@
  *   - supportRequests: 기도 요청/새가족 접수 관리
  *   - courses: 교육/강좌 신청 관리
  *   - bulletins: 주보 파일 관리
+ *   - pastorBooks: 담임목사 저서 관리
  */
 
 import { router } from "../../_core/trpc";
@@ -42,6 +43,7 @@ import { notificationsRouter } from "./notifications";
 import { vehiclesRouter } from "./vehicles";
 import { vehicleReservationsRouter } from "./vehicleReservations";
 import { dynamicBoardsRouter } from "./dynamicBoards";
+import { pastorBooksRouter } from "./pastorBooks";
 
 export const cmsRouter = router({
   notices: noticesRouter,
@@ -65,4 +67,5 @@ export const cmsRouter = router({
   vehicles: vehiclesRouter,
   vehicleReservations: vehicleReservationsRouter,
   dynamicBoards: dynamicBoardsRouter,
+  pastorBooks: pastorBooksRouter,
 });
