@@ -7,9 +7,11 @@
  *   - createNotice / updateNotice / deleteNotice: 공지사항 CRUD
  */
 
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, like, ne, not, sql } from "drizzle-orm";
 import { InsertNotice, notices } from "../../drizzle/schema";
 import { getDb } from "./connection";
+
+const MENU_BOARD_CATEGORY_PREFIX = "menu-board:";
 
 /**
  * 공개된 공지사항 목록 조회 (홈페이지용)
@@ -19,7 +21,11 @@ export async function getPublishedNotices(limit = 5) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(notices)
-    .where(and(eq(notices.isPublished, true), ne(notices.category, "행정자료")))
+    .where(and(
+      eq(notices.isPublished, true),
+      ne(notices.category, "행정자료"),
+      not(like(notices.category, `${MENU_BOARD_CATEGORY_PREFIX}%`))
+    ))
     .orderBy(desc(notices.createdAt))
     .limit(limit);
 }

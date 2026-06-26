@@ -94,6 +94,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^(([01]\d|2[0-3]):[0-5]\d|24:00)$/;
 const idSchema = z.number().int().positive();
 const hrefLookupSchema = z.string().trim().min(1).max(256);
+const menuBoardCategorySchema = z.string().trim().regex(/^menu-board:[a-z0-9]{1,16}$/);
 
 function getMenuReadAccess(ctx: { user?: unknown; memberId?: number | null }) {
   return ctx.user || ctx.memberId ? "member" : "guest";
@@ -351,6 +352,11 @@ export const homeRouter = router({
 
   /** 교회 소식 게시판 전체 목록 (공개된 것만) */
   noticeBoard: publicProcedure.query(() => getPublishedNotices(100)),
+
+  /** 메뉴별 독립 게시판 목록 */
+  menuBoard: publicProcedure
+    .input(z.object({ category: menuBoardCategorySchema }))
+    .query(({ input }) => getPublishedNoticesByCategory(input.category, 100)),
 
   trackNoticeView: publicProcedure
     .input(z.object({ id: idSchema }))

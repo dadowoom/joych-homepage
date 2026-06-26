@@ -44,8 +44,42 @@ function isFreeBoardPage(label?: string, href?: string | null) {
 
 type NoticeBoardMode = "notice" | "adminResource";
 
+type CustomBoard = {
+  label: string;
+  category: string;
+};
+
+const MENU_BOARD_CATEGORY_PREFIX = "menu-board:";
+
+function getStableBoardHash(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function getCustomBoard(label?: string, href?: string | null): CustomBoard {
+  const rawKey = href?.trim() || label?.trim() || "menu-board";
+  return {
+    label: label?.trim() || "게시판",
+    category: `${MENU_BOARD_CATEGORY_PREFIX}${getStableBoardHash(rawKey)}`,
+  };
+}
+
 function normalizeNoticeCategory(category?: string | null) {
   return sanitizeNoticePostCategory(category);
+}
+
+function isNoticeBoardPage(label?: string, href?: string | null) {
+  const normalized = `${label ?? ""} ${href ?? ""}`.replace(/\s+/g, "").toLowerCase();
+  return (
+    normalized.includes("공지사항") ||
+    normalized.includes("교회소식") ||
+    normalized.includes("notice") ||
+    normalized.includes("hotnews")
+  );
 }
 
 function isAdminResourcePage(label?: string, href?: string | null) {
@@ -107,10 +141,17 @@ function readFileAsBase64(file: File) {
   });
 }
 
-function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
+function NoticeBoardContent({
+  mode = "notice",
+  customBoard,
+}: {
+  mode?: NoticeBoardMode;
+  customBoard?: CustomBoard;
+}) {
   const { user } = useAuth();
   const utils = trpc.useUtils();
   const isAdminResource = mode === "adminResource";
+  const isCustomBoard = Boolean(customBoard);
   const [activeCategory, setActiveCategory] = useState("전체");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
@@ -129,7 +170,9 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
   const viewedNoticeIdsRef = useRef<Set<number>>(new Set());
 
   const getBlankForm = (): NoticeFormState => ({
-    category: isAdminResource ? ADMIN_RESOURCE_CATEGORY : DEFAULT_NOTICE_CATEGORY_LABEL,
+    category: isAdminResource
+      ? ADMIN_RESOURCE_CATEGORY
+      : customBoard?.category ?? DEFAULT_NOTICE_CATEGORY_LABEL,
     title: "",
     content: "",
     thumbnailUrl: "",
@@ -140,9 +183,13 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
   });
 
   const [formState, setFormState] = useState<NoticeFormState>(getBlankForm);
-  const noticeQuery = trpc.home.noticeBoard.useQuery(undefined, { enabled: !isAdminResource });
+  const noticeQuery = trpc.home.noticeBoard.useQuery(undefined, { enabled: !isAdminResource && !isCustomBoard });
   const adminResourceQuery = trpc.home.adminResourceBoard.useQuery(undefined, { enabled: isAdminResource });
-  const { data: settings } = trpc.home.settings.useQuery(undefined, { enabled: !isAdminResource });
+  const customBoardQuery = trpc.home.menuBoard.useQuery(
+    { category: customBoard?.category ?? `${MENU_BOARD_CATEGORY_PREFIX}0` },
+    { enabled: isCustomBoard },
+  );
+  const { data: settings } = trpc.home.settings.useQuery(undefined, { enabled: !isAdminResource && !isCustomBoard });
   const noticeCategorySettings = useMemo(
     () => parseNoticeCategorySettings(settings?.[NOTICE_CATEGORY_SETTINGS_KEY]),
     [settings],
@@ -155,23 +202,36 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
     () => getNoticeWriteCategoryLabels(noticeCategorySettings),
     [noticeCategorySettings],
   );
-  const notices = isAdminResource ? adminResourceQuery.data : noticeQuery.data;
-  const isLoading = isAdminResource ? adminResourceQuery.isLoading : noticeQuery.isLoading;
+  const notices = isCustomBoard
+    ? customBoardQuery.data
+    : isAdminResource
+      ? adminResourceQuery.data
+      : noticeQuery.data;
+  const isLoading = isCustomBoard
+    ? customBoardQuery.isLoading
+    : isAdminResource
+      ? adminResourceQuery.isLoading
+      : noticeQuery.isLoading;
   const canManageNotices = canManageBoardContent(user, "content:notices");
-  const totalLabel = isAdminResource ? "자료" : "소식";
+  const totalLabel = isAdminResource ? "자료" : isCustomBoard ? "게시글" : "소식";
   const boardDescription = isAdminResource
     ? "행정자료를 게시판 형태로 확인할 수 있습니다."
-    : "공지와 안내를 게시판 형태로 확인할 수 있습니다.";
-  const createButtonLabel = isAdminResource ? "행정자료 작성" : "공지사항 작성";
+    : isCustomBoard
+      ? "이 메뉴에 등록된 게시글만 표시됩니다."
+      : "공지와 안내를 게시판 형태로 확인할 수 있습니다.";
+  const createButtonLabel = isAdminResource ? "행정자료 작성" : isCustomBoard ? "게시글 작성" : "공지사항 작성";
   const emptyText = isAdminResource ? "등록된 행정자료가 없습니다." : "등록된 게시글이 없습니다.";
   const noResultText = isAdminResource ? "해당 조건의 행정자료가 없습니다." : "해당 조건의 게시글이 없습니다.";
-  const effectiveSearchField = isAdminResource && searchField === "category" ? "title" : searchField;
+  const effectiveSearchField = (isAdminResource || isCustomBoard) && searchField === "category" ? "title" : searchField;
 
   const invalidateNoticeData = () => {
     void utils.cms.notices.list.invalidate();
     void utils.home.notices.invalidate();
     void utils.home.noticeBoard.invalidate();
     void utils.home.adminResourceBoard.invalidate();
+    if (customBoard) {
+      void utils.home.menuBoard.invalidate({ category: customBoard.category });
+    }
     void utils.home.settings.invalidate();
   };
 
@@ -185,7 +245,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
 
   const createMutation = trpc.cms.notices.create.useMutation({
     onSuccess: () => {
-      toast.success(isAdminResource ? "행정자료가 등록됐습니다." : "공지사항이 등록됐습니다.");
+      toast.success(isAdminResource ? "행정자료가 등록됐습니다." : isCustomBoard ? "게시글이 등록됐습니다." : "공지사항이 등록됐습니다.");
       setFormMode(null);
       setFormState(getBlankForm());
       invalidateNoticeData();
@@ -195,7 +255,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
 
   const updateMutation = trpc.cms.notices.update.useMutation({
     onSuccess: () => {
-      toast.success(isAdminResource ? "행정자료가 수정됐습니다." : "공지사항이 수정됐습니다.");
+      toast.success(isAdminResource ? "행정자료가 수정됐습니다." : isCustomBoard ? "게시글이 수정됐습니다." : "공지사항이 수정됐습니다.");
       setFormMode(null);
       setEditingNoticeId(null);
       invalidateNoticeData();
@@ -205,7 +265,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
 
   const deleteMutation = trpc.cms.notices.delete.useMutation({
     onSuccess: () => {
-      toast.success(isAdminResource ? "행정자료가 삭제됐습니다." : "공지사항이 삭제됐습니다.");
+      toast.success(isAdminResource ? "행정자료가 삭제됐습니다." : isCustomBoard ? "게시글이 삭제됐습니다." : "공지사항이 삭제됐습니다.");
       setFormMode(null);
       setEditingNoticeId(null);
       invalidateNoticeData();
@@ -237,10 +297,10 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
   }, [notices]);
 
   useEffect(() => {
-    if (isAdminResource || visibleNoticeCategories.includes(activeCategory)) return;
+    if (isAdminResource || isCustomBoard || visibleNoticeCategories.includes(activeCategory)) return;
     setActiveCategory(visibleNoticeCategories[0] ?? NOTICE_ALL_CATEGORY_LABEL);
     setPage(1);
-  }, [activeCategory, isAdminResource, visibleNoticeCategories]);
+  }, [activeCategory, isAdminResource, isCustomBoard, visibleNoticeCategories]);
 
   const handleToggleNotice = (noticeId: number) => {
     const willOpen = expandedId !== noticeId;
@@ -253,7 +313,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
     trackNoticeViewMutation.mutate({ id: noticeId });
   };
 
-  const categoryFilteredNotices = isAdminResource || activeCategory === NOTICE_ALL_CATEGORY_LABEL
+  const categoryFilteredNotices = isAdminResource || isCustomBoard || activeCategory === NOTICE_ALL_CATEGORY_LABEL
     ? sortedNotices
     : sortedNotices.filter((notice) => normalizeNoticeCategory(notice.category) === activeCategory);
   const normalizedKeyword = searchKeyword.trim().toLowerCase();
@@ -262,7 +322,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
         const titleText = notice.title.toLowerCase();
         const categoryText = normalizeNoticeCategory(notice.category).toLowerCase();
         const contentText = toPlainText(notice.content).toLowerCase();
-        if (!isAdminResource && effectiveSearchField === "category") return categoryText.includes(normalizedKeyword);
+        if (!isAdminResource && !isCustomBoard && effectiveSearchField === "category") return categoryText.includes(normalizedKeyword);
         if (effectiveSearchField === "content") return contentText.includes(normalizedKeyword);
         return titleText.includes(normalizedKeyword);
       })
@@ -275,12 +335,12 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
   const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1);
   const newNoticeCount = filteredNotices.filter((notice) => isToday(notice.createdAt)).length;
   const formCategoryOptions = useMemo(() => {
-    if (isAdminResource) return [];
+    if (isAdminResource || isCustomBoard) return [];
     const options = [...writeNoticeCategories];
     const current = sanitizeNoticePostCategory(formState.category, options[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL);
     if (current && !options.includes(current)) options.unshift(current);
     return options;
-  }, [formState.category, isAdminResource, writeNoticeCategories]);
+  }, [formState.category, isAdminResource, isCustomBoard, writeNoticeCategories]);
 
   const openCreateForm = () => {
     setFormMode("create");
@@ -293,7 +353,9 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
     setFormMode("edit");
     setEditingNoticeId(notice.id);
     setFormState({
-      category: isAdminResource ? ADMIN_RESOURCE_CATEGORY : sanitizeNoticePostCategory(notice.category, writeNoticeCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
+      category: isAdminResource
+        ? ADMIN_RESOURCE_CATEGORY
+        : customBoard?.category ?? sanitizeNoticePostCategory(notice.category, writeNoticeCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
       title: notice.title,
       content: notice.content ?? "",
       thumbnailUrl: notice.thumbnailUrl ?? "",
@@ -384,7 +446,9 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
     }
 
     const payload = {
-      category: isAdminResource ? ADMIN_RESOURCE_CATEGORY : sanitizeNoticePostCategory(formState.category, writeNoticeCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
+      category: isAdminResource
+        ? ADMIN_RESOURCE_CATEGORY
+        : customBoard?.category ?? sanitizeNoticePostCategory(formState.category, writeNoticeCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
       title,
       content: formState.content.trim() || undefined,
       thumbnailUrl: formState.thumbnailUrl.trim(),
@@ -403,7 +467,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
   };
 
   const handleDelete = (id: number) => {
-    const message = isAdminResource ? "이 행정자료를 삭제할까요?" : "이 공지사항을 삭제할까요?";
+    const message = isAdminResource ? "이 행정자료를 삭제할까요?" : isCustomBoard ? "이 게시글을 삭제할까요?" : "이 공지사항을 삭제할까요?";
     if (!window.confirm(message)) return;
     deleteMutation.mutate({ id });
   };
@@ -442,7 +506,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
   };
 
   const renderCategoryManager = () => {
-    if (!canManageNotices || isAdminResource) return null;
+    if (!canManageNotices || isAdminResource || isCustomBoard) return null;
 
     return (
       <div className="border border-emerald-100 bg-emerald-50/60 p-4">
@@ -538,7 +602,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
         </div>
 
         <div className="grid gap-4 px-5 py-5 md:grid-cols-2">
-          {!isAdminResource && (
+          {!isAdminResource && !isCustomBoard && (
             <label className="space-y-2">
               <span className="block text-sm font-semibold text-gray-700">분류</span>
               <select
@@ -685,7 +749,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
               />
               게시
             </label>
-            {!isAdminResource && (
+            {!isAdminResource && !isCustomBoard && (
               <label className="inline-flex items-center gap-2 text-sm text-gray-700">
                 <input
                   type="checkbox"
@@ -745,7 +809,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
         <div>
           <p className="text-sm text-gray-500">
             총 <span className="font-semibold text-[#1B5E20]">{notices?.length ?? 0}</span>개의 {totalLabel}
-            {((!isAdminResource && activeCategory !== NOTICE_ALL_CATEGORY_LABEL) || searchKeyword) && (
+            {((!isAdminResource && !isCustomBoard && activeCategory !== NOTICE_ALL_CATEGORY_LABEL) || searchKeyword) && (
               <span className="ml-2 text-gray-400">표시 {filteredNotices.length}개</span>
             )}
           </p>
@@ -779,7 +843,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
             setPage(1);
           }}
         >
-          {!isAdminResource && (
+          {!isAdminResource && !isCustomBoard && (
             <select
               value={activeCategory}
               onChange={(event) => {
@@ -802,7 +866,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
           >
             <option value="title">제목</option>
             <option value="content">내용</option>
-            {!isAdminResource && <option value="category">분류</option>}
+            {!isAdminResource && !isCustomBoard && <option value="category">분류</option>}
           </select>
           <input
             value={searchInput}
@@ -820,7 +884,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
         </form>
       </div>
 
-      {!isAdminResource && (
+      {!isAdminResource && !isCustomBoard && (
         <div className="flex flex-wrap gap-2">
           {visibleNoticeCategories.map((category) => {
             const isActive = activeCategory === category;
@@ -890,7 +954,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
                             className="block max-w-full truncate text-left text-gray-800 hover:text-[#1B5E20]"
                             aria-expanded={isExpanded}
                           >
-                            {!isAdminResource && (
+                            {!isAdminResource && !isCustomBoard && (
                               <span className="mr-2 text-xs text-[#1B5E20]">[{displayCategory}]</span>
                             )}
                             {notice.title}
@@ -976,7 +1040,7 @@ function NoticeBoardContent({ mode = "notice" }: { mode?: NoticeBoardMode }) {
                     className="block w-full text-left text-base font-bold text-gray-900"
                     aria-expanded={isExpanded}
                   >
-                    {!isAdminResource && (
+                    {!isAdminResource && !isCustomBoard && (
                       <span className="mr-2 text-xs text-[#1B5E20]">[{displayCategory}]</span>
                     )}
                     {notice.title}
@@ -1085,6 +1149,9 @@ export function BoardContent({ label, href }: BoardContentProps = {}) {
   if (isAdminResourcePage(label, href)) {
     return <NoticeBoardContent mode="adminResource" />;
   }
-  return <NoticeBoardContent />;
+  if (isNoticeBoardPage(label, href)) {
+    return <NoticeBoardContent />;
+  }
+  return <NoticeBoardContent customBoard={getCustomBoard(label, href)} />;
 }
 
