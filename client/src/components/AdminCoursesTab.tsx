@@ -661,9 +661,9 @@ export default function AdminCoursesTab() {
             </div>
             <div className="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
               <div className="flex flex-col md:flex-row gap-4">
-                <div className="w-full md:w-48 h-32 rounded-lg bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center shrink-0">
+                <div className="aspect-[3/4] w-full max-w-40 md:w-36 rounded-lg bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center shrink-0">
                   {form.imageUrl ? (
-                    <img src={form.imageUrl} alt="강좌 대표 사진" className="w-full h-full object-cover" />
+                    <img src={form.imageUrl} alt="강좌 대표 사진" className="w-full h-full object-contain" />
                   ) : (
                     <div className="text-center text-gray-300">
                       <ImageIcon className="w-8 h-8 mx-auto mb-1" />
@@ -703,7 +703,7 @@ export default function AdminCoursesTab() {
                       className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]"
                     />
                   </div>
-                  <p className="text-[11px] text-gray-400">강좌 목록과 상세 카드에 표시됩니다. jpg, png, webp, gif / 최대 10MB</p>
+                  <p className="text-[11px] text-gray-400">강좌 목록과 상세 카드에 표시됩니다. 세로 포스터 비율 권장 / jpg, png, webp, gif / 최대 10MB</p>
                 </div>
               </div>
             </div>
@@ -929,9 +929,9 @@ export default function AdminCoursesTab() {
               <div key={course.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="flex items-center gap-3 p-4">
                   {course.imageUrl ? (
-                    <img src={course.imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0 bg-gray-100" />
+                    <img src={course.imageUrl} alt="" className="w-11 h-14 rounded-md object-contain shrink-0 bg-gray-50 ring-1 ring-gray-100" />
                   ) : (
-                    <div className="w-12 h-12 rounded-lg bg-[#E8F5E9] text-[#1B5E20] flex items-center justify-center shrink-0">
+                    <div className="w-11 h-14 rounded-md bg-[#E8F5E9] text-[#1B5E20] flex items-center justify-center shrink-0">
                       <BookOpen className="w-5 h-5" />
                     </div>
                   )}

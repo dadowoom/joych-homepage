@@ -253,14 +253,19 @@ export default function CourseList() {
                 const canReapply = !application || application.status === "rejected" || application.status === "cancelled";
                 return (
                   <div key={course.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                    {course.imageUrl && (
-                      <img
-                        src={course.imageUrl}
-                        alt=""
-                        className="h-52 w-full object-cover bg-gray-100"
-                      />
-                    )}
-                    <div className="p-5">
+                    <div className={course.imageUrl ? "md:grid md:grid-cols-[220px_1fr]" : ""}>
+                      {course.imageUrl && (
+                        <div className="flex justify-center border-b border-gray-100 bg-gray-50 p-4 md:border-b-0 md:border-r">
+                          <div className="aspect-[3/4] w-full max-w-[220px] overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
+                            <img
+                              src={course.imageUrl}
+                              alt={`${course.title} 포스터`}
+                              className="h-full w-full object-contain bg-gray-50"
+                            />
+                          </div>
+                        </div>
+                      )}
+                      <div className="p-5">
                       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-2">
@@ -400,6 +405,7 @@ export default function CourseList() {
                           </div>
                         </div>
                       )}
+                      </div>
                     </div>
                   </div>
                 );
