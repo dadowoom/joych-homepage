@@ -73,12 +73,20 @@ function normalizeNoticeCategory(category?: string | null) {
 }
 
 function isNoticeBoardPage(label?: string, href?: string | null) {
-  const normalized = `${label ?? ""} ${href ?? ""}`.replace(/\s+/g, "").toLowerCase();
+  const normalizedLabel = (label ?? "").replace(/\s+/g, "").toLowerCase();
+  const normalizedHref = (href ?? "").trim();
+  const knownNoticeHrefs = new Set([
+    "/page/행정지원-공지사항",
+    "/community/news",
+    "/notice",
+    "/notices",
+    "/hot-news",
+  ]);
   return (
-    normalized.includes("공지사항") ||
-    normalized.includes("교회소식") ||
-    normalized.includes("notice") ||
-    normalized.includes("hotnews")
+    normalizedLabel === "공지사항" ||
+    normalizedLabel === "교회소식" ||
+    normalizedLabel === "hotnews" ||
+    knownNoticeHrefs.has(normalizedHref)
   );
 }
 
