@@ -12,6 +12,7 @@ import {
   getPastorBookById,
   getPastorBookImages,
   getPastorBooksForAdmin,
+  reorderPastorBooks,
   setPastorBookThumbnail,
   updatePastorBook,
 } from "../../db";
@@ -74,6 +75,15 @@ export const pastorBooksRouter = router({
       const { id, ...data } = input;
       return updatePastorBook(id, data);
     }),
+
+  reorder: pastorBookProcedure
+    .input(z.object({
+      items: z.array(z.object({
+        id: idSchema,
+        sortOrder: z.number().int().min(0).max(100000),
+      })).min(1).max(300),
+    }))
+    .mutation(({ input }) => reorderPastorBooks(input.items)),
 
   delete: pastorBookProcedure
     .input(z.object({ id: idSchema }))

@@ -1,5 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, Eye, EyeOff, Image as ImageIcon, Loader2, Pencil, Plus, Save, Star, Trash2, Upload, X } from "lucide-react";
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { CalendarDays, Eye, EyeOff, GripVertical, Image as ImageIcon, Loader2, Pencil, Plus, Save, Star, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
@@ -377,14 +392,129 @@ export function PastorBookEditorDialog({ open, book, onClose, onSaved }: PastorB
   );
 }
 
+function SortablePastorBookRow({
+  book,
+  isDeleting,
+  isOrdering,
+  onEdit,
+  onDelete,
+}: {
+  book: PastorBookItem;
+  isDeleting: boolean;
+  isOrdering: boolean;
+  onEdit: (book: PastorBookItem) => void;
+  onDelete: (book: PastorBookItem) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: book.id, disabled: isOrdering });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+    opacity: isDragging ? 0.7 : 1,
+  };
+
+  return (
+    <article
+      ref={setNodeRef}
+      style={style}
+      className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center"
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        disabled={isOrdering}
+        title="드래그해서 책 순서 변경"
+        aria-label={`${book.title} 순서 변경`}
+        className="flex h-10 w-8 shrink-0 cursor-grab items-center justify-center rounded-lg text-gray-300 transition-colors hover:bg-gray-50 hover:text-gray-600 active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-50 touch-none"
+      >
+        <GripVertical className="h-5 w-5" />
+      </button>
+      <div className="flex h-28 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-50">
+        {book.coverImageUrl ? (
+          <img src={book.coverImageUrl} alt="" className="h-full w-full object-contain" />
+        ) : (
+          <ImageIcon className="h-8 w-8 text-gray-300" />
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
+            book.isVisible ? "bg-[#EAF6EA] text-[#1B5E20]" : "bg-gray-100 text-gray-500"
+          }`}>
+            {book.isVisible ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+            {book.isVisible ? "노출" : "숨김"}
+          </span>
+          {book.publishedAt && (
+            <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+              <CalendarDays className="h-3.5 w-3.5" />
+              {book.publishedAt}
+            </span>
+          )}
+          <span className="text-xs text-gray-400">정렬 {book.sortOrder}</span>
+        </div>
+        <h4 className="line-clamp-2 font-bold text-gray-900">{book.title}</h4>
+        {book.summary && <p className="mt-1 line-clamp-2 text-sm text-gray-500">{book.summary}</p>}
+      </div>
+      <div className="flex shrink-0 gap-2">
+        <button
+          type="button"
+          onClick={() => onEdit(book)}
+          className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-600 hover:border-[#A5D6A7] hover:text-[#1B5E20]"
+        >
+          <Pencil className="h-4 w-4" />
+          수정
+        </button>
+        <button
+          type="button"
+          onClick={() => onDelete(book)}
+          disabled={isDeleting}
+          className="inline-flex items-center gap-1 rounded-lg border border-red-100 px-3 py-2 text-sm font-semibold text-red-500 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Trash2 className="h-4 w-4" />
+          삭제
+        </button>
+      </div>
+    </article>
+  );
+}
+
 export default function AdminPastorBooksTab() {
   const utils = trpc.useUtils();
   const { data: books = [], isLoading } = trpc.cms.pastorBooks.list.useQuery();
   const deleteBook = trpc.cms.pastorBooks.delete.useMutation();
   const [editorOpen, setEditorOpen] = useState(false);
   const [selectedBook, setSelectedBook] = useState<PastorBookItem | null>(null);
+  const [orderedBooks, setOrderedBooks] = useState<PastorBookItem[]>([]);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const reorderBooks = trpc.cms.pastorBooks.reorder.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.cms.pastorBooks.list.invalidate(),
+        utils.home.pastorBooks.invalidate(),
+      ]);
+      toast.success("저서 순서가 저장되었습니다.");
+    },
+    onError: (error) => {
+      setOrderedBooks(books);
+      toast.error(error.message || "순서 저장에 실패했습니다.");
+    },
+  });
 
-  const visibleCount = useMemo(() => books.filter((book) => book.isVisible).length, [books]);
+  useEffect(() => {
+    setOrderedBooks(books);
+  }, [books]);
+
+  const displayBooks = orderedBooks.length === books.length ? orderedBooks : books;
+  const visibleCount = useMemo(() => displayBooks.filter((book) => book.isVisible).length, [displayBooks]);
 
   function openCreate() {
     setSelectedBook(null);
@@ -405,6 +535,29 @@ export default function AdminPastorBooksTab() {
       utils.home.pastorBook.invalidate({ id: book.id }),
     ]);
     toast.success("저서가 삭제되었습니다.");
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id || reorderBooks.isPending) return;
+
+    const activeId = Number(active.id);
+    const overId = Number(over.id);
+    const oldIndex = displayBooks.findIndex((book) => book.id === activeId);
+    const newIndex = displayBooks.findIndex((book) => book.id === overId);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const nextBooks = arrayMove(displayBooks, oldIndex, newIndex).map((book, index) => ({
+      ...book,
+      sortOrder: (index + 1) * 10,
+    }));
+    setOrderedBooks(nextBooks);
+    reorderBooks.mutate({
+      items: nextBooks.map((book) => ({
+        id: book.id,
+        sortOrder: book.sortOrder,
+      })),
+    });
   }
 
   return (
@@ -440,48 +593,22 @@ export default function AdminPastorBooksTab() {
           등록된 저서가 없습니다.
         </div>
       ) : (
-        <div className="space-y-3">
-          {books.map((book) => (
-            <article key={book.id} className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center">
-              <div className="flex h-28 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-50">
-                {book.coverImageUrl ? (
-                  <img src={book.coverImageUrl} alt="" className="h-full w-full object-contain" />
-                ) : (
-                  <ImageIcon className="h-8 w-8 text-gray-300" />
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                    book.isVisible ? "bg-[#EAF6EA] text-[#1B5E20]" : "bg-gray-100 text-gray-500"
-                  }`}>
-                    {book.isVisible ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                    {book.isVisible ? "노출" : "숨김"}
-                  </span>
-                  {book.publishedAt && (
-                    <span className="inline-flex items-center gap-1 text-xs text-gray-400">
-                      <CalendarDays className="h-3.5 w-3.5" />
-                      {book.publishedAt}
-                    </span>
-                  )}
-                  <span className="text-xs text-gray-400">정렬 {book.sortOrder}</span>
-                </div>
-                <h4 className="line-clamp-2 font-bold text-gray-900">{book.title}</h4>
-                {book.summary && <p className="mt-1 line-clamp-2 text-sm text-gray-500">{book.summary}</p>}
-              </div>
-              <div className="flex shrink-0 gap-2">
-                <button type="button" onClick={() => openEdit(book)} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-600 hover:border-[#A5D6A7] hover:text-[#1B5E20]">
-                  <Pencil className="h-4 w-4" />
-                  수정
-                </button>
-                <button type="button" onClick={() => handleDelete(book)} className="inline-flex items-center gap-1 rounded-lg border border-red-100 px-3 py-2 text-sm font-semibold text-red-500 hover:bg-red-50">
-                  <Trash2 className="h-4 w-4" />
-                  삭제
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={displayBooks.map((book) => book.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-3">
+              {displayBooks.map((book) => (
+                <SortablePastorBookRow
+                  key={book.id}
+                  book={book}
+                  isDeleting={deleteBook.isPending}
+                  isOrdering={reorderBooks.isPending}
+                  onEdit={openEdit}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       <PastorBookEditorDialog

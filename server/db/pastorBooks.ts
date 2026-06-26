@@ -103,6 +103,19 @@ export async function updatePastorBook(id: number, data: Partial<Omit<InsertPast
   return getPastorBookById(id, true);
 }
 
+export async function reorderPastorBooks(items: { id: number; sortOrder: number }[]) {
+  const db = await getDb();
+  if (!db || items.length === 0) return;
+  await db.transaction(async (tx) => {
+    for (const item of items) {
+      await tx
+        .update(pastorBooks)
+        .set({ sortOrder: item.sortOrder })
+        .where(eq(pastorBooks.id, item.id));
+    }
+  });
+}
+
 export async function deletePastorBook(id: number) {
   const db = await getDb();
   if (!db) return;
