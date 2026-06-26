@@ -3,14 +3,10 @@
  * 교회소개 신규 페이지: 섬기는분, 교회백서, 사역원리, CI, 셔틀버스
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import type { RouteComponentProps } from "wouter";
-import type { inferRouterOutputs } from "@trpc/server";
-import { ArrowLeft, ChevronRight, Bus, BookOpen, Heart, Mail, Palette, Phone, UserRound, Edit3, Eye, EyeOff, ImageIcon, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
-import { toast } from "sonner";
-import type { AppRouter } from "../../../server/routers";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { ArrowLeft, ChevronRight, Bus, BookOpen, Heart, Mail, Palette, Phone, UserRound } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
 
@@ -56,18 +52,6 @@ const STAFF_CATEGORIES = [
 
 type StaffCategoryFilter = typeof STAFF_CATEGORIES[number]["value"];
 type StaffCategory = StaffCategoryFilter;
-type StaffMember = inferRouterOutputs<AppRouter>["cms"]["staff"]["list"][number];
-type StaffForm = {
-  category: StaffCategory;
-  name: string;
-  title: string;
-  department: string;
-  email: string;
-  phone: string;
-  imageUrl: string;
-  sortOrder: number;
-  isVisible: boolean;
-};
 type StaffMenuTreeItem = {
   id: number;
   label: string;
@@ -94,23 +78,6 @@ const STAFF_SIDE_MENU_ITEMS = [
   { id: 6, label: "오시는 길", href: "/about/directions" },
 ];
 
-const staffFieldClass = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20 focus:border-[#1B5E20]";
-const staffLabelClass = "block text-xs font-medium text-gray-500 mb-1";
-
-function getEmptyStaffForm(category: StaffCategory, sortOrder = 0): StaffForm {
-  return {
-    category,
-    name: "",
-    title: "",
-    department: "",
-    email: "",
-    phone: "",
-    imageUrl: "",
-    sortOrder,
-    isVisible: true,
-  };
-}
-
 function getInitialStaffCategory(location: string, fallback: StaffCategoryFilter = "senior"): StaffCategoryFilter {
   if (location.includes("/associate") || location.includes("부교역자")) return "associate";
   return fallback;
@@ -118,43 +85,6 @@ function getInitialStaffCategory(location: string, fallback: StaffCategoryFilter
 
 function getStaffCategoryLabel(category: string) {
   return STAFF_CATEGORIES.find((option) => option.value === category)?.label ?? category;
-}
-
-function staffToForm(member: StaffMember): StaffForm {
-  return {
-    category: member.category,
-    name: member.name,
-    title: member.title,
-    department: member.department ?? "",
-    email: member.email ?? "",
-    phone: member.phone ?? "",
-    imageUrl: member.imageUrl ?? "",
-    sortOrder: member.sortOrder,
-    isVisible: member.isVisible,
-  };
-}
-
-function readStaffImageAsBase64(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(new Error("파일을 읽지 못했습니다."));
-    reader.readAsDataURL(file);
-  });
-}
-
-function normalizeStaffPayload(form: StaffForm) {
-  return {
-    category: form.category,
-    name: form.name.trim(),
-    title: form.title.trim(),
-    department: form.department.trim() || undefined,
-    email: form.email.trim() || undefined,
-    phone: form.phone.trim() || undefined,
-    imageUrl: form.imageUrl.trim() || undefined,
-    sortOrder: Number.isFinite(form.sortOrder) ? form.sortOrder : 0,
-    isVisible: form.isVisible,
-  };
 }
 
 function hasOwnStaffMenuContent(item: StaffMenuTreeItem) {
@@ -194,273 +124,11 @@ function getStaffSideMenuItems(menuTree: StaffMenuTree | undefined, pageTitle: s
   }));
 }
 
-function StaffEditDialog({
-  defaultCategory,
-  defaultSortOrder,
-  initialMember,
-  onClose,
-}: {
-  defaultCategory: StaffCategory;
-  defaultSortOrder: number;
-  initialMember?: StaffMember;
-  onClose: () => void;
-}) {
-  const utils = trpc.useUtils();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [form, setForm] = useState<StaffForm>(() =>
-    initialMember ? staffToForm(initialMember) : getEmptyStaffForm(defaultCategory, defaultSortOrder)
-  );
-  const isEditing = Boolean(initialMember);
-
-  const invalidateStaff = async () => {
-    await Promise.all([
-      utils.cms.staff.list.invalidate(),
-      utils.home.staff.invalidate(),
-    ]);
-  };
-
-  const uploadImage = trpc.cms.upload.pageImage.useMutation({
-    onSuccess: (result) => {
-      setForm((prev) => ({ ...prev, imageUrl: result.url }));
-      toast.success("사진이 업로드됐습니다.");
-    },
-    onError: (error) => toast.error(error.message),
-  });
-
-  const createStaff = trpc.cms.staff.create.useMutation({
-    onSuccess: async () => {
-      toast.success("섬기는 분이 등록됐습니다.");
-      await invalidateStaff();
-      onClose();
-    },
-    onError: (error) => toast.error(error.message),
-  });
-
-  const updateStaff = trpc.cms.staff.update.useMutation({
-    onSuccess: async () => {
-      toast.success("섬기는 분 정보가 저장됐습니다.");
-      await invalidateStaff();
-      onClose();
-    },
-    onError: (error) => toast.error(error.message),
-  });
-
-  const handleFile = async (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      toast.error("이미지 파일만 업로드할 수 있습니다.");
-      return;
-    }
-    try {
-      const base64 = await readStaffImageAsBase64(file);
-      uploadImage.mutate({
-        base64,
-        fileName: file.name,
-        mimeType: file.type,
-        context: "church-staff",
-      });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "사진 업로드를 준비하지 못했습니다.");
-    }
-  };
-
-  const submit = () => {
-    const payload = normalizeStaffPayload(form);
-    if (!payload.name || !payload.title) {
-      toast.error("이름과 직책은 필수입니다.");
-      return;
-    }
-    if (initialMember) {
-      updateStaff.mutate({ id: initialMember.id, ...payload });
-      return;
-    }
-    createStaff.mutate(payload);
-  };
-
-  const isSaving = createStaff.isPending || updateStaff.isPending;
-
-  return (
-    <div className="fixed inset-0 z-[200] overflow-y-auto bg-black/45 px-4 py-6">
-      <div className="mx-auto max-w-3xl rounded-2xl bg-white shadow-2xl">
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-5 py-4 rounded-t-2xl">
-          <div>
-            <p className="text-xs font-semibold tracking-[0.2em] text-[#1B5E20]">ADMIN MODE</p>
-            <h2 className="text-xl font-bold text-gray-900">
-              {isEditing ? "섬기는 분 수정" : "섬기는 분 추가"}
-            </h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full border border-gray-200 p-2 text-gray-500 hover:bg-gray-50 hover:text-gray-900"
-            aria-label="닫기"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="grid gap-5 p-5 md:grid-cols-[180px_1fr]">
-          <div>
-            <label className={staffLabelClass}>프로필 사진</label>
-            <div className="flex h-44 w-40 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
-              {form.imageUrl ? (
-                <img src={form.imageUrl} alt="" className="h-full w-full object-cover object-top" />
-              ) : (
-                <ImageIcon className="h-10 w-10 text-gray-300" />
-              )}
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadImage.isPending}
-                className="inline-flex items-center gap-1 rounded-lg bg-[#1B5E20] px-3 py-2 text-xs font-semibold text-white hover:bg-[#2E7D32] disabled:opacity-50"
-              >
-                {uploadImage.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                사진 업로드
-              </button>
-              {form.imageUrl && (
-                <button
-                  type="button"
-                  onClick={() => setForm((prev) => ({ ...prev, imageUrl: "" }))}
-                  className="rounded-lg border border-gray-300 px-3 py-2 text-xs hover:bg-gray-50"
-                >
-                  사진 제거
-                </button>
-              )}
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void handleFile(file);
-                event.currentTarget.value = "";
-              }}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <label>
-              <span className={staffLabelClass}>분류</span>
-              <select
-                className={staffFieldClass}
-                value={form.category}
-                onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value as StaffCategory }))}
-              >
-                {STAFF_CATEGORIES.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span className={staffLabelClass}>정렬 순서</span>
-              <input
-                className={staffFieldClass}
-                type="number"
-                value={form.sortOrder}
-                onChange={(event) => setForm((prev) => ({ ...prev, sortOrder: Number(event.target.value) }))}
-              />
-            </label>
-            <label>
-              <span className={staffLabelClass}>이름</span>
-              <input
-                className={staffFieldClass}
-                value={form.name}
-                onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-                placeholder="예: 홍길동"
-              />
-            </label>
-            <label>
-              <span className={staffLabelClass}>직책</span>
-              <input
-                className={staffFieldClass}
-                value={form.title}
-                onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-                placeholder="예: 부목사, 전도사"
-              />
-            </label>
-            <label className="md:col-span-2">
-              <span className={staffLabelClass}>담당 사역/부서</span>
-              <input
-                className={staffFieldClass}
-                value={form.department}
-                onChange={(event) => setForm((prev) => ({ ...prev, department: event.target.value }))}
-                placeholder="예: 교구, 청년부, 행정"
-              />
-            </label>
-            <label>
-              <span className={staffLabelClass}>이메일</span>
-              <input
-                className={staffFieldClass}
-                type="email"
-                value={form.email}
-                onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
-                placeholder="name@example.com"
-              />
-            </label>
-            <label>
-              <span className={staffLabelClass}>전화번호</span>
-              <input
-                className={staffFieldClass}
-                value={form.phone}
-                onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
-                placeholder="054-000-0000"
-              />
-            </label>
-            <label className="md:col-span-2">
-              <span className={staffLabelClass}>사진 URL</span>
-              <input
-                className={staffFieldClass}
-                value={form.imageUrl}
-                onChange={(event) => setForm((prev) => ({ ...prev, imageUrl: event.target.value }))}
-                placeholder="직접 URL을 붙여넣거나 사진 업로드 사용"
-              />
-            </label>
-            <label className="flex items-center gap-2 text-sm text-gray-600">
-              <input
-                type="checkbox"
-                checked={form.isVisible}
-                onChange={(event) => setForm((prev) => ({ ...prev, isVisible: event.target.checked }))}
-              />
-              홈페이지에 노출
-            </label>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50"
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                onClick={submit}
-                disabled={isSaving}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#1B5E20] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2E7D32] disabled:opacity-50"
-              >
-                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {isEditing ? "저장" : "등록"}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function StaffPage({
   initialCategory = "senior",
 }: StaffPageProps = {}) {
-  const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
-  const utils = trpc.useUtils();
   const [location] = useLocation();
   const [activeCategory, setActiveCategory] = useState<StaffCategoryFilter>(() => getInitialStaffCategory(location, initialCategory));
-  const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
-  const [isCreatingStaff, setIsCreatingStaff] = useState(false);
 
   useEffect(() => {
     setActiveCategory(getInitialStaffCategory(location, initialCategory));
@@ -471,9 +139,6 @@ export function StaffPage({
     [activeCategory],
   );
   const { data: staffList = [], isLoading } = trpc.home.staff.useQuery(queryInput);
-  const { data: adminStaffMembers, isLoading: isAdminStaffLoading } = trpc.cms.staff.list.useQuery(undefined, {
-    enabled: isAdmin,
-  });
   const { data: menuTree } = trpc.home.menus.useQuery();
   const pageTitle = activeCategory === "associate" ? "부교역자" : "섬기는 분";
   const profileIntro = activeCategory === "associate"
@@ -483,58 +148,6 @@ export function StaffPage({
     () => getStaffSideMenuItems(menuTree, pageTitle),
     [menuTree, pageTitle],
   );
-  const adminStaffList = useMemo(
-    () => (adminStaffMembers ?? []).filter((member) => member.category === activeCategory),
-    [activeCategory, adminStaffMembers],
-  );
-  const displayStaffList = isAdmin && adminStaffMembers ? adminStaffList : staffList;
-  const isStaffListLoading = isLoading || (isAdmin && isAdminStaffLoading && !adminStaffMembers);
-  const defaultSortOrder = useMemo(
-    () => adminStaffList.reduce((max, member) => Math.max(max, member.sortOrder), 0) + 1,
-    [adminStaffList],
-  );
-
-  const invalidateStaff = async () => {
-    await Promise.all([
-      utils.cms.staff.list.invalidate(),
-      utils.home.staff.invalidate(),
-    ]);
-  };
-
-  const updateStaff = trpc.cms.staff.update.useMutation({
-    onSuccess: async () => {
-      toast.success("노출 상태가 변경됐습니다.");
-      await invalidateStaff();
-    },
-    onError: (error) => toast.error(error.message),
-  });
-
-  const deleteStaff = trpc.cms.staff.delete.useMutation({
-    onSuccess: async () => {
-      toast.success("삭제됐습니다.");
-      await invalidateStaff();
-    },
-    onError: (error) => toast.error(error.message),
-  });
-
-  const openCreateStaff = () => {
-    setEditingStaff(null);
-    setIsCreatingStaff(true);
-  };
-
-  const closeStaffDialog = () => {
-    setEditingStaff(null);
-    setIsCreatingStaff(false);
-  };
-
-  const toggleStaffVisible = (staff: StaffMember) => {
-    updateStaff.mutate({ id: staff.id, isVisible: !staff.isVisible });
-  };
-
-  const removeStaff = (staff: StaffMember) => {
-    if (!window.confirm(`${staff.name} 정보를 삭제할까요?`)) return;
-    deleteStaff.mutate({ id: staff.id });
-  };
 
   return (
     <SubPageLayout
@@ -543,25 +156,6 @@ export function StaffPage({
       sideMenuItems={sideMenuItems}
     >
       <p className="sr-only">{profileIntro}</p>
-
-      {isAdmin && (
-        <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50 p-3 sm:flex sm:items-center sm:justify-between sm:gap-4">
-          <div className="mb-3 flex items-center gap-2 text-amber-700 sm:mb-0">
-            <Edit3 className="h-4 w-4" />
-            <span className="text-sm font-medium">
-              관리자 편집 모드 — 이 화면에서 바로 추가, 수정, 삭제할 수 있습니다.
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={openCreateStaff}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800 sm:w-auto"
-          >
-            <Plus className="h-4 w-4" />
-            현재 분류에 추가
-          </button>
-        </div>
-      )}
 
       <div className="mb-12 border-y border-gray-200">
         <div className="flex flex-wrap gap-x-8 gap-y-0">
@@ -582,18 +176,16 @@ export function StaffPage({
         </div>
       </div>
 
-      {isStaffListLoading ? (
+      {isLoading ? (
         <p className="text-gray-500 py-12 text-center">불러오는 중...</p>
-      ) : displayStaffList.length === 0 ? (
+      ) : staffList.length === 0 ? (
         <div className="border border-dashed border-gray-200 rounded-xl py-16 text-center">
           <UserRound className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">
-            {isAdmin ? "현재 분류에 등록된 섬기는 분 정보가 없습니다. 위 버튼으로 추가해 주세요." : "등록된 섬기는 분 정보가 없습니다."}
-          </p>
+          <p className="text-gray-500">등록된 섬기는 분 정보가 없습니다.</p>
         </div>
       ) : (
         <div className="grid gap-x-8 gap-y-16 pt-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {displayStaffList.map((staff) => {
+          {staffList.map((staff) => {
             const roleParts = [staff.title, staff.department || getStaffCategoryLabel(staff.category)]
               .map((value) => value?.trim())
               .filter((value, index, array): value is string => Boolean(value) && array.indexOf(value) === index);
@@ -602,38 +194,8 @@ export function StaffPage({
             return (
               <article
                 key={staff.id}
-                className={`group relative flex min-h-72 flex-col items-center border border-gray-200 bg-white px-4 pb-7 pt-32 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-md ${isAdmin && !staff.isVisible ? "opacity-60 ring-2 ring-amber-200" : ""}`}
+                className="group relative flex min-h-72 flex-col items-center border border-gray-200 bg-white px-4 pb-7 pt-32 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-md"
               >
-                {isAdmin && (
-                  <div className="absolute right-2 top-2 z-20 flex gap-1 rounded-full bg-white/95 p-1 shadow-sm ring-1 ring-gray-200">
-                    <button
-                      type="button"
-                      onClick={() => setEditingStaff(staff)}
-                      className="rounded-full p-1.5 text-gray-500 hover:bg-gray-100 hover:text-blue-600"
-                      title="수정"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => toggleStaffVisible(staff)}
-                      disabled={updateStaff.isPending}
-                      className="rounded-full p-1.5 text-gray-500 hover:bg-gray-100 hover:text-amber-600 disabled:opacity-50"
-                      title={staff.isVisible ? "숨기기" : "보이기"}
-                    >
-                      {staff.isVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => removeStaff(staff)}
-                      disabled={deleteStaff.isPending}
-                      className="rounded-full p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-                      title="삭제"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                )}
                 <div className="absolute -top-10 left-1/2 flex h-48 w-40 -translate-x-1/2 items-center justify-center overflow-hidden bg-gray-50 ring-1 ring-gray-100 transition-transform group-hover:-translate-y-1">
                   {staff.imageUrl ? (
                     <img
@@ -647,11 +209,6 @@ export function StaffPage({
                   )}
                 </div>
                 <h3 className="text-base font-bold text-gray-900">{staff.name}</h3>
-                {isAdmin && !staff.isVisible && (
-                  <span className="mt-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-                    숨김
-                  </span>
-                )}
                 <p className="mt-3 text-sm leading-6 text-gray-600">
                   {roleParts.join(" / ")}
                 </p>
@@ -675,15 +232,6 @@ export function StaffPage({
             );
           })}
         </div>
-      )}
-
-      {isAdmin && (isCreatingStaff || editingStaff) && (
-        <StaffEditDialog
-          defaultCategory={activeCategory}
-          defaultSortOrder={defaultSortOrder}
-          initialMember={editingStaff ?? undefined}
-          onClose={closeStaffDialog}
-        />
       )}
     </SubPageLayout>
   );
