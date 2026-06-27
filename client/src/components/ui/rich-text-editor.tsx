@@ -779,12 +779,17 @@ function RichTextToolbar({
   const handleFontFamilyChange = (value: string) => {
     const chain = restoreCurrentTextSelection();
     const nextOption = FONT_FAMILY_OPTIONS.find((option) => option.value === value);
+    const currentFontSize = String(editor.getAttributes("textStyle").fontSize ?? "").trim();
+
     if (!nextOption?.fontFamily) {
       chain.unsetFontFamily().run();
-      return;
+    } else {
+      chain.setFontFamily(nextOption.fontFamily).run();
     }
 
-    chain.setFontFamily(nextOption.fontFamily).run();
+    if (currentFontSize) {
+      editor.chain().focus().setFontSize(currentFontSize).run();
+    }
   };
 
   const handleFontSizeChange = (value: string) => {
@@ -844,7 +849,7 @@ function RichTextToolbar({
   };
 
   const clearFormatting = () => {
-    editor.chain().focus().unsetAllMarks().clearNodes().run();
+    editor.chain().focus().unsetAllMarks().run();
     clearEditorStoredMarks(editor);
   };
 
@@ -951,6 +956,15 @@ function RichTextToolbar({
     chain.setCellAttribute("backgroundColor", null).setCellAttribute("align", null).setCellAttribute("verticalAlign", null).unsetColor().run();
   };
 
+  const setNodeTypePreservingAlign = (action: () => void) => {
+    const { $from } = editor.state.selection;
+    const currentAlign = $from.parent.attrs.textAlign as string | undefined;
+    action();
+    if (currentAlign && currentAlign !== "left") {
+      editor.chain().focus().setTextAlign(currentAlign).run();
+    }
+  };
+
   return (
     <div className="sticky top-0 z-30 border-b border-gray-200 bg-gray-50 shadow-sm">
       <div className="flex flex-wrap items-center gap-1 p-2">
@@ -961,13 +975,13 @@ function RichTextToolbar({
           <Redo2 className="h-4 w-4" />
         </ToolbarButton>
         <span className="mx-1 h-8 w-px bg-gray-200" />
-        <ToolbarButton editor={editor} label="본문" isActive={editor.isActive("paragraph")} onClick={() => editor.chain().focus().setParagraph().run()}>
+        <ToolbarButton editor={editor} label="본문" isActive={editor.isActive("paragraph")} onClick={() => setNodeTypePreservingAlign(() => editor.chain().focus().setParagraph().run())}>
           <Pilcrow className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton editor={editor} label="제목 2" isActive={editor.isActive("heading", { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>
+        <ToolbarButton editor={editor} label="제목 2" isActive={editor.isActive("heading", { level: 2 })} onClick={() => setNodeTypePreservingAlign(() => editor.chain().focus().toggleHeading({ level: 2 }).run())}>
           <Heading2 className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton editor={editor} label="제목 3" isActive={editor.isActive("heading", { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}>
+        <ToolbarButton editor={editor} label="제목 3" isActive={editor.isActive("heading", { level: 3 })} onClick={() => setNodeTypePreservingAlign(() => editor.chain().focus().toggleHeading({ level: 3 }).run())}>
           <Heading3 className="h-4 w-4" />
         </ToolbarButton>
         <span className="mx-1 h-8 w-px bg-gray-200" />
@@ -1167,10 +1181,10 @@ function RichTextToolbar({
             <ToolbarButton editor={editor} label={isInTable ? "열 삭제" : "표 셀을 클릭하면 열 삭제 가능"} disabled={tableToolDisabled} variant="danger" wide onClick={deleteCurrentColumn}>
               열 삭제
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "셀 병합" : "표 셀을 클릭하면 셀 병합 가능"} disabled={tableToolDisabled} wide onClick={() => tableCommand().mergeCells().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "셀 병합" : "표 셀을 클릭하면 셀 병합 가능"} disabled={tableToolDisabled || !editor.can().mergeCells()} wide onClick={() => tableCommand().mergeCells().run()}>
               병합
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "셀 분할" : "표 셀을 클릭하면 셀 분할 가능"} disabled={tableToolDisabled} wide onClick={() => tableCommand().splitCell().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "셀 분할" : "표 셀을 클릭하면 셀 분할 가능"} disabled={tableToolDisabled || !editor.can().splitCell()} wide onClick={() => tableCommand().splitCell().run()}>
               분할
             </ToolbarButton>
             <ToolbarButton editor={editor} label={isInTable ? "헤더 행" : "표 셀을 클릭하면 헤더 행 설정 가능"} disabled={tableToolDisabled} wide onClick={() => tableCommand().toggleHeaderRow().run()}>
