@@ -342,14 +342,29 @@ export default function MenuEditPanel({
                                 initialHref={item.href ?? ""}
                                 initialPageType={item.pageType}
                                 initialPageImageUrl={item.pageImageUrl}
+                                initialDefaultViewMode={item.defaultViewMode === "grid" ? "grid" : "list"}
                                 showPageType
                                 colorClass="border-blue-300 bg-blue-50"
-                                onSave={(label, href, pageType, pageImageUrl) => {
-                                  updateItem.mutate({ id: item.id, label, href: href || null, pageType, pageImageUrl: pageImageUrl ?? null });
+                                onSave={(label, href, pageType, pageImageUrl, defaultViewMode) => {
+                                  updateItem.mutate({
+                                    id: item.id,
+                                    label,
+                                    href: href || null,
+                                    pageType,
+                                    pageImageUrl: pageImageUrl ?? null,
+                                    defaultViewMode,
+                                  });
                                   setLocalMenus((prev) => prev.map((m) => ({
                                     ...m,
                                     items: m.items.map((i) => i.id === item.id
-                                      ? { ...i, label, href: href || null, pageType: pageType ?? i.pageType, pageImageUrl: pageImageUrl ?? i.pageImageUrl }
+                                      ? {
+                                        ...i,
+                                        label,
+                                        href: href || null,
+                                        pageType: pageType ?? i.pageType,
+                                        pageImageUrl: pageImageUrl ?? i.pageImageUrl,
+                                        defaultViewMode: defaultViewMode ?? i.defaultViewMode,
+                                      }
                                       : i),
                                   })));
                                   setEditingItemId(null);
@@ -392,9 +407,10 @@ export default function MenuEditPanel({
                         initialLabel=""
                         initialHref=""
                         initialPageType="image"
+                        initialDefaultViewMode="list"
                         showPageType
                         colorClass="border-blue-300 bg-blue-50"
-                        onSave={(label, href, pageType, pageImageUrl) => {
+                        onSave={(label, href, pageType, pageImageUrl, defaultViewMode) => {
                           createItem.mutate({
                             menuId: selectedMenu.id,
                             label,
@@ -402,6 +418,7 @@ export default function MenuEditPanel({
                             sortOrder: selectedMenu.items.length + 1,
                             pageType: pageType ?? "image",
                             pageImageUrl: pageImageUrl ?? undefined,
+                            defaultViewMode,
                           });
                         }}
                         onCancel={() => setShowAddItem(false)}
@@ -458,16 +475,31 @@ export default function MenuEditPanel({
                                 initialHref={sub.href ?? ""}
                                 initialPageType={sub.pageType}
                                 initialPageImageUrl={sub.pageImageUrl}
+                                initialDefaultViewMode={sub.defaultViewMode === "grid" ? "grid" : "list"}
                                 showPageType
                                 colorClass="border-gray-300 bg-gray-50"
-                                onSave={(label, href, pageType, pageImageUrl) => {
-                                  updateSubItem.mutate({ id: sub.id, label, href: href || null, pageType, pageImageUrl: pageImageUrl ?? null });
+                                onSave={(label, href, pageType, pageImageUrl, defaultViewMode) => {
+                                  updateSubItem.mutate({
+                                    id: sub.id,
+                                    label,
+                                    href: href || null,
+                                    pageType,
+                                    pageImageUrl: pageImageUrl ?? null,
+                                    defaultViewMode,
+                                  });
                                   setLocalMenus((prev) => prev.map((m) => ({
                                     ...m,
                                     items: m.items.map((i) => ({
                                       ...i,
                                       subItems: i.subItems.map((s) => s.id === sub.id
-                                        ? { ...s, label, href: href || null, pageType: pageType ?? s.pageType, pageImageUrl: pageImageUrl ?? s.pageImageUrl }
+                                        ? {
+                                          ...s,
+                                          label,
+                                          href: href || null,
+                                          pageType: pageType ?? s.pageType,
+                                          pageImageUrl: pageImageUrl ?? s.pageImageUrl,
+                                          defaultViewMode: defaultViewMode ?? s.defaultViewMode,
+                                        }
                                         : s),
                                     })),
                                   })));
@@ -514,9 +546,10 @@ export default function MenuEditPanel({
                         initialLabel=""
                         initialHref=""
                         initialPageType="image"
+                        initialDefaultViewMode="list"
                         showPageType
                         colorClass="border-gray-300 bg-gray-50"
-                        onSave={(label, href, pageType, pageImageUrl) => {
+                        onSave={(label, href, pageType, pageImageUrl, defaultViewMode) => {
                           createSubItem.mutate({
                             menuItemId: selectedItem.id,
                             label,
@@ -524,6 +557,7 @@ export default function MenuEditPanel({
                             sortOrder: selectedItem.subItems.length + 1,
                             pageType: pageType ?? "image",
                             pageImageUrl: pageImageUrl ?? undefined,
+                            defaultViewMode,
                           });
                         }}
                         onCancel={() => setShowAddSub(false)}

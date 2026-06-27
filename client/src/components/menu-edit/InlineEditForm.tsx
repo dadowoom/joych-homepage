@@ -5,11 +5,16 @@ import { trpc } from "@/lib/trpc";
 import { Check, Image as ImageIcon, LayoutGrid, X } from "lucide-react";
 import { toast } from "sonner";
 import {
+  type DefaultViewMode,
   type PageType,
   PAGE_TYPE_OPTIONS,
   INTERNAL_PAGES,
   detectLinkType,
 } from "./types.tsx";
+
+function getDefaultViewModeForPageType(pageType?: PageType): DefaultViewMode {
+  return pageType === "gallery" ? "grid" : "list";
+}
 
 function readFileAsBase64(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -28,6 +33,7 @@ export function InlineEditForm({
   initialHref,
   initialPageType,
   initialPageImageUrl,
+  initialDefaultViewMode,
   showPageType,
   colorClass,
   onSave,
@@ -37,13 +43,15 @@ export function InlineEditForm({
   initialHref: string;
   initialPageType?: PageType;
   initialPageImageUrl?: string | null;
+  initialDefaultViewMode?: DefaultViewMode | null;
   showPageType?: boolean;
   colorClass: string;
   onSave: (
     label: string,
     href: string,
     pageType?: PageType,
-    pageImageUrl?: string | null
+    pageImageUrl?: string | null,
+    defaultViewMode?: DefaultViewMode
   ) => void;
   onCancel: () => void;
 }) {
@@ -68,6 +76,9 @@ export function InlineEditForm({
   });
   const [pageType, setPageType] = useState<PageType>(initialPageType ?? "image");
   const [pageImageUrl, setPageImageUrl] = useState<string | null>(initialPageImageUrl ?? null);
+  const [defaultViewMode, setDefaultViewMode] = useState<DefaultViewMode>(
+    initialDefaultViewMode ?? getDefaultViewModeForPageType(initialPageType)
+  );
   const [uploading, setUploading] = useState(false);
   const [galleryUploading, setGalleryUploading] = useState(false);
   const [galleryCaption, setGalleryCaption] = useState(initialLabel);
@@ -227,7 +238,13 @@ export function InlineEditForm({
       {showPageType && (
         <select
           value={pageType}
-          onChange={(e) => setPageType(e.target.value as PageType)}
+          onChange={(e) => {
+            const nextPageType = e.target.value as PageType;
+            setPageType(nextPageType);
+            if (nextPageType === "board" || nextPageType === "gallery") {
+              setDefaultViewMode(getDefaultViewModeForPageType(nextPageType));
+            }
+          }}
           className="w-full h-7 text-xs border border-gray-200 rounded px-1 bg-white"
         >
           {PAGE_TYPE_OPTIONS.map((option) => (
@@ -236,6 +253,20 @@ export function InlineEditForm({
             </option>
           ))}
         </select>
+      )}
+
+      {showPageType && (pageType === "board" || pageType === "gallery") && (
+        <label className="block text-[10px] font-semibold text-gray-600">
+          기본 보기방식
+          <select
+            className="mt-1 w-full h-7 rounded border border-gray-200 px-1 text-xs bg-white"
+            value={defaultViewMode}
+            onChange={(e) => setDefaultViewMode(e.target.value as DefaultViewMode)}
+          >
+            <option value="list">게시판형</option>
+            <option value="grid">갤러리형</option>
+          </select>
+        </label>
       )}
 
       {showPageType && pageType === "image" && (
@@ -321,7 +352,10 @@ export function InlineEditForm({
               label.trim(),
               href,
               showPageType ? pageType : undefined,
-              showPageType ? pageImageUrl : undefined
+              showPageType ? pageImageUrl : undefined,
+              showPageType && (pageType === "board" || pageType === "gallery")
+                ? defaultViewMode
+                : undefined
             );
           }}
           disabled={!label.trim() || uploading || galleryUploading}

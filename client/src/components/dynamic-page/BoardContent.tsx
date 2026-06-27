@@ -24,6 +24,7 @@ type BoardContentProps = {
   href?: string | null;
   menuItemId?: number;
   menuSubItemId?: number;
+  defaultViewMode?: ViewMode | null;
 };
 
 type NoticeFormState = {
@@ -109,6 +110,10 @@ function toPlainText(value?: string | null) {
     .trim();
 }
 
+function normalizeViewMode(value?: string | null, fallback: ViewMode = "list"): ViewMode {
+  return value === "grid" ? "grid" : fallback;
+}
+
 const ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024;
 const ATTACHMENT_ACCEPT = ".pdf,.hwp,.hwpx,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.jpg,.jpeg,.png,.webp,.gif";
 const ATTACHMENT_LABEL = "\uCCA8\uBD80\uD30C\uC77C";
@@ -135,9 +140,11 @@ function readFileAsBase64(file: File) {
 function NoticeBoardContent({
   mode = "notice",
   customBoard,
+  defaultViewMode = "list",
 }: {
   mode?: NoticeBoardMode;
   customBoard?: CustomBoard;
+  defaultViewMode?: ViewMode | null;
 }) {
   const { user } = useAuth();
   const utils = trpc.useUtils();
@@ -150,7 +157,7 @@ function NoticeBoardContent({
       : undefined;
   const [activeCategory, setActiveCategory] = useState("전체");
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [viewMode, setViewMode] = useState<ViewMode>(normalizeViewMode(defaultViewMode));
   const [page, setPage] = useState(1);
   const [searchField, setSearchField] = useState("title");
   const [searchInput, setSearchInput] = useState("");
@@ -164,6 +171,10 @@ function NoticeBoardContent({
   const imageInputRef = useRef<HTMLInputElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const viewedNoticeIdsRef = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    setViewMode(normalizeViewMode(defaultViewMode));
+  }, [defaultViewMode]);
 
   const getBlankForm = (): NoticeFormState => ({
     category: isAdminResource
@@ -1218,17 +1229,22 @@ function NoticeBoardContent({
   );
 }
 
-export function BoardContent({ label, href, menuItemId, menuSubItemId }: BoardContentProps = {}) {
+export function BoardContent({ label, href, menuItemId, menuSubItemId, defaultViewMode }: BoardContentProps = {}) {
   if (isFreeBoardPage(label, href)) {
-    return <FreeBoardContent />;
+    return <FreeBoardContent defaultViewMode={defaultViewMode} />;
   }
   if (isAdminResourcePage(label, href)) {
-    return <NoticeBoardContent mode="adminResource" />;
+    return <NoticeBoardContent mode="adminResource" defaultViewMode={defaultViewMode} />;
   }
   if (isNoticeBoardPage(label)) {
-    return <NoticeBoardContent />;
+    return <NoticeBoardContent defaultViewMode={defaultViewMode} />;
   }
-  return <NoticeBoardContent customBoard={getCustomBoard({ label, href, menuItemId, menuSubItemId })} />;
+  return (
+    <NoticeBoardContent
+      customBoard={getCustomBoard({ label, href, menuItemId, menuSubItemId })}
+      defaultViewMode={defaultViewMode}
+    />
+  );
 }
 
 function getPostCategory(post: unknown) {

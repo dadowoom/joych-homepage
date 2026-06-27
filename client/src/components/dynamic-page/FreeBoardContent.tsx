@@ -1,10 +1,14 @@
-import { Fragment, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { ChevronLeft, ChevronRight, FileText, Pencil, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { RichTextEditor, RichTextViewer, sanitizeRichTextHtml } from "@/components/ui/rich-text-editor";
 import { ViewModeToggle, type ViewMode } from "./ViewModeToggle";
+
+function normalizeViewMode(value?: string | null, fallback: ViewMode = "list"): ViewMode {
+  return value === "grid" ? "grid" : fallback;
+}
 
 function formatDate(value: string | Date) {
   const date = new Date(value);
@@ -31,7 +35,7 @@ function toPlainText(value?: string | null) {
     .trim();
 }
 
-export function FreeBoardContent() {
+export function FreeBoardContent({ defaultViewMode }: { defaultViewMode?: ViewMode | null } = {}) {
   const [location] = useLocation();
   const utils = trpc.useUtils();
   const { data: me } = trpc.members.me.useQuery(undefined, { retry: false });
@@ -40,7 +44,7 @@ export function FreeBoardContent() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [viewMode, setViewMode] = useState<ViewMode>(normalizeViewMode(defaultViewMode));
   const [page, setPage] = useState(1);
   const [searchField, setSearchField] = useState("title");
   const [searchInput, setSearchInput] = useState("");
@@ -48,6 +52,10 @@ export function FreeBoardContent() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const viewedPostIdsRef = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    setViewMode(normalizeViewMode(defaultViewMode));
+  }, [defaultViewMode]);
 
   const resetForm = () => {
     setShowForm(false);

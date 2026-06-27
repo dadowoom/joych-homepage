@@ -11,6 +11,7 @@ import { INTERNAL_PAGES, getInternalPagePaths } from "@shared/siteNavigation";
 // ─── 타입 정의 ────────────────────────────────────────────────────────────────
 
 export type PageType = "image" | "gallery" | "board" | "youtube" | "editor";
+export type DefaultViewMode = "list" | "grid";
 
 export type MenuSubItemRow = {
   id: number;
@@ -23,6 +24,7 @@ export type MenuSubItemRow = {
   allowMember: boolean;
   pageType: PageType;
   pageImageUrl: string | null;
+  defaultViewMode?: string | null;
 };
 
 export type MenuItemRow = {
@@ -36,6 +38,7 @@ export type MenuItemRow = {
   allowMember: boolean;
   pageType: PageType;
   pageImageUrl: string | null;
+  defaultViewMode?: string | null;
   subItems: MenuSubItemRow[];
 };
 

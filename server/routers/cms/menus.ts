@@ -128,6 +128,7 @@ export const menusRouter = router({
       sortOrder: sortOrderSchema,
       pageType: PAGE_TYPE.optional(),
       pageImageUrl: pageImageSchema,
+      defaultViewMode: z.enum(["list", "grid"]).optional(),
       allowGuest: z.boolean().optional(),
       allowMember: z.boolean().optional(),
     }))
@@ -183,6 +184,7 @@ export const menusRouter = router({
       pageType: PAGE_TYPE.optional(),
       pageImageUrl: pageImageSchema,
       playlistId: idSchema.nullable().optional(),
+      defaultViewMode: z.enum(["list", "grid"]).optional(),
     }))
     .mutation(async ({ input }) => {
       const { id, ...data } = input;
@@ -245,6 +247,7 @@ export const menusRouter = router({
       sortOrder: sortOrderSchema,
       pageType: PAGE_TYPE.optional(),
       pageImageUrl: pageImageSchema,
+      defaultViewMode: z.enum(["list", "grid"]).optional(),
       allowGuest: z.boolean().optional(),
       allowMember: z.boolean().optional(),
     }))
@@ -292,6 +295,7 @@ export const menusRouter = router({
       pageType: PAGE_TYPE.optional(),
       pageImageUrl: pageImageSchema,
       playlistId: idSchema.nullable().optional(),
+      defaultViewMode: z.enum(["list", "grid"]).optional(),
     }))
     .mutation(async ({ input }) => {
       const { id, ...data } = input;

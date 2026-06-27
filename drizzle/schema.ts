@@ -119,6 +119,7 @@ export const menuItems = mysqlTable("menu_items", {
   pageImageUrl: text("pageImageUrl"),
   /** youtube 타입일 때 연결된 플레이리스트 ID */
   playlistId: int("playlistId"),
+  defaultViewMode: varchar("defaultViewMode", { length: 10 }).default("list"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -145,6 +146,7 @@ export const menuSubItems = mysqlTable("menu_sub_items", {
   pageImageUrl: text("pageImageUrl"),
   /** youtube 타입일 때 연결된 플레이리스트 ID */
   playlistId: int("playlistId"),
+  defaultViewMode: varchar("defaultViewMode", { length: 10 }).default("list"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
