@@ -10,6 +10,15 @@ export type HomeSectionConfig = {
   subtitle?: string;
 };
 
+export type HomeFeatureCard = {
+  title: string;
+  badge: string;
+  description: string;
+  buttonText: string;
+  imageUrl: string;
+  href: string;
+};
+
 export function useFadeIn() {
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
