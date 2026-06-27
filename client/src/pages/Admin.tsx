@@ -39,6 +39,7 @@ import AdminCoursesTab from "@/components/AdminCoursesTab";
 import AdminBulletinsTab from "@/components/AdminBulletinsTab";
 import AdminPermissionsTab from "@/components/AdminPermissionsTab";
 import AdminMenuAccessTab from "@/components/AdminMenuAccessTab";
+import AdminViewModesTab from "@/components/AdminViewModesTab";
 import AdminChurchHistoryTab from "@/components/AdminChurchHistoryTab";
 import AdminPastorBooksTab from "@/components/AdminPastorBooksTab";
 import YoutubeAdminTab from "@/components/YoutubeAdminTab";
@@ -71,6 +72,7 @@ type Tab =
   | "history"
   | "pastorBooks"
   | "menuAccess"
+  | "viewModes"
   | "permissions";
 
 type TabItem = {
@@ -118,6 +120,14 @@ const TABS: TabItem[] = [
     description:
       "최하위 메뉴별로 타교인과 로그인 성도의 읽기 권한을 설정합니다.",
     status: "읽기 권한",
+  },
+  {
+    id: "viewModes",
+    label: "기본 보기방식",
+    icon: "fa-table-cells-large",
+    description:
+      "게시판과 갤러리 메뉴가 처음 열릴 때 기본으로 보여줄 화면 방식을 관리합니다.",
+    status: "목록형/갤러리형",
   },
   {
     id: "youtube",
@@ -254,6 +264,7 @@ const TAB_GROUPS: TabGroup[] = [
     title: "콘텐츠/노출 관리",
     description: "홈페이지에 공개되는 자료",
     tabs: [
+      "viewModes",
       "youtube",
       "bulletins",
       "testimonies",
@@ -571,9 +582,11 @@ export default function AdminPage() {
   }
 
   const permittedTabs = VALID_TABS.filter(tab =>
-    tab === "facilitySchedule" || tab === "externalFacilities"
-      ? canManageAdminTab(user, "facilities")
-      : canManageAdminTab(user, tab)
+    tab === "viewModes"
+      ? canManageAdminTab(user, "menuAccess")
+      : tab === "facilitySchedule" || tab === "externalFacilities"
+        ? canManageAdminTab(user, "facilities")
+        : canManageAdminTab(user, tab)
   );
   if (permittedTabs.length === 0) {
     return (
@@ -1172,6 +1185,7 @@ export default function AdminPage() {
                 {activeTab === "memberOptions" && <AdminMemberOptionsTab />}
                 {activeTab === "permissions" && <AdminPermissionsTab />}
                 {activeTab === "menuAccess" && <AdminMenuAccessTab />}
+                {activeTab === "viewModes" && <AdminViewModesTab />}
                 {activeTab === "members" && <AdminMembersTab />}
                 {activeTab === "staff" && <AdminStaffTab />}
                 {activeTab === "missionReports" && <AdminMissionReportsTab />}
