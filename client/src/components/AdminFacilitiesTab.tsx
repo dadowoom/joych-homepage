@@ -1370,9 +1370,9 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
           <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <p className="text-sm font-bold text-gray-900">외부인 기본 예약 가능 기간</p>
+                <p className="text-sm font-bold text-gray-900">외부인 공통 예약 가능 기간</p>
                 <p className="mt-1 text-xs leading-5 text-gray-500">
-                  외부인 예약 화면에서 기본으로 허용할 날짜 범위를 일 단위로 설정합니다.
+                  외부인 시설에서 따로 기간을 정하지 않으면, 아래 일수가 기본값으로 적용됩니다.
                 </p>
                 <p className="mt-1 text-[11px] text-gray-400">
                   기본값은 {DEFAULT_EXTERNAL_RESERVATION_ADVANCE_DAYS}일이며, {MIN_EXTERNAL_RESERVATION_ADVANCE_DAYS}~{MAX_EXTERNAL_RESERVATION_ADVANCE_DAYS}일 사이에서 설정할 수 있습니다.
@@ -1580,15 +1580,15 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
                         className="mt-1 h-4 w-4 rounded border-amber-300 text-[#1B5E20]"
                       />
                       <span>
-                        <span className="block text-sm font-bold text-amber-900">공통값 사용</span>
+                        <span className="block text-sm font-bold text-amber-900">이 시설은 공통 기간 그대로 사용</span>
                         <span className="mt-0.5 block text-xs leading-5 text-amber-700">
-                          체크하면 외부인 전용 스케줄 화면의 기본 예약 가능 기간을 그대로 사용합니다.
+                          체크하면 위에서 정한 외부인 공통 예약 가능 기간이 그대로 적용됩니다.
                         </span>
                       </span>
                     </label>
                     {!form.useExternalAdvanceDaysDefault && (
                       <label className="block">
-                        <span className="mb-1 block text-xs font-medium text-gray-600">이 시설만 별도 기간 사용</span>
+                        <span className="mb-1 block text-xs font-medium text-gray-600">이 시설만 따로 기간 설정</span>
                         <div className="flex items-center gap-2">
                           <input
                             type="number"
