@@ -21,6 +21,8 @@ import {
   hasFacilityReservationRuleOverride,
 } from "@shared/facilityReservationEligibility";
 import {
+  getEffectiveExternalReservationWindow,
+  getExternalReservationWindowMessage,
   getFacilityReservationMaxMonths,
   getReservationMaxDateKey,
   isReservationDateAfterMax,
@@ -708,12 +710,15 @@ export const homeRouter = router({
       }
 
       const reservationSettings = await getSiteSettings();
-      const reservationMaxMonths = getFacilityReservationMaxMonths(reservationSettings);
-      const reservationMaxDateKey = getReservationMaxDateKey(todayDateKey, reservationMaxMonths);
-      if (isReservationDateAfterMax(input.reservationDate, reservationMaxDateKey)) {
+      const externalReservationWindow = getEffectiveExternalReservationWindow(
+        todayDateKey,
+        reservationSettings,
+        facility,
+      );
+      if (isReservationDateAfterMax(input.reservationDate, externalReservationWindow.effectiveMaxDateKey)) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: `시설 예약은 최대 ${reservationMaxMonths}개월 후(${reservationMaxDateKey})까지만 신청할 수 있습니다.`,
+          message: getExternalReservationWindowMessage(externalReservationWindow),
         });
       }
 

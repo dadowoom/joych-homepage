@@ -74,6 +74,7 @@ const reservableFacility = {
   isVisible: true,
   isReservable: true,
   isExternalReservable: true,
+  externalAdvanceDaysOverride: null,
   approvalType: "manual",
   openTime: "09:00",
   closeTime: "21:00",
@@ -289,6 +290,85 @@ describe("facility reservation lead-time guard", () => {
     });
 
     expect(dbMocks.createReservationIfAvailable).not.toHaveBeenCalled();
+  });
+
+  it("blocks external facility reservations beyond the default advance-day window", async () => {
+    dbMocks.getSiteSettings.mockResolvedValue({
+      external_reservation_advance_days_default: "14",
+    });
+
+    const caller = appRouter.createCaller(createContext(null));
+
+    await expect(
+      caller.home.createExternalReservation(
+        externalReservationInput({
+          reservationDate: "2026-07-01",
+        }),
+      ),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+
+    expect(dbMocks.createReservationIfAvailable).not.toHaveBeenCalled();
+  });
+
+  it("allows external facility reservations within the default advance-day window", async () => {
+    dbMocks.getSiteSettings.mockResolvedValue({
+      external_reservation_advance_days_default: "14",
+    });
+
+    const caller = appRouter.createCaller(createContext(null));
+
+    await expect(
+      caller.home.createExternalReservation(
+        externalReservationInput({
+          reservationDate: "2026-06-30",
+        }),
+      ),
+    ).resolves.toMatchObject({ id: 100, status: "pending", count: 1 });
+  });
+
+  it("allows facility-specific external advance-day overrides", async () => {
+    dbMocks.getSiteSettings.mockResolvedValue({
+      external_reservation_advance_days_default: "14",
+    });
+    dbMocks.getExternalReservableFacilityById.mockResolvedValue({
+      ...reservableFacility,
+      externalAdvanceDaysOverride: 30,
+    });
+
+    const caller = appRouter.createCaller(createContext(null));
+
+    await expect(
+      caller.home.createExternalReservation(
+        externalReservationInput({
+          reservationDate: "2026-07-10",
+        }),
+      ),
+    ).resolves.toMatchObject({ id: 100, status: "pending", count: 1 });
+  });
+
+  it("uses the stricter global max window when it is earlier than the facility override", async () => {
+    dbMocks.getSiteSettings.mockResolvedValue({
+      facility_reservation_max_months: "1",
+      external_reservation_advance_days_default: "14",
+    });
+    dbMocks.getExternalReservableFacilityById.mockResolvedValue({
+      ...reservableFacility,
+      externalAdvanceDaysOverride: 60,
+    });
+
+    const caller = appRouter.createCaller(createContext(null));
+
+    await expect(
+      caller.home.createExternalReservation(
+        externalReservationInput({
+          reservationDate: "2026-07-17",
+        }),
+      ),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
   });
 
   it("blocks external-category members even if the reservation flag is enabled", async () => {

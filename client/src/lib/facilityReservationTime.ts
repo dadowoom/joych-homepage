@@ -3,15 +3,24 @@ const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 export const RESERVATION_LEAD_TIME_MS = 24 * 60 * 60 * 1000;
 
 export {
+  DEFAULT_EXTERNAL_RESERVATION_ADVANCE_DAYS,
   DEFAULT_FACILITY_RESERVATION_MAX_MONTHS,
+  EXTERNAL_RESERVATION_ADVANCE_DAYS_DEFAULT_SETTING_KEY,
   FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY,
+  MAX_EXTERNAL_RESERVATION_ADVANCE_DAYS,
   MAX_FACILITY_RESERVATION_MAX_MONTHS,
+  MIN_EXTERNAL_RESERVATION_ADVANCE_DAYS,
   MIN_FACILITY_RESERVATION_MAX_MONTHS,
+  getExternalReservationAdvanceDays,
+  getExternalReservationWindowMessage,
   getFacilityReservationMaxMonths,
+  normalizeExternalReservationAdvanceDays,
 } from "@shared/facilityReservationPolicy";
 
 import {
+  getEffectiveExternalReservationWindow,
   getFacilityReservationMaxMonths,
+  getExternalReservationWindowMessage,
   getReservationMaxDateKey as getReservationMaxDateKeyFromToday,
   isReservationDateAfterMax,
 } from "@shared/facilityReservationPolicy";
@@ -32,6 +41,22 @@ export function getReservationMaxDateKey(
     getKstDateKey(date),
     getFacilityReservationMaxMonths(settings),
   );
+}
+
+export function getExternalReservationWindow(
+  settings: Record<string, string | null | undefined> | null | undefined,
+  facility: { externalAdvanceDaysOverride?: unknown } | null | undefined,
+  date = new Date(),
+) {
+  return getEffectiveExternalReservationWindow(getKstDateKey(date), settings, facility);
+}
+
+export function getExternalReservationMaxDateKey(
+  settings: Record<string, string | null | undefined> | null | undefined,
+  facility: { externalAdvanceDaysOverride?: unknown } | null | undefined,
+  date = new Date(),
+) {
+  return getExternalReservationWindow(settings, facility, date).effectiveMaxDateKey;
 }
 
 export function getKstDateTime(dateKey: string, time: string) {
@@ -80,6 +105,22 @@ export function getReservationDateRangeRestriction(
   if (enforceMaxDate && isReservationDateAfterMax(dateKey, maxDateKey)) {
     return `시설 예약은 최대 ${maxMonths}개월 후(${maxDateKey})까지만 신청할 수 있습니다.`;
   }
+  return null;
+}
+
+export function getExternalReservationDateRangeRestriction(
+  dateKey: string,
+  settings: Record<string, string | null | undefined> | null | undefined,
+  facility: { externalAdvanceDaysOverride?: unknown } | null | undefined,
+  date = new Date(),
+) {
+  if (!dateKey) return null;
+
+  const window = getExternalReservationWindow(settings, facility, date);
+  if (isReservationDateAfterMax(dateKey, window.effectiveMaxDateKey)) {
+    return getExternalReservationWindowMessage(window);
+  }
+
   return null;
 }
 

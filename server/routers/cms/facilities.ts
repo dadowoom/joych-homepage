@@ -24,9 +24,14 @@ import {
 import { storagePut } from "../../storage";
 import { validateImage } from "./upload";
 import {
+  DEFAULT_EXTERNAL_RESERVATION_ADVANCE_DAYS,
+  EXTERNAL_RESERVATION_ADVANCE_DAYS_DEFAULT_SETTING_KEY,
   FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY,
+  MAX_EXTERNAL_RESERVATION_ADVANCE_DAYS,
   MAX_FACILITY_RESERVATION_MAX_MONTHS,
+  MIN_EXTERNAL_RESERVATION_ADVANCE_DAYS,
   MIN_FACILITY_RESERVATION_MAX_MONTHS,
+  normalizeExternalReservationAdvanceDays,
 } from "@shared/facilityReservationPolicy";
 import {
   getFacilities,
@@ -71,6 +76,7 @@ const facilityPageSettingKeys = [
   "facility_guide_step4_title",
   "facility_guide_step4_desc",
   FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY,
+  EXTERNAL_RESERVATION_ADVANCE_DAYS_DEFAULT_SETTING_KEY,
 ] as const;
 const facilityPageSettingSchema = z.object({
   key: z.enum(facilityPageSettingKeys),
@@ -82,6 +88,12 @@ const reservationMaxMonthsSettingSchema = z.coerce
   .int("예약 가능 기간은 정수로 입력해주세요.")
   .min(MIN_FACILITY_RESERVATION_MAX_MONTHS, `예약 가능 기간은 최소 ${MIN_FACILITY_RESERVATION_MAX_MONTHS}개월 이상이어야 합니다.`)
   .max(MAX_FACILITY_RESERVATION_MAX_MONTHS, `예약 가능 기간은 최대 ${MAX_FACILITY_RESERVATION_MAX_MONTHS}개월까지 설정할 수 있습니다.`);
+
+const externalAdvanceDaysSettingSchema = z.coerce
+  .number()
+  .int("?몃????덉빟 媛??湲곌컙? ?뺤닔濡??낅젰?댁＜?몄슂.")
+  .min(MIN_EXTERNAL_RESERVATION_ADVANCE_DAYS, `?몃????덉빟 媛??湲곌컙? 理쒖냼 ${MIN_EXTERNAL_RESERVATION_ADVANCE_DAYS}???댁긽?댁뼱???⑸땲??`)
+  .max(MAX_EXTERNAL_RESERVATION_ADVANCE_DAYS, `?몃????덉빟 媛??湲곌컙? 理쒕? ${MAX_EXTERNAL_RESERVATION_ADVANCE_DAYS}???뚯? ?ㅼ젙?????덉뒿?덈떎.`);
 
 function toMinutes(time: string) {
   const [hour, minute] = time.split(":").map(Number);
@@ -112,6 +124,7 @@ const facilityCreateSchema = z.object({
   approvalType: z.enum(["auto", "manual"]).default("manual"),
   isReservable: z.boolean().default(true),
   isExternalReservable: z.boolean().default(false),
+  externalAdvanceDaysOverride: z.number().int().min(MIN_EXTERNAL_RESERVATION_ADVANCE_DAYS).max(MAX_EXTERNAL_RESERVATION_ADVANCE_DAYS).nullable().optional(),
   isVisible: z.boolean().default(true),
   notice: optionalTextSchema(10000),
   caution: optionalTextSchema(10000),
@@ -139,6 +152,7 @@ const facilityUpdateSchema = z.object({
   approvalType: z.enum(["auto", "manual"]).optional(),
   isReservable: z.boolean().optional(),
   isExternalReservable: z.boolean().optional(),
+  externalAdvanceDaysOverride: z.number().int().min(MIN_EXTERNAL_RESERVATION_ADVANCE_DAYS).max(MAX_EXTERNAL_RESERVATION_ADVANCE_DAYS).nullable().optional(),
   isVisible: z.boolean().optional(),
   notice: optionalTextSchema(10000),
   caution: optionalTextSchema(10000),
@@ -202,6 +216,14 @@ export const facilitiesRouter = router({
       .mutation(({ input }) => {
         const value = input.key === FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY
           ? String(reservationMaxMonthsSettingSchema.parse(input.value))
+          : input.key === EXTERNAL_RESERVATION_ADVANCE_DAYS_DEFAULT_SETTING_KEY
+            ? String(
+                normalizeExternalReservationAdvanceDays(
+                  externalAdvanceDaysSettingSchema.parse(
+                    input.value || String(DEFAULT_EXTERNAL_RESERVATION_ADVANCE_DAYS),
+                  ),
+                ),
+              )
           : input.key.endsWith("_url")
             ? safeHrefSchema.parse(input.value)
             : input.value;
