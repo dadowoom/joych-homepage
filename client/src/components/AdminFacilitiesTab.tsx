@@ -1070,6 +1070,58 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
     ? "\uc678\ubd80\uc778\uc5d0\uac8c \uacf5\uac1c\ub41c \uc2dc\uc124\uc5d0\ub9cc \uc801\uc6a9\ub429\ub2c8\ub2e4. \uc131\ub3c4\uc6a9 \uc2dc\uc124 \uc2dc\uac04\ud45c\ub294 \ubc14\ub00c\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4."
     : "\uacf5\ud1b5 \uc608\uc57d \uac00\ub2a5 \uc2dc\uac04\uc744 \uba3c\uc800 \uc801\uc6a9\ud558\uace0 \uc608\uc678 \uc2dc\uc124\uc740 \uc2dc\uc124 \uad00\ub9ac\uc5d0\uc11c \uac1c\ubcc4 \uc870\uc815\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.";
 
+  const isBuildingScheduleView =
+    mode === "buildingSchedule" || (mode === "external" && activeFacilitySubTab === "externalSchedule");
+  const buildingScheduleSourceKey = facilityRowsForMode
+    .map((facility) => `${facility.id}:${normalizeFacilityBuilding(facility.building)}:${facility.sortOrder ?? 0}`)
+    .join("|");
+
+  useEffect(() => {
+    if (!isBuildingScheduleView) return;
+
+    let cancelled = false;
+
+    async function hydrateBuildingScheduleDrafts() {
+      const nextDrafts: Record<FacilityBuilding, FacilityHoursForm> = {
+        hayoungin: createDefaultHours(),
+        welfare: createDefaultHours(),
+      };
+
+      await Promise.all(
+        FACILITY_BUILDINGS.map(async ({ value }) => {
+          const sourceFacility = facilityRowsForMode
+            .filter((facility) => normalizeFacilityBuilding(facility.building) === value)
+            .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.id - b.id)[0];
+
+          if (!sourceFacility) return;
+
+          const savedHours = isExternalMode
+            ? await utils.cms.facilities.externalHours.list.fetch({ facilityId: sourceFacility.id })
+            : await utils.cms.facilities.hours.list.fetch({ facilityId: sourceFacility.id });
+
+          nextDrafts[value] = mergeFacilityHours(savedHours);
+        }),
+      );
+
+      if (!cancelled) {
+        setBuildingScheduleDrafts(nextDrafts);
+      }
+    }
+
+    hydrateBuildingScheduleDrafts().catch(() => {
+      if (!cancelled) {
+        setBuildingScheduleDrafts({
+          hayoungin: createDefaultHours(),
+          welfare: createDefaultHours(),
+        });
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [buildingScheduleSourceKey, facilityRowsForMode, isBuildingScheduleView, isExternalMode, utils]);
+
   if (isLoading) {
     return <div className="flex items-center justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-[#1B5E20]" /></div>;
   }
