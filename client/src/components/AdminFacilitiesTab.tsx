@@ -1564,7 +1564,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
                   </span>
                 </span>
               </label>
-              {form.isExternalReservable && (
+              {isExternalMode && form.isExternalReservable && (
                 <div className="col-span-2 md:col-span-3 rounded-xl border border-amber-100 bg-amber-50/70 px-4 py-4">
                   <div className="flex flex-col gap-3">
                     <label className="flex items-start gap-3">
