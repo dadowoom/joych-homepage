@@ -53,6 +53,7 @@ type BookFormState = {
 type PastorBookEditorDialogProps = {
   open: boolean;
   book?: PastorBookItem | null;
+  defaultSortOrder?: number;
   onClose: () => void;
   onSaved?: () => void;
 };
@@ -81,8 +82,8 @@ function readFileAsBase64(file: File) {
   });
 }
 
-function toForm(book?: PastorBookItem | null): BookFormState {
-  if (!book) return EMPTY_FORM;
+function toForm(book?: PastorBookItem | null, defaultSortOrder = 1): BookFormState {
+  if (!book) return { ...EMPTY_FORM, sortOrder: String(defaultSortOrder) };
   return {
     title: book.title ?? "",
     summary: book.summary ?? "",
@@ -110,11 +111,11 @@ function getBookPayload(form: BookFormState) {
   };
 }
 
-export function PastorBookEditorDialog({ open, book, onClose, onSaved }: PastorBookEditorDialogProps) {
+export function PastorBookEditorDialog({ open, book, defaultSortOrder = 1, onClose, onSaved }: PastorBookEditorDialogProps) {
   const utils = trpc.useUtils();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [editingId, setEditingId] = useState<number | null>(book?.id ?? null);
-  const [form, setForm] = useState<BookFormState>(() => toForm(book));
+  const [form, setForm] = useState<BookFormState>(() => toForm(book, defaultSortOrder));
   const [uploading, setUploading] = useState(false);
 
   const bookDetailQuery = trpc.cms.pastorBooks.get.useQuery(
@@ -140,13 +141,13 @@ export function PastorBookEditorDialog({ open, book, onClose, onSaved }: PastorB
   useEffect(() => {
     if (!open) return;
     setEditingId(book?.id ?? null);
-    setForm(toForm(book));
-  }, [book?.id, open]);
+    setForm(toForm(book, defaultSortOrder));
+  }, [book, defaultSortOrder, open]);
 
   useEffect(() => {
     if (!open || !bookDetailQuery.data) return;
-    setForm(toForm(bookDetailQuery.data));
-  }, [bookDetailQuery.data, open]);
+    setForm(toForm(bookDetailQuery.data, defaultSortOrder));
+  }, [bookDetailQuery.data, defaultSortOrder, open]);
 
   async function invalidateAll(id?: number | null) {
     await Promise.all([
@@ -549,7 +550,7 @@ export default function AdminPastorBooksTab() {
 
     const nextBooks = arrayMove(displayBooks, oldIndex, newIndex).map((book, index) => ({
       ...book,
-      sortOrder: (index + 1) * 10,
+      sortOrder: index + 1,
     }));
     setOrderedBooks(nextBooks);
     reorderBooks.mutate({
@@ -599,7 +600,7 @@ export default function AdminPastorBooksTab() {
               {displayBooks.map((book) => (
                 <SortablePastorBookRow
                   key={book.id}
-                  book={book}
+                  book={{ ...book, sortOrder: displayBooks.findIndex((item) => item.id === book.id) + 1 }}
                   isDeleting={deleteBook.isPending}
                   isOrdering={reorderBooks.isPending}
                   onEdit={openEdit}
@@ -614,6 +615,7 @@ export default function AdminPastorBooksTab() {
       <PastorBookEditorDialog
         open={editorOpen}
         book={selectedBook}
+        defaultSortOrder={displayBooks.length + (selectedBook ? 0 : 1)}
         onClose={() => setEditorOpen(false)}
         onSaved={() => {
           utils.cms.pastorBooks.list.invalidate();

@@ -17,11 +17,77 @@ type PastorBookWithImages = PastorBookWithCover & {
   images: PastorBookImage[];
 };
 
+type PastorBookOrderExecutor = Pick<NonNullable<Awaited<ReturnType<typeof getDb>>>, "select" | "update">;
+
 function normalizeBookImageRows(rows: PastorBookImage[]) {
   return [...rows].sort((a, b) => {
     if (a.isThumbnail !== b.isThumbnail) return a.isThumbnail ? -1 : 1;
     return (a.sortOrder || 0) - (b.sortOrder || 0) || a.id - b.id;
   });
+}
+
+function normalizeSortOrder(value: number | null | undefined, fallback = 1) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(1, Math.trunc(numeric));
+}
+
+function withDisplaySortOrder<T extends { id: number; sortOrder: number }>(rows: T[]) {
+  return rows.map((row, index) => ({
+    ...row,
+    sortOrder: index + 1,
+  }));
+}
+
+async function renumberPastorBooks(db: PastorBookOrderExecutor, movingId?: number, targetSortOrder?: number) {
+  const rows = await db
+    .select()
+    .from(pastorBooks)
+    .orderBy(asc(pastorBooks.sortOrder), desc(pastorBooks.publishedAt), desc(pastorBooks.id));
+
+  let orderedRows = rows;
+  if (movingId) {
+    const movingRow = rows.find((row) => row.id === movingId);
+    if (movingRow) {
+      const remainingRows = rows.filter((row) => row.id !== movingId);
+      const safeTargetSortOrder = Math.min(
+        Math.max(normalizeSortOrder(targetSortOrder, remainingRows.length + 1), 1),
+        remainingRows.length + 1,
+      );
+      orderedRows = [
+        ...remainingRows.slice(0, safeTargetSortOrder - 1),
+        movingRow,
+        ...remainingRows.slice(safeTargetSortOrder - 1),
+      ];
+    }
+  }
+
+  for (let index = 0; index < orderedRows.length; index += 1) {
+    const row = orderedRows[index];
+    const nextSortOrder = index + 1;
+    if (row.sortOrder !== nextSortOrder) {
+      await db
+        .update(pastorBooks)
+        .set({ sortOrder: nextSortOrder })
+        .where(eq(pastorBooks.id, row.id));
+    }
+  }
+}
+
+async function getDisplaySortOrder(id: number, includeHidden = false) {
+  const db = await getDb();
+  if (!db) return 1;
+
+  const rows = includeHidden
+    ? await db.select().from(pastorBooks).orderBy(asc(pastorBooks.sortOrder), desc(pastorBooks.publishedAt), desc(pastorBooks.id))
+    : await db
+        .select()
+        .from(pastorBooks)
+        .where(eq(pastorBooks.isVisible, true))
+        .orderBy(asc(pastorBooks.sortOrder), desc(pastorBooks.publishedAt), desc(pastorBooks.id));
+
+  const index = rows.findIndex((row) => row.id === id);
+  return index >= 0 ? index + 1 : 1;
 }
 
 async function attachCoverImages(rows: PastorBook[]): Promise<PastorBookWithCover[]> {
@@ -58,7 +124,7 @@ export async function getVisiblePastorBooks() {
     .from(pastorBooks)
     .where(eq(pastorBooks.isVisible, true))
     .orderBy(asc(pastorBooks.sortOrder), desc(pastorBooks.publishedAt), desc(pastorBooks.id));
-  return attachCoverImages(rows);
+  return withDisplaySortOrder(await attachCoverImages(rows));
 }
 
 export async function getPastorBooksForAdmin() {
@@ -68,7 +134,7 @@ export async function getPastorBooksForAdmin() {
     .select()
     .from(pastorBooks)
     .orderBy(asc(pastorBooks.sortOrder), desc(pastorBooks.publishedAt), desc(pastorBooks.id));
-  return attachCoverImages(rows);
+  return withDisplaySortOrder(await attachCoverImages(rows));
 }
 
 export async function getPastorBookById(id: number, includeHidden = false): Promise<PastorBookWithImages | null> {
@@ -84,6 +150,7 @@ export async function getPastorBookById(id: number, includeHidden = false): Prom
   const images = await getPastorBookImages(id);
   return {
     ...book,
+    sortOrder: await getDisplaySortOrder(id, includeHidden),
     coverImageUrl: normalizeBookImageRows(images)[0]?.imageUrl ?? null,
     images,
   };
@@ -92,14 +159,40 @@ export async function getPastorBookById(id: number, includeHidden = false): Prom
 export async function createPastorBook(data: Omit<InsertPastorBook, "id" | "createdAt" | "updatedAt">) {
   const db = await getDb();
   if (!db) return null;
-  const [result] = await db.insert(pastorBooks).values(data).$returningId();
-  return result?.id ?? null;
+  return db.transaction(async (tx) => {
+    const [result] = await tx
+      .insert(pastorBooks)
+      .values({
+        ...data,
+        sortOrder: normalizeSortOrder(data.sortOrder, 1),
+      })
+      .$returningId();
+    const id = result?.id ?? null;
+    if (!id) return null;
+    await renumberPastorBooks(tx, id, data.sortOrder);
+    return id;
+  });
 }
 
 export async function updatePastorBook(id: number, data: Partial<Omit<InsertPastorBook, "id" | "createdAt" | "updatedAt">>) {
   const db = await getDb();
   if (!db) return null;
-  await db.update(pastorBooks).set(data).where(eq(pastorBooks.id, id));
+  await db.transaction(async (tx) => {
+    const [existing] = await tx.select().from(pastorBooks).where(eq(pastorBooks.id, id)).limit(1);
+    if (!existing) return;
+
+    await tx
+      .update(pastorBooks)
+      .set({
+        ...data,
+        sortOrder: Object.prototype.hasOwnProperty.call(data, "sortOrder")
+          ? normalizeSortOrder(data.sortOrder)
+          : existing.sortOrder,
+      })
+      .where(eq(pastorBooks.id, id));
+
+    await renumberPastorBooks(tx, id, data.sortOrder ?? existing.sortOrder);
+  });
   return getPastorBookById(id, true);
 }
 
@@ -107,10 +200,12 @@ export async function reorderPastorBooks(items: { id: number; sortOrder: number 
   const db = await getDb();
   if (!db || items.length === 0) return;
   await db.transaction(async (tx) => {
-    for (const item of items) {
+    const orderedItems = [...items].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
+    for (let index = 0; index < orderedItems.length; index += 1) {
+      const item = orderedItems[index];
       await tx
         .update(pastorBooks)
-        .set({ sortOrder: item.sortOrder })
+        .set({ sortOrder: index + 1 })
         .where(eq(pastorBooks.id, item.id));
     }
   });
@@ -122,6 +217,7 @@ export async function deletePastorBook(id: number) {
   await db.transaction(async (tx) => {
     await tx.delete(pastorBookImages).where(eq(pastorBookImages.bookId, id));
     await tx.delete(pastorBooks).where(eq(pastorBooks.id, id));
+    await renumberPastorBooks(tx);
   });
 }
 

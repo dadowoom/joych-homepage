@@ -4,9 +4,25 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Link, useLocation } from "wouter";
 import type { RouteComponentProps } from "wouter";
-import { ArrowLeft, CalendarDays, ChevronRight, Bus, BookOpen, Heart, Image as ImageIcon, Mail, Palette, Pencil, Phone, Plus, UserRound } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronRight, Bus, BookOpen, GripVertical, Heart, Image as ImageIcon, Mail, Palette, Pencil, Phone, Plus, UserRound } from "lucide-react";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { PastorBookEditorDialog } from "@/components/AdminPastorBooksTab";
@@ -507,6 +523,89 @@ function getPastorBookDetailUrl(id: number) {
   return `/about/pastor/books/${id}`;
 }
 
+function SortablePastorBookCard({
+  book,
+  isOrdering,
+  onEdit,
+}: {
+  book: PastorBookPublicItem;
+  isOrdering: boolean;
+  onEdit: (book: PastorBookPublicItem) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: book.id, disabled: isOrdering });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+    opacity: isDragging ? 0.75 : 1,
+  };
+
+  return (
+    <article
+      ref={setNodeRef}
+      style={style}
+      className="group relative border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md"
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        disabled={isOrdering}
+        title="드래그해서 책 순서를 변경"
+        aria-label={`${book.title} 순서 변경`}
+        className="absolute left-3 top-3 z-10 inline-flex h-9 w-9 cursor-grab items-center justify-center rounded-full bg-white/95 text-gray-400 shadow-sm ring-1 ring-gray-200 transition hover:text-[#1B5E20] active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-50 touch-none"
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
+        onClick={() => onEdit(book)}
+        className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-[#1B5E20] shadow-sm ring-1 ring-[#D7F0D8] hover:bg-[#F1F8F2]"
+      >
+        <Pencil className="h-3.5 w-3.5" />
+        수정
+      </button>
+      <Link href={getPastorBookDetailUrl(book.id)} className="block">
+        <div className="flex h-64 items-center justify-center overflow-hidden bg-gray-50">
+          {book.coverImageUrl ? (
+            <img
+              src={book.coverImageUrl}
+              alt={book.title}
+              loading="lazy"
+              className="max-h-full max-w-full object-contain transition-transform group-hover:scale-[1.02]"
+            />
+          ) : (
+            <ImageIcon className="h-12 w-12 text-gray-300" />
+          )}
+        </div>
+        <div className="pt-4">
+          <h2 className="min-h-12 text-sm font-semibold leading-6 text-gray-800 group-hover:text-[#1B5E20]">
+            {book.title}
+          </h2>
+          {book.summary && <p className="mt-2 line-clamp-2 text-xs leading-5 text-gray-500">{book.summary}</p>}
+          <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3 text-xs text-gray-400">
+            <span className="inline-flex items-center gap-1">
+              <CalendarDays className="h-3.5 w-3.5" />
+              {book.publishedAt || "날짜 미등록"}
+            </span>
+            <span className="inline-flex items-center gap-1 text-[#1B5E20]">
+              보기
+            </span>
+          </div>
+        </div>
+      </Link>
+    </article>
+  );
+}
+
 export function PastorBooksPage() {
   const { user } = useAuth();
   const utils = trpc.useUtils();
@@ -514,12 +613,38 @@ export function PastorBooksPage() {
   const { data: pastorBooks = [], isLoading } = trpc.home.pastorBooks.useQuery();
   const [editorOpen, setEditorOpen] = useState(false);
   const [selectedBook, setSelectedBook] = useState<PastorBookPublicItem | null>(null);
+  const [orderedBooks, setOrderedBooks] = useState<PastorBookPublicItem[]>([]);
   const canManage = canManageBoardContent(user, "content:pastorBooks");
+  const { data: adminPastorBooks = [], isLoading: isAdminPastorBooksLoading } = trpc.cms.pastorBooks.list.useQuery(undefined, { enabled: canManage });
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const sideMenuItems = useMemo(
     () => getStaffSideMenuItems(menuTree, "담임목사 저서"),
     [menuTree],
   );
-  const books = pastorBooks as PastorBookPublicItem[];
+  const books = (
+    canManage
+      ? (adminPastorBooks as PastorBookPublicItem[]).filter((book) => book.isVisible)
+      : (pastorBooks as PastorBookPublicItem[])
+  );
+  const isBooksLoading = canManage ? isLoading || isAdminPastorBooksLoading : isLoading;
+  const reorderBooks = trpc.cms.pastorBooks.reorder.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.home.pastorBooks.invalidate(),
+        utils.cms.pastorBooks.list.invalidate(),
+      ]);
+      toast.success("저서 순서가 저장되었습니다.");
+    },
+    onError: (error) => {
+      setOrderedBooks(books);
+      toast.error(error.message || "순서 저장에 실패했습니다.");
+    },
+  });
+  const displayBooks = orderedBooks.length === books.length ? orderedBooks : books;
+
+  useEffect(() => {
+    setOrderedBooks(books);
+  }, [books]);
 
   function openCreate() {
     setSelectedBook(null);
@@ -529,6 +654,36 @@ export function PastorBooksPage() {
   function openEdit(book: PastorBookPublicItem) {
     setSelectedBook(book);
     setEditorOpen(true);
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!canManage || !over || active.id === over.id || reorderBooks.isPending) return;
+
+    const activeId = Number(active.id);
+    const overId = Number(over.id);
+    const oldIndex = displayBooks.findIndex((book) => book.id === activeId);
+    const newIndex = displayBooks.findIndex((book) => book.id === overId);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const nextBooks = arrayMove(displayBooks, oldIndex, newIndex).map((book, index) => ({
+      ...book,
+      sortOrder: index + 1,
+    }));
+    const hiddenBooks = (adminPastorBooks as PastorBookPublicItem[]).filter((book) => !book.isVisible);
+    setOrderedBooks(nextBooks);
+    reorderBooks.mutate({
+      items: [
+        ...nextBooks.map((book) => ({
+          id: book.id,
+          sortOrder: book.sortOrder,
+        })),
+        ...hiddenBooks.map((book, index) => ({
+          id: book.id,
+          sortOrder: nextBooks.length + index + 1,
+        })),
+      ],
+    });
   }
 
   return (
@@ -559,12 +714,33 @@ export function PastorBooksPage() {
         </div>
       </div>
 
-      {isLoading ? (
+      {canManage && books.length > 1 && (
+        <div className="mb-6 rounded-xl border border-[#D7F0D8] bg-[#F7FBF7] px-4 py-3 text-sm text-[#1B5E20]">
+          왼쪽 손잡이를 마우스로 끌면 책 순서를 바로 바꿀 수 있습니다.
+        </div>
+      )}
+
+      {isBooksLoading ? (
         <p className="py-12 text-center text-gray-500">불러오는 중...</p>
       ) : books.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-200 py-16 text-center text-sm text-gray-400">
           등록된 저서가 없습니다.
         </div>
+      ) : canManage ? (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={displayBooks.map((book) => book.id)} strategy={rectSortingStrategy}>
+            <div className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {displayBooks.map((book) => (
+                <SortablePastorBookCard
+                  key={book.id}
+                  book={book}
+                  isOrdering={reorderBooks.isPending}
+                  onEdit={openEdit}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       ) : (
         <div className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {books.map((book) => (
@@ -616,8 +792,10 @@ export function PastorBooksPage() {
       <PastorBookEditorDialog
         open={editorOpen}
         book={selectedBook}
+        defaultSortOrder={displayBooks.length + (selectedBook ? 0 : 1)}
         onClose={() => setEditorOpen(false)}
         onSaved={() => {
+          utils.cms.pastorBooks.list.invalidate();
           utils.home.pastorBooks.invalidate();
         }}
       />
