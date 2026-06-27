@@ -72,6 +72,10 @@ type GalleryGroup = {
   images: GalleryItem[];
 };
 
+function normalizeViewMode(value?: string | null, fallback: ViewMode = "grid"): ViewMode {
+  return value === "list" ? "list" : fallback;
+}
+
 const MAX_GALLERY_UPLOAD_SIZE = 10 * 1024 * 1024;
 const MAX_GALLERY_UPLOAD_COUNT = 100;
 const ALLOWED_GALLERY_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -348,7 +352,7 @@ function SortableGalleryAlbumOrderItem({
   );
 }
 
-export function GalleryContent() {
+export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode | null } = {}) {
   const { user } = useAuth();
   const canManage = canManageBoardContent(user);
   const utils = trpc.useUtils();
@@ -357,7 +361,7 @@ export function GalleryContent() {
   const searchString = useSearch();
   const [lightbox, setLightbox] = useState<{ groupKey: string; imageIndex: number } | null>(null);
   const [page, setPage] = useState(1);
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [viewMode, setViewMode] = useState<ViewMode>(normalizeViewMode(defaultViewMode));
   const [searchInput, setSearchInput] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
   const [albumTitle, setAlbumTitle] = useState("");
@@ -393,6 +397,10 @@ export function GalleryContent() {
   const [isSavingDetail, setIsSavingDetail] = useState(false);
   const [isAddingDetailPhotos, setIsAddingDetailPhotos] = useState(false);
   const [deletingAlbumKey, setDeletingAlbumKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    setViewMode(normalizeViewMode(defaultViewMode));
+  }, [defaultViewMode]);
 
   useEffect(() => {
     if (!detailGroup) {

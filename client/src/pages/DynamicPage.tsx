@@ -42,6 +42,7 @@ type DynamicPageItem = {
   pageType?: string | null;
   pageImageUrl?: string | null;
   playlistId?: number | null;
+  defaultViewMode?: string | null;
 };
 
 type DynamicPageSubItem = DynamicPageItem & {
@@ -220,13 +221,14 @@ function renderContent(
   menuItemId?: number,
   menuSubItemId?: number,
   playlistId?: number | null,
-  href?: string | null
+  href?: string | null,
+  defaultViewMode?: string | null
 ) {
   switch (pageType) {
     case "image":
       return <ImageContent label={label} imageUrl={imageUrl} />;
     case "gallery":
-      return <GalleryContent />;
+      return <GalleryContent defaultViewMode={defaultViewMode === "list" ? "list" : "grid"} />;
     case "board":
       return (
         <BoardContent
@@ -234,6 +236,7 @@ function renderContent(
           href={href}
           menuItemId={menuItemId}
           menuSubItemId={menuSubItemId}
+          defaultViewMode={defaultViewMode === "grid" ? "grid" : "list"}
         />
       );
     case "youtube":
@@ -383,7 +386,8 @@ function MenuItemPageContent({
         item.id,
         undefined,
         item.playlistId,
-        item.href ?? activeHref ?? null
+        item.href ?? activeHref ?? null,
+        item.defaultViewMode ?? null
       )}
     </SubPageLayout>
   );
@@ -466,7 +470,8 @@ function MenuSubItemPageContent({
         undefined,
         item.id,
         item.playlistId,
-        item.href ?? activeHref ?? null
+        item.href ?? activeHref ?? null,
+        item.defaultViewMode ?? null
       )}
     </SubPageLayout>
   );
