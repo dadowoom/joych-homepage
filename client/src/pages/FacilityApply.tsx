@@ -11,7 +11,7 @@ import { Link, useParams, useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import type { FacilityBlockedDate } from "../../../drizzle/schema";
 import { toast } from "sonner";
-import { Loader2, ChevronRight, Clock, Users, MapPin, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, ChevronRight, Clock, Users, MapPin, Calendar, CheckCircle2, AlertCircle, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ReservationConflictDialog, {
   isReservationConflictMessage,
@@ -228,6 +228,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     reserverName: memberMe?.name ?? "",
     reserverPhone: "",
     department: "",
+    depositorName: "",
     purpose: "",
     date: urlDate,
     startTime: urlStartTime,
@@ -236,6 +237,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     notes: "",
     repeatType: "none" as RepeatType,
     repeatUntilDate: "",
+    agreeRules: false,
     agreePrivacy: false,
   }));
   const [submitted, setSubmitted] = useState(false);
@@ -434,8 +436,9 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
   function validate(): string | null {
     if (!form.reserverName.trim()) return "신청자 이름을 입력해 주세요.";
     if (!form.reserverPhone.trim()) return "연락처를 입력해 주세요.";
-    if (!form.department.trim()) return "소속 부서/단체를 입력해 주세요.";
-    if (!form.purpose) return "사용 목적을 선택해 주세요.";
+    if (!form.department.trim()) return isExternal ? "단체명을 입력해 주세요." : "소속 부서/단체를 입력해 주세요.";
+    if (isExternal && !form.depositorName.trim()) return "입금자명을 입력해 주세요.";
+    if (!form.purpose.trim()) return isExternal ? "사용 목적을 입력해 주세요." : "사용 목적을 선택해 주세요.";
     if (!form.date) return "사용 날짜를 선택해 주세요.";
     if (selectedDateRangeRestriction) return selectedDateRangeRestriction;
     if (blockedDateSet.has(form.date) && !hasReservationOverride) return "해당 날짜는 예약이 불가능합니다.";
@@ -460,6 +463,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
       });
       if (repeatDateRangeRestriction) return repeatDateRangeRestriction;
     }
+    if (isExternal && !form.agreeRules) return "시설 사용 주의사항에 동의해 주세요.";
     if (!form.agreePrivacy) return "개인정보 수집·이용에 동의해 주세요.";
     // 선택한 시간대에 이미 예약이 있는지 확인
     const [sh, sm] = form.startTime.split(":").map(Number);
@@ -498,7 +502,9 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
       purpose: form.purpose,
       department: form.department || undefined,
       attendees: Number(form.attendees),
-      notes: form.notes || undefined,
+      notes: isExternal
+        ? `[입금자명: ${form.depositorName.trim()}]${form.notes ? ` ${form.notes}` : ""}`
+        : form.notes || undefined,
     };
 
     if (isExternal) {
@@ -652,15 +658,46 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                   </Field>
                 </div>
 
-                <Field label="소속 부서/단체" required>
-                  <input type="text" name="department" value={form.department} onChange={handleChange} placeholder="예: 청년부, 찬양팀, 외부단체명" className={inputClass} />
+                <Field label={isExternal ? "단체명" : "소속 부서/단체"} required>
+                  <input
+                    type="text"
+                    name="department"
+                    value={form.department}
+                    onChange={handleChange}
+                    placeholder={isExternal ? "단체명을 입력해 주세요." : "예: 청년부, 찬양팀, 외부단체명"}
+                    className={inputClass}
+                  />
                 </Field>
 
+                {isExternal && (
+                  <Field label="입금자명" required hint="사용료 입금 시 실제 입금자 이름을 입력해 주세요.">
+                    <input
+                      type="text"
+                      name="depositorName"
+                      value={form.depositorName}
+                      onChange={handleChange}
+                      placeholder="입금자 이름 (신청자와 다르면 따로 입력)"
+                      className={inputClass}
+                    />
+                  </Field>
+                )}
+
                 <Field label="사용 목적" required>
-                  <select name="purpose" value={form.purpose} onChange={handleChange} className={inputClass}>
-                    <option value="">선택해 주세요</option>
-                    {PURPOSE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
+                  {isExternal ? (
+                    <input
+                      type="text"
+                      name="purpose"
+                      value={form.purpose}
+                      onChange={handleChange}
+                      placeholder="사용 목적을 직접 입력해 주세요. (예: 음악 연습, 외부 세미나)"
+                      className={inputClass}
+                    />
+                  ) : (
+                    <select name="purpose" value={form.purpose} onChange={handleChange} className={inputClass}>
+                      <option value="">선택해 주세요</option>
+                      {PURPOSE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  )}
                 </Field>
 
                 <h2 className="font-bold text-gray-900 text-base pb-3 border-b border-gray-100 pt-2" style={{ fontFamily: "'Noto Serif KR', serif" }}>
@@ -805,6 +842,23 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                   />
                 </Field>
 
+                {isExternal && (
+                  <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+                    <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-blue-900">
+                      <CreditCard className="h-4 w-4" />
+                      사용료 계좌 안내
+                    </h3>
+                    <div className="space-y-1 text-sm text-blue-800">
+                      <p><span className="font-semibold">은행:</span> 하나은행</p>
+                      <p><span className="font-semibold">계좌:</span> 132-910107-62505</p>
+                      <p><span className="font-semibold">예금주:</span> 대한예수교장로회 기쁨의교회</p>
+                    </div>
+                    <p className="mt-2 text-xs text-blue-600">
+                      사용료 입금 시 입금자 이름과 신청자 이름을 맞춰 주세요.
+                    </p>
+                  </div>
+                )}
+
                 <Field label="추가 요청사항">
                   <textarea
                     name="notes"
@@ -815,6 +869,38 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                     className={`${inputClass} resize-none`}
                   />
                 </Field>
+
+                {isExternal && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <h3 className="mb-3 text-sm font-bold text-amber-900">
+                      외부 시설 사용 시 주의사항
+                    </h3>
+                    <ol className="list-decimal space-y-1.5 pl-5 text-xs leading-5 text-amber-900">
+                      <li>가능하시면 장소를 직접 확인해주시길 바랍니다.</li>
+                      <li>신청서 작성 후 교회 사무국에 장소와 금액을 확인 후 작성해주시기 바랍니다.</li>
+                      <li>신청서 제출방법: Fax 054-270-1005 / E-mail: joych1946@daum.net</li>
+                      <li>사용료 입금자 이름과 신청자 이름을 맞춰 주세요.</li>
+                      <li>신청한 단체의 사정으로 인해 취소할 경우 반환수수료를 제외한 금액을 반환 조치합니다.</li>
+                      <li>시설 내 음주, 흡연, 가무, 고성방가 행위 등은 허용되지 않으며 상황에 따라 퇴실조치 및 추후 이용불가합니다.</li>
+                      <li>각 부속시설에 있는 음향장비 및 영상장비는 사용이 불가합니다. 필요 시 사용자 측에서 준비해주시기 바랍니다.</li>
+                    </ol>
+                    <p className="mt-3 text-xs text-amber-700">
+                      문의: 기쁨의교회 사무국 054-270-1002
+                    </p>
+                    <label className="mt-3 flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        name="agreeRules"
+                        checked={form.agreeRules}
+                        onChange={handleChange}
+                        className="w-4 h-4 accent-[#1B5E20]"
+                      />
+                      <span className="text-sm font-medium text-amber-900">
+                        위 주의사항을 모두 확인했으며 동의합니다. <span className="text-red-500">*</span>
+                      </span>
+                    </label>
+                  </div>
+                )}
 
                 {/* 개인정보 동의 */}
                 <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
@@ -849,6 +935,11 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                     <><Calendar className="w-5 h-5" /> 예약 신청하기</>
                   )}
                 </button>
+                {isExternal && (
+                  <p className="mt-3 text-center text-xs text-gray-500">
+                    자세한 사항은 기쁨의교회 사무국으로 문의 바랍니다. 054-270-1002
+                  </p>
+                )}
               </div>
             </form>
           )}
