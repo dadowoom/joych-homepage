@@ -13,6 +13,7 @@ import { getLoginUrl } from "@/const";
 import HomeAffiliates from "./home/HomeAffiliates";
 import HomeFooter from "./home/HomeFooter";
 import HomeGallery from "./home/HomeGallery";
+import HomeQuickMenu from "./home/HomeQuickMenu";
 import { FadeIn, getUsableHref, isExternalHref } from "./home/_helpers";
 
 const MenuEditPanel = lazy(() => import("@/components/MenuEditPanel"));
@@ -329,28 +330,6 @@ function sanitizeHomeSectionConfig(raw: string | null | undefined, fallback: Hom
     backgroundImage: normalizeText(parsed.backgroundImage, fallback.backgroundImage ?? ""),
     subtitle: normalizeText(parsed.subtitle, fallback.subtitle ?? ""),
   };
-}
-
-const QUICK_MENU_INTERNAL_HOSTS = new Set([
-  "newjoych.co.kr",
-  "www.newjoych.co.kr",
-]);
-
-function normalizeQuickMenuHref(href: string) {
-  if (!isExternalHref(href)) return href;
-
-  try {
-    const url = new URL(href);
-    const currentHost =
-      typeof window !== "undefined" ? window.location.host : "";
-    if (url.host === currentHost || QUICK_MENU_INTERNAL_HOSTS.has(url.host)) {
-      return `${url.pathname}${url.search}${url.hash}` || "/";
-    }
-  } catch {
-    return href;
-  }
-
-  return href;
 }
 
 export default function Home() {
@@ -1016,51 +995,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ===== 퀵 메뉴 ===== */}
-      <section className="bg-white shadow-md relative z-10">
-        <div className="container">
-          <ul className="flex flex-wrap justify-center">
-            {quickMenus.map((item, i) => {
-              const inner = (
-                <>
-                  <div className="w-12 h-12 rounded-full bg-[#E8F5E9] flex items-center justify-center text-[#1B5E20] text-lg group-hover:bg-[#1B5E20] group-hover:text-white transition-colors">
-                    <i className={`fas ${item.icon}`}></i>
-                  </div>
-                  <span className="text-xs text-gray-600 text-center leading-tight">
-                    {item.label}
-                  </span>
-                </>
-              );
-              const cls =
-                "flex flex-col items-center gap-2.5 py-5 px-4 w-28 hover:bg-[#F1F8E9] transition-colors group";
-              return (
-                <li key={i}>
-                  {(() => {
-                    const href = getUsableHref(
-                      (item as { href?: string | null }).href,
-                      ""
-                    );
-                    if (!href)
-                      return (
-                        <span className={`${cls} cursor-default`}>{inner}</span>
-                      );
-                    const quickMenuHref = normalizeQuickMenuHref(href);
-                    return quickMenuHref.startsWith("/") ? (
-                      <Link href={quickMenuHref} className={cls}>
-                        {inner}
-                      </Link>
-                    ) : (
-                      <a href={quickMenuHref} className={cls}>
-                        {inner}
-                      </a>
-                    );
-                  })()}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      </section>
+      <HomeQuickMenu quickMenus={quickMenus} />
 
       {/* ===== 예배/설교 & 교회 소식 ===== */}
       <section className="py-16 bg-white">
