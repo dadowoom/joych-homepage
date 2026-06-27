@@ -32,8 +32,10 @@ import {
   AlignRight,
   Baseline,
   Bold,
+  Code2,
   CornerDownLeft,
   Eraser,
+  Eye,
   Heading1,
   Heading2,
   Heading3,
@@ -1315,6 +1317,8 @@ export function RichTextEditor({
   className,
 }: RichTextEditorProps) {
   const lastTableCellFocusPositionRef = useRef<number | null>(null);
+  const [editorMode, setEditorMode] = useState<"visual" | "source">("visual");
+  const [sourceHtml, setSourceHtml] = useState("");
   const [, setEditorStateVersion] = useState(0);
   const extensions = useMemo(
     () => [
@@ -1445,6 +1449,19 @@ export function RichTextEditor({
     };
   }, [editor]);
 
+  const switchToSource = () => {
+    if (!editor) return;
+    setSourceHtml(editor.getHTML());
+    setEditorMode("source");
+  };
+
+  const switchToVisual = () => {
+    if (!editor) return;
+    editor.commands.setContent(sourceHtml || "<p></p>", { emitUpdate: false });
+    onChange(isEmptyEditorHtml(sourceHtml) ? "" : sourceHtml);
+    setEditorMode("visual");
+  };
+
   if (!editor) {
     return (
       <div className={cn("w-full max-w-full min-w-0 overflow-hidden border border-gray-300 bg-white px-3 py-3 text-sm text-gray-400", minHeightClassName, className)}>
@@ -1455,20 +1472,69 @@ export function RichTextEditor({
 
   return (
     <div id={id} className={cn("w-full max-w-full min-w-0 overflow-visible border border-gray-300 bg-white focus-within:border-[#1B5E20]", className)}>
-      <RichTextToolbar
-        editor={editor}
-        lastTableCellFocusPositionRef={lastTableCellFocusPositionRef}
-      />
-      <div
-        className={cn("cursor-text", minHeightClassName)}
-        onMouseDown={(event) => {
-          if (event.button !== 0 || !editor.isEmpty) return;
-          event.preventDefault();
-          editor.chain().focus("end").setParagraph().run();
-        }}
-      >
-        <EditorContent editor={editor} />
+      <div className="flex border-b border-gray-200 bg-gray-50">
+        <button
+          type="button"
+          className={cn(
+            "flex items-center gap-1.5 px-4 py-2 text-xs font-medium transition",
+            editorMode === "visual"
+              ? "border-b-2 border-[#1B5E20] text-[#1B5E20]"
+              : "text-gray-500 hover:text-gray-700"
+          )}
+          onClick={() => editorMode === "source" ? switchToVisual() : null}
+        >
+          <Eye className="h-3.5 w-3.5" />
+          편집기
+        </button>
+        <button
+          type="button"
+          className={cn(
+            "flex items-center gap-1.5 px-4 py-2 text-xs font-medium transition",
+            editorMode === "source"
+              ? "border-b-2 border-[#1B5E20] text-[#1B5E20]"
+              : "text-gray-500 hover:text-gray-700"
+          )}
+          onClick={() => editorMode === "visual" ? switchToSource() : null}
+        >
+          <Code2 className="h-3.5 w-3.5" />
+          HTML 소스
+        </button>
       </div>
+
+      {editorMode === "visual" && (
+        <>
+          <RichTextToolbar
+            editor={editor}
+            lastTableCellFocusPositionRef={lastTableCellFocusPositionRef}
+          />
+          <div
+            className={cn("cursor-text", minHeightClassName)}
+            onMouseDown={(event) => {
+              if (event.button !== 0 || !editor.isEmpty) return;
+              event.preventDefault();
+              editor.chain().focus("end").setParagraph().run();
+            }}
+          >
+            <EditorContent editor={editor} />
+          </div>
+        </>
+      )}
+
+      {editorMode === "source" && (
+        <textarea
+          className={cn(
+            "w-full resize-y bg-gray-900 px-4 py-3 font-mono text-sm leading-6 text-green-300 outline-none placeholder:text-gray-600",
+            minHeightClassName || "min-h-[300px]"
+          )}
+          value={sourceHtml}
+          onChange={(event) => {
+            setSourceHtml(event.target.value);
+            onChange(isEmptyEditorHtml(event.target.value) ? "" : event.target.value);
+          }}
+          placeholder="<p>HTML을 직접 입력하세요.</p>"
+          spellCheck={false}
+        />
+      )}
     </div>
   );
 }
