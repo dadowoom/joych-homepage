@@ -1,10 +1,6 @@
-/**
- * 3단 메뉴 행 컴포넌트 (드래그 가능)
- * DnD Kit의 useSortable 훅을 사용하여 드래그 앤 드롭 순서 변경을 지원합니다.
- */
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, GripVertical, Pencil, Trash2 } from "lucide-react";
 import { PAGE_TYPE_OPTIONS, type MenuSubItemRow } from "./types.tsx";
 
 export function SubSubMenuRow({
@@ -21,16 +17,26 @@ export function SubSubMenuRow({
   const typeOpt = PAGE_TYPE_OPTIONS.find((o) => o.value === item.pageType);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id });
-  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
 
   return (
     <div ref={setNodeRef} style={style}>
-      <div className={`flex items-center gap-1 px-2 py-2 rounded-lg border bg-white border-gray-200 ${!item.isVisible ? "opacity-50" : ""}`}>
+      <div
+        {...attributes}
+        {...listeners}
+        className={`flex items-center gap-1 px-2 py-2 rounded-lg border bg-white border-gray-200 transition-colors hover:border-gray-400 hover:bg-gray-50 cursor-grab active:cursor-grabbing touch-none ${
+          !item.isVisible ? "opacity-50" : ""
+        }`}
+        title="Drag to change order"
+      >
         <button
-          {...attributes}
-          {...listeners}
-          className="p-0.5 touch-none text-gray-300 hover:text-gray-500"
-          title="드래그해서 순서 변경"
+          className="p-0.5 text-gray-300 hover:text-gray-500"
+          onPointerDown={(e) => e.stopPropagation()}
+          title="Drag to change order"
         >
           <GripVertical size={12} />
         </button>
@@ -41,23 +47,26 @@ export function SubSubMenuRow({
           {typeOpt?.icon}
         </span>
         <button
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={() => onToggleVisible(item.id, !item.isVisible)}
           className="p-0.5 text-gray-300 hover:text-gray-600"
-          title={item.isVisible ? "숨기기" : "표시"}
+          title={item.isVisible ? "Hide" : "Show"}
         >
           {item.isVisible ? <Eye size={11} /> : <EyeOff size={11} />}
         </button>
         <button
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={() => onEdit(item)}
           className="p-0.5 text-blue-300 hover:text-blue-600"
-          title="수정"
+          title="Edit"
         >
           <Pencil size={11} />
         </button>
         <button
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={() => onDelete(item.id)}
           className="p-0.5 text-red-300 hover:text-red-500"
-          title="삭제"
+          title="Delete"
         >
           <Trash2 size={11} />
         </button>

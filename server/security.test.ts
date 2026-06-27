@@ -5,7 +5,7 @@
  *
  * 테스트 항목:
  *   1. 운영 환경에서 필수 환경변수 누락 시 오류 발생
- *   2. 로그인 실패 5회 시 차단 (Rate Limiter)
+ *   2. 로그인 실패 제한 (Rate Limiter)
  *   3. 차단 해제 후 정상 동작 (Rate Limiter)
  *   4. 허용되지 않는 이미지 MIME 타입 업로드 실패
  *   5. 허용되지 않는 영상 MIME 타입 업로드 실패
@@ -14,13 +14,20 @@
  *   8. 허용된 MIME 타입은 정상 처리
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { checkRateLimit, recordFailure, resetFailures } from "./_core/rateLimiter";
+import {
+  LOGIN_ACCOUNT_MAX_ATTEMPTS,
+  LOGIN_IP_MAX_ATTEMPTS,
+  checkRateLimit,
+  recordFailure,
+  resetFailures,
+} from "./_core/rateLimiter";
 import { getJwtSecretString } from "./_core/jwtSecret";
 import {
   extractYoutubeVideoId,
   isSafeAssetUrl,
   isSafeHref,
   normalizeBlockContent,
+  normalizeRichTextHtmlContent,
 } from "./_core/contentValidation";
 import { validateImage, validateVideo } from "./routers/cms/upload";
 
@@ -129,33 +136,33 @@ describe("[보안 3번] Rate Limiter — 로그인 실패 횟수 제한", () => 
     expect(() => checkRateLimit(testKey)).not.toThrow();
   });
 
-  it("4회 실패 후에는 아직 차단되지 않음", () => {
-    for (let i = 0; i < 4; i++) {
+  it("계정 기준 최대 허용 횟수 직전까지는 아직 차단되지 않음", () => {
+    for (let i = 0; i < LOGIN_ACCOUNT_MAX_ATTEMPTS - 1; i++) {
       recordFailure(testKey);
     }
     expect(() => checkRateLimit(testKey)).not.toThrow();
   });
 
-  it("5회 실패 시 차단됨 (TOO_MANY_REQUESTS)", () => {
-    for (let i = 0; i < 5; i++) {
+  it("계정 기준 최대 허용 횟수 도달 시 차단됨 (TOO_MANY_REQUESTS)", () => {
+    for (let i = 0; i < LOGIN_ACCOUNT_MAX_ATTEMPTS; i++) {
       recordFailure(testKey);
     }
     expect(() => checkRateLimit(testKey)).toThrow(
-      "로그인 시도가 너무 많습니다."
+      "로그인 시도가 잠시 제한되었습니다."
     );
   });
 
-  it("6회 실패 후에도 차단 유지", () => {
-    for (let i = 0; i < 6; i++) {
+  it("계정 기준 최대 허용 횟수 초과 후에도 차단 유지", () => {
+    for (let i = 0; i < LOGIN_ACCOUNT_MAX_ATTEMPTS + 1; i++) {
       recordFailure(testKey);
     }
     expect(() => checkRateLimit(testKey)).toThrow(
-      "로그인 시도가 너무 많습니다."
+      "로그인 시도가 잠시 제한되었습니다."
     );
   });
 
   it("resetFailures 호출 후 차단 해제됨", () => {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < LOGIN_ACCOUNT_MAX_ATTEMPTS; i++) {
       recordFailure(testKey);
     }
     // 차단 확인
@@ -170,14 +177,30 @@ describe("[보안 3번] Rate Limiter — 로그인 실패 횟수 제한", () => 
     const ipKey = `ip:192.168.1.1-${Date.now()}`;
     const accountKey = `account:test@example.com-${Date.now()}`;
 
-    for (let i = 0; i < 5; i++) {
-      recordFailure(ipKey);
+    for (let i = 0; i < LOGIN_ACCOUNT_MAX_ATTEMPTS; i++) {
+      recordFailure(accountKey);
     }
 
-    // IP 키는 차단됨
-    expect(() => checkRateLimit(ipKey)).toThrow();
-    // 계정 키는 차단 안 됨
-    expect(() => checkRateLimit(accountKey)).not.toThrow();
+    // 계정 키는 차단됨
+    expect(() => checkRateLimit(accountKey)).toThrow();
+    // IP 키는 차단 안 됨
+    expect(() => checkRateLimit(ipKey)).not.toThrow();
+
+    resetFailures(accountKey);
+  });
+
+  it("IP 기준은 여러 사용자를 고려해 계정보다 넉넉하게 제한", () => {
+    const ipKey = `ip:192.168.1.2-${Date.now()}`;
+
+    for (let i = 0; i < LOGIN_IP_MAX_ATTEMPTS - 1; i++) {
+      recordFailure(ipKey);
+    }
+    expect(() => checkRateLimit(ipKey)).not.toThrow();
+
+    recordFailure(ipKey);
+    expect(() => checkRateLimit(ipKey)).toThrow(
+      "로그인 시도가 잠시 제한되었습니다."
+    );
 
     resetFailures(ipKey);
   });
@@ -307,7 +330,43 @@ describe("[보안 8번] CMS 콘텐츠 — 위험 URL 및 깨진 블록 차단", 
     ).toThrow("올바른 유튜브 영상 ID가 필요합니다.");
   });
 
+  it("HTML 편집기 블록은 본문 HTML을 저장할 수 있음", () => {
+    const normalized = normalizeBlockContent(
+      "html-rich",
+      JSON.stringify({
+        html: "<style>.notice-card{padding:16px;border:1px solid #ddd}</style><h2>안내</h2><p class=\"notice-card\">본문 내용을 입력합니다.</p><iframe src=\"https://www.youtube.com/embed/dQw4w9WgXcQ\" title=\"영상\"></iframe>",
+      })
+    );
+
+    expect(JSON.parse(normalized)).toEqual({
+      html: "<style>.notice-card{padding:16px;border:1px solid #ddd}</style><h2>안내</h2><p class=\"notice-card\">본문 내용을 입력합니다.</p><iframe src=\"https://www.youtube.com/embed/dQw4w9WgXcQ\" title=\"영상\"></iframe>",
+    });
+  });
+
+  it("HTML 편집기 블록은 위험한 스크립트 코드를 차단", () => {
+    expect(() =>
+      normalizeBlockContent("html-rich", JSON.stringify({ html: "<p onclick=\"alert(1)\">본문</p>" }))
+    ).toThrow("HTML 본문에 허용되지 않는 코드가 포함되어 있습니다.");
+
+    expect(() =>
+      normalizeBlockContent("html-rich", JSON.stringify({ html: "<script>alert(1)</script>" }))
+    ).toThrow("HTML 본문에 허용되지 않는 코드가 포함되어 있습니다.");
+
+    expect(() =>
+      normalizeBlockContent("html-rich", JSON.stringify({ html: "<iframe srcdoc=\"<script>alert(1)</script>\"></iframe>" }))
+    ).toThrow("HTML 본문에 허용되지 않는 코드가 포함되어 있습니다.");
+
+    expect(() =>
+      normalizeBlockContent("html-rich", JSON.stringify({ html: "<style>@import url('https://example.com/a.css');</style><p>본문</p>" }))
+    ).toThrow("HTML 본문에 허용되지 않는 코드가 포함되어 있습니다.");
+  });
+
   it("유튜브 URL에서 영상 ID를 안전하게 추출", () => {
+    expect(normalizeRichTextHtmlContent("<h2>안내</h2><p>본문</p>")).toBe("<h2>안내</h2><p>본문</p>");
+    expect(normalizeRichTextHtmlContent("<style>.worship-time{color:#0f5132}</style><p class=\"worship-time\">본문</p>")).toBe("<style>.worship-time{color:#0f5132}</style><p class=\"worship-time\">본문</p>");
+    expect(normalizeRichTextHtmlContent("<iframe src=\"https://www.youtube.com/embed/dQw4w9WgXcQ\"></iframe>")).toBe("<iframe src=\"https://www.youtube.com/embed/dQw4w9WgXcQ\"></iframe>");
+    expect(() => normalizeRichTextHtmlContent("<img src=\"javascript:alert(1)\">")).toThrow();
+    expect(() => normalizeRichTextHtmlContent("<p onmouseover=\"alert(1)\">본문</p>")).toThrow();
     expect(extractYoutubeVideoId("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");
     expect(extractYoutubeVideoId("https://youtu.be/dQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");
     expect(extractYoutubeVideoId("https://example.com/watch?v=dQw4w9WgXcQ")).toBeNull();
@@ -319,6 +378,13 @@ describe("[보안 8번] CMS 콘텐츠 — 위험 URL 및 깨진 블록 차단", 
     expect(isSafeHref("javascript:alert(1)")).toBe(false);
     expect(isSafeAssetUrl("/uploads/gallery/image.png")).toBe(true);
     expect(isSafeAssetUrl("/uploads/../secret")).toBe(false);
+  });
+
+  it("allows long html-rich content beyond the normal block limit", () => {
+    const longHtml = `<p>${"a".repeat(25000)}</p>`;
+    const normalized = normalizeBlockContent("html-rich", JSON.stringify({ html: longHtml }));
+
+    expect(JSON.parse(normalized)).toEqual({ html: longHtml });
   });
 });
 

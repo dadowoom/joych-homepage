@@ -5,7 +5,7 @@
  * - 영상 순서 드래그로 변경
  * - 영상 삭제
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2, Plus, Youtube, ChevronDown, Loader2, X } from "lucide-react";
+import { GripVertical, Trash2, Plus, Youtube, Loader2, X } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 // ─── 유튜브 URL에서 videoId 추출 ───────────────────────────────
@@ -80,7 +80,7 @@ function SortableVideoItem({
           src={thumbnailUrl}
           alt={video.title}
           className="w-16 h-9 object-cover rounded flex-shrink-0 bg-gray-100"
-        />
+         loading="lazy"/>
       ) : (
         <div className="flex h-9 w-16 flex-shrink-0 items-center justify-center rounded bg-[#eef4ed] text-[#1B5E20]">
           <Youtube className="h-4 w-4 opacity-70" />
@@ -101,8 +101,20 @@ function SortableVideoItem({
   );
 }
 
+type YoutubeEditPanelProps = {
+  open: boolean;
+  onClose: () => void;
+  initialPlaylistId?: number | null;
+  lockPlaylist?: boolean;
+};
+
 // ─── 메인 컴포넌트 ─────────────────────────────────────────────
-export default function YoutubeEditPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function YoutubeEditPanel({
+  open,
+  onClose,
+  initialPlaylistId = null,
+  lockPlaylist = false,
+}: YoutubeEditPanelProps) {
   // sonner toast 사용
   const utils = trpc.useUtils();
 
@@ -122,6 +134,18 @@ export default function YoutubeEditPanel({ open, onClose }: { open: boolean; onC
   const [videoUrl, setVideoUrl] = useState("");
   const [videoTitle, setVideoTitle] = useState("");
   const [addingVideo, setAddingVideo] = useState(false);
+  const selectedPlaylist = playlists.find((p) => p.id === selectedPlaylistId);
+
+  useEffect(() => {
+    if (!open || !initialPlaylistId) return;
+    setSelectedPlaylistId(initialPlaylistId);
+  }, [initialPlaylistId, open]);
+
+  const refreshSelectedPlaylistVideos = () => {
+    if (!selectedPlaylistId) return;
+    utils.youtube.getVideosAdmin.invalidate({ playlistId: selectedPlaylistId });
+    utils.youtube.getVideos.invalidate({ playlistId: selectedPlaylistId });
+  };
 
   // Mutations
   const createPlaylist = trpc.youtube.createPlaylist.useMutation({
@@ -143,7 +167,7 @@ export default function YoutubeEditPanel({ open, onClose }: { open: boolean; onC
 
   const addVideo = trpc.youtube.addVideo.useMutation({
     onSuccess: () => {
-      utils.youtube.getVideosAdmin.invalidate({ playlistId: selectedPlaylistId! });
+      refreshSelectedPlaylistVideos();
       setVideoUrl("");
       setVideoTitle("");
       setAddingVideo(false);
@@ -156,12 +180,14 @@ export default function YoutubeEditPanel({ open, onClose }: { open: boolean; onC
 
   const deleteVideo = trpc.youtube.deleteVideo.useMutation({
     onSuccess: () => {
-      utils.youtube.getVideosAdmin.invalidate({ playlistId: selectedPlaylistId! });
+      refreshSelectedPlaylistVideos();
       toast.success("영상이 삭제됩니다.");;
     },
   });
 
-  const reorderVideos = trpc.youtube.reorderVideos.useMutation();
+  const reorderVideos = trpc.youtube.reorderVideos.useMutation({
+    onSuccess: refreshSelectedPlaylistVideos,
+  });
 
   // 드래그 센서
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -209,97 +235,108 @@ export default function YoutubeEditPanel({ open, onClose }: { open: boolean; onC
     });
   };
 
-  const selectedPlaylist = playlists.find((p) => p.id === selectedPlaylistId);
-
   return (
-    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent side="right" className="w-[480px] max-w-full p-0 flex flex-col">
-        <SheetHeader className="px-5 py-4 border-b">
+    <Sheet modal={false} open={open} onOpenChange={(v) => !v && onClose()}>
+      <SheetContent
+        side="right"
+        showOverlay={false}
+        className="flex w-[360px] max-w-[calc(100vw-16px)] flex-col overflow-hidden bg-white p-0 sm:max-w-[360px]"
+        style={{ top: "144px", height: "calc(100vh - 144px)" }}
+      >
+        <SheetHeader className="shrink-0 border-b px-5 py-4">
           <SheetTitle className="flex items-center gap-2 text-base">
             <Youtube className="w-5 h-5 text-red-500" />
             유튜브 영상 관리
           </SheetTitle>
         </SheetHeader>
-    <div className="flex flex-col gap-4 p-4 flex-1 overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4">
       <h3 className="sr-only">유튜브 영상 관리</h3>
 
       {/* ── 플레이리스트 선택 ── */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-gray-700">플레이리스트</span>
-          <button
-            onClick={() => setShowNewPlaylist(!showNewPlaylist)}
-            className="text-xs text-[#1B5E20] hover:underline flex items-center gap-1"
-          >
-            <Plus className="w-3 h-3" /> 새 목록 만들기
-          </button>
+      {lockPlaylist ? (
+        <div className="rounded-lg border border-[#d8ead5] bg-[#f5fbf4] px-3 py-2">
+          <p className="text-xs font-semibold text-[#1B5E20]">현재 페이지 영상 목록</p>
+          <p className="mt-1 text-sm font-medium text-gray-800">
+            {selectedPlaylist?.title ?? "연결된 영상 목록"}
+          </p>
         </div>
-
-        {/* 새 플레이리스트 입력 */}
-        {showNewPlaylist && (
-          <div className="flex gap-2 mb-2">
-            <Input
-              value={newPlaylistTitle}
-              onChange={(e) => setNewPlaylistTitle(e.target.value)}
-              placeholder="목록 이름 입력"
-              className="h-8 text-sm"
-              onKeyDown={(e) => e.key === "Enter" && createPlaylist.mutate({ title: newPlaylistTitle })}
-            />
-            <Button
-              size="sm"
-              className="h-8 bg-[#1B5E20] hover:bg-[#2E7D32] text-white"
-              onClick={() => createPlaylist.mutate({ title: newPlaylistTitle })}
-              disabled={!newPlaylistTitle.trim() || createPlaylist.isPending}
+      ) : (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-gray-700">플레이리스트</span>
+            <button
+              onClick={() => setShowNewPlaylist(!showNewPlaylist)}
+              className="text-xs text-[#1B5E20] hover:underline flex items-center gap-1"
             >
-              {createPlaylist.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "생성"}
-            </Button>
+              <Plus className="w-3 h-3" /> 새 목록 만들기
+            </button>
           </div>
-        )}
 
-        {/* 플레이리스트 목록 */}
-        {playlistsLoading ? (
-          <div className="text-sm text-gray-400 py-2">불러오는 중...</div>
-        ) : playlists.length === 0 ? (
-          <div className="text-sm text-gray-400 py-2 text-center border border-dashed border-gray-200 rounded-lg">
-            플레이리스트가 없습니다. 먼저 새 목록을 만들어 주세요.
-          </div>
-        ) : (
-          <div className="flex flex-col gap-1">
-            {playlists.map((pl) => (
-              <button
-                key={pl.id}
-                onClick={() => setSelectedPlaylistId(pl.id)}
-                className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${
-                  selectedPlaylistId === pl.id
-                    ? "bg-[#1B5E20] text-white"
-                    : "bg-gray-50 text-gray-700 hover:bg-gray-100"
-                }`}
+          {/* 새 플레이리스트 입력 */}
+          {showNewPlaylist && (
+            <div className="flex gap-2 mb-2">
+              <Input
+                value={newPlaylistTitle}
+                onChange={(e) => setNewPlaylistTitle(e.target.value)}
+                placeholder="목록 이름 입력"
+                className="h-8 text-sm"
+                onKeyDown={(e) => e.key === "Enter" && createPlaylist.mutate({ title: newPlaylistTitle })}
+              />
+              <Button
+                size="sm"
+                className="h-8 bg-[#1B5E20] hover:bg-[#2E7D32] text-white"
+                onClick={() => createPlaylist.mutate({ title: newPlaylistTitle })}
+                disabled={!newPlaylistTitle.trim() || createPlaylist.isPending}
               >
-                <span className="font-medium">{pl.title}</span>
-                {selectedPlaylistId === pl.id && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (confirm(`"${pl.title}" 플레이리스트와 모든 영상을 삭제할까요?`)) {
-                        deletePlaylist.mutate({ id: pl.id });
-                      }
-                    }}
-                    className="text-white/70 hover:text-white ml-2"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+                {createPlaylist.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "생성"}
+              </Button>
+            </div>
+          )}
+
+          {/* 플레이리스트 목록 */}
+          {playlistsLoading ? (
+            <div className="text-sm text-gray-400 py-2">불러오는 중...</div>
+          ) : playlists.length === 0 ? (
+            <div className="text-sm text-gray-400 py-2 text-center border border-dashed border-gray-200 rounded-lg">
+              플레이리스트가 없습니다. 먼저 새 목록을 만들어 주세요.
+            </div>
+          ) : (
+            <div className="flex max-h-40 flex-col gap-1 overflow-y-auto pr-1">
+              {playlists.map((pl) => (
+                <button
+                  key={pl.id}
+                  onClick={() => setSelectedPlaylistId(pl.id)}
+                  className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${
+                    selectedPlaylistId === pl.id
+                      ? "bg-[#1B5E20] text-white"
+                      : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  <span className="font-medium">{pl.title}</span>
+                  {selectedPlaylistId === pl.id && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm(`"${pl.title}" 플레이리스트와 모든 영상을 삭제할까요?`)) {
+                          deletePlaylist.mutate({ id: pl.id });
+                        }
+                      }}
+                      className="text-white/70 hover:text-white ml-2"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── 선택된 플레이리스트의 영상 관리 ── */}
       {selectedPlaylistId !== null && (
-        <>
-          <div className="border-t border-gray-100 pt-4">
-            <div className="flex items-center justify-between mb-3">
+        <div className="flex min-h-0 flex-1 flex-col border-t border-gray-100 pt-4">
+            <div className="mb-3 flex shrink-0 items-center justify-between">
               <span className="text-sm font-medium text-gray-700">
                 영상 목록 <span className="text-gray-400">({videos.length}개)</span>
               </span>
@@ -313,7 +350,7 @@ export default function YoutubeEditPanel({ open, onClose }: { open: boolean; onC
 
             {/* 영상 추가 폼 */}
             {addingVideo && (
-              <div className="bg-gray-50 rounded-lg p-3 mb-3 flex flex-col gap-2">
+              <div className="mb-3 flex shrink-0 flex-col gap-2 rounded-lg bg-gray-50 p-3">
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">유튜브 링크 또는 영상 ID</label>
                   <Input
@@ -355,31 +392,32 @@ export default function YoutubeEditPanel({ open, onClose }: { open: boolean; onC
             )}
 
             {/* 영상 목록 (드래그 가능) */}
-            {videosLoading ? (
-              <div className="text-sm text-gray-400 py-4 text-center">불러오는 중...</div>
-            ) : videos.length === 0 ? (
-              <div className="text-sm text-gray-400 py-4 text-center border border-dashed border-gray-200 rounded-lg">
-                영상이 없습니다. 위에서 영상을 추가해 주세요.
-              </div>
-            ) : (
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                <SortableContext items={videos.map((v) => v.id)} strategy={verticalListSortingStrategy}>
-                  <div className="flex flex-col gap-2">
-                    {videos.map((video) => (
-                      <SortableVideoItem
-                        key={video.id}
-                        video={video}
-                        onDelete={(id) => {
-                          if (confirm("이 영상을 삭제할까요?")) deleteVideo.mutate({ id });
-                        }}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
-            )}
-          </div>
-        </>
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              {videosLoading ? (
+                <div className="py-4 text-center text-sm text-gray-400">불러오는 중...</div>
+              ) : videos.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-gray-200 py-4 text-center text-sm text-gray-400">
+                  영상이 없습니다. 위에서 영상을 추가해 주세요.
+                </div>
+              ) : (
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={videos.map((v) => v.id)} strategy={verticalListSortingStrategy}>
+                    <div className="flex flex-col gap-2">
+                      {videos.map((video) => (
+                        <SortableVideoItem
+                          key={video.id}
+                          video={video}
+                          onDelete={(id) => {
+                            if (confirm("이 영상을 삭제할까요?")) deleteVideo.mutate({ id });
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              )}
+            </div>
+        </div>
       )}
     </div>
       </SheetContent>

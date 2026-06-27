@@ -5,18 +5,199 @@
  */
 
 import { useState, useMemo } from "react";
-import { Link, useParams, useLocation } from "wouter";
+import { Link, useParams, useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import type { Facility, FacilityHour, FacilityImage, FacilityBlockedDate } from "../../../drizzle/schema";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import ReservationTimelinePicker from "@/components/facility/ReservationTimelinePicker";
 import { Users, MapPin, Clock, ChevronLeft, ChevronRight, Phone, AlertCircle, CalendarCheck, Loader2 } from "lucide-react";
+import {
+  getFacilityReservationMaxMonths,
+  getReservationMaxDateKey,
+  getReservationTimeRestriction,
+  hasReservableStartTime,
+} from "@/lib/facilityReservationTime";
+import {
+  generateReservationTimePoints,
+} from "@/lib/facilitySlotSelection";
+import { hasFacilityReservationRuleOverride } from "@shared/facilityReservationEligibility";
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
+type FacilityBuilding = "hayoungin" | "welfare";
+type FacilityAudience = "member" | "external";
+
+function normalizeFacilityBuilding(building: string | null | undefined): FacilityBuilding {
+  return building === "hayoungin" ? "hayoungin" : "welfare";
+}
+
+function getFacilityListHref(building: FacilityBuilding, audience: FacilityAudience = "member") {
+  return audience === "external" ? `/facility/external?building=${building}` : `/facility?building=${building}`;
+}
+
+function getFacilityApplyHref(facilityId: number, audience: FacilityAudience) {
+  return audience === "external" ? `/facility/external/${facilityId}/apply` : `/facility/${facilityId}/apply`;
+}
+
+function useFacilityHoursForAudience(facilityId: number, audience: FacilityAudience) {
+  const memberHoursQuery = trpc.home.facilityHours.useQuery(
+    { facilityId },
+    { enabled: audience === "member" && !!facilityId }
+  );
+  const externalHoursQuery = trpc.home.externalFacilityHours.useQuery(
+    { facilityId },
+    { enabled: audience === "external" && !!facilityId }
+  );
+
+  return audience === "external" ? externalHoursQuery : memberHoursQuery;
+}
+
+function formatDayRanges(days: number[]) {
+  const sortedDays = days
+    .filter(day => day >= 0 && day < DAY_LABELS.length)
+    .filter((day, index, validDays) => validDays.indexOf(day) === index)
+    .sort((a, b) => a - b);
+
+  const ranges: string[] = [];
+  let start: number | null = null;
+  let previous: number | null = null;
+
+  for (const day of sortedDays) {
+    if (start === null || previous === null || day !== previous + 1) {
+      if (start !== null && previous !== null) {
+        ranges.push(start === previous ? DAY_LABELS[start] : `${DAY_LABELS[start]}~${DAY_LABELS[previous]}`);
+      }
+      start = day;
+    }
+    previous = day;
+  }
+
+  if (start !== null && previous !== null) {
+    ranges.push(start === previous ? DAY_LABELS[start] : `${DAY_LABELS[start]}~${DAY_LABELS[previous]}`);
+  }
+
+  return ranges.join(", ");
+}
+
+function formatOperatingHoursSummary(hours: FacilityHour[] | undefined) {
+  if (!hours || hours.length === 0) return "운영시간 정보는 시설 안내를 확인해 주세요.";
+
+  const openGroups = new Map<string, number[]>();
+  const closedDays: number[] = [];
+
+  [...hours]
+    .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+    .forEach(hour => {
+      if (!hour.isOpen || !hour.openTime || !hour.closeTime) {
+        closedDays.push(hour.dayOfWeek);
+        return;
+      }
+
+      const breakLabel = hour.breakStart && hour.breakEnd ? ` (휴게 ${hour.breakStart}~${hour.breakEnd})` : "";
+      const timeLabel = `${hour.openTime} ~ ${hour.closeTime}${breakLabel}`;
+      openGroups.set(timeLabel, [...(openGroups.get(timeLabel) ?? []), hour.dayOfWeek]);
+    });
+
+  const summaries = Array.from(openGroups.entries()).map(([timeLabel, days]) => `${formatDayRanges(days)} ${timeLabel}`);
+  if (closedDays.length > 0) {
+    summaries.push(`${formatDayRanges(closedDays)} 휴무`);
+  }
+
+  return summaries.length > 0 ? summaries.join(" / ") : "운영시간 정보는 시설 안내를 확인해 주세요.";
+}
+
+function generateReservationStartSlots(openTime: string, closeTime: string, slotMinutes: number) {
+  const [openHour, openMinute] = openTime.split(":").map(Number);
+  const [closeHour, closeMinute] = closeTime.split(":").map(Number);
+  if ([openHour, openMinute, closeHour, closeMinute].some(Number.isNaN) || slotMinutes <= 0) return [];
+
+  const slots: string[] = [];
+  let current = openHour * 60 + openMinute;
+  const close = closeHour * 60 + closeMinute;
+  while (current < close) {
+    slots.push(`${String(Math.floor(current / 60)).padStart(2, "0")}:${String(current % 60).padStart(2, "0")}`);
+    current += slotMinutes;
+  }
+
+  return slots;
+}
+
+type ReservationByDateRow = {
+  id?: number;
+  startTime: string;
+  endTime: string;
+  status: string;
+  reserverName?: string | null;
+  reserverPhone?: string | null;
+  purpose?: string | null;
+  department?: string | null;
+  attendees?: number | null;
+  userName?: string | null;
+  memberPosition?: string | null;
+  memberPhone?: string | null;
+};
+
+function isActiveReservation(row: ReservationByDateRow) {
+  return row.status !== "rejected" && row.status !== "cancelled";
+}
+
+function hasAdminReservationDetails(row: ReservationByDateRow) {
+  return Boolean(
+    row.reserverName ||
+    row.userName ||
+    row.reserverPhone ||
+    row.memberPhone ||
+    row.memberPosition ||
+    row.department ||
+    row.purpose
+  );
+}
+
+function getReservationName(row: ReservationByDateRow) {
+  return row.reserverName || row.userName || "이름 없음";
+}
+
+function getReservationPosition(row: ReservationByDateRow) {
+  return row.memberPosition || row.department || "-";
+}
+
+function getReservationPhone(row: ReservationByDateRow) {
+  return row.reserverPhone || row.memberPhone || "-";
+}
+
+function getReservationTimeRange(row: ReservationByDateRow) {
+  return `${row.startTime}~${row.endTime}`;
+}
+
+function getReservationStatusLabel(status: string) {
+  if (status === "approved") return "승인";
+  if (status === "pending") return "대기";
+  if (status === "rejected") return "거절";
+  if (status === "cancelled") return "취소";
+  return status;
+}
+
+function FacilityInquiryCard({ facilityId, audience }: { facilityId: number; audience: FacilityAudience }) {
+  const { data: hours } = useFacilityHoursForAudience(facilityId, audience);
+  const hoursSummary = useMemo(() => formatOperatingHoursSummary(hours), [hours]);
+
+  return (
+    <div className="bg-white rounded-xl p-5 border border-gray-100">
+      <p className="font-bold text-gray-800 text-sm mb-2 flex items-center gap-2">
+        <Phone size={14} className="text-[#1B5E20]" />
+        시설 문의
+      </p>
+      <p className="text-sm text-gray-500">행정실: <span className="text-[#1B5E20] font-medium">054-270-1000</span></p>
+      <p className="text-xs text-gray-400 mt-1">운영시간: {hoursSummary}</p>
+    </div>
+  );
+}
+
+
 // ── 운영 시간 표시 ──────────────────────────────────────────
-function HoursTable({ facilityId }: { facilityId: number }) {
-  const { data: hours } = trpc.home.facilityHours.useQuery({ facilityId });
+function HoursTable({ facilityId, audience }: { facilityId: number; audience: FacilityAudience }) {
+  const { data: hours } = useFacilityHoursForAudience(facilityId, audience);
   if (!hours || hours.length === 0) return null;
 
   return (
@@ -63,7 +244,7 @@ function ImageGallery({ facilityId, name }: { facilityId: number; name: string }
   return (
     <div>
       <div className="rounded-xl overflow-hidden mb-2 aspect-video">
-        <img src={images[active]?.imageUrl} alt={name} className="w-full h-full object-cover" />
+        <img src={images[active]?.imageUrl} alt={name} className="w-full h-full object-cover"  loading="lazy"/>
       </div>
       {images.length > 1 && (
         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -75,7 +256,7 @@ function ImageGallery({ facilityId, name }: { facilityId: number; name: string }
                 active === i ? "border-[#1B5E20]" : "border-transparent"
               }`}
             >
-              <img src={img.imageUrl} alt="" className="w-full h-full object-cover" />
+              <img src={img.imageUrl} alt="" className="w-full h-full object-cover"  loading="lazy"/>
             </button>
           ))}
         </div>
@@ -92,6 +273,8 @@ function TimeSlotPanel({
   startTime,
   endTime,
   onSelectTime,
+  hasReservationOverride,
+  audience,
 }: {
   facilityId: number;
   facility: Facility | null | undefined;
@@ -99,15 +282,21 @@ function TimeSlotPanel({
   startTime: string;
   endTime: string;
   onSelectTime: (start: string, end: string) => void;
+  hasReservationOverride: boolean;
+  audience: FacilityAudience;
 }) {
   const dayOfWeek = new Date(selectedDate).getDay();
   const slotMinutes = facility?.slotMinutes ?? 60;
   const maxSlots = facility?.maxSlots ?? 8;
 
-  const { data: hours } = trpc.home.facilityHours.useQuery({ facilityId });
+  const { data: hours } = useFacilityHoursForAudience(facilityId, audience);
   const { data: reservations, isLoading } = trpc.home.facilityReservationsByDate.useQuery(
     { facilityId, date: selectedDate },
     { enabled: !!selectedDate }
+  );
+  const reservationRows = useMemo(
+    () => (reservations ?? []) as ReservationByDateRow[],
+    [reservations]
   );
 
   const todayHour = useMemo(() => {
@@ -118,9 +307,8 @@ function TimeSlotPanel({
   // 예약된 시간 슬롯 계산 (slotMinutes 단위)
   const bookedSlots = useMemo(() => {
     const set = new Set<string>();
-    if (!reservations) return set;
-    reservations.forEach((r) => {
-      if (r.status === "rejected" || r.status === "cancelled") return;
+    reservationRows.forEach((r) => {
+      if (!isActiveReservation(r)) return;
       const [sh, sm] = r.startTime.split(":").map(Number);
       const [eh, em] = r.endTime.split(":").map(Number);
       let cur = sh * 60 + sm;
@@ -133,25 +321,55 @@ function TimeSlotPanel({
       }
     });
     return set;
-  }, [reservations, slotMinutes]);
+  }, [reservationRows, slotMinutes]);
 
-  // 운영 시간 내 슬롯 생성 (slotMinutes 단위, 종료 시간 포함)
+  const reservationBySlot = useMemo(() => {
+    const map = new Map<string, ReservationByDateRow>();
+    reservationRows.forEach((r) => {
+      if (!isActiveReservation(r)) return;
+      const [sh, sm] = r.startTime.split(":").map(Number);
+      const [eh, em] = r.endTime.split(":").map(Number);
+      let cur = sh * 60 + sm;
+      const end = eh * 60 + em;
+      while (cur < end) {
+        const h = Math.floor(cur / 60);
+        const m = cur % 60;
+        map.set(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`, r);
+        cur += slotMinutes;
+      }
+    });
+    return map;
+  }, [reservationRows, slotMinutes]);
+
+  const adminReservations = useMemo(
+    () => reservationRows.filter((r) => isActiveReservation(r) && hasAdminReservationDetails(r)),
+    [reservationRows]
+  );
+
+  // Generate selectable start slots within operating hours.
   const allSlots = useMemo(() => {
-    if (!todayHour || !todayHour.isOpen) return [];
-    const slots: string[] = [];
-    const [oh, om] = todayHour.openTime.split(":").map(Number);
-    const [ch, cm] = todayHour.closeTime.split(":").map(Number);
-    let cur = oh * 60 + om;
-    const end = ch * 60 + cm;
-    // 종료 시간(closeTime)도 슬롯에 포함 (<=)
-    while (cur <= end) {
-      const h = Math.floor(cur / 60);
-      const m = cur % 60;
-      slots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
-      cur += slotMinutes;
-    }
-    return slots;
-  }, [todayHour, slotMinutes]);
+    if (!hasReservationOverride && (!todayHour || !todayHour.isOpen)) return [];
+    const openTime = hasReservationOverride
+      ? (todayHour?.openTime ?? facility?.openTime)
+      : todayHour?.openTime;
+    const closeTime = hasReservationOverride
+      ? (todayHour?.closeTime ?? facility?.closeTime)
+      : todayHour?.closeTime;
+    if (!openTime || !closeTime) return [];
+    return generateReservationTimePoints(openTime, closeTime, slotMinutes);
+  }, [todayHour, slotMinutes, hasReservationOverride, facility?.openTime, facility?.closeTime]);
+
+  const disabledSlots = useMemo(() => {
+    const disabled = new Map<string, string>();
+    if (!selectedDate) return disabled;
+    allSlots.forEach((slot) => {
+      const restriction = getReservationTimeRestriction(selectedDate, slot, {
+        enforceLeadTime: !hasReservationOverride,
+      });
+      if (restriction) disabled.set(slot, restriction);
+    });
+    return disabled;
+  }, [allSlots, selectedDate, hasReservationOverride]);
 
   // 날짜 포맷 (예: 2026년 4월 18일 (금))
   const dateLabel = useMemo(() => {
@@ -159,56 +377,25 @@ function TimeSlotPanel({
     return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${DAY_LABELS[d.getDay()]})`;
   }, [selectedDate]);
 
-  // 슬롯 클릭 핸들러
-  // - 아무것도 선택 안 된 상태 → 시작 시간 선택
-  // - 시작 시간만 선택된 상태 → 종료 시간 선택 (시작보다 뒤여야 함)
-  // - 둘 다 선택된 상태 → 초기화 후 시작 시간 재선택
-  function handleSlotClick(slot: string) {
-    if (bookedSlots.has(slot)) return; // 예약된 슬롯은 클릭 불가
-
-    // 종료 시간(closeTime) 슬롯은 시작 시간으로 선택 불가
-    const lastSlot = allSlots[allSlots.length - 1];
-    
-    if (!startTime || (startTime && endTime)) {
-      // 마지막 슬롯(종료 시간)은 시작 시간으로 선택 불가
-      if (slot === lastSlot) return;
-      onSelectTime(slot, "");
-    } else {
-      // 시작 시간이 있고 종료 시간이 없는 상태
-      if (slot <= startTime) {
-        if (slot === lastSlot) return;
-        onSelectTime(slot, "");
-      } else {
-        // maxSlots 초과 여부 확인
-        const [sh, sm] = startTime.split(":").map(Number);
-        const [eh, em] = slot.split(":").map(Number);
-        const diffMinutes = (eh * 60 + em) - (sh * 60 + sm);
-        const selectedSlots = diffMinutes / slotMinutes;
-        if (selectedSlots > maxSlots) {
-          // 최대 예약 시간 초과 시 해당 슬롯을 새 시작 시간으로
-          if (slot !== lastSlot) onSelectTime(slot, "");
-          return;
-        }
-        // 시작~종료 사이에 예약된 슬롯이 있으면 불가
-        let cur = sh * 60 + sm;
-        const end = eh * 60 + em;
-        let hasConflict = false;
-        while (cur < end) {
-          const h = Math.floor(cur / 60);
-          const m = cur % 60;
-          if (bookedSlots.has(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`)) {
-            hasConflict = true;
-            break;
-          }
-          cur += slotMinutes;
-        }
-        if (hasConflict) {
-          if (slot !== lastSlot) onSelectTime(slot, "");
-        } else {
-          onSelectTime(startTime, slot);
-        }
-      }
+  function renderDisabledTooltip(slot: string, disabledReason?: string) {
+    const bookedReservation = reservationBySlot.get(slot);
+    if (!bookedReservation || !hasAdminReservationDetails(bookedReservation)) {
+      return disabledReason ?? "예약 불가";
     }
+
+    return (
+      <div className="space-y-0.5">
+        <p className="font-semibold text-white">
+          {getReservationName(bookedReservation)} · {getReservationTimeRange(bookedReservation)}
+        </p>
+        <p className="text-gray-200">
+          {getReservationPosition(bookedReservation)} · {getReservationPhone(bookedReservation)}
+        </p>
+        {bookedReservation.purpose && (
+          <p className="line-clamp-2 text-gray-300">{bookedReservation.purpose}</p>
+        )}
+      </div>
+    );
   }
 
   if (!selectedDate) return null;
@@ -221,7 +408,7 @@ function TimeSlotPanel({
       </div>
 
       {/* 휴무일 */}
-      {todayHour && !todayHour.isOpen && (
+      {todayHour && !todayHour.isOpen && !hasReservationOverride && (
         <div className="flex items-center gap-2 text-red-500 text-sm bg-red-50 rounded-lg p-3">
           <AlertCircle size={14} />
           <span>이 날은 휴무일입니다.</span>
@@ -241,72 +428,63 @@ function TimeSlotPanel({
       )}
 
       {/* 시간대 슬롯 선택 */}
-      {!isLoading && todayHour && todayHour.isOpen && allSlots.length > 0 && (
+      {!isLoading && (hasReservationOverride || (todayHour && todayHour.isOpen)) && allSlots.length > 0 && (
         <>
           <p className="text-xs text-gray-500">
-            운영 시간: {todayHour.openTime} ~ {todayHour.closeTime}
+            운영 시간: {todayHour?.openTime ?? facility?.openTime} ~ {todayHour?.closeTime ?? facility?.closeTime}
           </p>
 
-          {/* 선택 안내 */}
-          <p className="text-xs text-[#1B5E20] font-medium">
-            {!startTime
-              ? "시작 시간을 클릭하세요"
-              : !endTime
-              ? `${startTime} 선택됨 — 종료 시간을 클릭하세요`
-              : `${startTime} ~ ${endTime} 선택됨 — 다시 클릭하면 초기화`}
-          </p>
+          <ReservationTimelinePicker
+            allSlots={allSlots}
+            bookedSlots={bookedSlots}
+            disabledSlots={disabledSlots}
+            startTime={startTime}
+            endTime={endTime}
+            onSelect={onSelectTime}
+            slotMinutes={slotMinutes}
+            maxSlots={maxSlots}
+            renderDisabledTooltip={renderDisabledTooltip}
+          />
 
-              <div className="flex flex-wrap gap-1.5">
-            {allSlots.map((slot) => {
-              const isBooked = bookedSlots.has(slot);
-              const isStart = slot === startTime;
-              const isEnd = slot === endTime;
-              const isInRange = startTime && endTime && slot > startTime && slot < endTime;
-              const isSelected = isStart || isEnd || isInRange;
-
-              return (
-                <div key={slot} className="relative group">
-                  <button
-                    disabled={isBooked}
-                    onClick={() => handleSlotClick(slot)}
-                    className={`text-xs px-2.5 py-1.5 rounded-md font-medium transition-colors ${
-                      isBooked
-                        ? "bg-red-100 text-red-400 line-through cursor-not-allowed"
-                        : isStart || isEnd
-                        ? "bg-[#1B5E20] text-white ring-2 ring-[#1B5E20] ring-offset-1"
-                        : isInRange
-                        ? "bg-[#2E7D32] text-white"
-                        : "bg-green-50 text-green-700 border border-green-200 hover:bg-green-200 cursor-pointer"
-                    }`}
+          {adminReservations.length > 0 && (
+            <div className="mt-3 rounded-lg border border-green-100 bg-green-50/60 p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-xs font-bold text-[#1B5E20]">관리자용 예약 상세</p>
+                <p className="text-[10px] text-gray-400">관리자에게만 표시</p>
+              </div>
+              <div className="space-y-2">
+                {adminReservations.map((reservation, index) => (
+                  <div
+                    key={reservation.id ?? `${reservation.startTime}-${reservation.endTime}-${index}`}
+                    className="rounded-md border border-white bg-white/90 p-2 text-xs text-gray-700 shadow-sm"
                   >
-                    {slot}
-                  </button>
-                  {isBooked && (
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-gray-800 text-white text-[10px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                      예약 불가
-                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                    <div className="flex flex-wrap items-center justify-between gap-1">
+                      <span className="font-bold text-gray-900">
+                        {getReservationTimeRange(reservation)}
+                      </span>
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500">
+                        {getReservationStatusLabel(reservation.status)}
+                      </span>
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* 범례 */}
-          <div className="flex flex-wrap gap-3 text-xs text-gray-400 pt-1">
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-sm bg-green-50 border border-green-200 inline-block" />
-              예약 가능
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-sm bg-red-100 inline-block" />
-              예약됨
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-sm bg-[#1B5E20] inline-block" />
-              선택됨
-            </span>
-          </div>
+                    <div className="mt-1 grid grid-cols-[52px_1fr] gap-x-2 gap-y-1">
+                      <span className="text-gray-400">이름</span>
+                      <span className="font-medium text-gray-900">{getReservationName(reservation)}</span>
+                      <span className="text-gray-400">직분/부서</span>
+                      <span>{getReservationPosition(reservation)}</span>
+                      <span className="text-gray-400">전화번호</span>
+                      <span>{getReservationPhone(reservation)}</span>
+                      {reservation.purpose && (
+                        <>
+                          <span className="text-gray-400">목적</span>
+                          <span className="line-clamp-2">{reservation.purpose}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
@@ -317,26 +495,31 @@ function TimeSlotPanel({
 function ReservationCalendar({
   facilityId,
   selectedDate,
+  slotMinutes,
+  reservationMaxDateKey,
+  reservationMaxMonths,
   onSelectDate,
+  hasReservationOverride,
+  audience,
 }: {
   facilityId: number;
   selectedDate: string;
+  slotMinutes?: number | null;
+  reservationMaxDateKey: string;
+  reservationMaxMonths: number;
   onSelectDate: (date: string) => void;
+  hasReservationOverride: boolean;
+  audience: FacilityAudience;
 }) {
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
 
   const { data: blockedDates } = trpc.home.facilityBlockedDates.useQuery({ facilityId });
-  const { data: hours } = trpc.home.facilityHours.useQuery({ facilityId });
+  const { data: hours } = useFacilityHoursForAudience(facilityId, audience);
 
   const blockedSet = useMemo(() => {
     return new Set((blockedDates ?? []).map((b: FacilityBlockedDate) => b.blockedDate));
   }, [blockedDates]);
-
-  const closedDays = useMemo(() => {
-    if (!hours) return new Set<number>();
-    return new Set(hours.filter((h: FacilityHour) => !h.isOpen).map((h: FacilityHour) => h.dayOfWeek));
-  }, [hours]);
 
   const firstDay = new Date(viewYear, viewMonth, 1).getDay();
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
@@ -347,6 +530,7 @@ function ReservationCalendar({
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const normalizedSlotMinutes = Math.max(1, Number(slotMinutes) || 60);
 
   function toDateStr(day: number) {
     return `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -361,6 +545,11 @@ function ReservationCalendar({
     else setViewMonth(m => m + 1);
   }
 
+  const nextMonthIndex = viewMonth === 11 ? 0 : viewMonth + 1;
+  const nextMonthYear = viewMonth === 11 ? viewYear + 1 : viewYear;
+  const nextMonthFirstDateKey = `${nextMonthYear}-${String(nextMonthIndex + 1).padStart(2, "0")}-01`;
+  const isNextMonthUnavailable = !hasReservationOverride && nextMonthFirstDateKey > reservationMaxDateKey;
+
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-5">
       <div className="flex items-center justify-between mb-4">
@@ -368,7 +557,11 @@ function ReservationCalendar({
           <ChevronLeft size={16} />
         </button>
         <h3 className="font-bold text-gray-800 text-sm">{viewYear}년 {viewMonth + 1}월</h3>
-        <button onClick={nextMonth} className="p-1 hover:bg-gray-100 rounded-full">
+        <button
+          onClick={nextMonth}
+          disabled={isNextMonthUnavailable}
+          className="p-1 hover:bg-gray-100 rounded-full disabled:cursor-not-allowed disabled:opacity-30"
+        >
           <ChevronRight size={16} />
         </button>
       </div>
@@ -377,6 +570,11 @@ function ReservationCalendar({
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-100 border border-red-300 inline-block"></span>예약불가</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-[#1B5E20] inline-block"></span>선택됨</span>
       </div>
+      {!hasReservationOverride && (
+        <p className="mb-3 rounded-lg bg-gray-50 px-3 py-2 text-center text-[11px] text-gray-500">
+          예약은 최대 {reservationMaxMonths}개월 후({reservationMaxDateKey})까지만 가능합니다.
+        </p>
+      )}
       <div className="grid grid-cols-7 gap-1 text-center text-xs mb-1">
         {DAY_LABELS.map((d, i) => (
           <div key={i} className={`font-medium py-1 ${i === 0 ? "text-red-400" : i === 6 ? "text-blue-400" : "text-gray-500"}`}>
@@ -390,10 +588,22 @@ function ReservationCalendar({
           const dateStr = toDateStr(day);
           const date = new Date(dateStr);
           const isPast = date < today;
+          const isAfterReservationWindow = !hasReservationOverride && dateStr > reservationMaxDateKey;
           const isBlocked = blockedSet.has(dateStr);
-          const isClosed = closedDays.has(date.getDay());
+          const dayHour = hours?.find((h: FacilityHour) => h.dayOfWeek === date.getDay());
+          const hoursLoaded = Boolean(hours);
+          const isClosed = hoursLoaded ? !dayHour?.isOpen : false;
+          const startSlots =
+            hoursLoaded && dayHour?.isOpen && dayHour.openTime && dayHour.closeTime
+              ? generateReservationStartSlots(dayHour.openTime, dayHour.closeTime, normalizedSlotMinutes)
+              : [];
+          const hasAvailableStartTime = hoursLoaded
+            ? startSlots.length > 0 && hasReservableStartTime(dateStr, startSlots, {
+                enforceLeadTime: !hasReservationOverride,
+              })
+            : true;
           const isSelected = selectedDate === dateStr;
-          const isUnavailable = isPast || isBlocked || isClosed;
+          const isUnavailable = isPast || (!hasReservationOverride && (isAfterReservationWindow || isBlocked || isClosed || !hasAvailableStartTime));
 
           return (
             <button
@@ -415,18 +625,50 @@ function ReservationCalendar({
 }
 
 // ── 메인 상세 페이지 ───────────────────────────────────────
-export default function FacilityDetail() {
+function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }) {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
+  const searchString = useSearch();
   const facilityId = parseInt(params.id ?? "0");
   const [selectedDate, setSelectedDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const isExternal = audience === "external";
 
-  const { data: facility, isLoading } = trpc.home.facility.useQuery(
+  const memberFacilityQuery = trpc.home.facility.useQuery(
     { id: facilityId },
-    { enabled: !isNaN(facilityId) }
+    { enabled: !isNaN(facilityId) && !isExternal }
   );
+  const externalFacilityQuery = trpc.home.externalFacility.useQuery(
+    { id: facilityId },
+    { enabled: !isNaN(facilityId) && isExternal }
+  );
+  const facility = isExternal ? externalFacilityQuery.data : memberFacilityQuery.data;
+  const isLoading = isExternal ? externalFacilityQuery.isLoading : memberFacilityQuery.isLoading;
+  const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, {
+    enabled: !isExternal,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const { data: reservationSettings } = trpc.home.settings.useQuery();
+  const isApprovedMember = isExternal || Boolean(memberMe);
+  const hasReservationOverride = !isExternal && hasFacilityReservationRuleOverride(memberMe ?? {});
+  const reservationMaxMonths = getFacilityReservationMaxMonths(reservationSettings);
+  const reservationMaxDateKey = getReservationMaxDateKey(reservationSettings);
+  const activeBuilding = useMemo(() => {
+    const requestedBuilding = new URLSearchParams(searchString).get("building");
+    return normalizeFacilityBuilding(requestedBuilding ?? facility?.building);
+  }, [facility?.building, searchString]);
+  const facilityListHref = getFacilityListHref(activeBuilding, audience);
+
+  function goToMemberLogin() {
+    const nextPath = `/facility/${facilityId}${searchString ? `?${searchString}` : ""}`;
+    const loginParams = new URLSearchParams({
+      social: "facility_member_required",
+      next: nextPath,
+    });
+    navigate(`/member/login?${loginParams.toString()}`);
+  }
 
   // 날짜 변경 시 시간 초기화
   function handleSelectDate(date: string) {
@@ -444,10 +686,17 @@ export default function FacilityDetail() {
   // 예약 신청 버튼 클릭
   function handleApply() {
     if (!selectedDate) return;
-    let url = `/facility/${facilityId}/apply?date=${selectedDate}`;
-    if (startTime) url += `&startTime=${startTime}`;
-    if (endTime) url += `&endTime=${endTime}`;
-    navigate(url);
+    if (!isExternal && !isApprovedMember) {
+      goToMemberLogin();
+      return;
+    }
+    const params = new URLSearchParams({
+      date: selectedDate,
+      building: activeBuilding,
+    });
+    if (startTime) params.set("startTime", startTime);
+    if (endTime) params.set("endTime", endTime);
+    navigate(`${getFacilityApplyHref(facilityId, audience)}?${params.toString()}`);
   }
 
   // 버튼 라벨
@@ -475,7 +724,7 @@ export default function FacilityDetail() {
         <div className="text-center">
           <CalendarCheck size={64} className="text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500 mb-4">시설 정보를 찾을 수 없습니다.</p>
-          <Link href="/facility" className="text-[#1B5E20] font-medium hover:underline">
+          <Link href={facilityListHref} className="text-[#1B5E20] font-medium hover:underline">
             시설 목록으로 돌아가기
           </Link>
         </div>
@@ -491,7 +740,7 @@ export default function FacilityDetail() {
           <nav className="flex items-center gap-2 text-xs text-green-200 mb-3">
             <Link href="/" className="hover:text-white transition-colors">홈</Link>
             <i className="fas fa-chevron-right text-[10px]"></i>
-            <Link href="/facility" className="hover:text-white transition-colors">시설 사용 예약</Link>
+            <Link href={facilityListHref} className="hover:text-white transition-colors">시설 사용 예약</Link>
             <i className="fas fa-chevron-right text-[10px]"></i>
             <span className="text-white">{facility.name}</span>
           </nav>
@@ -574,7 +823,7 @@ export default function FacilityDetail() {
               )}
 
               {/* 운영 시간 */}
-              <HoursTable facilityId={facilityId} />
+              <HoursTable facilityId={facilityId} audience={audience} />
             </div>
 
             {/* 오른쪽: 달력 + 시간대 현황 + 예약 버튼 */}
@@ -582,7 +831,12 @@ export default function FacilityDetail() {
               <ReservationCalendar
                 facilityId={facilityId}
                 selectedDate={selectedDate}
+                slotMinutes={facility?.slotMinutes ?? 60}
+                reservationMaxDateKey={reservationMaxDateKey}
+                reservationMaxMonths={reservationMaxMonths}
                 onSelectDate={handleSelectDate}
+                hasReservationOverride={hasReservationOverride}
+                audience={audience}
               />
 
               {/* 날짜 선택 시 시간대 현황 + 선택 패널 표시 */}
@@ -594,6 +848,8 @@ export default function FacilityDetail() {
                   startTime={startTime}
                   endTime={endTime}
                   onSelectTime={handleSelectTime}
+                  hasReservationOverride={hasReservationOverride}
+                  audience={audience}
                 />
               )}
 
@@ -601,7 +857,7 @@ export default function FacilityDetail() {
               {facility.isReservable ? (
                 <Button
                   className="w-full bg-[#1B5E20] hover:bg-[#2E7D32] text-white py-6 text-base font-bold rounded-xl disabled:opacity-50"
-                  disabled={!selectedDate}
+                  disabled={!selectedDate || (!isExternal && memberLoading)}
                   onClick={handleApply}
                 >
                   <CalendarCheck size={20} className="mr-2" />
@@ -615,14 +871,7 @@ export default function FacilityDetail() {
               )}
 
               {/* 문의 */}
-              <div className="bg-white rounded-xl p-5 border border-gray-100">
-                <p className="font-bold text-gray-800 text-sm mb-2 flex items-center gap-2">
-                  <Phone size={14} className="text-[#1B5E20]" />
-                  시설 문의
-                </p>
-                <p className="text-sm text-gray-500">행정실: <span className="text-[#1B5E20] font-medium">054-270-1000</span></p>
-                <p className="text-xs text-gray-400 mt-1">평일 09:00 ~ 18:00</p>
-              </div>
+              <FacilityInquiryCard facilityId={facilityId} audience={audience} />
 
               {/* 목록으로 */}
               <button onClick={() => window.history.back()} className="w-full text-center text-sm text-gray-400 hover:text-[#1B5E20] transition-colors cursor-pointer py-2 flex items-center justify-center gap-1">
@@ -635,3 +884,13 @@ export default function FacilityDetail() {
     </div>
   );
 }
+
+export function ExternalFacilityDetail() {
+  return <FacilityDetail audience="external" />;
+}
+
+function MemberFacilityDetail() {
+  return <FacilityDetail audience="member" />;
+}
+
+export default MemberFacilityDetail;

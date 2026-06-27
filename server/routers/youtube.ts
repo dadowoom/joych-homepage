@@ -21,7 +21,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { adminProcedure, publicProcedure, router } from "../_core/trpc";
+import { adminPermissionProcedure, publicProcedure, router } from "../_core/trpc";
 import {
   extractYoutubeVideoId,
   isSafeAssetUrl,
@@ -92,6 +92,8 @@ function optionalInputValue(value?: string | null) {
   return trimmed ? trimmed : null;
 }
 
+const youtubeAdminProcedure = adminPermissionProcedure("content:youtube");
+
 export const youtubeRouter = router({
   // ─── 플레이리스트 관리 ───────────────────────────────────────────────────────
 
@@ -102,7 +104,7 @@ export const youtubeRouter = router({
    * 플레이리스트 생성 (관리자)
    * - 생성 후 동일 이름의 메뉴가 있으면 자동으로 playlistId 연결
    */
-  createPlaylist: adminProcedure
+  createPlaylist: youtubeAdminProcedure
     .input(z.object({
       title: requiredTextSchema(128, "플레이리스트 이름을 입력해주세요."),
       description: optionalTextSchema(5000),
@@ -123,7 +125,7 @@ export const youtubeRouter = router({
    * 플레이리스트 수정 (관리자)
    * - 이름 변경 시 새 이름과 동일한 메뉴에 자동 연결
    */
-  updatePlaylist: adminProcedure
+  updatePlaylist: youtubeAdminProcedure
     .input(z.object({
       id: z.number().int().positive(),
       title: requiredTextSchema(128, "플레이리스트 이름을 입력해주세요.").optional(),
@@ -142,7 +144,7 @@ export const youtubeRouter = router({
     }),
 
   /** 플레이리스트 삭제 (관리자) */
-  deletePlaylist: adminProcedure
+  deletePlaylist: youtubeAdminProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(({ input }) => deleteYoutubePlaylist(input.id)),
 
@@ -160,7 +162,7 @@ export const youtubeRouter = router({
    * 특정 플레이리스트의 영상 목록 (관리자)
    * - 숨김 영상 포함 전체 반환
    */
-  getVideosAdmin: adminProcedure
+  getVideosAdmin: youtubeAdminProcedure
     .input(z.object({ playlistId: z.number().int().positive() }))
     .query(({ input }) => getYoutubeVideosByPlaylist(input.playlistId)),
 
@@ -169,7 +171,7 @@ export const youtubeRouter = router({
    * - videoId: 유튜브 영상 ID (예: dQw4w9WgXcQ)
    * - videoUrl: 유튜브 영상 전체 URL (videoId 대신 사용 가능)
    */
-  addVideo: adminProcedure
+  addVideo: youtubeAdminProcedure
     .input(z.object({
       playlistId: z.number().int().positive(),
       videoId: z.string().trim().max(2048).optional().nullable(),
@@ -199,7 +201,7 @@ export const youtubeRouter = router({
     }),
 
   /** 유튜브 영상 수정 (관리자) */
-  updateVideo: adminProcedure
+  updateVideo: youtubeAdminProcedure
     .input(z.object({
       id: z.number().int().positive(),
       title: requiredTextSchema(256, "영상 제목을 입력해주세요.").optional(),
@@ -217,7 +219,7 @@ export const youtubeRouter = router({
     }),
 
   /** 유튜브 영상 삭제 (관리자) */
-  deleteVideo: adminProcedure
+  deleteVideo: youtubeAdminProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(({ input }) => deleteYoutubeVideo(input.id)),
 
@@ -225,7 +227,7 @@ export const youtubeRouter = router({
    * 영상 순서 일괄 변경 (관리자)
    * - orderedIds: 새 순서대로 정렬된 영상 ID 배열
    */
-  reorderVideos: adminProcedure
+  reorderVideos: youtubeAdminProcedure
     .input(z.object({
       orderedIds: z.array(z.number().int().positive()).max(500),
     }))
@@ -238,6 +240,6 @@ export const youtubeRouter = router({
    * - 모든 플레이리스트를 순회하며 동일 이름의 메뉴에 playlistId 연결
    * - 기존에 연결이 안 된 플레이리스트를 한 번에 동기화할 때 사용
    */
-  syncAllToMenus: adminProcedure
+  syncAllToMenus: youtubeAdminProcedure
     .mutation(() => syncAllPlaylistsToMenus()),
 });

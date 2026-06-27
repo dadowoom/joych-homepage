@@ -101,6 +101,7 @@ jspm_packages/
 # Temporary folders
 tmp/
 temp/
+.codex_tmp/
 
 # Database
 *.db

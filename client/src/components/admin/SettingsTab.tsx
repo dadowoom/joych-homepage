@@ -20,6 +20,21 @@ const SETTING_LABELS: Record<string, string> = {
   instagram_url: "인스타그램 URL",
   vision_title: "비전 제목",
   vision_desc: "비전 설명",
+  facility_hero_eyebrow: "시설예약 히어로 영문 라벨",
+  facility_hero_title: "시설예약 히어로 제목",
+  facility_hero_description: "시설예약 히어로 설명",
+  facility_hero_background_url: "시설예약 히어로 배경 이미지 URL",
+  facility_guide_step1_title: "시설예약 안내 1 제목",
+  facility_guide_step1_desc: "시설예약 안내 1 설명",
+  facility_guide_step2_title: "시설예약 안내 2 제목",
+  facility_guide_step2_desc: "시설예약 안내 2 설명",
+  facility_guide_step3_title: "시설예약 안내 3 제목",
+  facility_guide_step3_desc: "시설예약 안내 3 설명",
+  facility_guide_step4_title: "시설예약 안내 4 제목",
+  facility_guide_step4_desc: "시설예약 안내 4 설명",
+  home_feature_cards: "홈페이지 메인 기능 카드(JSON: 제목/설명/이미지/버튼/링크)",
+  home_church_intro_section: "교회소개 보기 영역(JSON: 배경/타이틀/설명/버튼)",
+  home_worship_section: "함께드리는 예배 영역(JSON: 배경/타이틀/설명)",
 };
 
 export function SettingsTab() {
@@ -50,12 +65,21 @@ export function SettingsTab() {
               <div>
                 <label className="block text-xs text-gray-500 mb-1">{label}</label>
                 <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    className="flex-1 border border-gray-300 rounded px-3 py-1.5 text-sm"
-                  />
+                  {key.endsWith("_desc") || key.endsWith("_description") ? (
+                    <textarea
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      rows={3}
+                      className="flex-1 border border-gray-300 rounded px-3 py-1.5 text-sm"
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      className="flex-1 border border-gray-300 rounded px-3 py-1.5 text-sm"
+                    />
+                  )}
                   <button
                     onClick={() => updateMutation.mutate({ key, value: editValue })}
                     disabled={updateMutation.isPending}

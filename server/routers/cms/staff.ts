@@ -1,7 +1,7 @@
 /**
  * 섬기는 분 관리 라우터 (cms.staff)
  * ─────────────────────────────────────────────────────────────────────────────
- * 관리자에서 담임목사/부교역자/교회학교 담당자를 등록하고 공개 여부를 관리합니다.
+ * 관리자에서 섬기는 분 정보를 등록하고 공개 여부를 관리합니다.
  */
 
 import { z } from "zod";
@@ -11,9 +11,23 @@ import {
   requiredTextSchema,
   safeAssetUrlSchema,
 } from "../../_core/contentValidation";
-import { createStaffMember, deleteStaffMember, getAllStaffMembers, updateStaffMember } from "../../db";
+import {
+  createStaffCategory,
+  createStaffMember,
+  createStaffTitleOption,
+  deleteStaffCategory,
+  deleteStaffMember,
+  deleteStaffTitleOption,
+  getAllStaffCategories,
+  getAllStaffMembers,
+  getAllStaffTitleOptions,
+  moveStaffCategory,
+  reorderStaffCategories,
+  reorderStaffTitleOptions,
+  updateStaffMember,
+} from "../../db";
 
-const staffCategorySchema = z.enum(["senior", "associate", "education", "office", "elder", "other"]);
+const staffCategorySchema = z.string().trim().min(1).max(64).regex(/^[a-z0-9][a-z0-9_-]{0,63}$/);
 const idSchema = z.number().int().positive();
 const sortOrderSchema = z.number().int().min(0).max(10000).optional();
 
@@ -36,14 +50,55 @@ const staffUpdateSchema = staffCreateSchema.partial().extend({
 });
 
 export const staffRouter = router({
+  categories: adminProcedure.query(() => getAllStaffCategories()),
+
+  titleOptions: adminProcedure.query(() => getAllStaffTitleOptions()),
+
+  createCategory: adminProcedure
+    .input(z.object({ label: requiredTextSchema(64, "분류명을 입력해주세요.") }))
+    .mutation(({ input }) => createStaffCategory(input.label)),
+
+  moveCategory: adminProcedure
+    .input(z.object({
+      categoryKey: staffCategorySchema,
+      direction: z.enum(["up", "down"]),
+    }))
+    .mutation(({ input }) => moveStaffCategory(input.categoryKey, input.direction)),
+
+  reorderCategories: adminProcedure
+    .input(z.object({ categoryKeys: z.array(staffCategorySchema).min(1).max(50) }))
+    .mutation(({ input }) => reorderStaffCategories(input.categoryKeys)),
+
+  deleteCategory: adminProcedure
+    .input(z.object({ categoryKey: staffCategorySchema }))
+    .mutation(({ input }) => deleteStaffCategory(input.categoryKey)),
+
+  createTitleOption: adminProcedure
+    .input(z.object({
+      categoryKey: staffCategorySchema,
+      label: requiredTextSchema(64, "사역 구분명을 입력해주세요."),
+    }))
+    .mutation(({ input }) => createStaffTitleOption(input.categoryKey, input.label)),
+
+  deleteTitleOption: adminProcedure
+    .input(z.object({
+      categoryKey: staffCategorySchema,
+      label: requiredTextSchema(64, "사역 구분명을 입력해주세요."),
+    }))
+    .mutation(({ input }) => deleteStaffTitleOption(input.categoryKey, input.label)),
+
+  reorderTitleOptions: adminProcedure
+    .input(z.object({
+      categoryKey: staffCategorySchema,
+      labels: z.array(requiredTextSchema(64, "사역 구분명을 입력해주세요.")).min(1).max(100),
+    }))
+    .mutation(({ input }) => reorderStaffTitleOptions(input.categoryKey, input.labels)),
+
   list: adminProcedure.query(() => getAllStaffMembers()),
 
   create: adminProcedure
     .input(staffCreateSchema)
-    .mutation(({ input }) => createStaffMember({
-      ...input,
-      sortOrder: input.sortOrder ?? 0,
-    })),
+    .mutation(({ input }) => createStaffMember(input)),
 
   update: adminProcedure
     .input(staffUpdateSchema)

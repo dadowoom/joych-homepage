@@ -9,7 +9,8 @@
  *   - 사이트 설정: getSiteSettings, getSiteSetting, upsertSiteSetting
  */
 
-import { eq, asc, like, not } from "drizzle-orm";
+import { createHash } from "node:crypto";
+import { and, eq, asc, desc, inArray, isNull, like, not } from "drizzle-orm";
 import {
   heroSlides, galleryItems, affiliates, quickMenus, siteSettings,
   InsertAffiliate, InsertGalleryItem,
@@ -17,6 +18,7 @@ import {
 import { getDb } from "./connection";
 
 const STATIC_PAGE_SETTING_PREFIX = "static_page:";
+const TRANSLATION_SETTING_PREFIX = "translation:";
 
 // ─── 히어로 슬라이드 ─────────────────────────────────────────────────────────
 
@@ -48,6 +50,7 @@ export async function createHeroSlide(data: {
   btn1Href?: string;
   btn2Text?: string;
   btn2Href?: string;
+  buttonsJson?: string | null;
   sortOrder?: number;
   isVisible?: boolean;
 }) {
@@ -67,6 +70,13 @@ export async function updateHeroSlide(id: number, data: Partial<typeof heroSlide
   await db.update(heroSlides).set(data).where(eq(heroSlides.id, id));
 }
 
+/** 모든 히어로 슬라이드를 공통 버튼 설정을 따르도록 전환 */
+export async function clearAllHeroSlideCustomButtons() {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(heroSlides).set({ buttonsJson: null });
+}
+
 /** 슬라이드 삭제 */
 export async function deleteHeroSlide(id: number) {
   const db = await getDb();
@@ -82,7 +92,26 @@ export async function getVisibleGalleryItems() {
   if (!db) return [];
   return db.select().from(galleryItems)
     .where(eq(galleryItems.isVisible, true))
-    .orderBy(asc(galleryItems.sortOrder));
+    .orderBy(desc(galleryItems.albumSortOrder), asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
+}
+
+export async function getVisibleHomeGalleryItems() {
+  const db = await getDb();
+  if (!db) return [];
+  const items = await db.select().from(galleryItems)
+    .where(eq(galleryItems.isVisible, true))
+    .orderBy(desc(galleryItems.albumSortOrder), asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
+
+  const seenAlbums = new Set<string>();
+  // The home gallery showcases recent albums, so keep only one representative photo per album.
+  const homeGalleryItems = items.filter((item) => {
+    const albumKey = item.albumKey?.trim() || item.albumTitle?.trim() || `single:${item.id}`;
+    if (seenAlbums.has(albumKey)) return false;
+    seenAlbums.add(albumKey);
+    return true;
+  });
+
+  return homeGalleryItems.slice(0, 8);
 }
 
 /** 갤러리 이미지 수정 */
@@ -90,6 +119,13 @@ export async function updateGalleryItem(id: number, data: Partial<InsertGalleryI
   const db = await getDb();
   if (!db) return;
   await db.update(galleryItems).set(data).where(eq(galleryItems.id, id));
+}
+
+/** 갤러리 앨범 공통 정보 수정 */
+export async function updateGalleryAlbumItems(ids: number[], data: Partial<InsertGalleryItem>) {
+  const db = await getDb();
+  if (!db || ids.length === 0) return;
+  await db.update(galleryItems).set(data).where(inArray(galleryItems.id, ids));
 }
 
 // ─── 관련기관 (Affiliates) ────────────────────────────────────────────────────
@@ -163,6 +199,28 @@ export async function reorderGalleryItems(items: { id: number; sortOrder: number
   );
 }
 
+export async function reorderGalleryAlbums(items: { albumKey?: string | null; albumTitle?: string | null; albumSortOrder: number }[]) {
+  const db = await getDb();
+  if (!db) return;
+  await Promise.all(
+    items.map(item => {
+      if (item.albumKey) {
+        return db.update(galleryItems)
+          .set({ albumSortOrder: item.albumSortOrder })
+          .where(eq(galleryItems.albumKey, item.albumKey));
+      }
+
+      if (item.albumTitle) {
+        return db.update(galleryItems)
+          .set({ albumSortOrder: item.albumSortOrder })
+          .where(and(isNull(galleryItems.albumKey), eq(galleryItems.albumTitle, item.albumTitle)));
+      }
+
+      return Promise.resolve();
+    })
+  );
+}
+
 // ─── 사이트 설정 ──────────────────────────────────────────────────────────────
 
 /**
@@ -174,7 +232,10 @@ export async function getSiteSettings(): Promise<Record<string, string>> {
   const db = await getDb();
   if (!db) return {} as Record<string, string>;
   const rows = await db.select().from(siteSettings)
-    .where(not(like(siteSettings.settingKey, `${STATIC_PAGE_SETTING_PREFIX}%`)));
+    .where(and(
+      not(like(siteSettings.settingKey, `${STATIC_PAGE_SETTING_PREFIX}%`)),
+      not(like(siteSettings.settingKey, `${TRANSLATION_SETTING_PREFIX}%`)),
+    ));
   return Object.fromEntries(rows.map(r => [r.settingKey, r.settingValue ?? ""]));
 }
 
@@ -241,6 +302,46 @@ export async function upsertStaticPageContent(href: string, content: unknown) {
     });
 }
 
+export function getTranslationSettingKey(locale: string, scope: string, resourceId: string) {
+  const digest = createHash("sha256").update(resourceId).digest("hex").slice(0, 20);
+  return `${TRANSLATION_SETTING_PREFIX}${locale}:${scope}:${digest}`;
+}
+
+export async function getStoredTranslation(locale: string, scope: string, resourceId: string) {
+  const row = await getSiteSetting(getTranslationSettingKey(locale, scope, resourceId));
+  if (!row?.settingValue) return null;
+  try {
+    return {
+      locale,
+      scope,
+      resourceId,
+      content: JSON.parse(row.settingValue) as unknown,
+      updatedAt: row.updatedAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function upsertStoredTranslation(locale: string, scope: string, resourceId: string, content: unknown) {
+  const db = await getDb();
+  if (!db) return;
+  const key = getTranslationSettingKey(locale, scope, resourceId);
+  const serialized = JSON.stringify(content);
+  await db.insert(siteSettings)
+    .values({
+      settingKey: key,
+      settingValue: serialized,
+      description: `번역 콘텐츠: ${locale}/${scope}/${resourceId}`,
+    })
+    .onDuplicateKeyUpdate({
+      set: {
+        settingValue: serialized,
+        description: `번역 콘텐츠: ${locale}/${scope}/${resourceId}`,
+      },
+    });
+}
+
 // ─── 퀵메뉴 추가/삭제 ────────────────────────────────────────────────────────
 /** 퀵메뉴 새 항목 추가 */
 export async function createQuickMenu(data: { icon: string; label: string; href?: string; sortOrder?: number }) {
@@ -286,18 +387,31 @@ export async function deleteAffiliate(id: number) {
 export async function getAllGalleryItems() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(galleryItems).orderBy(asc(galleryItems.sortOrder));
+  return db.select().from(galleryItems)
+    .orderBy(desc(galleryItems.albumSortOrder), asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
 }
 /** 갤러리 새 항목 추가 */
-export async function createGalleryItem(data: { imageUrl: string; caption?: string; gridSpan?: string; sortOrder?: number }) {
+export async function getAllHomeGalleryItems() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(galleryItems)
+    .where(eq(galleryItems.isHomeGallery, true))
+    .orderBy(asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
+}
+export async function createGalleryItem(data: { imageUrl: string; albumKey?: string; albumTitle?: string; albumDescription?: string; albumSortOrder?: number; caption?: string; gridSpan?: string; sortOrder?: number; isHomeGallery?: boolean }) {
   const db = await getDb();
   if (!db) return;
   await db.insert(galleryItems).values({
     imageUrl: data.imageUrl,
+    albumKey: data.albumKey ?? null,
+    albumTitle: data.albumTitle ?? null,
+    albumDescription: data.albumDescription ?? null,
+    albumSortOrder: data.albumSortOrder ?? Math.floor(Date.now() / 1000),
     caption: data.caption ?? null,
     gridSpan: data.gridSpan ?? "col-span-1 row-span-1",
     sortOrder: data.sortOrder ?? 999,
     isVisible: true,
+    isHomeGallery: data.isHomeGallery ?? false,
   });
 }
 /** 갤러리 항목 삭제 */
@@ -305,4 +419,11 @@ export async function deleteGalleryItem(id: number) {
   const db = await getDb();
   if (!db) return;
   await db.delete(galleryItems).where(eq(galleryItems.id, id));
+}
+
+/** Delete every photo that belongs to one gallery album/post. */
+export async function deleteGalleryItems(ids: number[]) {
+  const db = await getDb();
+  if (!db || ids.length === 0) return;
+  await db.delete(galleryItems).where(inArray(galleryItems.id, ids));
 }

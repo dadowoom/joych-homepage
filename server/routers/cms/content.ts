@@ -12,7 +12,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { adminProcedure, router } from "../../_core/trpc";
+import { adminProcedure, contentProcedure, router } from "../../_core/trpc";
 import {
   optionalTextSchema,
   requiredTextSchema,
@@ -24,6 +24,7 @@ import {
   getStaticPageSeed,
   type StaticPageTemplate,
 } from "@shared/staticPageContent";
+import { translateJsonContentToLocale } from "../../_core/translation";
 import {
   getAllAffiliates,
   updateAffiliate,
@@ -33,10 +34,15 @@ import {
   updateHeroSlide,
   createHeroSlide,
   deleteHeroSlide,
+  clearAllHeroSlideCustomButtons,
   getAllGalleryItems,
+  getAllHomeGalleryItems,
   updateGalleryItem,
+  updateGalleryAlbumItems,
   createGalleryItem,
   deleteGalleryItem,
+  deleteGalleryItems,
+  reorderGalleryAlbums,
   upsertSiteSetting,
   getAllQuickMenus,
   updateQuickMenu,
@@ -46,6 +52,8 @@ import {
   deleteQuickMenu,
   getAllStaticPageContents,
   upsertStaticPageContent,
+  getStoredTranslation,
+  upsertStoredTranslation,
 } from "../../db";
 
 const SETTING_KEYS = [
@@ -61,6 +69,23 @@ const SETTING_KEYS = [
   "instagram_url",
   "vision_title",
   "vision_desc",
+  "facility_hero_eyebrow",
+  "facility_hero_title",
+  "facility_hero_description",
+  "facility_hero_background_url",
+  "facility_guide_step1_title",
+  "facility_guide_step1_desc",
+  "facility_guide_step2_title",
+  "facility_guide_step2_desc",
+  "facility_guide_step3_title",
+  "facility_guide_step3_desc",
+  "facility_guide_step4_title",
+  "facility_guide_step4_desc",
+  "facility_reservation_max_months",
+  "home_feature_cards",
+  "home_church_intro_section",
+  "home_worship_section",
+  "home_hero_common_buttons",
 ] as const;
 
 const iconClassSchema = z.string()
@@ -81,8 +106,29 @@ const gridSpanValueSchema = z.string().refine(
 );
 
 const sortOrderSchema = z.number().int().min(0).max(10000).optional();
+
+const heroButtonSchema = z.object({
+  label: requiredTextSchema(64, "버튼 텍스트를 입력해주세요."),
+  href: safeHrefSchema,
+});
+
+const heroButtonsSchema = z.array(heroButtonSchema).max(4, "히어로 버튼은 최대 4개까지 등록할 수 있습니다.");
+
+function serializeHeroButtons(buttons: z.infer<typeof heroButtonsSchema> | null | undefined) {
+  if (buttons === undefined) return undefined;
+  if (buttons === null) return null;
+  const normalized = buttons
+    .map((button) => ({
+      label: button.label.trim(),
+      href: button.href.trim(),
+    }))
+    .filter((button) => button.label && button.href)
+    .slice(0, 4);
+  return JSON.stringify(normalized);
+}
 const staticPageHrefSchema = z.string().trim().min(1).max(128).regex(/^\//);
 const staticPageJsonSchema = z.string().max(60000, "페이지 콘텐츠는 60000자 이하로 입력해주세요.");
+const translationLocaleSchema = z.enum(["ja"]);
 
 const ministryContentSchema = z.object({
   name: requiredTextSchema(100, "페이지 이름을 입력해주세요."),
@@ -93,7 +139,7 @@ const ministryContentSchema = z.object({
     title: requiredTextSchema(120, "활동 제목을 입력해주세요."),
     desc: requiredTextSchema(500, "활동 설명을 입력해주세요."),
     icon: optionalTextSchema(64),
-  })).max(30).optional(),
+  })).max(100).optional(),
   contact: z.array(z.object({
     label: requiredTextSchema(80, "연락처 라벨을 입력해주세요."),
     value: requiredTextSchema(300, "연락처 값을 입력해주세요."),
@@ -173,8 +219,15 @@ export const contentRouter = router({
         btn1Href: safeHrefSchema.optional(),
         btn2Text: optionalTextSchema(64),
         btn2Href: safeHrefSchema.optional(),
+        buttonsJson: heroButtonsSchema.nullable().optional(),
       }))
-      .mutation(({ input }) => createHeroSlide(input)),
+      .mutation(({ input }) => {
+        const { buttonsJson, ...data } = input;
+        return createHeroSlide({
+          ...data,
+          buttonsJson: serializeHeroButtons(buttonsJson),
+        });
+      }),
     update: adminProcedure
       .input(z.object({
         id: z.number().int().positive(),
@@ -189,11 +242,16 @@ export const contentRouter = router({
         videoUrl: safeAssetUrlSchema.optional(),
         posterUrl: safeAssetUrlSchema.optional(),
         isVisible: z.boolean().optional(),
+        buttonsJson: heroButtonsSchema.nullable().optional(),
       }))
       .mutation(({ input }) => {
-        const { id, ...data } = input;
-        return updateHeroSlide(id, data);
+        const { id, buttonsJson, ...data } = input;
+        return updateHeroSlide(id, {
+          ...data,
+          ...(buttonsJson !== undefined ? { buttonsJson: serializeHeroButtons(buttonsJson) } : {}),
+        });
       }),
+    useCommonButtonsForAll: adminProcedure.mutation(() => clearAllHeroSlideCustomButtons()),
     delete: adminProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(({ input }) => deleteHeroSlide(input.id)),
@@ -202,21 +260,33 @@ export const contentRouter = router({
   // ─── 갤러리 관리 ────────────────────────────────────────────────────────────
   gallery: router({
     /** 갤러리 전체 목록 (관리자용, 숨김 포함) */
-    list: adminProcedure.query(() => getAllGalleryItems()),
+    list: contentProcedure.query(() => getAllGalleryItems()),
+    listHome: contentProcedure.query(() => getAllHomeGalleryItems()),
     /** 갤러리 사진 추가 */
-    create: adminProcedure
+    create: contentProcedure
       .input(z.object({
         imageUrl: safeAssetUrlSchema.refine(value => value.length > 0, "이미지를 선택해주세요."),
-        caption: optionalTextSchema(128),
+        albumKey: optionalTextSchema(96),
+        albumTitle: optionalTextSchema(160),
+        albumDescription: optionalTextSchema(20000),
+        albumSortOrder: z.number().int().min(0).max(2147483647).optional(),
+        caption: optionalTextSchema(20000),
         gridSpan: gridSpanValueSchema.optional(),
+        sortOrder: sortOrderSchema.optional(),
+        isHomeGallery: z.boolean().optional(),
       }))
       .mutation(({ input }) => createGalleryItem(input)),
     /** 갤러리 항목 수정 (캡션, 순서, 공개 여부, 그리드 크기) */
-    update: adminProcedure
+    update: contentProcedure
       .input(z.object({
         id: z.number().int().positive(),
-        caption: optionalTextSchema(128),
-        sortOrder: sortOrderSchema,
+        albumKey: optionalTextSchema(96),
+        albumTitle: optionalTextSchema(160),
+        albumDescription: optionalTextSchema(20000),
+        albumSortOrder: z.number().int().min(0).max(2147483647).optional(),
+        caption: optionalTextSchema(20000),
+        imageUrl: safeAssetUrlSchema.optional(),
+        sortOrder: sortOrderSchema.optional(),
         isVisible: z.boolean().optional(),
         gridSpan: gridSpanValueSchema.optional(),
       }))
@@ -224,17 +294,39 @@ export const contentRouter = router({
         const { id, ...data } = input;
         return updateGalleryItem(id, data);
       }),
+    /** 갤러리 앨범 제목/설명 일괄 수정 */
+    updateAlbum: contentProcedure
+      .input(z.object({
+        ids: z.array(z.number().int().positive()).min(1).max(500),
+        albumTitle: optionalTextSchema(160),
+        albumDescription: optionalTextSchema(20000),
+      }))
+      .mutation(({ input }) => {
+        const { ids, ...data } = input;
+        return updateGalleryAlbumItems(ids, data);
+      }),
     /** 갤러리 항목 삭제 */
-    delete: adminProcedure
+    delete: contentProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(({ input }) => deleteGalleryItem(input.id)),
+    deleteAlbum: contentProcedure
+      .input(z.object({ ids: z.array(z.number().int().positive()).min(1).max(500) }))
+      .mutation(({ input }) => deleteGalleryItems(input.ids)),
     /** 갤러리 순서 일괄 변경 */
-    reorder: adminProcedure
+    reorder: contentProcedure
       .input(z.array(z.object({
         id: z.number().int().positive(),
         sortOrder: z.number().int().min(0).max(10000),
       })).max(500))
       .mutation(({ input }) => reorderGalleryItems(input)),
+    /** 갤러리 앨범 순서 일괄 변경 */
+    reorderAlbums: contentProcedure
+      .input(z.array(z.object({
+        albumKey: optionalTextSchema(96),
+        albumTitle: optionalTextSchema(160),
+        albumSortOrder: z.number().int().min(0).max(2147483647),
+      })).max(200))
+      .mutation(({ input }) => reorderGalleryAlbums(input)),
   }),
 
   // ─── 사이트 설정 관리 ───────────────────────────────────────────────────────
@@ -296,6 +388,60 @@ export const contentRouter = router({
           throw new TRPCError({ code: "BAD_REQUEST", message: "관리 대상 페이지가 아닙니다." });
         }
         return upsertStaticPageContent(input.href, page.content);
+      }),
+  }),
+
+  // ─── 정적 페이지 번역 관리 ────────────────────────────────────────────────
+  staticPageTranslations: router({
+    get: adminProcedure
+      .input(z.object({
+        href: staticPageHrefSchema,
+        locale: translationLocaleSchema,
+      }))
+      .query(async ({ input }) => {
+        const page = getStaticPageSeed(input.href);
+        if (!page) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "관리 대상 페이지가 아닙니다." });
+        }
+        const stored = await getStoredTranslation(input.locale, "static_page", input.href);
+        if (!stored) return null;
+        return {
+          content: JSON.stringify(stored.content, null, 2),
+          updatedAt: stored.updatedAt,
+        };
+      }),
+    update: adminProcedure
+      .input(z.object({
+        href: staticPageHrefSchema,
+        locale: translationLocaleSchema,
+        content: staticPageJsonSchema,
+      }))
+      .mutation(({ input }) => {
+        const page = getStaticPageSeed(input.href);
+        if (!page) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "관리 대상 페이지가 아닙니다." });
+        }
+        const content = parseStaticPageJson(page.template, input.content);
+        return upsertStoredTranslation(input.locale, "static_page", input.href, content);
+      }),
+    generateDraft: adminProcedure
+      .input(z.object({
+        href: staticPageHrefSchema,
+        locale: translationLocaleSchema,
+        sourceContent: staticPageJsonSchema,
+      }))
+      .mutation(async ({ input }) => {
+        const page = getStaticPageSeed(input.href);
+        if (!page) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "관리 대상 페이지가 아닙니다." });
+        }
+        const sourceContent = parseStaticPageJson(page.template, input.sourceContent);
+        const translated = await translateJsonContentToLocale({
+          content: sourceContent,
+          targetLocale: input.locale,
+        });
+        const validated = validateStaticPageContent(page.template, translated);
+        return { content: JSON.stringify(validated, null, 2) };
       }),
   }),
 

@@ -3,19 +3,42 @@
  * 성도 마이페이지 — 내 정보 확인 (기본 정보 + 관리자가 입력한 교회 정보)
  * + 믿음PLUS 유저 ID 수정 기능
  */
-import { useState } from "react";
+import { useState, type ChangeEvent } from "react";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+
+type ChurchForm = {
+  position: string;
+  department: string;
+  district: string;
+  baptismType: string;
+  baptismDate: string;
+  registeredAt: string;
+  pastor: string;
+};
+
+const EMPTY_CHURCH_FORM: ChurchForm = {
+  position: "",
+  department: "",
+  district: "",
+  baptismType: "",
+  baptismDate: "",
+  registeredAt: "",
+  pastor: "",
+};
 
 export default function MemberMyPage() {
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
 
   const { data: me, isLoading, error } = trpc.members.me.useQuery();
+  const { data: churchFieldOptions = [] } = trpc.members.fieldOptions.useQuery({});
 
   const [editingFaithPlus, setEditingFaithPlus] = useState(false);
   const [faithPlusInput, setFaithPlusInput] = useState("");
+  const [editingChurchInfo, setEditingChurchInfo] = useState(false);
+  const [churchForm, setChurchForm] = useState<ChurchForm>(EMPTY_CHURCH_FORM);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [withdrawConfirm, setWithdrawConfirm] = useState("");
 
@@ -30,6 +53,17 @@ export default function MemberMyPage() {
     onSuccess: () => {
       toast.success("믿음PLUS 유저 ID가 저장됐습니다.");
       setEditingFaithPlus(false);
+      utils.members.me.invalidate();
+    },
+    onError: (e) => {
+      toast.error(e.message || "저장에 실패했습니다.");
+    },
+  });
+
+  const updateChurchMutation = trpc.members.updateMyChurchInfo.useMutation({
+    onSuccess: () => {
+      toast.success("교회 정보가 저장됐습니다.");
+      setEditingChurchInfo(false);
       utils.members.me.invalidate();
     },
     onError: (e) => {
@@ -55,6 +89,37 @@ export default function MemberMyPage() {
   const handleFaithPlusEdit = () => {
     setFaithPlusInput(me?.faithPlusUserId ?? "");
     setEditingFaithPlus(true);
+  };
+
+  const handleChurchEdit = () => {
+    setChurchForm({
+      position: me?.position ?? "",
+      department: me?.department ?? "",
+      district: me?.district ?? "",
+      baptismType: me?.baptismType ?? "",
+      baptismDate: me?.baptismDate ?? "",
+      registeredAt: me?.registeredAt ?? "",
+      pastor: me?.pastor ?? "",
+    });
+    setEditingChurchInfo(true);
+  };
+
+  const handleChurchSave = () => {
+    updateChurchMutation.mutate({
+      position: churchForm.position,
+      department: churchForm.department,
+      district: churchForm.district,
+      baptismType: churchForm.baptismType,
+      baptismDate: churchForm.baptismDate,
+      registeredAt: churchForm.registeredAt,
+      pastor: churchForm.pastor,
+    });
+  };
+
+  const setChurchField = (key: keyof ChurchForm) => (
+    e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    setChurchForm((prev) => ({ ...prev, [key]: e.target.value }));
   };
 
   const handleWithdraw = () => {
@@ -99,6 +164,11 @@ export default function MemberMyPage() {
     rejected: { text: "가입 거절", color: "bg-red-100 text-red-700" },
     withdrawn: { text: "탈퇴", color: "bg-gray-100 text-gray-500" },
   }[me.status ?? "pending"] ?? { text: "대기 중", color: "bg-gray-100 text-gray-500" };
+
+  const positionOptions = churchFieldOptions.filter((option) => option.fieldType === "position");
+  const departmentOptions = churchFieldOptions.filter((option) => option.fieldType === "department");
+  const districtOptions = churchFieldOptions.filter((option) => option.fieldType === "district");
+  const baptismOptions = churchFieldOptions.filter((option) => option.fieldType === "baptism");
 
   return (
     <div className="min-h-screen bg-[#FAFAF8]" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
@@ -167,22 +237,98 @@ export default function MemberMyPage() {
           </div>
         </div>
 
-        {/* 교회 정보 (관리자가 입력) */}
+        {/* 교회 정보 */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-4">
-          <h2 className="text-base font-bold text-gray-800 mb-1 flex items-center gap-2">
-            <i className="fas fa-church text-[#1B5E20]"></i>
-            교회 정보
-          </h2>
-          <p className="text-xs text-gray-400 mb-4">관리자가 입력하는 정보입니다.</p>
-          <div className="space-y-3">
-            <InfoRow label="직분" value={me.position} placeholder="미입력" />
-            <InfoRow label="소속 부서" value={me.department} placeholder="미입력" />
-            <InfoRow label="구역 / 순" value={me.district} placeholder="미입력" />
-            <InfoRow label="세례 구분" value={me.baptismType} placeholder="미입력" />
-            <InfoRow label="세례일" value={me.baptismDate} placeholder="미입력" />
-            <InfoRow label="등록일" value={me.registeredAt} placeholder="미입력" />
-            <InfoRow label="담당 교역자" value={me.pastor} placeholder="미입력" />
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div>
+              <h2 className="text-base font-bold text-gray-800 mb-1 flex items-center gap-2">
+                <i className="fas fa-church text-[#1B5E20]"></i>
+                교회 정보
+              </h2>
+              <p className="text-xs text-gray-400">내 교회 정보를 확인하고 수정할 수 있습니다.</p>
+            </div>
+            {!editingChurchInfo && (
+              <button
+                onClick={handleChurchEdit}
+                className="text-xs text-[#1B5E20] border border-[#1B5E20] rounded-lg px-3 py-1.5 hover:bg-[#E8F5E9] transition-colors flex-shrink-0"
+              >
+                수정
+              </button>
+            )}
           </div>
+
+          {editingChurchInfo ? (
+            <div className="space-y-3">
+              <SelectInfoRow
+                label="직분"
+                value={churchForm.position}
+                onChange={setChurchField("position")}
+                options={positionOptions}
+              />
+              <SelectInfoRow
+                label="소속 부서"
+                value={churchForm.department}
+                onChange={setChurchField("department")}
+                options={departmentOptions}
+              />
+              <SelectInfoRow
+                label="구역 / 순"
+                value={churchForm.district}
+                onChange={setChurchField("district")}
+                options={districtOptions}
+              />
+              <SelectInfoRow
+                label="세례 구분"
+                value={churchForm.baptismType}
+                onChange={setChurchField("baptismType")}
+                options={baptismOptions}
+              />
+              <TextInfoRow
+                label="세례일"
+                value={churchForm.baptismDate}
+                onChange={setChurchField("baptismDate")}
+                placeholder="YYYY-MM-DD"
+              />
+              <TextInfoRow
+                label="등록일"
+                value={churchForm.registeredAt}
+                onChange={setChurchField("registeredAt")}
+                placeholder="YYYY-MM-DD"
+              />
+              <TextInfoRow
+                label="담당 교역자"
+                value={churchForm.pastor}
+                onChange={setChurchField("pastor")}
+                placeholder="담당 교역자 이름"
+              />
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={handleChurchSave}
+                  disabled={updateChurchMutation.isPending}
+                  className="flex-1 py-2 bg-[#1B5E20] text-white rounded-lg text-sm font-medium hover:bg-[#154a18] disabled:opacity-50"
+                >
+                  {updateChurchMutation.isPending ? "저장 중..." : "저장"}
+                </button>
+                <button
+                  onClick={() => setEditingChurchInfo(false)}
+                  disabled={updateChurchMutation.isPending}
+                  className="flex-1 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <InfoRow label="직분" value={me.position} placeholder="미입력" />
+              <InfoRow label="소속 부서" value={me.department} placeholder="미입력" />
+              <InfoRow label="구역 / 순" value={me.district} placeholder="미입력" />
+              <InfoRow label="세례 구분" value={me.baptismType} placeholder="미입력" />
+              <InfoRow label="세례일" value={me.baptismDate} placeholder="미입력" />
+              <InfoRow label="등록일" value={me.registeredAt} placeholder="미입력" />
+              <InfoRow label="담당 교역자" value={me.pastor} placeholder="미입력" />
+            </div>
+          )}
         </div>
 
         {/* 믿음PLUS 연동 */}
@@ -325,6 +471,69 @@ function InfoRow({
       <span className={`text-sm text-right flex-1 ${value ? "text-gray-800 font-medium" : "text-gray-300"}`}>
         {value || placeholder}
       </span>
+    </div>
+  );
+}
+
+type FieldOption = {
+  id: number;
+  label: string;
+};
+
+function SelectInfoRow({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (e: ChangeEvent<HTMLSelectElement>) => void;
+  options: FieldOption[];
+}) {
+  const hasCurrentValue = Boolean(value) && !options.some((option) => option.label === value);
+
+  return (
+    <div className="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
+      <label className="text-sm text-gray-500 flex-shrink-0 w-28">{label}</label>
+      <select
+        value={value}
+        onChange={onChange}
+        className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
+      >
+        <option value="">선택 안함</option>
+        {hasCurrentValue && <option value={value}>{value}</option>}
+        {options.map((option) => (
+          <option key={option.id} value={option.label}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function TextInfoRow({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  placeholder?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
+      <label className="text-sm text-gray-500 flex-shrink-0 w-28">{label}</label>
+      <input
+        type="text"
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
+      />
     </div>
   );
 }

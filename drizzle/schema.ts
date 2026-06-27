@@ -28,6 +28,36 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
+export const adminContentPermissions = mysqlTable("admin_content_permissions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("user_id").notNull(),
+  permissionKey: varchar("permission_key", { length: 128 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("admin_content_permissions_user_key_unique").on(table.userId, table.permissionKey),
+  index("admin_content_permissions_user_id_idx").on(table.userId),
+  index("admin_content_permissions_permission_key_idx").on(table.permissionKey),
+]);
+
+export type AdminContentPermission = typeof adminContentPermissions.$inferSelect;
+export type InsertAdminContentPermission = typeof adminContentPermissions.$inferInsert;
+
+export const adminNotificationReadStates = mysqlTable("admin_notification_read_states", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("user_id").notNull(),
+  groupKey: varchar("group_key", { length: 128 }).notNull(),
+  lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("admin_notification_read_states_user_group_unique").on(table.userId, table.groupKey),
+  index("admin_notification_read_states_user_id_idx").on(table.userId),
+]);
+
+export type AdminNotificationReadState = typeof adminNotificationReadStates.$inferSelect;
+export type InsertAdminNotificationReadState = typeof adminNotificationReadStates.$inferInsert;
+
 // ─────────────────────────────────────────────
 // CMS: 섹션 마스터 테이블
 // 메인 페이지의 모든 섹션을 관리합니다.
@@ -81,6 +111,8 @@ export const menuItems = mysqlTable("menu_items", {
   href: varchar("href", { length: 256 }),
   sortOrder: int("sortOrder").notNull().default(0),
   isVisible: boolean("isVisible").notNull().default(true),
+  allowGuest: boolean("allowGuest").notNull().default(true),
+  allowMember: boolean("allowMember").notNull().default(true),
   /** 페이지 표시 타입: image(이미지 전체화면) / gallery(갤러리) / board(게시판) / youtube(유튜브 목록) / editor(텍스트+이미지) */
   pageType: mysqlEnum("pageType", ["image", "gallery", "board", "youtube", "editor"]).default("image").notNull(),
   /** 이미지 타입일 때 표시할 이미지 URL */
@@ -105,6 +137,8 @@ export const menuSubItems = mysqlTable("menu_sub_items", {
   href: varchar("href", { length: 256 }),
   sortOrder: int("sortOrder").notNull().default(0),
   isVisible: boolean("isVisible").notNull().default(true),
+  allowGuest: boolean("allowGuest").notNull().default(true),
+  allowMember: boolean("allowMember").notNull().default(true),
   /** 페이지 표시 타입 */
   pageType: mysqlEnum("pageType", ["image", "gallery", "board", "youtube", "editor"]).default("image").notNull(),
   /** 이미지 타입일 때 표시할 이미지 URL */
@@ -162,6 +196,8 @@ export const heroSlides = mysqlTable("hero_slides", {
   btn2Text: varchar("btn2Text", { length: 64 }),
   /** 버튼2 링크 */
   btn2Href: varchar("btn2Href", { length: 256 }),
+  /** 새 히어로 버튼 목록(JSON). null이면 공통 버튼 설정을 사용한다. */
+  buttonsJson: text("buttonsJson"),
   sortOrder: int("sortOrder").notNull().default(0),
   isVisible: boolean("isVisible").notNull().default(true),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -185,18 +221,80 @@ export const notices = mysqlTable("notices", {
   content: text("content"),
   /** 썸네일 이미지 URL */
   thumbnailUrl: text("thumbnailUrl"),
+  attachmentName: varchar("attachmentName", { length: 255 }),
+  attachmentUrl: varchar("attachmentUrl", { length: 512 }),
   /** 게시 여부 */
   isPublished: boolean("isPublished").notNull().default(true),
   /** 상단 고정 여부 */
   isPinned: boolean("isPinned").notNull().default(false),
   /** 작성자 (users.id 참조) */
   authorId: int("authorId"),
+  /** 게시글 조회수 */
+  viewCount: int("viewCount").notNull().default(0),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 export type Notice = typeof notices.$inferSelect;
 export type InsertNotice = typeof notices.$inferInsert;
+
+// ─────────────────────────────────────────────
+// CMS: 동적 메뉴 전용 게시판
+// ─────────────────────────────────────────────
+export const dynamicBoards = mysqlTable("dynamic_boards", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 2단 메뉴(menu_items.id)와 연결된 게시판. 2단/3단 중 하나만 사용합니다. */
+  menuItemId: int("menu_item_id"),
+  /** 3단 메뉴(menu_sub_items.id)와 연결된 게시판. 2단/3단 중 하나만 사용합니다. */
+  menuSubItemId: int("menu_sub_item_id"),
+  title: varchar("title", { length: 128 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("dynamic_boards_menu_item_idx").on(table.menuItemId),
+  uniqueIndex("dynamic_boards_menu_sub_item_idx").on(table.menuSubItemId),
+]);
+
+export type DynamicBoard = typeof dynamicBoards.$inferSelect;
+export type InsertDynamicBoard = typeof dynamicBoards.$inferInsert;
+
+export const dynamicBoardPosts = mysqlTable("dynamic_board_posts", {
+  id: int("id").autoincrement().primaryKey(),
+  boardId: int("board_id").notNull(),
+  title: varchar("title", { length: 256 }).notNull(),
+  content: text("content"),
+  thumbnailUrl: text("thumbnail_url"),
+  isPublished: boolean("is_published").notNull().default(true),
+  isPinned: boolean("is_pinned").notNull().default(false),
+  authorId: int("author_id"),
+  viewCount: int("view_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("dynamic_board_posts_board_visible_idx").on(table.boardId, table.isPublished, table.createdAt),
+]);
+
+export type DynamicBoardPost = typeof dynamicBoardPosts.$inferSelect;
+export type InsertDynamicBoardPost = typeof dynamicBoardPosts.$inferInsert;
+
+// Free board: member-authored community posts
+export const freeBoardPosts = mysqlTable("free_board_posts", {
+  id: int("id").autoincrement().primaryKey(),
+  authorMemberId: int("author_member_id").notNull(),
+  title: varchar("title", { length: 256 }).notNull(),
+  content: text("content").notNull(),
+  status: mysqlEnum("status", ["published", "hidden", "deleted"]).notNull().default("published"),
+  /** 게시글 조회수 */
+  viewCount: int("view_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("free_board_posts_status_created_idx").on(table.status, table.createdAt),
+  index("free_board_posts_author_idx").on(table.authorMemberId),
+]);
+
+export type FreeBoardPost = typeof freeBoardPosts.$inferSelect;
+export type InsertFreeBoardPost = typeof freeBoardPosts.$inferInsert;
 
 // ─────────────────────────────────────────────
 // CMS: 홈페이지 팝업 / 공지 배너
@@ -245,19 +343,59 @@ export type InsertNoticePopup = typeof noticePopups.$inferInsert;
 // ─────────────────────────────────────────────
 // CMS: 갤러리 사진
 // ─────────────────────────────────────────────
+export const historyDecades = mysqlTable("history_decades", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 64 }).notNull(),
+  startYear: int("start_year").notNull(),
+  endYear: int("end_year").notNull(),
+  sortOrder: int("sort_order").notNull().default(0),
+  isVisible: boolean("is_visible").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("history_decades_visible_sort_idx").on(table.isVisible, table.sortOrder, table.startYear),
+]);
+export type HistoryDecade = typeof historyDecades.$inferSelect;
+export type InsertHistoryDecade = typeof historyDecades.$inferInsert;
+
+export const historyItems = mysqlTable("history_items", {
+  id: int("id").autoincrement().primaryKey(),
+  decadeId: int("decade_id").notNull(),
+  year: int("year").notNull(),
+  month: int("month").notNull(),
+  content: text("content").notNull(),
+  sortOrder: int("sort_order").notNull().default(0),
+  isVisible: boolean("is_visible").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("history_items_decade_visible_sort_idx").on(table.decadeId, table.isVisible, table.sortOrder, table.year, table.month),
+]);
+export type HistoryItem = typeof historyItems.$inferSelect;
+export type InsertHistoryItem = typeof historyItems.$inferInsert;
+
 export const galleryItems = mysqlTable("gallery_items", {
   id: int("id").autoincrement().primaryKey(),
   /** S3 CDN 이미지 URL */
   imageUrl: text("imageUrl").notNull(),
+  albumKey: varchar("albumKey", { length: 96 }),
+  albumTitle: varchar("albumTitle", { length: 160 }),
+  albumDescription: text("albumDescription"),
+  albumSortOrder: int("albumSortOrder").notNull().default(0),
   /** 사진 설명 (alt 텍스트) */
-  caption: varchar("caption", { length: 128 }),
+  caption: text("caption"),
   /** 그리드 크기 (예: col-span-2 row-span-2) */
   gridSpan: varchar("gridSpan", { length: 64 }).default("col-span-1 row-span-1"),
   sortOrder: int("sortOrder").notNull().default(0),
   isVisible: boolean("isVisible").notNull().default(true),
+  isHomeGallery: boolean("isHomeGallery").notNull().default(false),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [
+  index("gallery_items_album_key_idx").on(table.albumKey),
+  index("gallery_items_album_sort_order_idx").on(table.albumSortOrder),
+  index("gallery_items_home_gallery_idx").on(table.isHomeGallery, table.isVisible),
+]);
 
 export type GalleryItem = typeof galleryItems.$inferSelect;
 export type InsertGalleryItem = typeof galleryItems.$inferInsert;
@@ -320,12 +458,12 @@ export type InsertSiteSetting = typeof siteSettings.$inferInsert;
 
 // ─────────────────────────────────────────────
 // CMS: 섬기는 분 / 교역자 소개
-// 담임목사, 부교역자, 교회학교 담당자 등을 관리자에서 등록해 공개합니다.
+// 담임목사, 부교역자, 교회학교 교역자 등을 관리자에서 등록해 공개합니다.
 // ─────────────────────────────────────────────
 export const churchStaff = mysqlTable("church_staff", {
   id: int("id").autoincrement().primaryKey(),
-  /** 분류: 담임목사 / 부교역자 / 교회학교 / 사무행정 / 장로 / 기타 */
-  category: mysqlEnum("category", ["senior", "associate", "education", "office", "elder", "other"]).notNull().default("associate"),
+  /** 분류: 담임목사 / 부교역자 / 교회학교 교역자 / 협력사역자 / 장로 / 교회직원 / 사회복지법인 기쁨의복지재단 */
+  category: varchar("category", { length: 64 }).notNull().default("associate"),
   /** 이름 */
   name: varchar("name", { length: 64 }).notNull(),
   /** 직책/직분 (예: 부목사, 전도사) */
@@ -354,6 +492,39 @@ export const churchStaff = mysqlTable("church_staff", {
 
 export type ChurchStaff = typeof churchStaff.$inferSelect;
 export type InsertChurchStaff = typeof churchStaff.$inferInsert;
+
+export const churchStaffCategories = mysqlTable("church_staff_categories", {
+  id: int("id").autoincrement().primaryKey(),
+  categoryKey: varchar("category_key", { length: 64 }).notNull().unique(),
+  label: varchar("label", { length: 64 }).notNull(),
+  sortOrder: int("sort_order").notNull().default(0),
+  isBuiltIn: boolean("is_builtin").notNull().default(false),
+  isVisible: boolean("is_visible").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("church_staff_categories_visible_sort_idx").on(table.isVisible, table.sortOrder),
+]);
+
+export type ChurchStaffCategory = typeof churchStaffCategories.$inferSelect;
+export type InsertChurchStaffCategory = typeof churchStaffCategories.$inferInsert;
+
+export const churchStaffTitleOptions = mysqlTable("church_staff_title_options", {
+  id: int("id").autoincrement().primaryKey(),
+  categoryKey: varchar("category_key", { length: 64 }).notNull(),
+  label: varchar("label", { length: 64 }).notNull(),
+  sortOrder: int("sort_order").notNull().default(0),
+  isBuiltIn: boolean("is_builtin").notNull().default(false),
+  isVisible: boolean("is_visible").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("church_staff_title_options_category_sort_idx").on(table.categoryKey, table.isVisible, table.sortOrder),
+  uniqueIndex("church_staff_title_options_category_label_unique").on(table.categoryKey, table.label),
+]);
+
+export type ChurchStaffTitleOption = typeof churchStaffTitleOptions.$inferSelect;
+export type InsertChurchStaffTitleOption = typeof churchStaffTitleOptions.$inferInsert;
 
 // ─────────────────────────────────────────────
 // 교적부: 교회 성도 정보
@@ -421,6 +592,8 @@ export const churchMembers = mysqlTable("church_members", {
   pastor: varchar("pastor", { length: 64 }),
   /** 관리자 메모 */
   adminMemo: text("admin_memo"),
+  /** Facility reservation eligibility, managed separately from login approval. */
+  canReserveFacility: boolean("can_reserve_facility").notNull().default(false),
 
   // ── 상태 관리 ─────────────────────────────────────────────
   /** 가입 승인 상태: pending(대기) / approved(승인) / rejected(거절) / withdrawn(탈퇴) */
@@ -498,6 +671,126 @@ export const newMemberRequests = mysqlTable("new_member_requests", {
 export type NewMemberRequest = typeof newMemberRequests.$inferSelect;
 export type InsertNewMemberRequest = typeof newMemberRequests.$inferInsert;
 
+// Public support intake: external church/institution visit requests
+export const visitRequests = mysqlTable("visit_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationName: varchar("organization_name", { length: 128 }).notNull(),
+  applicantName: varchar("applicant_name", { length: 64 }).notNull(),
+  phone: varchar("phone", { length: 32 }).notNull(),
+  email: varchar("email", { length: 320 }),
+  visitDate: varchar("visit_date", { length: 10 }).notNull(),
+  visitTime: varchar("visit_time", { length: 5 }),
+  headcount: int("headcount").notNull().default(1),
+  visitorType: mysqlEnum("visitor_type", ["church", "institution", "individual", "other"]).notNull().default("church"),
+  purpose: varchar("purpose", { length: 128 }).notNull(),
+  message: text("message"),
+  status: mysqlEnum("status", ["new", "contacted", "scheduled", "completed", "archived"]).notNull().default("new"),
+  adminMemo: text("admin_memo"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("visit_requests_status_created_idx").on(table.status, table.createdAt),
+  index("visit_requests_date_idx").on(table.visitDate),
+]);
+
+export type VisitRequest = typeof visitRequests.$inferSelect;
+export type InsertVisitRequest = typeof visitRequests.$inferInsert;
+
+// Public support intake: subtitle/caption requests with optional attachment
+export const subtitleRequests = mysqlTable("subtitle_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  memberId: int("member_id"),
+  title: varchar("title", { length: 160 }).notNull(),
+  authorName: varchar("author_name", { length: 64 }).notNull(),
+  phone: varchar("phone", { length: 32 }).notNull(),
+  email: varchar("email", { length: 320 }),
+  requestedDate: varchar("requested_date", { length: 10 }),
+  content: text("content").notNull(),
+  attachmentName: varchar("attachment_name", { length: 255 }),
+  attachmentUrl: varchar("attachment_url", { length: 512 }),
+  attachmentSize: int("attachment_size"),
+  attachmentMime: varchar("attachment_mime", { length: 128 }),
+  status: mysqlEnum("status", ["new", "reviewed", "completed", "archived"]).notNull().default("new"),
+  adminMemo: text("admin_memo"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("subtitle_requests_status_created_idx").on(table.status, table.createdAt),
+  index("subtitle_requests_date_idx").on(table.requestedDate),
+  index("subtitle_requests_member_created_idx").on(table.memberId, table.createdAt),
+]);
+
+export type SubtitleRequest = typeof subtitleRequests.$inferSelect;
+export type InsertSubtitleRequest = typeof subtitleRequests.$inferInsert;
+
+// Worship bulletin files uploaded by admins and shown on /worship/bulletin
+export const bulletins = mysqlTable("bulletins", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 160 }).notNull(),
+  bulletinDate: varchar("bulletin_date", { length: 10 }).notNull(),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  fileUrl: varchar("file_url", { length: 512 }).notNull(),
+  fileSize: int("file_size"),
+  fileMime: varchar("file_mime", { length: 128 }),
+  status: mysqlEnum("status", ["published", "hidden", "archived"]).notNull().default("published"),
+  authorId: int("author_id"),
+  /** 주보 상세 조회수 */
+  viewCount: int("view_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("bulletins_status_date_idx").on(table.status, table.bulletinDate),
+  index("bulletins_created_idx").on(table.createdAt),
+]);
+
+export type Bulletin = typeof bulletins.$inferSelect;
+export type InsertBulletin = typeof bulletins.$inferInsert;
+
+// Multiple page images that belong to a single bulletin.
+export const bulletinImages = mysqlTable("bulletin_images", {
+  id: int("id").autoincrement().primaryKey(),
+  bulletinId: int("bulletin_id").notNull(),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  fileUrl: varchar("file_url", { length: 512 }).notNull(),
+  fileSize: int("file_size"),
+  fileMime: varchar("file_mime", { length: 128 }),
+  sortOrder: int("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("bulletin_images_bulletin_order_idx").on(table.bulletinId, table.sortOrder),
+  index("bulletin_images_created_idx").on(table.createdAt),
+]);
+
+export type BulletinImage = typeof bulletinImages.$inferSelect;
+export type InsertBulletinImage = typeof bulletinImages.$inferInsert;
+
+// Member-only bulletin advertisement requests
+export const bulletinAdRequests = mysqlTable("bulletin_ad_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  memberId: int("member_id").notNull(),
+  title: varchar("title", { length: 160 }).notNull(),
+  authorName: varchar("author_name", { length: 64 }).notNull(),
+  phone: varchar("phone", { length: 32 }),
+  email: varchar("email", { length: 320 }),
+  requestedDate: varchar("requested_date", { length: 10 }),
+  content: text("content").notNull(),
+  attachmentName: varchar("attachment_name", { length: 255 }),
+  attachmentUrl: varchar("attachment_url", { length: 512 }),
+  attachmentSize: int("attachment_size"),
+  attachmentMime: varchar("attachment_mime", { length: 128 }),
+  status: mysqlEnum("status", ["new", "reviewed", "completed", "archived"]).notNull().default("new"),
+  adminMemo: text("admin_memo"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("bulletin_ad_requests_status_created_idx").on(table.status, table.createdAt),
+  index("bulletin_ad_requests_member_created_idx").on(table.memberId, table.createdAt),
+  index("bulletin_ad_requests_date_idx").on(table.requestedDate),
+]);
+
+export type BulletinAdRequest = typeof bulletinAdRequests.$inferSelect;
+export type InsertBulletinAdRequest = typeof bulletinAdRequests.$inferInsert;
+
 // ─────────────────────────────────────────────
 // 시설 예약 시스템
 // ─────────────────────────────────────────────
@@ -514,6 +807,8 @@ export const facilities = mysqlTable("facilities", {
   description: text("description"),
   /** 위치 (예: 본관 3층) */
   location: varchar("location", { length: 128 }),
+  /** 건물 분류: hayoungin(하영인관) / welfare(복지관) */
+  building: varchar("building", { length: 32 }).notNull().default("welfare"),
   /** 최대 수용 인원 */
   capacity: int("capacity").notNull().default(10),
   /** 사용 요금 (0 = 무료) */
@@ -528,6 +823,8 @@ export const facilities = mysqlTable("facilities", {
   approvalType: mysqlEnum("approvalType", ["auto", "manual"]).notNull().default("manual"),
   /** 예약 가능 여부 (false = 예약 중단) */
   isReservable: boolean("isReservable").notNull().default(true),
+  /** 외부인 비회원 예약 공개 여부 */
+  isExternalReservable: boolean("isExternalReservable").notNull().default(false),
   /** 노출 여부 */
   isVisible: boolean("isVisible").notNull().default(true),
   /** 이용 안내 (마크다운 지원) */
@@ -600,6 +897,24 @@ export const facilityHours = mysqlTable("facility_hours", {
 export type FacilityHour = typeof facilityHours.$inferSelect;
 export type InsertFacilityHour = typeof facilityHours.$inferInsert;
 
+export const externalFacilityHours = mysqlTable("external_facility_hours", {
+  id: int("id").autoincrement().primaryKey(),
+  facilityId: int("facilityId").notNull(),
+  dayOfWeek: int("dayOfWeek").notNull(),
+  isOpen: boolean("isOpen").notNull().default(true),
+  openTime: varchar("openTime", { length: 5 }).notNull().default("09:00"),
+  closeTime: varchar("closeTime", { length: 5 }).notNull().default("22:00"),
+  breakStart: varchar("breakStart", { length: 5 }),
+  breakEnd: varchar("breakEnd", { length: 5 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("external_facility_hours_facility_day_unique").on(table.facilityId, table.dayOfWeek),
+]);
+
+export type ExternalFacilityHour = typeof externalFacilityHours.$inferSelect;
+export type InsertExternalFacilityHour = typeof externalFacilityHours.$inferInsert;
+
 /**
  * facility_blocked_dates: 시설 특정 날짜 차단 테이블
  * 공휴일, 교회 행사 등 특정 날짜에 예약을 차단합니다.
@@ -632,8 +947,10 @@ export const reservations = mysqlTable("reservations", {
   id: int("id").autoincrement().primaryKey(),
   /** 시설 ID */
   facilityId: int("facilityId").notNull(),
-  /** 예약자 성도 ID (church_members.id 참조) */
-  userId: int("userId").notNull(),
+  /** 예약자 성도 ID (외부인 예약은 null) */
+  userId: int("userId"),
+  /** 예약 구분: member(성도) / external(외부인) */
+  reservationType: mysqlEnum("reservationType", ["member", "external", "course"]).notNull().default("member"),
   /** 예약자 이름 (비로그인 예약 또는 대리 예약 시) */
   reserverName: varchar("reserverName", { length: 64 }).notNull(),
   /** 예약자 연락처 */
@@ -652,8 +969,14 @@ export const reservations = mysqlTable("reservations", {
   attendees: int("attendees").notNull().default(1),
   /** 추가 요청사항 */
   notes: text("notes"),
-  /** 예약 상태: pending(대기) / approved(승인) / rejected(거절) / cancelled(취소) */
-  status: mysqlEnum("status", ["pending", "approved", "rejected", "cancelled"]).notNull().default("pending"),
+  /** 예약 상태: pending(대기) / checking(확인중) / approved(승인) / rejected(거절) / cancelled(취소) */
+  status: mysqlEnum("status", ["pending", "checking", "approved", "rejected", "cancelled"]).notNull().default("pending"),
+  /** 반복 예약 묶음 ID */
+  recurrenceGroupId: varchar("recurrenceGroupId", { length: 64 }),
+  /** 반복 예약 설명 */
+  recurrenceLabel: varchar("recurrenceLabel", { length: 160 }),
+  /** 반복 예약 내 순서 */
+  recurrenceSequence: int("recurrenceSequence").notNull().default(0),
   /** 승인/거절 사유 (관리자 입력) */
   adminComment: text("adminComment"),
   /** 승인/거절 처리한 관리자 ID */
@@ -666,6 +989,239 @@ export const reservations = mysqlTable("reservations", {
 
 export type Reservation = typeof reservations.$inferSelect;
 export type InsertReservation = typeof reservations.$inferInsert;
+
+// ─────────────────────────────────────────────
+// 차량 예약 시스템
+// 시설예약과 분리해서 운영합니다. 차량은 차단일 없이 매일 같은 시간대 안에서
+// 이미 예약된 시간만 막는 구조입니다.
+// ─────────────────────────────────────────────
+
+export const vehicles = mysqlTable("vehicles", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 128 }).notNull(),
+  description: text("description"),
+  plateNumber: varchar("plate_number", { length: 64 }),
+  location: varchar("location", { length: 128 }),
+  driverInfo: varchar("driver_info", { length: 128 }),
+  capacity: int("capacity").notNull().default(5),
+  slotMinutes: int("slot_minutes").notNull().default(60),
+  minSlots: int("min_slots").notNull().default(1),
+  maxSlots: int("max_slots").notNull().default(8),
+  approvalType: mysqlEnum("approval_type", ["auto", "manual"]).notNull().default("manual"),
+  isReservable: boolean("is_reservable").notNull().default(true),
+  isVisible: boolean("is_visible").notNull().default(true),
+  notice: text("notice"),
+  caution: text("caution"),
+  sortOrder: int("sort_order").notNull().default(0),
+  openTime: varchar("open_time", { length: 5 }).notNull().default("00:00"),
+  closeTime: varchar("close_time", { length: 5 }).notNull().default("24:00"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("vehicles_visible_sort_idx").on(table.isVisible, table.sortOrder),
+]);
+
+export type Vehicle = typeof vehicles.$inferSelect;
+export type InsertVehicle = typeof vehicles.$inferInsert;
+
+export const vehicleImages = mysqlTable("vehicle_images", {
+  id: int("id").autoincrement().primaryKey(),
+  vehicleId: int("vehicle_id").notNull(),
+  imageUrl: text("image_url").notNull(),
+  fileKey: varchar("file_key", { length: 512 }),
+  caption: varchar("caption", { length: 128 }),
+  isThumbnail: boolean("is_thumbnail").notNull().default(false),
+  sortOrder: int("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("vehicle_images_vehicle_order_idx").on(table.vehicleId, table.isThumbnail, table.sortOrder),
+]);
+
+export type VehicleImage = typeof vehicleImages.$inferSelect;
+export type InsertVehicleImage = typeof vehicleImages.$inferInsert;
+
+export const vehicleReservations = mysqlTable("vehicle_reservations", {
+  id: int("id").autoincrement().primaryKey(),
+  vehicleId: int("vehicle_id").notNull(),
+  userId: int("user_id").notNull(),
+  reserverName: varchar("reserver_name", { length: 64 }).notNull(),
+  reserverPhone: varchar("reserver_phone", { length: 32 }),
+  reservationDate: varchar("reservation_date", { length: 10 }).notNull(),
+  startTime: varchar("start_time", { length: 5 }).notNull(),
+  endTime: varchar("end_time", { length: 5 }).notNull(),
+  purpose: varchar("purpose", { length: 256 }).notNull(),
+  department: varchar("department", { length: 128 }),
+  passengers: int("passengers").notNull().default(1),
+  notes: text("notes"),
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "cancelled"]).notNull().default("pending"),
+  adminComment: text("admin_comment"),
+  processedBy: int("processed_by"),
+  processedAt: timestamp("processed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("vehicle_reservations_vehicle_date_idx").on(table.vehicleId, table.reservationDate),
+  index("vehicle_reservations_status_created_idx").on(table.status, table.createdAt),
+  index("vehicle_reservations_user_created_idx").on(table.userId, table.createdAt),
+]);
+
+export type VehicleReservation = typeof vehicleReservations.$inferSelect;
+export type InsertVehicleReservation = typeof vehicleReservations.$inferInsert;
+
+export const vehicleReservationAccessRules = mysqlTable("vehicle_reservation_access_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  fieldType: varchar("field_type", { length: 32 }).notNull(),
+  fieldValue: varchar("field_value", { length: 64 }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: int("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("vehicle_access_field_value_unique").on(table.fieldType, table.fieldValue),
+  index("vehicle_access_active_idx").on(table.isActive, table.sortOrder),
+]);
+
+export type VehicleReservationAccessRule = typeof vehicleReservationAccessRules.$inferSelect;
+export type InsertVehicleReservationAccessRule = typeof vehicleReservationAccessRules.$inferInsert;
+
+// ─────────────────────────────────────────────
+// 교육/강좌 신청 시스템
+// ─────────────────────────────────────────────
+
+/**
+ * courses: 교육/강좌 마스터 테이블
+ * 조이아카데미, 새가족 교육, 성경공부 등 신청 가능한 강좌를 관리합니다.
+ */
+export const courses = mysqlTable("courses", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 강좌명 */
+  title: varchar("title", { length: 128 }).notNull(),
+  /** 목록용 한 줄 소개 */
+  summary: varchar("summary", { length: 500 }),
+  imageUrl: text("imageUrl"),
+  /** 상세 안내 */
+  description: text("description"),
+  /** 강사/담당자 */
+  instructor: varchar("instructor", { length: 64 }),
+  /** 장소 */
+  location: varchar("location", { length: 128 }),
+  /** 대상 */
+  target: varchar("target", { length: 128 }),
+  /** 수강료/회비 안내 */
+  fee: varchar("fee", { length: 128 }),
+  /** 정원: 0이면 제한 없음 */
+  capacity: int("capacity").notNull().default(0),
+  facilityId: int("facilityId"),
+  facilityReservationId: int("facilityReservationId"),
+  /** 강좌 시작일 */
+  startDate: varchar("startDate", { length: 10 }),
+  /** 강좌 종료일 */
+  endDate: varchar("endDate", { length: 10 }),
+  /** 시작 시간 */
+  startTime: varchar("startTime", { length: 5 }),
+  /** 종료 시간 */
+  endTime: varchar("endTime", { length: 5 }),
+  /** 신청 시작일 */
+  applyStartDate: varchar("applyStartDate", { length: 10 }),
+  /** 신청 마감일 */
+  applyEndDate: varchar("applyEndDate", { length: 10 }),
+  /** 상태: draft(준비) / open(신청중) / closed(마감) / archived(보관) */
+  status: mysqlEnum("status", ["draft", "open", "closed", "cancelled", "archived"]).notNull().default("draft"),
+  /** 공개 노출 여부 */
+  isVisible: boolean("isVisible").notNull().default(true),
+  /** 신청 전 안내 문구 */
+  applicationNotice: text("applicationNotice"),
+  /** 정렬 순서 */
+  sortOrder: int("sortOrder").notNull().default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("courses_status_visible_sort_idx").on(table.status, table.isVisible, table.sortOrder),
+  index("courses_apply_window_idx").on(table.applyStartDate, table.applyEndDate),
+  index("courses_facility_idx").on(table.facilityId),
+  index("courses_facility_reservation_idx").on(table.facilityReservationId),
+]);
+
+export type Course = typeof courses.$inferSelect;
+export type InsertCourse = typeof courses.$inferInsert;
+
+/**
+ * course_applications: 강좌 신청 내역
+ * 승인 대기, 승인, 거절, 신청 취소 상태를 관리합니다.
+ */
+export const courseApplications = mysqlTable("course_applications", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 강좌 ID */
+  courseId: int("courseId").notNull(),
+  /** 신청 성도 ID */
+  memberId: int("memberId").notNull(),
+  /** 신청자 이름 */
+  applicantName: varchar("applicantName", { length: 64 }).notNull(),
+  /** 신청자 연락처 */
+  applicantPhone: varchar("applicantPhone", { length: 32 }),
+  /** 신청자 이메일 */
+  applicantEmail: varchar("applicantEmail", { length: 320 }),
+  /** 신청 메모 */
+  memo: text("memo"),
+  /** 상태: pending(대기) / approved(승인) / rejected(거절) / cancelled(취소) */
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "cancelled"]).notNull().default("pending"),
+  /** 관리자 메모 또는 거절 사유 */
+  adminComment: text("adminComment"),
+  /** 처리한 관리자 ID */
+  processedBy: int("processedBy"),
+  /** 처리 시각 */
+  processedAt: timestamp("processedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("course_applications_course_status_idx").on(table.courseId, table.status, table.createdAt),
+  index("course_applications_member_created_idx").on(table.memberId, table.createdAt),
+  uniqueIndex("course_applications_course_member_unique").on(table.courseId, table.memberId),
+]);
+
+export type CourseApplication = typeof courseApplications.$inferSelect;
+export type InsertCourseApplication = typeof courseApplications.$inferInsert;
+
+// ─────────────────────────────────────────────
+// 담임목사 저서
+// ─────────────────────────────────────────────
+
+export const pastorBooks = mysqlTable("pastor_books", {
+  id: int("id").autoincrement().primaryKey(),
+  legacyNum: varchar("legacy_num", { length: 32 }),
+  title: varchar("title", { length: 255 }).notNull(),
+  summary: varchar("summary", { length: 500 }),
+  contentHtml: text("content_html"),
+  publishedAt: varchar("published_at", { length: 10 }),
+  externalUrl: text("external_url"),
+  isVisible: boolean("is_visible").notNull().default(true),
+  sortOrder: int("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("pastor_books_legacy_num_unique").on(table.legacyNum),
+  index("pastor_books_visible_sort_idx").on(table.isVisible, table.sortOrder),
+  index("pastor_books_published_idx").on(table.publishedAt),
+]);
+
+export type PastorBook = typeof pastorBooks.$inferSelect;
+export type InsertPastorBook = typeof pastorBooks.$inferInsert;
+
+export const pastorBookImages = mysqlTable("pastor_book_images", {
+  id: int("id").autoincrement().primaryKey(),
+  bookId: int("book_id").notNull(),
+  imageUrl: text("image_url").notNull(),
+  fileKey: varchar("file_key", { length: 512 }),
+  caption: varchar("caption", { length: 128 }),
+  isThumbnail: boolean("is_thumbnail").notNull().default(false),
+  sortOrder: int("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("pastor_book_images_book_order_idx").on(table.bookId, table.isThumbnail, table.sortOrder),
+]);
+
+export type PastorBookImage = typeof pastorBookImages.$inferSelect;
+export type InsertPastorBookImage = typeof pastorBookImages.$inferInsert;
 
 // ─────────────────────────────────────────────
 // 선교보고 시스템

@@ -72,6 +72,9 @@ export const ENV = {
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  openAiApiKey: process.env.OPENAI_API_KEY ?? "",
+  openAiBaseUrl: process.env.OPENAI_BASE_URL ?? "",
+  translationModel: process.env.TRANSLATION_MODEL ?? "gpt-5-mini",
 
   // 관리자 로그인 자격증명
   // ⚠️ 운영 환경에서는 반드시 환경변수로 설정해야 합니다 (기본값 없음)

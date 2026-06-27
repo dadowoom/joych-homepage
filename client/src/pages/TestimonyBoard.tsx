@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
+import SubPageLayout from "@/components/SubPageLayout";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
@@ -31,32 +32,12 @@ function fileToBase64(file: File) {
   });
 }
 
-function PageHero({ count }: { count?: number }) {
-  return (
-    <section
-      className="relative py-20 bg-cover bg-center overflow-hidden"
-      style={{ backgroundImage: "url('https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-worship-praise_d34c61eb.webp')" }}
-    >
-      <div className="absolute inset-0 bg-[#1B5E20]/80"></div>
-      <div className="relative z-10 max-w-6xl mx-auto px-4 text-white">
-        <p className="text-sm font-medium tracking-widest text-green-200 mb-3 uppercase">Saengseon Testimony</p>
-        <h1 className="text-4xl md:text-5xl font-bold mb-4" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-          생선 간증
-        </h1>
-        <p className="text-green-100 text-lg max-w-xl leading-relaxed">
-          생선제자훈련과 교회 공동체 안에서 경험한 은혜를<br className="hidden sm:block" />
-          함께 나누는 간증 공간입니다.
-        </p>
-        {typeof count === "number" && (
-          <div className="mt-8">
-            <p className="text-3xl font-bold">{count}</p>
-            <p className="text-green-200 text-sm mt-1">나눠진 간증</p>
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
+const TESTIMONY_SIDE_MENU_ITEMS = [
+  { id: 1, label: "교회 소식", href: "/page/행정지원-공지사항" },
+  { id: 2, label: "기도 요청", href: "/community/prayer" },
+  { id: 3, label: "생선 간증", href: "/community/testimony", isActive: true },
+  { id: 4, label: "나눔 게시판", href: "/community/joytalk" },
+];
 
 export default function TestimonyList() {
   const {
@@ -74,120 +55,123 @@ export default function TestimonyList() {
   const visiblePosts = posts ?? [];
 
   return (
-    <div className="min-h-screen bg-[#F7F7F5]">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 text-[#1B5E20] hover:opacity-80 transition-opacity">
-            <i className="fas fa-chevron-left text-sm"></i>
-            <span className="font-medium text-sm">기쁨의교회 홈</span>
-          </Link>
-          {me ? (
-            <Link href="/community/testimony/write" className="inline-flex items-center gap-1.5 text-xs bg-[#1B5E20] text-white px-3 py-1.5 rounded-full hover:bg-[#2E7D32] transition-colors">
-              <i className="fas fa-pen text-[10px]"></i>
-              간증 작성
-            </Link>
-          ) : (
-            <Link href="/member/login?next=/community/testimony/write" className="text-xs text-[#1B5E20] font-medium hover:underline">
-              로그인 후 작성
-            </Link>
-          )}
-        </div>
-      </header>
-
-      <PageHero count={posts?.length} />
-
-      <section className="max-w-6xl mx-auto px-4 py-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <p className="text-sm text-gray-500">
-            {isLoading ? (
-              "간증을 불러오는 중입니다."
-            ) : (
-              <>
-                총 <span className="font-semibold text-[#1B5E20]">{visiblePosts.length}</span>개의 간증
-              </>
-            )}
-          </p>
-          <p className="text-xs text-gray-400">승인된 성도만 글쓰기와 댓글 작성이 가능합니다.</p>
-        </div>
-      </section>
-
-      <section className="max-w-6xl mx-auto px-4 pb-20">
-        {isLoading ? (
-          <div className="text-center py-24 text-gray-400">
-            <i className="fas fa-spinner fa-spin text-4xl mb-4 block"></i>
-            <p>간증을 불러오는 중입니다.</p>
-          </div>
-        ) : isError ? (
-          <div className="bg-white rounded-2xl p-12 text-center text-gray-500 border border-gray-100">
-            <i className="fas fa-circle-exclamation text-4xl mb-4 block text-red-300"></i>
-            <p className="font-medium text-gray-700">간증을 불러오지 못했습니다.</p>
-            <p className="mt-2 text-sm text-gray-400">{error?.message ?? "잠시 후 다시 시도해 주세요."}</p>
-            <button
-              type="button"
-              onClick={() => void refetch()}
-              className="mt-5 px-5 py-2.5 rounded-full bg-[#1B5E20] text-white text-sm font-medium hover:bg-[#2E7D32] transition-colors"
-            >
-              다시 불러오기
-            </button>
-          </div>
-        ) : visiblePosts.length === 0 ? (
-          <div className="bg-white rounded-2xl p-12 text-center text-gray-400 border border-gray-100">
-            <i className="fas fa-seedling text-4xl mb-4 block text-[#1B5E20]/40"></i>
-            <p>아직 등록된 간증이 없습니다.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {visiblePosts.map((post) => (
-              <Link key={post.id} href={`/community/testimony/${post.id}`}>
-                <article className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer group h-full flex flex-col">
-                  <div className="relative h-52 overflow-hidden bg-[#E8F5E9]">
-                    {post.thumbnailUrl || post.images[0] ? (
-                      <img
-                        src={post.thumbnailUrl ?? post.images[0]}
-                        alt={post.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <i className="fas fa-quote-left text-[#1B5E20]/30 text-5xl"></i>
-                      </div>
-                    )}
-                    <span className="absolute top-3 left-3 bg-[#1B5E20]/90 text-white text-xs px-2.5 py-1 rounded-full">
-                      간증
-                    </span>
-                  </div>
-                  <div className="p-5 flex-1 flex flex-col">
-                    <div className="flex items-center gap-2 text-xs text-gray-400 mb-3">
-                      <span className="font-medium text-gray-600">{post.authorName ?? "성도"}</span>
-                      {post.authorPosition && <span>{post.authorPosition}</span>}
-                      <span className="ml-auto">{formatDate(post.createdAt)}</span>
-                    </div>
-                    <h2
-                      className="text-base font-bold text-gray-800 mb-2 leading-snug group-hover:text-[#1B5E20] transition-colors line-clamp-2"
-                      style={{ fontFamily: "'Noto Serif KR', serif" }}
-                    >
-                      {post.title}
-                    </h2>
-                    <p className="text-sm text-gray-500 leading-relaxed line-clamp-3 flex-1">{post.content}</p>
-                    <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-4 text-xs text-gray-400">
-                      <span className="flex items-center gap-1">
-                        <i className="fas fa-comment"></i>
-                        댓글 {post.commentCount}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <i className="fas fa-eye"></i>
-                        조회 {post.viewCount}
-                      </span>
-                      <span className="ml-auto text-[#1B5E20] font-medium">읽기 →</span>
-                    </div>
-                  </div>
-                </article>
+    <SubPageLayout
+      pageTitle="생선 간증"
+      parentLabel="커뮤니티"
+      sideMenuItems={TESTIMONY_SIDE_MENU_ITEMS}
+    >
+      <div className="space-y-6">
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 md:p-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-sm font-medium text-[#1B5E20]">생선수료자 간증 나눔</p>
+              <p className="mt-2 text-sm leading-6 text-gray-500">
+                생선제자훈련 수료자들이 받은 은혜와 공동체 안에서의 변화를 함께 나누는 공간입니다.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-gray-500">
+                <span>
+                  {isLoading ? (
+                    "간증을 불러오는 중입니다."
+                  ) : (
+                    <>
+                      총 <span className="font-semibold text-[#1B5E20]">{visiblePosts.length}</span>개의 간증
+                    </>
+                  )}
+                </span>
+                <span className="text-xs text-gray-400">승인된 성도만 글쓰기와 댓글 작성이 가능합니다.</span>
+              </div>
+            </div>
+            {me ? (
+              <Link href="/community/testimony/write" className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-[#1B5E20] px-4 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32]">
+                <i className="fas fa-pen text-[10px]"></i>
+                간증 작성
               </Link>
-            ))}
+            ) : (
+              <Link href="/member/login?next=/community/testimony/write" className="inline-flex h-10 items-center justify-center rounded-full border border-[#1B5E20]/15 px-4 text-sm font-medium text-[#1B5E20] transition-colors hover:bg-[#F1F8E9]">
+                로그인 후 작성
+              </Link>
+            )}
           </div>
-        )}
-      </section>
-    </div>
+        </section>
+
+        <section>
+          {isLoading ? (
+            <div className="py-24 text-center text-gray-400">
+              <i className="fas fa-spinner fa-spin text-4xl mb-4 block"></i>
+              <p>간증을 불러오는 중입니다.</p>
+            </div>
+          ) : isError ? (
+            <div className="bg-white rounded-2xl p-12 text-center text-gray-500 border border-gray-100">
+              <i className="fas fa-circle-exclamation text-4xl mb-4 block text-red-300"></i>
+              <p className="font-medium text-gray-700">간증을 불러오지 못했습니다.</p>
+              <p className="mt-2 text-sm text-gray-400">{error?.message ?? "잠시 후 다시 시도해 주세요."}</p>
+              <button
+                type="button"
+                onClick={() => void refetch()}
+                className="mt-5 px-5 py-2.5 rounded-full bg-[#1B5E20] text-white text-sm font-medium hover:bg-[#2E7D32] transition-colors"
+              >
+                다시 불러오기
+              </button>
+            </div>
+          ) : visiblePosts.length === 0 ? (
+            <div className="bg-white rounded-2xl p-12 text-center text-gray-400 border border-gray-100">
+              <i className="fas fa-seedling text-4xl mb-4 block text-[#1B5E20]/40"></i>
+              <p>아직 등록된 간증이 없습니다.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+              {visiblePosts.map((post) => (
+                <Link key={post.id} href={`/community/testimony/${post.id}`}>
+                  <article className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer group h-full flex flex-col">
+                    <div className="relative h-52 overflow-hidden bg-[#E8F5E9]">
+                      {post.thumbnailUrl || post.images[0] ? (
+                        <img
+                          src={post.thumbnailUrl ?? post.images[0]}
+                          alt={post.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                         loading="lazy"/>
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <i className="fas fa-quote-left text-[#1B5E20]/30 text-5xl"></i>
+                        </div>
+                      )}
+                      <span className="absolute top-3 left-3 bg-[#1B5E20]/90 text-white text-xs px-2.5 py-1 rounded-full">
+                        간증
+                      </span>
+                    </div>
+                    <div className="p-5 flex-1 flex flex-col">
+                      <div className="flex items-center gap-2 text-xs text-gray-400 mb-3">
+                        <span className="font-medium text-gray-600">{post.authorName ?? "성도"}</span>
+                        {post.authorPosition && <span>{post.authorPosition}</span>}
+                        <span className="ml-auto">{formatDate(post.createdAt)}</span>
+                      </div>
+                      <h2
+                        className="text-base font-bold text-gray-800 mb-2 leading-snug group-hover:text-[#1B5E20] transition-colors line-clamp-2"
+                        style={{ fontFamily: "'Noto Serif KR', serif" }}
+                      >
+                        {post.title}
+                      </h2>
+                      <p className="text-sm text-gray-500 leading-relaxed line-clamp-3 flex-1">{post.content}</p>
+                      <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-4 text-xs text-gray-400">
+                        <span className="flex items-center gap-1">
+                          <i className="fas fa-comment"></i>
+                          댓글 {post.commentCount}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <i className="fas fa-eye"></i>
+                          조회 {post.viewCount}
+                        </span>
+                        <span className="ml-auto text-[#1B5E20] font-medium">읽기 →</span>
+                      </div>
+                    </div>
+                  </article>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    </SubPageLayout>
   );
 }
 
@@ -313,7 +297,7 @@ export function TestimonyDetail() {
                   src={imageUrl}
                   alt={`${post.title} 이미지 ${index + 1}`}
                   className="w-full rounded-xl object-cover max-h-[420px] bg-gray-100"
-                />
+                 loading="lazy"/>
               ))}
             </div>
           )}
@@ -586,8 +570,8 @@ export function TestimonyEditor() {
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              rows={14}
-              className={`${fieldClass} resize-y leading-7`}
+              rows={8}
+              className={`${fieldClass} min-h-[220px] resize-y leading-7 md:min-h-[360px]`}
               placeholder="간증 내용을 입력해주세요"
             />
           </div>
@@ -619,7 +603,7 @@ export function TestimonyEditor() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {images.map((image, index) => (
                   <div key={`${image.imageUrl}-${index}`} className="relative group">
-                    <img src={image.imageUrl} alt={`업로드 이미지 ${index + 1}`} className="w-full aspect-square object-cover rounded-xl bg-gray-100" />
+                    <img src={image.imageUrl} alt={`업로드 이미지 ${index + 1}`} className="w-full aspect-square object-cover rounded-xl bg-gray-100"  loading="lazy"/>
                     <button
                       type="button"
                       onClick={() => setImages(prev => prev.filter((_, i) => i !== index))}

@@ -250,7 +250,7 @@ export default function FaithData() {
                     {/* 아바타 */}
                     <div className="w-11 h-11 rounded-full bg-[#E8F5E9] flex items-center justify-center shrink-0 group-hover:bg-[#C8E6C9] transition-colors">
                       {user.profilePhoto ? (
-                        <img src={user.profilePhoto} alt={user.displayName} className="w-11 h-11 rounded-full object-cover" />
+                        <img src={user.profilePhoto} alt={user.displayName} className="w-11 h-11 rounded-full object-cover"  loading="lazy"/>
                       ) : (
                         <i className="fas fa-user text-[#1B5E20] text-lg"></i>
                       )}
@@ -309,7 +309,7 @@ export default function FaithData() {
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center shrink-0">
                   {selectedUser.profile.profilePhoto ? (
-                    <img src={selectedUser.profile.profilePhoto} alt={selectedUser.profile.displayName} className="w-16 h-16 rounded-full object-cover" />
+                    <img src={selectedUser.profile.profilePhoto} alt={selectedUser.profile.displayName} className="w-16 h-16 rounded-full object-cover"  loading="lazy"/>
                   ) : (
                     <i className="fas fa-user text-white text-2xl"></i>
                   )}

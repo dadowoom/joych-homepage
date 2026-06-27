@@ -2,6 +2,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NoticePopupLayer from "@/components/NoticePopupLayer";
 import SiteHeader from "@/components/SiteHeader";
+import SitewideAdminEditor from "@/components/SitewideAdminEditor";
 import NotFound from "@/pages/NotFound";
 import { lazy, Suspense, useEffect } from "react";
 import { Route, Switch, useLocation } from "wouter";
@@ -22,7 +23,43 @@ const MemberSocialComplete = lazy(() => import("./pages/MemberSocialComplete"));
 const FacilityList = lazy(() => import("./pages/FacilityList"));
 const FacilityDetail = lazy(() => import("./pages/FacilityDetail"));
 const FacilityApply = lazy(() => import("./pages/FacilityApply"));
+const ExternalFacilityList = lazy(() =>
+  import("./pages/FacilityList").then(module => ({
+    default: module.ExternalFacilityList,
+  }))
+);
+const ExternalFacilityDetail = lazy(() =>
+  import("./pages/FacilityDetail").then(module => ({
+    default: module.ExternalFacilityDetail,
+  }))
+);
+const ExternalFacilityApply = lazy(() =>
+  import("./pages/FacilityApply").then(module => ({
+    default: module.ExternalFacilityApply,
+  }))
+);
 const MyReservations = lazy(() => import("./pages/MyReservations"));
+const VehicleReservationList = lazy(() =>
+  import("./pages/VehicleReservations").then(module => ({
+    default: module.VehicleReservationList,
+  }))
+);
+const VehicleReservationApply = lazy(() =>
+  import("./pages/VehicleReservations").then(module => ({
+    default: module.VehicleReservationApply,
+  }))
+);
+const VehicleReservationDetail = lazy(() =>
+  import("./pages/VehicleReservations").then(module => ({
+    default: module.VehicleReservationDetail,
+  }))
+);
+const MyVehicleReservations = lazy(() =>
+  import("./pages/VehicleReservations").then(module => ({
+    default: module.MyVehicleReservations,
+  }))
+);
+const CourseList = lazy(() => import("./pages/CourseList"));
 const MissionList = lazy(() => import("./pages/MissionList"));
 const MissionDetail = lazy(() => import("./pages/MissionDetail"));
 const MissionReportEditor = lazy(() => import("./pages/MissionReportEditor"));
@@ -57,9 +94,7 @@ const DynamicMenuSubItemPage = lazy(() =>
 const PastorGreeting = lazy(() =>
   import("./pages/About").then(module => ({ default: module.PastorGreeting }))
 );
-const ChurchHistory = lazy(() =>
-  import("./pages/About").then(module => ({ default: module.ChurchHistory }))
-);
+const ChurchHistory = lazy(() => import("./pages/ChurchHistory"));
 const ChurchVision = lazy(() =>
   import("./pages/About").then(module => ({ default: module.ChurchVision }))
 );
@@ -69,6 +104,16 @@ const Location = lazy(() =>
 
 const StaffPage = lazy(() =>
   import("./pages/ChurchIntro").then(module => ({ default: module.StaffPage }))
+);
+const PastorBooksPage = lazy(() =>
+  import("./pages/ChurchIntro").then(module => ({
+    default: module.PastorBooksPage,
+  }))
+);
+const PastorBookDetailPage = lazy(() =>
+  import("./pages/ChurchIntro").then(module => ({
+    default: module.PastorBookDetailPage,
+  }))
 );
 const WhiteBookPage = lazy(() =>
   import("./pages/ChurchIntro").then(module => ({
@@ -92,13 +137,11 @@ const ShuttleBusPage = lazy(() =>
 const JoyfulTV = lazy(() =>
   import("./pages/Worship").then(module => ({ default: module.JoyfulTV }))
 );
-const WorshipSchedule = lazy(() =>
-  import("./pages/Worship").then(module => ({
-    default: module.WorshipSchedule,
-  }))
-);
 const Bulletin = lazy(() =>
   import("./pages/Worship").then(module => ({ default: module.Bulletin }))
+);
+const BulletinDetail = lazy(() =>
+  import("./pages/Worship").then(module => ({ default: module.BulletinDetail }))
 );
 
 const WednesdayWorshipPage = lazy(() =>
@@ -215,9 +258,6 @@ const PrayerRequest = lazy(() =>
 const Offering = lazy(() =>
   import("./pages/Community").then(module => ({ default: module.Offering }))
 );
-const VehicleGuide = lazy(() =>
-  import("./pages/Community").then(module => ({ default: module.VehicleGuide }))
-);
 const NewMemberGuide = lazy(() =>
   import("./pages/Community").then(module => ({
     default: module.NewMemberGuide,
@@ -227,46 +267,14 @@ const JoyfulStore = lazy(() =>
   import("./pages/Community").then(module => ({ default: module.JoyfulStore }))
 );
 
-const SunMeetingPage = lazy(() =>
-  import("./pages/CommunityExtra").then(module => ({
-    default: module.SunMeetingPage,
-  }))
-);
-const OrganizationPage = lazy(() =>
-  import("./pages/CommunityExtra").then(module => ({
-    default: module.OrganizationPage,
-  }))
-);
-const ClubPage = lazy(() =>
-  import("./pages/CommunityExtra").then(module => ({
-    default: module.ClubPage,
-  }))
-);
-const JoyTalkPage = lazy(() =>
-  import("./pages/CommunityExtra").then(module => ({
-    default: module.JoyTalkPage,
-  }))
-);
-const SubtitleRequestPage = lazy(() =>
-  import("./pages/CommunityExtra").then(module => ({
-    default: module.SubtitleRequestPage,
-  }))
-);
-const OnlineOfficePage = lazy(() =>
-  import("./pages/CommunityExtra").then(module => ({
-    default: module.OnlineOfficePage,
-  }))
-);
-const VisitRequestPage = lazy(() =>
-  import("./pages/CommunityExtra").then(module => ({
-    default: module.VisitRequestPage,
-  }))
-);
-const DonationReceiptPage = lazy(() =>
-  import("./pages/CommunityExtra").then(module => ({
-    default: module.DonationReceiptPage,
-  }))
-);
+const SunMeetingPage = lazy(() => import("./pages/community/SunMeetingPage"));
+const OrganizationPage = lazy(() => import("./pages/community/OrganizationPage"));
+const ClubPage = lazy(() => import("./pages/community/ClubPage"));
+const SubtitleRequestPage = lazy(() => import("./pages/community/SubtitleRequestPage"));
+const BulletinAdRequestPage = lazy(() => import("./pages/community/BulletinAdRequestPage"));
+const OnlineOfficePage = lazy(() => import("./pages/community/OnlineOfficePage"));
+const VisitRequestPage = lazy(() => import("./pages/community/VisitRequestPage"));
+const DonationReceiptPage = lazy(() => import("./pages/community/DonationReceiptPage"));
 
 const DomesticMission = lazy(() =>
   import("./pages/Mission").then(module => ({
@@ -315,8 +323,11 @@ function Router() {
       <Route path="/about/pastor" component={PastorGreeting} />
       <Route path="/about/history" component={ChurchHistory} />
       <Route path="/about/vision" component={ChurchVision} />
+      <Route path="/about/pastor/books/:id" component={PastorBookDetailPage} />
+      <Route path="/about/pastor/books" component={PastorBooksPage} />
       <Route path="/about/staff/associate" component={StaffPage} />
       <Route path="/about/staff" component={StaffPage} />
+      <Route path="/page/교회소개-담임목사-저서" component={PastorBooksPage} />
       <Route path="/page/교회소개-섬기는-분" component={StaffPage} />
       <Route path="/page/교회소개-부교역자" component={StaffPage} />
       <Route path="/about/whitebook" component={WhiteBookPage} />
@@ -339,13 +350,15 @@ function Router() {
       <Route path="/worship/tv/feature" component={SpecialFeaturePage} />
       <Route path="/worship/tv/testimony" component={TestimonyPage} />
       <Route path="/worship/tv/praise" component={PraisePage} />
-      <Route path="/worship/schedule" component={WorshipSchedule} />
+      <Route path="/worship/schedule" component={DynamicMenuHrefPage} />
+      <Route path="/worship/bulletin/:id" component={BulletinDetail} />
       <Route path="/worship/bulletin" component={Bulletin} />
 
       {/* 양육/훈련 */}
       <Route path="/education/new-member" component={NewMember} />
       <Route path="/education/disciple" component={DiscipleTraining} />
       <Route path="/education/bible" component={BibleStudy} />
+      <Route path="/education/courses" component={CourseList} />
       <Route path="/education/hesed" component={HesedAsiaPage} />
       <Route path="/education/disciple2" component={DiscipleTrainingPage} />
       <Route path="/education/elder" component={ElderTrainingPage} />
@@ -393,13 +406,19 @@ function Router() {
       <Route path="/community/testimony/edit/:id" component={TestimonyEditor} />
       <Route path="/community/testimony/:id" component={TestimonyDetail} />
       <Route path="/community/testimony" component={TestimonyList} />
-      <Route path="/community/joytalk" component={JoyTalkPage} />
+      <Route path="/community/joytalk">
+        <LegacyRedirect to="/page/커뮤니티-자유게시판" />
+      </Route>
 
       {/* 행정지원 */}
       <Route path="/support/offering" component={Offering} />
-      <Route path="/support/vehicle" component={VehicleGuide} />
+      <Route path="/support/vehicle/my-reservations" component={MyVehicleReservations} />
+      <Route path="/support/vehicle/:id/apply" component={VehicleReservationApply} />
+      <Route path="/support/vehicle/:id" component={VehicleReservationDetail} />
+      <Route path="/support/vehicle" component={VehicleReservationList} />
       <Route path="/support/new-member" component={NewMemberGuide} />
       <Route path="/support/store" component={JoyfulStore} />
+      <Route path="/support/bulletin-ad" component={BulletinAdRequestPage} />
       <Route path="/support/subtitle" component={SubtitleRequestPage} />
       <Route path="/support/office" component={OnlineOfficePage} />
       <Route path="/support/tour" component={VisitRequestPage} />
@@ -407,9 +426,10 @@ function Router() {
 
       {/* 행정지원 - 기존 공개 URL 호환 */}
       <Route path="/admin/offering" component={Offering} />
-      <Route path="/admin/vehicle" component={VehicleGuide} />
+      <Route path="/admin/vehicle" component={VehicleReservationList} />
       <Route path="/admin/new-member" component={NewMemberGuide} />
       <Route path="/admin/store" component={JoyfulStore} />
+      <Route path="/admin/bulletin-ad" component={BulletinAdRequestPage} />
       <Route path="/admin/subtitle" component={SubtitleRequestPage} />
       <Route path="/admin/office" component={OnlineOfficePage} />
       <Route path="/admin/tour" component={VisitRequestPage} />
@@ -422,6 +442,9 @@ function Router() {
       <Route path="/member/social-complete" component={MemberSocialComplete} />
       <Route path="/member/my-page" component={MemberMyPage} />
 
+      <Route path="/facility/external/:id/apply" component={ExternalFacilityApply} />
+      <Route path="/facility/external/:id" component={ExternalFacilityDetail} />
+      <Route path="/facility/external" component={ExternalFacilityList} />
       <Route path="/facility" component={FacilityList} />
       <Route path="/facility/my-reservations" component={MyReservations} />
       <Route path="/facility/:id/apply" component={FacilityApply} />
@@ -454,6 +477,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <SiteHeader />
+          <SitewideAdminEditor />
           <Suspense fallback={null}>
             <Router />
           </Suspense>

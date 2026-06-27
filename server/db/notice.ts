@@ -7,9 +7,11 @@
  *   - createNotice / updateNotice / deleteNotice: 공지사항 CRUD
  */
 
-import { eq, desc } from "drizzle-orm";
+import { and, desc, eq, like, ne, not, sql } from "drizzle-orm";
 import { InsertNotice, notices } from "../../drizzle/schema";
 import { getDb } from "./connection";
+
+const MENU_BOARD_CATEGORY_PREFIX = "menu-board:";
 
 /**
  * 공개된 공지사항 목록 조회 (홈페이지용)
@@ -19,7 +21,23 @@ export async function getPublishedNotices(limit = 5) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(notices)
-    .where(eq(notices.isPublished, true))
+    .where(and(
+      eq(notices.isPublished, true),
+      ne(notices.category, "행정자료"),
+      not(like(notices.category, `${MENU_BOARD_CATEGORY_PREFIX}%`))
+    ))
+    .orderBy(desc(notices.createdAt))
+    .limit(limit);
+}
+
+/**
+ * 특정 분류의 공개 게시글 목록 조회
+ */
+export async function getPublishedNoticesByCategory(category: string, limit = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(notices)
+    .where(and(eq(notices.isPublished, true), eq(notices.category, category)))
     .orderBy(desc(notices.createdAt))
     .limit(limit);
 }
@@ -32,6 +50,14 @@ export async function getAllNotices() {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(notices).orderBy(desc(notices.createdAt));
+}
+
+export async function incrementNoticeViewCount(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(notices)
+    .set({ viewCount: sql`${notices.viewCount} + 1` })
+    .where(and(eq(notices.id, id), eq(notices.isPublished, true)));
 }
 
 /**

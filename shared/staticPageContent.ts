@@ -218,7 +218,7 @@ export const STATIC_PAGE_SEEDS: StaticPageSeed[] = [
         { title: "장애인 사역", desc: "장애인 예배 및 사회 통합 프로그램" },
         { title: "긴급 복지 지원", desc: "위기 가정 긴급 생계 지원" },
       ],
-      contact: [{ label: "주소", value: "경북 포항시 북구 상흥로 411" }, { label: "전화", value: "054-270-1000" }],
+      contact: [{ label: "주소", value: "경북 포항시 북구 삼흥로 411" }, { label: "전화", value: "054-270-1000" }],
     },
   },
   {

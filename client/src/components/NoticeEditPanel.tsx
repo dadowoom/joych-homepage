@@ -4,7 +4,7 @@
  * - 소식 목록 조회, 추가, 수정, 삭제, 게시/숨기기 기능
  * - 썸네일 이미지 파일 직접 업로드 (S3 연동)
  */
-import { useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   Sheet,
   SheetContent,
@@ -17,6 +17,14 @@ import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import { Pencil, Trash2, Plus, Check, X, Eye, EyeOff, ImageIcon, Upload } from "lucide-react";
 import { toast } from "sonner";
+import {
+  ADMIN_RESOURCE_CATEGORY,
+  DEFAULT_NOTICE_CATEGORY_LABEL,
+  NOTICE_CATEGORY_SETTINGS_KEY,
+  getNoticeWriteCategoryLabels,
+  parseNoticeCategorySettings,
+  sanitizeNoticePostCategory,
+} from "@shared/noticeCategories";
 
 type NoticeRow = {
   id: number;
@@ -35,18 +43,56 @@ type EditState = {
   thumbnailUrl: string;
 };
 
+function normalizeNoticeCategory(category?: string | null, fallback = DEFAULT_NOTICE_CATEGORY_LABEL) {
+  if (category === ADMIN_RESOURCE_CATEGORY) return category;
+  return sanitizeNoticePostCategory(category, fallback);
+}
+
 interface NoticeEditPanelProps {
   open: boolean;
   onClose: () => void;
+  initialNoticeId?: number | null;
+  startAdding?: boolean;
+  categoryScope?: string;
+  panelTitle?: string;
+  panelDescription?: string;
+  createButtonLabel?: string;
 }
 
-export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps) {
+export default function NoticeEditPanel({
+  open,
+  onClose,
+  initialNoticeId = null,
+  startAdding = false,
+  categoryScope,
+  panelTitle = "교회 소식 편집",
+  panelDescription = "소식을 추가, 수정, 삭제하거나 게시 여부를 변경할 수 있습니다.",
+  createButtonLabel = "새 소식 추가",
+}: NoticeEditPanelProps) {
   const utils = trpc.useUtils();
+  const effectiveCategory = categoryScope?.trim() || null;
+  const getBlankState = () => ({
+    category: effectiveCategory ?? DEFAULT_NOTICE_CATEGORY_LABEL,
+    title: "",
+    content: "",
+    thumbnailUrl: "",
+  });
 
   // 소식 목록 불러오기
   const { data: notices, isLoading } = trpc.cms.notices.list.useQuery(undefined, {
     enabled: open,
   });
+  const { data: settings } = trpc.home.settings.useQuery(undefined, {
+    enabled: open,
+  });
+  const noticeCategorySettings = useMemo(
+    () => parseNoticeCategorySettings(settings?.[NOTICE_CATEGORY_SETTINGS_KEY]),
+    [settings],
+  );
+  const noticeWriteCategories = useMemo(
+    () => getNoticeWriteCategoryLabels(noticeCategorySettings),
+    [noticeCategorySettings],
+  );
 
   // 편집 상태
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -54,7 +100,17 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
 
   // 새 소식 추가 상태
   const [isAdding, setIsAdding] = useState(false);
-  const [newState, setNewState] = useState<EditState>({ category: "공지", title: "", content: "", thumbnailUrl: "" });
+  const [newState, setNewState] = useState<EditState>(getBlankState);
+  const visibleNotices = (notices ?? []).filter((notice) => {
+    const category = normalizeNoticeCategory(notice.category);
+    return effectiveCategory ? category === effectiveCategory : category !== ADMIN_RESOURCE_CATEGORY;
+  });
+  const getCategoryOptions = (current?: string | null) => {
+    const options = [...noticeWriteCategories];
+    const normalized = sanitizeNoticePostCategory(current, options[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL);
+    if (normalized && !options.includes(normalized)) options.unshift(normalized);
+    return options;
+  };
 
   // 이미지 업로드 상태
   const [uploadingFor, setUploadingFor] = useState<"edit" | "new" | null>(null);
@@ -75,6 +131,8 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
       setEditingId(null);
       utils.cms.notices.list.invalidate();
       utils.home.notices.invalidate();
+      utils.home.noticeBoard.invalidate();
+      utils.home.adminResourceBoard.invalidate();
     },
     onError: (e) => toast.error("수정 실패: " + e.message),
   });
@@ -84,9 +142,11 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
     onSuccess: () => {
       toast.success("새 소식이 추가됐습니다.");
       setIsAdding(false);
-      setNewState({ category: "공지", title: "", content: "", thumbnailUrl: "" });
+      setNewState(getBlankState());
       utils.cms.notices.list.invalidate();
       utils.home.notices.invalidate();
+      utils.home.noticeBoard.invalidate();
+      utils.home.adminResourceBoard.invalidate();
     },
     onError: (e) => toast.error("추가 실패: " + e.message),
   });
@@ -97,6 +157,8 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
       toast.success("소식이 삭제됐습니다.");
       utils.cms.notices.list.invalidate();
       utils.home.notices.invalidate();
+      utils.home.noticeBoard.invalidate();
+      utils.home.adminResourceBoard.invalidate();
     },
     onError: (e) => toast.error("삭제 실패: " + e.message),
   });
@@ -106,6 +168,8 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
     onSuccess: () => {
       utils.cms.notices.list.invalidate();
       utils.home.notices.invalidate();
+      utils.home.noticeBoard.invalidate();
+      utils.home.adminResourceBoard.invalidate();
     },
     onError: (e) => toast.error("변경 실패: " + e.message),
   });
@@ -113,12 +177,37 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
   const startEdit = (notice: NoticeRow) => {
     setEditingId(notice.id);
     setEditState({
-      category: notice.category,
+      category: effectiveCategory ?? normalizeNoticeCategory(notice.category, noticeWriteCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
       title: notice.title,
       content: notice.content ?? "",
       thumbnailUrl: notice.thumbnailUrl ?? "",
     });
   };
+
+  useEffect(() => {
+    if (!open) return;
+
+    if (initialNoticeId && notices?.length) {
+      const notice = notices.find((item) => item.id === initialNoticeId);
+      if (notice && editingId !== notice.id) {
+        setIsAdding(false);
+        setEditingId(notice.id);
+        setEditState({
+          category: effectiveCategory ?? normalizeNoticeCategory(notice.category, noticeWriteCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
+          title: notice.title,
+          content: notice.content ?? "",
+          thumbnailUrl: notice.thumbnailUrl ?? "",
+        });
+      }
+      return;
+    }
+
+    if (startAdding && !isAdding) {
+      setEditingId(null);
+      setIsAdding(true);
+      setNewState(getBlankState());
+    }
+  }, [open, initialNoticeId, startAdding, notices, editingId, isAdding, effectiveCategory]);
 
   const cancelEdit = () => {
     setEditingId(null);
@@ -128,7 +217,7 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
     if (!editingId) return;
     updateMutation.mutate({
       id: editingId,
-      category: editState.category,
+      category: effectiveCategory ?? normalizeNoticeCategory(editState.category, noticeWriteCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
       title: editState.title,
       content: editState.content || undefined,
       thumbnailUrl: editState.thumbnailUrl || undefined,
@@ -141,7 +230,7 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
       return;
     }
     createMutation.mutate({
-      category: newState.category || "공지",
+      category: effectiveCategory ?? normalizeNoticeCategory(newState.category, noticeWriteCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
       title: newState.title,
       content: newState.content || undefined,
       thumbnailUrl: newState.thumbnailUrl || undefined,
@@ -225,7 +314,7 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
                 alt="썸네일 미리보기"
                 className="w-full h-24 object-cover rounded border border-gray-200"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-              />
+               loading="lazy"/>
               <button
                 type="button"
                 className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
@@ -280,14 +369,12 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
     );
   };
 
-  const CATEGORIES = ["공지", "행사", "찬양", "선교", "기타"];
-
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent side="right" className="w-[420px] sm:w-[480px] overflow-y-auto bg-white" style={{ top: "144px", height: "calc(100vh - 144px)" }}>
         <SheetHeader className="mb-4">
-          <SheetTitle>교회 소식 편집</SheetTitle>
-          <SheetDescription>소식을 추가, 수정, 삭제하거나 게시 여부를 변경할 수 있습니다.</SheetDescription>
+          <SheetTitle>{panelTitle}</SheetTitle>
+          <SheetDescription>{panelDescription}</SheetDescription>
         </SheetHeader>
 
         {/* 새 소식 추가 버튼 */}
@@ -297,25 +384,31 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
             className="mb-4 w-full bg-[#1B5E20] hover:bg-[#2E7D32] text-white"
             onClick={() => setIsAdding(true)}
           >
-            <Plus className="w-4 h-4 mr-1" /> 새 소식 추가
+            <Plus className="w-4 h-4 mr-1" /> {createButtonLabel}
           </Button>
         )}
 
         {/* 새 소식 추가 폼 */}
         {isAdding && (
           <div className="mb-4 p-3 border-2 border-[#1B5E20] rounded-lg bg-green-50 space-y-2">
-            <p className="text-xs font-semibold text-[#1B5E20] mb-2">새 소식 추가</p>
-            <div className="flex gap-2">
-              <select
-                value={newState.category}
-                onChange={(e) => setNewState({ ...newState, category: e.target.value })}
-                className="text-xs border rounded px-2 py-1 bg-white"
-              >
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
+            <p className="text-xs font-semibold text-[#1B5E20] mb-2">{createButtonLabel}</p>
+            {effectiveCategory ? (
+              <span className="inline-flex rounded bg-white px-2 py-1 text-xs font-medium text-[#1B5E20]">
+                {effectiveCategory}
+              </span>
+            ) : (
+              <div className="flex gap-2">
+                <select
+                  value={newState.category}
+                  onChange={(e) => setNewState({ ...newState, category: e.target.value })}
+                  className="text-xs border rounded px-2 py-1 bg-white"
+                >
+                  {getCategoryOptions(newState.category).map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <Input
               placeholder="제목"
               value={newState.title}
@@ -342,7 +435,7 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => { setIsAdding(false); setNewState({ category: "공지", title: "", content: "", thumbnailUrl: "" }); }}
+                onClick={() => { setIsAdding(false); setNewState(getBlankState()); }}
               >
                 <X className="w-3 h-3 mr-1" /> 취소
               </Button>
@@ -355,7 +448,7 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
           <div className="text-center text-gray-400 py-8 text-sm">불러오는 중...</div>
         ) : (
           <div className="space-y-2">
-            {(notices ?? []).map((notice) => (
+            {visibleNotices.map((notice) => (
               <div
                 key={notice.id}
                 className={`border rounded-lg p-3 ${!notice.isPublished ? "opacity-50 bg-gray-50" : "bg-white"}`}
@@ -363,17 +456,23 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
                 {editingId === notice.id ? (
                   /* 편집 모드 */
                   <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <select
-                        value={editState.category}
-                        onChange={(e) => setEditState({ ...editState, category: e.target.value })}
-                        className="text-xs border rounded px-2 py-1 bg-white"
-                      >
-                        {CATEGORIES.map((c) => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
-                    </div>
+                    {effectiveCategory ? (
+                      <span className="inline-flex rounded bg-green-50 px-2 py-1 text-xs font-medium text-[#1B5E20]">
+                        {effectiveCategory}
+                      </span>
+                    ) : (
+                      <div className="flex gap-2">
+                        <select
+                          value={editState.category}
+                          onChange={(e) => setEditState({ ...editState, category: e.target.value })}
+                          className="text-xs border rounded px-2 py-1 bg-white"
+                        >
+                          {getCategoryOptions(editState.category).map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     <Input
                       value={editState.title}
                       onChange={(e) => setEditState({ ...editState, title: e.target.value })}
@@ -412,12 +511,12 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
                         alt={notice.title}
                         className="w-12 h-12 object-cover rounded border border-gray-200 shrink-0"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                      />
+                       loading="lazy"/>
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-medium">
-                          {notice.category}
+                          {normalizeNoticeCategory(notice.category)}
                         </span>
                         {!notice.isPublished && (
                           <span className="text-xs text-gray-400">(숨김)</span>
@@ -462,8 +561,8 @@ export default function NoticeEditPanel({ open, onClose }: NoticeEditPanelProps)
                 )}
               </div>
             ))}
-            {(notices ?? []).length === 0 && (
-              <div className="text-center text-gray-400 py-8 text-sm">등록된 소식이 없습니다.</div>
+            {visibleNotices.length === 0 && (
+              <div className="text-center text-gray-400 py-8 text-sm">등록된 게시글이 없습니다.</div>
             )}
           </div>
         )}

@@ -4,10 +4,14 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import type { RouteComponentProps } from "wouter";
-import { ArrowLeft, ChevronRight, Bus, BookOpen, Heart, Mail, Palette, Phone, UserRound } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronRight, Bus, BookOpen, Heart, Image as ImageIcon, Mail, Palette, Pencil, Phone, Plus, UserRound } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { PastorBookEditorDialog } from "@/components/AdminPastorBooksTab";
+import { RichTextViewer } from "@/components/ui/rich-text-editor";
+import { canManageBoardContent } from "@/lib/contentPermissions";
 import SubPageLayout from "@/components/SubPageLayout";
 
 function PageWrapper({ title, breadcrumb, children }: { title: string; breadcrumb: string[]; children: React.ReactNode }) {
@@ -41,17 +45,40 @@ function alertPendingResource(label: string) {
 }
 
 // ── 섬기는 분 ──
-const STAFF_CATEGORIES = [
+type StaffCategoryOption = { value: string; label: string };
+
+const DEFAULT_STAFF_CATEGORIES = [
   { value: "senior", label: "담임목사" },
   { value: "associate", label: "부교역자" },
-  { value: "education", label: "교회학교" },
-  { value: "office", label: "사무행정" },
+  { value: "education", label: "교회학교 교역자" },
+  { value: "cooperation", label: "협력사역자" },
   { value: "elder", label: "장로" },
-  { value: "other", label: "기타" },
+  { value: "office", label: "교회직원" },
+  { value: "other", label: "사회복지법인 기쁨의복지재단" },
+] satisfies StaffCategoryOption[];
+
+const ELDER_GROUP_LABELS = ["원로장로", "은퇴장로", "시무장로", "휴무장로"] as const;
+const FALLBACK_ELDER_GROUP_LABEL = "장로";
+const COOPERATION_GROUP_LABELS = ["협력사역자", "파송선교사", "협력선교사"] as const;
+const FOUNDATION_GROUP_LABELS = [
+  "이사장",
+  "감사",
+  "이사",
+  "법인사무처",
+  "창포종합사회복지관",
+  "경북동부 노인보호전문기관",
+  "경상북도학대피해 노인전용쉼터",
+  "경북남부 노인보호전문기관",
+  "은빛빌리지",
+  "시립창포어린이집",
+  "기쁨의지역아동센터",
+  "창포지역아동센터",
+  "포항시가족센터",
 ] as const;
 
-type StaffCategoryFilter = typeof STAFF_CATEGORIES[number]["value"];
+type StaffCategoryFilter = string;
 type StaffCategory = StaffCategoryFilter;
+type StaffTitleOption = { categoryKey: string; label: string };
 type StaffMenuTreeItem = {
   id: number;
   label: string;
@@ -69,8 +96,27 @@ type StaffPageProps = {
   initialCategory?: StaffCategoryFilter;
 } & Partial<RouteComponentProps<Record<string, string | undefined>>>;
 
-const STAFF_SIDE_MENU_ITEMS = [
-  { id: 1, label: "담임목사 인사말", href: "/page/교회소개-담임목사-소개" },
+const PASTOR_GREETING_HREF = "/page/교회소개-담임목사-소개";
+const PASTOR_BOOKS_HREF = "/page/교회소개-담임목사-저서";
+
+type StaffSideMenuItem = {
+  id: number;
+  label: string;
+  href: string | null;
+  isActive?: boolean;
+  subItems?: StaffSideMenuItem[];
+};
+
+const STAFF_SIDE_MENU_ITEMS: StaffSideMenuItem[] = [
+  {
+    id: 1,
+    label: "담임목사 소개",
+    href: null,
+    subItems: [
+      { id: 101, label: "담임목사인사", href: PASTOR_GREETING_HREF },
+      { id: 102, label: "담임목사 저서", href: PASTOR_BOOKS_HREF },
+    ],
+  },
   { id: 2, label: "섬기는 분", href: "/page/교회소개-섬기는-분" },
   { id: 3, label: "부교역자", href: "/page/교회소개-부교역자" },
   { id: 4, label: "교회 역사", href: "/about/history" },
@@ -83,8 +129,160 @@ function getInitialStaffCategory(location: string, fallback: StaffCategoryFilter
   return fallback;
 }
 
-function getStaffCategoryLabel(category: string) {
-  return STAFF_CATEGORIES.find((option) => option.value === category)?.label ?? category;
+function mergeStaffCategoryOptions(categories: Array<{ categoryKey: string; label: string }>): StaffCategoryOption[] {
+  if (categories.length === 0) return DEFAULT_STAFF_CATEGORIES;
+  return categories.map((category) => ({
+    value: category.categoryKey,
+    label: category.label,
+  }));
+}
+
+function getStaffCategoryLabel(category: string, categories: StaffCategoryOption[] = DEFAULT_STAFF_CATEGORIES) {
+  return categories.find((option) => option.value === category)?.label ?? category;
+}
+
+function normalizeStaffGroup(value: string | null | undefined) {
+  return value?.replace(/\s+/g, "").trim() ?? "";
+}
+
+function getKnownGroupLabel(value: string | null | undefined, labels: readonly string[]) {
+  const normalized = normalizeStaffGroup(value);
+  return labels.find((label) => normalizeStaffGroup(label) === normalized);
+}
+
+function isGroupedStaffCategory(category: StaffCategoryFilter) {
+  return category === "elder" || category === "cooperation" || category === "other";
+}
+
+function getStaffGroupLabels(category: StaffCategoryFilter, titleOptions: StaffTitleOption[]) {
+  const savedLabels = titleOptions
+    .filter((option) => option.categoryKey === category)
+    .map((option) => option.label);
+  if (savedLabels.length > 0) return savedLabels;
+  if (category === "elder") return [...ELDER_GROUP_LABELS];
+  if (category === "cooperation") return [...COOPERATION_GROUP_LABELS];
+  if (category === "other") return [...FOUNDATION_GROUP_LABELS];
+  return [];
+}
+
+function getGroupedStaffLabel(staff: {
+  category: string;
+  title?: string | null;
+  department?: string | null;
+}, categories: StaffCategoryOption[], groupLabels: readonly string[]) {
+  if (staff.category === "elder") {
+    return (
+      getKnownGroupLabel(staff.title, groupLabels) ??
+      getKnownGroupLabel(staff.department, groupLabels) ??
+      FALLBACK_ELDER_GROUP_LABEL
+    );
+  }
+
+  if (staff.category === "cooperation") {
+    return getKnownGroupLabel(staff.title, groupLabels) ?? "협력사역자";
+  }
+
+  if (staff.category === "other") {
+    return (
+      getKnownGroupLabel(staff.title, groupLabels) ??
+      (staff.title?.trim() ||
+      getStaffCategoryLabel(staff.category, categories)
+      )
+    );
+  }
+
+  return staff.title?.trim() || getStaffCategoryLabel(staff.category, categories);
+}
+
+function getStaffCardDetails(staff: {
+  category: string;
+  title?: string | null;
+  department?: string | null;
+}, categories: StaffCategoryOption[], groupLabels: readonly string[] = []) {
+  const categoryLabel = getStaffCategoryLabel(staff.category, categories);
+  const title = staff.title?.trim();
+  const department = staff.department?.trim();
+  const details: string[] = [];
+
+  if (!isGroupedStaffCategory(staff.category) && title && title !== categoryLabel) {
+    details.push(title);
+  }
+
+  if (department) {
+    if (staff.category === "elder") {
+      if (!getKnownGroupLabel(department, groupLabels.length > 0 ? groupLabels : ELDER_GROUP_LABELS)) {
+        details.push(`맡은 부서: ${department}`);
+      }
+    } else {
+      details.push(department);
+    }
+  } else if (!isGroupedStaffCategory(staff.category) && details.length === 0) {
+    details.push(categoryLabel);
+  }
+
+  return details;
+}
+
+function isPastorIntroMenuItem(item: { label: string; href?: string | null }) {
+  const label = item.label.replace(/\s+/g, "");
+  const href = item.href?.trim();
+  return (
+    href === PASTOR_GREETING_HREF ||
+    label === "담임목사소개" ||
+    label === "담임목사인사" ||
+    label === "담임목사인사말"
+  );
+}
+
+function isPastorBooksMenuItem(item: { label: string; href?: string | null }) {
+  const label = item.label.replace(/\s+/g, "");
+  return item.href?.trim() === PASTOR_BOOKS_HREF || label === "담임목사저서";
+}
+
+function ensurePastorBooksSideMenuItems(items: StaffSideMenuItem[], pageTitle: string): StaffSideMenuItem[] {
+  const bookItem: StaffSideMenuItem = {
+    id: 120012,
+    label: "담임목사 저서",
+    href: PASTOR_BOOKS_HREF,
+    isActive: pageTitle === "담임목사 저서",
+  };
+  const next: StaffSideMenuItem[] = items.map((item): StaffSideMenuItem => ({
+    ...item,
+    subItems: item.subItems?.map((subItem) => ({
+      ...subItem,
+      isActive: isPastorBooksMenuItem(subItem) ? pageTitle === "담임목사 저서" : subItem.isActive,
+    })),
+  }));
+  const alreadyExists = next.some((item) =>
+    isPastorBooksMenuItem(item) ||
+    item.subItems?.some((subItem) => isPastorBooksMenuItem(subItem))
+  );
+
+  if (alreadyExists) {
+    return next.map((item) => ({
+      ...item,
+      isActive: item.isActive || item.subItems?.some((subItem) => subItem.isActive),
+    }));
+  }
+
+  const parentIndex = next.findIndex((item) => isPastorIntroMenuItem(item));
+  if (parentIndex >= 0) {
+    const parent = next[parentIndex];
+    next[parentIndex] = {
+      ...parent,
+      isActive: parent.isActive || pageTitle === "담임목사 저서",
+      subItems: [...(parent.subItems ?? []), bookItem],
+    };
+    return next;
+  }
+
+  const greetingIndex = next.findIndex((item) => item.href === PASTOR_GREETING_HREF);
+  if (greetingIndex >= 0) {
+    next.splice(greetingIndex + 1, 0, bookItem);
+    return next;
+  }
+
+  return [...next, bookItem];
 }
 
 function hasOwnStaffMenuContent(item: StaffMenuTreeItem) {
@@ -117,10 +315,14 @@ function getStaffSideMenuItems(menuTree: StaffMenuTree | undefined, pageTitle: s
       };
     });
 
-  if (liveItems?.length) return liveItems;
-  return STAFF_SIDE_MENU_ITEMS.map((item) => ({
+  if (liveItems?.length) return ensurePastorBooksSideMenuItems(liveItems, pageTitle);
+  return ensurePastorBooksSideMenuItems(STAFF_SIDE_MENU_ITEMS, pageTitle).map((item) => ({
     ...item,
-    isActive: item.label === pageTitle,
+    isActive: item.label === pageTitle || item.subItems?.some((subItem) => subItem.label === pageTitle),
+    subItems: item.subItems?.map((subItem) => ({
+      ...subItem,
+      isActive: subItem.label === pageTitle,
+    })),
   }));
 }
 
@@ -139,7 +341,17 @@ export function StaffPage({
     [activeCategory],
   );
   const { data: staffList = [], isLoading } = trpc.home.staff.useQuery(queryInput);
+  const { data: staffCategories = [] } = trpc.home.staffCategories.useQuery();
+  const { data: staffTitleOptions = [] } = trpc.home.staffTitleOptions.useQuery();
   const { data: menuTree } = trpc.home.menus.useQuery();
+  const categoryOptions = useMemo(
+    () => mergeStaffCategoryOptions(staffCategories),
+    [staffCategories],
+  );
+  const activeGroupLabels = useMemo(
+    () => getStaffGroupLabels(activeCategory, staffTitleOptions),
+    [activeCategory, staffTitleOptions],
+  );
   const pageTitle = activeCategory === "associate" ? "부교역자" : "섬기는 분";
   const profileIntro = activeCategory === "associate"
     ? "기쁨의교회를 함께 섬기는 부교역자를 소개합니다."
@@ -148,6 +360,79 @@ export function StaffPage({
     () => getStaffSideMenuItems(menuTree, pageTitle),
     [menuTree, pageTitle],
   );
+  const staffGroups = useMemo(() => {
+    if (!isGroupedStaffCategory(activeCategory)) {
+      return [{ label: null, members: staffList }];
+    }
+
+    const groups = new Map<string, typeof staffList>();
+    staffList.forEach((staff) => {
+      const label = getGroupedStaffLabel(staff, categoryOptions, activeGroupLabels);
+      const members = groups.get(label) ?? [];
+      members.push(staff);
+      groups.set(label, members);
+    });
+
+    const orderedLabels = activeGroupLabels.filter((label) => groups.has(label));
+    const remainingLabels = Array.from(groups.keys()).filter((label) => !orderedLabels.includes(label));
+    return [...orderedLabels, ...remainingLabels].map((label) => ({
+      label,
+      members: groups.get(label) ?? [],
+    }));
+  }, [activeCategory, activeGroupLabels, categoryOptions, staffList]);
+
+  const renderStaffCard = (staff: typeof staffList[number]) => {
+    const details = getStaffCardDetails(staff, categoryOptions, activeGroupLabels);
+    const email = staff.email?.trim();
+    const phone = staff.phone?.trim();
+    const hasCardMeta = details.length > 0 || Boolean(email) || Boolean(phone);
+
+    return (
+      <article
+        key={staff.id}
+        className={`group relative flex w-full flex-col items-center border border-gray-200 bg-white px-4 pt-40 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-md ${
+          hasCardMeta ? "min-h-72 pb-7" : "min-h-60 pb-6"
+        }`}
+      >
+        <div className="absolute -top-10 left-1/2 flex h-48 w-40 -translate-x-1/2 items-center justify-center overflow-hidden bg-gray-50 ring-1 ring-gray-100 transition-transform group-hover:-translate-y-1">
+          {staff.imageUrl ? (
+            <img
+              src={staff.imageUrl}
+              alt={staff.name}
+              loading="lazy"
+              className="h-full w-full object-cover object-top"
+            />
+          ) : (
+            <UserRound className="h-14 w-14 text-gray-300" />
+          )}
+        </div>
+        <h3 className="text-base font-bold text-gray-900">{staff.name}</h3>
+        {details.length > 0 && (
+          <div className="mt-3 space-y-1 text-sm leading-6 text-gray-600">
+            {details.map((detail) => (
+              <p key={detail}>{detail}</p>
+            ))}
+          </div>
+        )}
+        {(email || phone) && (
+          <div className="mt-auto min-h-16 w-full border-t border-gray-100 pt-4 text-left text-xs leading-6 text-gray-500">
+            {email && (
+              <a href={`mailto:${email}`} className="flex items-center gap-2 break-all hover:text-[#1B5E20]">
+                <Mail className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                {email}
+              </a>
+            )}
+            {phone && (
+              <a href={`tel:${phone}`} className="flex items-center gap-2 hover:text-[#1B5E20]">
+                <Phone className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                {phone}
+              </a>
+            )}
+          </div>
+        )}
+      </article>
+    );
+  };
 
   return (
     <SubPageLayout
@@ -159,7 +444,7 @@ export function StaffPage({
 
       <div className="mb-12 border-y border-gray-200">
         <div className="flex flex-wrap gap-x-8 gap-y-0">
-        {STAFF_CATEGORIES.map((category) => (
+        {categoryOptions.map((category) => (
           <button
             key={category.value}
             type="button"
@@ -184,55 +469,258 @@ export function StaffPage({
           <p className="text-gray-500">등록된 섬기는 분 정보가 없습니다.</p>
         </div>
       ) : (
-        <div className="grid gap-x-8 gap-y-16 pt-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {staffList.map((staff) => {
-            const roleParts = [staff.title, staff.department || getStaffCategoryLabel(staff.category)]
-              .map((value) => value?.trim())
-              .filter((value, index, array): value is string => Boolean(value) && array.indexOf(value) === index);
-            const email = staff.email?.trim();
-            const phone = staff.phone?.trim();
-            return (
-              <article
-                key={staff.id}
-                className="group relative flex min-h-72 flex-col items-center border border-gray-200 bg-white px-4 pb-7 pt-32 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-md"
-              >
-                <div className="absolute -top-10 left-1/2 flex h-48 w-40 -translate-x-1/2 items-center justify-center overflow-hidden bg-gray-50 ring-1 ring-gray-100 transition-transform group-hover:-translate-y-1">
-                  {staff.imageUrl ? (
-                    <img
-                      src={staff.imageUrl}
-                      alt={staff.name}
-                      loading="lazy"
-                      className="h-full w-full object-cover object-top"
-                    />
-                  ) : (
-                    <UserRound className="h-14 w-14 text-gray-300" />
-                  )}
+        <div className="space-y-14 pt-8">
+          {staffGroups.map((group) => (
+            <section key={group.label ?? "all"}>
+              {group.label && (
+                <div className="mb-12 flex items-center gap-3 border-b border-gray-200 pb-4">
+                  <h2 className="text-lg font-bold text-[#1B5E20]">{group.label}</h2>
+                  <span className="text-xs text-gray-400">{group.members.length}명</span>
                 </div>
-                <h3 className="text-base font-bold text-gray-900">{staff.name}</h3>
-                <p className="mt-3 text-sm leading-6 text-gray-600">
-                  {roleParts.join(" / ")}
-                </p>
-                {(email || phone) && (
-                  <div className="mt-5 w-full border-t border-gray-100 pt-4 text-left text-xs leading-6 text-gray-500">
-                    {email && (
-                      <a href={`mailto:${email}`} className="flex items-center gap-2 break-all hover:text-[#1B5E20]">
-                        <Mail className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                        {email}
-                      </a>
-                    )}
-                    {phone && (
-                      <a href={`tel:${phone}`} className="flex items-center gap-2 hover:text-[#1B5E20]">
-                        <Phone className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                        {phone}
-                      </a>
-                    )}
-                  </div>
-                )}
-              </article>
-            );
-          })}
+              )}
+              <div className="grid items-start gap-x-8 gap-y-16 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {group.members.map((staff) => renderStaffCard(staff))}
+              </div>
+            </section>
+          ))}
         </div>
       )}
+    </SubPageLayout>
+  );
+}
+
+// ── 담임목사 저서 ──
+type PastorBookPublicItem = {
+  id: number;
+  title: string;
+  summary: string | null;
+  contentHtml: string | null;
+  publishedAt: string | null;
+  externalUrl: string | null;
+  isVisible: boolean;
+  sortOrder: number;
+  coverImageUrl?: string | null;
+  images?: { id: number; imageUrl: string; isThumbnail: boolean }[];
+};
+
+function getPastorBookDetailUrl(id: number) {
+  return `/about/pastor/books/${id}`;
+}
+
+export function PastorBooksPage() {
+  const { user } = useAuth();
+  const utils = trpc.useUtils();
+  const { data: menuTree } = trpc.home.menus.useQuery();
+  const { data: pastorBooks = [], isLoading } = trpc.home.pastorBooks.useQuery();
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [selectedBook, setSelectedBook] = useState<PastorBookPublicItem | null>(null);
+  const canManage = canManageBoardContent(user, "content:pastorBooks");
+  const sideMenuItems = useMemo(
+    () => getStaffSideMenuItems(menuTree, "담임목사 저서"),
+    [menuTree],
+  );
+  const books = pastorBooks as PastorBookPublicItem[];
+
+  function openCreate() {
+    setSelectedBook(null);
+    setEditorOpen(true);
+  }
+
+  function openEdit(book: PastorBookPublicItem) {
+    setSelectedBook(book);
+    setEditorOpen(true);
+  }
+
+  return (
+    <SubPageLayout
+      pageTitle="담임목사 저서"
+      parentLabel="교회소개"
+      sideMenuItems={sideMenuItems}
+    >
+      <div className="mb-8 flex flex-col gap-2 border-b border-gray-100 pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-[#1B5E20]">Pastor Books</p>
+          <p className="mt-2 text-sm text-gray-500">
+            박진석 담임목사의 저서를 한곳에서 확인할 수 있습니다.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-gray-400">총 {books.length}권</p>
+          {canManage && (
+            <button
+              type="button"
+              onClick={openCreate}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#1B5E20] px-3 py-2 text-xs font-semibold text-white hover:bg-[#2E7D32]"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              저서 추가
+            </button>
+          )}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <p className="py-12 text-center text-gray-500">불러오는 중...</p>
+      ) : books.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-gray-200 py-16 text-center text-sm text-gray-400">
+          등록된 저서가 없습니다.
+        </div>
+      ) : (
+        <div className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {books.map((book) => (
+            <article key={book.id} className="group relative border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md">
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={() => openEdit(book)}
+                  className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-[#1B5E20] shadow-sm ring-1 ring-[#D7F0D8] hover:bg-[#F1F8F2]"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  수정
+                </button>
+              )}
+              <Link href={getPastorBookDetailUrl(book.id)} className="block">
+                <div className="flex h-64 items-center justify-center overflow-hidden bg-gray-50">
+                  {book.coverImageUrl ? (
+                    <img
+                      src={book.coverImageUrl}
+                      alt={book.title}
+                      loading="lazy"
+                      className="max-h-full max-w-full object-contain transition-transform group-hover:scale-[1.02]"
+                    />
+                  ) : (
+                    <ImageIcon className="h-12 w-12 text-gray-300" />
+                  )}
+                </div>
+                <div className="pt-4">
+                  <h2 className="min-h-12 text-sm font-semibold leading-6 text-gray-800 group-hover:text-[#1B5E20]">
+                    {book.title}
+                  </h2>
+                  {book.summary && <p className="mt-2 line-clamp-2 text-xs leading-5 text-gray-500">{book.summary}</p>}
+                  <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3 text-xs text-gray-400">
+                    <span className="inline-flex items-center gap-1">
+                      <CalendarDays className="h-3.5 w-3.5" />
+                      {book.publishedAt || "날짜 미등록"}
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-[#1B5E20]">
+                      보기
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            </article>
+          ))}
+        </div>
+      )}
+
+      <PastorBookEditorDialog
+        open={editorOpen}
+        book={selectedBook}
+        onClose={() => setEditorOpen(false)}
+        onSaved={() => {
+          utils.home.pastorBooks.invalidate();
+        }}
+      />
+    </SubPageLayout>
+  );
+}
+
+export function PastorBookDetailPage({ params }: RouteComponentProps<{ id: string }>) {
+  const bookId = Number(params.id);
+  const { user } = useAuth();
+  const utils = trpc.useUtils();
+  const { data: menuTree } = trpc.home.menus.useQuery();
+  const { data: book, isLoading } = trpc.home.pastorBook.useQuery(
+    { id: Number.isFinite(bookId) ? bookId : 0 },
+    { enabled: Number.isFinite(bookId) && bookId > 0 },
+  );
+  const [editorOpen, setEditorOpen] = useState(false);
+  const canManage = canManageBoardContent(user, "content:pastorBooks");
+  const sideMenuItems = useMemo(
+    () => getStaffSideMenuItems(menuTree, "담임목사 저서"),
+    [menuTree],
+  );
+  const currentBook = book as PastorBookPublicItem | null | undefined;
+
+  return (
+    <SubPageLayout
+      pageTitle="담임목사 저서"
+      parentLabel="교회소개"
+      sideMenuItems={sideMenuItems}
+    >
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4">
+        <Link href="/about/pastor/books" className="inline-flex items-center gap-2 text-sm font-semibold text-[#1B5E20] hover:underline">
+          <ArrowLeft className="h-4 w-4" />
+          목록으로
+        </Link>
+        {canManage && currentBook && (
+          <button
+            type="button"
+            onClick={() => setEditorOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[#1B5E20] px-3 py-2 text-xs font-semibold text-white hover:bg-[#2E7D32]"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            이 저서 수정
+          </button>
+        )}
+      </div>
+
+      {isLoading ? (
+        <p className="py-16 text-center text-gray-500">불러오는 중...</p>
+      ) : !currentBook ? (
+        <div className="rounded-xl border border-dashed border-gray-200 py-16 text-center text-sm text-gray-400">
+          저서를 찾을 수 없습니다.
+        </div>
+      ) : (
+        <article className="space-y-8">
+          <header className="grid gap-8 lg:grid-cols-[260px_1fr]">
+            <div className="flex min-h-80 items-center justify-center border border-gray-200 bg-gray-50 p-4">
+              {currentBook.coverImageUrl ? (
+                <img src={currentBook.coverImageUrl} alt={currentBook.title} className="max-h-full max-w-full object-contain"  loading="lazy"/>
+              ) : (
+                <ImageIcon className="h-14 w-14 text-gray-300" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-[#1B5E20]">Pastor Book</p>
+              <h1 className="mt-3 font-['Noto_Serif_KR'] text-3xl font-bold leading-tight text-gray-900">
+                {currentBook.title}
+              </h1>
+              {currentBook.publishedAt && (
+                <p className="mt-4 inline-flex items-center gap-2 text-sm text-gray-500">
+                  <CalendarDays className="h-4 w-4" />
+                  {currentBook.publishedAt}
+                </p>
+              )}
+              {currentBook.summary && (
+                <p className="mt-5 rounded-lg bg-[#F1F8F2] px-4 py-3 text-sm leading-7 text-gray-700">
+                  {currentBook.summary}
+                </p>
+              )}
+            </div>
+          </header>
+
+          <section className="border-t border-gray-100 pt-8">
+            {currentBook.contentHtml ? (
+              <RichTextViewer html={currentBook.contentHtml} />
+            ) : (
+              <div className="rounded-xl border border-dashed border-gray-200 py-16 text-center text-sm text-gray-400">
+                아직 등록된 본문 내용이 없습니다.
+              </div>
+            )}
+          </section>
+        </article>
+      )}
+
+      <PastorBookEditorDialog
+        open={editorOpen}
+        book={currentBook ?? null}
+        onClose={() => setEditorOpen(false)}
+        onSaved={() => {
+          utils.home.pastorBook.invalidate({ id: bookId });
+          utils.home.pastorBooks.invalidate();
+        }}
+      />
     </SubPageLayout>
   );
 }
@@ -361,13 +849,13 @@ export function CIPage() {
         </div>
       </section>
 
-      {/* 다운로드 */}
+      {/* 자료 안내 */}
       <section>
-        <h2 className="text-2xl font-bold text-[#1b4332] mb-6 font-['Noto_Serif_KR']">CI 파일 다운로드</h2>
+        <h2 className="text-2xl font-bold text-[#1b4332] mb-6 font-['Noto_Serif_KR']">CI 자료 안내</h2>
         <div className="grid md:grid-cols-3 gap-4">
           {["로고 AI 파일", "로고 PNG 파일", "CI 가이드라인 PDF"].map((file, i) => (
             <button key={i} type="button" onClick={() => alertPendingResource(file)} className="border-2 border-[#2d6a4f] text-[#2d6a4f] rounded-xl p-4 hover:bg-[#2d6a4f] hover:text-white transition-colors text-sm font-semibold">
-              ⬇️ {file}
+              {file} 문의
             </button>
           ))}
         </div>

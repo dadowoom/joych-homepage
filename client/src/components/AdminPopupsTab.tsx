@@ -345,7 +345,7 @@ export default function AdminPopupsTab() {
                     onError={(event) => {
                       (event.target as HTMLImageElement).style.display = "none";
                     }}
-                  />
+                   loading="lazy"/>
                   <button
                     type="button"
                     onClick={() => setForm((prev) => ({ ...prev, imageUrl: "" }))}

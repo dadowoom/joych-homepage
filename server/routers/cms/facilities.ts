@@ -15,27 +15,37 @@
  */
 
 import { z } from "zod";
-import { adminProcedure, publicProcedure, router } from "../../_core/trpc";
+import { adminPermissionProcedure, publicProcedure, router } from "../../_core/trpc";
 import {
   optionalTextSchema,
   requiredTextSchema,
+  safeHrefSchema,
 } from "../../_core/contentValidation";
 import { storagePut } from "../../storage";
 import { validateImage } from "./upload";
+import {
+  FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY,
+  MAX_FACILITY_RESERVATION_MAX_MONTHS,
+  MIN_FACILITY_RESERVATION_MAX_MONTHS,
+} from "@shared/facilityReservationPolicy";
 import {
   getFacilities,
   getFacilityById,
   createFacility,
   updateFacility,
   deleteFacility,
+  reorderFacilities,
   getFacilityImages,
   addFacilityImage,
   deleteFacilityImage,
   getFacilityHours,
   upsertFacilityHour,
+  getExternalFacilityHours,
+  upsertExternalFacilityHour,
   getBlockedDates,
   addBlockedDate,
   deleteBlockedDate,
+  upsertSiteSetting,
 } from "../../db";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -43,8 +53,35 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const idSchema = z.number().int().positive();
 const timeSchema = z.string().regex(TIME_RE, "시간은 HH:MM 형식으로 입력해주세요.");
+const facilityProcedure = adminPermissionProcedure("content:facilities");
 const nullableTimeSchema = timeSchema.nullable().optional();
 const sortOrderSchema = z.number().int().min(0).max(10000).optional();
+const facilityBuildingSchema = z.enum(["hayoungin", "welfare"]).default("welfare");
+const facilityPageSettingKeys = [
+  "facility_hero_eyebrow",
+  "facility_hero_title",
+  "facility_hero_description",
+  "facility_hero_background_url",
+  "facility_guide_step1_title",
+  "facility_guide_step1_desc",
+  "facility_guide_step2_title",
+  "facility_guide_step2_desc",
+  "facility_guide_step3_title",
+  "facility_guide_step3_desc",
+  "facility_guide_step4_title",
+  "facility_guide_step4_desc",
+  FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY,
+] as const;
+const facilityPageSettingSchema = z.object({
+  key: z.enum(facilityPageSettingKeys),
+  value: z.string().trim().max(5000, "설정값은 5000자 이하로 입력해주세요."),
+});
+
+const reservationMaxMonthsSettingSchema = z.coerce
+  .number()
+  .int("예약 가능 기간은 정수로 입력해주세요.")
+  .min(MIN_FACILITY_RESERVATION_MAX_MONTHS, `예약 가능 기간은 최소 ${MIN_FACILITY_RESERVATION_MAX_MONTHS}개월 이상이어야 합니다.`)
+  .max(MAX_FACILITY_RESERVATION_MAX_MONTHS, `예약 가능 기간은 최대 ${MAX_FACILITY_RESERVATION_MAX_MONTHS}개월까지 설정할 수 있습니다.`);
 
 function toMinutes(time: string) {
   const [hour, minute] = time.split(":").map(Number);
@@ -66,6 +103,7 @@ const facilityCreateSchema = z.object({
   name: requiredTextSchema(128, "시설 이름을 입력해주세요."),
   description: optionalTextSchema(5000),
   location: optionalTextSchema(128),
+  building: facilityBuildingSchema,
   capacity: z.number().int().min(1).max(100000).optional(),
   pricePerHour: z.number().int().min(0).max(100000000).optional(),
   slotMinutes: z.number().int().min(5).max(1440).default(60),
@@ -73,6 +111,7 @@ const facilityCreateSchema = z.object({
   maxSlots: z.number().int().min(1).max(96).default(4),
   approvalType: z.enum(["auto", "manual"]).default("manual"),
   isReservable: z.boolean().default(true),
+  isExternalReservable: z.boolean().default(false),
   isVisible: z.boolean().default(true),
   notice: optionalTextSchema(10000),
   caution: optionalTextSchema(10000),
@@ -91,6 +130,7 @@ const facilityUpdateSchema = z.object({
   name: requiredTextSchema(128, "시설 이름을 입력해주세요.").optional(),
   description: optionalTextSchema(5000),
   location: optionalTextSchema(128),
+  building: facilityBuildingSchema.optional(),
   capacity: z.number().int().min(1).max(100000).optional(),
   pricePerHour: z.number().int().min(0).max(100000000).optional(),
   slotMinutes: z.number().int().min(5).max(1440).optional(),
@@ -98,6 +138,7 @@ const facilityUpdateSchema = z.object({
   maxSlots: z.number().int().min(1).max(96).optional(),
   approvalType: z.enum(["auto", "manual"]).optional(),
   isReservable: z.boolean().optional(),
+  isExternalReservable: z.boolean().optional(),
   isVisible: z.boolean().optional(),
   notice: optionalTextSchema(10000),
   caution: optionalTextSchema(10000),
@@ -155,21 +196,44 @@ export const facilitiesRouter = router({
     .input(z.object({ id: idSchema }))
     .query(({ input }) => getFacilityById(input.id)),
 
+  pageSettings: router({
+    update: facilityProcedure
+      .input(facilityPageSettingSchema)
+      .mutation(({ input }) => {
+        const value = input.key === FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY
+          ? String(reservationMaxMonthsSettingSchema.parse(input.value))
+          : input.key.endsWith("_url")
+            ? safeHrefSchema.parse(input.value)
+            : input.value;
+        return upsertSiteSetting(input.key, value);
+      }),
+  }),
+
   /** 시설 생성 (관리자) */
-  create: adminProcedure
+  create: facilityProcedure
     .input(facilityCreateSchema)
     .mutation(({ input }) => createFacility(input)),
 
   /** 시설 정보 수정 (관리자) */
-  update: adminProcedure
+  update: facilityProcedure
     .input(facilityUpdateSchema)
     .mutation(({ input }) => {
       const { id, ...data } = input;
       return updateFacility(id, data);
     }),
 
+  /** 시설 순서 저장 (관리자) */
+  reorder: facilityProcedure
+    .input(z.object({
+      items: z.array(z.object({
+        id: idSchema,
+        sortOrder: z.number().int().min(0).max(10000),
+      })).min(1).max(200),
+    }))
+    .mutation(({ input }) => reorderFacilities(input.items)),
+
   /** 시설 삭제 (관리자) */
-  delete: adminProcedure
+  delete: facilityProcedure
     .input(z.object({ id: idSchema }))
     .mutation(({ input }) => deleteFacility(input.id)),
 
@@ -184,7 +248,7 @@ export const facilitiesRouter = router({
      * 시설 사진 업로드 (관리자)
      * - S3 경로: facility-images/{facilityId}/{timestamp}-{random}.{ext}
      */
-    upload: adminProcedure
+    upload: facilityProcedure
       .input(z.object({
         facilityId: idSchema,
         base64: z.string(),
@@ -209,7 +273,7 @@ export const facilitiesRouter = router({
       }),
 
     /** 시설 사진 삭제 (관리자) */
-    delete: adminProcedure
+    delete: facilityProcedure
       .input(z.object({ id: idSchema }))
       .mutation(({ input }) => deleteFacilityImage(input.id)),
 
@@ -217,7 +281,7 @@ export const facilitiesRouter = router({
      * 대표 사진 설정 (관리자)
      * - 해당 시설의 모든 사진을 isThumbnail=false로 초기화 후 선택 사진만 true
      */
-    setThumbnail: adminProcedure
+    setThumbnail: facilityProcedure
       .input(z.object({ facilityId: idSchema, imageId: idSchema }))
       .mutation(async ({ input }) => {
         const { getDb } = await import("../../db");
@@ -252,12 +316,22 @@ export const facilitiesRouter = router({
      * - 요일별 운영 시간, 휴식 시간 설정
      * - 이미 존재하면 수정, 없으면 생성 (upsert)
      */
-    upsert: adminProcedure
+    upsert: facilityProcedure
       .input(facilityHourSchema)
       .mutation(({ input }) => upsertFacilityHour(input)),
   }),
 
   // ─── 예약 차단 날짜 관리 ────────────────────────────────────────────────────
+  externalHours: router({
+    list: publicProcedure
+      .input(z.object({ facilityId: idSchema }))
+      .query(({ input }) => getExternalFacilityHours(input.facilityId)),
+
+    upsert: facilityProcedure
+      .input(facilityHourSchema)
+      .mutation(({ input }) => upsertExternalFacilityHour(input)),
+  }),
+
   blockedDates: router({
     /** 차단 날짜 목록 조회 (공개) */
     list: publicProcedure
@@ -265,12 +339,12 @@ export const facilitiesRouter = router({
       .query(({ input }) => getBlockedDates(input.facilityId)),
 
     /** 차단 날짜 추가 (관리자) */
-    add: adminProcedure
+    add: facilityProcedure
       .input(blockedDateSchema)
       .mutation(({ input }) => addBlockedDate(input)),
 
     /** 차단 날짜 삭제 (관리자) */
-    delete: adminProcedure
+    delete: facilityProcedure
       .input(z.object({ id: idSchema }))
       .mutation(({ input }) => deleteBlockedDate(input.id)),
   }),

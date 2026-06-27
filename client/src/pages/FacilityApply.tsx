@@ -2,7 +2,7 @@
  * 시설 사용 예약 신청 페이지 (/facility/:id/apply)
  * - DB에서 시설 정보, 운영 시간, 예약 현황을 실시간으로 가져옴
  * - 날짜/시작시간/종료시간을 URL 파라미터로 자동 적용
- * - 시간 선택은 슬롯 버튼 클릭 방식 (드롭다운 없음)
+ * - 시간 선택은 가로 타임라인 바 방식
  * - 신청 완료 시 DB에 저장 + 관리자 알림
  */
 
@@ -13,6 +13,24 @@ import type { FacilityBlockedDate } from "../../../drizzle/schema";
 import { toast } from "sonner";
 import { Loader2, ChevronRight, Clock, Users, MapPin, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import ReservationConflictDialog, {
+  isReservationConflictMessage,
+} from "@/components/facility/ReservationConflictDialog";
+import ReservationTimelinePicker from "@/components/facility/ReservationTimelinePicker";
+import {
+  getKstDateKey,
+  getReservationDateRangeRestriction,
+  getReservationLeadDateKey,
+  getReservationMaxDateKey,
+  getReservationTimeRestriction,
+} from "@/lib/facilityReservationTime";
+import {
+  generateReservationTimePoints,
+} from "@/lib/facilitySlotSelection";
+import {
+  hasFacilityReservationBlockedMemberMarker,
+  hasFacilityReservationRuleOverride,
+} from "@shared/facilityReservationEligibility";
 
 // ── 목적 옵션 ────────────────────────────────────────────────
 const PURPOSE_OPTIONS = [
@@ -20,23 +38,30 @@ const PURPOSE_OPTIONS = [
   "찬양 연습", "강의/세미나", "회의", "바자회/전시", "외부 단체 행사", "기타",
 ];
 
-// // ── 시간 슬롯 생성 헬퍼 ──────────────────────────────────
-// 종료 시간(closeTime)도 슬롯에 포함 (예: 09:00~22:00 시 22:00 버튼도 표시)
-function generateTimeSlots(openTime: string, closeTime: string, unitMinutes: number): string[] {
-  const slots: string[] = [];
-  const [openH, openM] = openTime.split(":").map(Number);
-  const [closeH, closeM] = closeTime.split(":").map(Number);
-  let current = openH * 60 + openM;
-  const end = closeH * 60 + closeM;
-  // <= 로 종료 시간 포함
-  while (current <= end) {
-    const h = Math.floor(current / 60).toString().padStart(2, "0");
-    const m = (current % 60).toString().padStart(2, "0");
-    slots.push(`${h}:${m}`);
-    current += unitMinutes;
-  }
-  return slots;
+type RepeatType = "none" | "daily" | "weekly" | "monthly-weekday";
+type FacilityBuilding = "hayoungin" | "welfare";
+type FacilityAudience = "member" | "external";
+
+function normalizeFacilityBuilding(building: string | null | undefined): FacilityBuilding {
+  return building === "hayoungin" ? "hayoungin" : "welfare";
 }
+
+function getFacilityListHref(building: FacilityBuilding, audience: FacilityAudience) {
+  return audience === "external" ? `/facility/external?building=${building}` : `/facility?building=${building}`;
+}
+
+function getFacilityDetailHref(facilityId: number, building: FacilityBuilding, audience: FacilityAudience) {
+  return audience === "external"
+    ? `/facility/external/${facilityId}?building=${building}`
+    : `/facility/${facilityId}?building=${building}`;
+}
+
+const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
+  { value: "none", label: "반복 없음" },
+  { value: "daily", label: "매일" },
+  { value: "weekly", label: "매주" },
+  { value: "monthly-weekday", label: "매월 같은 주" },
+];
 
 // 요일 숫자 (0=일, 1=월 ... 6=토)
 function getDayOfWeek(dateStr: string): number {
@@ -60,10 +85,17 @@ function Field({ label, required, children, hint }: {
 }
 
 // ── 완료 화면 ────────────────────────────────────────────────
-function SuccessScreen({ facilityName, status, onReset }: {
-  facilityName: string; status: string; onReset: () => void;
+function SuccessScreen({ facilityName, status, count, recurrenceLabel, facilityListHref, showMyReservations = true, onReset }: {
+  facilityName: string;
+  status: string;
+  count: number;
+  recurrenceLabel?: string | null;
+  facilityListHref: string;
+  showMyReservations?: boolean;
+  onReset: () => void;
 }) {
   const isPending = status === "pending";
+  const isRepeated = count > 1;
   return (
     <div className="text-center py-16 px-4">
       <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5 ${isPending ? "bg-amber-50" : "bg-[#E8F5E9]"}`}>
@@ -78,6 +110,11 @@ function SuccessScreen({ facilityName, status, onReset }: {
       <p className="text-gray-500 text-sm leading-relaxed mb-2">
         <span className="font-medium text-gray-700">{facilityName}</span> 사용 신청이 정상적으로 접수되었습니다.
       </p>
+      {isRepeated && (
+        <p className="text-sm text-[#1B5E20] font-medium mb-2">
+          {recurrenceLabel ?? `반복 예약 총 ${count}건`}이 함께 접수되었습니다.
+        </p>
+      )}
       {isPending && (
         <p className="text-gray-500 text-sm mb-2">
           담당자 확인 후 입력하신 연락처로 안내드리겠습니다. <br className="hidden sm:block" />
@@ -86,16 +123,18 @@ function SuccessScreen({ facilityName, status, onReset }: {
       )}
       <p className="text-xs text-gray-400 mb-8">내 예약 현황에서 승인 상태를 확인하실 수 있습니다.</p>
       <div className="flex gap-3 justify-center flex-wrap">
-        <Link href="/facility">
+        <Link href={facilityListHref}>
           <button className="px-5 py-2.5 rounded-lg border border-gray-200 text-gray-600 text-sm hover:bg-gray-50 transition-colors">
             시설 목록으로
           </button>
         </Link>
-        <Link href="/facility/my-reservations">
-          <button className="px-5 py-2.5 rounded-lg bg-[#1B5E20] text-white text-sm hover:bg-[#2E7D32] transition-colors">
-            내 예약 현황 보기
-          </button>
-        </Link>
+        {showMyReservations && (
+          <Link href="/facility/my-reservations">
+            <button className="px-5 py-2.5 rounded-lg bg-[#1B5E20] text-white text-sm hover:bg-[#2E7D32] transition-colors">
+              내 예약 현황 보기
+            </button>
+          </Link>
+        )}
         <button
           onClick={onReset}
           className="px-5 py-2.5 rounded-lg border border-gray-200 text-gray-600 text-sm hover:bg-gray-50 transition-colors"
@@ -111,6 +150,7 @@ function SuccessScreen({ facilityName, status, onReset }: {
 function TimeSlotPicker({
   allSlots,
   bookedSlots,
+  disabledSlots = new Map<string, string>(),
   startTime,
   endTime,
   onSelect,
@@ -119,138 +159,66 @@ function TimeSlotPicker({
 }: {
   allSlots: string[];
   bookedSlots: Set<string>;
+  disabledSlots?: Map<string, string>;
   startTime: string;
   endTime: string;
   onSelect: (start: string, end: string) => void;
   slotMinutes?: number;
   maxSlots?: number;
 }) {
-  const lastSlot = allSlots[allSlots.length - 1];
-
-  function handleSlotClick(slot: string) {
-    if (bookedSlots.has(slot)) return;
-
-    // 아무것도 선택 안 됐거나 둘 다 선택된 경우 → 시작 시간 재선택
-    if (!startTime || (startTime && endTime)) {
-      // 마지막 슬롯(종료 시간)은 시작 시간으로 선택 불가
-      if (slot === lastSlot) return;
-      onSelect(slot, "");
-      return;
-    }
-
-    // 시작 시간만 있는 경우
-    if (slot <= startTime) {
-      if (slot === lastSlot) return;
-      onSelect(slot, "");
-      return;
-    }
-
-    // maxSlots 초과 여부 확인
-    const [sh, sm] = startTime.split(":").map(Number);
-    const [eh, em] = slot.split(":").map(Number);
-    const diffMinutes = (eh * 60 + em) - (sh * 60 + sm);
-    const selectedSlots = diffMinutes / slotMinutes;
-    if (selectedSlots > maxSlots) {
-      // 최대 예약 시간 초과 시 해당 슬롯을 새 시작 시간으로
-      if (slot !== lastSlot) onSelect(slot, "");
-      return;
-    }
-
-    // 범위 내 예약 충돌 확인
-    let cur = sh * 60 + sm;
-    const end = eh * 60 + em;
-    let hasConflict = false;
-    while (cur < end) {
-      const h = Math.floor(cur / 60).toString().padStart(2, "0");
-      const m = (cur % 60).toString().padStart(2, "0");
-      if (bookedSlots.has(`${h}:${m}`)) {
-        hasConflict = true;
-        break;
-      }
-      cur += slotMinutes;
-    }
-
-    if (hasConflict) {
-      if (slot !== lastSlot) onSelect(slot, "");
-    } else {
-      onSelect(startTime, slot);
-    }
-  }
-
-  const guideText = !startTime
-    ? "시작 시간을 클릭하세요"
-    : !endTime
-    ? `${startTime} 선택됨 — 종료 시간을 클릭하세요`
-    : `${startTime} ~ ${endTime} 선택됨 — 다시 클릭하면 변경`;
-
   return (
-    <div className="space-y-3">
-      <p className="text-xs font-medium text-[#1B5E20]">{guideText}</p>
-      <div className="flex flex-wrap gap-1.5">
-        {allSlots.map((slot) => {
-          const isBooked = bookedSlots.has(slot);
-          const isStart = slot === startTime;
-          const isEnd = slot === endTime;
-          const isInRange = startTime && endTime && slot > startTime && slot < endTime;
-
-          return (
-            <div key={slot} className="relative group">
-              <button
-                type="button"
-                disabled={isBooked}
-                onClick={() => handleSlotClick(slot)}
-                className={`text-xs px-2.5 py-1.5 rounded-md font-medium transition-all ${
-                  isBooked
-                    ? "bg-red-100 text-red-400 line-through cursor-not-allowed"
-                    : isStart || isEnd
-                    ? "bg-[#1B5E20] text-white ring-2 ring-[#1B5E20] ring-offset-1 scale-105"
-                    : isInRange
-                    ? "bg-[#2E7D32] text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-green-100 hover:text-green-700 cursor-pointer"
-                }`}
-              >
-                {slot}
-              </button>
-              {isBooked && (
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-gray-800 text-white text-[10px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                  예약 불가
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      <div className="flex flex-wrap gap-3 text-xs text-gray-400">
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-100 inline-block" /> 예약 가능</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 inline-block" /> 예약됨</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-[#1B5E20] inline-block" /> 선택됨</span>
-      </div>
-    </div>
+    <ReservationTimelinePicker
+      allSlots={allSlots}
+      bookedSlots={bookedSlots}
+      disabledSlots={disabledSlots}
+      startTime={startTime}
+      endTime={endTime}
+      onSelect={onSelect}
+      slotMinutes={slotMinutes}
+      maxSlots={maxSlots}
+    />
   );
 }
 
 // ── 메인 컴포넌트 ────────────────────────────────────────────
-export default function FacilityApply() {
+function FacilityApply({ audience = "member" }: { audience?: FacilityAudience }) {
   const params = useParams<{ id: string }>();
   const facilityId = Number(params.id);
+  const isExternal = audience === "external";
   const [, navigate] = useLocation();
   const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, {
     retry: false,
     refetchOnWindowFocus: false,
+    enabled: !isExternal,
   });
-  const isAuthenticated = Boolean(memberMe);
+  const { data: reservationSettings } = trpc.home.settings.useQuery();
+  const isApprovedMember = isExternal || Boolean(memberMe);
+  const hasReservationOverride = !isExternal && hasFacilityReservationRuleOverride(memberMe ?? {});
+  const canReserveFacility = isExternal || (isApprovedMember && !hasFacilityReservationBlockedMemberMarker(memberMe ?? {}));
+  const reservationMaxDateKey = getReservationMaxDateKey(reservationSettings);
 
   // URL 쿼리 파라미터에서 날짜/시간 읽기
   const searchString = useSearch();
-  const { urlDate, urlStartTime, urlEndTime } = useMemo(() => {
+  const { urlDate, urlStartTime, urlEndTime, urlBuilding } = useMemo(() => {
     const p = new URLSearchParams(searchString);
     return {
       urlDate: p.get("date") ?? "",
       urlStartTime: p.get("startTime") ?? "",
       urlEndTime: p.get("endTime") ?? "",
+      urlBuilding: p.get("building") ?? "",
     };
   }, [searchString]);
+
+  function goToMemberLogin() {
+    const nextPath = isExternal
+      ? `/facility/external/${facilityId}/apply${searchString ? `?${searchString}` : ""}`
+      : `/facility/${facilityId}/apply${searchString ? `?${searchString}` : ""}`;
+    const loginParams = new URLSearchParams({
+      social: "facility_member_required",
+      next: nextPath,
+    });
+    navigate(`/member/login?${loginParams.toString()}`);
+  }
 
   // 폼 상태 — URL에서 날짜/시간 자동 적용
   const [form, setForm] = useState(() => ({
@@ -263,10 +231,15 @@ export default function FacilityApply() {
     endTime: urlEndTime,
     attendees: "",
     notes: "",
+    repeatType: "none" as RepeatType,
+    repeatUntilDate: "",
     agreePrivacy: false,
   }));
   const [submitted, setSubmitted] = useState(false);
   const [reservedStatus, setReservedStatus] = useState<string>("pending");
+  const [reservedCount, setReservedCount] = useState(1);
+  const [reservedRecurrenceLabel, setReservedRecurrenceLabel] = useState<string | null>(null);
+  const [reservationConflictMessage, setReservationConflictMessage] = useState<string | null>(null);
 
   // URL 파라미터 변경 시 폼 동기화
   useEffect(() => {
@@ -278,19 +251,46 @@ export default function FacilityApply() {
     }));
   }, [urlDate, urlStartTime, urlEndTime]);
 
+  // 로그인한 성도 정보가 늦게 도착해도 신청자 이름/연락처를 자동으로 채웁니다.
+  useEffect(() => {
+    if (!memberMe) return;
+    setForm(prev => ({
+      ...prev,
+      reserverName: prev.reserverName || memberMe.name || "",
+      reserverPhone: prev.reserverPhone || memberMe.phone || "",
+    }));
+  }, [memberMe]);
+
   // ── API 쿼리 ─────────────────────────────────────────────
-  const { data: facility, isLoading: loadingFacility } = trpc.home.facility.useQuery(
+  const memberFacilityQuery = trpc.home.facility.useQuery(
     { id: facilityId },
-    { enabled: !!facilityId && !isNaN(facilityId) }
+    { enabled: !isExternal && !!facilityId && !isNaN(facilityId) }
   );
+  const externalFacilityQuery = trpc.home.externalFacility.useQuery(
+    { id: facilityId },
+    { enabled: isExternal && !!facilityId && !isNaN(facilityId) }
+  );
+  const facility = isExternal ? externalFacilityQuery.data : memberFacilityQuery.data;
+  const loadingFacility = isExternal ? externalFacilityQuery.isLoading : memberFacilityQuery.isLoading;
+  const activeBuilding = useMemo(
+    () => normalizeFacilityBuilding(urlBuilding || facility?.building),
+    [facility?.building, urlBuilding],
+  );
+  const facilityListHref = getFacilityListHref(activeBuilding, audience);
+  const facilityDetailHref = getFacilityDetailHref(facilityId, activeBuilding, audience);
   const { data: facilityImages } = trpc.home.facilityImages.useQuery(
     { facilityId },
     { enabled: !!facilityId }
   );
-  const { data: facilityHours } = trpc.home.facilityHours.useQuery(
+  const memberFacilityHoursQuery = trpc.home.facilityHours.useQuery(
     { facilityId },
-    { enabled: !!facilityId }
+    { enabled: !isExternal && !!facilityId }
   );
+  const externalFacilityHoursQuery = trpc.home.externalFacilityHours.useQuery(
+    { facilityId },
+    { enabled: isExternal && !!facilityId }
+  );
+  const facilityHours = isExternal ? externalFacilityHoursQuery.data : memberFacilityHoursQuery.data;
   const { data: blockedDates } = trpc.home.facilityBlockedDates.useQuery(
     { facilityId },
     { enabled: !!facilityId }
@@ -300,15 +300,28 @@ export default function FacilityApply() {
     { enabled: !!facilityId && !!form.date }
   );
 
-  const createReservation = trpc.home.createReservation.useMutation({
-    onSuccess: (data) => {
-      setReservedStatus(data.status);
-      setSubmitted(true);
-    },
+  const onReservationCreated = (data: { status: string; count?: number | null; recurrenceLabel?: string | null }) => {
+    setReservedStatus(data.status);
+    setReservedCount(data.count ?? 1);
+    setReservedRecurrenceLabel(data.recurrenceLabel ?? null);
+    setSubmitted(true);
+  };
+
+  const createMemberReservation = trpc.home.createReservation.useMutation({
+    onSuccess: onReservationCreated,
     onError: (err) => {
-      toast.error(err.message || "예약 신청 중 오류가 발생했습니다.");
+      showReservationError(err.message || "예약 신청 중 오류가 발생했습니다.");
     },
   });
+
+  const createExternalReservation = trpc.home.createExternalReservation.useMutation({
+    onSuccess: onReservationCreated,
+    onError: (err) => {
+      showReservationError(err.message || "예약 신청 중 오류가 발생했습니다.");
+    },
+  });
+
+  const isSubmitting = isExternal ? createExternalReservation.isPending : createMemberReservation.isPending;
 
   // ── 시간 슬롯 계산 ────────────────────────────────────────
   const dayOfWeek = form.date ? getDayOfWeek(form.date) : -1;
@@ -316,9 +329,16 @@ export default function FacilityApply() {
   const unitMinutes = facility?.slotMinutes ?? 60;
 
   const allTimeSlots = useMemo(() => {
-    if (!todayHour || !todayHour.isOpen || !todayHour.openTime || !todayHour.closeTime) return [];
-    return generateTimeSlots(todayHour.openTime, todayHour.closeTime, unitMinutes);
-  }, [todayHour, unitMinutes]);
+    if (!hasReservationOverride && (!todayHour || !todayHour.isOpen)) return [];
+    const openTime = hasReservationOverride
+      ? (todayHour?.openTime ?? facility?.openTime)
+      : todayHour?.openTime;
+    const closeTime = hasReservationOverride
+      ? (todayHour?.closeTime ?? facility?.closeTime)
+      : todayHour?.closeTime;
+    if (!openTime || !closeTime) return [];
+    return generateReservationTimePoints(openTime, closeTime, unitMinutes);
+  }, [todayHour, unitMinutes, hasReservationOverride, facility?.openTime, facility?.closeTime]);
 
   // 이미 예약된 시간 슬롯 (승인 대기 + 승인 완료)
   const bookedSlots = useMemo(() => {
@@ -340,10 +360,36 @@ export default function FacilityApply() {
     return booked;
   }, [reservationsByDate, unitMinutes]);
 
+  const disabledTimeSlots = useMemo(() => {
+    const disabled = new Map<string, string>();
+    if (!form.date) return disabled;
+    const dateRangeRestriction = getReservationDateRangeRestriction(form.date, reservationSettings, {
+      enforceMaxDate: !hasReservationOverride,
+    });
+    if (dateRangeRestriction) {
+      allTimeSlots.forEach((slot) => disabled.set(slot, dateRangeRestriction));
+      return disabled;
+    }
+    allTimeSlots.forEach((slot) => {
+      const restriction = getReservationTimeRestriction(form.date, slot, {
+        enforceLeadTime: !hasReservationOverride,
+      });
+      if (restriction) disabled.set(slot, restriction);
+    });
+    return disabled;
+  }, [allTimeSlots, form.date, hasReservationOverride, reservationSettings]);
+
   // 날짜 비활성화 여부
   const blockedDateSet = useMemo(() => {
     return new Set((blockedDates ?? []).map(b => b.blockedDate));
   }, [blockedDates]);
+
+  const selectedDateRangeRestriction = useMemo(() => {
+    if (!form.date) return null;
+    return getReservationDateRangeRestriction(form.date, reservationSettings, {
+      enforceMaxDate: !hasReservationOverride,
+    });
+  }, [form.date, hasReservationOverride, reservationSettings]);
 
   // ── 이벤트 핸들러 ─────────────────────────────────────────
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
@@ -361,18 +407,43 @@ export default function FacilityApply() {
     setForm(prev => ({ ...prev, startTime: start, endTime: end }));
   }
 
+  function showReservationError(message: string) {
+    if (isReservationConflictMessage(message)) {
+      setReservationConflictMessage(message);
+      return;
+    }
+    toast.error(message);
+  }
+
   function validate(): string | null {
     if (!form.reserverName.trim()) return "신청자 이름을 입력해 주세요.";
     if (!form.reserverPhone.trim()) return "연락처를 입력해 주세요.";
     if (!form.department.trim()) return "소속 부서/단체를 입력해 주세요.";
     if (!form.purpose) return "사용 목적을 선택해 주세요.";
     if (!form.date) return "사용 날짜를 선택해 주세요.";
-    if (blockedDateSet.has(form.date)) return "해당 날짜는 예약이 불가능합니다.";
+    if (selectedDateRangeRestriction) return selectedDateRangeRestriction;
+    if (blockedDateSet.has(form.date) && !hasReservationOverride) return "해당 날짜는 예약이 불가능합니다.";
     if (!form.startTime) return "시작 시간을 선택해 주세요.";
     if (!form.endTime) return "종료 시간을 선택해 주세요.";
     if (form.startTime >= form.endTime) return "종료 시간은 시작 시간보다 늦어야 합니다.";
+    const timeRestriction = getReservationTimeRestriction(form.date, form.startTime, {
+      enforceLeadTime: !hasReservationOverride,
+    });
+    if (timeRestriction) return timeRestriction;
     if (!form.attendees || Number(form.attendees) < 1) return "예상 인원을 입력해 주세요.";
-    if (facility && Number(form.attendees) > facility.capacity) return `최대 수용 인원(${facility.capacity}명)을 초과합니다.`;
+    if (facility && Number(form.attendees) > facility.capacity && !hasReservationOverride) return `최대 수용 인원(${facility.capacity}명)을 초과합니다.`;
+    if (!isExternal && form.repeatType !== "none") {
+      if (!form.repeatUntilDate) {
+        return "반복 종료일을 선택해 주세요.";
+      }
+      if (form.repeatUntilDate < form.date) {
+        return "반복 종료일은 사용 날짜보다 이전일 수 없습니다.";
+      }
+      const repeatDateRangeRestriction = getReservationDateRangeRestriction(form.repeatUntilDate, reservationSettings, {
+        enforceMaxDate: !hasReservationOverride,
+      });
+      if (repeatDateRangeRestriction) return repeatDateRangeRestriction;
+    }
     if (!form.agreePrivacy) return "개인정보 수집·이용에 동의해 주세요.";
     // 선택한 시간대에 이미 예약이 있는지 확인
     const [sh, sm] = form.startTime.split(":").map(Number);
@@ -390,14 +461,18 @@ export default function FacilityApply() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!isAuthenticated) {
-      toast.error("예약 신청은 로그인 후 이용하실 수 있습니다.");
-      window.location.href = "/member/login";
+    if (!isExternal && !isApprovedMember) {
+      toast.error("시설 사용 예약은 승인 완료된 성도만 신청할 수 있습니다.");
+      goToMemberLogin();
+      return;
+    }
+    if (!isExternal && !canReserveFacility) {
+      toast.error("시설 사용 예약은 교회 등록 성도만 신청할 수 있습니다. 관리자에게 문의해 주세요.");
       return;
     }
     const error = validate();
-    if (error) { toast.error(error); return; }
-    createReservation.mutate({
+    if (error) { showReservationError(error); return; }
+    const payload = {
       facilityId,
       reserverName: form.reserverName,
       reserverPhone: form.reserverPhone,
@@ -408,13 +483,34 @@ export default function FacilityApply() {
       department: form.department || undefined,
       attendees: Number(form.attendees),
       notes: form.notes || undefined,
+    };
+
+    if (isExternal) {
+      createExternalReservation.mutate(payload);
+      return;
+    }
+
+    createMemberReservation.mutate({
+      ...payload,
+      repeat: form.repeatType === "none" ? undefined : {
+        type: form.repeatType,
+        untilDate: form.repeatUntilDate,
+      },
     });
   }
 
   // ── 로딩/에러 상태 ────────────────────────────────────────
+  const conflictDialog = (
+    <ReservationConflictDialog
+      message={reservationConflictMessage}
+      onClose={() => setReservationConflictMessage(null)}
+    />
+  );
+
   if (loadingFacility) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F7F7F5]">
+        {conflictDialog}
         <Loader2 className="w-8 h-8 animate-spin text-[#1B5E20]" />
       </div>
     );
@@ -423,10 +519,11 @@ export default function FacilityApply() {
   if (!facility) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F7F7F5]">
+        {conflictDialog}
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 mb-4">시설 정보를 찾을 수 없습니다.</p>
-          <Link href="/facility" className="text-[#1B5E20] font-medium hover:underline">시설 목록으로 돌아가기</Link>
+          <Link href={facilityListHref} className="text-[#1B5E20] font-medium hover:underline">시설 목록으로 돌아가기</Link>
         </div>
       </div>
     );
@@ -437,15 +534,18 @@ export default function FacilityApply() {
 
   return (
     <div className="min-h-screen bg-[#F7F7F5]">
+      {conflictDialog}
       {/* 상단 배너 */}
       <section className="bg-[#1B5E20] py-10">
         <div className="container text-white">
           <nav className="flex items-center gap-2 text-xs text-green-200 mb-3 flex-wrap">
             <Link href="/" className="hover:text-white transition-colors">홈</Link>
             <ChevronRight className="w-3 h-3" />
-            <Link href="/facility" className="hover:text-white transition-colors">시설 사용 예약</Link>
+            <Link href={facilityListHref} className="hover:text-white transition-colors">
+              {isExternal ? "외부인 시설 예약" : "시설 사용 예약"}
+            </Link>
             <ChevronRight className="w-3 h-3" />
-            <Link href={`/facility/${facilityId}`} className="hover:text-white transition-colors">{facility.name}</Link>
+            <Link href={facilityDetailHref} className="hover:text-white transition-colors">{facility.name}</Link>
             <ChevronRight className="w-3 h-3" />
             <span className="text-white">예약 신청</span>
           </nav>
@@ -463,7 +563,11 @@ export default function FacilityApply() {
               <SuccessScreen
                 facilityName={facility.name}
                 status={reservedStatus}
-                onReset={() => { setSubmitted(false); setForm(prev => ({ ...prev, date: "", startTime: "", endTime: "" })); }}
+                count={reservedCount}
+                recurrenceLabel={reservedRecurrenceLabel}
+                facilityListHref={facilityListHref}
+                showMyReservations={!isExternal}
+                onReset={() => { setSubmitted(false); setForm(prev => ({ ...prev, date: "", startTime: "", endTime: "", repeatType: "none", repeatUntilDate: "" })); }}
               />
             </div>
           ) : (
@@ -471,7 +575,7 @@ export default function FacilityApply() {
               {/* 선택된 시설 요약 */}
               <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm mb-6 flex items-center gap-4">
                 {thumbnailImage ? (
-                  <img src={thumbnailImage.imageUrl} alt={facility.name} className="w-16 h-16 rounded-lg object-cover shrink-0" />
+                  <img src={thumbnailImage.imageUrl} alt={facility.name} className="w-16 h-16 rounded-lg object-cover shrink-0"  loading="lazy"/>
                 ) : (
                   <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
                     <MapPin className="w-6 h-6 text-gray-300" />
@@ -485,26 +589,35 @@ export default function FacilityApply() {
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {facility.slotMinutes}분 단위</span>
                   </div>
                 </div>
-                <Link href={`/facility/${facilityId}`} className="ml-auto text-xs text-gray-400 hover:text-[#1B5E20] transition-colors shrink-0">
+                <Link href={facilityDetailHref} className="ml-auto text-xs text-gray-400 hover:text-[#1B5E20] transition-colors shrink-0">
                   ← 변경
                 </Link>
               </div>
 
               {/* 로그인 안내 — 로딩 중에는 숨겨서 깜빡임 방지 */}
-              {!memberLoading && !isAuthenticated && (
+              {!isExternal && !memberLoading && !isApprovedMember && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-center gap-3">
                   <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-amber-800">로그인이 필요합니다</p>
-                    <p className="text-xs text-amber-600 mt-0.5">예약 신청은 로그인 후 이용하실 수 있습니다.</p>
+                    <p className="text-sm font-medium text-amber-800">승인된 성도 로그인이 필요합니다</p>
+                    <p className="text-xs text-amber-600 mt-0.5">시설 사용 예약은 승인 완료된 성도만 신청할 수 있습니다.</p>
                   </div>
                   <Button
                     type="button"
                     size="sm"
                     className="bg-amber-500 hover:bg-amber-600 text-white shrink-0"
-                    onClick={() => { window.location.href = "/member/login"; }}>
-                    로그인
+                    onClick={goToMemberLogin}>
+                    성도 로그인
                   </Button>
+                </div>
+              )}
+              {!isExternal && !memberLoading && isApprovedMember && !canReserveFacility && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-red-800">시설 예약 권한이 없습니다</p>
+                    <p className="text-xs text-red-600 mt-0.5">시설 사용 예약은 교회 등록 성도만 신청할 수 있습니다. 권한이 필요한 경우 관리자에게 문의해 주세요.</p>
+                  </div>
                 </div>
               )}
 
@@ -547,7 +660,7 @@ export default function FacilityApply() {
                         <span className="font-medium text-gray-800">{form.date}</span>
                       </div>
                       <Link
-                        href={`/facility/${facilityId}`}
+                        href={facilityDetailHref}
                         className="text-xs text-[#1B5E20] hover:underline shrink-0 whitespace-nowrap"
                       >
                         ← 날짜 변경
@@ -559,24 +672,35 @@ export default function FacilityApply() {
                       name="date"
                       value={form.date}
                       onChange={handleChange}
-                      min={new Date().toISOString().split("T")[0]}
+                      min={hasReservationOverride ? getKstDateKey() : getReservationLeadDateKey()}
+                      max={hasReservationOverride ? undefined : reservationMaxDateKey}
                       className={inputClass}
                     />
                   )}
-                  {form.date && todayHour && !todayHour.isOpen && (
+                  {form.date && todayHour && !todayHour.isOpen && !hasReservationOverride && (
                     <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" /> 해당 요일은 휴무일입니다.
                     </p>
                   )}
-                  {form.date && blockedDateSet.has(form.date) && (
+                  {form.date && blockedDateSet.has(form.date) && !hasReservationOverride && (
                     <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" /> 해당 날짜는 예약이 불가능합니다.
+                    </p>
+                  )}
+                  {selectedDateRangeRestriction && (
+                    <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" /> {selectedDateRangeRestriction}
+                    </p>
+                  )}
+                  {form.date && hasReservationOverride && (
+                    <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" /> 예약 예외 권한으로 운영 제한을 넘어 신청할 수 있습니다.
                     </p>
                   )}
                 </Field>
 
                 {/* 시간 선택 — 슬롯 버튼 방식 */}
-                {form.date && (!todayHour || todayHour.isOpen) && !blockedDateSet.has(form.date) && (
+                {form.date && !selectedDateRangeRestriction && (hasReservationOverride || !todayHour || todayHour.isOpen) && (hasReservationOverride || !blockedDateSet.has(form.date)) && (
                   <Field
                     label="사용 시간"
                     required
@@ -600,6 +724,7 @@ export default function FacilityApply() {
                         <TimeSlotPicker
                           allSlots={allTimeSlots}
                           bookedSlots={bookedSlots}
+                          disabledSlots={disabledTimeSlots}
                           startTime={form.startTime}
                           endTime={form.endTime}
                           onSelect={handleTimeSelect}
@@ -607,6 +732,40 @@ export default function FacilityApply() {
                           maxSlots={facility.maxSlots ?? 8}
                         />
                       </div>
+                    )}
+                  </Field>
+                )}
+
+                {!isExternal && (
+                  <Field label="반복 예약" hint="선택한 날짜와 시간 기준으로 여러 날짜의 예약을 한 번에 신청합니다.">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <select
+                        name="repeatType"
+                        value={form.repeatType}
+                        onChange={handleChange}
+                        className={inputClass}
+                      >
+                        {REPEAT_OPTIONS.map(option => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                      {form.repeatType !== "none" && (
+                        <input
+                          type="date"
+                          name="repeatUntilDate"
+                          value={form.repeatUntilDate}
+                          onChange={handleChange}
+                          min={form.date || getReservationLeadDateKey()}
+                          max={hasReservationOverride ? undefined : reservationMaxDateKey}
+                          aria-label="반복 종료일"
+                          className={inputClass}
+                        />
+                      )}
+                    </div>
+                    {form.repeatType !== "none" && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        종료일을 넘지 않는 날짜까지만 자동 생성됩니다. 예: 화요일에 시작한 매주 반복은 종료일을 넘지 않는 마지막 화요일까지만 신청됩니다.
+                      </p>
                     )}
                   </Field>
                 )}
@@ -660,10 +819,10 @@ export default function FacilityApply() {
                 {/* 제출 버튼 */}
                 <button
                   type="submit"
-                  disabled={createReservation.isPending}
+                  disabled={isSubmitting || (!isExternal && memberLoading)}
                   className="w-full bg-[#1B5E20] text-white py-3.5 rounded-xl font-bold text-base hover:bg-[#2E7D32] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {createReservation.isPending ? (
+                  {isSubmitting ? (
                     <><Loader2 className="w-5 h-5 animate-spin" /> 신청 중...</>
                   ) : (
                     <><Calendar className="w-5 h-5" /> 예약 신청하기</>
@@ -677,3 +836,13 @@ export default function FacilityApply() {
     </div>
   );
 }
+
+export function ExternalFacilityApply() {
+  return <FacilityApply audience="external" />;
+}
+
+function MemberFacilityApply() {
+  return <FacilityApply audience="member" />;
+}
+
+export default MemberFacilityApply;

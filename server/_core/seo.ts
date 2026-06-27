@@ -1,16 +1,25 @@
-import type { Express, Request, Response } from "express";
+import type { Express, NextFunction, Request, Response } from "express";
 import { getVisibleMenus } from "../db/menu";
 import { isSafeHref } from "./contentValidation";
 
 type RequestWithCspNonce = Request & { cspNonce?: string };
 
-const DEFAULT_ORIGIN = "https://dadowoomtest.co.kr";
+const DEFAULT_ORIGIN = "https://newjoych.co.kr";
 const SITE_NAME = "기쁨의교회";
 const SITE_TITLE = "기쁨의교회 | The Joyful Church";
 const DEFAULT_DESCRIPTION =
-  "깊이있는 성장, 위대한 교회. 기쁨의교회에 오신 것을 환영합니다.";
-const DEFAULT_IMAGE =
-  "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/hero-church-XWJBwHDycyRoBg9dY4aj5r.webp";
+  "경상북도 포항시 북구 삼흥로 411에 위치한 기쁨의교회 공식 홈페이지입니다.";
+const DEFAULT_IMAGE = "https://newjoych.co.kr/og-image-main1.jpg";
+const SITE_KEYWORDS =
+  "기쁨의교회, 포항기쁨의교회, 포항 교회, 삼흥로 411, The Joyful Church";
+const CHURCH_TELEPHONE = "054-270-1000";
+const CHURCH_ADDRESS = {
+  region: "경상북도",
+  locality: "포항시 북구",
+  street: "삼흥로 411",
+  full: "경상북도 포항시 북구 삼흥로 411",
+};
+const CHURCH_COORDS = { lat: 36.095458253774, lng: 129.37385741342 };
 
 type SeoRoute = {
   path: string;
@@ -84,7 +93,7 @@ const ROUTES: SeoRoute[] = [
     path: "/about/directions",
     title: "오시는 길 | 기쁨의교회",
     description:
-      "경북 포항시 북구 상통로 411, 기쁨의교회 위치와 길찾기 정보를 안내합니다.",
+      "경북 포항시 북구 삼흥로 411, 기쁨의교회 위치와 길찾기 정보를 안내합니다.",
     priority: "0.8",
   },
   {
@@ -408,6 +417,12 @@ const EXTRA_SITEMAP_ROUTES: SeoRoute[] = [
     priority: "0.5",
   },
   {
+    path: "/support/bulletin-ad",
+    title: "주보 광고신청 | 기쁨의교회",
+    description: "기쁨의교회 성도가 주보 광고와 부서 안내 게재를 신청할 수 있습니다.",
+    priority: "0.5",
+  },
+  {
     path: "/support/subtitle",
     title: "자막 요청 | 기쁨의교회",
     description: DEFAULT_DESCRIPTION,
@@ -453,21 +468,56 @@ function getConfiguredOrigin() {
   }
 }
 
+function getFirstHeaderValue(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value[0]?.split(",")[0]?.trim() || "";
+  return value?.split(",")[0]?.trim() || "";
+}
+
+function getRequestHost(req: Request) {
+  return (
+    getFirstHeaderValue(req.headers["x-forwarded-host"]) ||
+    getFirstHeaderValue(req.headers.host)
+  );
+}
+
+export function canonicalHostRedirect(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  const configured = getConfiguredOrigin() || DEFAULT_ORIGIN;
+  let canonical: URL;
+
+  try {
+    canonical = new URL(configured);
+  } catch {
+    return next();
+  }
+
+  const host = getRequestHost(req).toLowerCase();
+  const currentHostname = host.split(":")[0];
+  const canonicalHostname = canonical.hostname.toLowerCase();
+
+  if (currentHostname !== `www.${canonicalHostname}`) {
+    return next();
+  }
+
+  const destination = new URL(req.originalUrl || req.url || "/", canonical.origin);
+  return res.redirect(301, destination.toString());
+}
+
 export function getPublicOrigin(req?: Request) {
   const configured = getConfiguredOrigin();
   if (configured) return configured;
   if (!req) return DEFAULT_ORIGIN;
 
-  const forwardedHost = req.headers["x-forwarded-host"];
-  const host = Array.isArray(forwardedHost)
-    ? forwardedHost[0]
-    : forwardedHost?.split(",")[0]?.trim() || req.headers.host;
+  const host = getRequestHost(req);
   if (!host) return DEFAULT_ORIGIN;
 
-  const forwardedProto = req.headers["x-forwarded-proto"];
-  const proto = Array.isArray(forwardedProto)
-    ? forwardedProto[0]
-    : forwardedProto?.split(",")[0]?.trim() || req.protocol || "https";
+  const proto =
+    getFirstHeaderValue(req.headers["x-forwarded-proto"]) ||
+    req.protocol ||
+    "https";
 
   return stripTrailingSlash(`${proto}://${host}`);
 }
@@ -542,29 +592,56 @@ function escapeXml(value: string) {
 }
 
 function buildStructuredData(canonicalUrl: string) {
+  const publicOrigin = getConfiguredOrigin() || DEFAULT_ORIGIN;
+  const churchId = `${publicOrigin}/#church`;
   return JSON.stringify([
     {
       "@context": "https://schema.org",
       "@type": "Church",
+      "@id": churchId,
       name: SITE_NAME,
       alternateName: "The Joyful Church",
-      url: canonicalUrl,
+      url: publicOrigin,
       image: DEFAULT_IMAGE,
-      telephone: "054-270-1000",
+      telephone: CHURCH_TELEPHONE,
+      description: DEFAULT_DESCRIPTION,
       address: {
         "@type": "PostalAddress",
         addressCountry: "KR",
-        addressRegion: "경상북도",
-        addressLocality: "포항시 북구",
-        streetAddress: "상통로 411",
+        addressRegion: CHURCH_ADDRESS.region,
+        addressLocality: CHURCH_ADDRESS.locality,
+        streetAddress: CHURCH_ADDRESS.street,
+      },
+      geo: {
+        "@type": "GeoCoordinates",
+        latitude: CHURCH_COORDS.lat,
+        longitude: CHURCH_COORDS.lng,
       },
     },
     {
       "@context": "https://schema.org",
       "@type": "WebSite",
       name: SITE_NAME,
-      url: getConfiguredOrigin() || DEFAULT_ORIGIN,
+      url: publicOrigin,
       inLanguage: "ko-KR",
+      publisher: {
+        "@id": churchId,
+      },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      name: SITE_TITLE,
+      url: canonicalUrl,
+      inLanguage: "ko-KR",
+      isPartOf: {
+        "@type": "WebSite",
+        name: SITE_NAME,
+        url: publicOrigin,
+      },
+      about: {
+        "@id": churchId,
+      },
     },
   ]);
 }
@@ -604,6 +681,11 @@ export function injectSeoMeta(html: string, req: Request) {
     output,
     /<meta\s+name="description"[^>]*>/i,
     `<meta name="description" content="${escapeHtml(seo.description)}" />`
+  );
+  output = upsertTag(
+    output,
+    /<meta\s+name="keywords"[^>]*>/i,
+    `<meta name="keywords" content="${escapeHtml(SITE_KEYWORDS)}" />`
   );
   output = upsertTag(
     output,

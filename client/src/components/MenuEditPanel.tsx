@@ -419,24 +419,31 @@ export default function MenuEditPanel({
               )}
             </div>
 
-            {/* ── 컬럼 3: 3단 세부 메뉴 또는 예배영상 관리 ── */}
+            {/* ── 컬럼 3: 3단 세부 메뉴 ── */}
             <div className="flex-1 flex flex-col bg-white">
               <div className="px-3 py-2 border-b bg-gray-50">
                 <p className="text-[11px] font-semibold text-gray-600">
-                  {selectedItem?.pageType === 'youtube'
-                    ? <span className="flex items-center gap-1"><Youtube size={11} className="text-red-500" /> 예배영상 관리</span>
-                    : `3단 메뉴 ${selectedItem ? `— ${selectedItem.label}` : ''}`
-                  }
+                  <span className="flex items-center gap-1">
+                    3단 메뉴 {selectedItem ? `— ${selectedItem.label}` : ''}
+                    {selectedItem?.pageType === 'youtube' && (
+                      <span className="inline-flex items-center gap-0.5 text-red-500">
+                        <Youtube size={11} /> 예배영상 연결
+                      </span>
+                    )}
+                  </span>
                 </p>
               </div>
               {!selectedItem ? (
                 <div className="flex-1 flex items-center justify-center text-xs text-gray-400 p-4 text-center">
                   가운데에서 하위 메뉴를<br />선택해주세요
                 </div>
-              ) : selectedItem.pageType === 'youtube' ? (
-                <YoutubeVideoManager menuItemId={selectedItem.id} label={selectedItem.label} />
               ) : (
                 <>
+                  {selectedItem.pageType === 'youtube' && (
+                    <div className="shrink-0 p-2 border-b bg-white">
+                      <YoutubeVideoManager menuItemId={selectedItem.id} label={selectedItem.label} compact />
+                    </div>
+                  )}
                   <div className="flex-1 overflow-y-auto p-2 space-y-1">
                     {selectedItem.subItems.length === 0 && (
                       <p className="text-xs text-gray-400 text-center py-4">3단 메뉴가 없습니다</p>

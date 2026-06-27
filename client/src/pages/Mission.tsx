@@ -65,7 +65,7 @@ export function DomesticMission() {
           {DOMESTIC_MISSIONS.map((m, i) => (
             <div key={i} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
               <div className="h-44 overflow-hidden">
-                <img src={m.img} alt={m.name} className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" />
+                <img src={m.img} alt={m.name} className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"  loading="lazy"/>
               </div>
               <div className="p-6">
                 <h3 className="font-bold text-gray-800 text-base mb-2" style={{ fontFamily: "'Noto Serif KR', serif" }}>{m.name}</h3>
@@ -124,7 +124,7 @@ export function OverseasMission() {
           {OVERSEAS_MISSIONS.map((m, i) => (
             <div key={i} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
               <div className="h-40 overflow-hidden relative">
-                <img src={m.img} alt={m.country} className="w-full h-full object-cover" />
+                <img src={m.img} alt={m.country} className="w-full h-full object-cover"  loading="lazy"/>
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
                 <div className="absolute bottom-3 left-4 text-white">
                   <span className="text-2xl mr-2">{m.flag}</span>

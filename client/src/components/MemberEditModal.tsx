@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { hasFacilityReservationBlockedMemberMarker } from "@shared/facilityReservationEligibility";
 
 type Member = {
   id: number;
@@ -37,6 +38,7 @@ type Member = {
   registeredAt?: string | null;
   pastor?: string | null;
   adminMemo?: string | null;
+  canReserveFacility?: boolean | null;
   status: string;
   faithPlusUserId?: string | null;
 };
@@ -84,6 +86,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
     registeredAt: "",
     pastor: "",
     adminMemo: "",
+    canReserveFacility: false,
     status: "pending",
     faithPlusUserId: "",
   });
@@ -106,6 +109,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
         registeredAt: member.registeredAt ?? "",
         pastor: member.pastor ?? "",
         adminMemo: member.adminMemo ?? "",
+        canReserveFacility: Boolean(member.canReserveFacility),
         status: member.status ?? "pending",
         faithPlusUserId: member.faithPlusUserId ?? "",
       });
@@ -140,6 +144,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
 
   const handleSave = () => {
     if (!member) return;
+    const blockedByCategory = hasFacilityReservationBlockedMemberMarker(form);
     updateMutation.mutate({
       id: member.id,
       name: form.name || undefined,
@@ -157,6 +162,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
       registeredAt: form.registeredAt || undefined,
       pastor: form.pastor || undefined,
       adminMemo: form.adminMemo || undefined,
+      canReserveFacility: blockedByCategory ? false : form.canReserveFacility,
       status: form.status as "pending" | "approved" | "rejected" | "withdrawn",
       faithPlusUserId: form.faithPlusUserId || undefined,
     });
@@ -173,6 +179,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
 
   const inputCls = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30";
   const selectCls = inputCls;
+  const facilityReservationBlockedByCategory = hasFacilityReservationBlockedMemberMarker(form);
 
   if (!member) return null;
 
@@ -298,6 +305,25 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
             <div>
               <Label className="text-xs text-gray-500 mb-1 block">믿음PLUS 앱 ID</Label>
               <Input value={form.faithPlusUserId} onChange={set("faithPlusUserId")} className={inputCls} placeholder="앱 연동 ID" />
+            </div>
+            <div className="sm:col-span-2 rounded-lg border border-emerald-100 bg-emerald-50/60 p-3">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.canReserveFacility && !facilityReservationBlockedByCategory}
+                  disabled={facilityReservationBlockedByCategory}
+                  onChange={(e) => setForm(p => ({ ...p, canReserveFacility: e.target.checked }))}
+                  className="mt-1 h-4 w-4 accent-[#1B5E20] disabled:opacity-50"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-gray-800">예약 예외 권한</span>
+                  <span className="block text-xs text-gray-500 mt-0.5">
+                    {facilityReservationBlockedByCategory
+                      ? "타교/외부 분류 회원은 예약 예외 권한을 줄 수 없습니다."
+                      : "체크하면 운영시간, 휴관일, 차단일, 24시간 제한, 중복 예약 제한을 넘겨 예약할 수 있습니다."}
+                  </span>
+                </span>
+              </label>
             </div>
             <div className="sm:col-span-2">
               <Label className="text-xs text-gray-500 mb-1 block">관리자 메모</Label>

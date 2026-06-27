@@ -16,7 +16,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { adminProcedure, router } from "../../_core/trpc";
+import { adminAnyPermissionProcedure, adminProcedure, contentProcedure, router } from "../../_core/trpc";
 import { storagePut } from "../../storage";
 
 // ── 허용 MIME 타입 및 확장자 화이트리스트 ────────────────────────────────────────────
@@ -33,12 +33,37 @@ const ALLOWED_VIDEO_MIMES: Record<string, string> = {
   "video/webm": "webm",
 };
 
+const ALLOWED_ATTACHMENT_EXTENSIONS: Record<string, string> = {
+  pdf: "application/pdf",
+  hwp: "application/x-hwp",
+  hwpx: "application/haansoft-hwpx",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  txt: "text/plain",
+  zip: "application/zip",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  gif: "image/gif",
+};
+
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;  // 10MB
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100MB
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024; // 25MB
 
 /** 파일명에서 위험 문자 제거 (경로 탐색 공격 방지) */
 function sanitizeFileName(name: string): string {
   return name.replace(/[^a-zA-Z0-9가-힙\-_]/g, "_").replace(/_{2,}/g, "_").slice(0, 100);
+}
+
+function getFileExtension(name: string): string | null {
+  const match = /\.([a-z0-9]+)$/i.exec(name.trim());
+  return match?.[1]?.toLowerCase() ?? null;
 }
 
 function decodeBase64File(base64: string): Buffer {
@@ -110,6 +135,31 @@ export function validateVideo(base64: string, mimeType: string): { buffer: Buffe
   return { buffer, ext };
 }
 
+function validateAttachment(base64: string, fileName: string, mimeType: string) {
+  const ext = getFileExtension(fileName);
+  if (!ext || !ALLOWED_ATTACHMENT_EXTENSIONS[ext]) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "허용되지 않는 첨부파일 형식입니다. pdf, hwp, hwpx, office 문서, zip, 이미지 파일만 업로드할 수 있습니다.",
+    });
+  }
+
+  const buffer = decodeBase64File(base64);
+  if (buffer.length > MAX_ATTACHMENT_BYTES) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "첨부파일은 최대 25MB까지 업로드할 수 있습니다.",
+    });
+  }
+
+  const normalizedMime = mimeType.toLowerCase().trim();
+  const resolvedMime = !normalizedMime || normalizedMime === "application/octet-stream"
+    ? ALLOWED_ATTACHMENT_EXTENSIONS[ext]
+    : normalizedMime;
+
+  return { buffer, ext, mimeType: resolvedMime };
+}
+
 export const uploadRouter = router({
   /**
    * 영상 파일 업로드 (히어로 슬라이드용)
@@ -133,7 +183,7 @@ export const uploadRouter = router({
    * - S3 경로: notice-images/{timestamp}-{random}.{ext}
    * - 허용: jpg, png, webp, gif / 최대 10MB
    */
-  image: adminProcedure
+  image: adminAnyPermissionProcedure(["content:notices", "content:popups"])
     .input(z.object({
       base64: z.string(),        // base64로 인코딩된 파일 내용
       fileName: z.string(),      // 원본 파일명 (예: notice.jpg)
@@ -146,12 +196,38 @@ export const uploadRouter = router({
       const { url } = await storagePut(key, buffer, input.mimeType);
       return { url };
     }),
+  courseImage: adminAnyPermissionProcedure(["content:courses"])
+    .input(z.object({
+      base64: z.string(),
+      fileName: z.string(),
+      mimeType: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const { buffer, ext } = validateImage(input.base64, input.mimeType);
+      sanitizeFileName(input.fileName);
+      const key = `course-images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { url } = await storagePut(key, buffer, input.mimeType);
+      return { url };
+    }),
   /**
    * 갤러리 이미지 업로드
    * - S3 경로: gallery-images/{timestamp}-{random}.{ext}
    * - 허용: jpg, png, webp, gif / 최대 10MB
    */
-  galleryImage: adminProcedure
+  attachment: adminAnyPermissionProcedure(["content:notices"])
+    .input(z.object({
+      base64: z.string(),
+      fileName: z.string(),
+      mimeType: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const { buffer, ext, mimeType } = validateAttachment(input.base64, input.fileName, input.mimeType);
+      const safeName = sanitizeFileName(input.fileName.replace(/\.[^.]+$/, ""));
+      const key = `notice-attachments/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}.${ext}`;
+      const { url } = await storagePut(key, buffer, mimeType);
+      return { url, fileName: input.fileName };
+    }),
+  galleryImage: contentProcedure
     .input(z.object({
       base64: z.string(),
       fileName: z.string(),

@@ -9,7 +9,7 @@
  */
 
 import { z } from "zod";
-import { adminProcedure, router } from "../../_core/trpc";
+import { adminPermissionProcedure, router } from "../../_core/trpc";
 import {
   optionalTextSchema,
   requiredTextSchema,
@@ -26,6 +26,7 @@ import {
 const placementSchema = z.enum(["modal", "top_banner", "bottom_sheet"]);
 const audienceSchema = z.enum(["all", "guest", "member"]);
 const nullableDateSchema = z.coerce.date().nullable().optional();
+const popupProcedure = adminPermissionProcedure("content:popups");
 
 const popupCreateFields = {
   title: requiredTextSchema(160, "팝업 제목을 입력해주세요."),
@@ -89,17 +90,17 @@ const popupUpdateSchema = validatePopupRules(
 
 export const popupsRouter = router({
   /** 전체 팝업 목록 조회 (숨김/기간 종료 포함) */
-  list: adminProcedure.query(() => getAllNoticePopups()),
+  list: popupProcedure.query(() => getAllNoticePopups()),
 
   /** 팝업 생성 */
-  create: adminProcedure
+  create: popupProcedure
     .input(popupBaseSchema)
     .mutation(({ input, ctx }) =>
       createNoticePopup({ ...input, authorId: ctx.user.id })
     ),
 
   /** 팝업 수정 */
-  update: adminProcedure
+  update: popupProcedure
     .input(popupUpdateSchema)
     .mutation(({ input }) => {
       const { id, ...data } = input;
@@ -107,7 +108,7 @@ export const popupsRouter = router({
     }),
 
   /** 팝업 삭제 */
-  delete: adminProcedure
+  delete: popupProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(({ input }) => deleteNoticePopup(input.id)),
 });

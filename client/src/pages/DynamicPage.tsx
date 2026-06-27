@@ -67,10 +67,42 @@ function decodePath(path: string) {
   }
 }
 
+function normalizeDynamicHref(path: string | null | undefined) {
+  return decodePath(path ?? "").replace(/[\s-]+/g, "");
+}
+
+const CODE_BACKED_PAGE_ALIASES = new Map<string, string>([
+  ["/page/교회소개-담임목사-저서", "/about/pastor/books"],
+  ["/page/교회소개-담임목사-소개-담임목사저서", "/about/pastor/books"],
+  ["/page/교회소개-담임목사-소개-담임목사-저서", "/about/pastor/books"],
+  ["/page/교회소개-담임목사소개-담임목사저서", "/about/pastor/books"],
+  ["/page/교회소개-담임목사소개-담임목사-저서", "/about/pastor/books"],
+  ["/page/교회소개-교회역사", "/about/history"],
+  ["/page/교회소개-교회-역사", "/about/history"],
+  ["/page/교회소개-교회연혁", "/about/history"],
+  ["/page/교회소개-교회-연혁", "/about/history"],
+]);
+
+function getCodeBackedPageAlias(href: string | null | undefined) {
+  const value = href?.trim();
+  if (!value) return null;
+  const decodedValue = decodePath(value);
+  const directAlias = CODE_BACKED_PAGE_ALIASES.get(decodedValue);
+  if (directAlias) return directAlias;
+  if (normalizeDynamicHref(decodedValue).includes("/page/시설사용예약외부인")) {
+    return "/facility/external";
+  }
+  return null;
+}
+
 function getCanonicalInternalHref(href: string | null | undefined, legacyHref: string) {
   const value = href?.trim();
   if (!value) return null;
   if (!value.startsWith("/") || value.startsWith("//")) return null;
+  const codeBackedHref = getCodeBackedPageAlias(value);
+  if (codeBackedHref) {
+    return decodePath(codeBackedHref) === decodePath(legacyHref) ? null : codeBackedHref;
+  }
   return decodePath(value) === decodePath(legacyHref) ? null : value;
 }
 
@@ -86,6 +118,45 @@ function isDirectionsMenuItem(item: DynamicPageItem) {
   const label = item.label.replace(/\s+/g, "");
   const href = item.href?.replace(/\s+/g, "") ?? "";
   return label === "오시는길" || href.includes("오시는길") || href === "/about/directions";
+}
+
+function isContainerOnlySecondLevelItem(item: DynamicPageItem) {
+  return item.label.replace(/\s+/g, "") === "자료실";
+}
+
+function isRepresentativeLinkSecondLevelItem(item: DynamicPageItem) {
+  return item.label.replace(/\s+/g, "") === "주보";
+}
+
+function isBulletinViewMenuItem(item: DynamicPageItem) {
+  return item.label.replace(/\s+/g, "") === "주보보기";
+}
+
+function isBulletinAdRequestMenuItem(item: DynamicPageItem) {
+  return item.label.replace(/\s+/g, "") === "주보광고신청";
+}
+
+function isSubtitleRequestMenuItem(item: DynamicPageItem) {
+  return item.label.replace(/\s+/g, "") === "자막신청";
+}
+
+function isVisitRequestMenuItem(item: DynamicPageItem) {
+  return item.label.replace(/\s+/g, "") === "탐방신청";
+}
+
+function isExternalFacilityReservationMenuItem(item: DynamicPageItem) {
+  return (
+    item.label.replace(/\s+/g, "") === "외부인" &&
+    normalizeDynamicHref(item.href).includes("시설사용예약외부인")
+  );
+}
+
+function getRepresentativeSubItemHref(subItems: DynamicPageSubItem[] | undefined) {
+  const items = subItems ?? [];
+  const bulletinView = items.find((sub) => sub.label.replace(/\s+/g, "") === "주보보기");
+  return bulletinView?.href?.trim()
+    || items.find((sub) => Boolean(sub.href?.trim()))?.href?.trim()
+    || null;
 }
 
 function getFirstSubItemHref(allMenus: DynamicMenuTree | undefined, itemId: number) {
@@ -114,7 +185,15 @@ function getSecondLevelSideMenuItems(
   return (menu?.items ?? []).map((item) => {
     const subItems = item.subItems ?? [];
     const hasSubItems = subItems.length > 0;
-    const href = hasSubItems && !hasOwnMenuContent(item) ? null : item.href ?? null;
+    const href = hasSubItems
+      ? isContainerOnlySecondLevelItem(item)
+        ? null
+        : isRepresentativeLinkSecondLevelItem(item)
+          ? getRepresentativeSubItemHref(subItems) ?? item.href ?? null
+          : hasOwnMenuContent(item)
+            ? item.href ?? null
+            : null
+      : item.href ?? null;
     return {
       id: item.id,
       label: item.label,
@@ -140,7 +219,8 @@ function renderContent(
   imageUrl: string | null,
   menuItemId?: number,
   menuSubItemId?: number,
-  playlistId?: number | null
+  playlistId?: number | null,
+  href?: string | null
 ) {
   switch (pageType) {
     case "image":
@@ -148,7 +228,14 @@ function renderContent(
     case "gallery":
       return <GalleryContent />;
     case "board":
-      return <BoardContent />;
+      return (
+        <BoardContent
+          label={label}
+          href={href}
+          menuItemId={menuItemId}
+          menuSubItemId={menuSubItemId}
+        />
+      );
     case "youtube":
       return <YoutubeContent label={label} playlistId={playlistId} />;
     case "editor":
@@ -195,8 +282,15 @@ function MenuItemPageContent({
   const parentMenu = (allMenus ?? []).find((m) =>
     (m.items ?? []).some((s) => s.id === item.id)
   );
+  const itemSubItems = parentMenu?.items?.find((candidate) => candidate.id === item.id)?.subItems ?? [];
+  const isContainerOnly = isContainerOnlySecondLevelItem(item) && itemSubItems.length > 0;
   const sideItems = getSecondLevelSideMenuItems(parentMenu, item.id, activeHref);
   const staffCategory = getStaffCategoryForMenuItem(item);
+  const shouldRedirectToBulletinView = isBulletinViewMenuItem(item);
+  const shouldRedirectToBulletinAd = isBulletinAdRequestMenuItem(item);
+  const shouldRedirectToSubtitle = isSubtitleRequestMenuItem(item);
+  const shouldRedirectToVisitRequest = isVisitRequestMenuItem(item);
+  const shouldRedirectToExternalFacility = isExternalFacilityReservationMenuItem(item);
   const firstSubItemHref = getFirstSubItemHref(allMenus, item.id);
   const shouldRedirectToFirstSubItem =
     !staffCategory &&
@@ -206,10 +300,39 @@ function MenuItemPageContent({
     decodePath(firstSubItemHref ?? "") !== decodePath(activeHref ?? "");
 
   useEffect(() => {
+    if (shouldRedirectToBulletinView) {
+      setLocation("/worship/bulletin");
+      return;
+    }
+    if (shouldRedirectToBulletinAd) {
+      setLocation("/support/bulletin-ad");
+      return;
+    }
+    if (shouldRedirectToSubtitle) {
+      setLocation("/support/subtitle");
+      return;
+    }
+    if (shouldRedirectToVisitRequest) {
+      setLocation("/support/tour");
+      return;
+    }
+    if (shouldRedirectToExternalFacility) {
+      setLocation("/facility/external");
+      return;
+    }
     if (shouldRedirectToFirstSubItem && firstSubItemHref) {
       setLocation(firstSubItemHref);
     }
-  }, [firstSubItemHref, setLocation, shouldRedirectToFirstSubItem]);
+  }, [
+    firstSubItemHref,
+    setLocation,
+    shouldRedirectToBulletinAd,
+    shouldRedirectToBulletinView,
+    shouldRedirectToSubtitle,
+    shouldRedirectToVisitRequest,
+    shouldRedirectToExternalFacility,
+    shouldRedirectToFirstSubItem,
+  ]);
 
   if (staffCategory) {
     return <StaffPage initialCategory={staffCategory} />;
@@ -223,6 +346,22 @@ function MenuItemPageContent({
         sideMenuItems={sideItems}
       >
         <KakaoDirectionsMap />
+      </SubPageLayout>
+    );
+  }
+
+  if (shouldRedirectToBulletinView || shouldRedirectToBulletinAd || shouldRedirectToSubtitle || shouldRedirectToVisitRequest || shouldRedirectToExternalFacility) {
+    return <LoadingDynamicPage />;
+  }
+
+  if (isContainerOnly) {
+    return (
+      <SubPageLayout
+        pageTitle={item.label}
+        parentLabel={parentMenu?.label}
+        sideMenuItems={sideItems}
+      >
+        <div className="min-h-[240px]" aria-hidden="true" />
       </SubPageLayout>
     );
   }
@@ -243,7 +382,8 @@ function MenuItemPageContent({
         item.pageImageUrl ?? null,
         item.id,
         undefined,
-        item.playlistId
+        item.playlistId,
+        item.href ?? activeHref ?? null
       )}
     </SubPageLayout>
   );
@@ -258,6 +398,7 @@ function MenuSubItemPageContent({
   allMenus?: DynamicMenuTree;
   activeHref?: string;
 }) {
+  const [, setLocation] = useLocation();
   let parentItemLabel: string | undefined;
   let grandParentLabel: string | undefined;
   let sideItems: {
@@ -280,6 +421,38 @@ function MenuSubItemPageContent({
     if (parentItemLabel) break;
   }
 
+  const shouldRedirectToBulletinView = isBulletinViewMenuItem(item);
+  const shouldRedirectToBulletinAd = isBulletinAdRequestMenuItem(item);
+  const shouldRedirectToSubtitle = isSubtitleRequestMenuItem(item);
+  const shouldRedirectToVisitRequest = isVisitRequestMenuItem(item);
+  const shouldRedirectToExternalFacility = isExternalFacilityReservationMenuItem(item);
+
+  useEffect(() => {
+    if (shouldRedirectToBulletinView) {
+      setLocation("/worship/bulletin");
+      return;
+    }
+    if (shouldRedirectToBulletinAd) {
+      setLocation("/support/bulletin-ad");
+      return;
+    }
+    if (shouldRedirectToSubtitle) {
+      setLocation("/support/subtitle");
+      return;
+    }
+    if (shouldRedirectToVisitRequest) {
+      setLocation("/support/tour");
+      return;
+    }
+    if (shouldRedirectToExternalFacility) {
+      setLocation("/facility/external");
+    }
+  }, [setLocation, shouldRedirectToBulletinAd, shouldRedirectToBulletinView, shouldRedirectToSubtitle, shouldRedirectToVisitRequest, shouldRedirectToExternalFacility]);
+
+  if (shouldRedirectToBulletinView || shouldRedirectToBulletinAd || shouldRedirectToSubtitle || shouldRedirectToVisitRequest || shouldRedirectToExternalFacility) {
+    return <LoadingDynamicPage />;
+  }
+
   return (
     <SubPageLayout
       pageTitle={item.label}
@@ -292,7 +465,8 @@ function MenuSubItemPageContent({
         item.pageImageUrl ?? null,
         undefined,
         item.id,
-        item.playlistId
+        item.playlistId,
+        item.href ?? activeHref ?? null
       )}
     </SubPageLayout>
   );
@@ -362,18 +536,30 @@ export function DynamicMenuSubItemPage() {
 
 // ─── 깔끔한 CMS 페이지 URL (/page/상위메뉴-메뉴명) ─────────────────────────
 export function DynamicMenuHrefPage() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const activeHref = decodePath(location);
+  const codeBackedHref = getCodeBackedPageAlias(activeHref);
+  const shouldLoadDynamicPage = Boolean(activeHref) && !codeBackedHref;
 
   const { data: item, isLoading: itemLoading } = trpc.home.menuItemByHref.useQuery(
     { href: activeHref },
-    { enabled: Boolean(activeHref) }
+    { enabled: shouldLoadDynamicPage }
   );
   const { data: subItem, isLoading: subItemLoading } = trpc.home.menuSubItemByHref.useQuery(
     { href: activeHref },
-    { enabled: Boolean(activeHref) }
+    { enabled: shouldLoadDynamicPage }
   );
   const { data: allMenus } = trpc.home.menus.useQuery();
+
+  useEffect(() => {
+    if (codeBackedHref) {
+      setLocation(codeBackedHref, { replace: true });
+    }
+  }, [codeBackedHref, setLocation]);
+
+  if (codeBackedHref) {
+    return <LoadingDynamicPage />;
+  }
 
   if (itemLoading || subItemLoading) {
     return <LoadingDynamicPage />;

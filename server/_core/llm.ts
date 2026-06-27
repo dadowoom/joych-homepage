@@ -56,6 +56,7 @@ export type ToolChoice =
   | ToolChoiceExplicit;
 
 export type InvokeParams = {
+  model?: string;
   messages: Message[];
   tools?: Tool[];
   toolChoice?: ToolChoice;
@@ -214,11 +215,18 @@ const resolveApiUrl = () =>
     ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`
     : "https://forge.manus.im/v1/chat/completions";
 
+const resolveOpenAiResponsesUrl = () => {
+  const baseUrl = (ENV.openAiBaseUrl || "https://api.openai.com").replace(/\/$/, "");
+  return baseUrl.endsWith("/v1") ? `${baseUrl}/responses` : `${baseUrl}/v1/responses`;
+};
+
 const assertApiKey = () => {
-  if (!ENV.forgeApiKey) {
-    throw new Error("OPENAI_API_KEY is not configured");
+  if (!ENV.forgeApiKey && !ENV.openAiApiKey) {
+    throw new Error("LLM API key is not configured. Set OPENAI_API_KEY or BUILT_IN_FORGE_API_KEY.");
   }
 };
+
+const shouldUseOpenAiResponses = () => !ENV.forgeApiKey && Boolean(ENV.openAiApiKey);
 
 const normalizeResponseFormat = ({
   responseFormat,
@@ -265,8 +273,127 @@ const normalizeResponseFormat = ({
   };
 };
 
+const normalizeMessageForResponses = (message: Message) => {
+  const role = message.role === "function" || message.role === "tool" ? "user" : message.role;
+  const content = ensureArray(message.content)
+    .map(part => (typeof part === "string" ? part : "text" in part ? part.text : JSON.stringify(part)))
+    .join("\n");
+  return { role, content };
+};
+
+const extractResponsesText = (response: unknown): string => {
+  const data = response as {
+    output_text?: string;
+    output?: Array<{
+      type?: string;
+      role?: string;
+      content?: Array<{ type?: string; text?: string }>;
+    }>;
+  };
+
+  if (typeof data.output_text === "string") return data.output_text;
+
+  return (data.output ?? [])
+    .flatMap(item => item.content ?? [])
+    .map(part => part.text ?? "")
+    .filter(Boolean)
+    .join("\n");
+};
+
+async function invokeOpenAiResponses(params: InvokeParams): Promise<InvokeResult> {
+  const {
+    messages,
+    outputSchema,
+    output_schema,
+    responseFormat,
+    response_format,
+    maxTokens,
+    max_tokens,
+    model,
+  } = params;
+  const normalizedResponseFormat = normalizeResponseFormat({
+    responseFormat,
+    response_format,
+    outputSchema,
+    output_schema,
+  });
+  const payload: Record<string, unknown> = {
+    model: model ?? "gpt-5-mini",
+    input: messages.map(normalizeMessageForResponses),
+    max_output_tokens: maxTokens ?? max_tokens ?? 16000,
+  };
+
+  if (normalizedResponseFormat?.type === "json_object") {
+    payload.text = { format: { type: "json_object" } };
+  } else if (normalizedResponseFormat?.type === "json_schema") {
+    payload.text = {
+      format: {
+        type: "json_schema",
+        name: normalizedResponseFormat.json_schema.name,
+        schema: normalizedResponseFormat.json_schema.schema,
+        strict: normalizedResponseFormat.json_schema.strict ?? true,
+      },
+    };
+  }
+
+  const response = await fetch(resolveOpenAiResponsesUrl(), {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${ENV.openAiApiKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `LLM invoke failed: ${response.status} ${response.statusText} - ${errorText}`
+    );
+  }
+
+  const data = await response.json() as {
+    id?: string;
+    created_at?: number;
+    model?: string;
+    usage?: {
+      input_tokens?: number;
+      output_tokens?: number;
+      total_tokens?: number;
+    };
+  };
+  const content = extractResponsesText(data);
+
+  return {
+    id: data.id ?? "",
+    created: data.created_at ?? Math.floor(Date.now() / 1000),
+    model: data.model ?? String(payload.model),
+    choices: [
+      {
+        index: 0,
+        message: {
+          role: "assistant",
+          content,
+        },
+        finish_reason: null,
+      },
+    ],
+    usage: data.usage
+      ? {
+          prompt_tokens: data.usage.input_tokens ?? 0,
+          completion_tokens: data.usage.output_tokens ?? 0,
+          total_tokens: data.usage.total_tokens ?? 0,
+        }
+      : undefined,
+  };
+}
+
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   assertApiKey();
+
+  if (shouldUseOpenAiResponses()) {
+    return invokeOpenAiResponses(params);
+  }
 
   const {
     messages,
@@ -277,10 +404,13 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     output_schema,
     responseFormat,
     response_format,
+    maxTokens,
+    max_tokens,
+    model,
   } = params;
 
   const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
+    model: model ?? "gemini-2.5-flash",
     messages: messages.map(normalizeMessage),
   };
 
@@ -296,7 +426,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768
+  payload.max_tokens = maxTokens ?? max_tokens ?? 32768
   payload.thinking = {
     "budget_tokens": 128
   }

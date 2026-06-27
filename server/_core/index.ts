@@ -11,7 +11,7 @@ import { registerMemberOAuthRoutes } from "./memberOAuth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { registerSeoUtilityRoutes } from "./seo";
+import { canonicalHostRedirect, registerSeoUtilityRoutes } from "./seo";
 import { registerLegacyVodRoutes } from "./legacyVod";
 
 const MB = 1024 * 1024;
@@ -22,12 +22,17 @@ const GENERAL_FORM_LIMIT = "512kb";
 const TRPC_UPLOAD_PROCEDURES = [
   "cms.upload.video",
   "cms.upload.image",
+  "cms.upload.attachment",
   "cms.upload.galleryImage",
   "cms.upload.pageImage",
   "cms.blocks.uploadImage",
   "cms.facilities.images.upload",
+  "cms.pastorBooks.images.upload",
+  "cms.bulletins.create",
   "mission.uploadImage",
   "testimony.uploadImage",
+  "support.submitSubtitle",
+  "support.submitBulletinAd",
 ];
 
 function getContentLength(req: express.Request) {
@@ -237,6 +242,7 @@ async function startServer() {
     }
     next();
   });
+  app.use(canonicalHostRedirect);
 
   // Manus development-only endpoints/files must not be exposed in production.
   app.use("/__manus__", (_req, res) => {

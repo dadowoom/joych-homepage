@@ -70,7 +70,7 @@ export default function MissionDetail() {
           src={report.thumbnailUrl ?? report.images[0] ?? "https://images.unsplash.com/photo-1555636222-cae831e670b3?w=600&q=80"}
           alt={report.title}
           className="w-full h-full object-cover"
-        />
+         loading="lazy"/>
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
         {/* 대륙 뱃지 */}
         <span className="absolute top-6 left-6 bg-[#1B5E20]/90 text-white text-xs px-3 py-1.5 rounded-full">
@@ -99,7 +99,7 @@ export default function MissionDetail() {
                 src={report.missionary.profileImage ?? "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80"}
                 alt={report.missionary.name}
                 className="w-20 h-20 rounded-full object-cover border-4 border-[#E8F5E9] mx-auto mb-4"
-              />
+               loading="lazy"/>
               <h2 className="text-center font-bold text-gray-800 text-lg" style={{ fontFamily: "'Noto Serif KR', serif" }}>
                 {report.missionary.name}
               </h2>
@@ -170,7 +170,7 @@ export default function MissionDetail() {
                         src={img}
                         alt={`현장 사진 ${i + 1}`}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
+                       loading="lazy"/>
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                         <i className="fas fa-expand text-white opacity-0 group-hover:opacity-100 transition-opacity text-xl"></i>
                       </div>
@@ -250,7 +250,7 @@ export default function MissionDetail() {
             alt="확대 사진"
             className="max-w-full max-h-[90vh] object-contain rounded-lg"
             onClick={(e) => e.stopPropagation()}
-          />
+           loading="lazy"/>
         </div>
       )}
     </div>

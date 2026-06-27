@@ -86,10 +86,10 @@ console.log("✅ hero_slides 입력 완료");
 await db.execute(`
   INSERT IGNORE INTO notices (category, title, thumbnailUrl, isPublished, isPinned) VALUES
   ('공지', '3월 18일 장학금 수여식 안내',           'https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=120&q=70', 1, 0),
-  ('행사', '2026년 3월 12일~16일 히브리서 특별 강좌', 'https://images.unsplash.com/photo-1529070538774-1843cb3265df?w=120&q=70', 1, 0),
-  ('행사', '2026년 3월 4일~6일 전교인 수련회',       'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=120&q=70', 1, 0),
-  ('행사', '2026 리더십 성장 컨퍼런스',              'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=120&q=70', 1, 0),
-  ('찬양', '제5회 24시간 찬양기도회',                'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=120&q=70', 1, 0)
+  ('공지', '2026년 3월 12일~16일 히브리서 특별 강좌', 'https://images.unsplash.com/photo-1529070538774-1843cb3265df?w=120&q=70', 1, 0),
+  ('공지', '2026년 3월 4일~6일 전교인 수련회',       'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=120&q=70', 1, 0),
+  ('공지', '2026 리더십 성장 컨퍼런스',              'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=120&q=70', 1, 0),
+  ('공지', '제5회 24시간 찬양기도회',                'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=120&q=70', 1, 0)
 `);
 console.log("✅ notices 입력 완료");
 

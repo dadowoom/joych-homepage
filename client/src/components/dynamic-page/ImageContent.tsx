@@ -15,6 +15,7 @@ export function ImageContent({
   imageUrl: string | null;
 }) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [isLongImage, setIsLongImage] = useState(false);
 
   if (!imageUrl) {
     return (
@@ -33,14 +34,22 @@ export function ImageContent({
   return (
     <>
       <div
-        className="relative mx-auto flex w-full max-w-6xl justify-center overflow-hidden rounded-xl bg-white shadow-lg cursor-zoom-in group"
+        className={`relative mx-auto flex justify-center overflow-hidden rounded-xl bg-white shadow-lg cursor-zoom-in group ${
+          isLongImage ? "w-full max-w-2xl" : "w-fit max-w-full md:max-w-4xl"
+        }`}
         onClick={() => setLightboxOpen(true)}
       >
         <img
           src={imageUrl}
           alt={label}
           loading="lazy"
-          className="block h-auto w-full object-contain"
+          onLoad={(event) => {
+            const { naturalWidth, naturalHeight } = event.currentTarget;
+            setIsLongImage(naturalWidth > 0 && naturalHeight / naturalWidth > 1.6);
+          }}
+          className={`block max-w-full object-contain ${
+            isLongImage ? "h-auto w-full" : "max-h-[72vh] w-auto"
+          }`}
         />
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
           <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 rounded-full p-3 shadow-lg">

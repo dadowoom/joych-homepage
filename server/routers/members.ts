@@ -9,6 +9,7 @@
  *   - logout: 성도 로그아웃
  *   - me: 내 정보 조회
  *   - updateMyInfo: 내 기본 정보 수정
+ *   - updateMyChurchInfo: 내 교회 정보 수정
  *   - adminList: 전체 성도 목록 (관리자)
  *   - pendingList: 승인 대기 성도 목록 (관리자)
  *   - updateChurchInfo: 성도 교회 정보 수정 (관리자)
@@ -20,7 +21,7 @@
  * 인증 방식: church_member_session 쿠키 (JWT)
  * 접근 권한:
  *   - 공개: fieldOptions, register, login, logout, me
- *   - 성도: searchByName, updateMyInfo
+ *   - 성도: searchByName, updateMyInfo, updateMyChurchInfo
  *   - 관리자: adminList, pendingList, updateChurchInfo, adminFieldOptions, 등
  */
 
@@ -42,12 +43,14 @@ import {
   getAllMemberFieldOptions,
   createMemberFieldOption,
   updateMemberFieldOption,
+  reorderMemberFieldOptions,
   deleteMemberFieldOption,
   getMemberByEmail,
   getMemberById,
   createMember,
   updateMemberBasicInfo,
   updateMemberChurchInfo,
+  adminHardDeleteMember,
   adminUpdateMember,
   adminResetMemberPassword,
   getAllMembers,
@@ -58,6 +61,10 @@ import {
 
 const idSchema = z.number().int().positive();
 const fieldTypeSchema = z.enum(["position", "department", "district", "baptism"]);
+const editableChurchDate = z.string()
+  .trim()
+  .refine((value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value), "날짜 형식은 YYYY-MM-DD여야 합니다.")
+  .optional();
 
 function sanitizeMemberForSelf<T extends Record<string, unknown>>(member: T) {
   const { passwordHash: _passwordHash, adminMemo: _adminMemo, ...safeData } = member;
@@ -174,7 +181,7 @@ export const membersRouter = router({
       // ── Rate Limit: IP 및 계정 기준 실패 횟수 제한 ───────────────────────
       const clientIp = getClientIp(ctx.req);
       const ipKey = `ip:${clientIp}`;
-      const accountKey = `account:${input.email}`;
+      const accountKey = `account:${input.email.toLowerCase()}`;
       try {
         checkRateLimit(ipKey);
         checkRateLimit(accountKey);
@@ -295,6 +302,26 @@ export const membersRouter = router({
     }),
 
   /**
+   * 내 교회 정보 수정
+   * - 승인된 성도 본인만 자기 교회 정보 필드를 수정할 수 있음
+   * - status/adminMemo/소셜 연결 등 관리자 전용 필드는 제외
+   */
+  updateMyChurchInfo: memberProtectedProcedure
+    .input(z.object({
+      position: optionalText(64),
+      department: optionalText(64),
+      district: optionalText(64),
+      baptismType: optionalText(32),
+      baptismDate: editableChurchDate,
+      registeredAt: editableChurchDate,
+      pastor: optionalText(64),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await updateMemberChurchInfo(ctx.memberId, input);
+      return { success: true };
+    }),
+
+  /**
    * 성도 본인 탈퇴
    * - 개인정보/소셜 연결 삭제 또는 익명화
    * - 작성한 간증글/댓글은 삭제 상태로 전환
@@ -334,12 +361,35 @@ export const membersRouter = router({
       registeredAt: optionalDate,
       pastor: optionalText(64),
       adminMemo: optionalText(20000),
+      canReserveFacility: z.boolean().optional(),
       status: z.enum(["pending", "approved", "rejected", "withdrawn"]).optional(),
       faithPlusUserId: optionalText(128),
     }))
     .mutation(({ input }) => {
       const { id, ...data } = input;
       return updateMemberChurchInfo(id, data);
+    }),
+
+  /** 성도 완전삭제 (관리자: 탈퇴 상태이며 연결 기록이 없는 경우만) */
+  hardDelete: adminProcedure
+    .input(z.object({ id: idSchema }))
+    .mutation(async ({ input }) => {
+      const result = await adminHardDeleteMember(input.id);
+
+      if (result.deleted) return { success: true };
+
+      if (result.reason === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "이미 삭제되었거나 존재하지 않는 성도입니다." });
+      }
+
+      if (result.reason === "not_withdrawn") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "완전삭제는 탈퇴 상태 성도에게만 사용할 수 있습니다." });
+      }
+
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `연결된 기록이 있어 완전삭제할 수 없습니다. 탈퇴 보관으로 유지해주세요. (${result.related?.join(", ")})`,
+      });
     }),
 
   /** 선택지 전체 목록 조회 (관리자 — 비활성 포함) */
@@ -370,6 +420,14 @@ export const membersRouter = router({
       return updateMemberFieldOption(id, data);
     }),
 
+  /** 선택지 순서 변경 (관리자) */
+  reorderFieldOptions: adminProcedure
+    .input(z.array(z.object({
+      id: idSchema,
+      sortOrder: z.number().int().min(0).max(10000),
+    })).min(1).max(500))
+    .mutation(({ input }) => reorderMemberFieldOptions(input)),
+
   /** 선택지 삭제 (관리자) */
   deleteFieldOption: adminProcedure
     .input(z.object({ id: idSchema }))
@@ -397,6 +455,7 @@ export const membersRouter = router({
       registeredAt: optionalDate,
       pastor: optionalText(64),
       adminMemo: optionalText(20000),
+      canReserveFacility: z.boolean().optional(),
       status: z.enum(["pending", "approved", "rejected", "withdrawn"]).optional(),
       faithPlusUserId: optionalText(128),
     }))

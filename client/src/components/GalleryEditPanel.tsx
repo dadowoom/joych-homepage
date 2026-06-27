@@ -38,6 +38,8 @@ import { toast } from "sonner";
 type GalleryRow = {
   id: number;
   imageUrl: string;
+  albumKey: string | null;
+  albumTitle: string | null;
   caption: string | null;
   gridSpan: string | null;
   sortOrder: number;
@@ -111,7 +113,7 @@ function SortableGalleryItem({
             src={item.imageUrl}
             alt={item.caption ?? ""}
             className="w-full h-28 object-cover rounded border border-gray-200"
-          />
+           loading="lazy"/>
           <Input
             value={editCaption}
             onChange={(e) => setEditCaption(e.target.value)}
@@ -158,7 +160,7 @@ function SortableGalleryItem({
             alt={item.caption ?? ""}
             className="w-14 h-14 object-cover rounded border border-gray-200 shrink-0"
             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-          />
+           loading="lazy"/>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-800 truncate">
               {item.caption || <span className="text-gray-400 italic">설명 없음</span>}
@@ -202,7 +204,7 @@ function SortableGalleryItem({
 export default function GalleryEditPanel({ open, onClose }: GalleryEditPanelProps) {
   const utils = trpc.useUtils();
 
-  const { data: items, isLoading } = trpc.cms.content.gallery.list.useQuery(undefined, {
+  const { data: items, isLoading } = trpc.cms.content.gallery.listHome.useQuery(undefined, {
     enabled: open,
   });
 
@@ -228,8 +230,8 @@ export default function GalleryEditPanel({ open, onClose }: GalleryEditPanelProp
   );
 
   const invalidate = () => {
-    utils.cms.content.gallery.list.invalidate();
-    utils.home.gallery.invalidate();
+    utils.cms.content.gallery.listHome.invalidate();
+    utils.home.homeGallery.invalidate();
   };
 
   const uploadMutation = trpc.cms.upload.galleryImage.useMutation({
@@ -315,8 +317,11 @@ export default function GalleryEditPanel({ open, onClose }: GalleryEditPanelProp
 
       await createMutation.mutateAsync({
         imageUrl: url,
+        albumKey: `home-gallery-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+        albumTitle: newCaption.trim() || "메인 갤러리",
         caption: newCaption.trim() || undefined,
         gridSpan: newGridSpan,
+        isHomeGallery: true,
       });
 
       toast.success("사진이 업로드됐습니다!");

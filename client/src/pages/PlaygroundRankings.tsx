@@ -81,7 +81,7 @@ function RankingAvatar({ entry, size = "md" }: { entry: RankingEntry; size?: "md
           src={entry.profilePhoto}
           alt={entry.displayName}
           className="h-full w-full object-cover"
-        />
+         loading="lazy"/>
       ) : (
         getInitial(entry.displayName)
       )}

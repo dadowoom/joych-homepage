@@ -232,7 +232,7 @@ export default function MissionReportEditor() {
           </Field>
 
           <Field label="대표 사진">
-            {thumbnailUrl && <img src={thumbnailUrl} alt="대표 사진" className="w-full h-48 object-cover rounded-xl mb-3" />}
+            {thumbnailUrl && <img src={thumbnailUrl} alt="대표 사진" className="w-full h-48 object-cover rounded-xl mb-3"  loading="lazy"/>}
             <div className="flex gap-2">
               <button type="button" onClick={() => thumbnailInputRef.current?.click()} className="px-4 py-2 border border-[#1B5E20] text-[#1B5E20] rounded-lg text-sm hover:bg-[#E8F5E9] transition-colors">
                 {uploading === "thumbnail" ? "업로드 중..." : "대표 사진 업로드"}
@@ -245,7 +245,7 @@ export default function MissionReportEditor() {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3">
               {images.map((img, index) => (
                 <div key={`${img.imageUrl}-${index}`} className="relative">
-                  <img src={img.imageUrl} alt={`현장 사진 ${index + 1}`} className="w-full aspect-video object-cover rounded-xl" />
+                  <img src={img.imageUrl} alt={`현장 사진 ${index + 1}`} className="w-full aspect-video object-cover rounded-xl"  loading="lazy"/>
                   <button type="button" onClick={() => setImages(prev => prev.filter((_, i) => i !== index))} className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white text-xs">
                     ×
                   </button>

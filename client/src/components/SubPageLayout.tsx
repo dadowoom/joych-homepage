@@ -142,7 +142,35 @@ export default function SubPageLayout({
 
                     return (
                       <li key={item.id}>
-                        {hasSubItems ? (
+                        {hasSubItems && item.href ? (
+                          <div
+                            className={`flex items-stretch border-b border-gray-100 last:border-0 transition-colors ${
+                              item.isActive
+                                ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
+                                : "text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
+                            }`}
+                          >
+                            <Link
+                              href={item.href}
+                              className="flex min-w-0 flex-1 items-center px-4 py-3 text-sm"
+                            >
+                              <span className="truncate">{item.label}</span>
+                            </Link>
+                            <button
+                              type="button"
+                              aria-expanded={isOpen}
+                              onClick={() => toggleSideMenu(item.id)}
+                              className="flex w-10 shrink-0 items-center justify-center text-gray-400 hover:text-[#1B5E20]"
+                              aria-label={`${item.label} 하위 메뉴 열기`}
+                            >
+                              {isOpen ? (
+                                <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+                              ) : (
+                                <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+                              )}
+                            </button>
+                          </div>
+                        ) : hasSubItems ? (
                           <button
                             type="button"
                             aria-expanded={isOpen}
@@ -236,18 +264,20 @@ export default function SubPageLayout({
       </div>
 
       {/* ===== 푸터 ===== */}
-      <footer className="bg-[#0F172A] text-gray-400 py-12 mt-auto">
+      <footer className="bg-[#0F172A] text-gray-400 py-6 mt-auto">
         <div className="container">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-center">
             <div>
-              <img
-                src={LOGO_URL}
-                alt="기쁨의교회"
-                className="h-10 w-auto object-contain mb-2 brightness-0 invert"
-              />
-              <p className="text-xs text-gray-600">since 1946 대한예수교장로회</p>
+              <div className="inline-flex rounded-md bg-white px-3 py-2">
+                <img
+                  src={LOGO_URL}
+                  alt="기쁨의교회"
+                  className="h-8 w-auto object-contain"
+                 loading="lazy"/>
+              </div>
+              <p className="mt-2 text-xs text-gray-600">since 1946 대한예수교장로회</p>
             </div>
-            <div className="space-y-2 text-sm">
+            <div className="space-y-1.5 text-sm">
               <p className="flex items-center gap-2">
                 <i className="fas fa-map-marker-alt text-[#4CAF50] w-4"></i>
                 {getChurchAddress(dbSettings?.address)}
@@ -259,13 +289,6 @@ export default function SubPageLayout({
               <p className="text-xs text-gray-500 mt-3">
                 Copyright &copy; {new Date().getFullYear()} 기쁨의교회 All rights reserved.
               </p>
-              <div className="mt-4 space-y-1 text-sm leading-relaxed text-gray-300">
-                <p>사이트 운영주체: 주식회사 다도움컴퍼니</p>
-                <p>대표: 최종민</p>
-                <p>사업자등록번호: 530-86-02411</p>
-                <p>주소: 전라남도 여수시 공화북2길 9-1, 2층(공화동)</p>
-                <p className="break-words">이메일: contact@dadowoom.com</p>
-              </div>
             </div>
             <div className="flex gap-3 md:justify-end">
               {socialLinks.map((s, i) => (

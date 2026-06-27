@@ -5,11 +5,14 @@
  */
 import { useState } from "react";
 import { ZoomIn } from "lucide-react";
+import { RichTextViewer } from "@/components/ui/rich-text-editor";
 import { Lightbox } from "./Lightbox";
+import { normalizeHtmlBlockValue } from "./htmlBlockUtils";
 
 // ─── 블록 콘텐츠 타입 정의 ────────────────────────────────────────────────────
 export type BlockContent = {
   text?: string;
+  html?: string;
   urls?: string[];
   captions?: string[];
   videoId?: string;
@@ -31,8 +34,13 @@ export function parseContent(raw: string): BlockContent {
   }
 }
 
+// 2단/3단 동적 페이지의 HTML 블록은 모두 이 타입 하나를 사용합니다.
+// 새 HTML 편집 페이지를 추가할 때도 별도 편집기를 만들지 말고 공통 RichTextEditor/RichTextViewer 흐름을 재사용하세요.
+export const HTML_EDITOR_BLOCK_TYPE = "html-rich" as const;
+
 // ─── 블록 타입 선택지 (BlockEditDialog에서도 사용) ────────────────────────────
 export const BLOCK_TYPES = [
+  { value: HTML_EDITOR_BLOCK_TYPE, label: "HTML 편집기", icon: "H" },
   { value: "text-h1", label: "제목 1 (H1)", icon: "T" },
   { value: "text-h2", label: "제목 2 (H2)", icon: "T" },
   { value: "text-h3", label: "제목 3 (H3)", icon: "T" },
@@ -44,6 +52,43 @@ export const BLOCK_TYPES = [
   { value: "button", label: "버튼/링크", icon: "🔗" },
   { value: "divider", label: "구분선", icon: "—" },
 ] as const;
+
+function SingleImageBlock({
+  url,
+  alt,
+  onClick,
+}: {
+  url: string;
+  alt: string;
+  onClick: () => void;
+}) {
+  const [isLongImage, setIsLongImage] = useState(false);
+
+  return (
+    <div
+      className={`relative mx-auto flex justify-center overflow-hidden rounded-xl bg-white shadow-md cursor-zoom-in group ${
+        isLongImage ? "w-full max-w-2xl" : "w-fit max-w-full md:max-w-4xl"
+      }`}
+      onClick={onClick}
+    >
+      <img
+        src={url}
+        alt={alt}
+        loading="lazy"
+        onLoad={(event) => {
+          const { naturalWidth, naturalHeight } = event.currentTarget;
+          setIsLongImage(naturalWidth > 0 && naturalHeight / naturalWidth > 1.6);
+        }}
+        className={`block max-w-full object-contain ${
+          isLongImage ? "h-auto w-full" : "max-h-[72vh] w-auto"
+        }`}
+      />
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+        <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
+    </div>
+  );
+}
 
 // ─── 블록 렌더러 ──────────────────────────────────────────────────────────────
 export function BlockRenderer({
@@ -60,10 +105,17 @@ export function BlockRenderer({
   };
 
   switch (block.blockType) {
+    case HTML_EDITOR_BLOCK_TYPE:
+      return (
+        <RichTextViewer
+          className="my-6 max-w-full text-base leading-8"
+          html={normalizeHtmlBlockValue(c.html ?? c.text)}
+        />
+      );
     case "text-h1":
       return (
         <h1
-          className="font-bold text-gray-900 leading-tight mt-8 mb-4"
+          className="mt-8 mb-4 min-w-0 max-w-full break-words font-bold leading-tight text-gray-900 [overflow-wrap:anywhere]"
           style={{
             fontFamily: "'Noto Serif KR', serif",
             fontSize: c.fontSize ? `${c.fontSize}px` : undefined,
@@ -76,7 +128,7 @@ export function BlockRenderer({
     case "text-h2":
       return (
         <h2
-          className="font-bold text-gray-800 leading-tight mt-6 mb-3 border-b-2 border-green-600 pb-2"
+          className="mt-6 mb-3 min-w-0 max-w-full break-words border-b-2 border-green-600 pb-2 font-bold leading-tight text-gray-800 [overflow-wrap:anywhere]"
           style={textStyle}
         >
           {c.text}
@@ -84,13 +136,19 @@ export function BlockRenderer({
       );
     case "text-h3":
       return (
-        <h3 className="font-semibold text-gray-700 mt-5 mb-2" style={textStyle}>
+        <h3
+          className="mt-5 mb-2 min-w-0 max-w-full break-words font-semibold text-gray-700 [overflow-wrap:anywhere]"
+          style={textStyle}
+        >
           {c.text}
         </h3>
       );
     case "text-body":
       return (
-        <p className="text-gray-700 leading-relaxed mb-4 whitespace-pre-wrap" style={textStyle}>
+        <p
+          className="mb-4 min-w-0 max-w-full overflow-x-hidden whitespace-pre-wrap break-words leading-relaxed text-gray-700 [overflow-wrap:anywhere]"
+          style={textStyle}
+        >
           {c.text}
         </p>
       );
@@ -99,21 +157,12 @@ export function BlockRenderer({
         <>
           <div className="my-4">
             {(c.urls ?? []).slice(0, 1).map((url, i) => (
-              <div
+              <SingleImageBlock
                 key={i}
-                className="relative mx-auto flex w-full max-w-6xl justify-center overflow-hidden rounded-xl bg-white shadow-md cursor-zoom-in group"
+                url={url}
+                alt={c.captions?.[i] ?? ""}
                 onClick={() => setImgLightbox(url)}
-              >
-                <img
-                  src={url}
-                  alt={c.captions?.[i] ?? ""}
-                  loading="lazy"
-                  className="block h-auto w-full object-contain"
-                />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                  <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-              </div>
+              />
             ))}
             {c.captions?.[0] && (
               <p className="text-center text-xs text-gray-400 mt-2">{c.captions[0]}</p>
@@ -126,14 +175,14 @@ export function BlockRenderer({
       );
     case "image-double":
     case "image-triple": {
-      const cols = block.blockType === "image-triple" ? "grid-cols-3" : "grid-cols-2";
+      const cols = block.blockType === "image-triple" ? "sm:grid-cols-3" : "sm:grid-cols-2";
       return (
         <>
-          <div className={`grid ${cols} gap-3 my-4`}>
+          <div className={`my-4 grid grid-cols-1 ${cols} gap-3`}>
             {(c.urls ?? []).map((url, i) => (
               <div
                 key={i}
-                className="rounded-lg overflow-hidden shadow-sm cursor-zoom-in group relative"
+                className="group relative min-w-0 cursor-zoom-in overflow-hidden rounded-lg shadow-sm"
                 onClick={() => setImgLightbox(url)}
               >
                 <img
@@ -168,8 +217,8 @@ export function BlockRenderer({
     case "button": {
       const buttonClassName =
         c.style === "outline"
-          ? "inline-block px-6 py-3 border-2 border-green-700 text-green-700 rounded-lg font-medium hover:bg-green-50 transition-colors"
-          : "inline-block px-6 py-3 bg-green-700 text-white rounded-lg font-medium hover:bg-green-800 transition-colors";
+          ? "inline-block max-w-full whitespace-normal break-words rounded-lg border-2 border-green-700 px-6 py-3 text-center font-medium text-green-700 transition-colors hover:bg-green-50 [overflow-wrap:anywhere]"
+          : "inline-block max-w-full whitespace-normal break-words rounded-lg bg-green-700 px-6 py-3 text-center font-medium text-white transition-colors hover:bg-green-800 [overflow-wrap:anywhere]";
       if (!c.href?.trim()) {
         return (
           <div className="my-4">

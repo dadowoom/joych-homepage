@@ -19,6 +19,8 @@ export type MenuSubItemRow = {
   href: string | null;
   sortOrder: number;
   isVisible: boolean;
+  allowGuest: boolean;
+  allowMember: boolean;
   pageType: PageType;
   pageImageUrl: string | null;
 };
@@ -30,6 +32,8 @@ export type MenuItemRow = {
   href: string | null;
   sortOrder: number;
   isVisible: boolean;
+  allowGuest: boolean;
+  allowMember: boolean;
   pageType: PageType;
   pageImageUrl: string | null;
   subItems: MenuSubItemRow[];
@@ -55,7 +59,7 @@ export const PAGE_TYPE_OPTIONS: {
   { value: "gallery", label: "갤러리", icon: <LayoutGrid size={12} /> },
   { value: "board", label: "게시판", icon: <FileText size={12} /> },
   { value: "youtube", label: "유튜브 목록", icon: <Youtube size={12} /> },
-  { value: "editor", label: "편집 모드", icon: <Type size={12} /> },
+  { value: "editor", label: "HTML 편집기", icon: <Type size={12} /> },
 ];
 
 // ─── 내부 페이지 경로 목록 ────────────────────────────────────────────────────

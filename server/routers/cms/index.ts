@@ -16,6 +16,9 @@
  *   - staff: 섬기는 분/교역자 소개 관리
  *   - popups: 팝업/공지 배너 관리
  *   - supportRequests: 기도 요청/새가족 접수 관리
+ *   - courses: 교육/강좌 신청 관리
+ *   - bulletins: 주보 파일 관리
+ *   - pastorBooks: 담임목사 저서 관리
  */
 
 import { router } from "../../_core/trpc";
@@ -31,6 +34,16 @@ import { testimoniesRouter } from "./testimonies";
 import { staffRouter } from "./staff";
 import { popupsRouter } from "./popups";
 import { supportRequestsRouter } from "./supportRequests";
+import { freeBoardAdminRouter } from "./freeBoard";
+import { coursesRouter } from "./courses";
+import { bulletinsRouter } from "./bulletins";
+import { adminPermissionsRouter } from "./adminPermissions";
+import { historyRouter } from "./history";
+import { notificationsRouter } from "./notifications";
+import { vehiclesRouter } from "./vehicles";
+import { vehicleReservationsRouter } from "./vehicleReservations";
+import { dynamicBoardsRouter } from "./dynamicBoards";
+import { pastorBooksRouter } from "./pastorBooks";
 
 export const cmsRouter = router({
   notices: noticesRouter,
@@ -45,4 +58,14 @@ export const cmsRouter = router({
   staff: staffRouter,
   popups: popupsRouter,
   supportRequests: supportRequestsRouter,
+  freeBoard: freeBoardAdminRouter,
+  courses: coursesRouter,
+  bulletins: bulletinsRouter,
+  adminPermissions: adminPermissionsRouter,
+  history: historyRouter,
+  notifications: notificationsRouter,
+  vehicles: vehiclesRouter,
+  vehicleReservations: vehicleReservationsRouter,
+  dynamicBoards: dynamicBoardsRouter,
+  pastorBooks: pastorBooksRouter,
 });

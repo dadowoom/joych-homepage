@@ -1,10 +1,10 @@
 /**
  * 히어로 슬라이드 편집 슬라이드 패널
  * - 관리자 로그인 시 홈페이지 우측에서 슬라이드로 열림
- * - 히어로 슬라이드의 텍스트/링크 수정, 표시/숨기기, 추가/삭제 기능
+ * - 히어로 슬라이드의 텍스트/버튼/링크 수정, 표시/숨기기, 추가/삭제 기능
  * - 영상 파일 직접 업로드 (S3 연동)
  */
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Sheet,
   SheetContent,
@@ -15,8 +15,21 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { Pencil, Check, X, Eye, EyeOff, Trash2, Plus, Upload, Video } from "lucide-react";
+import { Pencil, Check, X, Eye, EyeOff, Trash2, Plus, Upload, Video, Link as LinkIcon, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
+
+const MAX_HERO_BUTTONS = 4;
+const HERO_COMMON_BUTTONS_KEY = "home_hero_common_buttons";
+
+type HeroButtonDraft = {
+  label: string;
+  href: string;
+};
+
+const DEFAULT_HERO_BUTTONS: HeroButtonDraft[] = [
+  { label: "새가족 등록", href: "/support/new-member" },
+  { label: "예배 안내", href: "/worship/schedule" },
+];
 
 type HeroSlideRow = {
   id: number;
@@ -28,6 +41,7 @@ type HeroSlideRow = {
   btn1Href: string | null;
   btn2Text: string | null;
   btn2Href: string | null;
+  buttonsJson: string | null;
   videoUrl: string | null;
   posterUrl: string | null;
   isVisible: boolean;
@@ -43,6 +57,8 @@ type EditState = {
   btn1Href: string;
   btn2Text: string;
   btn2Href: string;
+  useCustomButtons: boolean;
+  buttons: HeroButtonDraft[];
   videoUrl: string;
   posterUrl: string;
 };
@@ -50,8 +66,74 @@ type EditState = {
 const EMPTY_EDIT: EditState = {
   yearLabel: "", mainTitle: "", subTitle: "", bibleRef: "",
   btn1Text: "", btn1Href: "", btn2Text: "", btn2Href: "",
+  useCustomButtons: false,
+  buttons: DEFAULT_HERO_BUTTONS,
   videoUrl: "", posterUrl: "",
 };
+
+function normalizeButtonDrafts(buttons: HeroButtonDraft[]) {
+  return buttons
+    .map((button) => ({
+      label: button.label.trim(),
+      href: button.href.trim(),
+    }))
+    .filter((button) => button.label && button.href)
+    .slice(0, MAX_HERO_BUTTONS);
+}
+
+function hasIncompleteButton(buttons: HeroButtonDraft[]) {
+  return buttons.some((button) => {
+    const hasLabel = button.label.trim().length > 0;
+    const hasHref = button.href.trim().length > 0;
+    return hasLabel !== hasHref;
+  });
+}
+
+function parseButtonsJson(raw: string | null | undefined) {
+  if (typeof raw !== "string") return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    return normalizeButtonDrafts(
+      parsed.map((item) => {
+        if (!item || typeof item !== "object" || Array.isArray(item)) {
+          return { label: "", href: "" };
+        }
+        const record = item as Record<string, unknown>;
+        return {
+          label: typeof record.label === "string" ? record.label : "",
+          href: typeof record.href === "string" ? record.href : "",
+        };
+      }),
+    );
+  } catch {
+    return null;
+  }
+}
+
+function getLegacySlideButtons(slide: Pick<HeroSlideRow, "btn1Text" | "btn1Href" | "btn2Text" | "btn2Href">) {
+  return normalizeButtonDrafts([
+    {
+      label: slide.btn1Text ?? "",
+      href: slide.btn1Href ?? "",
+    },
+    {
+      label: slide.btn2Text ?? "",
+      href: slide.btn2Href ?? "",
+    },
+  ]);
+}
+
+function getButtonPayload(buttons: HeroButtonDraft[]) {
+  const normalized = normalizeButtonDrafts(buttons);
+  return {
+    normalized,
+    btn1Text: normalized[0]?.label || undefined,
+    btn1Href: normalized[0]?.href || undefined,
+    btn2Text: normalized[1]?.label || undefined,
+    btn2Href: normalized[1]?.href || undefined,
+  };
+}
 
 interface HeroEditPanelProps {
   open: boolean;
@@ -64,9 +146,13 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
   const { data: slides, isLoading } = trpc.cms.content.heroSlides.list.useQuery(undefined, {
     enabled: open,
   });
+  const { data: siteSettings } = trpc.home.settings.useQuery(undefined, {
+    enabled: open,
+  });
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editState, setEditState] = useState<EditState>(EMPTY_EDIT);
+  const [commonButtons, setCommonButtons] = useState<HeroButtonDraft[]>(DEFAULT_HERO_BUTTONS);
 
   // 새 슬라이드 추가 폼 표시 여부
   const [showAddForm, setShowAddForm] = useState(false);
@@ -92,6 +178,7 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
   const invalidateAll = () => {
     utils.cms.content.heroSlides.list.invalidate();
     utils.home.heroSlides.invalidate();
+    utils.home.settings.invalidate();
   };
 
   const updateMutation = trpc.cms.content.heroSlides.update.useMutation({
@@ -127,7 +214,32 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
     onError: (e) => toast.error("삭제 실패: " + e.message),
   });
 
+  const updateCommonButtonsMutation = trpc.cms.content.settings.update.useMutation({
+    onSuccess: () => {
+      toast.success("공통 버튼 설정이 저장됐습니다.");
+      invalidateAll();
+    },
+    onError: (e) => toast.error("공통 버튼 저장 실패: " + e.message),
+  });
+
+  const useCommonButtonsForAllMutation = trpc.cms.content.heroSlides.useCommonButtonsForAll.useMutation({
+    onSuccess: () => {
+      toast.success("모든 슬라이드가 공통 버튼을 사용하도록 변경됐습니다.");
+      setEditingId(null);
+      invalidateAll();
+    },
+    onError: (e) => toast.error("일괄 적용 실패: " + e.message),
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    const parsed = parseButtonsJson(siteSettings?.[HERO_COMMON_BUTTONS_KEY]);
+    setCommonButtons(parsed && parsed.length > 0 ? parsed : DEFAULT_HERO_BUTTONS);
+  }, [open, siteSettings]);
+
   const startEdit = (slide: HeroSlideRow) => {
+    const customButtons = parseButtonsJson(slide.buttonsJson);
+    const legacyButtons = getLegacySlideButtons(slide);
     setEditingId(slide.id);
     setEditState({
       yearLabel: slide.yearLabel ?? "",
@@ -138,6 +250,8 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
       btn1Href: slide.btn1Href ?? "",
       btn2Text: slide.btn2Text ?? "",
       btn2Href: slide.btn2Href ?? "",
+      useCustomButtons: customButtons !== null,
+      buttons: customButtons ?? (legacyButtons.length > 0 ? legacyButtons : DEFAULT_HERO_BUTTONS),
       videoUrl: slide.videoUrl ?? "",
       posterUrl: slide.posterUrl ?? "",
     });
@@ -145,34 +259,76 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
 
   const saveEdit = () => {
     if (!editingId) return;
+    if (editState.useCustomButtons && hasIncompleteButton(editState.buttons)) {
+      toast.error("버튼 텍스트와 링크는 함께 입력해주세요.");
+      return;
+    }
+    const buttonPayload = getButtonPayload(editState.buttons);
     updateMutation.mutate({
       id: editingId,
       yearLabel: editState.yearLabel || undefined,
       mainTitle: editState.mainTitle || undefined,
       subTitle: editState.subTitle || undefined,
       bibleRef: editState.bibleRef || undefined,
-      btn1Text: editState.btn1Text || undefined,
-      btn1Href: editState.btn1Href || undefined,
-      btn2Text: editState.btn2Text || undefined,
-      btn2Href: editState.btn2Href || undefined,
+      btn1Text: editState.useCustomButtons ? buttonPayload.btn1Text : editState.btn1Text || undefined,
+      btn1Href: editState.useCustomButtons ? buttonPayload.btn1Href : editState.btn1Href || undefined,
+      btn2Text: editState.useCustomButtons ? buttonPayload.btn2Text : editState.btn2Text || undefined,
+      btn2Href: editState.useCustomButtons ? buttonPayload.btn2Href : editState.btn2Href || undefined,
+      buttonsJson: editState.useCustomButtons ? buttonPayload.normalized : null,
       videoUrl: editState.videoUrl || undefined,
       posterUrl: editState.posterUrl || undefined,
     });
   };
 
   const saveNewSlide = () => {
+    if (newSlide.useCustomButtons && hasIncompleteButton(newSlide.buttons)) {
+      toast.error("버튼 텍스트와 링크는 함께 입력해주세요.");
+      return;
+    }
+    const buttonPayload = getButtonPayload(newSlide.buttons);
     createMutation.mutate({
       yearLabel: newSlide.yearLabel || undefined,
       mainTitle: newSlide.mainTitle || undefined,
       subTitle: newSlide.subTitle || undefined,
       bibleRef: newSlide.bibleRef || undefined,
-      btn1Text: newSlide.btn1Text || undefined,
-      btn1Href: newSlide.btn1Href || undefined,
-      btn2Text: newSlide.btn2Text || undefined,
-      btn2Href: newSlide.btn2Href || undefined,
+      btn1Text: newSlide.useCustomButtons ? buttonPayload.btn1Text : newSlide.btn1Text || undefined,
+      btn1Href: newSlide.useCustomButtons ? buttonPayload.btn1Href : newSlide.btn1Href || undefined,
+      btn2Text: newSlide.useCustomButtons ? buttonPayload.btn2Text : newSlide.btn2Text || undefined,
+      btn2Href: newSlide.useCustomButtons ? buttonPayload.btn2Href : newSlide.btn2Href || undefined,
+      buttonsJson: newSlide.useCustomButtons ? buttonPayload.normalized : null,
       videoUrl: newSlide.videoUrl || undefined,
       posterUrl: newSlide.posterUrl || undefined,
     });
+  };
+
+  const saveCommonButtons = () => {
+    if (hasIncompleteButton(commonButtons)) {
+      toast.error("공통 버튼의 텍스트와 링크는 함께 입력해주세요.");
+      return;
+    }
+    updateCommonButtonsMutation.mutate({
+      key: HERO_COMMON_BUTTONS_KEY,
+      value: JSON.stringify(normalizeButtonDrafts(commonButtons)),
+    });
+  };
+
+  const applyCommonButtonsToAllSlides = async () => {
+    if (hasIncompleteButton(commonButtons)) {
+      toast.error("공통 버튼의 텍스트와 링크는 함께 입력해주세요.");
+      return;
+    }
+    const confirmed = window.confirm("현재 공통 버튼을 저장하고, 모든 슬라이드가 공통 버튼을 사용하도록 변경할까요?");
+    if (!confirmed) return;
+
+    try {
+      await updateCommonButtonsMutation.mutateAsync({
+        key: HERO_COMMON_BUTTONS_KEY,
+        value: JSON.stringify(normalizeButtonDrafts(commonButtons)),
+      });
+      await useCommonButtonsForAllMutation.mutateAsync();
+    } catch {
+      // 각 mutation의 onError에서 사용자에게 원인을 보여준다.
+    }
   };
 
   /**
@@ -307,6 +463,155 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
     );
   };
 
+  const updateButtonDraft = (
+    buttons: HeroButtonDraft[],
+    setButtons: (buttons: HeroButtonDraft[]) => void,
+    index: number,
+    patch: Partial<HeroButtonDraft>,
+  ) => {
+    setButtons(buttons.map((button, buttonIndex) => (
+      buttonIndex === index ? { ...button, ...patch } : button
+    )));
+  };
+
+  const renderButtonListEditor = (
+    buttons: HeroButtonDraft[],
+    setButtons: (buttons: HeroButtonDraft[]) => void,
+    options?: { disabled?: boolean; compact?: boolean },
+  ) => {
+    const disabled = options?.disabled ?? false;
+    const visibleButtons = buttons.length > 0 ? buttons : [{ label: "", href: "" }];
+
+    return (
+      <div className="space-y-2">
+        {visibleButtons.map((button, index) => (
+          <div key={index} className="rounded-md border border-gray-200 bg-white p-2">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-gray-500">버튼 {index + 1}</span>
+              <button
+                type="button"
+                className="text-[11px] text-red-400 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={disabled || visibleButtons.length <= 1}
+                onClick={() => setButtons(visibleButtons.filter((_, buttonIndex) => buttonIndex !== index))}
+              >
+                삭제
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Input
+                value={button.label}
+                disabled={disabled}
+                onChange={(event) => updateButtonDraft(visibleButtons, setButtons, index, { label: event.target.value })}
+                placeholder="버튼 텍스트"
+                className="text-sm"
+              />
+              <Input
+                value={button.href}
+                disabled={disabled}
+                onChange={(event) => updateButtonDraft(visibleButtons, setButtons, index, { href: event.target.value })}
+                placeholder="/support/new-member"
+                className="text-sm font-mono"
+              />
+            </div>
+          </div>
+        ))}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="w-full border-dashed text-gray-600"
+          disabled={disabled || visibleButtons.length >= MAX_HERO_BUTTONS}
+          onClick={() => setButtons([...visibleButtons, { label: "", href: "" }])}
+        >
+          <Plus className="mr-1 h-3 w-3" />
+          버튼 추가 ({visibleButtons.length}/{MAX_HERO_BUTTONS})
+        </Button>
+      </div>
+    );
+  };
+
+  const renderCommonButtonsPanel = () => (
+    <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-3">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-[#1B5E20]">공통 버튼 설정</p>
+          <p className="mt-0.5 text-xs leading-5 text-gray-500">
+            개별 버튼을 쓰지 않는 모든 히어로 슬라이드에 적용됩니다.
+          </p>
+        </div>
+        <LinkIcon className="mt-0.5 h-4 w-4 shrink-0 text-[#1B5E20]" />
+      </div>
+      {renderButtonListEditor(commonButtons, setCommonButtons)}
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <Button
+          type="button"
+          size="sm"
+          className="bg-[#1B5E20] text-white hover:bg-[#2E7D32]"
+          disabled={updateCommonButtonsMutation.isPending}
+          onClick={saveCommonButtons}
+        >
+          <Check className="mr-1 h-3 w-3" />
+          {updateCommonButtonsMutation.isPending ? "저장 중..." : "공통 버튼 저장"}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={updateCommonButtonsMutation.isPending || useCommonButtonsForAllMutation.isPending}
+          onClick={applyCommonButtonsToAllSlides}
+        >
+          <RotateCcw className="mr-1 h-3 w-3" />
+          {useCommonButtonsForAllMutation.isPending ? "적용 중..." : "저장 후 전체 일괄 적용"}
+        </Button>
+      </div>
+    </div>
+  );
+
+  const renderSlideButtonEditor = (
+    state: EditState,
+    setState: (s: EditState) => void,
+  ) => (
+    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+      <label className="flex items-start gap-2">
+        <input
+          type="checkbox"
+          checked={state.useCustomButtons}
+          onChange={(event) => setState({
+            ...state,
+            useCustomButtons: event.target.checked,
+            buttons: state.buttons.length > 0 ? state.buttons : DEFAULT_HERO_BUTTONS,
+          })}
+          className="mt-1"
+        />
+        <span>
+          <span className="block text-xs font-semibold text-gray-700">이 슬라이드만 개별 버튼 사용</span>
+          <span className="block text-xs leading-5 text-gray-500">
+            체크하지 않으면 상단 공통 버튼 설정을 그대로 사용합니다.
+          </span>
+        </span>
+      </label>
+      <div className="mt-3">
+        {renderButtonListEditor(
+          state.buttons,
+          (buttons) => setState({ ...state, buttons }),
+          { disabled: !state.useCustomButtons },
+        )}
+      </div>
+    </div>
+  );
+
+  const getSlidePreviewButtons = (slide: HeroSlideRow) => {
+    const customButtons = parseButtonsJson(slide.buttonsJson);
+    if (customButtons !== null) {
+      return { source: "개별 버튼", buttons: customButtons };
+    }
+    const normalizedCommonButtons = normalizeButtonDrafts(commonButtons);
+    return {
+      source: "공통 버튼",
+      buttons: normalizedCommonButtons.length > 0 ? normalizedCommonButtons : getLegacySlideButtons(slide),
+    };
+  };
+
   // 편집 폼 공통 렌더링
   const renderEditFields = (
     state: EditState,
@@ -336,26 +641,7 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
         <label className="text-xs text-gray-500 mb-1 block">성경 구절 출처</label>
         <Input value={state.bibleRef} onChange={(e) => setState({ ...state, bibleRef: e.target.value })} placeholder="예: 잠언 3장 9절" className="text-sm" />
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-xs text-gray-500 mb-1 block">버튼1 텍스트</label>
-          <Input value={state.btn1Text} onChange={(e) => setState({ ...state, btn1Text: e.target.value })} placeholder="새가족 등록" className="text-sm" />
-        </div>
-        <div>
-          <label className="text-xs text-gray-500 mb-1 block">버튼1 링크</label>
-          <Input value={state.btn1Href} onChange={(e) => setState({ ...state, btn1Href: e.target.value })} placeholder="/new-member" className="text-sm" />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-xs text-gray-500 mb-1 block">버튼2 텍스트</label>
-          <Input value={state.btn2Text} onChange={(e) => setState({ ...state, btn2Text: e.target.value })} placeholder="예배 안내" className="text-sm" />
-        </div>
-        <div>
-          <label className="text-xs text-gray-500 mb-1 block">버튼2 링크</label>
-          <Input value={state.btn2Href} onChange={(e) => setState({ ...state, btn2Href: e.target.value })} placeholder="/worship" className="text-sm" />
-        </div>
-      </div>
+      {renderSlideButtonEditor(state, setState)}
 
       {/* 영상 업로드 필드 */}
       {renderVideoUploadField(state, setState, target, inputRef)}
@@ -382,6 +668,8 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
           <SheetTitle>히어로 슬라이드 편집</SheetTitle>
           <SheetDescription>홈페이지 상단 영상 슬라이드의 텍스트, 버튼, 영상을 수정하거나 새 슬라이드를 추가할 수 있습니다.</SheetDescription>
         </SheetHeader>
+
+        {renderCommonButtonsPanel()}
 
         {/* 슬라이드 추가 버튼 */}
         {!showAddForm && (
@@ -471,14 +759,29 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
                           <span className="text-xs text-gray-400 truncate">{slide.videoUrl.split("/").pop()}</span>
                         </div>
                       )}
-                      <div className="flex gap-2 mt-1">
-                        {slide.btn1Text && (
-                          <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">{slide.btn1Text}</span>
-                        )}
-                        {slide.btn2Text && (
-                          <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{slide.btn2Text}</span>
-                        )}
-                      </div>
+                      {(() => {
+                        const preview = getSlidePreviewButtons(slide);
+                        return (
+                          <div className="mt-2 space-y-1">
+                            <span className="inline-flex rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-500">
+                              {preview.source}
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {preview.buttons.map((button, buttonIndex) => (
+                                <span
+                                  key={`${button.label}-${buttonIndex}`}
+                                  className={`rounded px-1.5 py-0.5 text-xs ${buttonIndex === 0 ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}
+                                >
+                                  {button.label}
+                                </span>
+                              ))}
+                              {preview.buttons.length === 0 && (
+                                <span className="text-xs text-gray-400">표시할 버튼 없음</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className="flex gap-1 shrink-0">
                       <button

@@ -9,6 +9,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toFallbackMenuTree } from "@shared/siteNavigation";
+import { useLanguage, translateSiteText } from "@/contexts/LanguageContext";
 
 function getUsableHref(href?: string | null) {
   const trimmed = href?.trim();
@@ -19,13 +20,82 @@ function isExternalHref(href: string) {
   return href.startsWith("http://") || href.startsWith("https://");
 }
 
+function normalizeMenuLabel(label: string) {
+  return label.replace(/\s+/g, "");
+}
+
+function decodeMenuHref(href?: string | null) {
+  try {
+    return decodeURIComponent(href ?? "");
+  } catch {
+    return href ?? "";
+  }
+}
+
+function normalizeMenuHref(href?: string | null) {
+  return decodeMenuHref(href).replace(/[\s-]+/g, "");
+}
+
+function getSpecialMenuHref(label?: string | null, href?: string | null) {
+  const normalized = normalizeMenuLabel(label ?? "");
+  const normalizedHref = normalizeMenuHref(href);
+  if (normalized === "주보보기") return "/worship/bulletin";
+  if (normalized === "주보광고신청") return "/support/bulletin-ad";
+  if (normalized === "자막신청") return "/support/subtitle";
+  if (normalized === "탐방신청") return "/support/tour";
+  if (normalized === "외부인" && normalizedHref.includes("시설사용예약외부인")) return "/facility/external";
+  return null;
+}
+
+function isContainerOnlySecondLevelItem(item: unknown) {
+  const data = item as Record<string, unknown>;
+  const label = typeof data.label === "string" ? normalizeMenuLabel(data.label) : "";
+  return label === "자료실";
+}
+
+function isRepresentativeLinkSecondLevelItem(item: unknown) {
+  const data = item as Record<string, unknown>;
+  const label = typeof data.label === "string" ? normalizeMenuLabel(data.label) : "";
+  return label === "주보";
+}
+
+function getRepresentativeSubItemHref(item: unknown) {
+  const data = item as {
+    subItems?: Array<{ label?: string | null; href?: string | null }>;
+  };
+  const subItems = data.subItems ?? [];
+  const bulletinView = subItems.find((sub) => normalizeMenuLabel(sub.label ?? "") === "주보보기");
+  return getSpecialMenuHref(bulletinView?.label, bulletinView?.href) ?? getUsableHref(bulletinView?.href) ?? getUsableHref(subItems.find((sub) => getUsableHref(sub.href))?.href);
+}
+
 function hasOwnSecondLevelContent(item: unknown) {
+  if (isContainerOnlySecondLevelItem(item)) return false;
+
   const data = item as Record<string, unknown>;
   const pageType = typeof data.pageType === "string" ? data.pageType : "image";
   if (pageType === "image") {
     return typeof data.pageImageUrl === "string" && data.pageImageUrl.trim().length > 0;
   }
   return true;
+}
+
+function getSecondLevelHref(item: unknown, hasSubItems: boolean) {
+  const specialHref = getSpecialMenuHref((item as { label?: string | null }).label, (item as { href?: string | null }).href);
+  if (specialHref) return specialHref;
+
+  if (hasSubItems) {
+    if (isContainerOnlySecondLevelItem(item)) return null;
+    if (isRepresentativeLinkSecondLevelItem(item)) {
+      return getRepresentativeSubItemHref(item) ?? getUsableHref((item as { href?: string | null }).href);
+    }
+    if (!hasOwnSecondLevelContent(item)) return null;
+  }
+
+  return getUsableHref((item as { href?: string | null }).href);
+}
+
+function getThirdLevelHref(item: { label?: string | null; href?: string | null }) {
+  return getSpecialMenuHref(item.label, item.href) ?? getUsableHref(item.href);
 }
 
 const fallbackMenus = toFallbackMenuTree();
@@ -40,6 +110,7 @@ export default function SiteHeader() {
     null
   );
   const [, setLocation] = useLocation();
+  const { language, toggleLanguage, t } = useLanguage();
 
   const { data: memberMe, refetch: refetchMemberMe } =
     trpc.members.me.useQuery();
@@ -57,8 +128,7 @@ export default function SiteHeader() {
     refetchOnWindowFocus: true,
   });
   const { data: dbSettings } = trpc.home.settings.useQuery();
-  const navMenus = dbMenus && dbMenus.length > 0 ? dbMenus : null;
-  const displayMenus = navMenus ?? (menusLoading ? [] : fallbackMenus);
+  const displayMenus = Array.isArray(dbMenus) ? dbMenus : (menusLoading ? [] : fallbackMenus);
   const socialLinks = [
     {
       icon: "fab fa-youtube",
@@ -108,7 +178,7 @@ export default function SiteHeader() {
       {/* ===== 상단 유틸 바 ===== */}
       <div className="bg-[#0F172A] text-gray-400 text-xs py-2 hidden md:block">
         <div className="container flex justify-between items-center">
-          <span className="tracking-wide">깊이있는 성장, 위대한 교회</span>
+          <span className="tracking-wide">{t("깊이있는 성장, 위대한 교회")}</span>
           <div className="flex gap-4 items-center">
             {memberMe ? (
               <>
@@ -117,13 +187,13 @@ export default function SiteHeader() {
                   href="/member/my-page"
                   className="hover:text-white transition-colors"
                 >
-                  내 정보
+                  {t("내 정보")}
                 </Link>
                 <button
                   onClick={() => memberLogoutMutation.mutate()}
                   className="hover:text-white transition-colors cursor-pointer"
                 >
-                  로그아웃
+                  {t("로그아웃")}
                 </button>
               </>
             ) : (
@@ -132,16 +202,24 @@ export default function SiteHeader() {
                   href="/member/login"
                   className="hover:text-white transition-colors"
                 >
-                  로그인
+                  {t("로그인")}
                 </Link>
                 <Link
                   href="/member/register"
                   className="hover:text-white transition-colors"
                 >
-                  회원가입
+                  {t("회원가입")}
                 </Link>
               </>
             )}
+            <button
+              type="button"
+              onClick={toggleLanguage}
+              className="rounded-full border border-gray-600 px-2.5 py-1 text-[11px] font-semibold text-gray-300 hover:border-white hover:text-white transition-colors"
+              aria-label="언어 변경"
+            >
+              {language === "ja" ? "KO" : "日本語"}
+            </button>
             <div className="flex gap-3 ml-2">
               {socialLinks.map(s =>
                 s.href ? (
@@ -152,7 +230,7 @@ export default function SiteHeader() {
                     rel={
                       isExternalHref(s.href) ? "noopener noreferrer" : undefined
                     }
-                    aria-label={s.label}
+                    aria-label={t(s.label)}
                     className="hover:text-white transition-colors"
                   >
                     <i className={s.icon}></i>
@@ -160,7 +238,7 @@ export default function SiteHeader() {
                 ) : (
                   <span
                     key={s.label}
-                    aria-label={`${s.label} 링크 미등록`}
+                    aria-label={`${t(s.label)} 링크 미등록`}
                     className="text-gray-600"
                   >
                     <i className={s.icon}></i>
@@ -196,7 +274,7 @@ export default function SiteHeader() {
                 type="text"
                 value={searchName}
                 onChange={e => setSearchName(e.target.value)}
-                placeholder="이름으로 신앙 데이터 검색"
+                placeholder={t("이름으로 신앙 데이터 검색")}
                 className="w-full h-10 pl-4 pr-10 text-sm rounded-full border border-gray-200 bg-[#F7F7F5] text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#1B5E20] focus:ring-1 focus:ring-[#1B5E20] transition-all duration-200"
               />
               <button
@@ -226,15 +304,15 @@ export default function SiteHeader() {
                             rel="noopener noreferrer"
                             className={parentClassName}
                           >
-                            {item.label}
+                            {translateSiteText(item.label, language)}
                           </a>
                         ) : (
                           <Link href={parentHref} className={parentClassName}>
-                            {item.label}
+                            {translateSiteText(item.label, language)}
                           </Link>
                         )
                       ) : (
-                        <span className={parentClassName}>{item.label}</span>
+                        <span className={parentClassName}>{translateSiteText(item.label, language)}</span>
                       )}
                       <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#1B5E20] scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left"></span>
                     </div>
@@ -270,10 +348,10 @@ export default function SiteHeader() {
                                 }[];
                               }
                             ).subItems ?? [];
-                          const secondLevelHref =
-                            hasSubItems && !hasOwnSecondLevelContent(s)
-                              ? null
-                              : getUsableHref(s.href);
+                          const secondLevelHref = getSecondLevelHref(
+                            s,
+                            Boolean(hasSubItems)
+                          );
                           const cls =
                             "flex items-center justify-between px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
                           return (
@@ -286,7 +364,7 @@ export default function SiteHeader() {
                                     rel="noopener noreferrer"
                                     className={cls}
                                   >
-                                    <span>{s.label}</span>
+                                    <span>{translateSiteText(s.label, language)}</span>
                                     {hasSubItems && (
                                       <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>
                                     )}
@@ -296,7 +374,7 @@ export default function SiteHeader() {
                                     href={secondLevelHref}
                                     className={cls}
                                   >
-                                    <span>{s.label}</span>
+                                    <span>{translateSiteText(s.label, language)}</span>
                                     {hasSubItems && (
                                       <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>
                                     )}
@@ -304,7 +382,7 @@ export default function SiteHeader() {
                                 )
                               ) : (
                                 <span className={`${cls} cursor-default`}>
-                                  <span>{s.label}</span>
+                                  <span>{translateSiteText(s.label, language)}</span>
                                   {hasSubItems && (
                                     <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>
                                   )}
@@ -313,35 +391,36 @@ export default function SiteHeader() {
                               {hasSubItems && (
                                 <ul className="absolute left-full top-0 bg-white border-l-2 border-[#1B5E20] shadow-xl min-w-[150px] z-[300] py-1 opacity-0 invisible group-hover/sub:opacity-100 group-hover/sub:visible transition-all duration-150">
                                   {subItems.map((sub, k) => {
+                                    const thirdLevelHref = getThirdLevelHref(sub);
                                     const subCls =
                                       "block px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
                                     return (
                                       <li key={k}>
-                                        {getUsableHref(sub.href) ? (
+                                        {thirdLevelHref ? (
                                           isExternalHref(
-                                            getUsableHref(sub.href)!
+                                            thirdLevelHref
                                           ) ? (
                                             <a
-                                              href={getUsableHref(sub.href)!}
+                                              href={thirdLevelHref}
                                               target="_blank"
                                               rel="noopener noreferrer"
                                               className={subCls}
                                             >
-                                              {sub.label}
+                                              {translateSiteText(sub.label, language)}
                                             </a>
                                           ) : (
                                             <Link
-                                              href={getUsableHref(sub.href)!}
+                                              href={thirdLevelHref}
                                               className={subCls}
                                             >
-                                              {sub.label}
+                                              {translateSiteText(sub.label, language)}
                                             </Link>
                                           )
                                         ) : (
                                           <span
                                             className={`${subCls} cursor-default`}
                                           >
-                                            {sub.label}
+                                            {translateSiteText(sub.label, language)}
                                           </span>
                                         )}
                                       </li>
@@ -362,6 +441,14 @@ export default function SiteHeader() {
 
           {/* 모바일 오른쪽 버튼 그룹 */}
           <div className="md:hidden flex items-center gap-1">
+            <button
+              type="button"
+              onClick={toggleLanguage}
+              className="p-2 text-xs font-bold text-gray-600"
+              aria-label="언어 변경"
+            >
+              {language === "ja" ? "KO" : "JA"}
+            </button>
             <button
               className="p-2 text-[#1B5E20]"
               onClick={() => {
@@ -397,7 +484,7 @@ export default function SiteHeader() {
                   type="text"
                   value={searchName}
                   onChange={e => setSearchName(e.target.value)}
-                  placeholder="이름으로 신앙 데이터 검색"
+                  placeholder={t("이름으로 신앙 데이터 검색")}
                   autoFocus
                   className="w-full h-11 pl-4 pr-4 text-base rounded-full border-2 border-[#1B5E20]/40 bg-white text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#1B5E20] transition-all duration-200"
                 />
@@ -406,11 +493,11 @@ export default function SiteHeader() {
                 type="submit"
                 className="h-11 px-5 rounded-full bg-[#1B5E20] text-white text-sm font-medium hover:bg-[#2E7D32] transition-colors shrink-0"
               >
-                검색
+                {t("검색")}
               </button>
             </form>
             <p className="text-xs text-gray-400 mt-2 pl-1">
-              성도 이름을 입력하면 신앙 데이터 페이지로 이동합니다.
+              {t("성도 이름을 입력하면 신앙 데이터 페이지로 이동합니다.")}
             </p>
           </div>
         )}
@@ -430,7 +517,7 @@ export default function SiteHeader() {
                     setMobileExpandedSubId(null);
                   }}
                 >
-                  <span>{menu.label}</span>
+                  <span>{translateSiteText(menu.label, language)}</span>
                   {(menu.items ?? []).length > 0 && (
                     <i
                       className={`fas fa-chevron-${mobileExpandedId === menu.id ? "up" : "down"} text-[10px] text-gray-400`}
@@ -456,55 +543,17 @@ export default function SiteHeader() {
                               }[];
                             }
                           ).subItems ?? [];
-                        const secondLevelHref =
-                          hasSubItems && !hasOwnSecondLevelContent(item)
-                            ? null
-                            : getUsableHref(item.href);
+                        const secondLevelHref = getSecondLevelHref(
+                          item,
+                          Boolean(hasSubItems)
+                        );
                         return (
                           <div key={item.id}>
                             {hasSubItems ? (
-                              // 2단 자체 콘텐츠가 없으면 폴더처럼 열기만 합니다.
-                              secondLevelHref ? (
-                                <div className="flex items-center">
-                                  {isExternalHref(secondLevelHref) ? (
-                                    <a
-                                      href={secondLevelHref}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="flex-1 block pl-8 pr-3 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
-                                      onClick={() => setMobileOpen(false)}
-                                    >
-                                      {item.label}
-                                    </a>
-                                  ) : (
-                                    <Link
-                                      href={secondLevelHref}
-                                      className="flex-1 block pl-8 pr-3 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
-                                      onClick={() => setMobileOpen(false)}
-                                    >
-                                      {item.label}
-                                    </Link>
-                                  )}
-                                  <button
-                                    type="button"
-                                    aria-label={`${item.label} 하위 메뉴 열기`}
-                                    className="px-5 py-2.5 text-gray-400 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
-                                    onClick={() =>
-                                      setMobileExpandedSubId(
-                                        mobileExpandedSubId === item.id
-                                          ? null
-                                          : item.id
-                                      )
-                                    }
-                                  >
-                                    <i
-                                      className={`fas fa-chevron-${mobileExpandedSubId === item.id ? "up" : "down"} text-[10px]`}
-                                    ></i>
-                                  </button>
-                                </div>
-                              ) : (
+                              <div className="flex items-center">
                                 <button
-                                  className="w-full flex items-center justify-between pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] text-left"
+                                  type="button"
+                                  className="w-full flex items-center justify-between flex-1 pl-8 pr-3 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9] text-left"
                                   onClick={() =>
                                     setMobileExpandedSubId(
                                       mobileExpandedSubId === item.id
@@ -512,13 +561,37 @@ export default function SiteHeader() {
                                         : item.id
                                     )
                                   }
+                                  aria-label={`${translateSiteText(item.label, language)} 하위 메뉴 열기`}
                                 >
-                                  <span>{item.label}</span>
+                                  <span>{translateSiteText(item.label, language)}</span>
                                   <i
                                     className={`fas fa-chevron-${mobileExpandedSubId === item.id ? "up" : "down"} text-[10px] text-gray-400`}
                                   ></i>
                                 </button>
-                              )
+                                {secondLevelHref ? (
+                                  isExternalHref(secondLevelHref) ? (
+                                    <a
+                                      href={secondLevelHref}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="px-3 py-2.5 text-gray-400 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                      onClick={() => setMobileOpen(false)}
+                                      aria-label={`${translateSiteText(item.label, language)} 이동`}
+                                    >
+                                      <i className="fas fa-external-link-alt text-[12px]"></i>
+                                    </a>
+                                  ) : (
+                                    <Link
+                                      href={secondLevelHref}
+                                      className="px-3 py-2.5 text-gray-400 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                      onClick={() => setMobileOpen(false)}
+                                      aria-label={`${translateSiteText(item.label, language)} 이동`}
+                                    >
+                                      <i className="fas fa-arrow-right text-[12px]"></i>
+                                    </Link>
+                                  )
+                                ) : null}
+                              </div>
                             ) : item.href ? (
                               item.href.startsWith("http://") ||
                               item.href.startsWith("https://") ? (
@@ -529,7 +602,7 @@ export default function SiteHeader() {
                                   className="block pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
                                   onClick={() => setMobileOpen(false)}
                                 >
-                                  {item.label}
+                                  {translateSiteText(item.label, language)}
                                 </a>
                               ) : (
                                 <Link
@@ -537,39 +610,40 @@ export default function SiteHeader() {
                                   className="block pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
                                   onClick={() => setMobileOpen(false)}
                                 >
-                                  {item.label}
+                                  {translateSiteText(item.label, language)}
                                 </Link>
                               )
                             ) : (
                               <span className="block pl-8 pr-5 py-2.5 text-sm text-gray-400">
-                                {item.label}
+                                {translateSiteText(item.label, language)}
                               </span>
                             )}
                             {/* 3단 메뉴 */}
                             {hasSubItems && mobileExpandedSubId === item.id && (
                               <div className="bg-white">
-                                {subItems.map(sub =>
-                                  sub.href ? (
-                                    sub.href.startsWith("http://") ||
-                                    sub.href.startsWith("https://") ? (
+                                {subItems.map(sub => {
+                                  const thirdLevelHref = getThirdLevelHref(sub);
+                                  return thirdLevelHref ? (
+                                    thirdLevelHref.startsWith("http://") ||
+                                    thirdLevelHref.startsWith("https://") ? (
                                       <a
                                         key={sub.id}
-                                        href={sub.href}
+                                        href={thirdLevelHref}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="block pl-12 pr-5 py-2 text-sm text-gray-500 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
                                         onClick={() => setMobileOpen(false)}
                                       >
-                                        {sub.label}
+                                        {translateSiteText(sub.label, language)}
                                       </a>
                                     ) : (
                                       <Link
                                         key={sub.id}
-                                        href={sub.href}
+                                        href={thirdLevelHref}
                                         className="block pl-12 pr-5 py-2 text-sm text-gray-500 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
                                         onClick={() => setMobileOpen(false)}
                                       >
-                                        {sub.label}
+                                        {translateSiteText(sub.label, language)}
                                       </Link>
                                     )
                                   ) : (
@@ -577,10 +651,10 @@ export default function SiteHeader() {
                                       key={sub.id}
                                       className="block pl-12 pr-5 py-2 text-sm text-gray-400"
                                     >
-                                      {sub.label}
+                                      {translateSiteText(sub.label, language)}
                                     </span>
                                   )
-                                )}
+                                })}
                               </div>
                             )}
                           </div>
@@ -600,13 +674,13 @@ export default function SiteHeader() {
                     href="/member/my-page"
                     className="text-sm text-[#1B5E20] hover:underline"
                   >
-                    내 정보
+                    {t("내 정보")}
                   </Link>
                   <button
                     onClick={() => memberLogoutMutation.mutate()}
                     className="text-sm text-gray-500 hover:text-red-500"
                   >
-                    로그아웃
+                    {t("로그아웃")}
                   </button>
                 </>
               ) : (
@@ -615,13 +689,13 @@ export default function SiteHeader() {
                     href="/member/login"
                     className="text-sm text-[#1B5E20] font-medium hover:underline"
                   >
-                    로그인
+                    {t("로그인")}
                   </Link>
                   <Link
                     href="/member/register"
                     className="text-sm text-gray-600 hover:underline"
                   >
-                    회원가입
+                    {t("회원가입")}
                   </Link>
                 </>
               )}

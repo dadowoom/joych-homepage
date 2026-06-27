@@ -2,6 +2,7 @@ import { z } from "zod";
 
 const SAFE_YOUTUBE_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
 const BLOCK_TYPES = new Set([
+  "html-rich",
   "text-h1",
   "text-h2",
   "text-h3",
@@ -13,6 +14,10 @@ const BLOCK_TYPES = new Set([
   "button",
   "divider",
 ]);
+
+const DEFAULT_BLOCK_CONTENT_LIMIT = 20000;
+const HTML_BLOCK_CONTENT_LIMIT = 60000;
+const HTML_BODY_CONTENT_LIMIT = 50000;
 
 function isSafeAbsoluteUrl(value: string, allowedProtocols = ["http:", "https:"]) {
   try {
@@ -89,6 +94,36 @@ function normalizeNumber(value: unknown, fallback: number, min: number, max: num
   return Math.min(max, Math.max(min, number));
 }
 
+const STYLE_BLOCK_RE = /<\s*style\b[^>]*>([\s\S]*?)<\s*\/\s*style\s*>/gi;
+const UNSAFE_CSS_RE =
+  /@import\b|javascript\s*:|vbscript\s*:|expression\s*\(|behavior\s*:|-moz-binding\s*:|url\s*\(/i;
+
+function hasUnsafeStyleBlocks(value: string) {
+  STYLE_BLOCK_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = STYLE_BLOCK_RE.exec(value)) !== null) {
+    if (UNSAFE_CSS_RE.test(match[1] ?? "")) return true;
+  }
+  return false;
+}
+
+function hasUnsafeRichHtml(value: string) {
+  return (
+    /<\s*(script|object|embed|link|meta|base)\b/i.test(value) ||
+    hasUnsafeStyleBlocks(value) ||
+    /\s(?:on[a-z]+|srcdoc)\s*=/i.test(value) ||
+    /\b(?:href|src)\s*=\s*(['"]?)\s*(?:javascript:|vbscript:|data:text\/html)/i.test(value)
+  );
+}
+
+export function normalizeRichTextHtmlContent(value: unknown, max = 50000) {
+  const html = normalizeString(value, max);
+  if (hasUnsafeRichHtml(html)) {
+    throw new Error("HTML 본문에 허용되지 않는 코드가 포함되어 있습니다.");
+  }
+  return html;
+}
+
 export function validateBlockType(blockType: string) {
   if (!BLOCK_TYPES.has(blockType)) {
     throw new Error("지원하지 않는 블록 타입입니다.");
@@ -97,8 +132,14 @@ export function validateBlockType(blockType: string) {
 
 export function normalizeBlockContent(blockType: string, rawContent: string) {
   validateBlockType(blockType);
-  if (rawContent.length > 20000) {
-    throw new Error("블록 내용은 20000자 이하로 입력해주세요.");
+  const contentLengthLimit =
+    blockType === "html-rich" ? HTML_BLOCK_CONTENT_LIMIT : DEFAULT_BLOCK_CONTENT_LIMIT;
+  if (rawContent.length > contentLengthLimit) {
+    throw new Error(
+      blockType === "html-rich"
+        ? "HTML 본문은 50000자 이하로 입력해주세요."
+        : "블록 내용은 20000자 이하로 입력해주세요."
+    );
   }
 
   let content: Record<string, unknown>;
@@ -110,6 +151,11 @@ export function normalizeBlockContent(blockType: string, rawContent: string) {
     content = parsed as Record<string, unknown>;
   } catch {
     throw new Error("블록 내용 JSON 형식이 올바르지 않습니다.");
+  }
+
+  if (blockType === "html-rich") {
+    const html = normalizeRichTextHtmlContent(content.html ?? content.text, HTML_BODY_CONTENT_LIMIT);
+    return JSON.stringify({ html });
   }
 
   if (blockType.startsWith("text-")) {

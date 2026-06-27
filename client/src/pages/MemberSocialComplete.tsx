@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
+import BirthDateInput, { isCompleteBirthDate } from "@/components/BirthDateInput";
 
 type SignupContext = {
   provider: "google" | "kakao";
@@ -65,7 +66,7 @@ export default function MemberSocialComplete() {
     if (!form.phone.trim()) nextErrors.phone = "연락처를 입력해주세요.";
     if (!form.birthDate.trim()) {
       nextErrors.birthDate = "생년월일을 입력해주세요.";
-    } else if (!/^\d{4}-\d{2}-\d{2}$/.test(form.birthDate)) {
+    } else if (!isCompleteBirthDate(form.birthDate)) {
       nextErrors.birthDate = "YYYY-MM-DD 형식으로 입력해주세요.";
     }
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
@@ -185,12 +186,12 @@ export default function MemberSocialComplete() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               생년월일 <span className="text-red-500">*</span>
             </label>
-            <input
-              type="date"
-              autoComplete="bday"
+            <BirthDateInput
               value={form.birthDate}
-              onChange={(e) => update("birthDate", e.target.value)}
+              onChange={(value) => update("birthDate", value)}
               className={inputClass("birthDate")}
+              required
+              aria-invalid={Boolean(errors.birthDate)}
             />
             {errors.birthDate && <p className="text-xs text-red-500 mt-1">{errors.birthDate}</p>}
           </div>

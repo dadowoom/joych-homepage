@@ -3,8 +3,8 @@
  * 관리자가 에디터 페이지에서 블록을 추가하거나 수정할 때 사용하는 팝업입니다.
  * 블록 종류(텍스트, 이미지, 유튜브, 버튼, 구분선)에 따라 다른 입력 폼을 보여줍니다.
  */
-import { useState, useRef } from "react";
-import { Plus } from "lucide-react";
+import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { Code2, Eye, Pencil, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,8 +12,145 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { RichTextEditor, RichTextViewer } from "@/components/ui/rich-text-editor";
 import { trpc } from "@/lib/trpc";
-import { BLOCK_TYPES } from "./BlockRenderer";
+import { BLOCK_TYPES, HTML_EDITOR_BLOCK_TYPE } from "./BlockRenderer";
+import { normalizeHtmlBlockValue } from "./htmlBlockUtils";
+
+type DialogSize = {
+  width: number;
+  height: number;
+};
+
+type DialogOffset = {
+  x: number;
+  y: number;
+};
+
+type DialogInteraction =
+  | {
+      mode: "move";
+      pointerId: number;
+      startX: number;
+      startY: number;
+      startOffset: DialogOffset;
+    }
+  | {
+      mode: "resize";
+      pointerId: number;
+      startX: number;
+      startY: number;
+      startSize: DialogSize;
+    };
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+const VISUAL_EDITOR_ALLOWED_TAGS = new Set([
+  "a",
+  "blockquote",
+  "br",
+  "col",
+  "colgroup",
+  "em",
+  "h2",
+  "h3",
+  "hr",
+  "img",
+  "li",
+  "ol",
+  "p",
+  "s",
+  "span",
+  "strong",
+  "table",
+  "tbody",
+  "td",
+  "th",
+  "thead",
+  "tr",
+  "u",
+  "ul",
+]);
+const VISUAL_EDITOR_STYLE_TAGS = new Set([
+  "a",
+  "blockquote",
+  "col",
+  "h2",
+  "h3",
+  "img",
+  "li",
+  "ol",
+  "p",
+  "span",
+  "strong",
+  "table",
+  "td",
+  "th",
+  "tr",
+  "u",
+  "ul",
+]);
+const STYLE_BLOCK_PATTERN = /<\s*style\b[^>]*>[\s\S]*?<\s*\/\s*style\s*>/i;
+const OPENING_TAG_PATTERN = /<([a-z0-9-]+)\b([^>]*)>/gi;
+const HTML_SOURCE_LINE_BREAK_PATTERN = /(<\/(?:blockquote|div|h[1-6]|li|ol|p|section|table|tbody|td|th|thead|tr|ul)>|<br\s*\/?>)/gi;
+const HTML_SOURCE_BLOCK_START_PATTERN = /(<(?:blockquote|div|h[1-6]|li|ol|p|section|table|tbody|td|th|thead|tr|ul)\b[^>]*>)/gi;
+
+function isVisualEditorSafeHtml(value: string) {
+  const normalized = normalizeHtmlBlockValue(value).trim();
+  if (!normalized) return true;
+  if (STYLE_BLOCK_PATTERN.test(normalized)) return false;
+
+  OPENING_TAG_PATTERN.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = OPENING_TAG_PATTERN.exec(normalized)) !== null) {
+    const tagName = String(match[1] ?? "").toLowerCase();
+    const attributes = String(match[2] ?? "");
+
+    if (!VISUAL_EDITOR_ALLOWED_TAGS.has(tagName)) return false;
+    if (/\sstyle\s*=/i.test(attributes) && !VISUAL_EDITOR_STYLE_TAGS.has(tagName)) return false;
+  }
+
+  return true;
+}
+
+function formatHtmlSource(value: string) {
+  return normalizeHtmlBlockValue(value)
+    .replace(/\s*(<hr\s*\/?>)\s*/gi, "\n\n$1\n\n")
+    .replace(HTML_SOURCE_LINE_BREAK_PATTERN, "$1\n\n")
+    .replace(HTML_SOURCE_BLOCK_START_PATTERN, "\n$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function getInitialHtmlSource(content?: string) {
+  if (!content) return "";
+  try {
+    const c = JSON.parse(content);
+    return formatHtmlSource(normalizeHtmlBlockValue(c.html ?? c.text ?? ""));
+  } catch {
+    return "";
+  }
+}
+
+function getInitialDialogSize(): DialogSize {
+  if (typeof window === "undefined") return { width: 1040, height: 780 };
+  return {
+    width: clamp(window.innerWidth - 96, 720, 1160),
+    height: clamp(window.innerHeight - 96, 560, 860),
+  };
+}
+
+function clampDialogOffset(offset: DialogOffset, size: DialogSize) {
+  if (typeof window === "undefined") return offset;
+  const maxX = Math.max(0, (window.innerWidth - Math.min(size.width, window.innerWidth - 24)) / 2);
+  const maxY = Math.max(0, (window.innerHeight - Math.min(size.height, window.innerHeight - 24)) / 2);
+  return {
+    x: clamp(offset.x, -maxX, maxX),
+    y: clamp(offset.y, -maxY, maxY),
+  };
+}
 
 export function BlockEditDialog({
   block,
@@ -40,6 +177,11 @@ export function BlockEditDialog({
       return "";
     }
   });
+  const [html, setHtml] = useState(() => getInitialHtmlSource(block?.content));
+  const [htmlSourceDraft, setHtmlSourceDraft] = useState(() =>
+    getInitialHtmlSource(block?.content)
+  );
+  const [htmlEditMode, setHtmlEditMode] = useState<"visual" | "source" | "preview">("source");
   const [urls, setUrls] = useState<string[]>(() => {
     if (!block?.content) return [];
     try {
@@ -131,10 +273,14 @@ export function BlockEditDialog({
     }
   });
   const [uploading, setUploading] = useState(false);
+  const [dialogSize, setDialogSize] = useState<DialogSize>(getInitialDialogSize);
+  const [dialogOffset, setDialogOffset] = useState<DialogOffset>({ x: 0, y: 0 });
+  const [dialogInteraction, setDialogInteraction] = useState<DialogInteraction | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileInputIdxRef = useRef<number>(0);
 
   const uploadMutation = trpc.cms.blocks.uploadImage.useMutation();
+  const visualEditorSafeHtml = useMemo(() => isVisualEditorSafeHtml(html), [html]);
 
   const imgCount =
     blockType === "image-single" ? 1 : blockType === "image-double" ? 2 : 3;
@@ -164,6 +310,10 @@ export function BlockEditDialog({
   };
 
   const buildContent = () => {
+    if (blockType === HTML_EDITOR_BLOCK_TYPE) {
+      const htmlForSave = htmlEditMode === "source" ? htmlSourceDraft : html;
+      return JSON.stringify({ html: htmlForSave });
+    }
     if (blockType.startsWith("text"))
       return JSON.stringify({ text, fontSize, align });
     if (blockType.startsWith("image"))
@@ -179,20 +329,128 @@ export function BlockEditDialog({
     return "{}";
   };
 
+  const handleDialogMoveStart = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDialogInteraction({
+      mode: "move",
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startOffset: dialogOffset,
+    });
+  };
+
+  const handleDialogResizeStart = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDialogInteraction({
+      mode: "resize",
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startSize: dialogSize,
+    });
+  };
+
+  const handleDialogPointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!dialogInteraction || dialogInteraction.pointerId !== event.pointerId) return;
+    event.preventDefault();
+
+    if (dialogInteraction.mode === "move") {
+      const nextOffset = {
+        x: dialogInteraction.startOffset.x + event.clientX - dialogInteraction.startX,
+        y: dialogInteraction.startOffset.y + event.clientY - dialogInteraction.startY,
+      };
+      setDialogOffset(clampDialogOffset(nextOffset, dialogSize));
+      return;
+    }
+
+    const viewportWidth = typeof window === "undefined" ? 1200 : window.innerWidth;
+    const viewportHeight = typeof window === "undefined" ? 900 : window.innerHeight;
+    const nextSize = {
+      width: clamp(
+        dialogInteraction.startSize.width + event.clientX - dialogInteraction.startX,
+        640,
+        Math.max(640, viewportWidth - 24)
+      ),
+      height: clamp(
+        dialogInteraction.startSize.height + event.clientY - dialogInteraction.startY,
+        480,
+        Math.max(480, viewportHeight - 24)
+      ),
+    };
+    setDialogSize(nextSize);
+    setDialogOffset((current) => clampDialogOffset(current, nextSize));
+  };
+
+  const handleDialogInteractionEnd = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!dialogInteraction || dialogInteraction.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setDialogInteraction(null);
+  };
+
+  const handleHtmlEditModeChange = (nextMode: "visual" | "source" | "preview") => {
+    const currentHtml = htmlEditMode === "source" ? htmlSourceDraft : html;
+    if (nextMode === "source") {
+      const formatted = formatHtmlSource(currentHtml);
+      setHtml(formatted);
+      setHtmlSourceDraft(formatted);
+    } else {
+      setHtml(currentHtml);
+    }
+    setHtmlEditMode(nextMode);
+  };
+
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+    <Dialog open onOpenChange={() => {}}>
+      <DialogContent
+        className="flex max-w-none flex-col overflow-hidden p-0 sm:max-w-none"
+        showCloseButton={false}
+        style={{
+          width: `${dialogSize.width}px`,
+          height: `${dialogSize.height}px`,
+          maxWidth: "calc(100vw - 24px)",
+          maxHeight: "calc(100vh - 24px)",
+          marginLeft: `${dialogOffset.x}px`,
+          marginTop: `${dialogOffset.y}px`,
+        }}
+        onInteractOutside={(event) => {
+          // 바깥 화면을 실수로 눌러도 작성 중인 HTML 편집 내용이 날아가지 않게
+          // 저장/취소/닫기 버튼으로만 편집창을 닫도록 한다.
+          event.preventDefault();
+        }}
+        onPointerMove={handleDialogPointerMove}
+        onPointerUp={handleDialogInteractionEnd}
+        onPointerCancel={handleDialogInteractionEnd}
+      >
+        <button
+          type="button"
+          aria-label="편집창 닫기"
+          className="absolute right-4 top-4 z-10 rounded-sm p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600"
+          onClick={onClose}
+        >
+          <X className="h-4 w-4" />
+        </button>
+        <DialogHeader
+          className="cursor-move select-none border-b border-gray-100 px-6 py-5"
+          onPointerDown={handleDialogMoveStart}
+        >
           <DialogTitle>{isNew ? "블록 추가" : "블록 수정"}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-6 py-5">
+        <div className="min-w-0 space-y-4">
           {/* 블록 타입 선택 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               블록 종류
             </label>
             <select
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              className="w-full min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm"
               value={blockType}
               onChange={(e) => setBlockType(e.target.value)}
             >
@@ -204,6 +462,74 @@ export function BlockEditDialog({
             </select>
           </div>
 
+          {/* HTML 편집기 블록: 2단/3단 신규 페이지 모두 공통 RichTextEditor를 사용합니다. */}
+          {blockType === HTML_EDITOR_BLOCK_TYPE && (
+            <div className="space-y-3">
+              {!visualEditorSafeHtml && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                  현재 HTML에 편집기가 모르는 태그나 직접 입력한 소스가 있습니다. 편집기로 열 수는 있지만 저장 전 미리보기로 모양을 확인해주세요.
+                </div>
+              )}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  HTML 본문
+                </label>
+                <div className="flex rounded-md border border-gray-200 bg-white p-1">
+                  {[
+                    { value: "visual" as const, label: "편집기", icon: Pencil },
+                    { value: "source" as const, label: "HTML 소스", icon: Code2 },
+                    { value: "preview" as const, label: "미리보기", icon: Eye },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    const active = htmlEditMode === item.value;
+                    return (
+                      <Button
+                        key={item.value}
+                        type="button"
+                        variant={active ? "default" : "ghost"}
+                        size="sm"
+                        className={active ? "bg-green-700 hover:bg-green-800" : "text-gray-600"}
+                        onClick={() => handleHtmlEditModeChange(item.value)}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {item.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+              {htmlEditMode === "visual" && (
+                <RichTextEditor
+                  className="w-full max-w-full"
+                  value={html}
+                  onChange={setHtml}
+                  placeholder="본문을 입력해주세요."
+                  minHeightClassName="min-h-[420px]"
+                />
+              )}
+              {htmlEditMode === "source" && (
+                <textarea
+                  className="min-h-[420px] w-full resize-y overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-gray-200 bg-white px-3 py-3 font-mono text-xs leading-6 text-gray-900 outline-none [overflow-wrap:anywhere] focus:border-green-600 focus:ring-2 focus:ring-green-100"
+                  value={htmlSourceDraft}
+                  onChange={(event) => {
+                    setHtmlSourceDraft(event.target.value);
+                    setHtml(event.target.value);
+                  }}
+                  placeholder="<section>본문 HTML을 입력해주세요.</section>"
+                  wrap="soft"
+                />
+              )}
+              {htmlEditMode === "preview" && (
+                <div className="min-h-[420px] overflow-auto rounded-lg border border-gray-200 bg-white p-4">
+                  <RichTextViewer html={normalizeHtmlBlockValue(html)} />
+                </div>
+              )}
+              <p className="text-xs text-gray-400">
+                편집기 또는 HTML 소스로 작성할 수 있습니다. 스크립트 코드는 저장되지 않습니다.
+              </p>
+            </div>
+          )}
+
           {/* 텍스트 블록 */}
           {blockType.startsWith("text") && (
             <div className="space-y-3">
@@ -212,7 +538,8 @@ export function BlockEditDialog({
                   내용
                 </label>
                 <textarea
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm min-h-[120px] resize-y"
+                  className="min-h-[120px] max-h-[55vh] w-full resize-y overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-gray-300 px-3 py-2 text-sm [overflow-wrap:anywhere]"
+                  wrap="soft"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   placeholder={
@@ -251,7 +578,7 @@ export function BlockEditDialog({
                   <span className="text-xs text-gray-400">px</span>
                 </div>
                 <p
-                  className="mt-2 text-gray-500 border border-dashed border-gray-200 rounded p-2 truncate"
+                  className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap break-words rounded border border-dashed border-gray-200 p-2 text-gray-500 [overflow-wrap:anywhere]"
                   style={{ fontSize: `${fontSize}px` }}
                 >
                   {text || "미리보기"}
@@ -293,7 +620,7 @@ export function BlockEditDialog({
                         src={urls[i]}
                         alt=""
                         className="w-full h-32 object-cover rounded"
-                      />
+                       loading="lazy"/>
                       <button
                         className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
                         onClick={() =>
@@ -500,6 +827,13 @@ export function BlockEditDialog({
             </Button>
           </div>
         </div>
+        </div>
+        <div
+          role="separator"
+          aria-label="블록 수정 창 크기 조절"
+          className="absolute bottom-1 right-1 h-5 w-5 cursor-nwse-resize rounded-sm border-b-2 border-r-2 border-gray-300 transition hover:border-green-700"
+          onPointerDown={handleDialogResizeStart}
+        />
       </DialogContent>
     </Dialog>
   );

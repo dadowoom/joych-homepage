@@ -3,21 +3,42 @@
  */
 
 import { z } from "zod";
-import { adminProcedure, router } from "../../_core/trpc";
 import {
+  SUPPORT_REQUEST_PERMISSION_KEYS,
+  SUPPORT_REQUEST_ROOT_PERMISSION_KEY,
+  type SupportRequestPermissionKind,
+} from "@shared/adminPermissions";
+import { adminAnyPermissionProcedure, router } from "../../_core/trpc";
+import {
+  listBulletinAdRequests,
   listNewMemberRequests,
   listPrayerRequests,
+  listSubtitleRequests,
+  listVisitRequests,
+  updateBulletinAdRequestStatus,
   updateNewMemberRequestStatus,
   updatePrayerRequestStatus,
+  updateSubtitleRequestStatus,
+  updateVisitRequestStatus,
 } from "../../db";
 
 const adminMemoSchema = z.string().trim().max(1000).nullable().optional();
 
-export const supportRequestsRouter = router({
-  listPrayer: adminProcedure.query(() => listPrayerRequests()),
-  listNewMembers: adminProcedure.query(() => listNewMemberRequests()),
+function supportRequestProcedure(kind: SupportRequestPermissionKind) {
+  return adminAnyPermissionProcedure([
+    SUPPORT_REQUEST_ROOT_PERMISSION_KEY,
+    SUPPORT_REQUEST_PERMISSION_KEYS[kind],
+  ]);
+}
 
-  updatePrayerStatus: adminProcedure
+export const supportRequestsRouter = router({
+  listPrayer: supportRequestProcedure("prayers").query(() => listPrayerRequests()),
+  listNewMembers: supportRequestProcedure("newMembers").query(() => listNewMemberRequests()),
+  listVisits: supportRequestProcedure("visits").query(() => listVisitRequests()),
+  listSubtitles: supportRequestProcedure("subtitles").query(() => listSubtitleRequests()),
+  listBulletinAds: supportRequestProcedure("bulletinAds").query(() => listBulletinAdRequests()),
+
+  updatePrayerStatus: supportRequestProcedure("prayers")
     .input(
       z.object({
         id: z.number().int().positive(),
@@ -32,7 +53,7 @@ export const supportRequestsRouter = router({
       })
     ),
 
-  updateNewMemberStatus: adminProcedure
+  updateNewMemberStatus: supportRequestProcedure("newMembers")
     .input(
       z.object({
         id: z.number().int().positive(),
@@ -42,6 +63,51 @@ export const supportRequestsRouter = router({
     )
     .mutation(({ input }) =>
       updateNewMemberRequestStatus(input.id, {
+        status: input.status,
+        adminMemo: input.adminMemo,
+      })
+    ),
+
+  updateVisitStatus: supportRequestProcedure("visits")
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        status: z.enum(["new", "contacted", "scheduled", "completed", "archived"]),
+        adminMemo: adminMemoSchema,
+      })
+    )
+    .mutation(({ input }) =>
+      updateVisitRequestStatus(input.id, {
+        status: input.status,
+        adminMemo: input.adminMemo,
+      })
+    ),
+
+  updateSubtitleStatus: supportRequestProcedure("subtitles")
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        status: z.enum(["new", "reviewed", "completed", "archived"]),
+        adminMemo: adminMemoSchema,
+      })
+    )
+    .mutation(({ input }) =>
+      updateSubtitleRequestStatus(input.id, {
+        status: input.status,
+        adminMemo: input.adminMemo,
+      })
+    ),
+
+  updateBulletinAdStatus: supportRequestProcedure("bulletinAds")
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        status: z.enum(["new", "reviewed", "completed", "archived"]),
+        adminMemo: adminMemoSchema,
+      })
+    )
+    .mutation(({ input }) =>
+      updateBulletinAdRequestStatus(input.id, {
         status: input.status,
         adminMemo: input.adminMemo,
       })

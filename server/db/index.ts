@@ -19,6 +19,9 @@
  *   staff.ts       - 섬기는 분/교역자 소개 DB 함수
  *   popup.ts       - 홈페이지 팝업/공지 배너 DB 함수
  *   support.ts     - 공개 접수(기도 요청/새가족 문의) DB 함수
+ *   course.ts      - 교육/강좌 신청 DB 함수
+ *   bulletin.ts    - 주보 파일 관리 DB 함수
+ *   pastorBooks.ts - 담임목사 저서 관리 DB 함수
  */
 
 export * from "./connection";
@@ -32,6 +35,14 @@ export * from "./blocks";
 export * from "./youtube";
 export * from "./mission";
 export * from "./testimony";
+export * from "./freeBoard";
+export * from "./dynamicBoard";
 export * from "./staff";
 export * from "./popup";
 export * from "./support";
+export * from "./course";
+export * from "./bulletin";
+export * from "./pastorBooks";
+export * from "./adminPermissions";
+export * from "./history";
+export * from "./vehicle";

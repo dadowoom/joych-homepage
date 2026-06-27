@@ -14,6 +14,7 @@
 
 import { Link } from "wouter";
 import { ChevronRight, Play, Calendar, Users, BookOpen, Heart, ArrowLeft } from "lucide-react";
+import { useLanguage, translateSiteText } from "@/contexts/LanguageContext";
 
 // ─────────────────────────────────────────────
 // 공통 상단 배너
@@ -26,20 +27,21 @@ interface PageBannerProps {
 }
 
 export function PageBanner({ title, subtitle, breadcrumb, bgColor = "bg-[#1a3a2a]" }: PageBannerProps) {
+  const { language } = useLanguage();
   return (
     <div className={`${bgColor} text-white py-16`}>
       <div className="max-w-6xl mx-auto px-4">
         <nav className="flex items-center gap-2 text-sm text-green-300 mb-4">
-          <Link href="/" className="hover:text-white transition-colors">홈</Link>
+          <Link href="/" className="hover:text-white transition-colors">{translateSiteText("홈", language)}</Link>
           {breadcrumb.map((item, i) => (
             <span key={i} className="flex items-center gap-2">
               <ChevronRight className="w-3 h-3" />
-              <span className={i === breadcrumb.length - 1 ? "text-white font-medium" : "hover:text-white transition-colors"}>{item}</span>
+              <span className={i === breadcrumb.length - 1 ? "text-white font-medium" : "hover:text-white transition-colors"}>{translateSiteText(item, language)}</span>
             </span>
           ))}
         </nav>
-        <h1 className="text-3xl md:text-4xl font-bold mb-2" style={{ fontFamily: "'Noto Serif KR', serif" }}>{title}</h1>
-        {subtitle && <p className="text-green-200 text-lg mt-2">{subtitle}</p>}
+        <h1 className="text-3xl md:text-4xl font-bold mb-2" style={{ fontFamily: "'Noto Serif KR', serif" }}>{translateSiteText(title, language)}</h1>
+        {subtitle && <p className="text-green-200 text-lg mt-2">{translateSiteText(subtitle, language)}</p>}
       </div>
     </div>
   );
@@ -79,7 +81,7 @@ export function VideoListPage({ title, subtitle, breadcrumb, videos }: VideoList
                   src={video.thumbnail}
                   alt={video.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
+                 loading="lazy"/>
                 <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                   <div className="w-14 h-14 bg-white/90 rounded-full flex items-center justify-center">
                     <Play className="w-6 h-6 text-[#2d6a4f] ml-1" fill="currentColor" />
@@ -130,16 +132,21 @@ interface MinistryPageProps {
 }
 
 export function MinistryPage({ title, breadcrumb, info }: MinistryPageProps) {
+  const { language } = useLanguage();
+  const displayTitle = language === "ja" ? info.name : title;
+  const displayBreadcrumb = language === "ja"
+    ? breadcrumb.map((item, index) => (index === breadcrumb.length - 1 ? info.name : item))
+    : breadcrumb;
   return (
     <div className="min-h-screen bg-gray-50">
-      <PageBanner title={title} breadcrumb={breadcrumb} />
+      <PageBanner title={displayTitle} breadcrumb={displayBreadcrumb} />
       <div className="max-w-5xl mx-auto px-4 py-12">
         {/* 소개 섹션 */}
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden mb-8">
           <div className="md:flex">
             {info.image && (
               <div className="md:w-2/5">
-                <img src={info.image} alt={info.name} className="w-full h-64 md:h-full object-cover" />
+                <img src={info.image} alt={info.name} className="w-full h-64 md:h-full object-cover"  loading="lazy"/>
               </div>
             )}
             <div className="p-8 md:flex-1">
@@ -153,7 +160,7 @@ export function MinistryPage({ title, breadcrumb, info }: MinistryPageProps) {
               {info.leader && (
                 <div className="mt-6 flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
                   {info.leader.photo && (
-                    <img src={info.leader.photo} alt={info.leader.name} className="w-12 h-12 rounded-full object-cover" />
+                    <img src={info.leader.photo} alt={info.leader.name} className="w-12 h-12 rounded-full object-cover"  loading="lazy"/>
                   )}
                   <div>
                     <p className="text-xs text-gray-500">{info.leader.title}</p>
@@ -168,7 +175,7 @@ export function MinistryPage({ title, breadcrumb, info }: MinistryPageProps) {
         {/* 주요 활동 */}
         {info.activities && info.activities.length > 0 && (
           <div className="mb-8">
-            <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: "'Noto Serif KR', serif" }}>주요 활동</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: "'Noto Serif KR', serif" }}>{translateSiteText("주요 활동", language)}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {info.activities.map((act, i) => (
                 <div key={i} className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow border border-[#2d6a4f]/20">
@@ -183,7 +190,7 @@ export function MinistryPage({ title, breadcrumb, info }: MinistryPageProps) {
         {/* 연락처 */}
         {info.contact && info.contact.length > 0 && (
           <div className="bg-[#1a3a2a] text-white rounded-2xl p-8">
-            <h3 className="text-xl font-bold mb-4">문의 및 연락처</h3>
+            <h3 className="text-xl font-bold mb-4">{translateSiteText("문의 및 연락처", language)}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {info.contact.map((c, i) => (
                 <div key={i} className="flex items-center gap-3">
@@ -232,7 +239,7 @@ export function DepartmentPage({ breadcrumb, info }: DepartmentPageProps) {
         <div className="bg-white rounded-2xl shadow-sm p-8 mb-8">
           <div className="md:flex gap-8 items-start">
             {info.image && (
-              <img src={info.image} alt={info.name} className="w-full md:w-64 h-48 object-cover rounded-xl mb-6 md:mb-0 shrink-0" />
+              <img src={info.image} alt={info.name} className="w-full md:w-64 h-48 object-cover rounded-xl mb-6 md:mb-0 shrink-0"  loading="lazy"/>
             )}
             <div>
               <div className="inline-block bg-[#2d6a4f]/10 text-[#2d6a4f] text-sm font-semibold px-3 py-1 rounded-full mb-3">
@@ -349,7 +356,7 @@ export function BoardPage({ title, subtitle, breadcrumb, items, categories }: Bo
           {items.map((item, i) => (
             <div key={item.id} className={`flex items-center gap-4 p-5 hover:bg-gray-50 transition-colors cursor-pointer ${i !== items.length - 1 ? "border-b border-gray-100" : ""}`}>
               {item.thumbnail && (
-                <img src={item.thumbnail} alt={item.title} className="w-16 h-16 rounded-lg object-cover shrink-0" />
+                <img src={item.thumbnail} alt={item.title} className="w-16 h-16 rounded-lg object-cover shrink-0"  loading="lazy"/>
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
