@@ -1,5 +1,15 @@
 import { useRef, useState, useEffect } from "react";
 
+export type HomeSectionConfig = {
+  eyebrow: string;
+  title: string;
+  description: string;
+  buttonText?: string;
+  buttonHref?: string;
+  backgroundImage?: string;
+  subtitle?: string;
+};
+
 export function useFadeIn() {
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
