@@ -220,9 +220,9 @@ export function PastorBookEditorDialog({ open, book, onClose, onSaved }: PastorB
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-black/45 px-4 py-8">
-      <div className="w-full max-w-6xl rounded-xl bg-white shadow-2xl">
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-5 py-4">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/45 px-4 py-8">
+      <div className="flex w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl" style={{ maxHeight: "calc(100vh - 4rem)" }}>
+        <div className="flex items-center justify-between border-b bg-white px-5 py-4">
           <div>
             <h2 className="text-lg font-bold text-gray-900">
               {editingId ? "담임목사 저서 수정" : "담임목사 저서 추가"}
@@ -236,7 +236,7 @@ export function PastorBookEditorDialog({ open, book, onClose, onSaved }: PastorB
           </button>
         </div>
 
-        <div className="grid gap-6 p-5 lg:grid-cols-[320px_1fr]">
+        <div className="grid min-h-0 flex-1 gap-6 overflow-y-auto p-5 lg:grid-cols-[320px_1fr]">
           <aside className="space-y-4">
             <section className="rounded-xl border border-gray-200 p-4">
               <h3 className="mb-3 text-sm font-bold text-gray-900">기본 정보</h3>
@@ -373,7 +373,7 @@ export function PastorBookEditorDialog({ open, book, onClose, onSaved }: PastorB
           </main>
         </div>
 
-        <div className="sticky bottom-0 flex justify-end gap-2 border-t bg-white px-5 py-4">
+        <div className="flex justify-end gap-2 border-t bg-white px-5 py-4">
           <button type="button" onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50">
             닫기
           </button>
