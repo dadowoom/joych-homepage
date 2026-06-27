@@ -13,6 +13,9 @@ import { Badge } from "@/components/ui/badge";
 import ReservationTimelinePicker from "@/components/facility/ReservationTimelinePicker";
 import { Users, MapPin, Clock, ChevronLeft, ChevronRight, Phone, AlertCircle, CalendarCheck, Loader2 } from "lucide-react";
 import {
+  getExternalReservationMaxDateKey,
+  getExternalReservationWindow,
+  getExternalReservationWindowMessage,
   getFacilityReservationMaxMonths,
   getReservationMaxDateKey,
   getReservationTimeRestriction,
@@ -497,7 +500,7 @@ function ReservationCalendar({
   selectedDate,
   slotMinutes,
   reservationMaxDateKey,
-  reservationMaxMonths,
+  reservationLimitMessage,
   onSelectDate,
   hasReservationOverride,
   audience,
@@ -506,7 +509,7 @@ function ReservationCalendar({
   selectedDate: string;
   slotMinutes?: number | null;
   reservationMaxDateKey: string;
-  reservationMaxMonths: number;
+  reservationLimitMessage: string | null;
   onSelectDate: (date: string) => void;
   hasReservationOverride: boolean;
   audience: FacilityAudience;
@@ -570,9 +573,9 @@ function ReservationCalendar({
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-100 border border-red-300 inline-block"></span>예약불가</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-[#1B5E20] inline-block"></span>선택됨</span>
       </div>
-      {!hasReservationOverride && (
+      {!hasReservationOverride && reservationLimitMessage && (
         <p className="mb-3 rounded-lg bg-gray-50 px-3 py-2 text-center text-[11px] text-gray-500">
-          예약은 최대 {reservationMaxMonths}개월 후({reservationMaxDateKey})까지만 가능합니다.
+          {reservationLimitMessage}
         </p>
       )}
       <div className="grid grid-cols-7 gap-1 text-center text-xs mb-1">
@@ -654,7 +657,17 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
   const isApprovedMember = isExternal || Boolean(memberMe);
   const hasReservationOverride = !isExternal && hasFacilityReservationRuleOverride(memberMe ?? {});
   const reservationMaxMonths = getFacilityReservationMaxMonths(reservationSettings);
-  const reservationMaxDateKey = getReservationMaxDateKey(reservationSettings);
+  const externalReservationWindow = isExternal
+    ? getExternalReservationWindow(reservationSettings, facility)
+    : null;
+  const reservationMaxDateKey = isExternal
+    ? getExternalReservationMaxDateKey(reservationSettings, facility)
+    : getReservationMaxDateKey(reservationSettings);
+  const reservationLimitMessage = isExternal
+    ? externalReservationWindow
+      ? getExternalReservationWindowMessage(externalReservationWindow)
+      : null
+    : `예약은 최대 ${reservationMaxMonths}개월 후(${reservationMaxDateKey})까지만 가능합니다.`;
   const activeBuilding = useMemo(() => {
     const requestedBuilding = new URLSearchParams(searchString).get("building");
     return normalizeFacilityBuilding(requestedBuilding ?? facility?.building);
@@ -833,7 +846,7 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
                 selectedDate={selectedDate}
                 slotMinutes={facility?.slotMinutes ?? 60}
                 reservationMaxDateKey={reservationMaxDateKey}
-                reservationMaxMonths={reservationMaxMonths}
+                reservationLimitMessage={reservationLimitMessage}
                 onSelectDate={handleSelectDate}
                 hasReservationOverride={hasReservationOverride}
                 audience={audience}

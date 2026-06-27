@@ -35,10 +35,15 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import type { Facility, FacilityBlockedDate, FacilityImage } from "../../../drizzle/schema";
 import {
+  DEFAULT_EXTERNAL_RESERVATION_ADVANCE_DAYS,
+  EXTERNAL_RESERVATION_ADVANCE_DAYS_DEFAULT_SETTING_KEY,
   DEFAULT_FACILITY_RESERVATION_MAX_MONTHS,
   FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY,
+  MAX_EXTERNAL_RESERVATION_ADVANCE_DAYS,
   MAX_FACILITY_RESERVATION_MAX_MONTHS,
+  MIN_EXTERNAL_RESERVATION_ADVANCE_DAYS,
   MIN_FACILITY_RESERVATION_MAX_MONTHS,
+  normalizeExternalReservationAdvanceDays,
   normalizeFacilityReservationMaxMonths,
 } from "@shared/facilityReservationPolicy";
 import {
@@ -70,7 +75,8 @@ const FACILITY_PAGE_SETTING_FIELDS = [
 type FacilityBuilding = typeof FACILITY_BUILDINGS[number]["value"];
 type FacilityPageSettingKey =
   | typeof FACILITY_PAGE_SETTING_FIELDS[number]["key"]
-  | typeof FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY;
+  | typeof FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY
+  | typeof EXTERNAL_RESERVATION_ADVANCE_DAYS_DEFAULT_SETTING_KEY;
 type FacilitySubTab = "list" | "pageSettings" | "externalSchedule";
 const MONDAY_FIRST_DAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
 
@@ -90,6 +96,7 @@ function createFacilityPageSettingDrafts(): Record<FacilityPageSettingKey, strin
     return drafts;
   }, {
     [FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY]: String(DEFAULT_FACILITY_RESERVATION_MAX_MONTHS),
+    [EXTERNAL_RESERVATION_ADVANCE_DAYS_DEFAULT_SETTING_KEY]: String(DEFAULT_EXTERNAL_RESERVATION_ADVANCE_DAYS),
   } as Record<FacilityPageSettingKey, string>);
 }
 
@@ -135,6 +142,8 @@ interface FacilityForm {
   maxSlots: number;
   approvalType: "auto" | "manual";
   isExternalReservable: boolean;
+  useExternalAdvanceDaysDefault: boolean;
+  externalAdvanceDaysOverride: string;
   notice: string;
 }
 
@@ -159,6 +168,8 @@ const EMPTY_FORM: FacilityForm = {
   maxSlots: 8,
   approvalType: "manual",
   isExternalReservable: false,
+  useExternalAdvanceDaysDefault: true,
+  externalAdvanceDaysOverride: "",
   notice: "",
 };
 
@@ -553,6 +564,11 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
       next[FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY] = String(
         normalizeFacilityReservationMaxMonths(pageSettings[FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY]),
       );
+      next[EXTERNAL_RESERVATION_ADVANCE_DAYS_DEFAULT_SETTING_KEY] = String(
+        normalizeExternalReservationAdvanceDays(
+          pageSettings[EXTERNAL_RESERVATION_ADVANCE_DAYS_DEFAULT_SETTING_KEY],
+        ),
+      );
       return next;
     });
   }, [pageSettings]);
@@ -694,6 +710,23 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
     return reservationMaxMonths;
   }
 
+  function getValidExternalAdvanceDaysDraft() {
+    const externalAdvanceDays = Number(
+      pageSettingDrafts[EXTERNAL_RESERVATION_ADVANCE_DAYS_DEFAULT_SETTING_KEY] || DEFAULT_EXTERNAL_RESERVATION_ADVANCE_DAYS,
+    );
+
+    if (
+      !Number.isInteger(externalAdvanceDays) ||
+      externalAdvanceDays < MIN_EXTERNAL_RESERVATION_ADVANCE_DAYS ||
+      externalAdvanceDays > MAX_EXTERNAL_RESERVATION_ADVANCE_DAYS
+    ) {
+      toast.error(`외부인 예약 가능 기간은 ${MIN_EXTERNAL_RESERVATION_ADVANCE_DAYS}~${MAX_EXTERNAL_RESERVATION_ADVANCE_DAYS}일 사이의 정수로 입력해 주세요.`);
+      return null;
+    }
+
+    return externalAdvanceDays;
+  }
+
   async function savePageSettings() {
     try {
       for (const field of FACILITY_PAGE_SETTING_FIELDS) {
@@ -722,6 +755,22 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
       toast.success("예약 가능 기간이 저장되었습니다.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "예약 가능 기간 저장에 실패했습니다.");
+    }
+  }
+
+  async function saveExternalAdvanceDaysSetting() {
+    const externalAdvanceDays = getValidExternalAdvanceDaysDraft();
+    if (externalAdvanceDays === null) return;
+
+    try {
+      await updateFacilityPageSetting.mutateAsync({
+        key: EXTERNAL_RESERVATION_ADVANCE_DAYS_DEFAULT_SETTING_KEY,
+        value: String(externalAdvanceDays),
+      });
+      await utils.home.settings.invalidate();
+      toast.success("외부인 예약 가능 기간이 저장되었습니다.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "외부인 예약 가능 기간 저장에 실패했습니다.");
     }
   }
 
@@ -923,6 +972,11 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
       maxSlots: f.maxSlots,
       approvalType: f.approvalType as "auto" | "manual",
       isExternalReservable: Boolean(f.isExternalReservable),
+      useExternalAdvanceDaysDefault: f.externalAdvanceDaysOverride === null || f.externalAdvanceDaysOverride === undefined,
+      externalAdvanceDaysOverride:
+        f.externalAdvanceDaysOverride === null || f.externalAdvanceDaysOverride === undefined
+          ? ""
+          : String(f.externalAdvanceDaysOverride),
       notice: f.notice ?? "",
     });
     setImages([]);
@@ -939,12 +993,46 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
       return;
     }
 
+    const externalAdvanceDaysOverride =
+      form.useExternalAdvanceDaysDefault || !form.isExternalReservable
+        ? null
+        : Number(form.externalAdvanceDaysOverride);
+
+    if (
+      externalAdvanceDaysOverride !== null &&
+      (!Number.isInteger(externalAdvanceDaysOverride) ||
+        externalAdvanceDaysOverride < MIN_EXTERNAL_RESERVATION_ADVANCE_DAYS ||
+        externalAdvanceDaysOverride > MAX_EXTERNAL_RESERVATION_ADVANCE_DAYS)
+    ) {
+      toast.error(`시설별 외부인 예약 가능 기간은 ${MIN_EXTERNAL_RESERVATION_ADVANCE_DAYS}~${MAX_EXTERNAL_RESERVATION_ADVANCE_DAYS}일 사이의 정수로 입력해 주세요.`);
+      return;
+    }
+
+    const facilityPayload = {
+      name: form.name,
+      description: form.description,
+      location: form.location,
+      building: form.building,
+      capacity: form.capacity,
+      pricePerHour: form.pricePerHour,
+      slotMinutes: form.slotMinutes,
+      minSlots: form.minSlots,
+      maxSlots: form.maxSlots,
+      approvalType: form.approvalType,
+      isExternalReservable: form.isExternalReservable,
+      externalAdvanceDaysOverride,
+      notice: form.notice,
+    };
+
     if (editingId) {
-      updateFacility.mutate({ id: editingId, ...form });
+      updateFacility.mutate({
+        id: editingId,
+        ...facilityPayload,
+      });
     } else {
       // 등록 모드: 먼저 시설 생성 후 이미지 업로드
       createFacility.mutate({
-        ...form,
+        ...facilityPayload,
         isReservable: true,
         isVisible: true,
         sortOrder: getNextFacilitySortOrder(facilityRows, form.building),
@@ -1278,6 +1366,44 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
             </div>
           </div>
           )}
+          {mode === "external" && activeFacilitySubTab === "externalSchedule" && (
+          <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-sm font-bold text-gray-900">외부인 기본 예약 가능 기간</p>
+                <p className="mt-1 text-xs leading-5 text-gray-500">
+                  외부인 예약 화면에서 기본으로 허용할 날짜 범위를 일 단위로 설정합니다.
+                </p>
+                <p className="mt-1 text-[11px] text-gray-400">
+                  기본값은 {DEFAULT_EXTERNAL_RESERVATION_ADVANCE_DAYS}일이며, {MIN_EXTERNAL_RESERVATION_ADVANCE_DAYS}~{MAX_EXTERNAL_RESERVATION_ADVANCE_DAYS}일 사이에서 설정할 수 있습니다.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={MIN_EXTERNAL_RESERVATION_ADVANCE_DAYS}
+                    max={MAX_EXTERNAL_RESERVATION_ADVANCE_DAYS}
+                    step={1}
+                    value={pageSettingDrafts[EXTERNAL_RESERVATION_ADVANCE_DAYS_DEFAULT_SETTING_KEY]}
+                    onChange={(e) => updatePageSettingDraft(EXTERNAL_RESERVATION_ADVANCE_DAYS_DEFAULT_SETTING_KEY, e.target.value)}
+                    className="w-24 rounded-lg border border-gray-200 bg-white px-3 py-2 text-right text-sm font-semibold focus:border-[#1B5E20] focus:outline-none"
+                  />
+                  <span className="text-sm font-medium text-gray-700">일</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={saveExternalAdvanceDaysSetting}
+                  disabled={updateFacilityPageSetting.isPending}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#1B5E20] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32] disabled:opacity-50"
+                >
+                  {updateFacilityPageSetting.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  기간 저장
+                </button>
+              </div>
+            </div>
+          </div>
+          )}
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             {FACILITY_BUILDINGS.map((building) => {
               const count = buildingCounts.get(building.value) ?? 0;
@@ -1438,6 +1564,53 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
                   </span>
                 </span>
               </label>
+              {form.isExternalReservable && (
+                <div className="col-span-2 md:col-span-3 rounded-xl border border-amber-100 bg-amber-50/70 px-4 py-4">
+                  <div className="flex flex-col gap-3">
+                    <label className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={form.useExternalAdvanceDaysDefault}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            useExternalAdvanceDaysDefault: e.target.checked,
+                          }))
+                        }
+                        className="mt-1 h-4 w-4 rounded border-amber-300 text-[#1B5E20]"
+                      />
+                      <span>
+                        <span className="block text-sm font-bold text-amber-900">공통값 사용</span>
+                        <span className="mt-0.5 block text-xs leading-5 text-amber-700">
+                          체크하면 외부인 전용 스케줄 화면의 기본 예약 가능 기간을 그대로 사용합니다.
+                        </span>
+                      </span>
+                    </label>
+                    {!form.useExternalAdvanceDaysDefault && (
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-medium text-gray-600">이 시설만 별도 기간 사용</span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={MIN_EXTERNAL_RESERVATION_ADVANCE_DAYS}
+                            max={MAX_EXTERNAL_RESERVATION_ADVANCE_DAYS}
+                            step={1}
+                            value={form.externalAdvanceDaysOverride}
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                externalAdvanceDaysOverride: e.target.value,
+                              }))
+                            }
+                            className="w-28 rounded-lg border border-gray-200 bg-white px-3 py-2 text-right text-sm font-semibold focus:border-[#1B5E20] focus:outline-none"
+                          />
+                          <span className="text-sm font-medium text-gray-700">일</span>
+                        </div>
+                      </label>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

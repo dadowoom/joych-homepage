@@ -18,6 +18,10 @@ import ReservationConflictDialog, {
 } from "@/components/facility/ReservationConflictDialog";
 import ReservationTimelinePicker from "@/components/facility/ReservationTimelinePicker";
 import {
+  getExternalReservationDateRangeRestriction,
+  getExternalReservationMaxDateKey,
+  getExternalReservationWindow,
+  getExternalReservationWindowMessage,
   getKstDateKey,
   getReservationDateRangeRestriction,
   getReservationLeadDateKey,
@@ -195,7 +199,6 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
   const isApprovedMember = isExternal || Boolean(memberMe);
   const hasReservationOverride = !isExternal && hasFacilityReservationRuleOverride(memberMe ?? {});
   const canReserveFacility = isExternal || (isApprovedMember && !hasFacilityReservationBlockedMemberMarker(memberMe ?? {}));
-  const reservationMaxDateKey = getReservationMaxDateKey(reservationSettings);
 
   // URL 쿼리 파라미터에서 날짜/시간 읽기
   const searchString = useSearch();
@@ -272,6 +275,15 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
   );
   const facility = isExternal ? externalFacilityQuery.data : memberFacilityQuery.data;
   const loadingFacility = isExternal ? externalFacilityQuery.isLoading : memberFacilityQuery.isLoading;
+  const externalReservationWindow = isExternal
+    ? getExternalReservationWindow(reservationSettings, facility)
+    : null;
+  const reservationMaxDateKey = isExternal
+    ? getExternalReservationMaxDateKey(reservationSettings, facility)
+    : getReservationMaxDateKey(reservationSettings);
+  const externalReservationWindowMessage = externalReservationWindow
+    ? getExternalReservationWindowMessage(externalReservationWindow)
+    : null;
   const activeBuilding = useMemo(
     () => normalizeFacilityBuilding(urlBuilding || facility?.building),
     [facility?.building, urlBuilding],
@@ -363,9 +375,11 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
   const disabledTimeSlots = useMemo(() => {
     const disabled = new Map<string, string>();
     if (!form.date) return disabled;
-    const dateRangeRestriction = getReservationDateRangeRestriction(form.date, reservationSettings, {
-      enforceMaxDate: !hasReservationOverride,
-    });
+    const dateRangeRestriction = isExternal
+      ? getExternalReservationDateRangeRestriction(form.date, reservationSettings, facility)
+      : getReservationDateRangeRestriction(form.date, reservationSettings, {
+          enforceMaxDate: !hasReservationOverride,
+        });
     if (dateRangeRestriction) {
       allTimeSlots.forEach((slot) => disabled.set(slot, dateRangeRestriction));
       return disabled;
@@ -377,7 +391,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
       if (restriction) disabled.set(slot, restriction);
     });
     return disabled;
-  }, [allTimeSlots, form.date, hasReservationOverride, reservationSettings]);
+  }, [allTimeSlots, facility, form.date, hasReservationOverride, isExternal, reservationSettings]);
 
   // 날짜 비활성화 여부
   const blockedDateSet = useMemo(() => {
@@ -386,10 +400,12 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
 
   const selectedDateRangeRestriction = useMemo(() => {
     if (!form.date) return null;
-    return getReservationDateRangeRestriction(form.date, reservationSettings, {
-      enforceMaxDate: !hasReservationOverride,
-    });
-  }, [form.date, hasReservationOverride, reservationSettings]);
+    return isExternal
+      ? getExternalReservationDateRangeRestriction(form.date, reservationSettings, facility)
+      : getReservationDateRangeRestriction(form.date, reservationSettings, {
+          enforceMaxDate: !hasReservationOverride,
+        });
+  }, [facility, form.date, hasReservationOverride, isExternal, reservationSettings]);
 
   // ── 이벤트 핸들러 ─────────────────────────────────────────
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
@@ -690,6 +706,11 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                   {selectedDateRangeRestriction && (
                     <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" /> {selectedDateRangeRestriction}
+                    </p>
+                  )}
+                  {isExternal && externalReservationWindowMessage && (
+                    <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                      <Calendar className="w-3 h-3" /> {externalReservationWindowMessage}
                     </p>
                   )}
                   {form.date && hasReservationOverride && (
