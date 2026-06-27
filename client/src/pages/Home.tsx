@@ -5,20 +5,22 @@
  */
 
 import { lazy, Suspense, useState, useEffect, useRef } from "react";
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import HomeAdminDock from "@/components/HomeAdminDock";
 import { getLoginUrl } from "@/const";
 import HomeAffiliates from "./home/HomeAffiliates";
+import HomeFeatureCards from "./home/HomeFeatureCards";
 import HomeFooter from "./home/HomeFooter";
 import HomeGallery from "./home/HomeGallery";
+import HomeNews from "./home/HomeNews";
 import HomeQuickMenu from "./home/HomeQuickMenu";
+import HomeVision from "./home/HomeVision";
 import HomeWorshipPhoto from "./home/HomeWorshipPhoto";
 import {
-  FadeIn,
   getUsableHref,
-  isExternalHref,
+  type HomeFeatureCard,
   type HomeSectionConfig,
 } from "./home/_helpers";
 
@@ -71,33 +73,6 @@ const FALLBACK_QUICK_MENUS = [
   { icon: "fa-bus", label: "차량운행 안내", href: "/support/vehicle" },
   { icon: "fa-map-marker-alt", label: "오시는 길", href: "/about/directions" },
 ];
-
-const SERMONS = [
-  {
-    badge: "주일예배",
-    title: "주일예배 말씀 영상",
-    date: "조이풀TV",
-    href: "/page/조이풀tv-주일예배",
-  },
-  {
-    badge: "수요예배",
-    title: "수요예배 영상",
-    date: "조이풀TV",
-    href: "/worship/tv/hebron",
-  },
-  {
-    badge: "새벽기도",
-    title: "새벽기도회 영상",
-    date: "조이풀TV",
-    href: "/worship/tv/gloria",
-  },
-];
-
-const BADGE_COLORS: Record<string, string> = {
-  공지: "bg-blue-100 text-blue-700",
-  행사: "bg-amber-100 text-amber-700",
-  찬양: "bg-green-100 text-green-700",
-};
 
 const FALLBACK_AFFILIATES = [
   { icon: "fa-hands-helping", label: "기쁨의복지재단", href: null },
@@ -153,15 +128,6 @@ const FALLBACK_GALLERY = [
     gridSpan: "col-span-1 row-span-1",
   },
 ];
-
-type HomeFeatureCard = {
-  title: string;
-  badge: string;
-  description: string;
-  buttonText: string;
-  imageUrl: string;
-  href: string;
-};
 
 type HeroButtonConfig = {
   label: string;
@@ -800,427 +766,14 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ===== 주요 사역 배너 카드 ===== */}
-      <section className="bg-[#F7F8F5] py-14">
-        {/* 섹션 타이틀 */}
-        <div className="container mb-10 text-center">
-          <p className="text-[#1B5E20] text-xs tracking-[0.3em] uppercase font-semibold mb-2">
-            FEATURED MINISTRY
-          </p>
-          <h2
-            className="text-2xl md:text-3xl font-bold text-[#1A1A1A]"
-            style={{ fontFamily: "'Noto Serif KR', serif" }}
-          >
-            주요 사역
-          </h2>
-          <div className="mt-3 mx-auto w-12 h-[3px] bg-[#1B5E20] rounded-full" />
-        </div>
-
-        {/* 카드 3개 */}
-        <div className="container">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-            {homeFeatureCards.map((card, index) => (
-              <a
-                key={`${card.title}-${index}`}
-                href={getUsableHref(card.href, "#")}
-                target={isExternalHref(card.href) ? "_blank" : undefined}
-                rel={isExternalHref(card.href) ? "noopener noreferrer" : undefined}
-                className="group block overflow-hidden rounded-2xl bg-white shadow-md transition-shadow duration-300 hover:shadow-xl"
-              >
-                <div className="relative h-96 overflow-hidden">
-                  <div
-                    className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
-                    style={{ backgroundImage: `url('${card.imageUrl}')` }}
-                  />
-                  <div className="absolute inset-0 bg-black/20 transition-colors duration-300 group-hover:bg-black/10" />
-                  <div className="absolute left-4 top-4">
-                    <span className="rounded-full bg-[#1B5E20] px-3 py-1 text-[10px] font-medium uppercase tracking-widest text-white">
-                      {card.badge}
-                    </span>
-                  </div>
-                </div>
-                <div className="p-6">
-                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#1B5E20]">
-                    {card.badge}
-                  </p>
-                  <h3
-                    className="mb-2 text-xl font-bold text-[#1A1A1A]"
-                    style={{ fontFamily: "'Noto Serif KR', serif" }}
-                  >
-                    {card.title}
-                  </h3>
-                  <p className="text-sm leading-relaxed text-gray-500">
-                    {card.description}
-                  </p>
-                  <div className="mt-4 flex items-center gap-1 text-sm font-semibold text-[#1B5E20]">
-                    <span>{card.buttonText || "View more"}</span>
-                    <span className="transition-transform duration-300 group-hover:translate-x-1">
-                      ??
-                    </span>
-                  </div>
-                </div>
-              </a>
-            ))}
-          </div>
-          <div className="hidden grid-cols-1 md:grid-cols-3 gap-6">
-            {/* 카드 1: 생선 간증 */}
-            <a
-              href="/community/testimony"
-              className="group block rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-300 bg-white"
-            >
-              {/* 이미지 영역 */}
-              <div className="relative h-96 overflow-hidden">
-                <div
-                  className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
-                  style={{
-                    backgroundImage: `url('https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-worship-praise_d34c61eb.webp')`,
-                  }}
-                />
-                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-300" />
-                <div className="absolute top-4 left-4">
-                  <span className="bg-[#1B5E20] text-white text-[10px] tracking-widest uppercase px-3 py-1 rounded-full font-medium">
-                    생선 콘퍼런스
-                  </span>
-                </div>
-              </div>
-              {/* 텍스트 영역 */}
-              <div className="p-6">
-                <p className="text-[#1B5E20] text-[11px] tracking-[0.2em] uppercase font-semibold mb-1">
-                  SAENGSEON CONFERENCE
-                </p>
-                <h3
-                  className="text-xl font-bold text-[#1A1A1A] mb-2"
-                  style={{ fontFamily: "'Noto Serif KR', serif" }}
-                >
-                  생선 간증
-                </h3>
-                <p className="text-gray-500 text-sm leading-relaxed">
-                  생선제자훈련 수료자들의 은혜로운 간증을 나눕니다
-                </p>
-                <div className="mt-4 flex items-center gap-1 text-[#1B5E20] text-sm font-semibold">
-                  <span>자세히 보기</span>
-                  <span className="transition-transform duration-300 group-hover:translate-x-1">
-                    →
-                  </span>
-                </div>
-              </div>
-            </a>
-
-            {/* 카드 2: 선교보고 */}
-            <a
-              href="/mission"
-              className="group block rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-300 bg-white"
-            >
-              <div className="relative h-96 overflow-hidden">
-                <div
-                  className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
-                  style={{
-                    backgroundImage: `url('https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-worship-sunday_f599f896.jpg')`,
-                  }}
-                />
-                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-300" />
-                <div className="absolute top-4 left-4">
-                  <span className="bg-[#1B5E20] text-white text-[10px] tracking-widest uppercase px-3 py-1 rounded-full font-medium">
-                    선교 보고
-                  </span>
-                </div>
-              </div>
-              <div className="p-6">
-                <p className="text-[#1B5E20] text-[11px] tracking-[0.2em] uppercase font-semibold mb-1">
-                  MISSION REPORT
-                </p>
-                <h3
-                  className="text-xl font-bold text-[#1A1A1A] mb-2"
-                  style={{ fontFamily: "'Noto Serif KR', serif" }}
-                >
-                  선교보고
-                </h3>
-                <p className="text-gray-500 text-sm leading-relaxed">
-                  세계 곳곳에서 전해오는 선교 현장의 이야기
-                </p>
-                <div className="mt-4 flex items-center gap-1 text-[#1B5E20] text-sm font-semibold">
-                  <span>자세히 보기</span>
-                  <span className="transition-transform duration-300 group-hover:translate-x-1">
-                    →
-                  </span>
-                </div>
-              </div>
-            </a>
-
-            {/* 카드 3: 플레이 그라운드 */}
-            <a
-              href="/playground"
-              className="group block rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-300 bg-white"
-            >
-              <div className="relative h-96 overflow-hidden">
-                <div
-                  className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
-                  style={{
-                    backgroundImage: `url('https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-exterior-3_82fdf499.jpg')`,
-                  }}
-                />
-                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-300" />
-                <div className="absolute top-4 left-4">
-                  <span className="bg-[#1B5E20] text-white text-[10px] tracking-widest uppercase px-3 py-1 rounded-full font-medium">
-                    커뮤니티
-                  </span>
-                </div>
-              </div>
-              <div className="p-6">
-                <p className="text-[#1B5E20] text-[11px] tracking-[0.2em] uppercase font-semibold mb-1">
-                  PLAY GROUND
-                </p>
-                <h3
-                  className="text-xl font-bold text-[#1A1A1A] mb-2"
-                  style={{ fontFamily: "'Noto Serif KR', serif" }}
-                >
-                  플레이 그라운드
-                </h3>
-                <p className="text-gray-500 text-sm leading-relaxed">
-                  기쁨의교회 FaithPlus 활동 랭킹
-                </p>
-                <div className="mt-4 flex items-center gap-1 text-[#1B5E20] text-sm font-semibold">
-                  <span>자세히 보기</span>
-                  <span className="transition-transform duration-300 group-hover:translate-x-1">
-                    →
-                  </span>
-                </div>
-              </div>
-            </a>
-          </div>
-        </div>
-      </section>
+      <HomeFeatureCards homeFeatureCards={homeFeatureCards} />
 
       <HomeQuickMenu quickMenus={quickMenus} />
 
-      {/* ===== 예배/설교 & 교회 소식 ===== */}
-      <section className="py-16 bg-white">
-        <div className="container">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
-            {/* 조이풀 TV */}
-            <FadeIn className="h-full">
-              <div className="bg-white rounded-xl shadow-sm p-6 h-full">
-                <div className="flex justify-between items-center mb-5 pb-3 border-b-2 border-[#1B5E20]">
-                  <h2
-                    className="text-lg font-bold text-gray-900"
-                    style={{ fontFamily: "'Noto Serif KR', serif" }}
-                  >
-                    조이풀 TV
-                  </h2>
-                  <Link
-                    href="/page/조이풀tv-주일예배"
-                    className="text-xs text-gray-400 hover:text-[#1B5E20] flex items-center gap-1 transition-colors"
-                  >
-                    전체보기 <i className="fas fa-arrow-right text-[10px]"></i>
-                  </Link>
-                </div>
-                {/* 유튜브 임베드 - 최신 설교 영상 */}
-                <div className="relative mb-4 rounded-lg overflow-hidden bg-gray-900">
-                  <div className="aspect-video">
-                    <iframe
-                      className="w-full h-full"
-                      src="https://www.youtube.com/embed/WmFzWf5uEzI?rel=0"
-                      title="조이풀TV 최신 설교 영상"
-                      loading="lazy"
-                      frameBorder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
-                  </div>
-                  <div className="absolute top-3 left-3 bg-red-600 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
-                    <i className="fab fa-youtube"></i> 최신 설교
-                  </div>
-                </div>
-                {/* 설교 목록 */}
-                <div className="divide-y divide-gray-50">
-                  {SERMONS.map((s, i) => (
-                    <Link
-                      key={i}
-                      href={s.href}
-                      className="flex items-center gap-3 py-3 hover:text-[#1B5E20] transition-colors group"
-                    >
-                      <span className="shrink-0 bg-[#E8F5E9] text-[#1B5E20] text-xs px-2 py-0.5 rounded font-medium">
-                        {s.badge}
-                      </span>
-                      <span className="flex-1 text-sm text-gray-700 truncate group-hover:text-[#1B5E20]">
-                        {s.title}
-                      </span>
-                      <span className="shrink-0 text-xs text-gray-400">
-                        {s.date}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            </FadeIn>
+      <HomeNews dbNotices={dbNotices && dbNotices.length > 0 ? dbNotices : []} />
 
-            {/* 교회 소식 */}
-            <FadeIn delay={100} className="h-full">
-              <div className="bg-white rounded-xl shadow-sm p-6 h-full">
-                <div className="flex justify-between items-center mb-5 pb-3 border-b-2 border-[#1B5E20]">
-                  <h2
-                    className="text-lg font-bold text-gray-900"
-                    style={{ fontFamily: "'Noto Serif KR', serif" }}
-                  >
-                    교회 소식
-                  </h2>
-                  <Link
-                    href="/page/행정지원-공지사항"
-                    className="text-xs text-gray-400 hover:text-[#1B5E20] flex items-center gap-1 transition-colors"
-                  >
-                    전체보기 <i className="fas fa-arrow-right text-[10px]"></i>
-                  </Link>
-                </div>
-                <div className="divide-y divide-gray-50">
-                  {(dbNotices && dbNotices.length > 0 ? dbNotices : []).map(
-                    (n, i) => (
-                      <Link
-                        key={i}
-                        href="/page/행정지원-공지사항"
-                        className="flex items-center gap-3 py-3 hover:text-[#1B5E20] transition-colors group"
-                      >
-                        {n.thumbnailUrl && (
-                          <div
-                            className="w-16 h-12 rounded-md bg-cover bg-center shrink-0"
-                            style={{
-                              backgroundImage: `url(${n.thumbnailUrl})`,
-                            }}
-                          />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <span
-                            className={`text-xs px-1.5 py-0.5 rounded font-medium ${BADGE_COLORS[n.category] ?? "bg-gray-100 text-gray-700"} inline-block mb-1`}
-                          >
-                            {n.category}
-                          </span>
-                          <p className="text-sm text-gray-700 truncate group-hover:text-[#1B5E20]">
-                            {n.title}
-                          </p>
-                          <span className="text-xs text-gray-400">
-                            {new Date(n.createdAt).toLocaleDateString("ko-KR")}
-                          </span>
-                        </div>
-                      </Link>
-                    )
-                  )}
-                </div>
-              </div>
-            </FadeIn>
-          </div>
-        </div>
-      </section>
+      <HomeVision churchIntroSection={churchIntroSection} />
 
-      {/* ===== 교회 비전 섹션 ===== */}
-      <section
-        className="py-20 relative overflow-hidden"
-        style={{
-          backgroundImage: `url(${churchIntroSection.backgroundImage})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      >
-        <div className="absolute inset-0 bg-[#0F172A]/80" />
-        <div className="container relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <FadeIn>
-              <div className="text-white">
-                <p className="text-xs tracking-[0.3em] text-[#A5D6A7] mb-3 font-medium">
-                  {churchIntroSection.eyebrow}
-                </p>
-                <h2
-                  className="text-3xl md:text-4xl font-bold leading-tight mb-5"
-                  style={{ fontFamily: "'Noto Serif KR', serif" }}
-                >
-                  {churchIntroSection.title.split("\n").map((line, index, array) => (
-                    <span key={index}>
-                      {line}
-                      {index < array.length - 1 && <br />}
-                    </span>
-                  ))}
-                </h2>
-                <p className="text-white/70 leading-relaxed mb-8 text-sm md:text-base">
-                  {churchIntroSection.description}
-                </p>
-                <a
-                  href={getUsableHref(churchIntroSection.buttonHref, "/about/vision")}
-                  target={
-                    isExternalHref(getUsableHref(churchIntroSection.buttonHref, "/about/vision"))
-                      ? "_blank"
-                      : undefined
-                  }
-                  rel={
-                    isExternalHref(getUsableHref(churchIntroSection.buttonHref, "/about/vision"))
-                      ? "noopener noreferrer"
-                      : undefined
-                  }
-                  className="inline-block px-7 py-3 bg-[#1B5E20] hover:bg-[#2E7D32] text-white text-sm font-medium rounded transition-colors"
-                >
-                  {churchIntroSection.buttonText}
-                </a>
-              </div>
-            </FadeIn>
-            <FadeIn className="hidden">
-              <div className="text-white">
-                <p className="text-xs tracking-[0.3em] text-[#A5D6A7] mb-3 font-medium">
-                  OUR VISION
-                </p>
-                <h2
-                  className="text-3xl md:text-4xl font-bold leading-tight mb-5"
-                  style={{ fontFamily: "'Noto Serif KR', serif" }}
-                >
-                  깊이있는 성장,
-                  <br />
-                  위대한 교회
-                </h2>
-                <p className="text-white/70 leading-relaxed mb-8 text-sm md:text-base">
-                  기쁨의교회는 복음의 능력으로 한 사람 한 사람을 세우고, 지역
-                  사회와 열방을 섬기는 교회입니다. 말씀과 기도, 예배와 교제를
-                  통해 그리스도의 몸을 이루어 가고 있습니다.
-                </p>
-                <Link
-                  href="/about/vision"
-                  className="inline-block px-7 py-3 bg-[#1B5E20] hover:bg-[#2E7D32] text-white text-sm font-medium rounded transition-colors"
-                >
-                  교회 소개 보기
-                </Link>
-              </div>
-            </FadeIn>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {[
-                {
-                  icon: "fa-bible",
-                  title: "말씀 중심",
-                  desc: "하나님의 말씀을 삶의 기준으로 삼고 깊이 있게 배웁니다.",
-                },
-                {
-                  icon: "fa-heart",
-                  title: "기도의 교회",
-                  desc: "새벽기도와 중보기도를 통해 하나님과 깊이 교제합니다.",
-                },
-                {
-                  icon: "fa-globe-asia",
-                  title: "선교하는 교회",
-                  desc: "국내외 선교를 통해 복음을 땅끝까지 전합니다.",
-                },
-              ].map((v, i) => (
-                <FadeIn key={i} delay={i * 100}>
-                  <div className="bg-white/10 border border-white/15 rounded-xl p-6 text-center hover:bg-white/15 transition-colors">
-                    <div className="text-[#A5D6A7] text-3xl mb-3">
-                      <i className={`fas ${v.icon}`}></i>
-                    </div>
-                    <h3 className="text-white font-semibold mb-2 text-sm">
-                      {v.title}
-                    </h3>
-                    <p className="text-white/60 text-xs leading-relaxed">
-                      {v.desc}
-                    </p>
-                  </div>
-                </FadeIn>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
 
       <HomeWorshipPhoto worshipSection={worshipSection} />
 
