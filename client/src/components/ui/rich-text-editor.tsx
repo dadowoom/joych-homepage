@@ -61,6 +61,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
+import { Details, DetailsSummary, DivBlock, Figcaption, Figure, SectionBlock } from "./tiptapCustomNodes";
 
 type RichTextEditorProps = {
   value: string;
@@ -121,7 +122,7 @@ const tableToolSelectClassName =
 const DEFAULT_TEXT_COLOR = "#111827";
 const DEFAULT_CELL_BACKGROUND_COLOR = "#ffffff";
 const richTextSanitizeOptions = {
-  ADD_TAGS: ["iframe", "mark"],
+  ADD_TAGS: ["iframe", "mark", "figure", "figcaption", "details", "summary", "section"],
   ADD_ATTR: [
     "allow",
     "allowfullscreen",
@@ -129,8 +130,10 @@ const richTextSanitizeOptions = {
     "frameborder",
     "height",
     "loading",
+    "open",
     "referrerpolicy",
     "rel",
+    "sandbox",
     "scrolling",
     "src",
     "style",
@@ -138,8 +141,56 @@ const richTextSanitizeOptions = {
     "title",
     "width",
   ],
-  FORBID_TAGS: ["script", "object", "embed", "link", "meta", "base"],
+  ALLOW_DATA_ATTR: true,
+  FORBID_TAGS: ["script", "object", "embed", "link", "meta", "base", "form", "input", "button", "select", "textarea", "fieldset", "output"],
 };
+
+const ALLOWED_IFRAME_DOMAINS = [
+  "youtube.com",
+  "youtube-nocookie.com",
+  "youtu.be",
+  "vimeo.com",
+  "player.vimeo.com",
+  "google.com",
+];
+
+function isAllowedIframeSrc(src: string) {
+  if (!src) return false;
+
+  try {
+    const url = new URL(src, "https://newjoych.co.kr");
+    const hostname = url.hostname.toLowerCase();
+    const pathname = url.pathname.toLowerCase();
+
+    if (hostname === "youtu.be") return true;
+    if (hostname.includes("google.com") && pathname.startsWith("/maps")) return true;
+
+    return ALLOWED_IFRAME_DOMAINS.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
+  } catch {
+    return false;
+  }
+}
+
+let richTextSanitizeHookRegistered = false;
+
+function ensureRichTextSanitizeHook() {
+  if (richTextSanitizeHookRegistered) return;
+
+  DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+    const element = node as Element;
+    if (!element || element.tagName !== "IFRAME") return;
+
+    const src = element.getAttribute("src") || "";
+    if (!isAllowedIframeSrc(src)) {
+      element.remove();
+      return;
+    }
+
+    element.setAttribute("sandbox", "allow-scripts allow-same-origin allow-popups");
+  });
+
+  richTextSanitizeHookRegistered = true;
+}
 
 function escapeHtml(value: string) {
   return value
@@ -255,6 +306,7 @@ function scopeRichTextCss(css: string, scopeSelector: string) {
 
 function sanitizeRichTextForViewer(value: string | null | undefined, scopeSelector: string) {
   const { html, css } = extractStyleBlocks(value);
+  ensureRichTextSanitizeHook();
   return {
     html: DOMPurify.sanitize(html, richTextSanitizeOptions),
     css: scopeRichTextCss(css, scopeSelector),
@@ -263,6 +315,7 @@ function sanitizeRichTextForViewer(value: string | null | undefined, scopeSelect
 
 export function sanitizeRichTextHtml(value?: string | null) {
   const { html } = extractStyleBlocks(value);
+  ensureRichTextSanitizeHook();
   return DOMPurify.sanitize(html, richTextSanitizeOptions);
 }
 
@@ -1370,6 +1423,12 @@ export function RichTextEditor({
       Placeholder.configure({
         placeholder,
       }),
+      Figure,
+      Figcaption,
+      Details,
+      DetailsSummary,
+      DivBlock,
+      SectionBlock,
     ],
     [placeholder],
   );
@@ -1382,6 +1441,7 @@ export function RichTextEditor({
       attributes: {
         class: cn(
           "rich-text-editor-content w-full max-w-full min-w-0 overflow-x-hidden overflow-y-auto break-words bg-white px-3 py-3 text-sm leading-7 outline-none [overflow-wrap:anywhere] [&_*]:max-w-full [&_.selectedCell]:bg-[#EAF6EA] [&_.tableWrapper]:my-4 [&_.tableWrapper]:overflow-x-auto [&_blockquote]:my-3 [&_blockquote]:border-l-4 [&_blockquote]:border-[#D8E8DA] [&_blockquote]:bg-[#F8FBF8] [&_blockquote]:py-2 [&_blockquote]:pl-4 [&_blockquote]:pr-3 [&_blockquote]:text-gray-600 [&_blockquote_p]:my-0 [&_iframe]:my-4 [&_iframe]:aspect-video [&_iframe]:w-full [&_iframe]:rounded-lg [&_img]:h-auto [&_mark]:rounded [&_mark]:px-1 [&_mark]:py-0.5 [&_table]:w-full [&_table]:border-collapse [&_td]:min-w-[120px] [&_td]:border [&_td]:border-gray-300 [&_td]:px-3 [&_td]:py-2 [&_th]:min-w-[120px] [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2",
+          "[&_figure]:my-6 [&_figure]:text-center [&_figcaption]:mt-2 [&_figcaption]:text-xs [&_figcaption]:text-gray-500 [&_details]:my-4 [&_details]:rounded-lg [&_details]:border [&_details]:border-gray-200 [&_details]:bg-gray-50 [&_details]:px-4 [&_details]:py-2 [&_summary]:cursor-pointer [&_summary]:font-medium",
           minHeightClassName,
         ),
       },
@@ -1559,6 +1619,8 @@ export function RichTextViewer({ html, className }: RichTextViewerProps) {
           "[&_a]:text-[#1B5E20] [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-[#D8E8DA] [&_blockquote]:pl-4 [&_blockquote]:text-gray-600",
           "[&_h2]:mb-3 [&_h2]:mt-5 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-[#001B3A] [&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:text-lg [&_h3]:font-bold [&_h3]:text-[#001B3A]",
           "[&_h1]:mb-4 [&_h1]:mt-6 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:text-[#001B3A] [&_h4]:mb-2 [&_h4]:mt-3 [&_h4]:text-base [&_h4]:font-bold [&_h4]:text-[#001B3A]",
+          "[&_figure]:my-6 [&_figure]:text-center [&_figcaption]:mt-2 [&_figcaption]:text-xs [&_figcaption]:text-gray-500",
+          "[&_details]:my-4 [&_details]:rounded-lg [&_details]:border [&_details]:border-gray-200 [&_details]:bg-gray-50 [&_details]:px-4 [&_details]:py-2 [&_summary]:cursor-pointer [&_summary]:font-medium [&_summary]:text-gray-700",
           "[&_mark]:rounded [&_mark]:px-1 [&_mark]:py-0.5",
           "[&_iframe]:my-4 [&_iframe]:aspect-video [&_iframe]:w-full [&_iframe]:rounded-lg",
           "min-w-0 break-words [overflow-wrap:anywhere] [&_*]:max-w-full [&_hr]:my-5 [&_hr]:border-gray-200 [&_img]:mx-auto [&_img]:my-5 [&_img]:h-auto [&_img]:max-w-full [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:my-2 [&_ul]:ml-5 [&_ul]:list-disc",
