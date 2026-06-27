@@ -7,6 +7,7 @@ import {
   type MutableRefObject,
   type ReactNode } from "react";
 import Color from "@tiptap/extension-color";
+import Highlight from "@tiptap/extension-highlight";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -19,6 +20,7 @@ import { FontFamily,
   FontSize,
   TextStyle } from "@tiptap/extension-text-style";
 import Underline from "@tiptap/extension-underline";
+import Youtube from "@tiptap/extension-youtube";
 import { EditorContent,
   useEditor,
   type Editor } from "@tiptap/react";
@@ -32,8 +34,11 @@ import {
   Bold,
   CornerDownLeft,
   Eraser,
+  Heading1,
   Heading2,
   Heading3,
+  Heading4,
+  Highlighter,
   Image as ImageIcon,
   Italic,
   Link as LinkIcon,
@@ -49,7 +54,8 @@ import {
   Trash2,
   Underline as UnderlineIcon,
   Undo2,
-  Unlink
+  Unlink,
+  Youtube as YoutubeIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
@@ -86,6 +92,14 @@ const FONT_FAMILY_OPTIONS = [
   { label: "고딕", value: "sans", fontFamily: "'Noto Sans KR', sans-serif" },
   { label: "명조", value: "serif", fontFamily: "'Noto Serif KR', serif" },
 ];
+const HIGHLIGHT_COLORS = [
+  { label: "노랑", color: "#fef08a" },
+  { label: "초록", color: "#bbf7d0" },
+  { label: "파랑", color: "#bfdbfe" },
+  { label: "빨강", color: "#fecaca" },
+  { label: "보라", color: "#e9d5ff" },
+  { label: "주황", color: "#fed7aa" },
+];
 const TABLE_PRESET_OPTIONS = [
   { label: "기본", value: "default" },
   { label: "헤더", value: "header" },
@@ -105,7 +119,7 @@ const tableToolSelectClassName =
 const DEFAULT_TEXT_COLOR = "#111827";
 const DEFAULT_CELL_BACKGROUND_COLOR = "#ffffff";
 const richTextSanitizeOptions = {
-  ADD_TAGS: ["iframe"],
+  ADD_TAGS: ["iframe", "mark"],
   ADD_ATTR: [
     "allow",
     "allowfullscreen",
@@ -116,6 +130,7 @@ const richTextSanitizeOptions = {
     "referrerpolicy",
     "rel",
     "scrolling",
+    "src",
     "style",
     "target",
     "title",
@@ -978,11 +993,17 @@ function RichTextToolbar({
         <ToolbarButton editor={editor} label="본문" isActive={editor.isActive("paragraph")} onClick={() => setNodeTypePreservingAlign(() => editor.chain().focus().setParagraph().run())}>
           <Pilcrow className="h-4 w-4" />
         </ToolbarButton>
+        <ToolbarButton editor={editor} label="제목 1" isActive={editor.isActive("heading", { level: 1 })} onClick={() => setNodeTypePreservingAlign(() => editor.chain().focus().toggleHeading({ level: 1 }).run())}>
+          <Heading1 className="h-4 w-4" />
+        </ToolbarButton>
         <ToolbarButton editor={editor} label="제목 2" isActive={editor.isActive("heading", { level: 2 })} onClick={() => setNodeTypePreservingAlign(() => editor.chain().focus().toggleHeading({ level: 2 }).run())}>
           <Heading2 className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton editor={editor} label="제목 3" isActive={editor.isActive("heading", { level: 3 })} onClick={() => setNodeTypePreservingAlign(() => editor.chain().focus().toggleHeading({ level: 3 }).run())}>
           <Heading3 className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton editor={editor} label="제목 4" isActive={editor.isActive("heading", { level: 4 })} onClick={() => setNodeTypePreservingAlign(() => editor.chain().focus().toggleHeading({ level: 4 }).run())}>
+          <Heading4 className="h-4 w-4" />
         </ToolbarButton>
         <span className="mx-1 h-8 w-px bg-gray-200" />
         <select
@@ -1035,6 +1056,27 @@ function RichTextToolbar({
         <ToolbarButton editor={editor} label="취소선" isActive={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()}>
           <Strikethrough className="h-4 w-4" />
         </ToolbarButton>
+        <ToolbarButton editor={editor} label="형광펜 제거" onClick={() => editor.chain().focus().unsetHighlight().run()}>
+          <Highlighter className="h-4 w-4" />
+        </ToolbarButton>
+        <select
+          aria-label="형광펜 색상"
+          className={formattingSelectClassName}
+          value=""
+          onChange={(event) => {
+            const color = event.target.value;
+            if (!color) return;
+            editor.chain().focus().toggleHighlight({ color }).run();
+            event.target.selectedIndex = 0;
+          }}
+        >
+          <option value="">형광펜</option>
+          {HIGHLIGHT_COLORS.map((item) => (
+            <option key={item.color} value={item.color} style={{ backgroundColor: item.color }}>
+              {item.label}
+            </option>
+          ))}
+        </select>
         <span className="mx-1 h-8 w-px bg-gray-200" />
         <ToolbarButton editor={editor} label="왼쪽 정렬" isActive={editor.isActive({ textAlign: "left" })} onClick={() => editor.chain().focus().setTextAlign("left").run()}>
           <AlignLeft className="h-4 w-4" />
@@ -1081,6 +1123,13 @@ function RichTextToolbar({
         </ToolbarButton>
         <ToolbarButton editor={editor} label="이미지 직접 입력" onClick={() => setIsImageInputOpen((current) => !current)}>
           <ImageIcon className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton editor={editor} label="유튜브 영상 삽입" onClick={() => {
+          const url = window.prompt("유튜브 URL을 입력해주세요.", "https://www.youtube.com/watch?v=");
+          if (!url?.trim()) return;
+          editor.chain().focus().setYoutubeVideo({ src: url.trim() }).run();
+        }}>
+          <YoutubeIcon className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton editor={editor} label="표 만들기" isActive={editor.isActive("table")} variant="primary" onClick={insertDefaultTable}>
           <TableIcon className="h-4 w-4" />
@@ -1271,8 +1320,11 @@ export function RichTextEditor({
     () => [
       StarterKit.configure({
         heading: {
-          levels: [2, 3],
+          levels: [1, 2, 3, 4],
         },
+      }),
+      Highlight.configure({
+        multicolor: true,
       }),
       TextStyle,
       Color.configure({
@@ -1305,6 +1357,12 @@ export function RichTextEditor({
         allowBase64: false,
         inline: false,
       }),
+      Youtube.configure({
+        inline: false,
+        HTMLAttributes: {
+          class: "youtube-embed",
+        },
+      }),
       Placeholder.configure({
         placeholder,
       }),
@@ -1319,7 +1377,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class: cn(
-          "rich-text-editor-content w-full max-w-full min-w-0 overflow-x-hidden overflow-y-auto break-words bg-white px-3 py-3 text-sm leading-7 outline-none [overflow-wrap:anywhere] [&_*]:max-w-full [&_.selectedCell]:bg-[#EAF6EA] [&_.tableWrapper]:my-4 [&_.tableWrapper]:overflow-x-auto [&_blockquote]:my-3 [&_blockquote]:border-l-4 [&_blockquote]:border-[#D8E8DA] [&_blockquote]:bg-[#F8FBF8] [&_blockquote]:py-2 [&_blockquote]:pl-4 [&_blockquote]:pr-3 [&_blockquote]:text-gray-600 [&_blockquote_p]:my-0 [&_img]:h-auto [&_table]:w-full [&_table]:border-collapse [&_td]:min-w-[120px] [&_td]:border [&_td]:border-gray-300 [&_td]:px-3 [&_td]:py-2 [&_th]:min-w-[120px] [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2",
+          "rich-text-editor-content w-full max-w-full min-w-0 overflow-x-hidden overflow-y-auto break-words bg-white px-3 py-3 text-sm leading-7 outline-none [overflow-wrap:anywhere] [&_*]:max-w-full [&_.selectedCell]:bg-[#EAF6EA] [&_.tableWrapper]:my-4 [&_.tableWrapper]:overflow-x-auto [&_blockquote]:my-3 [&_blockquote]:border-l-4 [&_blockquote]:border-[#D8E8DA] [&_blockquote]:bg-[#F8FBF8] [&_blockquote]:py-2 [&_blockquote]:pl-4 [&_blockquote]:pr-3 [&_blockquote]:text-gray-600 [&_blockquote_p]:my-0 [&_iframe]:my-4 [&_iframe]:aspect-video [&_iframe]:w-full [&_iframe]:rounded-lg [&_img]:h-auto [&_mark]:rounded [&_mark]:px-1 [&_mark]:py-0.5 [&_table]:w-full [&_table]:border-collapse [&_td]:min-w-[120px] [&_td]:border [&_td]:border-gray-300 [&_td]:px-3 [&_td]:py-2 [&_th]:min-w-[120px] [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2",
           minHeightClassName,
         ),
       },
@@ -1434,6 +1492,9 @@ export function RichTextViewer({ html, className }: RichTextViewerProps) {
           "rich-text-viewer max-w-none overflow-x-auto text-sm leading-7 text-gray-700",
           "[&_a]:text-[#1B5E20] [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-[#D8E8DA] [&_blockquote]:pl-4 [&_blockquote]:text-gray-600",
           "[&_h2]:mb-3 [&_h2]:mt-5 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-[#001B3A] [&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:text-lg [&_h3]:font-bold [&_h3]:text-[#001B3A]",
+          "[&_h1]:mb-4 [&_h1]:mt-6 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:text-[#001B3A] [&_h4]:mb-2 [&_h4]:mt-3 [&_h4]:text-base [&_h4]:font-bold [&_h4]:text-[#001B3A]",
+          "[&_mark]:rounded [&_mark]:px-1 [&_mark]:py-0.5",
+          "[&_iframe]:my-4 [&_iframe]:aspect-video [&_iframe]:w-full [&_iframe]:rounded-lg",
           "min-w-0 break-words [overflow-wrap:anywhere] [&_*]:max-w-full [&_hr]:my-5 [&_hr]:border-gray-200 [&_img]:mx-auto [&_img]:my-5 [&_img]:h-auto [&_img]:max-w-full [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:my-2 [&_ul]:ml-5 [&_ul]:list-disc",
           "[&_section]:my-4 [&_table]:my-4 [&_table]:min-w-full [&_table]:border-collapse [&_td]:border [&_td]:border-gray-200 [&_td]:px-3 [&_td]:py-2 [&_th]:border [&_th]:border-gray-200 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2",
           className,
