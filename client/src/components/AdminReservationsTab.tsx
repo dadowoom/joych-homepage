@@ -100,10 +100,18 @@ function getReservationPosition(reservation: AdminReservationRow) {
   return reservation.memberPosition || reservation.department || "-";
 }
 
-function getReservationTypePrefix(reservation: AdminReservationRow) {
-  if (reservation.reservationType === "external") return "외부인 · ";
-  if (reservation.reservationType === "course") return "강좌 · ";
-  return "";
+function isExternalReservation(reservation: Pick<AdminReservationRow, "reservationType">) {
+  return reservation.reservationType === "external";
+}
+
+function getReservationAudienceBadgeClass(reservation: Pick<AdminReservationRow, "reservationType">) {
+  return isExternalReservation(reservation)
+    ? "bg-orange-100 text-orange-700"
+    : "bg-green-100 text-green-700";
+}
+
+function getReservationAudienceLabel(reservation: Pick<AdminReservationRow, "reservationType">) {
+  return isExternalReservation(reservation) ? "외부인" : "성도";
 }
 
 function getReservationPhone(reservation: AdminReservationRow) {
@@ -517,11 +525,9 @@ export default function AdminReservationsTab() {
                     <div className={"flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium shrink-0 " + st.color}>
                       {st.icon} {st.label}
                     </div>
-                    {r.reservationType === "external" && (
-                      <div className="px-2 py-1 rounded-full text-xs font-medium shrink-0 bg-sky-50 text-sky-700">
-                        외부인
-                      </div>
-                    )}
+                    <div className={"px-2 py-1 rounded-full text-xs font-medium shrink-0 " + getReservationAudienceBadgeClass(r)}>
+                      {getReservationAudienceLabel(r)}
+                    </div>
                     {group.isRecurring && (
                       <div className="px-2 py-1 rounded-full text-xs font-medium shrink-0 bg-blue-50 text-blue-700">
                         반복 {group.count}회
@@ -821,6 +827,7 @@ function CalendarView({ reservations, facilityFilter, facilities }: {
           const pending = dayReservations.filter(r => r.status === "pending").length;
           const checking = dayReservations.filter(r => r.status === "checking").length;
           const approved = dayReservations.filter(r => r.status === "approved").length;
+          const externalCount = dayReservations.filter(r => isExternalReservation(r)).length;
           const isToday = getLocalDateKey() === dateKey;
           const isSelected = selectedDate === dateKey;
           const isSun = (idx % 7) === 0;
@@ -857,6 +864,11 @@ function CalendarView({ reservations, facilityFilter, facilities }: {
                   승인 {approved}
                 </div>
               )}
+              {externalCount > 0 && (
+                <div className="text-[10px] bg-orange-100 text-orange-700 rounded px-1 py-0.5 mt-0.5 truncate">
+                  외부 {externalCount}
+                </div>
+              )}
               {dayReservations.length > 0 && (
                 <div className="mt-1 hidden text-[10px] leading-4 text-gray-500 sm:block">
                   {dayReservations.slice(0, 2).map(reservation => (
@@ -874,6 +886,9 @@ function CalendarView({ reservations, facilityFilter, facilities }: {
                     {dayReservations.map(reservation => (
                       <div key={reservation.id} className="rounded-md border border-gray-100 bg-gray-50 px-2 py-1.5">
                         <p className="truncate text-xs font-semibold text-gray-800">
+                          {isExternalReservation(reservation) && (
+                            <span className="mr-1 inline-block rounded bg-orange-100 px-1 py-0.5 text-[10px] font-medium text-orange-700">외부</span>
+                          )}
                           {formatReservationTimeRange(reservation)} · {getReservationName(reservation)}
                         </p>
                         <p className="mt-0.5 truncate text-[11px] text-gray-500">
@@ -894,6 +909,8 @@ function CalendarView({ reservations, facilityFilter, facilities }: {
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-100 border border-amber-200 inline-block"></span>승인 대기</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-100 border border-blue-200 inline-block"></span>확인중</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-100 border border-green-200 inline-block"></span>승인 완료</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-100 border border-green-300 inline-block"></span>성도</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-100 border border-orange-300 inline-block"></span>외부인</span>
       </div>
 
       <div className="mt-5 rounded-xl border border-gray-200 bg-white">
@@ -926,9 +943,12 @@ function CalendarView({ reservations, facilityFilter, facilities }: {
                   </div>
                   <div>
                     <p className="text-xs text-gray-400">이름 / 직분</p>
+                    <span className={"mb-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold " + getReservationAudienceBadgeClass(reservation)}>
+                      {getReservationAudienceLabel(reservation)}
+                    </span>
                     <p className="font-semibold text-gray-900">{getReservationName(reservation)}</p>
                     <p className="text-xs text-gray-500">
-                      {getReservationTypePrefix(reservation)}{getReservationPosition(reservation)}
+                      {getReservationPosition(reservation)}
                     </p>
                   </div>
                   <div>
