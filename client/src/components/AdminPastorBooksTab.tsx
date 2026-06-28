@@ -145,9 +145,9 @@ export function PastorBookEditorDialog({ open, book, defaultSortOrder = 1, onClo
   }, [book, defaultSortOrder, open]);
 
   useEffect(() => {
-    if (!open || !bookDetailQuery.data) return;
+    if (!open || !book?.id || !bookDetailQuery.data || bookDetailQuery.data.id !== book.id) return;
     setForm(toForm(bookDetailQuery.data, defaultSortOrder));
-  }, [bookDetailQuery.data, defaultSortOrder, open]);
+  }, [book?.id, bookDetailQuery.data, defaultSortOrder, open]);
 
   async function invalidateAll(id?: number | null) {
     await Promise.all([
@@ -616,6 +616,7 @@ export default function AdminPastorBooksTab() {
       )}
 
       <PastorBookEditorDialog
+        key={selectedBook?.id ?? "new"}
         open={editorOpen}
         book={selectedBook}
         defaultSortOrder={selectedBook ? selectedBook.sortOrder : 1}
