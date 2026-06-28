@@ -852,13 +852,17 @@ function RichTextToolbar({
     const currentFontSize = String(editor.getAttributes("textStyle").fontSize ?? "").trim();
 
     if (!nextOption?.fontFamily) {
-      chain.unsetFontFamily().run();
+      if (currentFontSize) {
+        chain.unsetFontFamily().setFontSize(currentFontSize).run();
+      } else {
+        chain.unsetFontFamily().run();
+      }
     } else {
-      chain.setFontFamily(nextOption.fontFamily).run();
-    }
-
-    if (currentFontSize) {
-      editor.chain().focus().setFontSize(currentFontSize).run();
+      if (currentFontSize) {
+        chain.setFontFamily(nextOption.fontFamily).setFontSize(currentFontSize).run();
+      } else {
+        chain.setFontFamily(nextOption.fontFamily).run();
+      }
     }
   };
 
@@ -1026,13 +1030,16 @@ function RichTextToolbar({
     chain.setCellAttribute("backgroundColor", null).setCellAttribute("align", null).setCellAttribute("verticalAlign", null).unsetColor().run();
   };
 
-  const setNodeTypePreservingAlign = (action: () => void) => {
+  const setNodeTypePreservingAlign = (
+    applyNodeType: (chain: ReturnType<typeof editor.chain>) => ReturnType<typeof editor.chain>,
+  ) => {
     const { $from } = editor.state.selection;
     const currentAlign = $from.parent.attrs.textAlign as string | undefined;
-    action();
+    let chain = applyNodeType(editor.chain().focus());
     if (currentAlign && currentAlign !== "left") {
-      editor.chain().focus().setTextAlign(currentAlign).run();
+      chain = chain.setTextAlign(currentAlign);
     }
+    chain.run();
   };
 
   return (
@@ -1045,19 +1052,19 @@ function RichTextToolbar({
           <Redo2 className="h-4 w-4" />
         </ToolbarButton>
         <span className="mx-1 h-8 w-px bg-gray-200" />
-        <ToolbarButton editor={editor} label="본문" isActive={editor.isActive("paragraph")} onClick={() => setNodeTypePreservingAlign(() => editor.chain().focus().setParagraph().run())}>
+        <ToolbarButton editor={editor} label="본문" isActive={editor.isActive("paragraph")} onClick={() => setNodeTypePreservingAlign((chain) => chain.setParagraph())}>
           <Pilcrow className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton editor={editor} label="제목 1" isActive={editor.isActive("heading", { level: 1 })} onClick={() => setNodeTypePreservingAlign(() => editor.chain().focus().toggleHeading({ level: 1 }).run())}>
+        <ToolbarButton editor={editor} label="제목 1" isActive={editor.isActive("heading", { level: 1 })} onClick={() => setNodeTypePreservingAlign((chain) => chain.toggleHeading({ level: 1 }))}>
           <Heading1 className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton editor={editor} label="제목 2" isActive={editor.isActive("heading", { level: 2 })} onClick={() => setNodeTypePreservingAlign(() => editor.chain().focus().toggleHeading({ level: 2 }).run())}>
+        <ToolbarButton editor={editor} label="제목 2" isActive={editor.isActive("heading", { level: 2 })} onClick={() => setNodeTypePreservingAlign((chain) => chain.toggleHeading({ level: 2 }))}>
           <Heading2 className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton editor={editor} label="제목 3" isActive={editor.isActive("heading", { level: 3 })} onClick={() => setNodeTypePreservingAlign(() => editor.chain().focus().toggleHeading({ level: 3 }).run())}>
+        <ToolbarButton editor={editor} label="제목 3" isActive={editor.isActive("heading", { level: 3 })} onClick={() => setNodeTypePreservingAlign((chain) => chain.toggleHeading({ level: 3 }))}>
           <Heading3 className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton editor={editor} label="제목 4" isActive={editor.isActive("heading", { level: 4 })} onClick={() => setNodeTypePreservingAlign(() => editor.chain().focus().toggleHeading({ level: 4 }).run())}>
+        <ToolbarButton editor={editor} label="제목 4" isActive={editor.isActive("heading", { level: 4 })} onClick={() => setNodeTypePreservingAlign((chain) => chain.toggleHeading({ level: 4 }))}>
           <Heading4 className="h-4 w-4" />
         </ToolbarButton>
         <span className="mx-1 h-8 w-px bg-gray-200" />
