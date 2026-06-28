@@ -156,7 +156,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
       emergencyPhone: form.emergencyPhone || undefined,
       position: form.position || undefined,
       department: form.department || undefined,
-      district: form.district || undefined,
+      district: form.district,
       baptismType: form.baptismType || undefined,
       baptismDate: form.baptismDate || undefined,
       registeredAt: form.registeredAt || undefined,

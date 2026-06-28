@@ -27,7 +27,6 @@ export default function HomeFooter({
   address,
   tel,
   fax,
-  socialLinks,
 }: HomeFooterProps) {
   return (
     <footer className="bg-[#0F172A] text-gray-400 py-6">
@@ -85,34 +84,7 @@ export default function HomeFooter({
             </div>
           </div>
 
-          <div className="flex gap-3 md:justify-end">
-            {socialLinks.map((s, i) =>
-              s.href ? (
-                <a
-                  key={i}
-                  href={s.href}
-                  target={s.href.startsWith("http") ? "_blank" : undefined}
-                  rel={
-                    s.href.startsWith("http")
-                      ? "noopener noreferrer"
-                      : undefined
-                  }
-                  aria-label={s.label}
-                  className="w-9 h-9 rounded-full border border-gray-700 flex items-center justify-center text-gray-400 hover:bg-[#1B5E20] hover:border-[#1B5E20] hover:text-white transition-colors text-sm"
-                >
-                  <i className={s.icon}></i>
-                </a>
-              ) : (
-                <span
-                  key={i}
-                  aria-label={`${s.label} 링크 미등록`}
-                  className="w-9 h-9 rounded-full border border-gray-700 flex items-center justify-center text-gray-500 transition-colors text-sm"
-                >
-                  <i className={s.icon}></i>
-                </span>
-              )
-            )}
-          </div>
+          {/* socialLinks rendering intentionally hidden */}
         </div>
       </div>
     </footer>

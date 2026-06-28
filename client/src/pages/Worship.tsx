@@ -276,7 +276,7 @@ function getBulletinPages(bulletin: BulletinWithPages) {
 }
 
 const MAX_BULLETIN_UPLOAD_BYTES = 8 * 1024 * 1024;
-const BULLETIN_PAGE_SIZE_OPTIONS = [30, 50] as const;
+const BULLETIN_PAGE_SIZE_OPTIONS = [20, 50] as const;
 const MAX_BULLETIN_UPLOAD_COUNT = 12;
 const ALLOWED_BULLETIN_UPLOAD_RE = /\.(jpg|jpeg|png)$/i;
 
@@ -783,7 +783,7 @@ export function Bulletin() {
   const [lightbox, setLightbox] = useState<{ bulletinId: number; pageIndex: number } | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
-  const [pageSize, setPageSize] = useState<(typeof BULLETIN_PAGE_SIZE_OPTIONS)[number]>(30);
+  const [pageSize, setPageSize] = useState<(typeof BULLETIN_PAGE_SIZE_OPTIONS)[number]>(20);
   const [page, setPage] = useState(1);
   const touchStartXRef = useRef<number | null>(null);
   const { parentLabel, sideMenuItems } = getSupportSideMenuItems(allMenus, "/worship/bulletin");
