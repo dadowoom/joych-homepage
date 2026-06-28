@@ -790,6 +790,7 @@ export function PastorBooksPage() {
       )}
 
       <PastorBookEditorDialog
+        key={selectedBook?.id ?? "new"}
         open={editorOpen}
         book={selectedBook}
         defaultSortOrder={selectedBook ? selectedBook.sortOrder : 1}
@@ -890,6 +891,7 @@ export function PastorBookDetailPage({ params }: RouteComponentProps<{ id: strin
       )}
 
       <PastorBookEditorDialog
+        key={currentBook?.id ?? "detail"}
         open={editorOpen}
         book={currentBook ?? null}
         onClose={() => setEditorOpen(false)}
