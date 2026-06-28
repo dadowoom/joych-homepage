@@ -255,7 +255,7 @@ export function InlineEditForm({
         </select>
       )}
 
-      {showPageType && (pageType === "board" || pageType === "gallery") && (
+      {showPageType && (
         <label className="block text-[10px] font-semibold text-gray-600">
           기본 보기방식
           <select
@@ -353,9 +353,7 @@ export function InlineEditForm({
               href,
               showPageType ? pageType : undefined,
               showPageType ? pageImageUrl : undefined,
-              showPageType && (pageType === "board" || pageType === "gallery")
-                ? defaultViewMode
-                : undefined
+              showPageType ? defaultViewMode : undefined
             );
           }}
           disabled={!label.trim() || uploading || galleryUploading}
