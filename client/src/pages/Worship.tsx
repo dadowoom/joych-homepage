@@ -767,11 +767,17 @@ export function Bulletin() {
     for (const menu of allMenus) {
       if (!menu.items) continue;
       for (const item of menu.items) {
-        if (item.href === "/worship/bulletin") return item;
         if (!item.subItems) continue;
         for (const subItem of item.subItems) {
           if (subItem.href === "/worship/bulletin") return subItem;
         }
+      }
+    }
+
+    for (const menu of allMenus) {
+      if (!menu.items) continue;
+      for (const item of menu.items) {
+        if (item.href === "/worship/bulletin") return item;
       }
     }
 
