@@ -4,7 +4,7 @@
  * 포함: JoyfulTV / WorshipSchedule / Bulletin
  */
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
@@ -761,22 +761,7 @@ export function Bulletin() {
   const isAccessDenied = !authLoading && !memberLoading && !canReadBulletins;
   const isLoading = authLoading || memberLoading || (canReadBulletins && bulletinsQuery.isLoading);
   const { data: allMenus } = trpc.home.menus.useQuery();
-  const bulletinMenuItem = useMemo(() => {
-    if (!allMenus) return null;
-
-    for (const menu of allMenus) {
-      if (!menu.items) continue;
-      for (const item of menu.items) {
-        if (item.href === "/worship/bulletin") return item;
-        if (!item.subItems) continue;
-        for (const subItem of item.subItems) {
-          if (subItem.href === "/worship/bulletin") return subItem;
-        }
-      }
-    }
-
-    return null;
-  }, [allMenus]);
+  const bulletinViewModeQuery = trpc.home.getBulletinViewMode.useQuery();
   const [expandedId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);
@@ -806,10 +791,10 @@ export function Bulletin() {
   const lightboxTitle = lightboxBulletin?.title ?? "주보";
   const closeLightbox = () => setLightbox(null);
   useEffect(() => {
-    if (bulletinMenuItem?.defaultViewMode === "grid" || bulletinMenuItem?.defaultViewMode === "list") {
-      setViewMode(bulletinMenuItem.defaultViewMode);
+    if (bulletinViewModeQuery.data === "grid" || bulletinViewModeQuery.data === "list") {
+      setViewMode(bulletinViewModeQuery.data);
     }
-  }, [bulletinMenuItem?.defaultViewMode]);
+  }, [bulletinViewModeQuery.data]);
   useEffect(() => {
     setPage(1);
   }, [searchKeyword, pageSize]);
