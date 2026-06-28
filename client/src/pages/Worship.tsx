@@ -291,6 +291,10 @@ function getMemberLoginHref(fallbackPath = "/worship/bulletin") {
   return `/member/login?next=${encodeURIComponent(currentPath || fallbackPath)}`;
 }
 
+function normalizeSpecialMenuLabel(value?: string | null) {
+  return value?.replace(/\s+/g, "") ?? "";
+}
+
 function BulletinAccessRequired() {
   return (
     <div className="flex flex-col items-center justify-center border-2 border-dashed border-[#D8E8DA] bg-[#F8FCF8] px-5 py-20 text-center">
@@ -753,6 +757,7 @@ export function Bulletin() {
   const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, { retry: false });
   const canManage = canManageBoardContent(user, "content:bulletins");
   const canReadBulletins = Boolean(memberMe) || canManage;
+  const bulletinHref = "/worship/bulletin";
   const bulletinsQuery = trpc.home.bulletins.useQuery(undefined, {
     enabled: canReadBulletins,
     retry: false,
@@ -760,8 +765,12 @@ export function Bulletin() {
   const bulletins = bulletinsQuery.data ?? [];
   const isAccessDenied = !authLoading && !memberLoading && !canReadBulletins;
   const isLoading = authLoading || memberLoading || (canReadBulletins && bulletinsQuery.isLoading);
+  const { data: bulletinMenuItemByHref } = trpc.home.menuItemByHref.useQuery({ href: bulletinHref });
+  const { data: bulletinMenuSubItemByHref } = trpc.home.menuSubItemByHref.useQuery({ href: bulletinHref });
   const { data: allMenus } = trpc.home.menus.useQuery();
   const bulletinMenuItem = useMemo(() => {
+    if (bulletinMenuSubItemByHref) return bulletinMenuSubItemByHref;
+    if (bulletinMenuItemByHref) return bulletinMenuItemByHref;
     if (!allMenus) return null;
 
     for (const menu of allMenus) {
@@ -769,7 +778,8 @@ export function Bulletin() {
       for (const item of menu.items) {
         if (!item.subItems) continue;
         for (const subItem of item.subItems) {
-          if (subItem.href === "/worship/bulletin") return subItem;
+          const normalizedSubLabel = normalizeSpecialMenuLabel(subItem.label);
+          if (subItem.href === bulletinHref || normalizedSubLabel === "주보보기") return subItem;
         }
       }
     }
@@ -777,12 +787,13 @@ export function Bulletin() {
     for (const menu of allMenus) {
       if (!menu.items) continue;
       for (const item of menu.items) {
-        if (item.href === "/worship/bulletin") return item;
+        const normalizedItemLabel = normalizeSpecialMenuLabel(item.label);
+        if (item.href === bulletinHref || normalizedItemLabel === "주보") return item;
       }
     }
 
     return null;
-  }, [allMenus]);
+  }, [allMenus, bulletinHref, bulletinMenuItemByHref, bulletinMenuSubItemByHref]);
   const [expandedId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);
@@ -792,7 +803,7 @@ export function Bulletin() {
   const [pageSize, setPageSize] = useState<(typeof BULLETIN_PAGE_SIZE_OPTIONS)[number]>(20);
   const [page, setPage] = useState(1);
   const touchStartXRef = useRef<number | null>(null);
-  const { parentLabel, sideMenuItems } = getSupportSideMenuItems(allMenus, "/worship/bulletin");
+  const { parentLabel, sideMenuItems } = getSupportSideMenuItems(allMenus, bulletinHref);
   const filteredBulletins = searchKeyword.trim()
     ? bulletins.filter((bulletin) => bulletin.title.toLowerCase().includes(searchKeyword.trim().toLowerCase()))
     : bulletins;
