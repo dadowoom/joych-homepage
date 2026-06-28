@@ -1193,7 +1193,7 @@ export const pastorBooks = mysqlTable("pastor_books", {
   id: int("id").autoincrement().primaryKey(),
   legacyNum: varchar("legacy_num", { length: 32 }),
   title: varchar("title", { length: 255 }).notNull(),
-  summary: varchar("summary", { length: 500 }),
+  summary: text("summary"),
   contentHtml: text("content_html"),
   publishedAt: varchar("published_at", { length: 10 }),
   externalUrl: text("external_url"),

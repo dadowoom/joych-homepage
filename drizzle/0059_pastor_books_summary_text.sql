@@ -1,0 +1,2 @@
+ALTER TABLE `pastor_books`
+MODIFY COLUMN `summary` TEXT DEFAULT NULL;
