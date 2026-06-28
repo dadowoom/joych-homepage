@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   Building,
@@ -27,11 +27,14 @@ import {
 
 export default function BulletinAdRequestPage() {
   const utils = trpc.useUtils();
+  const href = "/support/bulletin-ad";
   const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, {
     retry: false,
     refetchOnWindowFocus: false,
   });
   const { data: requests = [], isLoading } = trpc.support.listBulletinAds.useQuery();
+  const { data: menuItem } = trpc.home.menuItemByHref.useQuery({ href });
+  const { data: subItem } = trpc.home.menuSubItemByHref.useQuery({ href });
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
@@ -45,6 +48,16 @@ export default function BulletinAdRequestPage() {
     requestedDate: "",
     content: "",
   });
+  const defaultViewMode = useMemo(
+    () => subItem?.defaultViewMode ?? menuItem?.defaultViewMode ?? "list",
+    [menuItem?.defaultViewMode, subItem?.defaultViewMode],
+  );
+
+  useEffect(() => {
+    if (defaultViewMode === "grid" || defaultViewMode === "list") {
+      setViewMode(defaultViewMode);
+    }
+  }, [defaultViewMode]);
 
   const resetForm = () => {
     setForm({

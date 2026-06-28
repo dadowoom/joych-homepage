@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   Building,
@@ -27,11 +27,14 @@ import {
 
 export default function SubtitleRequestPage() {
   const utils = trpc.useUtils();
+  const href = "/support/subtitle";
   const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, {
     retry: false,
     refetchOnWindowFocus: false,
   });
   const { data: subtitleRequests = [], isLoading } = trpc.support.listSubtitles.useQuery();
+  const { data: menuItem } = trpc.home.menuItemByHref.useQuery({ href });
+  const { data: subItem } = trpc.home.menuSubItemByHref.useQuery({ href });
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
@@ -48,6 +51,16 @@ export default function SubtitleRequestPage() {
     requestedDate: "",
     content: "",
   });
+  const defaultViewMode = useMemo(
+    () => subItem?.defaultViewMode ?? menuItem?.defaultViewMode ?? "list",
+    [menuItem?.defaultViewMode, subItem?.defaultViewMode],
+  );
+
+  useEffect(() => {
+    if (defaultViewMode === "grid" || defaultViewMode === "list") {
+      setViewMode(defaultViewMode);
+    }
+  }, [defaultViewMode]);
 
   const resetForm = () => {
     setForm({

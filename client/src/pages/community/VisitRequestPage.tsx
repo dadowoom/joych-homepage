@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   Building,
@@ -46,7 +46,10 @@ const VISIT_STATUS_LABELS: Record<string, string> = {
 
 function VisitRequestBoardPage() {
   const utils = trpc.useUtils();
+  const href = "/support/tour";
   const { data: requests = [], isLoading } = trpc.support.listVisits.useQuery();
+  const { data: menuItem } = trpc.home.menuItemByHref.useQuery({ href });
+  const { data: subItem } = trpc.home.menuSubItemByHref.useQuery({ href });
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -56,6 +59,16 @@ function VisitRequestBoardPage() {
   const [searchInput, setSearchInput] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
   const [form, setForm] = useState(getEmptyVisitForm);
+  const defaultViewMode = useMemo(
+    () => subItem?.defaultViewMode ?? menuItem?.defaultViewMode ?? "list",
+    [menuItem?.defaultViewMode, subItem?.defaultViewMode],
+  );
+
+  useEffect(() => {
+    if (defaultViewMode === "grid" || defaultViewMode === "list") {
+      setViewMode(defaultViewMode);
+    }
+  }, [defaultViewMode]);
 
   const resetForm = () => {
     setForm(getEmptyVisitForm());
