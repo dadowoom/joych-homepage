@@ -792,7 +792,7 @@ export function PastorBooksPage() {
       <PastorBookEditorDialog
         open={editorOpen}
         book={selectedBook}
-        defaultSortOrder={displayBooks.length + (selectedBook ? 0 : 1)}
+        defaultSortOrder={selectedBook ? selectedBook.sortOrder : 1}
         onClose={() => setEditorOpen(false)}
         onSaved={() => {
           utils.cms.pastorBooks.list.invalidate();
@@ -850,9 +850,9 @@ export function PastorBookDetailPage({ params }: RouteComponentProps<{ id: strin
           저서를 찾을 수 없습니다.
         </div>
       ) : (
-        <article className="space-y-8">
-          <header className="grid gap-8 lg:grid-cols-[260px_1fr]">
-            <div className="flex min-h-80 items-center justify-center border border-gray-200 bg-gray-50 p-4">
+        <article>
+          <div className="grid gap-8 lg:grid-cols-[240px_1fr]">
+            <div className="flex min-h-60 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 p-4 lg:self-start">
               {currentBook.coverImageUrl ? (
                 <img src={currentBook.coverImageUrl} alt={currentBook.title} className="max-h-full max-w-full object-contain"  loading="lazy"/>
               ) : (
@@ -875,18 +875,17 @@ export function PastorBookDetailPage({ params }: RouteComponentProps<{ id: strin
                   {currentBook.summary}
                 </p>
               )}
-            </div>
-          </header>
-
-          <section className="border-t border-gray-100 pt-8">
-            {currentBook.contentHtml ? (
-              <RichTextViewer html={currentBook.contentHtml} />
-            ) : (
-              <div className="rounded-xl border border-dashed border-gray-200 py-16 text-center text-sm text-gray-400">
-                아직 등록된 본문 내용이 없습니다.
+              <div className="mt-6">
+                {currentBook.contentHtml ? (
+                  <RichTextViewer html={currentBook.contentHtml} />
+                ) : (
+                  <div className="rounded-xl border border-dashed border-gray-200 py-16 text-center text-sm text-gray-400">
+                    아직 등록된 본문 내용이 없습니다.
+                  </div>
+                )}
               </div>
-            )}
-          </section>
+            </div>
+          </div>
         </article>
       )}
 

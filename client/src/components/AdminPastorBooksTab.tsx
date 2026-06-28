@@ -268,6 +268,9 @@ export function PastorBookEditorDialog({ open, book, defaultSortOrder = 1, onClo
                     onChange={(event) => setForm((prev) => ({ ...prev, summary: event.target.value }))}
                     placeholder="목록이나 상세 상단에 표시할 짧은 설명"
                   />
+                  <span className="mt-1 block text-right text-[11px] font-normal text-gray-400">
+                    {new TextEncoder().encode(form.summary).length.toLocaleString()} bytes
+                  </span>
                 </label>
                 <label className="block text-xs font-semibold text-gray-600">
                   정렬 순서
@@ -615,7 +618,7 @@ export default function AdminPastorBooksTab() {
       <PastorBookEditorDialog
         open={editorOpen}
         book={selectedBook}
-        defaultSortOrder={displayBooks.length + (selectedBook ? 0 : 1)}
+        defaultSortOrder={selectedBook ? selectedBook.sortOrder : 1}
         onClose={() => setEditorOpen(false)}
         onSaved={() => {
           utils.cms.pastorBooks.list.invalidate();

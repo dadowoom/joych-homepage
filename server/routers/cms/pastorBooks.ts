@@ -20,6 +20,15 @@ import {
 const idSchema = z.number().int().positive();
 const DATE_RE = /^\d{4}\.\d{2}\.\d{2}$|^\d{4}-\d{2}-\d{2}$/;
 const pastorBookProcedure = adminPermissionProcedure("content:pastorBooks");
+const SUMMARY_MAX_BYTES = 65535;
+
+const pastorBookSummarySchema = z.string()
+  .trim()
+  .refine(
+    (value) => new TextEncoder().encode(value).length <= SUMMARY_MAX_BYTES,
+    `${SUMMARY_MAX_BYTES.toLocaleString()} bytes 이하로 입력해주세요.`,
+  )
+  .optional();
 
 function normalizeBookHtml(value: string | null | undefined) {
   if (!value) return null;
@@ -36,7 +45,7 @@ function normalizeBookHtml(value: string | null | undefined) {
 const bookShape = {
   legacyNum: optionalTextSchema(32).nullable().optional(),
   title: requiredTextSchema(255, "책 제목을 입력해주세요."),
-  summary: optionalTextSchema(500).nullable().optional(),
+  summary: pastorBookSummarySchema.nullable().optional(),
   contentHtml: z.string().max(50000).nullable().optional(),
   publishedAt: z.string().trim().regex(DATE_RE, "날짜는 2026.06.26 또는 2026-06-26 형식으로 입력해주세요.").nullable().optional(),
   externalUrl: safeAssetUrlSchema.nullable().optional(),
