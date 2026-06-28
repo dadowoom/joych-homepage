@@ -38,8 +38,10 @@ function getViewModeLabel(viewMode: ViewMode) {
 export default function AdminViewModesTab() {
   const utils = trpc.useUtils();
   const menusQuery = trpc.cms.menus.list.useQuery();
+  const bulletinViewModeQuery = trpc.home.getBulletinViewMode.useQuery();
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [draftModes, setDraftModes] = useState<Record<string, ViewMode>>({});
+  const [bulletinDraft, setBulletinDraft] = useState<ViewMode | null>(null);
 
   const toggleGroup = (groupLabel: string) => {
     setCollapsedGroups((prev) => ({
@@ -58,6 +60,17 @@ export default function AdminViewModesTab() {
       utils.home.menuSubItemByHref.invalidate(),
     ]);
   };
+
+  const saveBulletin = trpc.home.setBulletinViewMode.useMutation({
+    onSuccess: async () => {
+      toast.success("주보보기 기본 보기방식을 저장했습니다.");
+      setBulletinDraft(null);
+      await utils.home.getBulletinViewMode.invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.message || "저장에 실패했습니다.");
+    },
+  });
 
   const updateItem = trpc.cms.menus.updateItem.useMutation({
     onSuccess: async () => {
@@ -128,6 +141,7 @@ export default function AdminViewModesTab() {
   }, [leafRows]);
 
   const isSaving = updateItem.isPending || updateSubItem.isPending;
+  const bulletinViewMode = bulletinDraft ?? (bulletinViewModeQuery.data === "grid" ? "grid" : "list");
 
   const saveLeaf = (leaf: ViewModeLeaf) => {
     const nextMode = draftModes[leaf.key] ?? leaf.defaultViewMode;
@@ -176,8 +190,35 @@ export default function AdminViewModesTab() {
           </p>
         </div>
         <span className="inline-flex w-fit items-center rounded-full bg-[#E8F5E9] px-3 py-1 text-sm font-semibold text-[#1B5E20]">
-          대상 메뉴 {leafRows.length}개
+          대상 메뉴 {leafRows.length + 1}개
         </span>
+      </div>
+
+      <div className="rounded-lg border border-[#A5D6A7] bg-[#F1F8F2] p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-bold text-gray-900">주보보기</p>
+            <p className="text-xs text-gray-500">/worship/bulletin (고정 페이지)</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              className="h-8 rounded border border-gray-300 px-2 text-sm"
+              value={bulletinViewMode}
+              onChange={(e) => setBulletinDraft(e.target.value as ViewMode)}
+            >
+              <option value="list">게시판형</option>
+              <option value="grid">갤러리형</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => saveBulletin.mutate({ mode: bulletinViewMode })}
+              disabled={saveBulletin.isPending}
+              className="rounded bg-[#1B5E20] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#2E7D32] disabled:opacity-50"
+            >
+              저장
+            </button>
+          </div>
+        </div>
       </div>
 
       {groupedLeaves.length === 0 ? (

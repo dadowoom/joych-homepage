@@ -15,7 +15,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
+import { adminProcedure, publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
 import {
   canMemberRequestFacilityReservation,
   hasFacilityReservationRuleOverride,
@@ -39,6 +39,7 @@ import {
   getVisibleAffiliates,
   getVisibleGalleryItems,
   getVisibleHomeGalleryItems,
+  getSiteSetting,
   getSiteSettings,
   getVisibleMenus,
   getVisibleMenuItemById,
@@ -74,6 +75,7 @@ import {
   getPageBlocks,
   getStaticPageContentByHref,
   getStoredTranslation,
+  upsertSiteSetting,
   getVisibleStaffCategories,
   getVisibleStaffMembers,
   getAllStaffTitleOptions,
@@ -165,6 +167,7 @@ const reservationRepeatSchema = z.object({
 const MAX_REPEAT_OCCURRENCES = 366;
 const MAX_REPEAT_SEARCH_STEPS = 1200;
 const MIN_RESERVATION_LEAD_TIME_MS = 24 * 60 * 60 * 1000;
+const BULLETIN_DEFAULT_VIEW_MODE_KEY = "bulletin_default_view_mode";
 
 async function getVisibleFacilityById(id: number) {
   const facility = await getFacilityById(id);
@@ -401,6 +404,18 @@ export const homeRouter = router({
 
   /** 사이트 설정 (교회명, 주소, 연락처 등) */
   settings: publicProcedure.query(() => getSiteSettings()),
+
+  getBulletinViewMode: publicProcedure.query(async () => {
+    const row = await getSiteSetting(BULLETIN_DEFAULT_VIEW_MODE_KEY);
+    return row?.settingValue === "grid" ? "grid" : "list";
+  }),
+
+  setBulletinViewMode: adminProcedure
+    .input(z.object({ mode: z.enum(["list", "grid"]) }))
+    .mutation(async ({ input }) => {
+      await upsertSiteSetting(BULLETIN_DEFAULT_VIEW_MODE_KEY, input.mode);
+      return { success: true };
+    }),
 
   /** 교회연혁 공개 데이터 */
   history: publicProcedure.query(() => getPublicHistory()),
