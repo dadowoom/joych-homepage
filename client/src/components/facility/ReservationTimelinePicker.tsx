@@ -163,9 +163,9 @@ export default function ReservationTimelinePicker({
                   <button
                     type="button"
                     disabled={isDisabled}
-                    title={isDisabled && typeof disabledReason === "string" ? disabledReason : undefined}
+                    title={isDisabled && !renderDisabledTooltip && typeof disabledReason === "string" ? disabledReason : undefined}
                     onClick={() => handleSegmentClick(start, end)}
-                    className={`flex h-14 min-w-[68px] flex-col items-center justify-center border-r border-gray-300 px-2 text-[11px] font-bold transition-colors last:border-r-0 ${
+                    className={`flex h-14 min-w-[68px] flex-col items-center justify-center border-r border-gray-300 px-2 text-[11px] font-bold transition-colors last:border-r-0 disabled:pointer-events-none ${
                       isDisabled
                         ? isBooked
                           ? "cursor-not-allowed bg-red-100 text-red-500 line-through"
