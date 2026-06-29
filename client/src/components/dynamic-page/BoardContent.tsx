@@ -150,6 +150,7 @@ function NoticeBoardContent({
   const utils = trpc.useUtils();
   const isAdminResource = mode === "adminResource";
   const isCustomBoard = Boolean(customBoard);
+  const supportsAttachments = isAdminResource || isCustomBoard;
   const customBoardSource = customBoard?.menuSubItemId
     ? { menuSubItemId: customBoard.menuSubItemId }
     : customBoard?.menuItemId
@@ -480,7 +481,7 @@ function NoticeBoardContent({
         attachmentName: result.fileName,
         attachmentUrl: result.url,
       }));
-      toast.success("???? ??? ??");
+      toast.success(ATTACHMENT_UPLOAD_SUCCESS_TEXT);
     } finally {
       setUploadingAttachment(false);
       event.target.value = "";
@@ -502,8 +503,8 @@ function NoticeBoardContent({
       title,
       content: formState.content.trim() || undefined,
       thumbnailUrl: formState.thumbnailUrl.trim(),
-      attachmentName: isAdminResource ? formState.attachmentName.trim() : undefined,
-      attachmentUrl: isAdminResource ? formState.attachmentUrl.trim() : undefined,
+      attachmentName: supportsAttachments ? formState.attachmentName.trim() : undefined,
+      attachmentUrl: supportsAttachments ? formState.attachmentUrl.trim() : undefined,
       isPublished: formState.isPublished,
       isPinned: formState.isPinned,
     };
@@ -518,6 +519,8 @@ function NoticeBoardContent({
         title,
         content: formState.content.trim() || undefined,
         thumbnailUrl: formState.thumbnailUrl.trim(),
+        attachmentName: supportsAttachments ? formState.attachmentName.trim() : undefined,
+        attachmentUrl: supportsAttachments ? formState.attachmentUrl.trim() : undefined,
         isPublished: formState.isPublished,
         isPinned: formState.isPinned,
       };
@@ -775,7 +778,7 @@ function NoticeBoardContent({
               />
             </div>
           </div>
-          {isAdminResource && (
+          {supportsAttachments && (
             <div className="space-y-2 md:col-span-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="block text-sm font-semibold text-gray-700">{ATTACHMENT_LABEL}</span>
