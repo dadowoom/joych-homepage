@@ -833,6 +833,15 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
                     <strong>이용 요금:</strong> 시간당 {facility.pricePerHour.toLocaleString()}원
                   </div>
                 )}
+                {isExternal && facility.externalNotice && (
+                  <div className="mt-3 rounded-lg border border-teal-100 bg-teal-50 p-3 text-sm leading-6 text-teal-900">
+                    <div className="mb-1 flex items-center gap-2 font-bold">
+                      <AlertCircle className="h-4 w-4 text-teal-600" />
+                      시설 안내
+                    </div>
+                    <p className="whitespace-pre-line text-teal-800">{facility.externalNotice}</p>
+                  </div>
+                )}
               </div>
 
               {/* 이용 안내 */}
