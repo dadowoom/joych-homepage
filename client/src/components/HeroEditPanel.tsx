@@ -28,14 +28,22 @@ type HeroButtonDraft = {
   openInNewTab?: boolean;
 };
 
-const HERO_BUTTON_PRESET_COLORS: Record<string, string> = {
-  primary: "#1B5E20",
-  secondary: "#FFFFFF",
-  blue: "#2563EB",
-  red: "#DC2626",
-  amber: "#F59E0B",
-  purple: "#9333EA",
-};
+const HERO_BUTTON_PRESET_OPTIONS = [
+  { value: "primary", label: "기본 초록", color: "#1B5E20" },
+  { value: "secondary", label: "기본 흰색 테두리", color: "#FFFFFF" },
+  { value: "emerald", label: "에메랄드", color: "#059669" },
+  { value: "teal", label: "틸", color: "#0F766E" },
+  { value: "sky", label: "하늘", color: "#0284C7" },
+  { value: "blue", label: "파랑", color: "#2563EB" },
+  { value: "indigo", label: "남색", color: "#4F46E5" },
+  { value: "purple", label: "보라", color: "#9333EA" },
+  { value: "rose", label: "로즈", color: "#E11D48" },
+  { value: "amber", label: "주황", color: "#F59E0B" },
+] as const;
+
+const HERO_BUTTON_PRESET_COLORS: Record<string, string> = Object.fromEntries(
+  HERO_BUTTON_PRESET_OPTIONS.map((option) => [option.value, option.color]),
+);
 
 const DEFAULT_HERO_BUTTON_PICKER_COLORS = ["#1B5E20", "#FFFFFF"] as const;
 
@@ -104,6 +112,13 @@ function getButtonPickerColor(color: string | undefined, index: number) {
   if (isHexColor(color)) return color;
   if (color && HERO_BUTTON_PRESET_COLORS[color]) return HERO_BUTTON_PRESET_COLORS[color];
   return DEFAULT_HERO_BUTTON_PICKER_COLORS[index] ?? DEFAULT_HERO_BUTTON_PICKER_COLORS[0];
+}
+
+function getButtonColorDisplayText(color: string | undefined, index: number) {
+  if (!color) return index === 0 ? "기본 초록 사용" : "기본 흰 테두리 사용";
+  const preset = HERO_BUTTON_PRESET_OPTIONS.find((option) => option.value === color);
+  if (preset) return preset.label;
+  return color;
 }
 
 function hasIncompleteButton(buttons: HeroButtonDraft[]) {
@@ -552,11 +567,31 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
                     className="h-9 w-14 cursor-pointer rounded border border-gray-300 bg-white p-1 disabled:cursor-not-allowed"
                   />
                   <Input
-                    value={button.color ?? ""}
+                    value={getButtonColorDisplayText(button.color, index)}
                     readOnly
-                    placeholder={index === 0 ? "기본 초록 사용" : "기본 흰 테두리 사용"}
                     className="h-9 text-xs font-mono"
                   />
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {HERO_BUTTON_PRESET_OPTIONS.map((option) => {
+                    const isActive = button.color === option.value;
+                    const isLight = option.value === "secondary" || option.value === "amber";
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        title={option.label}
+                        disabled={disabled}
+                        onClick={() => updateButtonDraft(visibleButtons, setButtons, index, { color: option.value })}
+                        className={`inline-flex h-7 w-7 items-center justify-center rounded border transition ${isActive ? "border-[#1B5E20] ring-2 ring-[#1B5E20]/20" : "border-gray-300"} ${isLight ? "bg-gray-50" : "bg-white"} disabled:cursor-not-allowed disabled:opacity-50`}
+                      >
+                        <span
+                          className="h-4 w-4 rounded-full border border-black/10"
+                          style={{ backgroundColor: option.color }}
+                        />
+                      </button>
+                    );
+                  })}
                 </div>
               </label>
               <div className="flex flex-col justify-end gap-2">

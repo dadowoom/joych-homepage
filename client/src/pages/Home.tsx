@@ -152,10 +152,14 @@ const DEFAULT_HERO_BUTTONS: HeroButtonConfig[] = [
 const HERO_BUTTON_COLOR_CLASSES: Record<string, string> = {
   primary: "bg-[#1B5E20] hover:bg-[#2E7D32] text-white",
   secondary: "border-2 border-white/80 hover:bg-white/15 text-white",
+  emerald: "bg-emerald-600 hover:bg-emerald-700 text-white",
+  teal: "bg-teal-700 hover:bg-teal-800 text-white",
+  sky: "bg-sky-600 hover:bg-sky-700 text-white",
   blue: "bg-blue-600 hover:bg-blue-700 text-white",
-  red: "bg-red-600 hover:bg-red-700 text-white",
-  amber: "bg-amber-500 hover:bg-amber-600 text-white",
+  indigo: "bg-indigo-600 hover:bg-indigo-700 text-white",
   purple: "bg-purple-600 hover:bg-purple-700 text-white",
+  rose: "bg-rose-600 hover:bg-rose-700 text-white",
+  amber: "bg-amber-500 hover:bg-amber-600 text-white",
 };
 
 function normalizeHexColor(value: string | undefined) {
