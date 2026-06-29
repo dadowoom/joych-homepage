@@ -577,14 +577,14 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
                     disabled={disabled}
                     aria-expanded={isPresetPickerOpen}
                     onClick={() => setOpenPresetPickerId(isPresetPickerOpen ? null : presetPickerId)}
-                    className="flex h-9 flex-1 items-center justify-between rounded-md border border-[#1B5E20]/35 bg-white px-3 text-xs text-gray-700 shadow-sm transition hover:border-[#1B5E20] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex h-9 flex-1 items-center justify-between rounded-md border border-gray-300 bg-white px-3 text-xs text-gray-700 transition hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <span className="flex min-w-0 items-center gap-2">
                       <span
                         className="h-4 w-4 shrink-0 rounded-full border border-black/10"
                         style={{ backgroundColor: getButtonPickerColor(button.color, index) }}
                       />
-                      <span className="truncate font-medium">{getButtonColorDisplayText(button.color, index)}</span>
+                      <span className="truncate font-mono">{getButtonColorDisplayText(button.color, index)}</span>
                     </span>
                     <ChevronDown
                       className={`h-4 w-4 shrink-0 text-gray-500 transition-transform ${isPresetPickerOpen ? "rotate-180" : ""}`}
@@ -592,7 +592,7 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
                   </button>
                 </div>
                 {isPresetPickerOpen ? (
-                  <div className="mt-2 rounded-md border border-[#1B5E20]/15 bg-[#F7FBF7] p-2">
+                  <div className="mt-2 rounded-md border border-gray-200 bg-white p-2 shadow-sm">
                     <div className="flex flex-wrap gap-1.5">
                       {HERO_BUTTON_PRESET_OPTIONS.map((option) => {
                         const isActive = button.color === option.value;
@@ -607,7 +607,7 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
                               updateButtonDraft(visibleButtons, setButtons, index, { color: option.value });
                               setOpenPresetPickerId(null);
                             }}
-                            className={`inline-flex h-7 w-7 items-center justify-center rounded border transition ${isActive ? "border-[#1B5E20] ring-2 ring-[#1B5E20]/20" : "border-gray-300"} ${isLight ? "bg-gray-50" : "bg-white"} disabled:cursor-not-allowed disabled:opacity-50`}
+                            className={`inline-flex h-7 w-7 items-center justify-center rounded border transition ${isActive ? "border-[#1B5E20] bg-[#F6FBF7]" : "border-gray-300"} ${isLight ? "bg-gray-50" : "bg-white"} disabled:cursor-not-allowed disabled:opacity-50`}
                           >
                             <span
                               className="h-4 w-4 rounded-full border border-black/10"
