@@ -125,6 +125,7 @@ function generateReservationStartSlots(openTime: string, closeTime: string, slot
 
 type ReservationByDateRow = {
   id?: number;
+  reservationType?: "member" | "external" | "course" | string | null;
   startTime: string;
   endTime: string;
   status: string;
@@ -158,7 +159,21 @@ function getReservationName(row: ReservationByDateRow) {
   return row.reserverName || row.userName || "이름 없음";
 }
 
+function getReservationTypeLabel(row: ReservationByDateRow) {
+  if (row.reservationType === "external") return "외부인";
+  if (row.reservationType === "course") return "강좌";
+  return "성도";
+}
+
+function getReservationTypeBadgeClass(row: ReservationByDateRow) {
+  if (row.reservationType === "external") return "bg-amber-100 text-amber-700";
+  if (row.reservationType === "course") return "bg-blue-100 text-blue-700";
+  return "bg-green-100 text-green-700";
+}
+
 function getReservationPosition(row: ReservationByDateRow) {
+  if (row.reservationType === "external") return row.department || "외부인";
+  if (row.reservationType === "course") return row.department || "강좌";
   return row.memberPosition || row.department || "-";
 }
 
@@ -386,7 +401,7 @@ function TimeSlotPanel({
     return (
       <div className="space-y-0.5">
         <p className="font-semibold text-white">
-          {getReservationName(bookedReservation)} · {getReservationTimeRange(bookedReservation)}
+          {getReservationTypeLabel(bookedReservation)} · {getReservationName(bookedReservation)} · {getReservationTimeRange(bookedReservation)}
         </p>
         <p className="text-gray-200">
           {getReservationPosition(bookedReservation)} · {getReservationPhone(bookedReservation)}
@@ -462,11 +477,18 @@ function TimeSlotPanel({
                       <span className="font-bold text-gray-900">
                         {getReservationTimeRange(reservation)}
                       </span>
-                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500">
-                        {getReservationStatusLabel(reservation.status)}
+                      <span className="flex flex-wrap items-center gap-1">
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${getReservationTypeBadgeClass(reservation)}`}>
+                          {getReservationTypeLabel(reservation)}
+                        </span>
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500">
+                          {getReservationStatusLabel(reservation.status)}
+                        </span>
                       </span>
                     </div>
                     <div className="mt-1 grid grid-cols-[52px_1fr] gap-x-2 gap-y-1">
+                      <span className="text-gray-400">구분</span>
+                      <span>{getReservationTypeLabel(reservation)}</span>
                       <span className="text-gray-400">이름</span>
                       <span className="font-medium text-gray-900">{getReservationName(reservation)}</span>
                       <span className="text-gray-400">직분/부서</span>
