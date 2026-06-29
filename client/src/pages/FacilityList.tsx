@@ -6,10 +6,11 @@
 import { useMemo } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { canManageAdminTab } from "@/lib/contentPermissions";
 import type { Facility, FacilityImage } from "../../../drizzle/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Clock, MapPin, CalendarCheck, Phone, Building2 } from "lucide-react";
+import { Users, Clock, MapPin, CalendarCheck, Phone, Building2, Settings } from "lucide-react";
 
 const FACILITY_BUILDINGS = [
   { value: "hayoungin", label: "하영인관" },
@@ -241,9 +242,15 @@ function FacilityList({ audience = "member" }: { audience?: FacilityAudience }) 
   const externalFacilitiesQuery = trpc.home.externalFacilities.useQuery(undefined, { enabled: isExternal });
   const facilities = isExternal ? externalFacilitiesQuery.data : memberFacilitiesQuery.data;
   const isLoading = isExternal ? externalFacilitiesQuery.isLoading : memberFacilitiesQuery.isLoading;
+  const { data: authMe } = trpc.auth.me.useQuery(undefined, {
+    enabled: !isExternal,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
   const { data: settings } = trpc.home.settings.useQuery();
   const searchString = useSearch();
   const [, navigate] = useLocation();
+  const canManageReservations = canManageAdminTab(authMe ?? null, "reservations");
   const activeBuilding = useMemo(
     () => getFacilityBuildingFromSearch(searchString),
     [searchString],
@@ -269,13 +276,21 @@ function FacilityList({ audience = "member" }: { audience?: FacilityAudience }) 
       <section className="py-12">
         <div className="container">
           {!isExternal && (
-            <div className="mb-6 flex justify-end">
+            <div className="mb-6 flex justify-end gap-2">
               <Link href="/facility/my-reservations">
                 <Button variant="outline" className="border-[#1B5E20] text-[#1B5E20] hover:bg-green-50">
                   <CalendarCheck size={16} className="mr-2" />
                   내 예약 현황
                 </Button>
               </Link>
+              {canManageReservations && (
+                <Link href="/admin_joych_2026?tab=reservations">
+                  <Button className="bg-[#1B5E20] text-white hover:bg-[#2E7D32]">
+                    <Settings size={16} className="mr-2" />
+                    {"\uC608\uC57D \uAD00\uB9AC"}
+                  </Button>
+                </Link>
+              )}
             </div>
           )}
 
