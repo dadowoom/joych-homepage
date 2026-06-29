@@ -11,7 +11,7 @@ import { Link, useParams, useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import type { FacilityBlockedDate } from "../../../drizzle/schema";
 import { toast } from "sonner";
-import { Loader2, ChevronRight, Clock, Users, MapPin, Calendar, CheckCircle2, AlertCircle, CreditCard } from "lucide-react";
+import { Loader2, ChevronRight, Clock, Users, MapPin, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ReservationConflictDialog, {
   isReservationConflictMessage,
@@ -312,6 +312,16 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
   const { data: reservationsByDate } = trpc.home.facilityReservationsByDate.useQuery(
     { facilityId, date: form.date },
     { enabled: !!facilityId && !!form.date }
+  );
+  const externalFacilityRulesQuery = trpc.home.getExternalFacilityRules.useQuery(undefined, {
+    enabled: isExternal,
+  });
+  const externalFacilityRuleLines = useMemo(
+    () => (externalFacilityRulesQuery.data ?? "")
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean),
+    [externalFacilityRulesQuery.data],
   );
 
   const onReservationCreated = (data: { status: string; count?: number | null; recurrenceLabel?: string | null }) => {
@@ -616,6 +626,16 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                 </Link>
               </div>
 
+              {isExternal && facility.externalNotice && (
+                <div className="mb-6 rounded-xl border border-teal-100 bg-teal-50 p-4 text-sm leading-6 text-teal-900">
+                  <div className="mb-1 flex items-center gap-2 font-bold">
+                    <AlertCircle className="h-4 w-4 text-teal-600" />
+                    시설 안내
+                  </div>
+                  <p className="whitespace-pre-line text-teal-800">{facility.externalNotice}</p>
+                </div>
+              )}
+
               {/* 로그인 안내 — 로딩 중에는 숨겨서 깜빡임 방지 */}
               {!isExternal && !memberLoading && !isApprovedMember && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-center gap-3">
@@ -842,23 +862,6 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                   />
                 </Field>
 
-                {isExternal && (
-                  <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
-                    <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-blue-900">
-                      <CreditCard className="h-4 w-4" />
-                      사용료 계좌 안내
-                    </h3>
-                    <div className="space-y-1 text-sm text-blue-800">
-                      <p><span className="font-semibold">은행:</span> 하나은행</p>
-                      <p><span className="font-semibold">계좌:</span> 132-910107-62505</p>
-                      <p><span className="font-semibold">예금주:</span> 대한예수교장로회 기쁨의교회</p>
-                    </div>
-                    <p className="mt-2 text-xs text-blue-600">
-                      사용료 입금 시 입금자 이름과 신청자 이름을 맞춰 주세요.
-                    </p>
-                  </div>
-                )}
-
                 <Field label="추가 요청사항">
                   <textarea
                     name="notes"
@@ -875,15 +878,17 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                     <h3 className="mb-3 text-sm font-bold text-amber-900">
                       외부 시설 사용 시 주의사항
                     </h3>
-                    <ol className="list-decimal space-y-1.5 pl-5 text-xs leading-5 text-amber-900">
-                      <li>가능하시면 장소를 직접 확인해주시길 바랍니다.</li>
-                      <li>신청서 작성 후 교회 사무국에 장소와 금액을 확인 후 작성해주시기 바랍니다.</li>
-                      <li>신청서 제출방법: Fax 054-270-1005 / E-mail: joych1946@daum.net</li>
-                      <li>사용료 입금자 이름과 신청자 이름을 맞춰 주세요.</li>
-                      <li>신청한 단체의 사정으로 인해 취소할 경우 반환수수료를 제외한 금액을 반환 조치합니다.</li>
-                      <li>시설 내 음주, 흡연, 가무, 고성방가 행위 등은 허용되지 않으며 상황에 따라 퇴실조치 및 추후 이용불가합니다.</li>
-                      <li>각 부속시설에 있는 음향장비 및 영상장비는 사용이 불가합니다. 필요 시 사용자 측에서 준비해주시기 바랍니다.</li>
-                    </ol>
+                    {externalFacilityRulesQuery.isLoading ? (
+                      <p className="text-xs leading-5 text-amber-900">주의사항을 불러오는 중입니다.</p>
+                    ) : externalFacilityRuleLines.length > 0 ? (
+                      <ol className="list-decimal space-y-1.5 pl-5 text-xs leading-5 text-amber-900">
+                        {externalFacilityRuleLines.map((line, index) => (
+                          <li key={`${index}-${line}`}>{line}</li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <p className="text-xs leading-5 text-amber-900">등록된 주의사항이 없습니다.</p>
+                    )}
                     <p className="mt-3 text-xs text-amber-700">
                       문의: 기쁨의교회 사무국 054-270-1002
                     </p>

@@ -832,6 +832,7 @@ export const facilities = mysqlTable("facilities", {
   isVisible: boolean("isVisible").notNull().default(true),
   /** 이용 안내 (마크다운 지원) */
   notice: text("notice"),
+  externalNotice: text("externalNotice"),
   /** 예약 시 주의사항 */
   caution: text("caution"),
   /** 정렬 순서 */

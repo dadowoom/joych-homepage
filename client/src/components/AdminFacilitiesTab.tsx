@@ -145,6 +145,7 @@ interface FacilityForm {
   useExternalAdvanceDaysDefault: boolean;
   externalAdvanceDaysOverride: string;
   notice: string;
+  externalNotice: string;
 }
 
 type FacilityImageDraft = {
@@ -171,6 +172,7 @@ const EMPTY_FORM: FacilityForm = {
   useExternalAdvanceDaysDefault: true,
   externalAdvanceDaysOverride: "",
   notice: "",
+  externalNotice: "",
 };
 
 function getFacilityBuildingLabel(building: string | null | undefined) {
@@ -473,6 +475,9 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
   const { data: pageSettings } = trpc.home.settings.useQuery();
   const facilityRows = facilities ?? [];
   const isExternalMode = mode === "external";
+  const externalFacilityRulesQuery = trpc.home.getExternalFacilityRules.useQuery(undefined, {
+    enabled: isExternalMode,
+  });
   const isFacilityResourceMode = mode === "facilities" || isExternalMode;
   const facilityRowsForMode = useMemo(
     () => isExternalMode
@@ -499,6 +504,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
   const [applyingBuilding, setApplyingBuilding] = useState<FacilityBuilding | null>(null);
   const [activeFacilitySubTab, setActiveFacilitySubTab] = useState<FacilitySubTab>("list");
   const [pageSettingDrafts, setPageSettingDrafts] = useState<Record<FacilityPageSettingKey, string>>(createFacilityPageSettingDrafts);
+  const [externalRulesText, setExternalRulesText] = useState("");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const buildingCounts = useMemo(() => {
     const counts = new Map<FacilityBuilding, number>(FACILITY_BUILDINGS.map((building) => [building.value, 0]));
@@ -572,6 +578,11 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
       return next;
     });
   }, [pageSettings]);
+
+  useEffect(() => {
+    if (externalFacilityRulesQuery.data === undefined) return;
+    setExternalRulesText(externalFacilityRulesQuery.data);
+  }, [externalFacilityRulesQuery.data]);
 
   // ── Mutations ─────────────────────────────────────────
   const createFacility = trpc.cms.facilities.create.useMutation({
@@ -675,6 +686,13 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
   const upsertExternalHour = trpc.cms.facilities.externalHours.upsert.useMutation();
   const updateFacilityPageSetting = trpc.cms.facilities.pageSettings.update.useMutation({
     onSuccess: () => utils.home.settings.invalidate(),
+  });
+  const updateExternalFacilityRules = trpc.home.setExternalFacilityRules.useMutation({
+    onSuccess: async () => {
+      await utils.home.getExternalFacilityRules.invalidate();
+      toast.success("외부 시설 주의사항이 저장되었습니다.");
+    },
+    onError: (e) => toast.error(e.message || "외부 시설 주의사항 저장에 실패했습니다."),
   });
 
   async function upsertHourForMode(input: {
@@ -978,6 +996,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
           ? ""
           : String(f.externalAdvanceDaysOverride),
       notice: f.notice ?? "",
+      externalNotice: f.externalNotice ?? "",
     });
     setImages([]);
     setHours(createDefaultHours());
@@ -1022,6 +1041,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
       isExternalReservable: form.isExternalReservable,
       externalAdvanceDaysOverride,
       notice: form.notice,
+      ...(isExternalMode ? { externalNotice: form.externalNotice } : {}),
     };
 
     if (editingId) {
@@ -1247,6 +1267,38 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
               </span>
             </span>
           </button>
+        </div>
+      )}
+
+      {isExternalMode && activeFacilitySubTab === "list" && (
+        <div className="rounded-xl border border-amber-100 bg-amber-50/70 p-5 shadow-sm">
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h4 className="flex items-center gap-2 text-sm font-bold text-gray-900">
+                <Settings className="h-4 w-4 text-amber-600" />
+                외부 시설 사용 주의사항
+              </h4>
+              <p className="mt-1 text-xs text-gray-500">
+                외부 신청서에 표시되는 주의사항입니다. 줄바꿈한 각 줄이 번호 목록으로 표시됩니다.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => updateExternalFacilityRules.mutate({ rules: externalRulesText })}
+              disabled={updateExternalFacilityRules.isPending}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#1B5E20] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32] disabled:opacity-50"
+            >
+              {updateExternalFacilityRules.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              주의사항 저장
+            </button>
+          </div>
+          <textarea
+            value={externalRulesText}
+            onChange={(e) => setExternalRulesText(e.target.value)}
+            rows={7}
+            placeholder="외부 시설 사용 시 주의사항을 한 줄에 하나씩 입력해 주세요."
+            className="w-full resize-y rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm leading-6 focus:border-[#1B5E20] focus:outline-none"
+          />
         </div>
       )}
 
@@ -1544,6 +1596,17 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
                 rows={2}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20] resize-none" />
             </div>
+            {isExternalMode && (
+              <div className="md:col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">외부 신청 안내문</label>
+                <textarea value={form.externalNotice}
+                  onChange={e => setForm(p => ({ ...p, externalNotice: e.target.value }))}
+                  placeholder="예: 외부 신청 전 사무국에 장소 사용 가능 여부를 확인해 주세요."
+                  rows={3}
+                  className="w-full border border-teal-100 bg-teal-50/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20] resize-none" />
+                <p className="mt-1 text-[11px] text-gray-400">외부 신청서와 외부 시설 상세 화면에만 표시됩니다.</p>
+              </div>
+            )}
           </div>
 
           {/* 예약 조건 */}

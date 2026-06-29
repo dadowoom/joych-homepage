@@ -15,7 +15,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
+import { adminPermissionProcedure, publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
 import {
   canMemberRequestFacilityReservation,
   hasFacilityReservationRuleOverride,
@@ -40,6 +40,8 @@ import {
   getVisibleGalleryItems,
   getVisibleHomeGalleryItems,
   getSiteSettings,
+  getSiteSetting,
+  upsertSiteSetting,
   getVisibleMenus,
   getVisibleMenuItemById,
   getVisibleMenuSubItemById,
@@ -157,6 +159,8 @@ const staticPageHrefSchema = z.string().trim().min(1).max(128).regex(/^\//);
 const staffCategorySchema = z.string().trim().min(1).max(64).regex(/^[a-z0-9][a-z0-9_-]{0,63}$/);
 const translationLocaleSchema = z.enum(["ja"]);
 const courseMemoSchema = z.string().trim().max(2000, "신청 메모는 2000자 이하로 입력해주세요.").optional();
+const externalFacilityRulesSettingKey = "external_facility_rules";
+
 const reservationRepeatSchema = z.object({
   type: z.enum(["none", "daily", "weekly", "monthly-weekday"]).default("none"),
   count: z.number().int().min(1).max(52).optional(),
@@ -401,6 +405,15 @@ export const homeRouter = router({
 
   /** 사이트 설정 (교회명, 주소, 연락처 등) */
   settings: publicProcedure.query(() => getSiteSettings()),
+
+  getExternalFacilityRules: publicProcedure.query(async () => {
+    const setting = await getSiteSetting(externalFacilityRulesSettingKey);
+    return setting?.settingValue ?? "";
+  }),
+
+  setExternalFacilityRules: adminPermissionProcedure("content:facilities")
+    .input(z.object({ rules: z.string().max(20000) }))
+    .mutation(({ input }) => upsertSiteSetting(externalFacilityRulesSettingKey, input.rules)),
 
   /** 교회연혁 공개 데이터 */
   history: publicProcedure.query(() => getPublicHistory()),

@@ -998,6 +998,50 @@ try {
 NODE
 fi
 
+MIGRATION_0060="${APP_DIR}/drizzle/0060_external_facility_rules_notice.sql"
+if [[ -f "${MIGRATION_0060}" ]]; then
+  echo "[deploy] database migration: external facility rules and notice"
+  node --input-type=module <<'NODE'
+import fs from "node:fs/promises";
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required for migration 0060.");
+}
+
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  const [rows] = await connection.execute(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    ["0060_external_facility_rules_notice"],
+  );
+  if (Array.isArray(rows) && rows.length > 0) {
+    console.log("[deploy] migration 0060 already applied");
+  } else {
+    const sql = await fs.readFile("drizzle/0060_external_facility_rules_notice.sql", "utf8");
+    const statements = sql.split(/;\s*(?:\r?\n|$)/).map((statement) => statement.trim()).filter(Boolean);
+    for (const statement of statements) {
+      await connection.query(statement);
+    }
+    await connection.execute(
+      "INSERT INTO app_migrations (id) VALUES (?)",
+      ["0060_external_facility_rules_notice"],
+    );
+    console.log("[deploy] migration 0060 applied");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4
