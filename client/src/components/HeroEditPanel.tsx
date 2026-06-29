@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { Pencil, Check, X, Eye, EyeOff, Trash2, Plus, Upload, Video, Link as LinkIcon, RotateCcw } from "lucide-react";
+import { Pencil, Check, X, Eye, EyeOff, Trash2, Plus, Upload, Video, Link as LinkIcon, RotateCcw, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 
 const MAX_HERO_BUTTONS = 4;
@@ -195,6 +195,7 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editState, setEditState] = useState<EditState>(EMPTY_EDIT);
   const [commonButtons, setCommonButtons] = useState<HeroButtonDraft[]>(DEFAULT_HERO_BUTTONS);
+  const [openPresetPickerId, setOpenPresetPickerId] = useState<string | null>(null);
 
   // 새 슬라이드 추가 폼 표시 여부
   const [showAddForm, setShowAddForm] = useState(false);
@@ -519,6 +520,7 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
   const renderButtonListEditor = (
     buttons: HeroButtonDraft[],
     setButtons: (buttons: HeroButtonDraft[]) => void,
+    scope: string,
     options?: { disabled?: boolean; compact?: boolean },
   ) => {
     const disabled = options?.disabled ?? false;
@@ -526,7 +528,11 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
 
     return (
       <div className="space-y-2">
-        {visibleButtons.map((button, index) => (
+        {visibleButtons.map((button, index) => {
+          const presetPickerId = `${scope}-${index}`;
+          const isPresetPickerOpen = openPresetPickerId === presetPickerId;
+
+          return (
           <div key={index} className="rounded-md border border-gray-200 bg-white p-2">
             <div className="mb-1 flex items-center justify-between">
               <span className="text-[11px] font-semibold text-gray-500">버튼 {index + 1}</span>
@@ -566,33 +572,53 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
                     onChange={(event) => updateButtonDraft(visibleButtons, setButtons, index, { color: event.target.value })}
                     className="h-9 w-14 cursor-pointer rounded border border-gray-300 bg-white p-1 disabled:cursor-not-allowed"
                   />
-                  <Input
-                    value={getButtonColorDisplayText(button.color, index)}
-                    readOnly
-                    className="h-9 text-xs font-mono"
-                  />
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    aria-expanded={isPresetPickerOpen}
+                    onClick={() => setOpenPresetPickerId(isPresetPickerOpen ? null : presetPickerId)}
+                    className="flex h-9 flex-1 items-center justify-between rounded-md border border-[#1B5E20]/35 bg-white px-3 text-xs text-gray-700 shadow-sm transition hover:border-[#1B5E20] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="h-4 w-4 shrink-0 rounded-full border border-black/10"
+                        style={{ backgroundColor: getButtonPickerColor(button.color, index) }}
+                      />
+                      <span className="truncate font-medium">{getButtonColorDisplayText(button.color, index)}</span>
+                    </span>
+                    <ChevronDown
+                      className={`h-4 w-4 shrink-0 text-gray-500 transition-transform ${isPresetPickerOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {HERO_BUTTON_PRESET_OPTIONS.map((option) => {
-                    const isActive = button.color === option.value;
-                    const isLight = option.value === "secondary" || option.value === "amber";
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        title={option.label}
-                        disabled={disabled}
-                        onClick={() => updateButtonDraft(visibleButtons, setButtons, index, { color: option.value })}
-                        className={`inline-flex h-7 w-7 items-center justify-center rounded border transition ${isActive ? "border-[#1B5E20] ring-2 ring-[#1B5E20]/20" : "border-gray-300"} ${isLight ? "bg-gray-50" : "bg-white"} disabled:cursor-not-allowed disabled:opacity-50`}
-                      >
-                        <span
-                          className="h-4 w-4 rounded-full border border-black/10"
-                          style={{ backgroundColor: option.color }}
-                        />
-                      </button>
-                    );
-                  })}
-                </div>
+                {isPresetPickerOpen ? (
+                  <div className="mt-2 rounded-md border border-[#1B5E20]/15 bg-[#F7FBF7] p-2">
+                    <div className="flex flex-wrap gap-1.5">
+                      {HERO_BUTTON_PRESET_OPTIONS.map((option) => {
+                        const isActive = button.color === option.value;
+                        const isLight = option.value === "secondary" || option.value === "amber";
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            title={option.label}
+                            disabled={disabled}
+                            onClick={() => {
+                              updateButtonDraft(visibleButtons, setButtons, index, { color: option.value });
+                              setOpenPresetPickerId(null);
+                            }}
+                            className={`inline-flex h-7 w-7 items-center justify-center rounded border transition ${isActive ? "border-[#1B5E20] ring-2 ring-[#1B5E20]/20" : "border-gray-300"} ${isLight ? "bg-gray-50" : "bg-white"} disabled:cursor-not-allowed disabled:opacity-50`}
+                          >
+                            <span
+                              className="h-4 w-4 rounded-full border border-black/10"
+                              style={{ backgroundColor: option.color }}
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
               </label>
               <div className="flex flex-col justify-end gap-2">
                 <label className="flex items-end gap-2 text-[11px] text-gray-600">
@@ -611,14 +637,20 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
                   variant="outline"
                   className="h-9 justify-start px-3 text-xs text-gray-600"
                   disabled={disabled || !button.color}
-                  onClick={() => updateButtonDraft(visibleButtons, setButtons, index, { color: undefined })}
+                  onClick={() => {
+                    updateButtonDraft(visibleButtons, setButtons, index, { color: undefined });
+                    if (isPresetPickerOpen) {
+                      setOpenPresetPickerId(null);
+                    }
+                  }}
                 >
                   기본 디자인 사용
                 </Button>
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
         <Button
           type="button"
           size="sm"
@@ -645,7 +677,7 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
         </div>
         <LinkIcon className="mt-0.5 h-4 w-4 shrink-0 text-[#1B5E20]" />
       </div>
-      {renderButtonListEditor(commonButtons, setCommonButtons)}
+      {renderButtonListEditor(commonButtons, setCommonButtons, "common")}
       <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <Button
           type="button"
@@ -674,6 +706,7 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
   const renderSlideButtonEditor = (
     state: EditState,
     setState: (s: EditState) => void,
+    scope: string,
   ) => (
     <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
       <label className="flex items-start gap-2">
@@ -698,6 +731,7 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
         {renderButtonListEditor(
           state.buttons,
           (buttons) => setState({ ...state, buttons }),
+          scope,
           { disabled: !state.useCustomButtons },
         )}
       </div>
@@ -745,7 +779,7 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
         <label className="text-xs text-gray-500 mb-1 block">성경 구절 출처</label>
         <Input value={state.bibleRef} onChange={(e) => setState({ ...state, bibleRef: e.target.value })} placeholder="예: 잠언 3장 9절" className="text-sm" />
       </div>
-      {renderSlideButtonEditor(state, setState)}
+      {renderSlideButtonEditor(state, setState, target)}
 
       {/* 영상 업로드 필드 */}
       {renderVideoUploadField(state, setState, target, inputRef)}
