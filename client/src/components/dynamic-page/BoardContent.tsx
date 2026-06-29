@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { Check, ChevronLeft, ChevronRight, FileText, ImageIcon, Paperclip, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, FileText, Paperclip, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { RichTextEditor, RichTextViewer, sanitizeRichTextHtml } from "@/components/ui/rich-text-editor";
@@ -124,6 +124,15 @@ const ATTACHMENT_HELP_TEXT = "pdf, hwp, office \uBB38\uC11C, zip, \uC774\uBBF8\u
 const ATTACHMENT_TOO_LARGE_TEXT = "\uCCA8\uBD80\uD30C\uC77C\uC740 25MB \uC774\uD558 \uD30C\uC77C\uB9CC \uC5C5\uB85C\uB4DC\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.";
 const ATTACHMENT_UPLOAD_SUCCESS_TEXT = "\uCCA8\uBD80\uD30C\uC77C \uC5C5\uB85C\uB4DC \uC644\uB8CC";
 const ATTACHMENT_UPLOAD_FAILURE_LABEL = "\uCCA8\uBD80\uD30C\uC77C \uC5C5\uB85C\uB4DC \uC2E4\uD328";
+const IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
+const IMAGE_HELP_TEXT = "\uC774\uBBF8\uC9C0 \uD30C\uC77C\uC744 10MB\uAE4C\uC9C0 \uC5C5\uB85C\uB4DC\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.";
+const IMAGE_ONLY_UPLOAD_TEXT = "\uC774\uBBF8\uC9C0 \uD30C\uC77C\uB9CC \uC5C5\uB85C\uB4DC\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.";
+const IMAGE_TOO_LARGE_TEXT = "\uC774\uBBF8\uC9C0\uB294 10MB \uC774\uD558 \uD30C\uC77C\uB9CC \uC5C5\uB85C\uB4DC\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.";
+
+function isImageUploadFile(file: File) {
+  return file.type.startsWith("image/") || /\.(jpe?g|png|webp|gif)$/i.test(file.name);
+}
 
 function readFileAsBase64(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -165,12 +174,10 @@ function NoticeBoardContent({
   const [searchKeyword, setSearchKeyword] = useState("");
   const [formMode, setFormMode] = useState<NoticeFormMode>(null);
   const [editingNoticeId, setEditingNoticeId] = useState<number | null>(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
   const [newCategoryLabel, setNewCategoryLabel] = useState("");
-  const imageInputRef = useRef<HTMLInputElement>(null);
-  const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const viewedNoticeIdsRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
@@ -423,54 +430,44 @@ function NoticeBoardContent({
     setFormState(getBlankForm());
   };
 
-  const handleImageFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleUploadFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const maxSize = 10 * 1024 * 1024;
-    if (file.size > maxSize) {
-      toast.error("이미지는 10MB 이하 파일만 업로드할 수 있습니다.");
+    const isImage = isImageUploadFile(file);
+    if (!supportsAttachments && !isImage) {
+      toast.error(IMAGE_ONLY_UPLOAD_TEXT);
       event.target.value = "";
       return;
     }
 
-    setUploadingImage(true);
-    try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          resolve(result.split(",")[1] ?? "");
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      const { url } = await uploadImageMutation.mutateAsync({
-        base64,
-        fileName: file.name,
-        mimeType: file.type || "image/jpeg",
-      });
-      setFormState((previous) => ({ ...previous, thumbnailUrl: url }));
-      toast.success(ATTACHMENT_UPLOAD_SUCCESS_TEXT);
-    } finally {
-      setUploadingImage(false);
+    if (!supportsAttachments && file.size > IMAGE_MAX_BYTES) {
+      toast.error(IMAGE_TOO_LARGE_TEXT);
       event.target.value = "";
+      return;
     }
-  };
 
-  const handleAttachmentFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > ATTACHMENT_MAX_BYTES) {
+    if (supportsAttachments && file.size > ATTACHMENT_MAX_BYTES) {
       toast.error(ATTACHMENT_TOO_LARGE_TEXT);
       event.target.value = "";
       return;
     }
 
-    setUploadingAttachment(true);
+    setUploadingFile(true);
     try {
       const base64 = await readFileAsBase64(file);
+
+      if (!supportsAttachments) {
+        const { url } = await uploadImageMutation.mutateAsync({
+          base64,
+          fileName: file.name,
+          mimeType: file.type || "image/jpeg",
+        });
+        setFormState((previous) => ({ ...previous, thumbnailUrl: url }));
+        toast.success(ATTACHMENT_UPLOAD_SUCCESS_TEXT);
+        return;
+      }
+
       const result = await uploadAttachmentMutation.mutateAsync({
         base64,
         fileName: file.name,
@@ -478,12 +475,13 @@ function NoticeBoardContent({
       });
       setFormState((previous) => ({
         ...previous,
+        thumbnailUrl: isImage ? result.url : "",
         attachmentName: result.fileName,
         attachmentUrl: result.url,
       }));
       toast.success(ATTACHMENT_UPLOAD_SUCCESS_TEXT);
     } finally {
-      setUploadingAttachment(false);
+      setUploadingFile(false);
       event.target.value = "";
     }
   };
@@ -732,9 +730,26 @@ function NoticeBoardContent({
                   />
                 </div>
           <div className="space-y-2 md:col-span-2">
-            <span className="block text-sm font-semibold text-gray-700">첨부 이미지</span>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="block text-sm font-semibold text-gray-700">{ATTACHMENT_LABEL}</span>
+              {(formState.thumbnailUrl || formState.attachmentUrl) && (
+                <button
+                  type="button"
+                  onClick={() => setFormState((previous) => ({
+                    ...previous,
+                    thumbnailUrl: "",
+                    attachmentName: "",
+                    attachmentUrl: "",
+                  }))}
+                  className="inline-flex h-8 items-center gap-1 border border-red-200 px-3 text-xs text-red-500 hover:bg-red-50"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  {ATTACHMENT_REMOVE_LABEL}
+                </button>
+              )}
+            </div>
             {formState.thumbnailUrl && (
-              <div className="relative max-w-sm border border-gray-200 bg-gray-50 p-2">
+              <div className="max-w-sm border border-gray-200 bg-gray-50 p-2">
                 <img
                   src={formState.thumbnailUrl}
                   alt=""
@@ -742,91 +757,44 @@ function NoticeBoardContent({
                   onError={(event) => {
                     (event.target as HTMLImageElement).style.display = "none";
                   }}
-                 loading="lazy"/>
-                <button
-                  type="button"
-                  onClick={() => setFormState((previous) => ({ ...previous, thumbnailUrl: "" }))}
-                  className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center bg-white text-red-500 shadow-sm"
-                  aria-label="첨부 이미지 제거"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                  loading="lazy"
+                />
               </div>
             )}
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => imageInputRef.current?.click()}
-                disabled={uploadingImage}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingFile}
                 className="inline-flex h-9 items-center gap-2 border border-[#1B5E20] px-3 text-sm font-medium text-[#1B5E20] hover:bg-[#F1F8E9] disabled:opacity-50"
               >
-                {uploadingImage ? <Upload className="h-4 w-4 animate-bounce" /> : <ImageIcon className="h-4 w-4" />}
-                {uploadingImage ? "업로드 중" : "이미지 파일 선택"}
+                {uploadingFile ? <Upload className="h-4 w-4 animate-bounce" /> : <Paperclip className="h-4 w-4" />}
+                {uploadingFile ? ATTACHMENT_UPLOADING_LABEL : ATTACHMENT_SELECT_LABEL}
               </button>
               <input
-                ref={imageInputRef}
+                ref={fileInputRef}
                 type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
+                accept={supportsAttachments ? ATTACHMENT_ACCEPT : IMAGE_ACCEPT}
                 className="hidden"
-                onChange={handleImageFileChange}
+                onChange={handleUploadFileChange}
               />
-              <input
-                value={formState.thumbnailUrl}
-                onChange={(event) => setFormState((previous) => ({ ...previous, thumbnailUrl: event.target.value }))}
-                placeholder="이미지 URL 직접 입력"
-                className="h-9 min-w-64 flex-1 border border-gray-300 px-3 text-xs outline-none focus:border-[#1B5E20]"
-              />
-            </div>
-          </div>
-          {supportsAttachments && (
-            <div className="space-y-2 md:col-span-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="block text-sm font-semibold text-gray-700">{ATTACHMENT_LABEL}</span>
-                {formState.attachmentUrl && (
-                  <button
-                    type="button"
-                    onClick={() => setFormState((previous) => ({ ...previous, attachmentName: "", attachmentUrl: "" }))}
-                    className="inline-flex h-8 items-center gap-1 border border-red-200 px-3 text-xs text-red-500 hover:bg-red-50"
+              <div className="min-w-0 flex-1 border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                {formState.attachmentUrl ? (
+                  <a
+                    href={formState.attachmentUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex max-w-full items-center gap-2 text-[#1B5E20] hover:underline"
                   >
-                    <X className="h-3.5 w-3.5" />
-                    {ATTACHMENT_REMOVE_LABEL}
-                  </button>
+                    <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{formState.attachmentName || ATTACHMENT_LABEL}</span>
+                  </a>
+                ) : (
+                  <span>{supportsAttachments ? ATTACHMENT_HELP_TEXT : IMAGE_HELP_TEXT}</span>
                 )}
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => attachmentInputRef.current?.click()}
-                  disabled={uploadingAttachment}
-                  className="inline-flex h-9 items-center gap-2 border border-[#1B5E20] px-3 text-sm font-medium text-[#1B5E20] hover:bg-[#F1F8E9] disabled:opacity-50"
-                >
-                  {uploadingAttachment ? ATTACHMENT_UPLOADING_LABEL : ATTACHMENT_SELECT_LABEL}
-                </button>
-                <input
-                  ref={attachmentInputRef}
-                  type="file"
-                  accept={ATTACHMENT_ACCEPT}
-                  className="hidden"
-                  onChange={handleAttachmentFileChange}
-                />
-                <div className="min-w-0 flex-1 border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                  {formState.attachmentUrl ? (
-                    <a
-                      href={formState.attachmentUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex max-w-full items-center gap-2 text-[#1B5E20] hover:underline"
-                    >
-                      <Paperclip className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{formState.attachmentName || ATTACHMENT_LABEL}</span>
-                    </a>
-                  ) : (
-                    <span>{ATTACHMENT_HELP_TEXT}</span>
-                  )}
-                </div>
-              </div>
             </div>
-          )}
+          </div>
           <div className="flex flex-wrap gap-5 md:col-span-2">
             <label className="inline-flex items-center gap-2 text-sm text-gray-700">
               <input
@@ -875,7 +843,7 @@ function NoticeBoardContent({
             </button>
             <button
               type="submit"
-              disabled={isSaving || uploadingImage || uploadingAttachment}
+              disabled={isSaving || uploadingFile}
               className="inline-flex h-9 items-center gap-2 bg-[#1B5E20] px-4 text-sm font-medium text-white hover:bg-[#2E7D32] disabled:opacity-50"
             >
               <Check className="h-4 w-4" />
