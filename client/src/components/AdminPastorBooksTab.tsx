@@ -117,6 +117,7 @@ export function PastorBookEditorDialog({ open, book, defaultSortOrder = 1, onClo
   const [editingId, setEditingId] = useState<number | null>(book?.id ?? null);
   const [form, setForm] = useState<BookFormState>(() => toForm(book, defaultSortOrder));
   const [uploading, setUploading] = useState(false);
+  const [pendingImages, setPendingImages] = useState<File[]>([]);
 
   const bookDetailQuery = trpc.cms.pastorBooks.get.useQuery(
     { id: editingId ?? 0 },
@@ -149,6 +150,12 @@ export function PastorBookEditorDialog({ open, book, defaultSortOrder = 1, onClo
     setForm(toForm(bookDetailQuery.data, defaultSortOrder));
   }, [book?.id, bookDetailQuery.data, defaultSortOrder, open]);
 
+  useEffect(() => {
+    if (!open) {
+      setPendingImages([]);
+    }
+  }, [open]);
+
   async function invalidateAll(id?: number | null) {
     await Promise.all([
       utils.home.pastorBooks.invalidate(),
@@ -169,16 +176,36 @@ export function PastorBookEditorDialog({ open, book, defaultSortOrder = 1, onClo
     if (editingId) {
       await updateBook.mutateAsync({ id: editingId, ...payload });
       await invalidateAll(editingId);
-      toast.success("저서가 수정되었습니다.");
+      toast.success("?? ???????.");
       onSaved?.();
       return;
     }
 
     const id = await createBook.mutateAsync(payload);
-    const createdId = typeof id === "number" ? id : null;
+    const createdId = typeof id === "number" ? id : (id as { id?: number } | null)?.id ?? null;
+    if (createdId && pendingImages.length > 0) {
+      setUploading(true);
+      try {
+        for (const file of pendingImages) {
+          const base64 = await readFileAsBase64(file);
+          await uploadImage.mutateAsync({
+            bookId: createdId,
+            base64,
+            fileName: file.name,
+            mimeType: file.type || "image/jpeg",
+            isThumbnail: false,
+          });
+        }
+        setPendingImages([]);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "? ?? ? ??? ???? ??????.");
+      } finally {
+        setUploading(false);
+      }
+    }
     setEditingId(createdId);
     await invalidateAll(createdId);
-    toast.success("저서가 추가되었습니다. 이제 이미지를 업로드할 수 있습니다.");
+    toast.success(pendingImages.length > 0 ? "?? ???? ?? ???????." : "?? ???????.");
     onSaved?.();
   }
 
@@ -306,7 +333,7 @@ export function PastorBookEditorDialog({ open, book, defaultSortOrder = 1, onClo
                 <h3 className="text-sm font-bold text-gray-900">이미지</h3>
                 <button
                   type="button"
-                  disabled={!canManageImages || uploading}
+                  disabled={uploading}
                   onClick={() => fileInputRef.current?.click()}
                   className="inline-flex items-center gap-1 rounded-md border border-[#A5D6A7] px-2 py-1 text-xs font-semibold text-[#1B5E20] disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -317,14 +344,53 @@ export function PastorBookEditorDialog({ open, book, defaultSortOrder = 1, onClo
                   ref={fileInputRef}
                   type="file"
                   accept="image/jpeg,image/png,image/webp,image/gif"
+                  multiple
                   className="hidden"
-                  onChange={(event) => handleUpload(event.target.files?.[0])}
+                  onChange={(event) => {
+                    const files = Array.from(event.target.files ?? []);
+                    if (files.length === 0) return;
+                    if (canManageImages) {
+                      void handleUpload(files[0]);
+                    } else {
+                      setPendingImages((prev) => [...prev, ...files]);
+                      event.target.value = "";
+                    }
+                  }}
                 />
               </div>
               {!canManageImages ? (
-                <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                  책을 먼저 저장하면 이미지를 업로드할 수 있습니다.
-                </p>
+                pendingImages.length > 0 ? (
+                  <div className="space-y-2">
+                    {pendingImages.map((file, index) => (
+                      <div key={`${file.name}-${index}`} className="flex items-center justify-between rounded-lg border border-gray-200 p-2">
+                        <span className="truncate text-xs text-gray-600">{file.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setPendingImages((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
+                          className="rounded-md p-1 text-red-500 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full rounded-lg border border-dashed border-gray-200 py-2 text-xs text-gray-500 hover:border-[#1B5E20]"
+                    >
+                      + ??? ??
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full rounded-lg border-2 border-dashed border-gray-200 py-8 text-center text-xs text-gray-400 hover:border-[#1B5E20] hover:text-[#1B5E20]"
+                  >
+                    <ImageIcon className="mx-auto mb-2 h-8 w-8" />
+                    ??? ?? (??? ? ?? ?????)
+                  </button>
+                )
               ) : images.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-gray-200 py-8 text-center text-xs text-gray-400">
                   <ImageIcon className="mx-auto mb-2 h-8 w-8 text-gray-300" />

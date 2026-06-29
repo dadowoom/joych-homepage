@@ -527,10 +527,12 @@ function SortablePastorBookCard({
   book,
   isOrdering,
   onEdit,
+  onDelete,
 }: {
   book: PastorBookPublicItem;
   isOrdering: boolean;
   onEdit: (book: PastorBookPublicItem) => void;
+  onDelete: (book: PastorBookPublicItem) => void;
 }) {
   const {
     attributes,
@@ -559,20 +561,29 @@ function SortablePastorBookCard({
         {...attributes}
         {...listeners}
         disabled={isOrdering}
-        title="드래그해서 책 순서를 변경"
-        aria-label={`${book.title} 순서 변경`}
+        title={"????? ? ??? ??"}
+        aria-label={book.title ? book.title + " ?? ??" : "? ?? ??"}
         className="absolute left-3 top-3 z-10 inline-flex h-9 w-9 cursor-grab items-center justify-center rounded-full bg-white/95 text-gray-400 shadow-sm ring-1 ring-gray-200 transition hover:text-[#1B5E20] active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-50 touch-none"
       >
         <GripVertical className="h-4 w-4" />
       </button>
-      <button
-        type="button"
-        onClick={() => onEdit(book)}
-        className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-[#1B5E20] shadow-sm ring-1 ring-[#D7F0D8] hover:bg-[#F1F8F2]"
-      >
-        <Pencil className="h-3.5 w-3.5" />
-        수정
-      </button>
+      <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onEdit(book)}
+          className="inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-[#1B5E20] shadow-sm ring-1 ring-[#D7F0D8] hover:bg-[#F1F8F2]"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+          ??
+        </button>
+        <button
+          type="button"
+          onClick={() => onDelete(book)}
+          className="inline-flex items-center rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-red-600 shadow-sm ring-1 ring-red-100 hover:bg-red-50"
+        >
+          ??
+        </button>
+      </div>
       <Link href={getPastorBookDetailUrl(book.id)} className="block">
         <div className="flex h-64 items-center justify-center overflow-hidden bg-gray-50">
           {book.coverImageUrl ? (
@@ -594,10 +605,10 @@ function SortablePastorBookCard({
           <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3 text-xs text-gray-400">
             <span className="inline-flex items-center gap-1">
               <CalendarDays className="h-3.5 w-3.5" />
-              {book.publishedAt || "날짜 미등록"}
+              {book.publishedAt || "?? ???"}
             </span>
             <span className="inline-flex items-center gap-1 text-[#1B5E20]">
-              보기
+              ??
             </span>
           </div>
         </div>
@@ -614,11 +625,14 @@ export function PastorBooksPage() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [selectedBook, setSelectedBook] = useState<PastorBookPublicItem | null>(null);
   const [orderedBooks, setOrderedBooks] = useState<PastorBookPublicItem[]>([]);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 12;
   const canManage = canManageBoardContent(user, "content:pastorBooks");
   const { data: adminPastorBooks = [], isLoading: isAdminPastorBooksLoading } = trpc.cms.pastorBooks.list.useQuery(undefined, { enabled: canManage });
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const sideMenuItems = useMemo(
-    () => getStaffSideMenuItems(menuTree, "담임목사 저서"),
+    () => getStaffSideMenuItems(menuTree, "???? ??"),
     [menuTree],
   );
   const books = (
@@ -633,18 +647,43 @@ export function PastorBooksPage() {
         utils.home.pastorBooks.invalidate(),
         utils.cms.pastorBooks.list.invalidate(),
       ]);
-      toast.success("저서 순서가 저장되었습니다.");
+      toast.success("? ??? ???????.");
     },
     onError: (error) => {
       setOrderedBooks(books);
-      toast.error(error.message || "순서 저장에 실패했습니다.");
+      toast.error(error.message || "?? ??? ??????.");
+    },
+  });
+  const deleteBook = trpc.cms.pastorBooks.delete.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.cms.pastorBooks.list.invalidate(),
+        utils.home.pastorBooks.invalidate(),
+      ]);
+      toast.success("?? ???????.");
+    },
+    onError: (error) => {
+      toast.error(error.message || "? ??? ??????.");
     },
   });
   const displayBooks = orderedBooks.length === books.length ? orderedBooks : books;
+  const totalPages = Math.max(1, Math.ceil(books.length / PAGE_SIZE));
+  const paginatedBooks = books.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const visibleBooks = canManage ? displayBooks : paginatedBooks;
 
   useEffect(() => {
     setOrderedBooks(books);
   }, [books]);
+
+  useEffect(() => {
+    if (canManage) return;
+    setCurrentPage((page) => Math.min(page, Math.max(1, Math.ceil(books.length / PAGE_SIZE))));
+  }, [PAGE_SIZE, books.length, canManage]);
+
+  useEffect(() => {
+    if (canManage) return;
+    setCurrentPage(1);
+  }, [canManage, viewMode]);
 
   function openCreate() {
     setSelectedBook(null);
@@ -654,6 +693,11 @@ export function PastorBooksPage() {
   function openEdit(book: PastorBookPublicItem) {
     setSelectedBook(book);
     setEditorOpen(true);
+  }
+
+  function handleDeleteBook(book: PastorBookPublicItem) {
+    if (!window.confirm(`"${book.title}" ?? ?? ?????????\n? ??? ??? ? ????.`)) return;
+    deleteBook.mutate({ id: book.id });
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -666,11 +710,14 @@ export function PastorBooksPage() {
     const newIndex = displayBooks.findIndex((book) => book.id === overId);
     if (oldIndex < 0 || newIndex < 0) return;
 
+    const totalBookCount = (adminPastorBooks as PastorBookPublicItem[]).length;
     const nextBooks = arrayMove(displayBooks, oldIndex, newIndex).map((book, index) => ({
       ...book,
-      sortOrder: index + 1,
+      sortOrder: totalBookCount - index,
     }));
-    const hiddenBooks = (adminPastorBooks as PastorBookPublicItem[]).filter((book) => !book.isVisible);
+    const hiddenBooks = (adminPastorBooks as PastorBookPublicItem[])
+      .filter((book) => !book.isVisible)
+      .sort((a, b) => b.sortOrder - a.sortOrder || b.id - a.id);
     setOrderedBooks(nextBooks);
     reorderBooks.mutate({
       items: [
@@ -680,7 +727,7 @@ export function PastorBooksPage() {
         })),
         ...hiddenBooks.map((book, index) => ({
           id: book.id,
-          sortOrder: nextBooks.length + index + 1,
+          sortOrder: hiddenBooks.length - index,
         })),
       ],
     });
@@ -688,19 +735,37 @@ export function PastorBooksPage() {
 
   return (
     <SubPageLayout
-      pageTitle="담임목사 저서"
-      parentLabel="교회소개"
+      pageTitle="???? ??"
+      parentLabel="????"
       sideMenuItems={sideMenuItems}
     >
       <div className="mb-8 flex flex-col gap-2 border-b border-gray-100 pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-[#1B5E20]">Pastor Books</p>
           <p className="mt-2 text-sm text-gray-500">
-            박진석 담임목사의 저서를 한곳에서 확인할 수 있습니다.
+            ??? ?????? ??? ?????.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <p className="text-sm text-gray-400">총 {books.length}권</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm text-gray-400">? {books.length}?</p>
+          {!canManage && (
+            <div className="flex items-center gap-1 rounded-lg border border-gray-200 p-0.5">
+              <button
+                type="button"
+                onClick={() => setViewMode("grid")}
+                className={"rounded px-2 py-1 text-xs font-medium transition " + (viewMode === "grid" ? "bg-[#1B5E20] text-white" : "text-gray-500 hover:text-gray-700")}
+              >
+                ???
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("list")}
+                className={"rounded px-2 py-1 text-xs font-medium transition " + (viewMode === "list" ? "bg-[#1B5E20] text-white" : "text-gray-500 hover:text-gray-700")}
+              >
+                ??
+              </button>
+            </div>
+          )}
           {canManage && (
             <button
               type="button"
@@ -708,7 +773,7 @@ export function PastorBooksPage() {
               className="inline-flex items-center gap-1.5 rounded-lg bg-[#1B5E20] px-3 py-2 text-xs font-semibold text-white hover:bg-[#2E7D32]"
             >
               <Plus className="h-3.5 w-3.5" />
-              저서 추가
+              ? ??
             </button>
           )}
         </div>
@@ -716,15 +781,15 @@ export function PastorBooksPage() {
 
       {canManage && books.length > 1 && (
         <div className="mb-6 rounded-xl border border-[#D7F0D8] bg-[#F7FBF7] px-4 py-3 text-sm text-[#1B5E20]">
-          왼쪽 손잡이를 마우스로 끌면 책 순서를 바로 바꿀 수 있습니다.
+          ? ??? ???? ????? ??? ?? ?? ? ????.
         </div>
       )}
 
       {isBooksLoading ? (
-        <p className="py-12 text-center text-gray-500">불러오는 중...</p>
+        <p className="py-12 text-center text-gray-500">???? ?...</p>
       ) : books.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-200 py-16 text-center text-sm text-gray-400">
-          등록된 저서가 없습니다.
+          ??? ?? ????.
         </div>
       ) : canManage ? (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -736,25 +801,16 @@ export function PastorBooksPage() {
                   book={book}
                   isOrdering={reorderBooks.isPending}
                   onEdit={openEdit}
+                  onDelete={handleDeleteBook}
                 />
               ))}
             </div>
           </SortableContext>
         </DndContext>
-      ) : (
+      ) : viewMode === "grid" ? (
         <div className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {books.map((book) => (
+          {visibleBooks.map((book) => (
             <article key={book.id} className="group relative border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md">
-              {canManage && (
-                <button
-                  type="button"
-                  onClick={() => openEdit(book)}
-                  className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-[#1B5E20] shadow-sm ring-1 ring-[#D7F0D8] hover:bg-[#F1F8F2]"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                  수정
-                </button>
-              )}
               <Link href={getPastorBookDetailUrl(book.id)} className="block">
                 <div className="flex h-64 items-center justify-center overflow-hidden bg-gray-50">
                   {book.coverImageUrl ? (
@@ -776,10 +832,10 @@ export function PastorBooksPage() {
                   <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3 text-xs text-gray-400">
                     <span className="inline-flex items-center gap-1">
                       <CalendarDays className="h-3.5 w-3.5" />
-                      {book.publishedAt || "날짜 미등록"}
+                      {book.publishedAt || "?? ???"}
                     </span>
                     <span className="inline-flex items-center gap-1 text-[#1B5E20]">
-                      보기
+                      ??
                     </span>
                   </div>
                 </div>
@@ -787,13 +843,67 @@ export function PastorBooksPage() {
             </article>
           ))}
         </div>
+      ) : (
+        <div className="space-y-4">
+          {visibleBooks.map((book) => (
+            <Link
+              key={book.id}
+              href={getPastorBookDetailUrl(book.id)}
+              className="flex items-center gap-5 rounded-lg border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md"
+            >
+              <div className="flex h-24 w-20 flex-shrink-0 items-center justify-center overflow-hidden rounded bg-gray-50">
+                {book.coverImageUrl ? (
+                  <img src={book.coverImageUrl} alt={book.title} loading="lazy" className="max-h-full max-w-full object-contain" />
+                ) : (
+                  <ImageIcon className="h-8 w-8 text-gray-300" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-semibold text-gray-800">{book.title}</h2>
+                {book.summary && <p className="mt-1 line-clamp-2 text-xs text-gray-500">{book.summary}</p>}
+                <p className="mt-2 text-xs text-gray-400">{book.publishedAt || "?? ???"}</p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {!canManage && totalPages > 1 && (
+        <div className="mt-8 flex items-center justify-center gap-2">
+          <button
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+            className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+          >
+            ??
+          </button>
+          {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+            <button
+              key={page}
+              type="button"
+              onClick={() => setCurrentPage(page)}
+              className={"rounded-lg px-3 py-1.5 text-xs font-medium " + (page === currentPage ? "bg-[#1B5E20] text-white" : "border border-gray-200 text-gray-600 hover:bg-gray-50")}
+            >
+              {page}
+            </button>
+          ))}
+          <button
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+            className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+          >
+            ??
+          </button>
+        </div>
       )}
 
       <PastorBookEditorDialog
         key={selectedBook?.id ?? "new"}
         open={editorOpen}
         book={selectedBook}
-        defaultSortOrder={selectedBook ? selectedBook.sortOrder : 1}
+        defaultSortOrder={selectedBook ? selectedBook.sortOrder : books.length + 1}
         onClose={() => setEditorOpen(false)}
         onSaved={() => {
           utils.cms.pastorBooks.list.invalidate();

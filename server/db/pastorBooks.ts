@@ -35,7 +35,7 @@ function normalizeSortOrder(value: number | null | undefined, fallback = 1) {
 function withDisplaySortOrder<T extends { id: number; sortOrder: number }>(rows: T[]) {
   return rows.map((row, index) => ({
     ...row,
-    sortOrder: index + 1,
+    sortOrder: rows.length - index,
   }));
 }
 
@@ -43,28 +43,27 @@ async function renumberPastorBooks(db: PastorBookOrderExecutor, movingId?: numbe
   const rows = await db
     .select()
     .from(pastorBooks)
-    .orderBy(asc(pastorBooks.sortOrder), desc(pastorBooks.publishedAt), desc(pastorBooks.id));
+    .orderBy(desc(pastorBooks.sortOrder), desc(pastorBooks.publishedAt), desc(pastorBooks.id));
 
   let orderedRows = rows;
   if (movingId) {
     const movingRow = rows.find((row) => row.id === movingId);
     if (movingRow) {
       const remainingRows = rows.filter((row) => row.id !== movingId);
-      const safeTargetSortOrder = Math.min(
-        Math.max(normalizeSortOrder(targetSortOrder, remainingRows.length + 1), 1),
-        remainingRows.length + 1,
-      );
+      const totalRows = remainingRows.length + 1;
+      const safeTargetSortOrder = Math.min(Math.max(normalizeSortOrder(targetSortOrder, totalRows), 1), totalRows);
+      const targetIndex = totalRows - safeTargetSortOrder;
       orderedRows = [
-        ...remainingRows.slice(0, safeTargetSortOrder - 1),
+        ...remainingRows.slice(0, targetIndex),
         movingRow,
-        ...remainingRows.slice(safeTargetSortOrder - 1),
+        ...remainingRows.slice(targetIndex),
       ];
     }
   }
 
   for (let index = 0; index < orderedRows.length; index += 1) {
     const row = orderedRows[index];
-    const nextSortOrder = index + 1;
+    const nextSortOrder = orderedRows.length - index;
     if (row.sortOrder !== nextSortOrder) {
       await db
         .update(pastorBooks)
@@ -79,15 +78,15 @@ async function getDisplaySortOrder(id: number, includeHidden = false) {
   if (!db) return 1;
 
   const rows = includeHidden
-    ? await db.select().from(pastorBooks).orderBy(asc(pastorBooks.sortOrder), desc(pastorBooks.publishedAt), desc(pastorBooks.id))
+    ? await db.select().from(pastorBooks).orderBy(desc(pastorBooks.sortOrder), desc(pastorBooks.publishedAt), desc(pastorBooks.id))
     : await db
         .select()
         .from(pastorBooks)
         .where(eq(pastorBooks.isVisible, true))
-        .orderBy(asc(pastorBooks.sortOrder), desc(pastorBooks.publishedAt), desc(pastorBooks.id));
+        .orderBy(desc(pastorBooks.sortOrder), desc(pastorBooks.publishedAt), desc(pastorBooks.id));
 
   const index = rows.findIndex((row) => row.id === id);
-  return index >= 0 ? index + 1 : 1;
+  return index >= 0 ? rows.length - index : 1;
 }
 
 async function attachCoverImages(rows: PastorBook[]): Promise<PastorBookWithCover[]> {
@@ -123,7 +122,7 @@ export async function getVisiblePastorBooks() {
     .select()
     .from(pastorBooks)
     .where(eq(pastorBooks.isVisible, true))
-    .orderBy(asc(pastorBooks.sortOrder), desc(pastorBooks.publishedAt), desc(pastorBooks.id));
+    .orderBy(desc(pastorBooks.sortOrder), desc(pastorBooks.publishedAt), desc(pastorBooks.id));
   return withDisplaySortOrder(await attachCoverImages(rows));
 }
 
@@ -133,7 +132,7 @@ export async function getPastorBooksForAdmin() {
   const rows = await db
     .select()
     .from(pastorBooks)
-    .orderBy(asc(pastorBooks.sortOrder), desc(pastorBooks.publishedAt), desc(pastorBooks.id));
+    .orderBy(desc(pastorBooks.sortOrder), desc(pastorBooks.publishedAt), desc(pastorBooks.id));
   return withDisplaySortOrder(await attachCoverImages(rows));
 }
 
@@ -160,16 +159,26 @@ export async function createPastorBook(data: Omit<InsertPastorBook, "id" | "crea
   const db = await getDb();
   if (!db) return null;
   return db.transaction(async (tx) => {
+    const maxRows = await tx
+      .select({ maxSort: pastorBooks.sortOrder })
+      .from(pastorBooks)
+      .orderBy(desc(pastorBooks.sortOrder))
+      .limit(1);
+    const nextSortOrder = (maxRows[0]?.maxSort ?? 0) + 1;
+    const targetSortOrder = data.sortOrder && data.sortOrder > 0
+      ? normalizeSortOrder(data.sortOrder)
+      : nextSortOrder;
+
     const [result] = await tx
       .insert(pastorBooks)
       .values({
         ...data,
-        sortOrder: normalizeSortOrder(data.sortOrder, 1),
+        sortOrder: targetSortOrder,
       })
       .$returningId();
     const id = result?.id ?? null;
     if (!id) return null;
-    await renumberPastorBooks(tx, id, data.sortOrder);
+    await renumberPastorBooks(tx, id, targetSortOrder);
     return id;
   });
 }
@@ -200,12 +209,12 @@ export async function reorderPastorBooks(items: { id: number; sortOrder: number 
   const db = await getDb();
   if (!db || items.length === 0) return;
   await db.transaction(async (tx) => {
-    const orderedItems = [...items].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
+    const orderedItems = [...items].sort((a, b) => b.sortOrder - a.sortOrder || a.id - b.id);
     for (let index = 0; index < orderedItems.length; index += 1) {
       const item = orderedItems[index];
       await tx
         .update(pastorBooks)
-        .set({ sortOrder: index + 1 })
+        .set({ sortOrder: orderedItems.length - index })
         .where(eq(pastorBooks.id, item.id));
     }
   });
