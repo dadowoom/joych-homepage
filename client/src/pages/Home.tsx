@@ -158,6 +158,54 @@ const HERO_BUTTON_COLOR_CLASSES: Record<string, string> = {
   purple: "bg-purple-600 hover:bg-purple-700 text-white",
 };
 
+function normalizeHexColor(value: string | undefined) {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed;
+  return null;
+}
+
+function getContrastTextColor(hex: string) {
+  const normalized = hex.slice(1);
+  const red = parseInt(normalized.slice(0, 2), 16);
+  const green = parseInt(normalized.slice(2, 4), 16);
+  const blue = parseInt(normalized.slice(4, 6), 16);
+  const brightness = (red * 299 + green * 587 + blue * 114) / 1000;
+  return brightness > 160 ? "#111827" : "#FFFFFF";
+}
+
+function getHeroButtonPresentation(button: HeroButtonConfig, index: number) {
+  const colorKey = button.color?.trim();
+  if (!colorKey) {
+    return {
+      className: index === 0 ? HERO_BUTTON_COLOR_CLASSES.primary : HERO_BUTTON_COLOR_CLASSES.secondary,
+      style: undefined,
+    };
+  }
+
+  const presetClass = HERO_BUTTON_COLOR_CLASSES[colorKey];
+  if (presetClass) {
+    return { className: presetClass, style: undefined };
+  }
+
+  const customColor = normalizeHexColor(colorKey);
+  if (!customColor) {
+    return {
+      className: index === 0 ? HERO_BUTTON_COLOR_CLASSES.primary : HERO_BUTTON_COLOR_CLASSES.secondary,
+      style: undefined,
+    };
+  }
+
+  return {
+    className: "border border-transparent hover:brightness-110",
+    style: {
+      backgroundColor: customColor,
+      borderColor: customColor,
+      color: getContrastTextColor(customColor),
+    },
+  };
+}
+
 const FALLBACK_FEATURE_CARDS: HomeFeatureCard[] = [
   {
     badge: "Saengseong Conference",
@@ -744,8 +792,7 @@ export default function Home() {
               className="flex gap-2 md:gap-3 flex-wrap"
             >
               {currentHeroButtons.map((button, index) => {
-                const colorKey = button.color ?? (index === 0 ? "primary" : "secondary");
-                const colorClass = HERO_BUTTON_COLOR_CLASSES[colorKey] ?? HERO_BUTTON_COLOR_CLASSES.primary;
+                const { className, style } = getHeroButtonPresentation(button, index);
 
                 return (
                   <a
@@ -753,7 +800,8 @@ export default function Home() {
                     href={getUsableHref(button.href, DEFAULT_HERO_BUTTONS[index]?.href ?? "#")}
                     target={button.openInNewTab ? "_blank" : undefined}
                     rel={button.openInNewTab ? "noopener noreferrer" : undefined}
-                    className={`px-5 md:px-7 py-2.5 md:py-3 text-xs md:text-sm font-medium rounded transition-colors ${colorClass}`}
+                    className={`px-5 md:px-7 py-2.5 md:py-3 text-xs md:text-sm font-medium rounded transition-colors ${className}`}
+                    style={style}
                   >
                     {button.label}
                   </a>

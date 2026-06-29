@@ -28,14 +28,16 @@ type HeroButtonDraft = {
   openInNewTab?: boolean;
 };
 
-const BUTTON_COLOR_OPTIONS = [
-  { value: "primary", label: "기본 (초록)", className: "bg-[#1B5E20] hover:bg-[#2E7D32] text-white" },
-  { value: "secondary", label: "테두리 (흰색)", className: "border-2 border-white/80 hover:bg-white/15 text-white" },
-  { value: "blue", label: "파랑", className: "bg-blue-600 hover:bg-blue-700 text-white" },
-  { value: "red", label: "빨강", className: "bg-red-600 hover:bg-red-700 text-white" },
-  { value: "amber", label: "주황", className: "bg-amber-500 hover:bg-amber-600 text-white" },
-  { value: "purple", label: "보라", className: "bg-purple-600 hover:bg-purple-700 text-white" },
-] as const;
+const HERO_BUTTON_PRESET_COLORS: Record<string, string> = {
+  primary: "#1B5E20",
+  secondary: "#FFFFFF",
+  blue: "#2563EB",
+  red: "#DC2626",
+  amber: "#F59E0B",
+  purple: "#9333EA",
+};
+
+const DEFAULT_HERO_BUTTON_PICKER_COLORS = ["#1B5E20", "#FFFFFF"] as const;
 
 const DEFAULT_HERO_BUTTONS: HeroButtonDraft[] = [
   { label: "새가족 등록", href: "/support/new-member" },
@@ -87,11 +89,21 @@ function normalizeButtonDrafts(buttons: HeroButtonDraft[]) {
     .map((button) => ({
       label: button.label.trim(),
       href: button.href.trim(),
-      color: button.color || undefined,
+      color: button.color?.trim() || undefined,
       openInNewTab: button.openInNewTab || undefined,
     }))
     .filter((button) => button.label && button.href)
     .slice(0, MAX_HERO_BUTTONS);
+}
+
+function isHexColor(value: string | undefined) {
+  return Boolean(value && /^#(?:[0-9a-fA-F]{6})$/.test(value));
+}
+
+function getButtonPickerColor(color: string | undefined, index: number) {
+  if (isHexColor(color)) return color;
+  if (color && HERO_BUTTON_PRESET_COLORS[color]) return HERO_BUTTON_PRESET_COLORS[color];
+  return DEFAULT_HERO_BUTTON_PICKER_COLORS[index] ?? DEFAULT_HERO_BUTTON_PICKER_COLORS[0];
 }
 
 function hasIncompleteButton(buttons: HeroButtonDraft[]) {
@@ -531,28 +543,44 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
             <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <label className="text-[11px] text-gray-600">
                 버튼 색상
-                <select
-                  className="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs"
-                  value={button.color ?? ""}
-                  disabled={disabled}
-                  onChange={(event) => updateButtonDraft(visibleButtons, setButtons, index, { color: event.target.value || undefined })}
+                <div className="mt-0.5 flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={getButtonPickerColor(button.color, index)}
+                    disabled={disabled}
+                    onChange={(event) => updateButtonDraft(visibleButtons, setButtons, index, { color: event.target.value })}
+                    className="h-9 w-14 cursor-pointer rounded border border-gray-300 bg-white p-1 disabled:cursor-not-allowed"
+                  />
+                  <Input
+                    value={button.color ?? ""}
+                    readOnly
+                    placeholder={index === 0 ? "기본 초록 사용" : "기본 흰 테두리 사용"}
+                    className="h-9 text-xs font-mono"
+                  />
+                </div>
+              </label>
+              <div className="flex flex-col justify-end gap-2">
+                <label className="flex items-end gap-2 text-[11px] text-gray-600">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-[#1B5E20]"
+                    checked={Boolean(button.openInNewTab)}
+                    disabled={disabled}
+                    onChange={(event) => updateButtonDraft(visibleButtons, setButtons, index, { openInNewTab: event.target.checked })}
+                  />
+                  <span>새 창으로 열기</span>
+                </label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-9 justify-start px-3 text-xs text-gray-600"
+                  disabled={disabled || !button.color}
+                  onClick={() => updateButtonDraft(visibleButtons, setButtons, index, { color: undefined })}
                 >
-                  <option value="">기본 디자인</option>
-                  {BUTTON_COLOR_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex items-end gap-2 text-[11px] text-gray-600">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 accent-[#1B5E20]"
-                  checked={Boolean(button.openInNewTab)}
-                  disabled={disabled}
-                  onChange={(event) => updateButtonDraft(visibleButtons, setButtons, index, { openInNewTab: event.target.checked })}
-                />
-                <span>새 창으로 열기</span>
-              </label>
+                  기본 디자인 사용
+                </Button>
+              </div>
             </div>
           </div>
         ))}
