@@ -132,6 +132,8 @@ const FALLBACK_GALLERY = [
 type HeroButtonConfig = {
   label: string;
   href: string;
+  color?: string;
+  openInNewTab?: boolean;
 };
 
 type HeroButtonSource = {
@@ -146,6 +148,15 @@ const DEFAULT_HERO_BUTTONS: HeroButtonConfig[] = [
   { label: "새가족 등록", href: "/support/new-member" },
   { label: "예배 안내", href: "/worship/schedule" },
 ];
+
+const HERO_BUTTON_COLOR_CLASSES: Record<string, string> = {
+  primary: "bg-[#1B5E20] hover:bg-[#2E7D32] text-white",
+  secondary: "border-2 border-white/80 hover:bg-white/15 text-white",
+  blue: "bg-blue-600 hover:bg-blue-700 text-white",
+  red: "bg-red-600 hover:bg-red-700 text-white",
+  amber: "bg-amber-500 hover:bg-amber-600 text-white",
+  purple: "bg-purple-600 hover:bg-purple-700 text-white",
+};
 
 const FALLBACK_FEATURE_CARDS: HomeFeatureCard[] = [
   {
@@ -224,12 +235,14 @@ function parseJsonObject<T>(raw: string | null | undefined, fallback: T): T {
 function sanitizeHeroButtons(value: unknown): HeroButtonConfig[] {
   if (!Array.isArray(value)) return [];
   return value
-    .map((item) => {
+    .map((item): HeroButtonConfig | null => {
       if (!item || typeof item !== "object" || Array.isArray(item)) return null;
       const record = item as Record<string, unknown>;
       const label = typeof record.label === "string" ? record.label.trim() : "";
       const href = typeof record.href === "string" ? record.href.trim() : "";
-      return label && href ? { label, href } : null;
+      const color = typeof record.color === "string" ? record.color : undefined;
+      const openInNewTab = typeof record.openInNewTab === "boolean" ? record.openInNewTab : undefined;
+      return label && href ? { label, href, color, openInNewTab } : null;
     })
     .filter((button): button is HeroButtonConfig => Boolean(button))
     .slice(0, 4);
@@ -248,10 +261,14 @@ function getLegacyHeroButtons(slide: HeroButtonSource): HeroButtonConfig[] {
   const button1 = {
     label: normalizeText(slide?.btn1Text, DEFAULT_HERO_BUTTONS[0].label),
     href: normalizeText(slide?.btn1Href, DEFAULT_HERO_BUTTONS[0].href),
+    color: undefined,
+    openInNewTab: undefined,
   };
   const button2 = {
     label: normalizeText(slide?.btn2Text, DEFAULT_HERO_BUTTONS[1].label),
     href: normalizeText(slide?.btn2Href, DEFAULT_HERO_BUTTONS[1].href),
+    color: undefined,
+    openInNewTab: undefined,
   };
   return [button1, button2].filter((button) => button.label && button.href);
 }
@@ -726,19 +743,22 @@ export default function Home() {
               style={{ animation: "fadeUp 0.8s ease 0.8s both" }}
               className="flex gap-2 md:gap-3 flex-wrap"
             >
-              {currentHeroButtons.map((button, index) => (
-                <a
-                  key={`${button.label}-${button.href}-${index}`}
-                  href={getUsableHref(button.href, DEFAULT_HERO_BUTTONS[index]?.href ?? "#")}
-                  className={
-                    index === 0
-                      ? "px-5 md:px-7 py-2.5 md:py-3 bg-[#1B5E20] hover:bg-[#2E7D32] text-white text-xs md:text-sm font-medium rounded transition-colors"
-                      : "px-5 md:px-7 py-2.5 md:py-3 border-2 border-white/80 hover:bg-white/15 text-white text-xs md:text-sm font-medium rounded transition-colors"
-                  }
-                >
-                  {button.label}
-                </a>
-              ))}
+              {currentHeroButtons.map((button, index) => {
+                const colorKey = button.color ?? (index === 0 ? "primary" : "secondary");
+                const colorClass = HERO_BUTTON_COLOR_CLASSES[colorKey] ?? HERO_BUTTON_COLOR_CLASSES.primary;
+
+                return (
+                  <a
+                    key={`${button.label}-${button.href}-${index}`}
+                    href={getUsableHref(button.href, DEFAULT_HERO_BUTTONS[index]?.href ?? "#")}
+                    target={button.openInNewTab ? "_blank" : undefined}
+                    rel={button.openInNewTab ? "noopener noreferrer" : undefined}
+                    className={`px-5 md:px-7 py-2.5 md:py-3 text-xs md:text-sm font-medium rounded transition-colors ${colorClass}`}
+                  >
+                    {button.label}
+                  </a>
+                );
+              })}
             </div>
           </div>
         </div>
