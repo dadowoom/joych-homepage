@@ -695,6 +695,11 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
     return normalizeFacilityBuilding(requestedBuilding ?? facility?.building);
   }, [facility?.building, searchString]);
   const facilityListHref = getFacilityListHref(activeBuilding, audience);
+  const facilityNoticeText = useMemo(() => {
+    const memberNotice = facility?.notice?.trim() ?? "";
+    const externalNotice = facility?.externalNotice?.trim() ?? "";
+    return isExternal ? (externalNotice || memberNotice) : memberNotice;
+  }, [facility?.externalNotice, facility?.notice, isExternal]);
 
   function goToMemberLogin() {
     const nextPath = `/facility/${facilityId}${searchString ? `?${searchString}` : ""}`;
@@ -833,25 +838,16 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
                     <strong>이용 요금:</strong> 시간당 {facility.pricePerHour.toLocaleString()}원
                   </div>
                 )}
-                {isExternal && facility.externalNotice && (
-                  <div className="mt-3 rounded-lg border border-teal-100 bg-teal-50 p-3 text-sm leading-6 text-teal-900">
-                    <div className="mb-1 flex items-center gap-2 font-bold">
-                      <AlertCircle className="h-4 w-4 text-teal-600" />
-                      시설 안내
-                    </div>
-                    <p className="whitespace-pre-line text-teal-800">{facility.externalNotice}</p>
-                  </div>
-                )}
               </div>
 
-              {/* 이용 안내 */}
-              {facility.notice && (
-                <div className="bg-blue-50 rounded-xl p-6 border border-blue-100">
-                  <h2 className="font-bold text-gray-900 mb-3 text-base flex items-center gap-2">
-                    <CalendarCheck className="text-blue-500" size={18} />
-                    이용 안내
-                  </h2>
-                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{facility.notice}</p>
+              {/* 시설 안내 */}
+              {facilityNoticeText && (
+                <div className="rounded-xl border border-teal-100 bg-teal-50 p-4 text-sm leading-6 text-teal-900">
+                  <div className="mb-1 flex items-center gap-2 font-bold">
+                    <AlertCircle className="h-4 w-4 text-teal-600" />
+                    시설 안내
+                  </div>
+                  <p className="whitespace-pre-line text-teal-800">{facilityNoticeText}</p>
                 </div>
               )}
 

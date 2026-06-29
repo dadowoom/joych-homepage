@@ -323,6 +323,11 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
       .filter(Boolean),
     [externalFacilityRulesQuery.data],
   );
+  const facilityNoticeText = useMemo(() => {
+    const memberNotice = facility?.notice?.trim() ?? "";
+    const externalNotice = facility?.externalNotice?.trim() ?? "";
+    return isExternal ? (externalNotice || memberNotice) : memberNotice;
+  }, [facility?.externalNotice, facility?.notice, isExternal]);
 
   const onReservationCreated = (data: { status: string; count?: number | null; recurrenceLabel?: string | null }) => {
     setReservedStatus(data.status);
@@ -626,13 +631,13 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                 </Link>
               </div>
 
-              {isExternal && facility.externalNotice && (
+              {facilityNoticeText && (
                 <div className="mb-6 rounded-xl border border-teal-100 bg-teal-50 p-4 text-sm leading-6 text-teal-900">
                   <div className="mb-1 flex items-center gap-2 font-bold">
                     <AlertCircle className="h-4 w-4 text-teal-600" />
                     시설 안내
                   </div>
-                  <p className="whitespace-pre-line text-teal-800">{facility.externalNotice}</p>
+                  <p className="whitespace-pre-line text-teal-800">{facilityNoticeText}</p>
                 </div>
               )}
 
