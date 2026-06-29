@@ -41,8 +41,30 @@ const optionalAssetUrlInputSchema = z.string()
   .refine((value) => value === undefined || value.length === 0 || isSafeAssetUrl(value), "허용되지 않는 URL 형식입니다.");
 
 function normalizeOptionalAssetUrlValue(value: string | undefined) {
-  const trimmed = value?.trim() ?? "";
-  return trimmed ? trimmed : undefined;
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : "";
+}
+
+function normalizeOptionalTextValue(value: string | undefined) {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : "";
+}
+
+function validateAttachmentPair(
+  value: { attachmentName?: string; attachmentUrl?: string },
+  ctx: z.RefinementCtx,
+) {
+  const hasName = Boolean(value.attachmentName?.trim());
+  const hasUrl = Boolean(value.attachmentUrl?.trim());
+  if (hasName === hasUrl) return;
+
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    message: "첨부파일명과 첨부 URL을 함께 입력해주세요.",
+    path: [hasName ? "attachmentUrl" : "attachmentName"],
+  });
 }
 
 function normalizeOptionalContent(value: string | undefined) {
@@ -61,9 +83,11 @@ export const dynamicBoardsRouter = router({
       title: requiredTextSchema(256, "제목을 입력해주세요."),
       content: optionalTextSchema(50000),
       thumbnailUrl: optionalAssetUrlInputSchema,
+      attachmentName: optionalTextSchema(255),
+      attachmentUrl: optionalAssetUrlInputSchema,
       isPublished: z.boolean().default(true),
       isPinned: z.boolean().default(false),
-    }).superRefine(validateSingleBoardSource))
+    }).superRefine(validateSingleBoardSource).superRefine(validateAttachmentPair))
     .mutation(async ({ input, ctx }) => {
       const id = await createDynamicBoardPost({
         menuItemId: input.menuItemId,
@@ -71,6 +95,8 @@ export const dynamicBoardsRouter = router({
         title: input.title,
         content: normalizeOptionalContent(input.content),
         thumbnailUrl: normalizeOptionalAssetUrlValue(input.thumbnailUrl),
+        attachmentName: normalizeOptionalTextValue(input.attachmentName),
+        attachmentUrl: normalizeOptionalAssetUrlValue(input.attachmentUrl),
         isPublished: input.isPublished,
         isPinned: input.isPinned,
         authorId: ctx.user.id,
@@ -90,9 +116,11 @@ export const dynamicBoardsRouter = router({
       title: requiredTextSchema(256, "제목을 입력해주세요.").optional(),
       content: optionalTextSchema(50000),
       thumbnailUrl: optionalAssetUrlInputSchema,
+      attachmentName: optionalTextSchema(255),
+      attachmentUrl: optionalAssetUrlInputSchema,
       isPublished: z.boolean().optional(),
       isPinned: z.boolean().optional(),
-    }))
+    }).superRefine(validateAttachmentPair))
     .mutation(async ({ input }) => {
       const post = await getDynamicBoardPostById(input.id);
       if (!post) {
@@ -106,6 +134,8 @@ export const dynamicBoardsRouter = router({
         ...data,
         content: normalizeOptionalContent(data.content),
         thumbnailUrl: normalizeOptionalAssetUrlValue(data.thumbnailUrl),
+        attachmentName: normalizeOptionalTextValue(data.attachmentName),
+        attachmentUrl: normalizeOptionalAssetUrlValue(data.attachmentUrl),
       });
       return { success: true };
     }),

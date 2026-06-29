@@ -115,6 +115,8 @@ export async function createDynamicBoardPost(data: DynamicBoardPostInput) {
     title: data.title,
     content: data.content,
     thumbnailUrl: data.thumbnailUrl,
+    attachmentName: data.attachmentName,
+    attachmentUrl: data.attachmentUrl,
     isPublished: data.isPublished,
     isPinned: data.isPinned,
     authorId: data.authorId,

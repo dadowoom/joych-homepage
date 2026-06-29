@@ -1042,6 +1042,50 @@ try {
 NODE
 fi
 
+MIGRATION_0061="${APP_DIR}/drizzle/0061_dynamic_board_post_attachments.sql"
+if [[ -f "${MIGRATION_0061}" ]]; then
+  echo "[deploy] database migration: dynamic board post attachments"
+  node --input-type=module <<'NODE'
+import fs from "node:fs/promises";
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required for migration 0061.");
+}
+
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  const [rows] = await connection.execute(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    ["0061_dynamic_board_post_attachments"],
+  );
+  if (Array.isArray(rows) && rows.length > 0) {
+    console.log("[deploy] migration 0061 already applied");
+  } else {
+    const sql = await fs.readFile("drizzle/0061_dynamic_board_post_attachments.sql", "utf8");
+    const statements = sql.split(/;\s*(?:\r?\n|$)/).map((statement) => statement.trim()).filter(Boolean);
+    for (const statement of statements) {
+      await connection.query(statement);
+    }
+    await connection.execute(
+      "INSERT INTO app_migrations (id) VALUES (?)",
+      ["0061_dynamic_board_post_attachments"],
+    );
+    console.log("[deploy] migration 0061 applied");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4
