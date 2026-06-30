@@ -22,8 +22,16 @@ const joseMocks = vi.hoisted(() => ({
   jwtVerify: vi.fn(),
 }));
 
+const pushMocks = vi.hoisted(() => ({
+  notifyFacilityReservation: vi.fn(),
+}));
+
 vi.mock("jose", () => ({
   jwtVerify: joseMocks.jwtVerify,
+}));
+
+vi.mock("./_core/pushNotifications", () => ({
+  notifyFacilityReservation: pushMocks.notifyFacilityReservation,
 }));
 
 vi.mock("./db/member", async (importOriginal) => {
@@ -268,6 +276,17 @@ describe("facility reservation lead-time guard", () => {
         endTime: "16:00",
       }),
     );
+    expect(pushMocks.notifyFacilityReservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reserverName: "External Visitor",
+        facilityName: "Meeting Room",
+        date: "2026-06-17",
+        startTime: "15:00",
+        endTime: "16:00",
+        reservationType: "external",
+        reservationId: 100,
+      }),
+    );
   });
 
   it("blocks external facility reservation requests when the selected time overlaps an existing reservation", async () => {
@@ -418,6 +437,31 @@ describe("facility reservation lead-time guard", () => {
         userId: 1,
       }),
     );
+    expect(pushMocks.notifyFacilityReservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reserverName: "Reservation Member",
+        facilityName: "Meeting Room",
+        date: "2026-06-17",
+        startTime: "15:00",
+        endTime: "16:00",
+        reservationType: "member",
+        reservationId: 100,
+      }),
+    );
+  });
+
+  it("does not send push notifications for auto-approved facility reservations", async () => {
+    dbMocks.getFacilityById.mockResolvedValue({
+      ...reservableFacility,
+      approvalType: "auto",
+    });
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(
+      caller.home.createReservation(reservationInput({ startTime: "15:00", endTime: "16:00" }))
+    ).resolves.toMatchObject({ id: 100, status: "approved", count: 1 });
+
+    expect(pushMocks.notifyFacilityReservation).not.toHaveBeenCalled();
   });
 
   it("blocks normal members when the reservation date is after the configured future window", async () => {

@@ -16,6 +16,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { adminPermissionProcedure, publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
+import { notifyFacilityReservation } from "../_core/pushNotifications";
 import {
   canMemberRequestFacilityReservation,
   hasFacilityReservationRuleOverride,
@@ -821,6 +822,15 @@ export const homeRouter = router({
         if (!id) {
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "예약 신청 저장에 실패했습니다." });
         }
+        void notifyFacilityReservation({
+          reserverName: input.reserverName,
+          facilityName: facility.name,
+          date: input.reservationDate,
+          startTime: input.startTime,
+          endTime: input.endTime,
+          reservationType: "external",
+          reservationId: id,
+        });
         return { id, status: "pending" as const, count: 1, recurrenceLabel: null };
       } catch (error) {
         if (error instanceof ReservationOverlapError) {
@@ -1038,6 +1048,18 @@ export const homeRouter = router({
           throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: error.message });
         }
         throw error;
+      }
+      if (status === "pending" && createdIds[0]) {
+        void notifyFacilityReservation({
+          reserverName: input.reserverName,
+          facilityName: facility.name,
+          date: input.reservationDate,
+          startTime: input.startTime,
+          endTime: input.endTime,
+          reservationType: "member",
+          reservationId: createdIds[0],
+          extraCount: Math.max(0, createdIds.length - 1),
+        });
       }
       return {
         id: createdIds[0],
