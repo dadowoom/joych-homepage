@@ -80,10 +80,13 @@ export async function sendPushToPermissionHolders(
       .select()
       .from(pushSubscriptions)
       .where(or(...subscriptionConditions));
-    if (subscriptions.length === 0) return;
+    if (subscriptions.length === 0) {
+      console.warn(`[push] No subscriptions for permission=${permissionKey}`);
+      return;
+    }
 
     const payloadJson = JSON.stringify(payload);
-    await Promise.allSettled(subscriptions.map(async (subscription) => {
+    const results = await Promise.allSettled(subscriptions.map(async (subscription) => {
       try {
         await webpush.sendNotification(
           {
@@ -112,6 +115,9 @@ export async function sendPushToPermissionHolders(
         console.warn(`[push] Failed to send subscription id=${subscription.id}: ${statusCode ?? message}`);
       }
     }));
+    const sentCount = results.filter((result) => result.status === "fulfilled").length;
+    const failedCount = results.length - sentCount;
+    console.log(`[push] Sent permission=${permissionKey} subscriptions=${subscriptions.length} fulfilled=${sentCount} failed=${failedCount}`);
   } catch (error) {
     console.error("[push] Notification dispatch failed", error);
   }
