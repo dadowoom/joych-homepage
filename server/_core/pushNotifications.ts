@@ -291,7 +291,7 @@ export function notifyCourseApplicationToDistrictManager(params: {
   if (!params.applicantDistrict?.trim()) return;
 
   void sendPushToDistrictManagers(params.applicantDistrict, {
-    title: "우리 구역 강좌 신청",
+    title: "🔔 우리 구역 강좌 신청",
     body: `[${params.applicantName}] ${params.courseTitle} 신청`,
     url: "/admin_joych_2026?tab=courses",
     tag: `course-application-${params.applicationId}`,
