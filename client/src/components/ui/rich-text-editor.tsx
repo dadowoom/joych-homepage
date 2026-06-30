@@ -316,10 +316,10 @@ function parseCssPixelValue(value: string) {
 function getRichTextViewerBaseCss(scopeSelector: string) {
   return `
 ${scopeSelector} .rt-table-scroll {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
   margin: 1rem 0;
   max-width: 100%;
+  position: relative;
 }
 ${scopeSelector} .rt-table-scroll table {
   margin: 0;
@@ -330,6 +330,30 @@ ${scopeSelector} .rt-table-scroll table {
   }
   ${scopeSelector} [data-rt-mobile-font-size] {
     font-size: min(var(--rt-mobile-font-size), 24px) !important;
+  }
+  ${scopeSelector} .rt-table-scroll[data-rt-fit-table="true"] {
+    cursor: zoom-in;
+    height: var(--rt-table-fit-height);
+  }
+  ${scopeSelector} .rt-table-scroll[data-rt-fit-table="true"] table {
+    max-width: none !important;
+    min-width: var(--rt-table-natural-width) !important;
+    transform: scale(var(--rt-table-scale));
+    transform-origin: top left;
+  }
+  ${scopeSelector} .rt-table-scroll[data-rt-fit-table="true"]::after {
+    content: "탭해서 크게 보기";
+    position: absolute;
+    right: 0.5rem;
+    bottom: 0.5rem;
+    border-radius: 9999px;
+    background: rgba(17, 24, 39, 0.78);
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 600;
+    line-height: 1;
+    padding: 0.35rem 0.5rem;
+    pointer-events: none;
   }
 }
 `;
@@ -429,6 +453,84 @@ function sanitizeRichTextForViewer(value: string | null | undefined, scopeSelect
       ? (normalizedHtml ? getRichTextViewerBaseCss(scopeSelector) : "") + scopedCustomCss
       : "",
   };
+}
+
+function getDirectTableElement(wrapper: HTMLElement) {
+  return Array.from(wrapper.children).find((child): child is HTMLTableElement =>
+    child instanceof HTMLTableElement
+  ) ?? null;
+}
+
+function rememberViewerTableOriginalStyle(table: HTMLTableElement) {
+  if (table.hasAttribute("data-rt-original-style")) return;
+  table.setAttribute("data-rt-original-style", table.getAttribute("style") ?? "");
+}
+
+function restoreViewerTableOriginalStyle(table: HTMLTableElement) {
+  const originalStyle = table.getAttribute("data-rt-original-style");
+  if (originalStyle === null) return false;
+  if (originalStyle) {
+    table.setAttribute("style", originalStyle);
+  } else {
+    table.removeAttribute("style");
+  }
+  table.removeAttribute("data-rt-original-style");
+  return true;
+}
+
+function resetViewerTableFit(wrapper: HTMLElement, table: HTMLTableElement) {
+  wrapper.removeAttribute("data-rt-fit-table");
+  wrapper.removeAttribute("role");
+  wrapper.removeAttribute("tabindex");
+  wrapper.removeAttribute("title");
+  wrapper.style.removeProperty("--rt-table-scale");
+  wrapper.style.removeProperty("--rt-table-fit-height");
+  wrapper.style.removeProperty("--rt-table-natural-width");
+  wrapper.style.removeProperty("height");
+  if (!restoreViewerTableOriginalStyle(table)) {
+    table.style.removeProperty("transform");
+    table.style.removeProperty("transform-origin");
+    table.style.removeProperty("max-width");
+    table.style.removeProperty("min-width");
+    table.style.removeProperty("width");
+  }
+}
+
+function applyViewerTableFit(root: HTMLElement) {
+  const isMobile = window.matchMedia("(max-width: 640px)").matches;
+  const wrappers = root.querySelectorAll<HTMLElement>(".rt-table-scroll");
+
+  wrappers.forEach((wrapper) => {
+    const table = getDirectTableElement(wrapper);
+    if (!table) return;
+
+    resetViewerTableFit(wrapper, table);
+    if (!isMobile) return;
+
+    const wrapperWidth = wrapper.clientWidth;
+    if (wrapperWidth <= 0) return;
+
+    rememberViewerTableOriginalStyle(table);
+    table.style.maxWidth = "none";
+    table.style.width = "max-content";
+    const naturalWidth = Math.max(table.scrollWidth, table.offsetWidth);
+    const naturalHeight = table.offsetHeight;
+    if (naturalWidth <= 0 || naturalHeight <= 0) return;
+
+    const scale = Math.min(1, wrapperWidth / naturalWidth);
+    if (scale >= 0.98) {
+      resetViewerTableFit(wrapper, table);
+      return;
+    }
+
+    wrapper.setAttribute("data-rt-fit-table", "true");
+    wrapper.setAttribute("role", "button");
+    wrapper.setAttribute("tabindex", "0");
+    wrapper.setAttribute("title", "표 크게 보기");
+    wrapper.style.setProperty("--rt-table-scale", scale.toFixed(4));
+    wrapper.style.setProperty("--rt-table-fit-height", `${Math.ceil(naturalHeight * scale)}px`);
+    wrapper.style.setProperty("--rt-table-natural-width", `${Math.ceil(naturalWidth)}px`);
+  });
 }
 
 export function sanitizeRichTextHtml(value?: string | null) {
@@ -1921,21 +2023,67 @@ export function RichTextEditor({
 
 export function RichTextViewer({ html, className }: RichTextViewerProps) {
   const reactId = useId();
+  const viewerRef = useRef<HTMLDivElement | null>(null);
+  const [zoomedTableHtml, setZoomedTableHtml] = useState<string | null>(null);
   const viewerId = useMemo(() => "rt-" + reactId.replace(/[^a-zA-Z0-9_-]/g, ""), [reactId]);
   const scopeSelector = '.rich-text-viewer[data-rich-text-id="' + viewerId + '"]';
   const { html: cleanHtml, css: scopedCss } = useMemo(
     () => sanitizeRichTextForViewer(html, scopeSelector),
     [html, scopeSelector]
   );
+
+  useEffect(() => {
+    const root = viewerRef.current;
+    if (!root || typeof window === "undefined") return;
+
+    let frame = 0;
+    const scheduleFit = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => applyViewerTableFit(root));
+    };
+
+    scheduleFit();
+    window.addEventListener("resize", scheduleFit);
+
+    const resizeObserver = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(scheduleFit)
+      : null;
+    resizeObserver?.observe(root);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", scheduleFit);
+      resizeObserver?.disconnect();
+    };
+  }, [cleanHtml]);
+
+  const openFittedTable = (target: EventTarget | null) => {
+    if (!(target instanceof Element)) return;
+    const wrapper = target.closest<HTMLElement>(".rt-table-scroll[data-rt-fit-table='true']");
+    if (!wrapper) return;
+    const table = getDirectTableElement(wrapper);
+    if (!table) return;
+
+    const clone = table.cloneNode(true) as HTMLTableElement;
+    resetViewerTableFit(wrapper, table);
+    restoreViewerTableOriginalStyle(clone);
+    clone.style.removeProperty("transform");
+    clone.style.removeProperty("transform-origin");
+    clone.style.maxWidth = "none";
+    setZoomedTableHtml(clone.outerHTML);
+    window.requestAnimationFrame(() => applyViewerTableFit(wrapper.closest<HTMLElement>(".rich-text-viewer") ?? wrapper));
+  };
+
   if (!cleanHtml && !scopedCss) return null;
 
   return (
     <>
       {scopedCss ? <style>{scopedCss}</style> : null}
       <div
+        ref={viewerRef}
         data-rich-text-id={viewerId}
         className={cn(
-          "rich-text-viewer max-w-none overflow-x-auto text-sm leading-7 text-gray-700",
+          "rich-text-viewer max-w-none overflow-x-hidden text-sm leading-7 text-gray-700",
           "[&_a]:text-[#1B5E20] [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-[#D8E8DA] [&_blockquote]:pl-4 [&_blockquote]:text-gray-600",
           "[&_h2]:mb-3 [&_h2]:mt-5 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-[#001B3A] [&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:text-lg [&_h3]:font-bold [&_h3]:text-[#001B3A]",
           "[&_h1]:mb-4 [&_h1]:mt-6 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:text-[#001B3A] [&_h4]:mb-2 [&_h4]:mt-3 [&_h4]:text-base [&_h4]:font-bold [&_h4]:text-[#001B3A]",
@@ -1947,8 +2095,49 @@ export function RichTextViewer({ html, className }: RichTextViewerProps) {
           "[&_section]:my-4 [&_table]:my-4 [&_table]:min-w-full [&_table]:border-collapse [&_table]:text-xs sm:[&_table]:text-sm [&_td]:border [&_td]:border-gray-200 [&_td]:px-3 [&_td]:py-2 [&_td]:break-keep [&_td]:[overflow-wrap:normal] [&_th]:border [&_th]:border-gray-200 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2 [&_th]:break-keep [&_th]:[overflow-wrap:normal]",
           className,
         )}
+        onClick={(event) => openFittedTable(event.target)}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          const target = event.target;
+          if (!(target instanceof Element) || !target.closest(".rt-table-scroll[data-rt-fit-table='true']")) return;
+          event.preventDefault();
+          openFittedTable(target);
+        }}
         dangerouslySetInnerHTML={{ __html: cleanHtml }}
       />
+      {zoomedTableHtml ? (
+        <div
+          className="fixed inset-0 z-[1000] bg-black/70 p-3 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setZoomedTableHtml(null)}
+        >
+          <div
+            className="mx-auto flex h-full max-w-6xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+              <strong className="text-sm text-gray-900">표 크게 보기</strong>
+              <button
+                type="button"
+                className="rounded border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                onClick={() => setZoomedTableHtml(null)}
+              >
+                닫기
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              <div
+                className={cn(
+                  "rich-text-viewer max-w-none text-sm leading-7 text-gray-700",
+                  "[&_table]:min-w-max [&_table]:border-collapse [&_td]:border [&_td]:border-gray-200 [&_td]:px-3 [&_td]:py-2 [&_th]:border [&_th]:border-gray-200 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2",
+                )}
+                dangerouslySetInnerHTML={{ __html: zoomedTableHtml }}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }
