@@ -25,6 +25,9 @@ export function PushNotificationToggle() {
   });
   const subscribeMutation = trpc.push.subscribe.useMutation();
   const unsubscribeMutation = trpc.push.unsubscribe.useMutation();
+  const mySubscriptionsQuery = trpc.push.getMySubscriptions.useQuery(undefined, {
+    enabled: supported,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -40,7 +43,18 @@ export function PushNotificationToggle() {
 
       try {
         const subscription = await getCurrentPushSubscription();
-        if (!cancelled) setSubscribed(Boolean(subscription));
+        if (cancelled) return;
+
+        const serverSubscriptions = mySubscriptionsQuery.data;
+        if (!serverSubscriptions) {
+          setSubscribed(Boolean(subscription));
+          return;
+        }
+
+        setSubscribed(Boolean(
+          subscription?.endpoint &&
+          serverSubscriptions.some((item) => item.endpoint === subscription.endpoint),
+        ));
       } catch {
         if (!cancelled) setSubscribed(false);
       }
@@ -51,7 +65,7 @@ export function PushNotificationToggle() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [mySubscriptionsQuery.data]);
 
   const enablePush = async () => {
     setLoading(true);
