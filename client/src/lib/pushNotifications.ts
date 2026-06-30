@@ -38,7 +38,10 @@ export async function ensureServiceWorkerRegistration(): Promise<ServiceWorkerRe
   }
 
   const existing = await navigator.serviceWorker.getRegistration("/");
-  if (existing) return existing;
+  if (existing) {
+    await existing.update().catch(() => undefined);
+    return existing;
+  }
 
   return navigator.serviceWorker.register("/sw.js");
 }
@@ -50,14 +53,21 @@ export async function getCurrentPushSubscription(): Promise<PushSubscription | n
   return registration.pushManager.getSubscription();
 }
 
-export async function subscribeToPush(vapidPublicKey: string): Promise<PushSubscriptionJSON> {
+export async function subscribeToPush(
+  vapidPublicKey: string,
+  options: { forceNew?: boolean } = {},
+): Promise<PushSubscriptionJSON> {
   if (!vapidPublicKey) {
     throw new Error("VAPID public key is missing.");
   }
 
   const registration = await ensureServiceWorkerRegistration();
   const existing = await registration.pushManager.getSubscription();
-  const subscription = existing ?? await registration.pushManager.subscribe({
+  if (existing && options.forceNew) {
+    await existing.unsubscribe().catch(() => undefined);
+  }
+
+  const subscription = !options.forceNew && existing ? existing : await registration.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToArrayBuffer(vapidPublicKey),
   });

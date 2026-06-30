@@ -65,6 +65,7 @@ export const pushRouter = router({
         },
       });
 
+      console.log(`[push] Subscribed userId=${owner.userId} memberId=${owner.memberId ?? "none"}`);
       return { success: true };
     }),
 
@@ -85,6 +86,7 @@ export const pushRouter = router({
         ),
       ));
 
+      console.log(`[push] Unsubscribed userId=${owner.userId} memberId=${owner.memberId ?? "none"}`);
       return { success: true };
     }),
 

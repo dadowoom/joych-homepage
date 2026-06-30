@@ -32,6 +32,8 @@ export type PushPayload = {
   tag?: string;
 };
 
+type PushSendOutcome = "sent" | "expired" | "failed";
+
 function memberIdFromAdminOpenId(openId: string | null | undefined) {
   const match = openId?.match(/^member:(\d+)$/);
   if (!match) return null;
@@ -86,7 +88,7 @@ export async function sendPushToPermissionHolders(
     }
 
     const payloadJson = JSON.stringify(payload);
-    const results = await Promise.allSettled(subscriptions.map(async (subscription) => {
+    const results = await Promise.allSettled(subscriptions.map(async (subscription): Promise<PushSendOutcome> => {
       try {
         await webpush.sendNotification(
           {
@@ -98,26 +100,34 @@ export async function sendPushToPermissionHolders(
           },
           payloadJson,
         );
+        return "sent";
       } catch (error: unknown) {
         const statusCode = typeof error === "object" && error !== null && "statusCode" in error
           ? Number((error as { statusCode?: unknown }).statusCode)
           : null;
         if (statusCode === 404 || statusCode === 410) {
+          console.warn(`[push] Expired subscription id=${subscription.id} status=${statusCode}; deleting`);
           try {
             await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, subscription.id));
           } catch (deleteError) {
             console.warn("[push] Failed to delete expired subscription", deleteError);
           }
-          return;
+          return "expired";
         }
 
         const message = error instanceof Error ? error.message : String(error);
         console.warn(`[push] Failed to send subscription id=${subscription.id}: ${statusCode ?? message}`);
+        return "failed";
       }
     }));
-    const sentCount = results.filter((result) => result.status === "fulfilled").length;
-    const failedCount = results.length - sentCount;
-    console.log(`[push] Sent permission=${permissionKey} subscriptions=${subscriptions.length} fulfilled=${sentCount} failed=${failedCount}`);
+
+    const outcomes = results.map((result): PushSendOutcome =>
+      result.status === "fulfilled" ? result.value : "failed",
+    );
+    const sentCount = outcomes.filter((outcome) => outcome === "sent").length;
+    const expiredCount = outcomes.filter((outcome) => outcome === "expired").length;
+    const failedCount = outcomes.filter((outcome) => outcome === "failed").length;
+    console.log(`[push] Dispatch permission=${permissionKey} subscriptions=${subscriptions.length} sent=${sentCount} expired=${expiredCount} failed=${failedCount}`);
   } catch (error) {
     console.error("[push] Notification dispatch failed", error);
   }
