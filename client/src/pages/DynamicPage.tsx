@@ -250,7 +250,6 @@ function renderContent(
         <EditorContent
           menuItemId={menuItemId}
           menuSubItemId={menuSubItemId}
-          contentWidth={shouldUseWideEditorLayout ? "wide" : "default"}
         />
       );
     default:
