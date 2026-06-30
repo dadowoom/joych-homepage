@@ -361,7 +361,8 @@ function sanitizeRichTextForViewer(value: string | null | undefined, scopeSelect
 export function sanitizeRichTextHtml(value?: string | null) {
   const { html } = extractStyleBlocks(value);
   ensureRichTextSanitizeHook();
-  return DOMPurify.sanitize(html, richTextSanitizeOptions);
+  const cleanHtml = DOMPurify.sanitize(html, richTextSanitizeOptions);
+  return normalizeRichTextTableLayoutForViewer(cleanHtml);
 }
 
 function isEmptyEditorHtml(value: string) {
@@ -1562,8 +1563,9 @@ export function RichTextEditor({
 
   const switchToVisual = () => {
     if (!editor) return;
-    editor.commands.setContent(sourceHtml || "<p></p>", { emitUpdate: false });
-    onChange(isEmptyEditorHtml(sourceHtml) ? "" : sourceHtml);
+    const cleanHtml = sanitizeRichTextHtml(sourceHtml);
+    editor.commands.setContent(cleanHtml || "<p></p>", { emitUpdate: false });
+    onChange(isEmptyEditorHtml(cleanHtml) ? "" : cleanHtml);
     setEditorMode("visual");
   };
 

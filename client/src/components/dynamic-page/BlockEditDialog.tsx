@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { RichTextEditor, RichTextViewer } from "@/components/ui/rich-text-editor";
+import { RichTextEditor, RichTextViewer, sanitizeRichTextHtml } from "@/components/ui/rich-text-editor";
 import { trpc } from "@/lib/trpc";
 import { BLOCK_TYPES, HTML_EDITOR_BLOCK_TYPE } from "./BlockRenderer";
 import { normalizeHtmlBlockValue } from "./htmlBlockUtils";
@@ -312,7 +312,7 @@ export function BlockEditDialog({
   const buildContent = () => {
     if (blockType === HTML_EDITOR_BLOCK_TYPE) {
       const htmlForSave = htmlEditMode === "source" ? htmlSourceDraft : html;
-      return JSON.stringify({ html: htmlForSave });
+      return JSON.stringify({ html: sanitizeRichTextHtml(normalizeHtmlBlockValue(htmlForSave)) });
     }
     if (blockType.startsWith("text"))
       return JSON.stringify({ text, fontSize, align });
