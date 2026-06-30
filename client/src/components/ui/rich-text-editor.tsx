@@ -1440,7 +1440,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class: cn(
-          "rich-text-editor-content w-full max-w-full min-w-0 overflow-x-hidden overflow-y-auto break-words bg-white px-3 py-3 text-sm leading-7 outline-none [overflow-wrap:anywhere] [&_*]:max-w-full [&_.selectedCell]:bg-[#EAF6EA] [&_.tableWrapper]:my-4 [&_.tableWrapper]:overflow-x-auto [&_blockquote]:my-3 [&_blockquote]:border-l-4 [&_blockquote]:border-[#D8E8DA] [&_blockquote]:bg-[#F8FBF8] [&_blockquote]:py-2 [&_blockquote]:pl-4 [&_blockquote]:pr-3 [&_blockquote]:text-gray-600 [&_blockquote_p]:my-0 [&_iframe]:my-4 [&_iframe]:aspect-video [&_iframe]:w-full [&_iframe]:rounded-lg [&_img]:h-auto [&_mark]:rounded [&_mark]:px-1 [&_mark]:py-0.5 [&_table]:w-full [&_table]:border-collapse [&_td]:min-w-[120px] [&_td]:border [&_td]:border-gray-300 [&_td]:px-3 [&_td]:py-2 [&_th]:min-w-[120px] [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2",
+          "rich-text-editor-content w-full max-w-full min-w-0 overflow-x-hidden overflow-y-auto break-words bg-white px-3 py-3 text-sm leading-7 outline-none [overflow-wrap:anywhere] [&_*]:max-w-full [&_.selectedCell]:bg-[#EAF6EA] [&_.tableWrapper]:my-4 [&_.tableWrapper]:overflow-x-auto [&_blockquote]:my-3 [&_blockquote]:border-l-4 [&_blockquote]:border-[#D8E8DA] [&_blockquote]:bg-[#F8FBF8] [&_blockquote]:py-2 [&_blockquote]:pl-4 [&_blockquote]:pr-3 [&_blockquote]:text-gray-600 [&_blockquote_p]:my-0 [&_iframe]:my-4 [&_iframe]:aspect-video [&_iframe]:w-full [&_iframe]:rounded-lg [&_img]:h-auto [&_mark]:rounded [&_mark]:px-1 [&_mark]:py-0.5 [&_table]:w-full [&_table]:border-collapse [&_td]:min-w-[120px] [&_td]:border [&_td]:border-gray-300 [&_td]:px-3 [&_td]:py-2 [&_td]:break-keep [&_td]:[overflow-wrap:normal] [&_th]:min-w-[120px] [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2 [&_th]:break-keep [&_th]:[overflow-wrap:normal]",
           "[&_figure]:my-6 [&_figure]:text-center [&_figcaption]:mt-2 [&_figcaption]:text-xs [&_figcaption]:text-gray-500 [&_details]:my-4 [&_details]:rounded-lg [&_details]:border [&_details]:border-gray-200 [&_details]:bg-gray-50 [&_details]:px-4 [&_details]:py-2 [&_summary]:cursor-pointer [&_summary]:font-medium",
           minHeightClassName,
         ),
@@ -1624,7 +1624,7 @@ export function RichTextViewer({ html, className }: RichTextViewerProps) {
           "[&_mark]:rounded [&_mark]:px-1 [&_mark]:py-0.5",
           "[&_iframe]:my-4 [&_iframe]:aspect-video [&_iframe]:w-full [&_iframe]:rounded-lg",
           "min-w-0 break-words [overflow-wrap:anywhere] [&_*]:max-w-full [&_hr]:my-5 [&_hr]:border-gray-200 [&_img]:mx-auto [&_img]:my-5 [&_img]:h-auto [&_img]:max-w-full [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:my-2 [&_ul]:ml-5 [&_ul]:list-disc",
-          "[&_section]:my-4 [&_table]:my-4 [&_table]:min-w-full [&_table]:border-collapse [&_td]:border [&_td]:border-gray-200 [&_td]:px-3 [&_td]:py-2 [&_th]:border [&_th]:border-gray-200 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2",
+          "[&_section]:my-4 [&_table]:my-4 [&_table]:min-w-full [&_table]:border-collapse [&_td]:border [&_td]:border-gray-200 [&_td]:px-3 [&_td]:py-2 [&_td]:break-keep [&_td]:[overflow-wrap:normal] [&_th]:border [&_th]:border-gray-200 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2 [&_th]:break-keep [&_th]:[overflow-wrap:normal]",
           className,
         )}
         dangerouslySetInnerHTML={{ __html: cleanHtml }}
