@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bell, BellOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -19,6 +19,7 @@ export function PushNotificationToggle() {
   const [permission, setPermission] = useState<NotificationPermission>("default");
   const [subscribed, setSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const repairAttemptedForEndpoint = useRef<string | null>(null);
 
   const vapidQuery = trpc.home.getVapidPublicKey.useQuery(undefined, {
     staleTime: Infinity,
@@ -28,6 +29,35 @@ export function PushNotificationToggle() {
   const mySubscriptionsQuery = trpc.push.getMySubscriptions.useQuery(undefined, {
     enabled: supported,
   });
+
+  const saveSubscription = async (subscription: PushSubscriptionJSON) => {
+    if (!subscription.endpoint || !subscription.keys?.p256dh || !subscription.keys.auth) {
+      throw new Error("Invalid push subscription.");
+    }
+
+    await subscribeMutation.mutateAsync({
+      endpoint: subscription.endpoint,
+      keys: {
+        p256dh: subscription.keys.p256dh,
+        auth: subscription.keys.auth,
+      },
+      userAgent: navigator.userAgent,
+    });
+  };
+
+  const saveFreshSubscription = async (vapidPublicKey: string) => {
+    const previousEndpoint = (await getCurrentPushSubscription())?.endpoint ?? null;
+    const subscription = await subscribeToPush(vapidPublicKey, { forceNew: true });
+    await saveSubscription(subscription);
+
+    if (previousEndpoint && subscription.endpoint && previousEndpoint !== subscription.endpoint) {
+      await unsubscribeMutation.mutateAsync({ endpoint: previousEndpoint }).catch((error) => {
+        console.warn("[Push] stale subscription cleanup failed", error);
+      });
+    }
+
+    return subscription;
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -51,10 +81,25 @@ export function PushNotificationToggle() {
           return;
         }
 
-        setSubscribed(Boolean(
+        const serverHasSubscription = Boolean(
           subscription?.endpoint &&
           serverSubscriptions.some((item) => item.endpoint === subscription.endpoint),
-        ));
+        );
+        setSubscribed(serverHasSubscription);
+
+        if (
+          subscription?.endpoint &&
+          !serverHasSubscription &&
+          getNotificationPermission() === "granted" &&
+          vapidQuery.data &&
+          repairAttemptedForEndpoint.current !== subscription.endpoint
+        ) {
+          repairAttemptedForEndpoint.current = subscription.endpoint;
+          await saveFreshSubscription(vapidQuery.data);
+          await utils.push.getMySubscriptions.invalidate();
+          setSubscribed(true);
+          toast.success("알림 구독을 다시 연결했습니다.");
+        }
       } catch {
         if (!cancelled) setSubscribed(false);
       }
@@ -65,7 +110,7 @@ export function PushNotificationToggle() {
     return () => {
       cancelled = true;
     };
-  }, [mySubscriptionsQuery.data]);
+  }, [mySubscriptionsQuery.data, vapidQuery.data]);
 
   const enablePush = async () => {
     setLoading(true);
@@ -83,19 +128,7 @@ export function PushNotificationToggle() {
         return;
       }
 
-      const subscription = await subscribeToPush(vapidPublicKey);
-      if (!subscription.endpoint || !subscription.keys?.p256dh || !subscription.keys.auth) {
-        throw new Error("Invalid push subscription.");
-      }
-
-      await subscribeMutation.mutateAsync({
-        endpoint: subscription.endpoint,
-        keys: {
-          p256dh: subscription.keys.p256dh,
-          auth: subscription.keys.auth,
-        },
-        userAgent: navigator.userAgent,
-      });
+      await saveFreshSubscription(vapidPublicKey);
 
       await utils.push.getMySubscriptions.invalidate();
       setSubscribed(true);
