@@ -17,8 +17,8 @@ import { ChevronLeft, ChevronRight, Download, Images, Paperclip, Upload, X, Zoom
 
 function PageHeader({ title, subtitle, breadcrumb }: { title: string; subtitle?: string; breadcrumb: string[] }) {
   return (
-    <div className="bg-[#1B5E20] px-4 py-10 text-white sm:py-16">
-      <div className="max-w-5xl mx-auto">
+    <div className="bg-[#1B5E20] py-10 text-white sm:py-16">
+      <div className="container">
         <nav className="mb-3 flex items-center gap-2 overflow-x-auto text-xs text-green-200 sm:mb-4 sm:text-sm">
           <Link href="/" className="hover:text-white transition-colors">홈</Link>
           {breadcrumb.map((b, i) => (
@@ -38,7 +38,7 @@ function PageHeader({ title, subtitle, breadcrumb }: { title: string; subtitle?:
 function SubNav({ items }: { items: { label: string; href: string }[] }) {
   return (
     <div className="bg-white border-b border-gray-200 sticky top-0 z-40">
-      <div className="max-w-5xl mx-auto flex overflow-x-auto px-2 sm:px-4">
+      <div className="container flex overflow-x-auto">
         {items.map((item, i) => (
           <Link key={i} href={item.href}
             className="flex-shrink-0 whitespace-nowrap border-b-2 border-transparent px-4 py-3 text-sm font-medium text-gray-600 transition-all hover:border-[#1B5E20] hover:text-[#1B5E20] sm:px-5 sm:py-4">
@@ -115,7 +115,7 @@ export function JoyfulTV() {
     <div className="min-h-screen bg-[#F7F7F5]">
       <PageHeader title="조이풀TV" subtitle="기쁨의교회 예배와 설교 영상을 만나보세요" breadcrumb={["조이풀TV", "설교 영상"]} />
       <SubNav items={WORSHIP_NAV} />
-      <div className="max-w-5xl mx-auto px-4 py-10">
+      <div className="container py-10">
         {/* 최신 영상 (큰 카드) */}
         <div className="bg-white rounded-2xl overflow-hidden shadow-sm mb-10">
           <div className="relative aspect-video bg-gray-900">
@@ -219,7 +219,7 @@ export function WorshipSchedule() {
     <div className="min-h-screen bg-[#F7F7F5]">
       <PageHeader title="예배시간 안내" subtitle="기쁨의교회 예배 일정을 확인하세요" breadcrumb={["조이풀TV", "예배시간 안내"]} />
       <SubNav items={WORSHIP_NAV} />
-      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-14">
+      <div className="container py-8 sm:py-14">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
           {WORSHIP_TIMES.map((wt, i) => (
             <section key={i} className={`rounded-lg p-5 shadow-sm sm:p-7 ${wt.color}`}>
