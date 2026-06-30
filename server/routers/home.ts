@@ -16,7 +16,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { adminPermissionProcedure, publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
-import { notifyFacilityReservation } from "../_core/pushNotifications";
+import { notifyCourseApplicationToDistrictManager, notifyFacilityReservation } from "../_core/pushNotifications";
 import {
   canMemberRequestFacilityReservation,
   hasFacilityReservationRuleOverride,
@@ -517,6 +517,12 @@ export const homeRouter = router({
         if (!id) {
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "강좌 신청 저장에 실패했습니다." });
         }
+        notifyCourseApplicationToDistrictManager({
+          applicantName: input.applicantName || member.name,
+          applicantDistrict: member.district,
+          courseTitle: course.title,
+          applicationId: id,
+        });
         return { id, status: "pending" as const };
       } catch (error) {
         if (error instanceof CourseApplicationConflictError) {

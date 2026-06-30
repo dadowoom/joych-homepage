@@ -24,6 +24,7 @@ const joseMocks = vi.hoisted(() => ({
 
 const pushMocks = vi.hoisted(() => ({
   notifyFacilityReservation: vi.fn(),
+  notifyCourseApplicationToDistrictManager: vi.fn(),
 }));
 
 vi.mock("jose", () => ({
@@ -32,6 +33,7 @@ vi.mock("jose", () => ({
 
 vi.mock("./_core/pushNotifications", () => ({
   notifyFacilityReservation: pushMocks.notifyFacilityReservation,
+  notifyCourseApplicationToDistrictManager: pushMocks.notifyCourseApplicationToDistrictManager,
 }));
 
 vi.mock("./db/member", async (importOriginal) => {

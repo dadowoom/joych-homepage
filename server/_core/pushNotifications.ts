@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import webpush from "web-push";
 import { eq, inArray, or, type SQL } from "drizzle-orm";
 import { adminContentPermissions, pushSubscriptions, users } from "../../drizzle/schema";
-import { getDb } from "../db";
+import { getDb, getMembersAssignedToDistrict } from "../db";
 
 let initialized = false;
 let warnedMissingVapid = false;
@@ -252,4 +252,48 @@ export function notifyVehicleReservationResult(params: {
     url: "/support/vehicle/my-reservations",
     tag: `vehicle-reservation-result-${params.reservationId}-${params.status}`,
   }, `vehicle-reservation-result id=${params.reservationId} status=${params.status}`);
+}
+
+export async function sendPushToDistrictManagers(
+  district: string | null | undefined,
+  payload: PushPayload,
+): Promise<void> {
+  const normalizedDistrict = district?.trim();
+  if (!normalizedDistrict) return;
+
+  try {
+    const managers = await getMembersAssignedToDistrict(normalizedDistrict);
+    if (managers.length === 0) {
+      console.warn(`[push] No district managers for district=${normalizedDistrict}`);
+      return;
+    }
+
+    await Promise.allSettled(
+      managers.map((manager) =>
+        sendPushToMember(
+          manager.id,
+          payload,
+          `district-manager district=${normalizedDistrict}`,
+        )
+      ),
+    );
+  } catch (error) {
+    console.error(`[push] District manager notification failed district=${normalizedDistrict}`, error);
+  }
+}
+
+export function notifyCourseApplicationToDistrictManager(params: {
+  applicantName: string;
+  applicantDistrict: string | null | undefined;
+  courseTitle: string;
+  applicationId: number;
+}): void {
+  if (!params.applicantDistrict?.trim()) return;
+
+  void sendPushToDistrictManagers(params.applicantDistrict, {
+    title: "우리 구역 강좌 신청",
+    body: `[${params.applicantName}] ${params.courseTitle} 신청`,
+    url: "/admin_joych_2026?tab=courses",
+    tag: `course-application-${params.applicationId}`,
+  });
 }
