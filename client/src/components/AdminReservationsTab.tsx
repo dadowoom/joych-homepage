@@ -824,10 +824,10 @@ function CalendarView({ reservations, facilityFilter, facilities }: {
           if (!day) return <div key={"empty-" + idx} />;
           const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
           const dayReservations = reservationsByDate[dateKey] ?? [];
-          const pending = dayReservations.filter(r => r.status === "pending").length;
-          const checking = dayReservations.filter(r => r.status === "checking").length;
-          const approved = dayReservations.filter(r => r.status === "approved").length;
-          const externalCount = dayReservations.filter(r => isExternalReservation(r)).length;
+          const pendingCount = dayReservations.filter(r => r.status === "pending").length;
+          const approvedReservations = dayReservations.filter(r => r.status === "approved");
+          const externalCount = approvedReservations.filter(r => isExternalReservation(r)).length;
+          const memberCount = approvedReservations.length - externalCount;
           const isToday = getLocalDateKey() === dateKey;
           const isSelected = selectedDate === dateKey;
           const isSun = (idx % 7) === 0;
@@ -849,34 +849,19 @@ function CalendarView({ reservations, facilityFilter, facilities }: {
               <p className={"text-xs font-medium mb-1 " + (isToday ? "text-[#1B5E20]" : isSun ? "text-red-500" : isSat ? "text-blue-500" : "text-gray-700")}>
                 {day}
               </p>
-              {pending > 0 && (
+              {pendingCount > 0 && (
                 <div className="text-[10px] bg-amber-100 text-amber-700 rounded px-1 py-0.5 mb-0.5 truncate">
-                  대기 {pending}
+                  대기 {pendingCount}
                 </div>
               )}
-              {checking > 0 && (
-                <div className="text-[10px] bg-blue-100 text-blue-700 rounded px-1 py-0.5 mb-0.5 truncate">
-                  확인 {checking}
-                </div>
-              )}
-              {approved > 0 && (
-                <div className="text-[10px] bg-green-100 text-green-700 rounded px-1 py-0.5 truncate">
-                  승인 {approved}
+              {memberCount > 0 && (
+                <div className="text-[10px] bg-green-100 text-green-700 rounded px-1 py-0.5 mb-0.5 truncate">
+                  성도 {memberCount}건
                 </div>
               )}
               {externalCount > 0 && (
-                <div className="text-[10px] bg-orange-100 text-orange-700 rounded px-1 py-0.5 mt-0.5 truncate">
-                  외부 {externalCount}
-                </div>
-              )}
-              {dayReservations.length > 0 && (
-                <div className="mt-1 hidden text-[10px] leading-4 text-gray-500 sm:block">
-                  {dayReservations.slice(0, 2).map(reservation => (
-                    <p key={reservation.id} className="truncate">
-                      {reservation.startTime} {getReservationName(reservation)}
-                    </p>
-                  ))}
-                  {dayReservations.length > 2 && <p className="text-gray-400">+{dayReservations.length - 2}건</p>}
+                <div className="text-[10px] bg-orange-100 text-orange-700 rounded px-1 py-0.5 truncate">
+                  외부인 {externalCount}건
                 </div>
               )}
               {dayReservations.length > 0 && (
@@ -906,9 +891,7 @@ function CalendarView({ reservations, facilityFilter, facilities }: {
 
       {/* 범례 */}
       <div className="flex gap-4 mt-4 text-xs text-gray-500">
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-100 border border-amber-200 inline-block"></span>승인 대기</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-100 border border-blue-200 inline-block"></span>확인중</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-100 border border-green-200 inline-block"></span>승인 완료</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-100 border border-amber-200 inline-block"></span>대기</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-100 border border-green-300 inline-block"></span>성도</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-100 border border-orange-300 inline-block"></span>외부인</span>
       </div>
