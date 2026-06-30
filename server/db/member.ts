@@ -16,6 +16,7 @@ import {
   churchMembers,
   courseApplications,
   freeBoardPosts,
+  memberDistricts,
   memberFieldOptions,
   memberSocialAccounts,
   missionReportAuthors,
@@ -147,7 +148,27 @@ export async function getMemberSocialAccountByMember(provider: MemberSocialProvi
 export async function getAllMembers() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(churchMembers).orderBy(desc(churchMembers.createdAt));
+  const members = await db.select().from(churchMembers).orderBy(desc(churchMembers.createdAt));
+  if (members.length === 0) return [];
+
+  const assignments = await db
+    .select({
+      memberId: memberDistricts.memberId,
+      district: memberDistricts.district,
+    })
+    .from(memberDistricts)
+    .orderBy(asc(memberDistricts.district));
+  const districtsByMemberId = new Map<number, string[]>();
+  for (const assignment of assignments) {
+    const list = districtsByMemberId.get(assignment.memberId) ?? [];
+    list.push(assignment.district);
+    districtsByMemberId.set(assignment.memberId, list);
+  }
+
+  return members.map((member) => ({
+    ...member,
+    assignedDistricts: districtsByMemberId.get(member.id) ?? [],
+  }));
 }
 
 /** 승인 대기 성도 목록 */
@@ -290,6 +311,8 @@ export async function withdrawMemberAndErasePersonalData(id: number) {
   const now = new Date();
 
   await db.transaction(async (tx) => {
+    await tx.delete(memberDistricts).where(eq(memberDistricts.memberId, id));
+
     await tx.delete(memberSocialAccounts).where(eq(memberSocialAccounts.memberId, id));
 
     await tx.update(testimonyPosts)
@@ -406,6 +429,7 @@ export async function adminHardDeleteMember(id: number): Promise<AdminHardDelete
       return { deleted: false, reason: "has_related_records", related };
     }
 
+    await tx.delete(memberDistricts).where(eq(memberDistricts.memberId, id));
     await tx.delete(memberSocialAccounts).where(eq(memberSocialAccounts.memberId, id));
     await tx.delete(churchMembers).where(eq(churchMembers.id, id));
 
@@ -438,6 +462,72 @@ export async function adminUpdateMember(id: number, data: Partial<{
   if (!db) throw new Error('DB not available');
   const normalized = data.email ? { ...data, email: data.email.trim().toLowerCase() } : data;
   await db.update(churchMembers).set({ ...normalized, updatedAt: new Date() }).where(eq(churchMembers.id, id));
+}
+
+function normalizeDistrictAssignments(districts: string[]) {
+  return Array.from(
+    new Set(
+      districts
+        .map((district) => district.trim())
+        .filter((district) => district.length > 0 && district.length <= 64),
+    ),
+  );
+}
+
+export async function getMemberDistrictAssignments(memberId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({ district: memberDistricts.district })
+    .from(memberDistricts)
+    .where(eq(memberDistricts.memberId, memberId))
+    .orderBy(asc(memberDistricts.district));
+  return rows.map((row) => row.district);
+}
+
+export async function setMemberDistrictAssignments(memberId: number, districts: string[]) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+
+  const normalized = normalizeDistrictAssignments(districts);
+  await db.transaction(async (tx) => {
+    await tx.delete(memberDistricts).where(eq(memberDistricts.memberId, memberId));
+    if (normalized.length === 0) return;
+
+    await tx.insert(memberDistricts).values(
+      normalized.map((district) => ({
+        memberId,
+        district,
+      })),
+    );
+  });
+  return normalized;
+}
+
+export async function getMembersAssignedToDistrict(district: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const normalizedDistrict = district.trim();
+  if (!normalizedDistrict) return [];
+
+  return db
+    .select({
+      id: churchMembers.id,
+      name: churchMembers.name,
+      email: churchMembers.email,
+      phone: churchMembers.phone,
+      position: churchMembers.position,
+      department: churchMembers.department,
+      district: churchMembers.district,
+      status: churchMembers.status,
+    })
+    .from(memberDistricts)
+    .innerJoin(churchMembers, eq(memberDistricts.memberId, churchMembers.id))
+    .where(and(
+      eq(memberDistricts.district, normalizedDistrict),
+      eq(churchMembers.status, "approved"),
+    ))
+    .orderBy(asc(churchMembers.name));
 }
 
 /** 관리자: 성도 비밀번호 초기화 (임시 비밀번호 설정) */

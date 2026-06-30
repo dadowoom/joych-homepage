@@ -41,6 +41,7 @@ type Member = {
   canReserveFacility?: boolean | null;
   status: string;
   faithPlusUserId?: string | null;
+  assignedDistricts?: string[];
 };
 
 type FieldOption = {
@@ -89,6 +90,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
     canReserveFacility: false,
     status: "pending",
     faithPlusUserId: "",
+    assignedDistricts: [] as string[],
   });
 
   useEffect(() => {
@@ -112,6 +114,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
         canReserveFacility: Boolean(member.canReserveFacility),
         status: member.status ?? "pending",
         faithPlusUserId: member.faithPlusUserId ?? "",
+        assignedDistricts: member.assignedDistricts ?? [],
       });
       setActiveTab("basic");
       setTempPassword("");
@@ -165,6 +168,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
       canReserveFacility: blockedByCategory ? false : form.canReserveFacility,
       status: form.status as "pending" | "approved" | "rejected" | "withdrawn",
       faithPlusUserId: form.faithPlusUserId || undefined,
+      assignedDistricts: form.assignedDistricts,
     });
   };
 
@@ -175,6 +179,18 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
 
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setForm(p => ({ ...p, [key]: e.target.value }));
+  };
+
+  const toggleAssignedDistrict = (district: string, checked: boolean) => {
+    setForm((prev) => {
+      const selected = new Set(prev.assignedDistricts);
+      if (checked) {
+        selected.add(district);
+      } else {
+        selected.delete(district);
+      }
+      return { ...prev, assignedDistricts: Array.from(selected) };
+    });
   };
 
   const inputCls = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30";
@@ -305,6 +321,50 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
             <div>
               <Label className="text-xs text-gray-500 mb-1 block">믿음PLUS 앱 ID</Label>
               <Input value={form.faithPlusUserId} onChange={set("faithPlusUserId")} className={inputCls} placeholder="앱 연동 ID" />
+            </div>
+            <div className="sm:col-span-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <Label className="text-sm font-semibold text-gray-800 block">담당 구역</Label>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    체크한 구역의 성도 활동 알림을 이 회원 계정으로 보낼 때 사용합니다.
+                  </p>
+                </div>
+                {form.assignedDistricts.length > 0 && (
+                  <span className="shrink-0 rounded-full bg-[#1B5E20] px-2 py-0.5 text-xs font-semibold text-white">
+                    {form.assignedDistricts.length}개
+                  </span>
+                )}
+              </div>
+              {districtOptions.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {districtOptions.map((option) => {
+                    const checked = form.assignedDistricts.includes(option.label);
+                    return (
+                      <label
+                        key={option.id}
+                        className={`flex min-h-9 items-center gap-2 rounded-md border px-3 py-2 text-sm cursor-pointer transition-colors ${
+                          checked
+                            ? "border-[#1B5E20] bg-white text-[#1B5E20]"
+                            : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(event) => toggleAssignedDistrict(option.label, event.target.checked)}
+                          className="h-4 w-4 accent-[#1B5E20]"
+                        />
+                        <span className="truncate">{option.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="rounded-md border border-dashed border-gray-200 bg-white px-3 py-2 text-sm text-gray-500">
+                  구역/순 선택지를 먼저 등록하면 담당 구역을 지정할 수 있습니다.
+                </p>
+              )}
             </div>
             <div className="sm:col-span-2 rounded-lg border border-emerald-100 bg-emerald-50/60 p-3">
               <label className="flex items-start gap-3 cursor-pointer">

@@ -57,6 +57,7 @@ import {
   getAllMembers,
   getPendingMembers,
   searchMembersByName,
+  setMemberDistrictAssignments,
   withdrawMemberAndErasePersonalData,
 } from "../db";
 
@@ -449,10 +450,15 @@ export const membersRouter = router({
       canReserveFacility: z.boolean().optional(),
       status: z.enum(["pending", "approved", "rejected", "withdrawn"]).optional(),
       faithPlusUserId: optionalText(128),
+      assignedDistricts: z.array(z.string().trim().max(64)).max(200).optional(),
     }))
-    .mutation(({ input }) => {
-      const { id, ...data } = input;
-      return adminUpdateMember(id, data);
+    .mutation(async ({ input }) => {
+      const { id, assignedDistricts, ...data } = input;
+      await adminUpdateMember(id, data);
+      if (assignedDistricts) {
+        await setMemberDistrictAssignments(id, assignedDistricts);
+      }
+      return { success: true };
     }),
 
   /**

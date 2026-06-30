@@ -614,6 +614,22 @@ export const churchMembers = mysqlTable("church_members", {
 export type ChurchMember = typeof churchMembers.$inferSelect;
 export type InsertChurchMember = typeof churchMembers.$inferInsert;
 
+export const memberDistricts = mysqlTable("member_districts", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 담당자 church_members.id */
+  memberId: int("member_id").notNull(),
+  /** 담당 구역/순 label */
+  district: varchar("district", { length: 64 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("member_districts_member_district_unique").on(table.memberId, table.district),
+  index("member_districts_member_id_idx").on(table.memberId),
+  index("member_districts_district_idx").on(table.district),
+]);
+
+export type MemberDistrict = typeof memberDistricts.$inferSelect;
+export type InsertMemberDistrict = typeof memberDistricts.$inferInsert;
+
 // ─────────────────────────────────────────────
 // 교적부: 구글/카카오 간편가입 계정 연결
 // ─────────────────────────────────────────────
