@@ -15,6 +15,7 @@ import {
   updateVehicleReservationStatus,
   VehicleReservationOverlapError,
 } from "../../db";
+import { notifyVehicleReservationResult } from "../../_core/pushNotifications";
 
 const idSchema = z.number().int().positive();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "날짜 형식이 올바르지 않습니다.");
@@ -30,6 +31,23 @@ function assertTimeOrder(startTime: string, endTime: string) {
   if (startTime >= endTime) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "시작 시간은 종료 시간보다 빨라야 합니다." });
   }
+}
+
+type VehicleResultStatus = "approved" | "rejected" | "cancelled";
+
+async function notifyVehicleResultById(id: number, status: VehicleResultStatus) {
+  const reservation = await getVehicleReservationById(id);
+  if (!reservation) return;
+
+  void notifyVehicleReservationResult({
+    memberId: reservation.userId,
+    status,
+    vehicleName: reservation.vehicleName,
+    date: reservation.reservationDate,
+    startTime: reservation.startTime,
+    endTime: reservation.endTime,
+    reservationId: reservation.id,
+  });
 }
 
 export const vehicleReservationsRouter = router({
@@ -89,27 +107,33 @@ export const vehicleReservationsRouter = router({
       id: idSchema,
       comment: optionalTextSchema(20000),
     }))
-    .mutation(({ input, ctx }) =>
-      updateVehicleReservationStatus(input.id, "approved", input.comment, ctx.user.id)
-    ),
+    .mutation(async ({ input, ctx }) => {
+      await updateVehicleReservationStatus(input.id, "approved", input.comment, ctx.user.id);
+      await notifyVehicleResultById(input.id, "approved");
+      return { success: true };
+    }),
 
   reject: vehicleReservationProcedure
     .input(z.object({
       id: idSchema,
       comment: requiredTextSchema(20000, "거절 사유를 입력해주세요."),
     }))
-    .mutation(({ input, ctx }) =>
-      updateVehicleReservationStatus(input.id, "rejected", input.comment, ctx.user.id)
-    ),
+    .mutation(async ({ input, ctx }) => {
+      await updateVehicleReservationStatus(input.id, "rejected", input.comment, ctx.user.id);
+      await notifyVehicleResultById(input.id, "rejected");
+      return { success: true };
+    }),
 
   cancel: vehicleReservationProcedure
     .input(z.object({
       id: idSchema,
       comment: optionalTextSchema(20000),
     }))
-    .mutation(({ input, ctx }) =>
-      updateVehicleReservationStatus(input.id, "cancelled", input.comment, ctx.user.id)
-    ),
+    .mutation(async ({ input, ctx }) => {
+      await updateVehicleReservationStatus(input.id, "cancelled", input.comment, ctx.user.id);
+      await notifyVehicleResultById(input.id, "cancelled");
+      return { success: true };
+    }),
 
   delete: vehicleReservationProcedure
     .input(z.object({ id: idSchema }))

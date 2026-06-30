@@ -55,6 +55,62 @@ function memberIdFromAdminOpenId(openId: string | null | undefined) {
   return Number.isInteger(memberId) && memberId > 0 ? memberId : null;
 }
 
+async function dispatchPushSubscriptions(
+  subscriptions: Array<typeof pushSubscriptions.$inferSelect>,
+  payload: PushPayload,
+  context: string,
+) {
+  const db = await getDb();
+  if (!db) return;
+
+  if (subscriptions.length === 0) {
+    console.warn(`[push] No subscriptions for ${context} vapid=${vapidPublicKeyFingerprint || "uninitialized"}`);
+    return;
+  }
+
+  const payloadJson = JSON.stringify(payload);
+  const results = await Promise.allSettled(subscriptions.map(async (subscription): Promise<PushSendOutcome> => {
+    try {
+      await webpush.sendNotification(
+        {
+          endpoint: subscription.endpoint,
+          keys: {
+            p256dh: subscription.p256dh,
+            auth: subscription.auth,
+          },
+        },
+        payloadJson,
+      );
+      return "sent";
+    } catch (error: unknown) {
+      const statusCode = typeof error === "object" && error !== null && "statusCode" in error
+        ? Number((error as { statusCode?: unknown }).statusCode)
+        : null;
+      if (statusCode === 404 || statusCode === 410) {
+        console.warn(`[push] Expired subscription id=${subscription.id} status=${statusCode} endpoint=${endpointPreview(subscription.endpoint)} vapid=${vapidPublicKeyFingerprint}; deleting`);
+        try {
+          await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, subscription.id));
+        } catch (deleteError) {
+          console.warn("[push] Failed to delete expired subscription", deleteError);
+        }
+        return "expired";
+      }
+
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[push] Failed to send subscription id=${subscription.id} endpoint=${endpointPreview(subscription.endpoint)}: ${statusCode ?? message}`);
+      return "failed";
+    }
+  }));
+
+  const outcomes = results.map((result): PushSendOutcome =>
+    result.status === "fulfilled" ? result.value : "failed",
+  );
+  const sentCount = outcomes.filter((outcome) => outcome === "sent").length;
+  const expiredCount = outcomes.filter((outcome) => outcome === "expired").length;
+  const failedCount = outcomes.filter((outcome) => outcome === "failed").length;
+  console.log(`[push] Dispatch ${context} subscriptions=${subscriptions.length} sent=${sentCount} expired=${expiredCount} failed=${failedCount} vapid=${vapidPublicKeyFingerprint}`);
+}
+
 export async function sendPushToPermissionHolders(
   permissionKey: string,
   payload: PushPayload,
@@ -100,49 +156,35 @@ export async function sendPushToPermissionHolders(
       return;
     }
 
-    const payloadJson = JSON.stringify(payload);
-    const results = await Promise.allSettled(subscriptions.map(async (subscription): Promise<PushSendOutcome> => {
-      try {
-        await webpush.sendNotification(
-          {
-            endpoint: subscription.endpoint,
-            keys: {
-              p256dh: subscription.p256dh,
-              auth: subscription.auth,
-            },
-          },
-          payloadJson,
-        );
-        return "sent";
-      } catch (error: unknown) {
-        const statusCode = typeof error === "object" && error !== null && "statusCode" in error
-          ? Number((error as { statusCode?: unknown }).statusCode)
-          : null;
-        if (statusCode === 404 || statusCode === 410) {
-          console.warn(`[push] Expired subscription id=${subscription.id} status=${statusCode} endpoint=${endpointPreview(subscription.endpoint)} vapid=${vapidPublicKeyFingerprint}; deleting`);
-          try {
-            await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, subscription.id));
-          } catch (deleteError) {
-            console.warn("[push] Failed to delete expired subscription", deleteError);
-          }
-          return "expired";
-        }
-
-        const message = error instanceof Error ? error.message : String(error);
-        console.warn(`[push] Failed to send subscription id=${subscription.id} endpoint=${endpointPreview(subscription.endpoint)}: ${statusCode ?? message}`);
-        return "failed";
-      }
-    }));
-
-    const outcomes = results.map((result): PushSendOutcome =>
-      result.status === "fulfilled" ? result.value : "failed",
-    );
-    const sentCount = outcomes.filter((outcome) => outcome === "sent").length;
-    const expiredCount = outcomes.filter((outcome) => outcome === "expired").length;
-    const failedCount = outcomes.filter((outcome) => outcome === "failed").length;
-    console.log(`[push] Dispatch permission=${permissionKey} subscriptions=${subscriptions.length} sent=${sentCount} expired=${expiredCount} failed=${failedCount} vapid=${vapidPublicKeyFingerprint}`);
+    await dispatchPushSubscriptions(subscriptions, payload, `permission=${permissionKey}`);
   } catch (error) {
     console.error("[push] Notification dispatch failed", error);
+  }
+}
+
+export async function sendPushToMember(
+  memberId: number | null | undefined,
+  payload: PushPayload,
+  context: string,
+): Promise<void> {
+  try {
+    if (!memberId) {
+      console.warn(`[push] No member target for ${context}`);
+      return;
+    }
+    if (!initWebPush()) return;
+
+    const db = await getDb();
+    if (!db) return;
+
+    const subscriptions = await db
+      .select()
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.memberId, memberId));
+
+    await dispatchPushSubscriptions(subscriptions, payload, `${context} memberId=${memberId}`);
+  } catch (error) {
+    console.error(`[push] Member notification failed context=${context}`, error);
   }
 }
 
@@ -164,4 +206,50 @@ export function notifyFacilityReservation(params: {
     url: "/admin_joych_2026?tab=reservations",
     tag: `reservation-${params.reservationId}`,
   });
+}
+
+export function notifyFacilityReservationResult(params: {
+  memberId: number | null | undefined;
+  status: "approved" | "rejected" | "cancelled";
+  facilityName: string | null | undefined;
+  date: string;
+  startTime: string;
+  endTime: string;
+  reservationId: number;
+  extraCount?: number;
+}) {
+  const statusLabel = params.status === "approved"
+    ? "승인"
+    : params.status === "rejected"
+      ? "거절"
+      : "취소";
+  const extraLabel = params.extraCount && params.extraCount > 0 ? ` 외 ${params.extraCount}건` : "";
+  return sendPushToMember(params.memberId, {
+    title: `시설 예약이 ${statusLabel}되었습니다`,
+    body: `${params.facilityName ?? "시설"}${extraLabel}\n${params.date} ${params.startTime}~${params.endTime}`,
+    url: "/facility/my-reservations",
+    tag: `reservation-result-${params.reservationId}-${params.status}`,
+  }, `reservation-result id=${params.reservationId} status=${params.status}`);
+}
+
+export function notifyVehicleReservationResult(params: {
+  memberId: number | null | undefined;
+  status: "approved" | "rejected" | "cancelled";
+  vehicleName: string | null | undefined;
+  date: string;
+  startTime: string;
+  endTime: string;
+  reservationId: number;
+}) {
+  const statusLabel = params.status === "approved"
+    ? "승인"
+    : params.status === "rejected"
+      ? "거절"
+      : "취소";
+  return sendPushToMember(params.memberId, {
+    title: `차량 예약이 ${statusLabel}되었습니다`,
+    body: `${params.vehicleName ?? "차량"}\n${params.date} ${params.startTime}~${params.endTime}`,
+    url: "/support/vehicle/my-reservations",
+    tag: `vehicle-reservation-result-${params.reservationId}-${params.status}`,
+  }, `vehicle-reservation-result id=${params.reservationId} status=${params.status}`);
 }

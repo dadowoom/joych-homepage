@@ -20,12 +20,14 @@ import {
   deleteReservationGroup,
   getAllReservations,
   getReservationById,
+  getReservationsByGroupId,
   ReservationOverlapError,
   updateReservationDetails,
   updateReservationGroupDetails,
   updateReservationGroupStatus,
   updateReservationStatus,
 } from "../../db";
+import { notifyFacilityReservationResult } from "../../_core/pushNotifications";
 
 const idSchema = z.number().int().positive();
 const groupIdSchema = z.string().min(1).max(80);
@@ -37,6 +39,40 @@ function assertTimeOrder(startTime: string, endTime: string) {
   if (startTime >= endTime) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "시작 시간은 종료 시간보다 빨라야 합니다." });
   }
+}
+
+type ResultStatus = "approved" | "rejected" | "cancelled";
+
+async function notifyReservationResultById(id: number, status: ResultStatus) {
+  const reservation = await getReservationById(id);
+  if (!reservation) return;
+
+  void notifyFacilityReservationResult({
+    memberId: reservation.userId,
+    status,
+    facilityName: reservation.facilityName,
+    date: reservation.reservationDate,
+    startTime: reservation.startTime,
+    endTime: reservation.endTime,
+    reservationId: reservation.id,
+  });
+}
+
+async function notifyReservationGroupResult(groupId: string, status: ResultStatus) {
+  const reservations = await getReservationsByGroupId(groupId);
+  const first = reservations[0];
+  if (!first) return;
+
+  void notifyFacilityReservationResult({
+    memberId: first.userId,
+    status,
+    facilityName: first.facilityName,
+    date: first.reservationDate,
+    startTime: first.startTime,
+    endTime: first.endTime,
+    reservationId: first.id,
+    extraCount: Math.max(0, reservations.length - 1),
+  });
 }
 
 export const reservationsRouter = router({
@@ -114,9 +150,11 @@ export const reservationsRouter = router({
       id: idSchema,
       comment: optionalTextSchema(20000),
     }))
-    .mutation(({ input, ctx }) =>
-      updateReservationStatus(input.id, "approved", input.comment, ctx.user.id)
-    ),
+    .mutation(async ({ input, ctx }) => {
+      await updateReservationStatus(input.id, "approved", input.comment, ctx.user.id);
+      await notifyReservationResultById(input.id, "approved");
+      return { success: true };
+    }),
 
   /** 반복 예약 묶음 승인 (관리자) */
   approveGroup: reservationProcedure
@@ -124,9 +162,11 @@ export const reservationsRouter = router({
       groupId: groupIdSchema,
       comment: optionalTextSchema(20000),
     }))
-    .mutation(({ input, ctx }) =>
-      updateReservationGroupStatus(input.groupId, "approved", input.comment, ctx.user.id)
-    ),
+    .mutation(async ({ input, ctx }) => {
+      await updateReservationGroupStatus(input.groupId, "approved", input.comment, ctx.user.id);
+      await notifyReservationGroupResult(input.groupId, "approved");
+      return { success: true };
+    }),
 
   /** 예약 확인중 처리 (관리자) */
   markChecking: reservationProcedure
@@ -157,9 +197,11 @@ export const reservationsRouter = router({
       id: idSchema,
       comment: requiredTextSchema(20000, "거절 사유를 입력해주세요."),
     }))
-    .mutation(({ input, ctx }) =>
-      updateReservationStatus(input.id, "rejected", input.comment, ctx.user.id)
-    ),
+    .mutation(async ({ input, ctx }) => {
+      await updateReservationStatus(input.id, "rejected", input.comment, ctx.user.id);
+      await notifyReservationResultById(input.id, "rejected");
+      return { success: true };
+    }),
 
   /** 반복 예약 묶음 거절 (관리자) */
   rejectGroup: reservationProcedure
@@ -167,9 +209,11 @@ export const reservationsRouter = router({
       groupId: groupIdSchema,
       comment: requiredTextSchema(20000, "거절 사유를 입력해주세요."),
     }))
-    .mutation(({ input, ctx }) =>
-      updateReservationGroupStatus(input.groupId, "rejected", input.comment, ctx.user.id)
-    ),
+    .mutation(async ({ input, ctx }) => {
+      await updateReservationGroupStatus(input.groupId, "rejected", input.comment, ctx.user.id);
+      await notifyReservationGroupResult(input.groupId, "rejected");
+      return { success: true };
+    }),
 
   /** 예약 취소 처리 (관리자) */
   cancel: reservationProcedure
@@ -177,9 +221,11 @@ export const reservationsRouter = router({
       id: idSchema,
       comment: optionalTextSchema(20000),
     }))
-    .mutation(({ input, ctx }) =>
-      updateReservationStatus(input.id, "cancelled", input.comment, ctx.user.id)
-    ),
+    .mutation(async ({ input, ctx }) => {
+      await updateReservationStatus(input.id, "cancelled", input.comment, ctx.user.id);
+      await notifyReservationResultById(input.id, "cancelled");
+      return { success: true };
+    }),
 
   /** 반복 예약 묶음 취소 처리 (관리자) */
   cancelGroup: reservationProcedure
@@ -187,9 +233,11 @@ export const reservationsRouter = router({
       groupId: groupIdSchema,
       comment: optionalTextSchema(20000),
     }))
-    .mutation(({ input, ctx }) =>
-      updateReservationGroupStatus(input.groupId, "cancelled", input.comment, ctx.user.id)
-    ),
+    .mutation(async ({ input, ctx }) => {
+      await updateReservationGroupStatus(input.groupId, "cancelled", input.comment, ctx.user.id);
+      await notifyReservationGroupResult(input.groupId, "cancelled");
+      return { success: true };
+    }),
 
   delete: reservationProcedure
     .input(z.object({ id: idSchema }))

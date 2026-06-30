@@ -644,6 +644,43 @@ export async function updateReservationGroupStatus(
 }
 
 /** 예약 단건 조회 */
+export async function getReservationsByGroupId(recurrenceGroupId: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: reservations.id,
+      facilityId: reservations.facilityId,
+      userId: reservations.userId,
+      reservationType: reservations.reservationType,
+      reserverName: reservations.reserverName,
+      reserverPhone: reservations.reserverPhone,
+      reservationDate: reservations.reservationDate,
+      startTime: reservations.startTime,
+      endTime: reservations.endTime,
+      status: reservations.status,
+      purpose: reservations.purpose,
+      department: reservations.department,
+      attendees: reservations.attendees,
+      notes: reservations.notes,
+      recurrenceGroupId: reservations.recurrenceGroupId,
+      recurrenceLabel: reservations.recurrenceLabel,
+      recurrenceSequence: reservations.recurrenceSequence,
+      adminComment: reservations.adminComment,
+      processedBy: reservations.processedBy,
+      processedAt: reservations.processedAt,
+      createdAt: reservations.createdAt,
+      facilityName: facilities.name,
+      userName: churchMembers.name,
+      userEmail: churchMembers.email,
+    })
+    .from(reservations)
+    .leftJoin(facilities, eq(reservations.facilityId, facilities.id))
+    .leftJoin(churchMembers, eq(reservations.userId, churchMembers.id))
+    .where(eq(reservations.recurrenceGroupId, recurrenceGroupId))
+    .orderBy(asc(reservations.reservationDate), asc(reservations.startTime), asc(reservations.id));
+}
+
 export async function getReservationById(id: number) {
   const db = await getDb();
   if (!db) return null;
