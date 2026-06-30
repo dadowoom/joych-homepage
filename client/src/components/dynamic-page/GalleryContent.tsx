@@ -1058,7 +1058,7 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
                   const photoStory = getPhotoStory(image.caption, detailGroup.title, imageIndex);
 
                   return (
-                  <figure key={image.id} className="mx-auto max-w-4xl">
+                  <figure key={image.id} className="w-full max-w-none">
                     <button
                       type="button"
                       onClick={() => setLightbox({ groupKey: detailGroup.key, imageIndex })}

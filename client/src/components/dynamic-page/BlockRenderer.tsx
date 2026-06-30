@@ -67,7 +67,7 @@ function SingleImageBlock({
   return (
     <div
       className={`relative mx-auto flex justify-center overflow-hidden rounded-xl bg-white shadow-md cursor-zoom-in group ${
-        isLongImage ? "w-full max-w-2xl" : "w-fit max-w-full md:max-w-4xl"
+        isLongImage ? "w-full max-w-2xl" : "w-full max-w-none"
       }`}
       onClick={onClick}
     >
@@ -80,7 +80,7 @@ function SingleImageBlock({
           setIsLongImage(naturalWidth > 0 && naturalHeight / naturalWidth > 1.6);
         }}
         className={`block max-w-full object-contain ${
-          isLongImage ? "h-auto w-full" : "max-h-[72vh] w-auto"
+          isLongImage ? "h-auto w-full" : "h-auto w-full"
         }`}
       />
       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
