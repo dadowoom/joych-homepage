@@ -14,11 +14,14 @@ import { toast } from "sonner";
 import {
   AlertCircle,
   CalendarCheck,
+  Calendar,
+  ChevronDown,
   CheckCircle2,
   Clock,
   Car,
   ImageIcon,
   KeyRound,
+  List,
   Loader2,
   Pencil,
   Plus,
@@ -31,6 +34,7 @@ import {
 } from "lucide-react";
 
 type AdminVehicleTabMode = "vehicles" | "reservations" | "access";
+type VehicleReservationViewMode = "list" | "calendar";
 type VehicleStatusFilter = "all" | "pending" | "approved" | "rejected" | "cancelled";
 type VehicleReservationStatus = "pending" | "approved" | "rejected" | "cancelled";
 type FieldType = "position" | "department" | "district" | "baptism";
@@ -169,6 +173,10 @@ function formatDate(dateKey: string) {
     : date.toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" });
 }
 
+function getLocalDateKey(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 // 관리자 화면에서는 브라우저 언어 설정에 흔들리지 않도록 HH:MM 24시간제로 통일합니다.
 function normalizeTimeValue(value: string) {
   const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
@@ -237,6 +245,7 @@ export default function AdminVehiclesTab() {
   const [form, setForm] = useState<VehicleForm>(EMPTY_FORM);
   const [reservationVehicleFilter, setReservationVehicleFilter] = useState<number | undefined>();
   const [reservationStatusFilter, setReservationStatusFilter] = useState<VehicleStatusFilter>("all");
+  const [reservationViewMode, setReservationViewMode] = useState<VehicleReservationViewMode>("list");
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [rejectComment, setRejectComment] = useState("");
   const [editingReservationId, setEditingReservationId] = useState<number | null>(null);
@@ -976,6 +985,37 @@ export default function AdminVehiclesTab() {
 
       {activeMode === "reservations" && (
         <div className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h4 className="text-sm font-bold text-gray-900">차량 예약 스케줄</h4>
+              <p className="mt-0.5 text-xs text-gray-500">목록 또는 달력으로 차량 예약 흐름을 확인합니다.</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setReservationViewMode("list")}
+                className={`flex min-h-11 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:min-h-0 sm:py-1.5 ${
+                  reservationViewMode === "list"
+                    ? "bg-[#1B5E20] text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                <List className="h-4 w-4" /> 목록
+              </button>
+              <button
+                type="button"
+                onClick={() => setReservationViewMode("calendar")}
+                className={`flex min-h-11 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:min-h-0 sm:py-1.5 ${
+                  reservationViewMode === "calendar"
+                    ? "bg-[#1B5E20] text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                <Calendar className="h-4 w-4" /> 달력
+              </button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {[
               { label: "전체", value: stats.total, color: "bg-gray-50 text-gray-700" },
@@ -1015,6 +1055,15 @@ export default function AdminVehiclesTab() {
             ))}
           </div>
 
+          {reservationViewMode === "calendar" && (
+            <VehicleReservationCalendarView
+              reservations={filteredReservations}
+              vehicleFilter={reservationVehicleFilter}
+              vehicles={vehicleRows}
+            />
+          )}
+
+          {reservationViewMode === "list" && (
           <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
             {reservationsLoading ? (
               <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[#1B5E20]" /></div>
@@ -1166,6 +1215,7 @@ export default function AdminVehiclesTab() {
               </div>
             )}
           </div>
+          )}
         </div>
       )}
 
@@ -1249,6 +1299,225 @@ export default function AdminVehiclesTab() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function VehicleReservationCalendarView({
+  reservations,
+  vehicleFilter,
+  vehicles,
+}: {
+  reservations: VehicleReservationRow[];
+  vehicleFilter: number | undefined;
+  vehicles: VehicleRow[];
+}) {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(() => getLocalDateKey());
+
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const days: (number | null)[] = [
+    ...Array(firstDay).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
+  ];
+
+  const reservationsByDate = useMemo(() => {
+    const grouped: Record<string, VehicleReservationRow[]> = {};
+    reservations.forEach((reservation) => {
+      const key = reservation.reservationDate;
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(reservation);
+    });
+    Object.values(grouped).forEach((items) => {
+      items.sort((a, b) =>
+        a.startTime.localeCompare(b.startTime) ||
+        (a.vehicleName ?? "").localeCompare(b.vehicleName ?? "") ||
+        getReservationName(a).localeCompare(getReservationName(b))
+      );
+    });
+    return grouped;
+  }, [reservations]);
+
+  const selectedReservations = reservationsByDate[selectedDate] ?? [];
+  const selectedDateLabel = formatDate(selectedDate);
+  const selectedVehicle = vehicleFilter ? vehicles.find((vehicle) => vehicle.id === vehicleFilter) : null;
+
+  function prevMonth() {
+    setCurrentDate(new Date(year, month - 1, 1));
+  }
+
+  function nextMonth() {
+    setCurrentDate(new Date(year, month + 1, 1));
+  }
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="mb-4 flex items-center justify-between">
+        <button type="button" onClick={prevMonth} className="rounded-lg p-2 transition-colors hover:bg-gray-100">
+          <ChevronDown className="h-4 w-4 rotate-90" />
+        </button>
+        <h4 className="font-bold text-gray-800">{year}년 {month + 1}월</h4>
+        <button type="button" onClick={nextMonth} className="rounded-lg p-2 transition-colors hover:bg-gray-100">
+          <ChevronDown className="h-4 w-4 -rotate-90" />
+        </button>
+      </div>
+
+      {selectedVehicle && (
+        <div className="mb-3 rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-xs text-green-800">
+          현재 차량 필터: {selectedVehicle.name}
+        </div>
+      )}
+
+      <div className="mb-1 grid grid-cols-7 gap-1">
+        {["일", "월", "화", "수", "목", "금", "토"].map((day, index) => (
+          <div
+            key={day}
+            className={`py-1 text-center text-xs font-medium ${
+              index === 0 ? "text-red-500" : index === 6 ? "text-blue-500" : "text-gray-500"
+            }`}
+          >
+            {day}
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 gap-1">
+        {days.map((day, index) => {
+          if (!day) return <div key={`empty-${index}`} />;
+          const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+          const dayReservations = reservationsByDate[dateKey] ?? [];
+          const pending = dayReservations.filter((reservation) => reservation.status === "pending").length;
+          const approved = dayReservations.filter((reservation) => reservation.status === "approved").length;
+          const rejected = dayReservations.filter((reservation) => reservation.status === "rejected").length;
+          const cancelled = dayReservations.filter((reservation) => reservation.status === "cancelled").length;
+          const isToday = getLocalDateKey() === dateKey;
+          const isSelected = selectedDate === dateKey;
+          const isSunday = index % 7 === 0;
+          const isSaturday = index % 7 === 6;
+
+          return (
+            <button
+              key={dateKey}
+              type="button"
+              onClick={() => setSelectedDate(dateKey)}
+              className={`group relative min-h-[78px] rounded-lg border p-1.5 text-left transition-colors ${
+                isSelected
+                  ? "border-[#1B5E20] bg-[#F1F8E9] ring-1 ring-[#1B5E20]"
+                  : isToday
+                  ? "border-[#1B5E20]/40 bg-[#F8FCF8]"
+                  : "border-gray-100 hover:border-gray-300"
+              }`}
+            >
+              <p className={`mb-1 text-xs font-medium ${
+                isToday ? "text-[#1B5E20]" : isSunday ? "text-red-500" : isSaturday ? "text-blue-500" : "text-gray-700"
+              }`}>
+                {day}
+              </p>
+              {pending > 0 && <CalendarBadge className="bg-amber-100 text-amber-700">대기 {pending}</CalendarBadge>}
+              {approved > 0 && <CalendarBadge className="bg-green-100 text-green-700">승인 {approved}</CalendarBadge>}
+              {rejected > 0 && <CalendarBadge className="bg-red-100 text-red-700">거절 {rejected}</CalendarBadge>}
+              {cancelled > 0 && <CalendarBadge className="bg-gray-100 text-gray-500">취소 {cancelled}</CalendarBadge>}
+              {dayReservations.length > 0 && (
+                <div className="mt-1 hidden text-[10px] leading-4 text-gray-500 sm:block">
+                  {dayReservations.slice(0, 2).map((reservation) => (
+                    <p key={reservation.id} className="truncate">
+                      {reservation.startTime} {reservation.vehicleName ?? "차량"}
+                    </p>
+                  ))}
+                  {dayReservations.length > 2 && <p className="text-gray-400">+{dayReservations.length - 2}건</p>}
+                </div>
+              )}
+              {dayReservations.length > 0 && (
+                <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-72 -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-3 text-left shadow-lg group-hover:block">
+                  <p className="mb-2 text-xs font-bold text-gray-800">{formatDate(dateKey)} 차량 예약</p>
+                  <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
+                    {dayReservations.map((reservation) => (
+                      <div key={reservation.id} className="rounded-md border border-gray-100 bg-gray-50 px-2 py-1.5">
+                        <p className="truncate text-xs font-semibold text-gray-800">
+                          {formatTimeRange(reservation.startTime, reservation.endTime)} · {reservation.vehicleName ?? "차량"}
+                        </p>
+                        <p className="mt-0.5 truncate text-[11px] text-gray-500">
+                          {getReservationName(reservation)} · {getReservationPosition(reservation)} · {getReservationPhone(reservation)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-4 text-xs text-gray-500">
+        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-amber-100 ring-1 ring-amber-200" />승인 대기</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-green-100 ring-1 ring-green-200" />승인 완료</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-red-100 ring-1 ring-red-200" />거절</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-gray-100 ring-1 ring-gray-200" />취소</span>
+      </div>
+
+      <div className="mt-5 overflow-hidden rounded-xl border border-gray-200 bg-white">
+        <div className="flex flex-col gap-1 border-b border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-bold text-gray-800">{selectedDateLabel} 차량 예약 상세</p>
+            <p className="text-xs text-gray-500">날짜를 누르면 해당 날짜 차량 예약 정보가 바로 바뀝니다.</p>
+          </div>
+          <span className="text-xs font-medium text-[#1B5E20]">총 {selectedReservations.length}건</span>
+        </div>
+
+        {selectedReservations.length === 0 ? (
+          <div className="px-4 py-8 text-center text-sm text-gray-400">이 날짜에는 차량 예약이 없습니다.</div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {selectedReservations.map((reservation) => {
+              const status = STATUS_LABELS[reservation.status] ?? STATUS_LABELS.pending;
+              return (
+                <div
+                  key={reservation.id}
+                  className="grid gap-3 px-4 py-3 text-sm md:grid-cols-[120px_minmax(0,1fr)_150px_150px_110px] md:items-center"
+                >
+                  <div>
+                    <p className="text-xs text-gray-400">시간</p>
+                    <p className="font-semibold text-gray-900">{formatTimeRange(reservation.startTime, reservation.endTime)}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-400">차량 / 목적</p>
+                    <p className="truncate font-semibold text-gray-900">{reservation.vehicleName ?? "차량"} · {reservation.purpose}</p>
+                    {reservation.notes && <p className="mt-0.5 truncate text-xs text-gray-500">요청: {reservation.notes}</p>}
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">신청자 / 직분</p>
+                    <p className="font-semibold text-gray-900">{getReservationName(reservation)}</p>
+                    <p className="text-xs text-gray-500">{getReservationPosition(reservation)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">연락처</p>
+                    <p className="font-semibold text-gray-900">{getReservationPhone(reservation)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">상태 / 인원</p>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${status.color}`}>
+                      {status.icon} {status.label}
+                    </span>
+                    <p className="mt-1 text-xs text-gray-500">{reservation.passengers}명</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CalendarBadge({ children, className }: { children: React.ReactNode; className: string }) {
+  return (
+    <div className={`mb-0.5 truncate rounded px-1 py-0.5 text-[10px] ${className}`}>
+      {children}
     </div>
   );
 }
