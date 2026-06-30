@@ -24,6 +24,7 @@ const joseMocks = vi.hoisted(() => ({
 
 const pushMocks = vi.hoisted(() => ({
   notifyFacilityReservation: vi.fn(),
+  notifyVehicleReservation: vi.fn(),
   notifyCourseApplicationToDistrictManager: vi.fn(),
 }));
 
@@ -33,6 +34,7 @@ vi.mock("jose", () => ({
 
 vi.mock("./_core/pushNotifications", () => ({
   notifyFacilityReservation: pushMocks.notifyFacilityReservation,
+  notifyVehicleReservation: pushMocks.notifyVehicleReservation,
   notifyCourseApplicationToDistrictManager: pushMocks.notifyCourseApplicationToDistrictManager,
 }));
 
@@ -296,6 +298,7 @@ describe("facility reservation lead-time guard", () => {
         endTime: "16:00",
         reservationType: "external",
         reservationId: 100,
+        status: "pending",
       }),
     );
   });
@@ -457,11 +460,12 @@ describe("facility reservation lead-time guard", () => {
         endTime: "16:00",
         reservationType: "member",
         reservationId: 100,
+        status: "pending",
       }),
     );
   });
 
-  it("does not send push notifications for auto-approved facility reservations", async () => {
+  it("sends push notifications for auto-approved facility reservations", async () => {
     dbMocks.getFacilityById.mockResolvedValue({
       ...reservableFacility,
       approvalType: "auto",
@@ -472,7 +476,12 @@ describe("facility reservation lead-time guard", () => {
       caller.home.createReservation(reservationInput({ startTime: "15:00", endTime: "16:00" }))
     ).resolves.toMatchObject({ id: 100, status: "approved", count: 1 });
 
-    expect(pushMocks.notifyFacilityReservation).not.toHaveBeenCalled();
+    expect(pushMocks.notifyFacilityReservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reservationId: 100,
+        status: "approved",
+      }),
+    );
   });
 
   it("blocks normal members when the reservation date is after the configured future window", async () => {
@@ -533,7 +542,12 @@ describe("facility reservation lead-time guard", () => {
         status: "approved",
       }),
     );
-    expect(pushMocks.notifyFacilityReservation).not.toHaveBeenCalled();
+    expect(pushMocks.notifyFacilityReservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reservationId: 100,
+        status: "approved",
+      }),
+    );
     expect(dbMocks.createReservation).not.toHaveBeenCalled();
   });
 
@@ -553,7 +567,15 @@ describe("facility reservation lead-time guard", () => {
         userId: 1,
       }),
     );
-    expect(pushMocks.notifyFacilityReservation).not.toHaveBeenCalled();
+    expect(pushMocks.notifyFacilityReservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reserverName: "Reservation Member",
+        facilityName: "Meeting Room",
+        reservationType: "member",
+        reservationId: 100,
+        status: "approved",
+      }),
+    );
   });
 
   it("lets reservation managers update facility reservation time", async () => {

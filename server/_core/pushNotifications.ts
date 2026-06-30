@@ -196,15 +196,35 @@ export function notifyFacilityReservation(params: {
   endTime: string;
   reservationType: "external" | "member";
   reservationId: number;
+  status?: "pending" | "approved";
   extraCount?: number;
 }) {
   const typeLabel = params.reservationType === "external" ? "외부인" : "성도";
   const extraLabel = params.extraCount && params.extraCount > 0 ? ` 외 ${params.extraCount}건` : "";
+  const statusLabel = params.status === "approved" ? "자동 승인" : "승인 대기";
   return sendPushToPermissionHolders("content:reservations", {
-    title: `새 ${typeLabel} 시설 예약 신청`,
+    title: `새 ${typeLabel} 시설 예약 ${statusLabel}`,
     body: `[${params.reserverName}] ${params.facilityName}${extraLabel}\n${params.date} ${params.startTime}~${params.endTime}`,
     url: "/admin_joych_2026?tab=reservations",
     tag: `reservation-${params.reservationId}`,
+  });
+}
+
+export function notifyVehicleReservation(params: {
+  reserverName: string;
+  vehicleName: string | null | undefined;
+  date: string;
+  startTime: string;
+  endTime: string;
+  reservationId: number;
+  status?: "pending" | "approved";
+}) {
+  const statusLabel = params.status === "approved" ? "자동 승인" : "승인 대기";
+  return sendPushToPermissionHolders("content:vehicles", {
+    title: `새 차량 예약 ${statusLabel}`,
+    body: `[${params.reserverName}] ${params.vehicleName ?? "차량"}\n${params.date} ${params.startTime}~${params.endTime}`,
+    url: "/admin_joych_2026?tab=vehicles",
+    tag: `vehicle-reservation-${params.reservationId}`,
   });
 }
 

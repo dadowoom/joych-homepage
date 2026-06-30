@@ -16,8 +16,20 @@ const joseMocks = vi.hoisted(() => ({
   jwtVerify: vi.fn(),
 }));
 
+const pushMocks = vi.hoisted(() => ({
+  notifyCourseApplicationToDistrictManager: vi.fn(),
+  notifyFacilityReservation: vi.fn(),
+  notifyVehicleReservation: vi.fn(),
+}));
+
 vi.mock("jose", () => ({
   jwtVerify: joseMocks.jwtVerify,
+}));
+
+vi.mock("./_core/pushNotifications", () => ({
+  notifyCourseApplicationToDistrictManager: pushMocks.notifyCourseApplicationToDistrictManager,
+  notifyFacilityReservation: pushMocks.notifyFacilityReservation,
+  notifyVehicleReservation: pushMocks.notifyVehicleReservation,
 }));
 
 vi.mock("./db/member", async (importOriginal) => {
@@ -155,6 +167,7 @@ describe("vehicle reservations", () => {
     dbMocks.getAdminVehicleReservationDetailsByDate.mockResolvedValue([]);
     dbMocks.createVehicleReservationIfAvailable.mockResolvedValue(200);
     dbMocks.updateVehicleReservationDetails.mockResolvedValue(true);
+    pushMocks.notifyVehicleReservation.mockReset();
   });
 
   it("blocks vehicle reservation pages for members outside the selected position group", async () => {
@@ -248,6 +261,17 @@ describe("vehicle reservations", () => {
         status: "pending",
       }),
     );
+    expect(pushMocks.notifyVehicleReservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reserverName: "Vehicle Member",
+        vehicleName: reservableVehicle.name,
+        date: "2026-06-17",
+        startTime: "10:00",
+        endTime: "11:00",
+        reservationId: 200,
+        status: "pending",
+      }),
+    );
   });
 
   it("allows same-day future vehicle reservations without the facility 24-hour lead guard", async () => {
@@ -311,6 +335,12 @@ describe("vehicle reservations", () => {
       expect.objectContaining({
         vehicleId: 1,
         userId: 1,
+        status: "approved",
+      }),
+    );
+    expect(pushMocks.notifyVehicleReservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reservationId: 200,
         status: "approved",
       }),
     );

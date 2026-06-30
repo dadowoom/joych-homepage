@@ -16,7 +16,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { adminPermissionProcedure, publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
-import { notifyCourseApplicationToDistrictManager, notifyFacilityReservation } from "../_core/pushNotifications";
+import { notifyCourseApplicationToDistrictManager, notifyFacilityReservation, notifyVehicleReservation } from "../_core/pushNotifications";
 import {
   canMemberRequestFacilityReservation,
   hasFacilityReservationRuleOverride,
@@ -841,6 +841,7 @@ export const homeRouter = router({
           endTime: input.endTime,
           reservationType: "external",
           reservationId: id,
+          status: "pending",
         });
         return { id, status: "pending" as const, count: 1, recurrenceLabel: null };
       } catch (error) {
@@ -1062,7 +1063,7 @@ export const homeRouter = router({
         }
         throw error;
       }
-      if (status === "pending" && createdIds[0]) {
+      if (createdIds[0]) {
         void notifyFacilityReservation({
           reserverName: input.reserverName,
           facilityName: facility.name,
@@ -1071,6 +1072,7 @@ export const homeRouter = router({
           endTime: input.endTime,
           reservationType: "member",
           reservationId: createdIds[0],
+          status,
           extraCount: Math.max(0, createdIds.length - 1),
         });
       }
@@ -1253,6 +1255,15 @@ export const homeRouter = router({
         if (!id) {
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "차량 예약 신청 저장에 실패했습니다." });
         }
+        void notifyVehicleReservation({
+          reserverName: input.reserverName,
+          vehicleName: vehicle.name,
+          date: input.reservationDate,
+          startTime: input.startTime,
+          endTime: input.endTime,
+          reservationId: id,
+          status,
+        });
         return { id, status };
       } catch (error) {
         if (error instanceof VehicleReservationOverlapError) {
