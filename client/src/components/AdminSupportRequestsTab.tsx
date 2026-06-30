@@ -660,8 +660,6 @@ export default function AdminSupportRequestsTab() {
                 {selectedItem.attachmentUrl && (
                   <a
                     href={selectedItem.attachmentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
                     className="inline-flex max-w-full items-center gap-2 rounded-lg border border-[#1B5E20]/20 px-3 py-2 text-sm text-[#1B5E20] hover:bg-[#F1F8E9]"
                   >
                     <Paperclip className="h-4 w-4 shrink-0" />

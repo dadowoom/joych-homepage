@@ -2,7 +2,6 @@ import { Link } from "wouter";
 import {
   FadeIn,
   getUsableHref,
-  isExternalHref,
   type HomeSectionConfig,
 } from "./_helpers";
 
@@ -51,20 +50,6 @@ export default function HomeVision({
                   churchIntroSection.buttonHref,
                   "/about/vision"
                 )}
-                target={
-                  isExternalHref(
-                    getUsableHref(churchIntroSection.buttonHref, "/about/vision")
-                  )
-                    ? "_blank"
-                    : undefined
-                }
-                rel={
-                  isExternalHref(
-                    getUsableHref(churchIntroSection.buttonHref, "/about/vision")
-                  )
-                    ? "noopener noreferrer"
-                    : undefined
-                }
                 className="inline-block px-7 py-3 bg-[#1B5E20] hover:bg-[#2E7D32] text-white text-sm font-medium rounded transition-colors"
               >
                 {churchIntroSection.buttonText}

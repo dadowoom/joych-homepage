@@ -375,8 +375,6 @@ export default function MemberMyPage() {
                     <p className="text-sm font-medium text-gray-800">유저 ID: {me.faithPlusUserId}</p>
                     <a
                       href={`https://faithplus.co.kr/search?user=${me.faithPlusUserId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
                       className="text-xs text-[#1B5E20] hover:underline mt-0.5 inline-block"
                     >
                       믿음PLUS에서 보기 →

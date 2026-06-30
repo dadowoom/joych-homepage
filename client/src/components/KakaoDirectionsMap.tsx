@@ -225,7 +225,7 @@ function buildDirectionsUrl(
 }
 
 function openKakaoUrl(url: string) {
-  window.open(url, "_blank", "noopener,noreferrer");
+  window.location.href = url;
 }
 
 export default function KakaoDirectionsMap() {

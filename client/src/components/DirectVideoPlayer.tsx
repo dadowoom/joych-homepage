@@ -147,8 +147,6 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
             <p className="mt-2 text-xs leading-relaxed text-white/75">{errorDescription}</p>
             <a
               href={errorHref}
-              target="_blank"
-              rel="noreferrer"
               className="mt-3 inline-flex rounded-md bg-white px-4 py-2 text-sm font-semibold text-[#1B5E20]"
             >
               {errorLinkText}

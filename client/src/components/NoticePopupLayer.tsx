@@ -13,10 +13,6 @@ import { useLocation } from "wouter";
 
 type Popup = inferRouterOutputs<AppRouter>["home"]["popups"][number];
 
-function isExternalHref(href: string) {
-  return href.startsWith("http://") || href.startsWith("https://");
-}
-
 function getDismissStorageKey(id: number) {
   return `joych_notice_popup_dismissed_until_${id}`;
 }
@@ -32,12 +28,9 @@ function isDismissed(popup: Popup) {
 
 function PopupLink({ popup }: { popup: Popup }) {
   if (!popup.linkLabel || !popup.linkHref) return null;
-  const external = isExternalHref(popup.linkHref);
   return (
     <a
       href={popup.linkHref}
-      target={external ? "_blank" : undefined}
-      rel={external ? "noopener noreferrer" : undefined}
       className="inline-flex items-center justify-center rounded-lg bg-[#1B5E20] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#2E7D32]"
     >
       {popup.linkLabel}

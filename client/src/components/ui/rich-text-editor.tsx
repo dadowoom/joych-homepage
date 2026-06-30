@@ -1826,10 +1826,6 @@ export function RichTextEditor({
         openOnClick: false,
         autolink: true,
         linkOnPaste: true,
-        HTMLAttributes: {
-          target: "_blank",
-          rel: "noopener noreferrer",
-        },
       }),
       Image.configure({
         allowBase64: false,

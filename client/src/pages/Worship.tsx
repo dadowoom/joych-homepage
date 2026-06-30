@@ -699,8 +699,6 @@ export function BulletinDetail() {
                 </div>
                 <a
                   href={page?.fileUrl ?? bulletin.fileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="mt-4 block w-full border border-[#1B5E20] px-4 py-2 text-center text-sm font-medium text-[#1B5E20] transition-colors hover:bg-[#F1F8E9]"
                 >
                   현재 페이지 열기
@@ -722,8 +720,6 @@ export function BulletinDetail() {
           <div className="fixed right-3 top-3 z-[501] flex items-center gap-2 sm:right-6 sm:top-6">
             <a
               href={lightboxPage.fileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
               className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
               aria-label="현재 페이지 새 창으로 열기"
               onClick={(event) => event.stopPropagation()}
@@ -1209,8 +1205,6 @@ export function Bulletin() {
                     <a
                       key={`${page.id}-${page.fileUrl}-download`}
                       href={page.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
                       className="flex items-start justify-between gap-3 rounded border border-dashed border-gray-200 p-3 text-xs text-gray-500 hover:border-[#1B5E20]/40 hover:bg-[#F1F8E9]"
                     >
                       <span className="min-w-0">
@@ -1224,8 +1218,6 @@ export function Bulletin() {
                 </div>
                 <a
                   href={selectedPages[0]?.fileUrl ?? selectedBulletin.fileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="mt-4 block w-full border border-[#1B5E20] px-4 py-2 text-center text-sm font-medium text-[#1B5E20] transition-colors hover:bg-[#F1F8E9]"
                 >
                   첫 페이지 열기
@@ -1249,8 +1241,6 @@ export function Bulletin() {
           <div className="fixed right-3 top-3 z-[501] flex items-center gap-2 sm:right-6 sm:top-6">
             <a
               href={lightboxPage.fileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
               className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
               aria-label="현재 페이지 새 창으로 열기"
               onClick={(event) => event.stopPropagation()}

@@ -1,7 +1,6 @@
 import {
   FadeIn,
   getUsableHref,
-  isExternalHref,
   type HomeSectionConfig,
 } from "./_helpers";
 
@@ -60,26 +59,6 @@ export default function HomeWorshipPhoto({
                     worshipSection.buttonHref,
                     "/worship/schedule"
                   )}
-                  target={
-                    isExternalHref(
-                      getUsableHref(
-                        worshipSection.buttonHref,
-                        "/worship/schedule"
-                      )
-                    )
-                      ? "_blank"
-                      : undefined
-                  }
-                  rel={
-                    isExternalHref(
-                      getUsableHref(
-                        worshipSection.buttonHref,
-                        "/worship/schedule"
-                      )
-                    )
-                      ? "noopener noreferrer"
-                      : undefined
-                  }
                   className="mt-5 inline-flex rounded bg-white px-5 py-2 text-sm font-semibold text-[#1B5E20] transition-colors hover:bg-[#F1F8E9]"
                 >
                   {worshipSection.buttonText}

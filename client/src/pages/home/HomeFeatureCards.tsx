@@ -1,6 +1,5 @@
 import {
   getUsableHref,
-  isExternalHref,
   type HomeFeatureCard,
 } from "./_helpers";
 
@@ -32,10 +31,6 @@ export default function HomeFeatureCards({
             <a
               key={`${card.title}-${index}`}
               href={getUsableHref(card.href, "#")}
-              target={isExternalHref(card.href) ? "_blank" : undefined}
-              rel={
-                isExternalHref(card.href) ? "noopener noreferrer" : undefined
-              }
               className="group block overflow-hidden rounded-2xl bg-white shadow-md transition-shadow duration-300 hover:shadow-xl"
             >
               <div className="relative h-96 overflow-hidden">

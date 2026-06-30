@@ -50,10 +50,7 @@ export default function ChurchDirectory() {
   const handleSelectMember = (member: typeof searchResult[0]) => {
     if (member.faithPlusUserId) {
       const encodedName = encodeURIComponent(member.name);
-      window.open(
-        `https://faithplus.co.kr/search/?name=${encodedName}&user=${member.faithPlusUserId}`,
-        "_blank"
-      );
+      window.location.href = `https://faithplus.co.kr/search/?name=${encodedName}&user=${member.faithPlusUserId}`;
     }
   };
 

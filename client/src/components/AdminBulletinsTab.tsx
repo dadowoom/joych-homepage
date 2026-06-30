@@ -381,8 +381,6 @@ export default function AdminBulletinsTab() {
                         </p>
                         <a
                           href={bulletin.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
                           className="mt-2 inline-flex items-center gap-1 text-xs text-[#1B5E20] underline-offset-2 hover:underline"
                         >
                           <Paperclip className="h-3.5 w-3.5" />

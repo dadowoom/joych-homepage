@@ -232,8 +232,6 @@ export function BlockRenderer({
         <div className="my-4">
           <a
             href={c.href}
-            target={c.href.startsWith("http") ? "_blank" : undefined}
-            rel={c.href.startsWith("http") ? "noopener noreferrer" : undefined}
             className={buttonClassName}
           >
             {c.label ?? "링크"}

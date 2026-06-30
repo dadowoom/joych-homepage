@@ -118,7 +118,7 @@ function PodiumCard({
   );
 
   return href ? (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="block h-full">
+    <a href={href} className="block h-full">
       {content}
     </a>
   ) : (
@@ -167,8 +167,6 @@ function RankingTable({
                         {href ? (
                           <a
                             href={href}
-                            target="_blank"
-                            rel="noopener noreferrer"
                             className="block truncate font-semibold text-gray-800 hover:text-[#1B5E20]"
                           >
                             {entry.displayName}

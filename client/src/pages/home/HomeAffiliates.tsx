@@ -1,4 +1,4 @@
-import { FadeIn, getUsableHref, isExternalHref } from "./_helpers";
+import { FadeIn, getUsableHref } from "./_helpers";
 
 type Affiliate = {
   icon: string;
@@ -30,16 +30,6 @@ export default function HomeAffiliates({
               {getUsableHref(a.href, "") ? (
                 <a
                   href={getUsableHref(a.href, "")}
-                  target={
-                    isExternalHref(getUsableHref(a.href, ""))
-                      ? "_blank"
-                      : undefined
-                  }
-                  rel={
-                    isExternalHref(getUsableHref(a.href, ""))
-                      ? "noopener noreferrer"
-                      : undefined
-                  }
                   className="flex flex-col items-center gap-3 py-8 px-4 bg-white border border-gray-100 rounded-xl text-center hover:border-[#1B5E20] hover:text-[#1B5E20] hover:-translate-y-1 transition-all duration-200 shadow-sm"
                 >
                   <div className="text-[#1B5E20] text-3xl">

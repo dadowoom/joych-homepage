@@ -133,7 +133,6 @@ type HeroButtonConfig = {
   label: string;
   href: string;
   color?: string;
-  openInNewTab?: boolean;
 };
 
 type HeroButtonSource = {
@@ -293,8 +292,7 @@ function sanitizeHeroButtons(value: unknown): HeroButtonConfig[] {
       const label = typeof record.label === "string" ? record.label.trim() : "";
       const href = typeof record.href === "string" ? record.href.trim() : "";
       const color = typeof record.color === "string" ? record.color : undefined;
-      const openInNewTab = typeof record.openInNewTab === "boolean" ? record.openInNewTab : undefined;
-      return label && href ? { label, href, color, openInNewTab } : null;
+      return label && href ? { label, href, color } : null;
     })
     .filter((button): button is HeroButtonConfig => Boolean(button))
     .slice(0, 4);
@@ -314,13 +312,11 @@ function getLegacyHeroButtons(slide: HeroButtonSource): HeroButtonConfig[] {
     label: normalizeText(slide?.btn1Text, DEFAULT_HERO_BUTTONS[0].label),
     href: normalizeText(slide?.btn1Href, DEFAULT_HERO_BUTTONS[0].href),
     color: undefined,
-    openInNewTab: undefined,
   };
   const button2 = {
     label: normalizeText(slide?.btn2Text, DEFAULT_HERO_BUTTONS[1].label),
     href: normalizeText(slide?.btn2Href, DEFAULT_HERO_BUTTONS[1].href),
     color: undefined,
-    openInNewTab: undefined,
   };
   return [button1, button2].filter((button) => button.label && button.href);
 }
@@ -802,8 +798,6 @@ export default function Home() {
                   <a
                     key={`${button.label}-${button.href}-${index}`}
                     href={getUsableHref(button.href, DEFAULT_HERO_BUTTONS[index]?.href ?? "#")}
-                    target={button.openInNewTab ? "_blank" : undefined}
-                    rel={button.openInNewTab ? "noopener noreferrer" : undefined}
                     className={`px-5 md:px-7 py-2.5 md:py-3 text-xs md:text-sm font-medium rounded transition-colors ${className}`}
                     style={style}
                   >

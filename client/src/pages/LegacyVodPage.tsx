@@ -100,8 +100,6 @@ export default function LegacyVodPage() {
               {info?.originalPageUrl && (
                 <a
                   href={info.originalPageUrl}
-                  target="_blank"
-                  rel="noreferrer"
                   className="inline-flex mt-4 text-[#1B5E20] hover:underline"
                 >
                   원본 페이지 보기

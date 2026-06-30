@@ -782,8 +782,6 @@ function NoticeBoardContent({
                 {formState.attachmentUrl ? (
                   <a
                     href={formState.attachmentUrl}
-                    target="_blank"
-                    rel="noreferrer"
                     className="inline-flex max-w-full items-center gap-2 text-[#1B5E20] hover:underline"
                   >
                     <Paperclip className="h-3.5 w-3.5 shrink-0" />
@@ -1043,8 +1041,6 @@ function NoticeBoardContent({
                               <div className="mt-4">
                                 <a
                                   href={attachment.url}
-                                  target="_blank"
-                                  rel="noreferrer"
                                   className="inline-flex items-center gap-2 border border-[#1B5E20]/20 bg-white px-3 py-2 text-sm text-[#1B5E20] hover:bg-[#F1F8E9]"
                                 >
                                   <Paperclip className="h-4 w-4" />
@@ -1125,8 +1121,6 @@ function NoticeBoardContent({
                         <div className="mt-4">
                           <a
                             href={attachment.url}
-                            target="_blank"
-                            rel="noreferrer"
                             className="inline-flex items-center gap-2 border border-[#1B5E20]/20 bg-white px-3 py-2 text-sm text-[#1B5E20] hover:bg-[#F1F8E9]"
                           >
                             <Paperclip className="h-4 w-4" />

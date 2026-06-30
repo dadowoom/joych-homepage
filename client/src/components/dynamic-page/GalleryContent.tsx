@@ -1172,8 +1172,6 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
                       <a
                         key={image.id}
                         href={image.imageUrl}
-                        target="_blank"
-                        rel="noreferrer"
                         className="flex items-start gap-2 border border-dashed border-gray-200 p-3 text-xs text-gray-600 hover:border-[#86C5D8] hover:text-[#1B5E20]"
                       >
                         <FileImage className="mt-0.5 h-4 w-4 shrink-0 text-[#1B5E20]" />

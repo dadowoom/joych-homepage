@@ -226,10 +226,6 @@ export default function SiteHeader() {
                   <a
                     key={s.label}
                     href={s.href}
-                    target={isExternalHref(s.href) ? "_blank" : undefined}
-                    rel={
-                      isExternalHref(s.href) ? "noopener noreferrer" : undefined
-                    }
                     aria-label={t(s.label)}
                     className="hover:text-white transition-colors"
                   >
@@ -300,8 +296,6 @@ export default function SiteHeader() {
                         isExternalHref(parentHref) ? (
                           <a
                             href={parentHref}
-                            target="_blank"
-                            rel="noopener noreferrer"
                             className={parentClassName}
                           >
                             {translateSiteText(item.label, language)}
@@ -360,8 +354,6 @@ export default function SiteHeader() {
                                 isExternalHref(secondLevelHref) ? (
                                   <a
                                     href={secondLevelHref}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
                                     className={cls}
                                   >
                                     <span>{translateSiteText(s.label, language)}</span>
@@ -402,8 +394,6 @@ export default function SiteHeader() {
                                           ) ? (
                                             <a
                                               href={thirdLevelHref}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
                                               className={subCls}
                                             >
                                               {translateSiteText(sub.label, language)}
@@ -572,8 +562,6 @@ export default function SiteHeader() {
                                   isExternalHref(secondLevelHref) ? (
                                     <a
                                       href={secondLevelHref}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
                                       className="px-3 py-2.5 text-gray-400 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
                                       onClick={() => setMobileOpen(false)}
                                       aria-label={`${translateSiteText(item.label, language)} 이동`}
@@ -597,8 +585,6 @@ export default function SiteHeader() {
                               item.href.startsWith("https://") ? (
                                 <a
                                   href={item.href}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
                                   className="block pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
                                   onClick={() => setMobileOpen(false)}
                                 >
@@ -629,8 +615,6 @@ export default function SiteHeader() {
                                       <a
                                         key={sub.id}
                                         href={thirdLevelHref}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
                                         className="block pl-12 pr-5 py-2 text-sm text-gray-500 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
                                         onClick={() => setMobileOpen(false)}
                                       >

@@ -26,7 +26,6 @@ type HeroButtonDraft = {
   label: string;
   href: string;
   color?: string;
-  openInNewTab?: boolean;
 };
 
 const HERO_BUTTON_PRESET_OPTIONS = [
@@ -100,7 +99,6 @@ function normalizeButtonDrafts(buttons: HeroButtonDraft[]) {
       label: button.label.trim(),
       href: button.href.trim(),
       color: button.color?.trim() || undefined,
-      openInNewTab: button.openInNewTab || undefined,
     }))
     .filter((button) => button.label && button.href)
     .slice(0, MAX_HERO_BUTTONS);
@@ -152,7 +150,6 @@ function parseButtonsJson(raw: string | null | undefined) {
           label: typeof record.label === "string" ? record.label : "",
           href: typeof record.href === "string" ? record.href : "",
           color: typeof record.color === "string" ? record.color : undefined,
-          openInNewTab: typeof record.openInNewTab === "boolean" ? record.openInNewTab : undefined,
         };
       }),
     );
@@ -613,16 +610,6 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
                 </div>
               </label>
               <div className="flex flex-col justify-end gap-2">
-                <label className="flex items-end gap-2 text-[11px] text-gray-600">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 accent-[#1B5E20]"
-                    checked={Boolean(button.openInNewTab)}
-                    disabled={disabled}
-                    onChange={(event) => updateButtonDraft(visibleButtons, setButtons, index, { openInNewTab: event.target.checked })}
-                  />
-                  <span>새 창으로 열기</span>
-                </label>
                 <Button
                   type="button"
                   size="sm"
