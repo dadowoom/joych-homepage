@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import webpush from "web-push";
 import { eq, inArray, or, type SQL } from "drizzle-orm";
 import { adminContentPermissions, pushSubscriptions, users } from "../../drizzle/schema";
@@ -5,13 +6,23 @@ import { getDb } from "../db";
 
 let initialized = false;
 let warnedMissingVapid = false;
+let vapidPublicKeyFingerprint = "";
+
+function fingerprint(value: string | null | undefined) {
+  if (!value) return "missing";
+  return crypto.createHash("sha256").update(value).digest("hex").slice(0, 12);
+}
+
+function endpointPreview(endpoint: string) {
+  return `${endpoint.slice(0, 32)}...${endpoint.slice(-12)}`;
+}
 
 function initWebPush() {
   if (initialized) return true;
 
-  const publicKey = process.env.VAPID_PUBLIC_KEY;
-  const privateKey = process.env.VAPID_PRIVATE_KEY;
-  const subject = process.env.VAPID_SUBJECT;
+  const publicKey = process.env.VAPID_PUBLIC_KEY?.trim();
+  const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
+  const subject = process.env.VAPID_SUBJECT?.trim();
   if (!publicKey || !privateKey || !subject) {
     if (!warnedMissingVapid) {
       console.warn("[push] VAPID env is missing; push notifications are disabled.");
@@ -21,6 +32,8 @@ function initWebPush() {
   }
 
   webpush.setVapidDetails(subject, publicKey, privateKey);
+  vapidPublicKeyFingerprint = fingerprint(publicKey);
+  console.log(`[push] VAPID initialized publicKeyFingerprint=${vapidPublicKeyFingerprint} subject=${subject}`);
   initialized = true;
   return true;
 }
@@ -83,7 +96,7 @@ export async function sendPushToPermissionHolders(
       .from(pushSubscriptions)
       .where(or(...subscriptionConditions));
     if (subscriptions.length === 0) {
-      console.warn(`[push] No subscriptions for permission=${permissionKey}`);
+      console.warn(`[push] No subscriptions for permission=${permissionKey} permittedUsers=${userIds.length} linkedMembers=${memberIds.length} vapid=${vapidPublicKeyFingerprint || "uninitialized"}`);
       return;
     }
 
@@ -106,7 +119,7 @@ export async function sendPushToPermissionHolders(
           ? Number((error as { statusCode?: unknown }).statusCode)
           : null;
         if (statusCode === 404 || statusCode === 410) {
-          console.warn(`[push] Expired subscription id=${subscription.id} status=${statusCode}; deleting`);
+          console.warn(`[push] Expired subscription id=${subscription.id} status=${statusCode} endpoint=${endpointPreview(subscription.endpoint)} vapid=${vapidPublicKeyFingerprint}; deleting`);
           try {
             await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, subscription.id));
           } catch (deleteError) {
@@ -116,7 +129,7 @@ export async function sendPushToPermissionHolders(
         }
 
         const message = error instanceof Error ? error.message : String(error);
-        console.warn(`[push] Failed to send subscription id=${subscription.id}: ${statusCode ?? message}`);
+        console.warn(`[push] Failed to send subscription id=${subscription.id} endpoint=${endpointPreview(subscription.endpoint)}: ${statusCode ?? message}`);
         return "failed";
       }
     }));
@@ -127,7 +140,7 @@ export async function sendPushToPermissionHolders(
     const sentCount = outcomes.filter((outcome) => outcome === "sent").length;
     const expiredCount = outcomes.filter((outcome) => outcome === "expired").length;
     const failedCount = outcomes.filter((outcome) => outcome === "failed").length;
-    console.log(`[push] Dispatch permission=${permissionKey} subscriptions=${subscriptions.length} sent=${sentCount} expired=${expiredCount} failed=${failedCount}`);
+    console.log(`[push] Dispatch permission=${permissionKey} subscriptions=${subscriptions.length} sent=${sentCount} expired=${expiredCount} failed=${failedCount} vapid=${vapidPublicKeyFingerprint}`);
   } catch (error) {
     console.error("[push] Notification dispatch failed", error);
   }

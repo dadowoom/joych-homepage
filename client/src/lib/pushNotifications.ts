@@ -12,6 +12,49 @@ export function getNotificationPermission(): NotificationPermission {
   return Notification.permission;
 }
 
+const STORED_VAPID_PUBLIC_KEY = "joych.push.vapidPublicKey";
+
+function normalizeBase64Url(value: string): string {
+  return value.replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+}
+
+function arrayBufferToBase64Url(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 1) {
+    binary += String.fromCharCode(bytes[index]);
+  }
+
+  return normalizeBase64Url(window.btoa(binary));
+}
+
+function getStoredVapidPublicKey(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(STORED_VAPID_PUBLIC_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function rememberVapidPublicKey(vapidPublicKey: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STORED_VAPID_PUBLIC_KEY, normalizeBase64Url(vapidPublicKey));
+  } catch {
+    // Ignore private browsing/storage errors. The browser subscription itself is still valid.
+  }
+}
+
+function forgetVapidPublicKey() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(STORED_VAPID_PUBLIC_KEY);
+  } catch {
+    // Ignore private browsing/storage errors.
+  }
+}
+
 export async function requestNotificationPermission(): Promise<boolean> {
   if (typeof window === "undefined" || !("Notification" in window)) return false;
   const result = await Notification.requestPermission();
@@ -53,6 +96,24 @@ export async function getCurrentPushSubscription(): Promise<PushSubscription | n
   return registration.pushManager.getSubscription();
 }
 
+export function shouldRefreshPushSubscription(subscription: PushSubscription, vapidPublicKey: string): boolean {
+  const expectedPublicKey = normalizeBase64Url(vapidPublicKey);
+  const subscriptionPublicKey = subscription.options?.applicationServerKey
+    ? arrayBufferToBase64Url(subscription.options.applicationServerKey)
+    : null;
+
+  if (subscriptionPublicKey && subscriptionPublicKey !== expectedPublicKey) {
+    return true;
+  }
+
+  const storedPublicKey = getStoredVapidPublicKey();
+  if (storedPublicKey && storedPublicKey !== expectedPublicKey) {
+    return true;
+  }
+
+  return !subscriptionPublicKey && !storedPublicKey;
+}
+
 export async function subscribeToPush(
   vapidPublicKey: string,
   options: { forceNew?: boolean } = {},
@@ -72,15 +133,20 @@ export async function subscribeToPush(
     applicationServerKey: urlBase64ToArrayBuffer(vapidPublicKey),
   });
 
+  rememberVapidPublicKey(vapidPublicKey);
   return subscription.toJSON();
 }
 
 export async function unsubscribeFromPush(): Promise<string | null> {
   const subscription = await getCurrentPushSubscription();
-  if (!subscription) return null;
+  if (!subscription) {
+    forgetVapidPublicKey();
+    return null;
+  }
 
   const endpoint = subscription.endpoint;
   await subscription.unsubscribe();
+  forgetVapidPublicKey();
   return endpoint;
 }
 

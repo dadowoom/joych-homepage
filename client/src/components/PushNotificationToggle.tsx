@@ -9,6 +9,7 @@ import {
   isPushSupported,
   isStandalonePwa,
   requestNotificationPermission,
+  shouldRefreshPushSubscription,
   subscribeToPush,
   unsubscribeFromPush,
 } from "@/lib/pushNotifications";
@@ -19,7 +20,7 @@ export function PushNotificationToggle() {
   const [permission, setPermission] = useState<NotificationPermission>("default");
   const [subscribed, setSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
-  const repairAttemptedForEndpoint = useRef<string | null>(null);
+  const repairAttemptedForState = useRef<string | null>(null);
 
   const vapidQuery = trpc.home.getVapidPublicKey.useQuery(undefined, {
     staleTime: Infinity,
@@ -85,20 +86,33 @@ export function PushNotificationToggle() {
           subscription?.endpoint &&
           serverSubscriptions.some((item) => item.endpoint === subscription.endpoint),
         );
-        setSubscribed(serverHasSubscription);
+        const vapidPublicKey = vapidQuery.data;
+        const shouldRefreshSubscription = Boolean(
+          subscription &&
+          vapidPublicKey &&
+          shouldRefreshPushSubscription(subscription, vapidPublicKey),
+        );
+        const hasGrantedPermission = getNotificationPermission() === "granted";
+        const repairStateKey = [
+          subscription?.endpoint ?? "missing-local-subscription",
+          vapidPublicKey ?? "missing-vapid",
+          serverHasSubscription ? "server-present" : "server-missing",
+          shouldRefreshSubscription ? "vapid-refresh" : "vapid-ok",
+        ].join(":");
+
+        setSubscribed(serverHasSubscription && !shouldRefreshSubscription);
 
         if (
-          subscription?.endpoint &&
-          !serverHasSubscription &&
-          getNotificationPermission() === "granted" &&
-          vapidQuery.data &&
-          repairAttemptedForEndpoint.current !== subscription.endpoint
+          (!subscription || !serverHasSubscription || shouldRefreshSubscription) &&
+          hasGrantedPermission &&
+          vapidPublicKey &&
+          repairAttemptedForState.current !== repairStateKey
         ) {
-          repairAttemptedForEndpoint.current = subscription.endpoint;
-          await saveFreshSubscription(vapidQuery.data);
+          repairAttemptedForState.current = repairStateKey;
+          await saveFreshSubscription(vapidPublicKey);
           await utils.push.getMySubscriptions.invalidate();
           setSubscribed(true);
-          toast.success("알림 구독을 다시 연결했습니다.");
+          toast.success(shouldRefreshSubscription ? "알림 구독 키를 새로 연결했습니다." : "알림 구독을 다시 연결했습니다.");
         }
       } catch {
         if (!cancelled) setSubscribed(false);

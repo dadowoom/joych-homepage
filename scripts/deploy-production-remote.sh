@@ -59,6 +59,30 @@ fi
 
 cd "${APP_DIR}"
 
+if [[ -f "${APP_DIR}/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "${APP_DIR}/.env"
+  set +a
+fi
+
+node --input-type=module <<'NODE'
+import crypto from "node:crypto";
+
+const required = ["VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "VAPID_SUBJECT"];
+const missing = required.filter((key) => !process.env[key]?.trim());
+if (missing.length > 0) {
+  console.warn(`[deploy] push VAPID env missing: ${missing.join(", ")}; push notifications will be disabled until configured`);
+} else {
+  const fingerprint = crypto
+    .createHash("sha256")
+    .update(process.env.VAPID_PUBLIC_KEY)
+    .digest("hex")
+    .slice(0, 12);
+  console.log(`[deploy] push VAPID publicKeyFingerprint=${fingerprint}`);
+}
+NODE
+
 TS="$(date +%Y%m%d_%H%M%S)"
 BACKUP_DIR="${APP_DIR}/backups/deploy_${TS}"
 
