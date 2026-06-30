@@ -77,6 +77,8 @@ type RichTextViewerProps = {
   className?: string;
 };
 
+type EditorSelectionBookmark = ReturnType<Editor["state"]["selection"]["getBookmark"]>;
+
 const htmlPattern = /<[a-z][\s\S]*>/i;
 const escapedHtmlTagPattern = /&lt;\/?[a-z][\s\S]*?&gt;/i;
 const FONT_SIZE_OPTIONS = [
@@ -632,6 +634,18 @@ function focusNearestTableCell(editor: Editor, referencePosition = editor.state.
   focusEditorAt(editor, nextCellPosition);
 }
 
+function restoreSelectionBookmark(editor: Editor, bookmark: EditorSelectionBookmark | null) {
+  if (!bookmark || editor.isDestroyed) return false;
+
+  try {
+    const selection = bookmark.resolve(editor.state.doc);
+    editor.view.dispatch(editor.state.tr.setSelection(selection));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function getClickedTableCellFocusPosition(
   view: Editor["view"],
   event: MouseEvent,
@@ -776,6 +790,8 @@ function RichTextToolbar({
   const [imageUrl, setImageUrl] = useState("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
+  const textSelectionBookmarkRef = useRef<EditorSelectionBookmark | null>(null);
+  const tableSelectionBookmarkRef = useRef<EditorSelectionBookmark | null>(null);
   const uploadImageMutation = trpc.cms.blocks.uploadImage.useMutation();
 
   const setLink = () => {
@@ -863,7 +879,31 @@ function RichTextToolbar({
   const canUndo = editor.can().chain().focus().undo().run();
   const canRedo = editor.can().chain().focus().redo().run();
 
-  const restoreCurrentTextSelection = () => {
+  const rememberTextSelection = () => {
+    textSelectionBookmarkRef.current = editor.state.selection.getBookmark();
+  };
+
+  const rememberTableSelection = () => {
+    tableSelectionBookmarkRef.current = editor.state.selection.getBookmark();
+  };
+
+  const takeTextSelectionBookmark = () => {
+    const bookmark = textSelectionBookmarkRef.current;
+    textSelectionBookmarkRef.current = null;
+    return bookmark;
+  };
+
+  const takeTableSelectionBookmark = () => {
+    const bookmark = tableSelectionBookmarkRef.current;
+    tableSelectionBookmarkRef.current = null;
+    return bookmark;
+  };
+
+  const restoreCurrentTextSelection = (bookmark: EditorSelectionBookmark | null = null) => {
+    if (restoreSelectionBookmark(editor, bookmark)) {
+      return editor.chain().focus();
+    }
+
     const { from, to } = editor.state.selection;
     return editor.chain().focus().setTextSelection({ from, to });
   };
@@ -891,6 +931,10 @@ function RichTextToolbar({
   };
 
   const tableCommand = () => editor.chain().focus(getTableFocusPosition());
+  const tableSelectionCommand = (bookmark: EditorSelectionBookmark | null = null) => {
+    restoreSelectionBookmark(editor, bookmark);
+    return editor.chain().focus();
+  };
 
   const handleFontFamilyChange = (value: string) => {
     const chain = restoreCurrentTextSelection();
@@ -918,8 +962,8 @@ function RichTextToolbar({
     chain.setFontSize(`${value}px`).run();
   };
 
-  const handleTextColorChange = (value: string) => {
-    const chain = restoreCurrentTextSelection();
+  const handleTextColorChange = (value: string, bookmark = takeTextSelectionBookmark()) => {
+    const chain = restoreCurrentTextSelection(bookmark);
     if (!value || value === DEFAULT_TEXT_COLOR) {
       chain.unsetColor().run();
       return;
@@ -1039,24 +1083,24 @@ function RichTextToolbar({
     focusEditorAt(editor, focusPosition);
   };
 
-  const handleCellBackgroundColorChange = (value: string) => {
-    tableCommand().setCellAttribute("backgroundColor", value).run();
+  const handleCellBackgroundColorChange = (value: string, bookmark = takeTableSelectionBookmark()) => {
+    tableSelectionCommand(bookmark).setCellAttribute("backgroundColor", value).run();
   };
 
   const clearCellBackgroundColor = () => {
-    tableCommand().setCellAttribute("backgroundColor", null).run();
+    tableSelectionCommand(takeTableSelectionBookmark()).setCellAttribute("backgroundColor", null).run();
   };
 
   const handleCellAlignChange = (value: string) => {
-    tableCommand().setCellAttribute("align", value || null).run();
+    tableSelectionCommand(takeTableSelectionBookmark()).setCellAttribute("align", value || null).run();
   };
 
   const handleCellVerticalAlignChange = (value: string) => {
-    tableCommand().setCellAttribute("verticalAlign", value || null).run();
+    tableSelectionCommand(takeTableSelectionBookmark()).setCellAttribute("verticalAlign", value || null).run();
   };
 
   const applyTablePreset = (preset: string) => {
-    const chain = tableCommand();
+    const chain = tableSelectionCommand(takeTableSelectionBookmark());
     if (preset === "header") {
       chain.setCellAttribute("backgroundColor", "#e8f5e9").setCellAttribute("align", "center").setCellAttribute("verticalAlign", "middle").run();
       return;
@@ -1135,7 +1179,10 @@ function RichTextToolbar({
           <button
             type="button"
             aria-label="글자색 적용"
-            onClick={() => handleTextColorChange(currentTextColor)}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              handleTextColorChange(currentTextColor);
+            }}
             className="flex items-center gap-1 px-2 hover:bg-gray-50"
           >
             <span className="text-[11px] font-semibold">색상</span>
@@ -1146,6 +1193,7 @@ function RichTextToolbar({
               aria-label="글자색 선택"
               type="color"
               value={currentTextColor}
+              onMouseDown={rememberTextSelection}
               onChange={(event) => handleTextColorChange(event.target.value)}
               className="h-5 w-5 cursor-pointer border-0 bg-transparent p-0"
             />
@@ -1269,7 +1317,11 @@ function RichTextToolbar({
                 type="button"
                 aria-label="셀 배경색 적용"
                 disabled={tableToolDisabled}
-                onClick={() => handleCellBackgroundColorChange(currentCellBackgroundColor)}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  if (tableToolDisabled) return;
+                  handleCellBackgroundColorChange(currentCellBackgroundColor);
+                }}
                 className="flex items-center gap-1 px-2 hover:bg-gray-50 disabled:cursor-not-allowed"
               >
                 <PaintBucket className="h-3.5 w-3.5" />
@@ -1280,6 +1332,9 @@ function RichTextToolbar({
                   type="color"
                   value={currentCellBackgroundColor}
                   disabled={tableToolDisabled}
+                  onMouseDown={() => {
+                    if (!tableToolDisabled) rememberTableSelection();
+                  }}
                   onChange={(event) => handleCellBackgroundColorChange(event.target.value)}
                   className="h-5 w-5 cursor-pointer border-0 bg-transparent p-0 disabled:cursor-not-allowed"
                 />
@@ -1293,6 +1348,9 @@ function RichTextToolbar({
               className={tableToolSelectClassName}
               value={currentCellAlign}
               disabled={tableToolDisabled}
+              onMouseDown={() => {
+                if (!tableToolDisabled) rememberTableSelection();
+              }}
               onChange={(event) => handleCellAlignChange(event.target.value)}
             >
               <option value="">가로</option>
@@ -1305,6 +1363,9 @@ function RichTextToolbar({
               className={tableToolSelectClassName}
               value={currentCellVerticalAlign}
               disabled={tableToolDisabled}
+              onMouseDown={() => {
+                if (!tableToolDisabled) rememberTableSelection();
+              }}
               onChange={(event) => handleCellVerticalAlignChange(event.target.value)}
             >
               <option value="">세로</option>
@@ -1317,6 +1378,9 @@ function RichTextToolbar({
               className={tableToolSelectClassName}
               defaultValue=""
               disabled={tableToolDisabled}
+              onMouseDown={() => {
+                if (!tableToolDisabled) rememberTableSelection();
+              }}
               onChange={(event) => {
                 if (!event.target.value) return;
                 applyTablePreset(event.target.value);
@@ -1351,10 +1415,10 @@ function RichTextToolbar({
             <ToolbarButton editor={editor} label={isInTable ? "열 삭제" : "표 셀을 클릭하면 열 삭제 가능"} disabled={tableToolDisabled} variant="danger" wide onClick={deleteCurrentColumn}>
               열 삭제
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "셀 병합" : "표 셀을 클릭하면 셀 병합 가능"} disabled={tableToolDisabled || !editor.can().mergeCells()} wide onClick={() => tableCommand().mergeCells().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "셀 병합" : "표 셀을 클릭하면 셀 병합 가능"} disabled={tableToolDisabled || !editor.can().mergeCells()} wide onClick={() => tableSelectionCommand(takeTableSelectionBookmark()).mergeCells().run()}>
               병합
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "셀 분할" : "표 셀을 클릭하면 셀 분할 가능"} disabled={tableToolDisabled || !editor.can().splitCell()} wide onClick={() => tableCommand().splitCell().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "셀 분할" : "표 셀을 클릭하면 셀 분할 가능"} disabled={tableToolDisabled || !editor.can().splitCell()} wide onClick={() => tableSelectionCommand(takeTableSelectionBookmark()).splitCell().run()}>
               분할
             </ToolbarButton>
             <ToolbarButton editor={editor} label={isInTable ? "헤더 행" : "표 셀을 클릭하면 헤더 행 설정 가능"} disabled={tableToolDisabled} wide onClick={() => tableCommand().toggleHeaderRow().run()}>
