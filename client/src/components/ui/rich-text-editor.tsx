@@ -1131,16 +1131,26 @@ function RichTextToolbar({
             </option>
           ))}
         </select>
-        <label className="flex h-8 items-center gap-2 border border-gray-200 bg-white px-2 text-xs text-gray-700 transition hover:border-[#1B5E20]">
-          <span>색상</span>
-          <input
-            aria-label="글자색 선택"
-            type="color"
-            value={currentTextColor}
-            onChange={(event) => handleTextColorChange(event.target.value)}
-            className="h-5 w-5 cursor-pointer border-0 bg-transparent p-0"
-          />
-        </label>
+        <div className="flex h-8 items-stretch border border-gray-200 bg-white text-xs text-gray-700 transition hover:border-[#1B5E20]">
+          <button
+            type="button"
+            aria-label="글자색 적용"
+            onClick={() => handleTextColorChange(currentTextColor)}
+            className="flex items-center gap-1 px-2 hover:bg-gray-50"
+          >
+            <span className="text-[11px] font-semibold">색상</span>
+            <span className="inline-block h-3 w-3 rounded-sm border border-gray-300" style={{ backgroundColor: currentTextColor }} />
+          </button>
+          <label className="flex cursor-pointer items-center justify-center border-l border-gray-200 px-1.5 hover:bg-gray-50">
+            <input
+              aria-label="글자색 선택"
+              type="color"
+              value={currentTextColor}
+              onChange={(event) => handleTextColorChange(event.target.value)}
+              className="h-5 w-5 cursor-pointer border-0 bg-transparent p-0"
+            />
+          </label>
+        </div>
         <ToolbarButton editor={editor} label="글자색 제거" onClick={() => editor.chain().focus().unsetColor().run()}>
           <span className="text-[10px] font-semibold">색X</span>
         </ToolbarButton>
@@ -1254,17 +1264,27 @@ function RichTextToolbar({
           ))}
         </select>
         <>
-            <label className={cn("flex h-8 items-center gap-2 border border-gray-200 bg-white px-2 text-xs text-gray-700 transition hover:border-[#1B5E20]", tableToolDisabled && "opacity-40")}>
-              <PaintBucket className="h-3.5 w-3.5" />
-              <input
-                aria-label="셀 배경색 선택"
-                type="color"
-                value={currentCellBackgroundColor}
+            <div className={cn("flex h-8 items-stretch border border-gray-200 bg-white text-xs text-gray-700 transition hover:border-[#1B5E20]", tableToolDisabled && "opacity-40")}>
+              <button
+                type="button"
+                aria-label="셀 배경색 적용"
                 disabled={tableToolDisabled}
-                onChange={(event) => handleCellBackgroundColorChange(event.target.value)}
-                className="h-5 w-5 cursor-pointer border-0 bg-transparent p-0"
-              />
-            </label>
+                onClick={() => handleCellBackgroundColorChange(currentCellBackgroundColor)}
+                className="flex items-center gap-1 px-2 hover:bg-gray-50 disabled:cursor-not-allowed"
+              >
+                <PaintBucket className="h-3.5 w-3.5" />
+              </button>
+              <label className={cn("flex items-center justify-center border-l border-gray-200 px-1.5 hover:bg-gray-50", tableToolDisabled ? "cursor-not-allowed" : "cursor-pointer")}>
+                <input
+                  aria-label="셀 배경색 선택"
+                  type="color"
+                  value={currentCellBackgroundColor}
+                  disabled={tableToolDisabled}
+                  onChange={(event) => handleCellBackgroundColorChange(event.target.value)}
+                  className="h-5 w-5 cursor-pointer border-0 bg-transparent p-0 disabled:cursor-not-allowed"
+                />
+              </label>
+            </div>
             <ToolbarButton editor={editor} label={isInTable ? "셀 배경색 제거" : "표 셀을 클릭하면 셀 배경색 제거 가능"} disabled={tableToolDisabled} onClick={clearCellBackgroundColor}>
               <span className="text-[10px] font-semibold">배X</span>
             </ToolbarButton>
