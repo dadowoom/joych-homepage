@@ -111,6 +111,15 @@ function createUserWithReservationPermission(): TrpcUser {
   };
 }
 
+function createUserWithFacilityPermission(): TrpcUser {
+  return {
+    ...createUserWithReservationPermission(),
+    name: "Facility Manager",
+    email: "facility@example.com",
+    contentPermissions: ["content:facilities"],
+  };
+}
+
 function createContext(user: TrpcUser | null = null): TrpcContext {
   return {
     user,
@@ -504,7 +513,7 @@ describe("facility reservation lead-time guard", () => {
     );
   });
 
-  it("lets reservation managers bypass the 24-hour guard after phone confirmation", async () => {
+  it("auto-approves reservation managers on manual-approval facilities", async () => {
     const caller = appRouter.createCaller(createContext(createUserWithReservationPermission()));
 
     await expect(
@@ -513,7 +522,7 @@ describe("facility reservation lead-time guard", () => {
         startTime: "16:00",
         endTime: "17:00",
       }))
-    ).resolves.toMatchObject({ id: 100, status: "pending", count: 1 });
+    ).resolves.toMatchObject({ id: 100, status: "approved", count: 1 });
 
     expect(dbMocks.createReservationIfAvailable).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -521,9 +530,30 @@ describe("facility reservation lead-time guard", () => {
         startTime: "16:00",
         endTime: "17:00",
         userId: 1,
+        status: "approved",
       }),
     );
+    expect(pushMocks.notifyFacilityReservation).not.toHaveBeenCalled();
     expect(dbMocks.createReservation).not.toHaveBeenCalled();
+  });
+
+  it("auto-approves facility managers on manual-approval facilities", async () => {
+    const caller = appRouter.createCaller(createContext(createUserWithFacilityPermission()));
+
+    await expect(
+      caller.home.createReservation(reservationInput({
+        startTime: "15:00",
+        endTime: "16:00",
+      }))
+    ).resolves.toMatchObject({ id: 100, status: "approved", count: 1 });
+
+    expect(dbMocks.createReservationIfAvailable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "approved",
+        userId: 1,
+      }),
+    );
+    expect(pushMocks.notifyFacilityReservation).not.toHaveBeenCalled();
   });
 
   it("lets reservation managers update facility reservation time", async () => {

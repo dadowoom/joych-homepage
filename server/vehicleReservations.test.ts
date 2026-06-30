@@ -298,19 +298,20 @@ describe("vehicle reservations", () => {
     );
   });
 
-  it("lets individually permitted vehicle managers create reservations outside the group rule", async () => {
+  it("auto-approves individually permitted vehicle managers outside the group rule", async () => {
     dbMocks.canMemberUseVehicleReservation.mockResolvedValue(false);
     const caller = appRouter.createCaller(createContext(createAdminUser()));
 
     await expect(caller.home.createVehicleReservation(vehicleReservationInput())).resolves.toMatchObject({
       id: 200,
-      status: "pending",
+      status: "approved",
     });
     expect(dbMocks.canMemberUseVehicleReservation).not.toHaveBeenCalled();
     expect(dbMocks.createVehicleReservationIfAvailable).toHaveBeenCalledWith(
       expect.objectContaining({
         vehicleId: 1,
         userId: 1,
+        status: "approved",
       }),
     );
   });

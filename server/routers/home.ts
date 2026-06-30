@@ -149,6 +149,11 @@ function filterVehicleReservationMenu<T extends MenuTreeNode>(node: T, canUseVeh
 
 type AdminPermissionUser = Parameters<typeof hasAdminContentPermission>[0];
 
+function hasFacilityReservationManagerPermission(user: AdminPermissionUser) {
+  return hasAdminContentPermission(user, "content:reservations") ||
+    hasAdminContentPermission(user, "content:facilities");
+}
+
 async function canContextUseVehicleReservation(ctx: { user?: AdminPermissionUser; memberId?: number | null }) {
   if (hasAdminContentPermission(ctx.user, "content:vehicles")) return true;
   if (!ctx.memberId) return false;
@@ -873,7 +878,8 @@ export const homeRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const member = await getMemberById(ctx.memberId);
-      if (!member || !canMemberRequestFacilityReservation(member)) {
+      const canManageFacilityReservations = hasFacilityReservationManagerPermission(ctx.user);
+      if (!member || (!canMemberRequestFacilityReservation(member) && !canManageFacilityReservations)) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "시설 사용 예약은 교회 등록 성도만 신청할 수 있습니다. 관리자에게 문의해 주세요.",
@@ -881,7 +887,7 @@ export const homeRouter = router({
       }
       const canBypassReservationRules =
         hasFacilityReservationRuleOverride(member) ||
-        hasAdminContentPermission(ctx.user, "content:reservations");
+        canManageFacilityReservations;
 
       const startMinutes = toMinutes(input.startTime);
       const endMinutes = toMinutes(input.endTime);
@@ -1014,8 +1020,9 @@ export const homeRouter = router({
         }
       }
 
-      // 자동 승인 시설은 바로 approved, 그 외는 pending(관리자 검토 필요)
-      const status: "approved" | "pending" = facility.approvalType === "auto" ? "approved" : "pending";
+      // 자동 승인 시설이거나 시설/예약 관리자 권한자는 바로 approved, 그 외는 pending(관리자 검토 필요)
+      const status: "approved" | "pending" =
+        facility.approvalType === "auto" || canManageFacilityReservations ? "approved" : "pending";
       const { repeat, ...baseInput } = input;
       const recurrenceGroupId = reservationDates.length > 1 ? `res_${crypto.randomUUID()}` : null;
       const recurrenceLabel = reservationDates.length > 1 && repeat
@@ -1179,8 +1186,9 @@ export const homeRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const member = await getMemberById(ctx.memberId);
+      const canManageVehicleReservations = hasAdminContentPermission(ctx.user, "content:vehicles");
       const canUseVehicleReservation =
-        hasAdminContentPermission(ctx.user, "content:vehicles") ||
+        canManageVehicleReservations ||
         await canMemberUseVehicleReservation(member);
       if (!canUseVehicleReservation) {
         throw new TRPCError({
@@ -1234,7 +1242,8 @@ export const homeRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: `최대 탑승 인원(${vehicle.capacity}명)을 초과할 수 없습니다.` });
       }
 
-      const status: "approved" | "pending" = vehicle.approvalType === "auto" ? "approved" : "pending";
+      const status: "approved" | "pending" =
+        vehicle.approvalType === "auto" || canManageVehicleReservations ? "approved" : "pending";
       try {
         const id = await createVehicleReservationIfAvailable({
           ...input,
