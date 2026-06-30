@@ -21,10 +21,12 @@ export function PushNotificationToggle() {
   const [subscribed, setSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
   const repairAttemptedForState = useRef<string | null>(null);
+  const diagnosticReportedForState = useRef<string | null>(null);
 
   const vapidQuery = trpc.home.getVapidPublicKey.useQuery(undefined, {
     staleTime: Infinity,
   });
+  const diagnosticMutation = trpc.push.reportDiagnostic.useMutation();
   const subscribeMutation = trpc.push.subscribe.useMutation();
   const unsubscribeMutation = trpc.push.unsubscribe.useMutation();
   const mySubscriptionsQuery = trpc.push.getMySubscriptions.useQuery(undefined, {
@@ -60,6 +62,43 @@ export function PushNotificationToggle() {
     return subscription;
   };
 
+  const getEndpointHost = (endpoint: string | null | undefined) => {
+    if (!endpoint) return undefined;
+    try {
+      return new URL(endpoint).host;
+    } catch {
+      return "invalid-endpoint";
+    }
+  };
+
+  const reportDiagnostic = (
+    event: string,
+    extra: {
+      supported?: boolean;
+      hasLocalSubscription?: boolean;
+      serverSubscriptionCount?: number;
+      endpoint?: string | null;
+      error?: unknown;
+    } = {},
+  ) => {
+    const error = extra.error;
+    void diagnosticMutation.mutateAsync({
+      event,
+      supported: extra.supported ?? isPushSupported(),
+      isIos: isIosDevice(),
+      standalone: isStandalonePwa(),
+      permission: typeof window !== "undefined" && "Notification" in window
+        ? getNotificationPermission()
+        : "unsupported",
+      hasLocalSubscription: extra.hasLocalSubscription,
+      serverSubscriptionCount: extra.serverSubscriptionCount,
+      endpointHost: getEndpointHost(extra.endpoint),
+      errorName: error instanceof Error ? error.name : undefined,
+      errorMessage: error instanceof Error ? error.message : error ? String(error) : undefined,
+      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+    }).catch(() => undefined);
+  };
+
   useEffect(() => {
     let cancelled = false;
 
@@ -70,7 +109,14 @@ export function PushNotificationToggle() {
       setSupported(canPush);
       setPermission(getNotificationPermission());
 
-      if (!canPush) return;
+      if (!canPush) {
+        const diagnosticKey = `unsupported:${isIosDevice()}:${isStandalonePwa()}:${getNotificationPermission()}`;
+        if (diagnosticReportedForState.current !== diagnosticKey) {
+          diagnosticReportedForState.current = diagnosticKey;
+          reportDiagnostic("unsupported", { supported: false });
+        }
+        return;
+      }
 
       try {
         const subscription = await getCurrentPushSubscription();
@@ -79,6 +125,11 @@ export function PushNotificationToggle() {
         const serverSubscriptions = mySubscriptionsQuery.data;
         if (!serverSubscriptions) {
           setSubscribed(Boolean(subscription));
+          reportDiagnostic("state-loading-server-subscriptions", {
+            supported: canPush,
+            hasLocalSubscription: Boolean(subscription),
+            endpoint: subscription?.endpoint,
+          });
           return;
         }
 
@@ -102,6 +153,26 @@ export function PushNotificationToggle() {
 
         setSubscribed(serverHasSubscription && !shouldRefreshSubscription);
 
+        const diagnosticKey = [
+          "state",
+          isIosDevice() ? "ios" : "other",
+          isStandalonePwa() ? "standalone" : "browser",
+          getNotificationPermission(),
+          subscription ? "local" : "no-local",
+          serverSubscriptions.length,
+          serverHasSubscription ? "server-match" : "server-missing",
+          shouldRefreshSubscription ? "refresh" : "ok",
+        ].join(":");
+        if (diagnosticReportedForState.current !== diagnosticKey) {
+          diagnosticReportedForState.current = diagnosticKey;
+          reportDiagnostic("state", {
+            supported: canPush,
+            hasLocalSubscription: Boolean(subscription),
+            serverSubscriptionCount: serverSubscriptions.length,
+            endpoint: subscription?.endpoint,
+          });
+        }
+
         if (
           (!subscription || !serverHasSubscription || shouldRefreshSubscription) &&
           hasGrantedPermission &&
@@ -114,7 +185,8 @@ export function PushNotificationToggle() {
           setSubscribed(true);
           toast.success(shouldRefreshSubscription ? "알림 구독 키를 새로 연결했습니다." : "알림 구독을 다시 연결했습니다.");
         }
-      } catch {
+      } catch (error) {
+        reportDiagnostic("state-error", { supported: canPush, error });
         if (!cancelled) setSubscribed(false);
       }
     }
@@ -128,16 +200,19 @@ export function PushNotificationToggle() {
 
   const enablePush = async () => {
     setLoading(true);
+    reportDiagnostic("enable-start");
     try {
       const granted = await requestNotificationPermission();
       setPermission(getNotificationPermission());
       if (!granted) {
+        reportDiagnostic("enable-permission-denied");
         toast.error("알림 권한이 거부되었습니다. 브라우저 설정에서 알림을 허용해 주세요.");
         return;
       }
 
       const vapidPublicKey = vapidQuery.data;
       if (!vapidPublicKey) {
+        reportDiagnostic("enable-missing-vapid");
         toast.error("서버 VAPID 공개키가 아직 설정되지 않았습니다.");
         return;
       }
@@ -146,9 +221,11 @@ export function PushNotificationToggle() {
 
       await utils.push.getMySubscriptions.invalidate();
       setSubscribed(true);
+      reportDiagnostic("enable-success", { supported: true });
       toast.success("이 기기에서 알림 받기가 켜졌습니다.");
     } catch (error) {
       console.error("[Push] subscribe failed", error);
+      reportDiagnostic("enable-error", { error });
       toast.error("알림 설정에 실패했습니다.");
     } finally {
       setLoading(false);
@@ -157,6 +234,7 @@ export function PushNotificationToggle() {
 
   const disablePush = async () => {
     setLoading(true);
+    reportDiagnostic("disable-start");
     try {
       const endpoint = await unsubscribeFromPush();
       if (endpoint) {
@@ -165,9 +243,11 @@ export function PushNotificationToggle() {
 
       await utils.push.getMySubscriptions.invalidate();
       setSubscribed(false);
+      reportDiagnostic("disable-success", { endpoint });
       toast.success("이 기기에서 알림 받기를 껐습니다.");
     } catch (error) {
       console.error("[Push] unsubscribe failed", error);
+      reportDiagnostic("disable-error", { error });
       toast.error("알림 해제에 실패했습니다.");
     } finally {
       setLoading(false);
@@ -176,6 +256,15 @@ export function PushNotificationToggle() {
 
   const disabled = loading || vapidQuery.isLoading || subscribeMutation.isPending || unsubscribeMutation.isPending;
   const iosNeedsPwa = isIosDevice() && !isStandalonePwa();
+  const iosStatusText = isIosDevice()
+    ? iosNeedsPwa
+      ? "아이폰은 Safari에서 홈 화면에 추가한 앱으로 열어야 알림 등록이 됩니다."
+      : permission === "denied"
+        ? "아이폰 설정에서 이 앱의 알림 권한을 다시 허용해야 합니다."
+        : subscribed
+          ? "이 아이폰 앱은 서버에 알림 기기로 등록되어 있습니다."
+          : "이 아이폰 앱은 아직 서버에 알림 기기로 등록되지 않았습니다."
+    : "";
 
   if (!supported) {
     return (
@@ -207,6 +296,11 @@ export function PushNotificationToggle() {
             {iosNeedsPwa && (
               <p className="mt-1 text-xs leading-5 text-amber-700">
                 iPhone/iPad는 홈 화면에 추가한 앱으로 접속해야 알림을 켤 수 있습니다.
+              </p>
+            )}
+            {isIosDevice() && (
+              <p className={`mt-1 text-xs leading-5 ${subscribed ? "text-green-700" : "text-amber-700"}`}>
+                {iosStatusText}
               </p>
             )}
             {!vapidQuery.isLoading && !vapidQuery.data && (
