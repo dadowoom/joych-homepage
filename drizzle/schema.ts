@@ -1090,6 +1090,23 @@ export const vehicleReservationAccessRules = mysqlTable("vehicle_reservation_acc
 export type VehicleReservationAccessRule = typeof vehicleReservationAccessRules.$inferSelect;
 export type InsertVehicleReservationAccessRule = typeof vehicleReservationAccessRules.$inferInsert;
 
+export const pushSubscriptions = mysqlTable("push_subscriptions", {
+  id: int("id").autoincrement().primaryKey(),
+  memberId: int("member_id").notNull(),
+  endpoint: varchar("endpoint", { length: 500 }).notNull(),
+  p256dh: varchar("p256dh", { length: 255 }).notNull(),
+  auth: varchar("auth", { length: 255 }).notNull(),
+  userAgent: varchar("user_agent", { length: 500 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  lastUsedAt: timestamp("last_used_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("push_subscriptions_endpoint_unique").on(table.endpoint),
+  index("push_subscriptions_member_id_idx").on(table.memberId),
+]);
+
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+export type InsertPushSubscription = typeof pushSubscriptions.$inferInsert;
+
 // ─────────────────────────────────────────────
 // 교육/강좌 신청 시스템
 // ─────────────────────────────────────────────

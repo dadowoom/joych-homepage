@@ -406,6 +406,8 @@ export const homeRouter = router({
   /** 사이트 설정 (교회명, 주소, 연락처 등) */
   settings: publicProcedure.query(() => getSiteSettings()),
 
+  getVapidPublicKey: publicProcedure.query(() => process.env.VAPID_PUBLIC_KEY ?? ""),
+
   getExternalFacilityRules: publicProcedure.query(async () => {
     const setting = await getSiteSetting(externalFacilityRulesSettingKey);
     return setting?.settingValue ?? "";

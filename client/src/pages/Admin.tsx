@@ -42,6 +42,7 @@ import AdminMenuAccessTab from "@/components/AdminMenuAccessTab";
 import AdminViewModesTab from "@/components/AdminViewModesTab";
 import AdminChurchHistoryTab from "@/components/AdminChurchHistoryTab";
 import AdminPastorBooksTab from "@/components/AdminPastorBooksTab";
+import { PushNotificationToggle } from "@/components/PushNotificationToggle";
 import YoutubeAdminTab from "@/components/YoutubeAdminTab";
 import { SettingsTab } from "@/components/admin/SettingsTab";
 import {
@@ -591,6 +592,7 @@ export default function AdminPage() {
     tab === "reservations" || tab === "vehicles"
   );
   const canUseMobileAdmin = mobileReservationTabs.length > 0;
+  const canUsePushNotifications = Boolean(user.memberId && mobileReservationTabs.length > 0);
 
   if (isMobile && !canUseMobileAdmin) {
     return <AdminMobileBlocked />;
@@ -860,6 +862,8 @@ export default function AdminPage() {
           )}
 
           <main className="min-w-0 space-y-5">
+            {canUsePushNotifications && <PushNotificationToggle />}
+
             {isMobile && canUseMobileAdmin && (
               <div className="flex gap-2">
                 {mobileReservationTabs.includes("reservations") && (
