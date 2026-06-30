@@ -154,21 +154,21 @@ export default function ChurchHistory() {
               {yearGroups.map((group) => (
                 <article
                   key={group.year}
-                  className="grid gap-4 py-8 sm:grid-cols-[140px_1fr] sm:gap-8"
+                  className="grid gap-3 py-5 sm:grid-cols-[130px_1fr] sm:gap-6"
                 >
-                  <div className="font-serif text-4xl font-normal text-[#0b376f] sm:text-5xl">
+                  <div className="font-serif text-4xl font-normal leading-tight text-[#0b376f] sm:text-5xl">
                     {group.year}
                   </div>
-                  <div className="space-y-6">
+                  <div className="space-y-3">
                     {group.items.map((item) => (
                       <div
                         key={item.id}
-                        className="grid grid-cols-[100px_minmax(0,1fr)] items-start gap-3 sm:gap-4"
+                        className="grid grid-cols-[76px_minmax(0,1fr)] items-start gap-2 sm:grid-cols-[88px_minmax(0,1fr)] sm:gap-3"
                       >
-                        <div className="text-base font-semibold leading-6 text-[#8aa4c4] sm:text-lg">
+                        <div className="text-sm font-semibold leading-5 text-[#8aa4c4] sm:text-base">
                           {formatMonth(item.month)}
                         </div>
-                        <p className="whitespace-pre-line text-base leading-8 text-gray-700">
+                        <p className="whitespace-pre-line text-sm leading-6 text-gray-700 sm:text-base sm:leading-7">
                           {item.content}
                         </p>
                       </div>
