@@ -58,6 +58,37 @@ const WORSHIP_NAV = [
   { label: "주보 보기", href: "/worship/bulletin" },
 ];
 
+type BulletinMenuNode = {
+  label?: string | null;
+  href?: string | null;
+  defaultViewMode?: string | null;
+  subItems?: BulletinMenuNode[];
+};
+
+function normalizeMenuLabel(value: string | null | undefined) {
+  return (value ?? "").replace(/\s+/g, "");
+}
+
+function isBulletinViewNode(node: BulletinMenuNode) {
+  return node.href?.trim() === "/worship/bulletin" || normalizeMenuLabel(node.label) === "주보보기";
+}
+
+function findBulletinViewMenuNode(menus: Array<{ items?: BulletinMenuNode[] }> | undefined) {
+  for (const menu of menus ?? []) {
+    for (const item of menu.items ?? []) {
+      const matchedSubItem = (item.subItems ?? []).find(isBulletinViewNode);
+      if (matchedSubItem) return matchedSubItem;
+    }
+  }
+
+  for (const menu of menus ?? []) {
+    const matchedItem = (menu.items ?? []).find(isBulletinViewNode);
+    if (matchedItem) return matchedItem;
+  }
+
+  return null;
+}
+
 // ── 조이풀TV (설교 영상) ─────────────────────────────────────────
 const SERMON_VIDEOS = [
   { id: "1", badge: "주일예배", title: "주일예배 설교 영상", preacher: "기쁨의교회", date: "최신 영상", duration: "예배 영상", href: "/page/조이풀tv-주일예배", thumb: "https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=400&q=70" },
@@ -276,7 +307,7 @@ function getBulletinPages(bulletin: BulletinWithPages) {
 }
 
 const MAX_BULLETIN_UPLOAD_BYTES = 8 * 1024 * 1024;
-const BULLETIN_PAGE_SIZE_OPTIONS = [20, 50] as const;
+const BULLETIN_PAGE_SIZE_OPTIONS = [12, 24, 48] as const;
 const MAX_BULLETIN_UPLOAD_COUNT = 12;
 const ALLOWED_BULLETIN_UPLOAD_RE = /\.(jpg|jpeg|png)$/i;
 
@@ -761,29 +792,14 @@ export function Bulletin() {
   const isAccessDenied = !authLoading && !memberLoading && !canReadBulletins;
   const isLoading = authLoading || memberLoading || (canReadBulletins && bulletinsQuery.isLoading);
   const { data: allMenus } = trpc.home.menus.useQuery();
-  const bulletinMenuItem = useMemo(() => {
-    if (!allMenus) return null;
-
-    for (const menu of allMenus) {
-      if (!menu.items) continue;
-      for (const item of menu.items) {
-        if (item.href === "/worship/bulletin") return item;
-        if (!item.subItems) continue;
-        for (const subItem of item.subItems) {
-          if (subItem.href === "/worship/bulletin") return subItem;
-        }
-      }
-    }
-
-    return null;
-  }, [allMenus]);
+  const bulletinMenuItem = useMemo(() => findBulletinViewMenuNode(allMenus), [allMenus]);
   const [expandedId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);
   const [lightbox, setLightbox] = useState<{ bulletinId: number; pageIndex: number } | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
-  const [pageSize, setPageSize] = useState<(typeof BULLETIN_PAGE_SIZE_OPTIONS)[number]>(20);
+  const [pageSize, setPageSize] = useState<(typeof BULLETIN_PAGE_SIZE_OPTIONS)[number]>(12);
   const [page, setPage] = useState(1);
   const touchStartXRef = useRef<number | null>(null);
   const { parentLabel, sideMenuItems } = getSupportSideMenuItems(allMenus, "/worship/bulletin");
