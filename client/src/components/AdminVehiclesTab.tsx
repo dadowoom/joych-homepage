@@ -9,6 +9,7 @@ import { useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useIsMobile } from "@/hooks/useMobile";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -228,7 +229,9 @@ function getReservationPosition(row: VehicleReservationRow) {
 
 export default function AdminVehiclesTab() {
   const utils = trpc.useUtils();
+  const isMobile = useIsMobile();
   const [mode, setMode] = useState<AdminVehicleTabMode>("vehicles");
+  const activeMode: AdminVehicleTabMode = isMobile ? "reservations" : mode;
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<VehicleForm>(EMPTY_FORM);
@@ -607,7 +610,7 @@ export default function AdminVehiclesTab() {
             차량 등록, 예약 승인, 예약 가능 성도 그룹을 한곳에서 관리합니다.
           </p>
         </div>
-        {mode === "vehicles" && !showForm && (
+        {activeMode === "vehicles" && !showForm && (
           <Button onClick={startCreate} className="bg-[#1B5E20] text-white hover:bg-[#2E7D32]">
             <Plus className="mr-1.5 h-4 w-4" /> 차량 등록
           </Button>
@@ -615,11 +618,13 @@ export default function AdminVehiclesTab() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 rounded-xl border border-gray-100 bg-white p-2 shadow-sm md:grid-cols-3">
-        {[
+        {(isMobile ? [
+          { id: "reservations", label: "예약 승인", desc: `대기 ${stats.pending}건`, icon: <Clock className="h-4 w-4" /> },
+        ] : [
           { id: "vehicles", label: "차량 목록", desc: "차량과 예약 조건", icon: <CalendarCheck className="h-4 w-4" /> },
           { id: "reservations", label: "예약 승인", desc: `대기 ${stats.pending}건`, icon: <Clock className="h-4 w-4" /> },
           { id: "access", label: "예약 가능 그룹", desc: "메뉴 노출/신청 권한", icon: <KeyRound className="h-4 w-4" /> },
-        ].map(item => (
+        ]).map(item => (
           <button
             key={item.id}
             type="button"
@@ -629,19 +634,19 @@ export default function AdminVehiclesTab() {
               setMode(item.id as AdminVehicleTabMode);
             }}
             className={`flex items-center gap-3 rounded-lg px-4 py-3 text-left transition-colors ${
-              mode === item.id
+              activeMode === item.id
                 ? "bg-[#1B5E20] text-white shadow-sm"
                 : "bg-gray-50 text-gray-600 hover:bg-gray-100"
             }`}
           >
             <span className={`flex h-10 w-10 items-center justify-center rounded-full ${
-              mode === item.id ? "bg-white/15" : "bg-white text-[#1B5E20]"
+              activeMode === item.id ? "bg-white/15" : "bg-white text-[#1B5E20]"
             }`}>
               {item.icon}
             </span>
             <span>
               <span className="block text-sm font-bold">{item.label}</span>
-              <span className={`mt-0.5 block text-xs ${mode === item.id ? "text-white/75" : "text-gray-400"}`}>
+              <span className={`mt-0.5 block text-xs ${activeMode === item.id ? "text-white/75" : "text-gray-400"}`}>
                 {item.desc}
               </span>
             </span>
@@ -649,7 +654,7 @@ export default function AdminVehiclesTab() {
         ))}
       </div>
 
-      {mode === "vehicles" && showForm && (
+      {activeMode === "vehicles" && showForm && (
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <div>
@@ -820,7 +825,7 @@ export default function AdminVehiclesTab() {
         </div>
       )}
 
-      {mode === "vehicles" && !showForm && imageVehicle && (
+      {activeMode === "vehicles" && !showForm && imageVehicle && (
         <div className="rounded-xl border border-emerald-100 bg-white p-5 shadow-sm">
           <input
             ref={vehicleImageInputRef}
@@ -913,7 +918,7 @@ export default function AdminVehiclesTab() {
         </div>
       )}
 
-      {mode === "vehicles" && !showForm && (
+      {activeMode === "vehicles" && !showForm && (
         <div className="space-y-3">
           {vehicleRows.length === 0 ? (
             <div className="rounded-xl border border-dashed border-gray-200 bg-white py-12 text-center text-sm text-gray-400">
@@ -969,7 +974,7 @@ export default function AdminVehiclesTab() {
         </div>
       )}
 
-      {mode === "reservations" && (
+      {activeMode === "reservations" && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {[
@@ -989,7 +994,7 @@ export default function AdminVehiclesTab() {
             <select
               value={reservationVehicleFilter ?? ""}
               onChange={(e) => setReservationVehicleFilter(e.target.value ? Number(e.target.value) : undefined)}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
+              className="min-h-11 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none sm:min-h-0"
             >
               <option value="">전체 차량</option>
               {vehicleRows.map(vehicle => <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>)}
@@ -999,7 +1004,7 @@ export default function AdminVehiclesTab() {
                 key={status}
                 type="button"
                 onClick={() => setReservationStatusFilter(status)}
-                className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                className={`min-h-11 rounded-lg px-3 py-2 text-xs font-medium transition-colors sm:min-h-0 ${
                   reservationStatusFilter === status
                     ? "bg-[#1B5E20] text-white"
                     : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -1039,12 +1044,12 @@ export default function AdminVehiclesTab() {
                           {row.notes && <p className="mt-1 text-xs text-gray-500">요청: {row.notes}</p>}
                           {row.adminComment && <p className="mt-1 text-xs text-red-600">관리자 메모: {row.adminComment}</p>}
                         </div>
-                        <div className="flex shrink-0 flex-wrap gap-2">
+                        <div className="flex w-full flex-wrap gap-2 lg:w-auto lg:shrink-0">
                           {row.status === "pending" && (
                             <>
                               <Button
                                 size="sm"
-                                className="bg-green-600 text-white hover:bg-green-700"
+                                className="min-h-11 bg-green-600 text-white hover:bg-green-700 sm:min-h-0"
                                 disabled={isMutatingReservation}
                                 onClick={() => approveReservation.mutate({ id: row.id })}
                               >
@@ -1053,7 +1058,7 @@ export default function AdminVehiclesTab() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="border-red-200 text-red-600 hover:bg-red-50"
+                                className="min-h-11 border-red-200 text-red-600 hover:bg-red-50 sm:min-h-0"
                                 onClick={() => {
                                   setRejectingId(row.id);
                                   setRejectComment("");
@@ -1066,6 +1071,7 @@ export default function AdminVehiclesTab() {
                           <Button
                             size="sm"
                             variant="outline"
+                            className="min-h-11 sm:min-h-0"
                             disabled={isMutatingReservation}
                             onClick={() => startReservationTimeEdit(row)}
                           >
@@ -1074,7 +1080,7 @@ export default function AdminVehiclesTab() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="border-red-200 text-red-600 hover:bg-red-50"
+                            className="min-h-11 border-red-200 text-red-600 hover:bg-red-50 sm:min-h-0"
                             disabled={isMutatingReservation}
                             onClick={() => removeReservation(row)}
                           >
@@ -1096,13 +1102,13 @@ export default function AdminVehiclesTab() {
                           <div className="mt-2 flex gap-2">
                             <Button
                               size="sm"
-                              className="bg-red-600 text-white hover:bg-red-700"
+                              className="min-h-11 bg-red-600 text-white hover:bg-red-700 sm:min-h-0"
                               disabled={!rejectComment.trim() || isMutatingReservation}
                               onClick={() => rejectReservation.mutate({ id: row.id, comment: rejectComment })}
                             >
                               거절 확정
                             </Button>
-                            <Button size="sm" variant="outline" onClick={() => setRejectingId(null)}>취소</Button>
+                            <Button size="sm" variant="outline" className="min-h-11 sm:min-h-0" onClick={() => setRejectingId(null)}>취소</Button>
                           </div>
                         </div>
                       )}
@@ -1141,13 +1147,13 @@ export default function AdminVehiclesTab() {
                             <div className="flex items-end gap-2">
                               <Button
                                 size="sm"
-                                className="bg-[#1B5E20] text-white hover:bg-[#2E7D32]"
+                                className="min-h-11 bg-[#1B5E20] text-white hover:bg-[#2E7D32] sm:min-h-0"
                                 disabled={isMutatingReservation}
                                 onClick={() => saveReservationTime(row)}
                               >
                                 저장
                               </Button>
-                              <Button size="sm" variant="outline" onClick={() => setEditingReservationId(null)}>
+                              <Button size="sm" variant="outline" className="min-h-11 sm:min-h-0" onClick={() => setEditingReservationId(null)}>
                                 취소
                               </Button>
                             </div>
@@ -1163,7 +1169,7 @@ export default function AdminVehiclesTab() {
         </div>
       )}
 
-      {mode === "access" && (
+      {activeMode === "access" && (
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>

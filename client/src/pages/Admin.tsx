@@ -339,7 +339,9 @@ function AdminMobileBlocked() {
           PC에서 접속해주세요
         </h1>
         <p className="mt-3 text-sm leading-6 text-gray-500">
-          관리자 페이지는 안정적인 운영을 위해 PC 화면에서만 사용할 수 있습니다.
+          관리자 페이지는 PC 화면에서 사용할 수 있습니다.
+          <br />
+          시설 예약 승인 권한이 있는 분은 모바일에서도 예약 관리가 가능합니다.
         </p>
         <Link
           href="/"
@@ -361,7 +363,7 @@ export default function AdminPage() {
 
   const searchParams = new URLSearchParams(searchString);
   const utils = trpc.useUtils();
-  const isNotificationsView = searchParams.get("view") === "notifications";
+  const isNotificationsView = !isMobile && searchParams.get("view") === "notifications";
   const tabFromUrl = searchParams.get("tab") as Tab | null;
   const requestedTab: Tab | null =
     tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : null;
@@ -448,10 +450,6 @@ export default function AdminPage() {
     }
     return counts;
   }, [notificationSummary]);
-
-  if (isMobile) {
-    return <AdminMobileBlocked />;
-  }
 
   // ── 로딩 중 ────────────────────────────────────────────────────────────────
   if (loading) {
@@ -588,6 +586,16 @@ export default function AdminPage() {
         ? canManageAdminTab(user, "facilities")
         : canManageAdminTab(user, tab)
   );
+
+  const mobileReservationTabs = permittedTabs.filter(tab =>
+    tab === "reservations" || tab === "vehicles"
+  );
+  const canUseMobileAdmin = mobileReservationTabs.length > 0;
+
+  if (isMobile && !canUseMobileAdmin) {
+    return <AdminMobileBlocked />;
+  }
+
   if (permittedTabs.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -611,13 +619,14 @@ export default function AdminPage() {
     );
   }
 
+  const effectivePermittedTabs = isMobile ? mobileReservationTabs : permittedTabs;
   const activeTab: Tab =
-    requestedTab && permittedTabs.includes(requestedTab)
+    requestedTab && effectivePermittedTabs.includes(requestedTab)
       ? requestedTab
-      : (permittedTabs[0] ?? "youtube");
+      : (effectivePermittedTabs[0] ?? "youtube");
   const visibleTabGroups = TAB_GROUPS.map(group => ({
     ...group,
-    tabs: group.tabs.filter(tab => permittedTabs.includes(tab)),
+    tabs: group.tabs.filter(tab => effectivePermittedTabs.includes(tab)),
   })).filter(group => group.tabs.length > 0);
   const activeTabInfo = TABS_BY_ID[activeTab];
   const activeGroup = TAB_GROUPS.find(group => group.tabs.includes(activeTab));
@@ -691,6 +700,7 @@ export default function AdminPage() {
 
         <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start">
           {/* 업무 그룹 내비게이션 */}
+          {!isMobile && (
           <aside className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:sticky lg:top-6 lg:flex lg:max-h-[calc(100vh-3rem)] lg:flex-col lg:overflow-hidden">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
@@ -847,8 +857,40 @@ export default function AdminPage() {
               })}
             </nav>
           </aside>
+          )}
 
           <main className="min-w-0 space-y-5">
+            {isMobile && canUseMobileAdmin && (
+              <div className="flex gap-2">
+                {mobileReservationTabs.includes("reservations") && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("reservations")}
+                    className={`flex min-h-11 flex-1 items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                      activeTab === "reservations"
+                        ? "bg-[#1B5E20] text-white"
+                        : "bg-white text-gray-600 ring-1 ring-gray-200"
+                    }`}
+                  >
+                    예약 관리
+                  </button>
+                )}
+                {mobileReservationTabs.includes("vehicles") && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("vehicles")}
+                    className={`flex min-h-11 flex-1 items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                      activeTab === "vehicles"
+                        ? "bg-[#1B5E20] text-white"
+                        : "bg-white text-gray-600 ring-1 ring-gray-200"
+                    }`}
+                  >
+                    차량 예약
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* 선택 탭 요약 */}
             {!isNotificationsView && (
               <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">

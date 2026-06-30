@@ -400,7 +400,7 @@ export default function AdminReservationsTab() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-lg font-bold text-gray-800">예약 승인 관리</h3>
           <p className="text-sm text-gray-500 mt-0.5">시설 예약 신청을 검토하고 승인 또는 거절합니다.</p>
@@ -408,13 +408,13 @@ export default function AdminReservationsTab() {
         <div className="flex gap-2">
           <button
             onClick={() => setViewMode("list")}
-            className={"flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors " + (viewMode === "list" ? "bg-[#1B5E20] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}
+            className={"flex min-h-11 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:min-h-0 sm:py-1.5 " + (viewMode === "list" ? "bg-[#1B5E20] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}
           >
             <List className="w-4 h-4" /> 목록
           </button>
           <button
             onClick={() => setViewMode("calendar")}
-            className={"flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors " + (viewMode === "calendar" ? "bg-[#1B5E20] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}
+            className={"flex min-h-11 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:min-h-0 sm:py-1.5 " + (viewMode === "calendar" ? "bg-[#1B5E20] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}
           >
             <Calendar className="w-4 h-4" /> 달력
           </button>
@@ -445,7 +445,7 @@ export default function AdminReservationsTab() {
           <select
             value={facilityFilter ?? ""}
             onChange={e => setFacilityFilter(e.target.value ? Number(e.target.value) : undefined)}
-            className="appearance-none pl-3 pr-8 py-1.5 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
+            className="min-h-11 appearance-none rounded-lg border border-gray-200 bg-white py-2 pl-3 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30 sm:min-h-0 sm:py-1.5"
           >
             <option value="">전체 시설</option>
             {(facilities ?? []).map(f => (
@@ -460,7 +460,7 @@ export default function AdminReservationsTab() {
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
-            className={"px-3 py-1.5 text-xs font-medium rounded-lg transition-colors " + (
+            className={"min-h-11 rounded-lg px-3 py-2 text-xs font-medium transition-colors sm:min-h-0 sm:py-1.5 " + (
               statusFilter === s
                 ? "bg-[#1B5E20] text-white"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -519,7 +519,7 @@ export default function AdminReservationsTab() {
                 <div key={group.key} className="border border-gray-200 rounded-xl overflow-hidden">
                   {/* 요약 행 */}
                   <div
-                    className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                    className="flex cursor-pointer flex-col gap-3 p-4 transition-colors hover:bg-gray-50 sm:flex-row sm:items-center"
                     onClick={() => setExpandedKey(isExpanded ? null : group.key)}
                   >
                     <div className={"flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium shrink-0 " + st.color}>
@@ -541,14 +541,14 @@ export default function AdminReservationsTab() {
                         {dateSummary} · {r.startTime}~{r.endTime} · {getReservationPosition(r)}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0">
                       {(group.status === "pending" || group.status === "checking") && (
                         <>
                           {group.status === "pending" && (
                             <Button
                               size="sm"
                               variant="outline"
-                              className="border-blue-300 text-blue-600 hover:bg-blue-50 text-xs h-7 px-3"
+                              className="min-h-11 border-blue-300 px-3 text-xs text-blue-600 hover:bg-blue-50 sm:h-7 sm:min-h-0"
                               onClick={e => { e.stopPropagation(); markReservationChecking(group); }}
                               disabled={isMutating}
                             >
@@ -557,7 +557,7 @@ export default function AdminReservationsTab() {
                           )}
                           <Button
                             size="sm"
-                            className="bg-green-600 hover:bg-green-700 text-white text-xs h-7 px-3"
+                            className="min-h-11 bg-green-600 px-3 text-xs text-white hover:bg-green-700 sm:h-7 sm:min-h-0"
                             onClick={e => { e.stopPropagation(); approveReservation(group); }}
                             disabled={isMutating}
                           >
@@ -566,7 +566,7 @@ export default function AdminReservationsTab() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="border-red-300 text-red-600 hover:bg-red-50 text-xs h-7 px-3"
+                            className="min-h-11 border-red-300 px-3 text-xs text-red-600 hover:bg-red-50 sm:h-7 sm:min-h-0"
                             onClick={e => { e.stopPropagation(); setRejectingKey(group.key); setRejectComment(""); }}
                           >
                             거절
@@ -582,7 +582,7 @@ export default function AdminReservationsTab() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="border-gray-300 text-gray-600 hover:bg-gray-50 text-xs h-7 px-2.5"
+                          className="min-h-11 border-gray-300 px-2.5 text-xs text-gray-600 hover:bg-gray-50 sm:h-7 sm:min-h-0"
                           onClick={e => { e.stopPropagation(); cancelReservationStatus(group); }}
                           disabled={isMutating}
                         >
@@ -592,7 +592,7 @@ export default function AdminReservationsTab() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="text-xs h-7 px-2.5"
+                        className="min-h-11 px-2.5 text-xs sm:h-7 sm:min-h-0"
                         onClick={e => { e.stopPropagation(); startEditTime(group); }}
                         disabled={isMutating}
                       >
@@ -601,7 +601,7 @@ export default function AdminReservationsTab() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="border-red-200 text-red-600 hover:bg-red-50 text-xs h-7 px-2.5"
+                        className="min-h-11 border-red-200 px-2.5 text-xs text-red-600 hover:bg-red-50 sm:h-7 sm:min-h-0"
                         onClick={e => { e.stopPropagation(); deleteReservation(group); }}
                         disabled={isMutating}
                         title={group.isRecurring ? "반복 예약 묶음 삭제" : "예약 삭제"}
@@ -627,7 +627,7 @@ export default function AdminReservationsTab() {
                       <div className="flex gap-2 mt-2">
                         <Button
                           size="sm"
-                          className="bg-red-600 hover:bg-red-700 text-white text-xs"
+                          className="min-h-11 bg-red-600 text-xs text-white hover:bg-red-700 sm:min-h-0"
                           onClick={() => rejectReservation(group)}
                           disabled={!rejectComment.trim() || isMutating}
                         >
@@ -636,7 +636,7 @@ export default function AdminReservationsTab() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="text-xs"
+                          className="min-h-11 text-xs sm:min-h-0"
                           onClick={() => setRejectingKey(null)}
                         >
                           취소
