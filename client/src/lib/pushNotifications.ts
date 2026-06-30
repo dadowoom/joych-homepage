@@ -152,7 +152,8 @@ export async function unsubscribeFromPush(): Promise<string | null> {
 
 export function isIosDevice(): boolean {
   if (typeof navigator === "undefined") return false;
-  return /iPad|iPhone|iPod/.test(navigator.userAgent);
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 }
 
 export function isStandalonePwa(): boolean {

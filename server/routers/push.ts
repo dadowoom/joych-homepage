@@ -16,6 +16,20 @@ function userAgentPreview(userAgent: string | null | undefined) {
   return userAgent.length > 120 ? `${userAgent.slice(0, 120)}...` : userAgent;
 }
 
+const diagnosticSchema = z.object({
+  event: z.string().trim().min(1).max(80),
+  supported: z.boolean(),
+  isIos: z.boolean(),
+  standalone: z.boolean(),
+  permission: z.enum(["default", "denied", "granted", "unsupported"]),
+  hasLocalSubscription: z.boolean().optional(),
+  serverSubscriptionCount: z.number().int().min(0).max(100).optional(),
+  endpointHost: z.string().trim().max(120).optional(),
+  errorName: z.string().trim().max(120).optional(),
+  errorMessage: z.string().trim().max(500).optional(),
+  userAgent: z.string().trim().max(500).optional(),
+});
+
 function ensurePushNotificationUser(ctx: {
   user: { id: number; role: string; contentPermissions?: string[] } | null;
   memberId: number | null;
@@ -38,6 +52,30 @@ function ensurePushNotificationUser(ctx: {
 }
 
 export const pushRouter = router({
+  reportDiagnostic: protectedProcedure
+    .input(diagnosticSchema)
+    .mutation(({ input, ctx }) => {
+      const owner = ensurePushNotificationUser(ctx);
+      console.log(
+        [
+          `[push-client] event=${input.event}`,
+          `userId=${owner.userId}`,
+          `memberId=${owner.memberId ?? "none"}`,
+          `supported=${input.supported}`,
+          `ios=${input.isIos}`,
+          `standalone=${input.standalone}`,
+          `permission=${input.permission}`,
+          `local=${input.hasLocalSubscription ?? "unknown"}`,
+          `serverCount=${input.serverSubscriptionCount ?? "unknown"}`,
+          `endpointHost=${input.endpointHost ?? "none"}`,
+          `error=${input.errorName ?? "none"}`,
+          `message=${input.errorMessage ?? "none"}`,
+          `ua=${userAgentPreview(input.userAgent)}`,
+        ].join(" "),
+      );
+      return { success: true };
+    }),
+
   subscribe: protectedProcedure
     .input(z.object({
       endpoint: endpointSchema,
