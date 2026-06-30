@@ -224,6 +224,10 @@ function renderContent(
   href?: string | null,
   defaultViewMode?: string | null
 ) {
+  const shouldUseWideEditorLayout =
+    label.replace(/\s+/g, "") === "차량시간표" ||
+    (href ?? "").replace(/\s+/g, "").includes("차량시간표");
+
   switch (pageType) {
     case "image":
       return <ImageContent label={label} imageUrl={imageUrl} />;
@@ -243,7 +247,11 @@ function renderContent(
       return <YoutubeContent label={label} playlistId={playlistId} />;
     case "editor":
       return (
-        <EditorContent menuItemId={menuItemId} menuSubItemId={menuSubItemId} />
+        <EditorContent
+          menuItemId={menuItemId}
+          menuSubItemId={menuSubItemId}
+          contentWidth={shouldUseWideEditorLayout ? "wide" : "default"}
+        />
       );
     default:
       return <ImageContent label={label} imageUrl={imageUrl} />;

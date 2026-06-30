@@ -304,11 +304,56 @@ function scopeRichTextCss(css: string, scopeSelector: string) {
   return scopeCssRules(trimmedCss, scopeSelector);
 }
 
+function parseCssPixelValue(value: string) {
+  const trimmed = value.trim().toLowerCase();
+  const match = trimmed.match(/^(-?\d+(?:\.\d+)?)px$/);
+  if (!match) return null;
+  return Number(match[1]);
+}
+
+function normalizeRichTextTableLayoutForViewer(html: string) {
+  if (!html || typeof DOMParser === "undefined") return html;
+
+  const documentFragment = new DOMParser().parseFromString(html, "text/html");
+  const root = documentFragment.body;
+
+  root.querySelectorAll("col").forEach((node) => {
+    const col = node as HTMLElement;
+    const style = col.style;
+    const width = parseCssPixelValue(style.width);
+    const minWidth = parseCssPixelValue(style.minWidth);
+
+    if (width !== null && width < 80) {
+      style.removeProperty("width");
+    }
+
+    if (minWidth !== null && minWidth < 80) {
+      style.removeProperty("min-width");
+    }
+
+    if (!style.cssText.trim()) {
+      col.removeAttribute("style");
+    }
+  });
+
+  root.querySelectorAll("td, th").forEach((node) => {
+    const cell = node as HTMLElement;
+    const text = cell.textContent?.replace(/\s+/g, " ").trim() ?? "";
+
+    if (/^\d{1,2}:\d{2}$/.test(text)) {
+      cell.style.whiteSpace = "nowrap";
+    }
+  });
+
+  return root.innerHTML;
+}
+
 function sanitizeRichTextForViewer(value: string | null | undefined, scopeSelector: string) {
   const { html, css } = extractStyleBlocks(value);
   ensureRichTextSanitizeHook();
+  const cleanHtml = DOMPurify.sanitize(html, richTextSanitizeOptions);
   return {
-    html: DOMPurify.sanitize(html, richTextSanitizeOptions),
+    html: normalizeRichTextTableLayoutForViewer(cleanHtml),
     css: scopeRichTextCss(css, scopeSelector),
   };
 }
