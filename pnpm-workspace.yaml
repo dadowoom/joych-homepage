@@ -12,5 +12,8 @@ overrides:
   picomatch: 4.0.4
   esbuild: 0.25.10
 
+onlyBuiltDependencies:
+  - esbuild
+
 allowBuilds:
-  esbuild: set this to true or false
+  esbuild: true
