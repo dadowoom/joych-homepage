@@ -1,14 +1,14 @@
 self.addEventListener("push", (event) => {
-  if (!event.data) return;
-
-  let payload;
-  try {
-    payload = event.data.json();
-  } catch {
-    payload = { title: "알림", body: event.data.text() };
+  let payload = {};
+  if (event.data) {
+    try {
+      payload = event.data.json();
+    } catch {
+      payload = { title: "Notification", body: event.data.text() };
+    }
   }
 
-  const title = payload.title || "기쁨의교회";
+  const title = payload.title || "Joyful Church";
   const options = {
     body: payload.body || "",
     icon: "/favicon.ico",
