@@ -7,6 +7,15 @@ import { protectedProcedure, router } from "../_core/trpc";
 
 const endpointSchema = z.string().trim().min(1).max(500);
 
+function endpointPreview(endpoint: string) {
+  return `${endpoint.slice(0, 32)}...${endpoint.slice(-12)}`;
+}
+
+function userAgentPreview(userAgent: string | null | undefined) {
+  if (!userAgent) return "unknown";
+  return userAgent.length > 120 ? `${userAgent.slice(0, 120)}...` : userAgent;
+}
+
 function ensurePushNotificationUser(ctx: {
   user: { id: number; role: string; contentPermissions?: string[] } | null;
   memberId: number | null;
@@ -65,7 +74,7 @@ export const pushRouter = router({
         },
       });
 
-      console.log(`[push] Subscribed userId=${owner.userId} memberId=${owner.memberId ?? "none"}`);
+      console.log(`[push] Subscribed userId=${owner.userId} memberId=${owner.memberId ?? "none"} endpoint=${endpointPreview(input.endpoint)} ua=${userAgentPreview(input.userAgent)}`);
       return { success: true };
     }),
 
@@ -86,7 +95,7 @@ export const pushRouter = router({
         ),
       ));
 
-      console.log(`[push] Unsubscribed userId=${owner.userId} memberId=${owner.memberId ?? "none"}`);
+      console.log(`[push] Unsubscribed userId=${owner.userId} memberId=${owner.memberId ?? "none"} endpoint=${endpointPreview(input.endpoint)}`);
       return { success: true };
     }),
 
