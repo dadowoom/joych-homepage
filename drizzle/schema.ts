@@ -1092,7 +1092,8 @@ export type InsertVehicleReservationAccessRule = typeof vehicleReservationAccess
 
 export const pushSubscriptions = mysqlTable("push_subscriptions", {
   id: int("id").autoincrement().primaryKey(),
-  memberId: int("member_id").notNull(),
+  memberId: int("member_id"),
+  userId: int("user_id"),
   endpoint: varchar("endpoint", { length: 500 }).notNull(),
   p256dh: varchar("p256dh", { length: 255 }).notNull(),
   auth: varchar("auth", { length: 255 }).notNull(),
@@ -1102,6 +1103,7 @@ export const pushSubscriptions = mysqlTable("push_subscriptions", {
 }, (table) => [
   uniqueIndex("push_subscriptions_endpoint_unique").on(table.endpoint),
   index("push_subscriptions_member_id_idx").on(table.memberId),
+  index("push_subscriptions_user_id_idx").on(table.userId),
 ]);
 
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;

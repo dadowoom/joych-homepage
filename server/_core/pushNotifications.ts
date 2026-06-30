@@ -1,5 +1,5 @@
 import webpush from "web-push";
-import { and, eq, inArray, like, or } from "drizzle-orm";
+import { eq, inArray, or, type SQL } from "drizzle-orm";
 import { adminContentPermissions, pushSubscriptions, users } from "../../drizzle/schema";
 import { getDb } from "../db";
 
@@ -51,16 +51,14 @@ export async function sendPushToPermissionHolders(
     if (!db) return;
 
     const permittedUsers = await db
-      .select({ openId: users.openId })
+      .select({ id: users.id, openId: users.openId })
       .from(users)
       .leftJoin(adminContentPermissions, eq(adminContentPermissions.userId, users.id))
       .where(or(
         eq(users.role, "admin"),
-        and(
-          eq(adminContentPermissions.permissionKey, permissionKey),
-          like(users.openId, "member:%"),
-        ),
+        eq(adminContentPermissions.permissionKey, permissionKey),
       ));
+    const userIds = Array.from(new Set(permittedUsers.map((user) => user.id)));
     const memberIds = Array.from(
       new Set(
         permittedUsers
@@ -68,12 +66,20 @@ export async function sendPushToPermissionHolders(
           .filter((memberId): memberId is number => memberId !== null),
       ),
     );
-    if (memberIds.length === 0) return;
+
+    const subscriptionConditions: SQL[] = [];
+    if (userIds.length > 0) {
+      subscriptionConditions.push(inArray(pushSubscriptions.userId, userIds));
+    }
+    if (memberIds.length > 0) {
+      subscriptionConditions.push(inArray(pushSubscriptions.memberId, memberIds));
+    }
+    if (subscriptionConditions.length === 0) return;
 
     const subscriptions = await db
       .select()
       .from(pushSubscriptions)
-      .where(inArray(pushSubscriptions.memberId, memberIds));
+      .where(or(...subscriptionConditions));
     if (subscriptions.length === 0) return;
 
     const payloadJson = JSON.stringify(payload);

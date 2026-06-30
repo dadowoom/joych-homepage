@@ -592,7 +592,7 @@ export default function AdminPage() {
     tab === "reservations" || tab === "vehicles"
   );
   const canUseMobileAdmin = mobileReservationTabs.length > 0;
-  const canUsePushNotifications = Boolean(user.memberId && mobileReservationTabs.length > 0);
+  const canUsePushNotifications = mobileReservationTabs.length > 0;
 
   if (isMobile && !canUseMobileAdmin) {
     return <AdminMobileBlocked />;

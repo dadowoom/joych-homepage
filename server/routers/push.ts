@@ -1,14 +1,35 @@
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { z } from "zod";
 import { pushSubscriptions } from "../../drizzle/schema";
 import { getDb } from "../db";
-import { memberProtectedProcedure, router } from "../_core/trpc";
+import { protectedProcedure, router } from "../_core/trpc";
 
 const endpointSchema = z.string().trim().min(1).max(500);
 
+function ensurePushNotificationUser(ctx: {
+  user: { id: number; role: string; contentPermissions?: string[] } | null;
+  memberId: number | null;
+}) {
+  const canUsePush =
+    ctx.user?.role === "admin" ||
+    ctx.user?.contentPermissions?.includes("content:reservations") ||
+    ctx.user?.contentPermissions?.includes("content:vehicles");
+
+  if (
+    !canUsePush
+  ) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "알림을 설정할 권한이 없습니다." });
+  }
+
+  return {
+    userId: ctx.user!.id,
+    memberId: ctx.memberId,
+  };
+}
+
 export const pushRouter = router({
-  subscribe: memberProtectedProcedure
+  subscribe: protectedProcedure
     .input(z.object({
       endpoint: endpointSchema,
       keys: z.object({
@@ -23,9 +44,11 @@ export const pushRouter = router({
         throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "DB unavailable" });
       }
 
+      const owner = ensurePushNotificationUser(ctx);
       const lastUsedAt = new Date();
       await db.insert(pushSubscriptions).values({
-        memberId: ctx.memberId,
+        memberId: owner.memberId,
+        userId: owner.userId,
         endpoint: input.endpoint,
         p256dh: input.keys.p256dh,
         auth: input.keys.auth,
@@ -33,7 +56,8 @@ export const pushRouter = router({
         lastUsedAt,
       }).onDuplicateKeyUpdate({
         set: {
-          memberId: ctx.memberId,
+          memberId: owner.memberId,
+          userId: owner.userId,
           p256dh: input.keys.p256dh,
           auth: input.keys.auth,
           userAgent: input.userAgent ?? null,
@@ -44,7 +68,7 @@ export const pushRouter = router({
       return { success: true };
     }),
 
-  unsubscribe: memberProtectedProcedure
+  unsubscribe: protectedProcedure
     .input(z.object({ endpoint: endpointSchema }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
@@ -52,18 +76,23 @@ export const pushRouter = router({
         throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "DB unavailable" });
       }
 
+      const owner = ensurePushNotificationUser(ctx);
       await db.delete(pushSubscriptions).where(and(
         eq(pushSubscriptions.endpoint, input.endpoint),
-        eq(pushSubscriptions.memberId, ctx.memberId),
+        or(
+          eq(pushSubscriptions.userId, owner.userId),
+          owner.memberId ? eq(pushSubscriptions.memberId, owner.memberId) : undefined,
+        ),
       ));
 
       return { success: true };
     }),
 
-  getMySubscriptions: memberProtectedProcedure.query(async ({ ctx }) => {
+  getMySubscriptions: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return [];
 
+    const owner = ensurePushNotificationUser(ctx);
     return db.select({
       id: pushSubscriptions.id,
       endpoint: pushSubscriptions.endpoint,
@@ -72,6 +101,9 @@ export const pushRouter = router({
       lastUsedAt: pushSubscriptions.lastUsedAt,
     })
       .from(pushSubscriptions)
-      .where(eq(pushSubscriptions.memberId, ctx.memberId));
+      .where(or(
+        eq(pushSubscriptions.userId, owner.userId),
+        owner.memberId ? eq(pushSubscriptions.memberId, owner.memberId) : undefined,
+      ));
   }),
 });
