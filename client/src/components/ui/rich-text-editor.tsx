@@ -313,6 +313,28 @@ function parseCssPixelValue(value: string) {
   return Number(match[1]);
 }
 
+function getRichTextViewerBaseCss(scopeSelector: string) {
+  return `
+${scopeSelector} .rt-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 1rem 0;
+  max-width: 100%;
+}
+${scopeSelector} .rt-table-scroll table {
+  margin: 0;
+}
+@media (max-width: 640px) {
+  ${scopeSelector} * {
+    max-width: 100%;
+  }
+  ${scopeSelector} [data-rt-mobile-font-size] {
+    font-size: min(var(--rt-mobile-font-size), 24px) !important;
+  }
+}
+`;
+}
+
 function normalizeRichTextTableLayoutForViewer(html: string) {
   if (!html || typeof DOMParser === "undefined") return html;
 
@@ -347,6 +369,51 @@ function normalizeRichTextTableLayoutForViewer(html: string) {
     }
   });
 
+  root.querySelectorAll("table").forEach((node) => {
+    const table = node as HTMLTableElement;
+    if (table.parentElement?.classList.contains("rt-table-scroll")) return;
+
+    const wrapper = documentFragment.createElement("div");
+    wrapper.className = "rt-table-scroll";
+    table.parentNode?.insertBefore(wrapper, table);
+    wrapper.appendChild(table);
+  });
+
+  root.querySelectorAll("img").forEach((node) => {
+    const image = node as HTMLImageElement;
+    image.style.removeProperty("width");
+    image.style.removeProperty("height");
+    image.style.maxWidth = "100%";
+    image.style.height = "auto";
+  });
+
+  root.querySelectorAll("iframe").forEach((node) => {
+    const iframe = node as HTMLIFrameElement;
+    iframe.style.removeProperty("width");
+    iframe.style.removeProperty("height");
+    iframe.style.maxWidth = "100%";
+  });
+
+  root.querySelectorAll<HTMLElement>("[style]").forEach((element) => {
+    const tagName = element.tagName.toUpperCase();
+    const width = parseCssPixelValue(element.style.width);
+    const fontSize = parseCssPixelValue(element.style.fontSize);
+
+    if (!["TABLE", "COL", "TD", "TH", "IMG", "IFRAME"].includes(tagName) && width !== null && width > 320) {
+      element.style.removeProperty("width");
+      element.style.maxWidth = "100%";
+    }
+
+    if (fontSize !== null && fontSize > 24) {
+      element.style.setProperty("--rt-mobile-font-size", `${fontSize}px`);
+      element.setAttribute("data-rt-mobile-font-size", "true");
+    }
+
+    if (!element.style.cssText.trim()) {
+      element.removeAttribute("style");
+    }
+  });
+
   return root.innerHTML;
 }
 
@@ -354,9 +421,13 @@ function sanitizeRichTextForViewer(value: string | null | undefined, scopeSelect
   const { html, css } = extractStyleBlocks(value);
   ensureRichTextSanitizeHook();
   const cleanHtml = DOMPurify.sanitize(html, richTextSanitizeOptions);
+  const normalizedHtml = normalizeRichTextTableLayoutForViewer(cleanHtml);
+  const scopedCustomCss = scopeRichTextCss(css, scopeSelector);
   return {
-    html: normalizeRichTextTableLayoutForViewer(cleanHtml),
-    css: scopeRichTextCss(css, scopeSelector),
+    html: normalizedHtml,
+    css: normalizedHtml || scopedCustomCss
+      ? (normalizedHtml ? getRichTextViewerBaseCss(scopeSelector) : "") + scopedCustomCss
+      : "",
   };
 }
 
@@ -1873,7 +1944,7 @@ export function RichTextViewer({ html, className }: RichTextViewerProps) {
           "[&_mark]:rounded [&_mark]:px-1 [&_mark]:py-0.5",
           "[&_iframe]:my-4 [&_iframe]:aspect-video [&_iframe]:w-full [&_iframe]:rounded-lg",
           "min-w-0 break-words [overflow-wrap:anywhere] [&_*]:max-w-full [&_hr]:my-5 [&_hr]:border-gray-200 [&_img]:mx-auto [&_img]:my-5 [&_img]:h-auto [&_img]:max-w-full [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:my-2 [&_ul]:ml-5 [&_ul]:list-disc",
-          "[&_section]:my-4 [&_table]:my-4 [&_table]:min-w-full [&_table]:border-collapse [&_td]:border [&_td]:border-gray-200 [&_td]:px-3 [&_td]:py-2 [&_td]:break-keep [&_td]:[overflow-wrap:normal] [&_th]:border [&_th]:border-gray-200 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2 [&_th]:break-keep [&_th]:[overflow-wrap:normal]",
+          "[&_section]:my-4 [&_table]:my-4 [&_table]:min-w-full [&_table]:border-collapse [&_table]:text-xs sm:[&_table]:text-sm [&_td]:border [&_td]:border-gray-200 [&_td]:px-3 [&_td]:py-2 [&_td]:break-keep [&_td]:[overflow-wrap:normal] [&_th]:border [&_th]:border-gray-200 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2 [&_th]:break-keep [&_th]:[overflow-wrap:normal]",
           className,
         )}
         dangerouslySetInnerHTML={{ __html: cleanHtml }}
