@@ -176,7 +176,7 @@ export function PastorBookEditorDialog({ open, book, defaultSortOrder = 1, onClo
     if (editingId) {
       await updateBook.mutateAsync({ id: editingId, ...payload });
       await invalidateAll(editingId);
-      toast.success("?? ???????.");
+      toast.success("책이 수정되었습니다.");
       onSaved?.();
       return;
     }
@@ -198,14 +198,14 @@ export function PastorBookEditorDialog({ open, book, defaultSortOrder = 1, onClo
         }
         setPendingImages([]);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "? ?? ? ??? ???? ??????.");
+        toast.error(error instanceof Error ? error.message : "책 저장 중 이미지 업로드에 실패했습니다.");
       } finally {
         setUploading(false);
       }
     }
     setEditingId(createdId);
     await invalidateAll(createdId);
-    toast.success(pendingImages.length > 0 ? "?? ???? ?? ???????." : "?? ???????.");
+    toast.success(pendingImages.length > 0 ? "책과 이미지가 함께 등록되었습니다." : "책이 추가되었습니다.");
     onSaved?.();
   }
 
@@ -378,7 +378,7 @@ export function PastorBookEditorDialog({ open, book, defaultSortOrder = 1, onClo
                       onClick={() => fileInputRef.current?.click()}
                       className="w-full rounded-lg border border-dashed border-gray-200 py-2 text-xs text-gray-500 hover:border-[#1B5E20]"
                     >
-                      + ??? ??
+                      + 이미지 추가
                     </button>
                   </div>
                 ) : (
@@ -388,7 +388,7 @@ export function PastorBookEditorDialog({ open, book, defaultSortOrder = 1, onClo
                     className="w-full rounded-lg border-2 border-dashed border-gray-200 py-8 text-center text-xs text-gray-400 hover:border-[#1B5E20] hover:text-[#1B5E20]"
                   >
                     <ImageIcon className="mx-auto mb-2 h-8 w-8" />
-                    ??? ?? (??? ? ?? ?????)
+                    이미지 선택 (저장할 때 같이 등록됩니다)
                   </button>
                 )
               ) : images.length === 0 ? (
