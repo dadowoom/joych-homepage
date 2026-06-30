@@ -31,6 +31,7 @@ import { adminProcedure, publicProcedure, memberProtectedProcedure, router } fro
 import { checkRateLimit, recordFailure, resetFailures, getClientIp, checkSearchRateLimit, checkRegisterRateLimit } from "../_core/rateLimiter";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { getJwtSecretKey } from "../_core/jwtSecret";
+import { MEMBER_SESSION_COOKIE, setMemberSessionCookie } from "../_core/memberSession";
 import {
   memberEmailSchema,
   memberRegisterInputSchema,
@@ -161,7 +162,7 @@ export const membersRouter = router({
         faithPlusUserId: input.faithPlusUserId,
       });
 
-      ctx.res.clearCookie("church_member_session", {
+      ctx.res.clearCookie(MEMBER_SESSION_COOKIE, {
         ...getSessionCookieOptions(ctx.req),
       });
 
@@ -219,20 +220,10 @@ export const membersRouter = router({
         });
       }
 
-      const { SignJWT } = await import("jose");
-      const secret = getJwtSecretKey();
-      const token = await new SignJWT({
-        memberId: member.id,
+      await setMemberSessionCookie(ctx.req, ctx.res, {
+        id: member.id,
         email: member.email,
         name: member.name,
-        type: "church_member",
-      })
-        .setProtectedHeader({ alg: "HS256" })
-        .setExpirationTime("24h")
-        .sign(secret);
-
-      ctx.res.cookie("church_member_session", token, {
-        ...getSessionCookieOptions(ctx.req),
       });
 
       return {
@@ -249,7 +240,7 @@ export const membersRouter = router({
   /** 성도 로그아웃 (쿠키 삭제) */
   logout: publicProcedure
     .mutation(({ ctx }) => {
-      ctx.res.clearCookie("church_member_session", {
+      ctx.res.clearCookie(MEMBER_SESSION_COOKIE, {
         ...getSessionCookieOptions(ctx.req),
       });
       return { success: true };
@@ -261,7 +252,7 @@ export const membersRouter = router({
    */
   me: publicProcedure
     .query(async ({ ctx }) => {
-      const token = ctx.req.cookies?.["church_member_session"];
+      const token = ctx.req.cookies?.[MEMBER_SESSION_COOKIE];
       if (!token) return null;
 
       try {
@@ -332,7 +323,7 @@ export const membersRouter = router({
     }))
     .mutation(async ({ ctx }) => {
       await withdrawMemberAndErasePersonalData(ctx.memberId);
-      ctx.res.clearCookie("church_member_session", {
+      ctx.res.clearCookie(MEMBER_SESSION_COOKIE, {
         ...getSessionCookieOptions(ctx.req),
       });
       return { success: true };

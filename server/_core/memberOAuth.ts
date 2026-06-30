@@ -3,6 +3,7 @@ import type { Express, Request, Response } from "express";
 import { SignJWT, jwtVerify } from "jose";
 import { getSessionCookieOptions } from "./cookies";
 import { getJwtSecretKey } from "./jwtSecret";
+import { MEMBER_SESSION_COOKIE, setMemberSessionCookie } from "./memberSession";
 import {
   createMemberSocialAccount,
   createMemberWithSocialAccount,
@@ -13,7 +14,6 @@ import {
   type MemberSocialProvider,
 } from "../db/member";
 
-const MEMBER_SESSION_COOKIE = "church_member_session";
 const OAUTH_STATE_COOKIE = "church_member_oauth_state";
 const SOCIAL_SIGNUP_COOKIE = "church_member_social_signup";
 const STATE_TTL_MS = 10 * 60 * 1000;
@@ -432,26 +432,6 @@ async function fetchSocialProfile(
   return provider === "google"
     ? normalizeGoogleProfile(rawProfile)
     : normalizeKakaoProfile(rawProfile);
-}
-
-async function setMemberSessionCookie(req: Request, res: Response, member: {
-  id: number;
-  email: string | null;
-  name: string;
-}) {
-  const token = await new SignJWT({
-    memberId: member.id,
-    email: member.email ?? "",
-    name: member.name,
-    type: "church_member",
-  })
-    .setProtectedHeader({ alg: "HS256" })
-    .setExpirationTime("24h")
-    .sign(getJwtSecretKey());
-
-  res.cookie(MEMBER_SESSION_COOKIE, token, {
-    ...getSessionCookieOptions(req),
-  });
 }
 
 function getBlockedMemberStatus(status: string) {
