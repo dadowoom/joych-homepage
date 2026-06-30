@@ -646,6 +646,62 @@ function restoreSelectionBookmark(editor: Editor, bookmark: EditorSelectionBookm
   }
 }
 
+function hasMeaningfulTextStyleAttributes(attributes: Record<string, unknown>) {
+  return Object.values(attributes).some((value) => value !== null && value !== undefined && value !== "");
+}
+
+function updateTextStyleColorOnly(
+  editor: Editor,
+  color: string | null,
+  bookmark: EditorSelectionBookmark | null = null,
+) {
+  restoreSelectionBookmark(editor, bookmark);
+  if (editor.isDestroyed) return;
+
+  const textStyleMark = editor.schema.marks.textStyle;
+  if (!textStyleMark) return;
+
+  const { selection } = editor.state;
+  if (selection.empty) {
+    const chain = editor.chain().focus();
+    if (color) {
+      chain.setColor(color).run();
+    } else {
+      chain.unsetColor().run();
+    }
+    return;
+  }
+
+  let transaction = editor.state.tr;
+  selection.ranges.forEach((range) => {
+    const from = range.$from.pos;
+    const to = range.$to.pos;
+
+    editor.state.doc.nodesBetween(from, to, (node, position) => {
+      if (!node.isText) return;
+
+      const mark = node.marks.find((item) => item.type === textStyleMark);
+      const textFrom = Math.max(position, from);
+      const textTo = Math.min(position + node.nodeSize, to);
+      const nextAttributes = {
+        ...(mark?.attrs ?? {}),
+        color,
+      };
+
+      transaction = transaction.removeMark(textFrom, textTo, textStyleMark);
+      if (hasMeaningfulTextStyleAttributes(nextAttributes)) {
+        transaction = transaction.addMark(textFrom, textTo, textStyleMark.create(nextAttributes));
+      }
+    });
+  });
+
+  if (transaction.steps.length) {
+    editor.view.dispatch(transaction.scrollIntoView());
+  }
+
+  focusEditorAt(editor);
+}
+
 function getClickedTableCellFocusPosition(
   view: Editor["view"],
   event: MouseEvent,
@@ -789,6 +845,8 @@ function RichTextToolbar({
   const [isImageInputOpen, setIsImageInputOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [pendingTextColor, setPendingTextColor] = useState<string | null>(null);
+  const [pendingCellBackgroundColor, setPendingCellBackgroundColor] = useState<string | null>(null);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
   const textSelectionBookmarkRef = useRef<EditorSelectionBookmark | null>(null);
   const tableSelectionBookmarkRef = useRef<EditorSelectionBookmark | null>(null);
@@ -858,6 +916,8 @@ function RichTextToolbar({
     normalizeOptionalCssColor(
       (tableCellAttributes.backgroundColor ?? tableHeaderAttributes.backgroundColor) as string | undefined,
     ) ?? DEFAULT_CELL_BACKGROUND_COLOR;
+  const displayedTextColor = pendingTextColor ?? currentTextColor;
+  const displayedCellBackgroundColor = pendingCellBackgroundColor ?? currentCellBackgroundColor;
   const currentCellAlign = String(tableCellAttributes.align ?? tableHeaderAttributes.align ?? "");
   const currentCellVerticalAlign = String(
     tableCellAttributes.verticalAlign ?? tableHeaderAttributes.verticalAlign ?? "",
@@ -878,6 +938,14 @@ function RichTextToolbar({
   const tableToolDisabled = !isInTable;
   const canUndo = editor.can().chain().focus().undo().run();
   const canRedo = editor.can().chain().focus().redo().run();
+
+  useEffect(() => {
+    setPendingTextColor(null);
+  }, [currentTextColor]);
+
+  useEffect(() => {
+    setPendingCellBackgroundColor(null);
+  }, [currentCellBackgroundColor]);
 
   const rememberTextSelection = () => {
     textSelectionBookmarkRef.current = editor.state.selection.getBookmark();
@@ -908,52 +976,31 @@ function RichTextToolbar({
     return editor.chain().focus().setTextSelection({ from, to });
   };
 
-  const getTableFocusPosition = () => {
-    const currentPosition = getCurrentTableCellFocusPosition(editor);
-    if (getCurrentTableCellNodeRange(editor)) {
-      lastTableCellFocusPositionRef.current = currentPosition;
-      return currentPosition;
-    }
-
-    const rememberedPosition = getValidRememberedTableCellFocusPosition(
-      editor,
-      lastTableCellFocusPositionRef.current,
-    );
-    if (rememberedPosition !== null) return rememberedPosition;
-
-    return editor.state.selection.from;
-  };
-
-  const focusRememberedTableCell = () => {
-    const focusPosition = getTableFocusPosition();
-    focusEditorAt(editor, focusPosition);
-    return focusPosition;
-  };
-
-  const tableCommand = () => editor.chain().focus(getTableFocusPosition());
   const tableSelectionCommand = (bookmark: EditorSelectionBookmark | null = null) => {
     restoreSelectionBookmark(editor, bookmark);
     return editor.chain().focus();
   };
 
-  const handleFontFamilyChange = (value: string) => {
-    const chain = restoreCurrentTextSelection();
+  const handleFontFamilyChange = (value: string, bookmark = takeTextSelectionBookmark()) => {
+    let chain = restoreCurrentTextSelection(bookmark);
     const nextOption = FONT_FAMILY_OPTIONS.find((option) => option.value === value);
     const currentFontSize = String(editor.getAttributes("textStyle").fontSize ?? "").trim();
 
     if (!nextOption?.fontFamily) {
-      chain.unsetFontFamily().run();
+      chain = chain.unsetFontFamily();
     } else {
-      chain.setFontFamily(nextOption.fontFamily).run();
+      chain = chain.setFontFamily(nextOption.fontFamily);
     }
 
     if (currentFontSize) {
-      editor.chain().focus().setFontSize(currentFontSize).run();
+      chain = chain.setFontSize(currentFontSize);
     }
+
+    chain.run();
   };
 
-  const handleFontSizeChange = (value: string) => {
-    const chain = restoreCurrentTextSelection();
+  const handleFontSizeChange = (value: string, bookmark = takeTextSelectionBookmark()) => {
+    const chain = restoreCurrentTextSelection(bookmark);
     if (!value) {
       chain.unsetFontSize().run();
       return;
@@ -963,13 +1010,12 @@ function RichTextToolbar({
   };
 
   const handleTextColorChange = (value: string, bookmark = takeTextSelectionBookmark()) => {
-    const chain = restoreCurrentTextSelection(bookmark);
-    if (!value || value === DEFAULT_TEXT_COLOR) {
-      chain.unsetColor().run();
-      return;
-    }
+    const nextColor = normalizeEditorTextColor(value);
+    updateTextStyleColorOnly(editor, nextColor, bookmark);
+  };
 
-    chain.setColor(value).run();
+  const clearTextColor = () => {
+    updateTextStyleColorOnly(editor, null, takeTextSelectionBookmark());
   };
 
   const insertTable = (rows: number, cols: number) => {
@@ -1013,8 +1059,9 @@ function RichTextToolbar({
     clearEditorStoredMarks(editor);
   };
 
-  const clearCurrentCell = () => {
-    const focusPosition = focusRememberedTableCell();
+  const clearCurrentCell = (bookmark = takeTableSelectionBookmark()) => {
+    restoreSelectionBookmark(editor, bookmark);
+    const focusPosition = getCurrentTableCellFocusPosition(editor);
     const ranges = getSelectedTableCellNodeRanges(editor);
     if (!ranges.length) return;
     const message =
@@ -1037,24 +1084,26 @@ function RichTextToolbar({
     focusEditorAt(editor, firstCell ? firstCell.from + 2 : focusPosition);
   };
 
-  const deleteCurrentRow = () => {
-    const focusPosition = focusRememberedTableCell();
+  const deleteCurrentRow = (bookmark = takeTableSelectionBookmark()) => {
+    restoreSelectionBookmark(editor, bookmark);
+    const focusPosition = getCurrentTableCellFocusPosition(editor);
     if (!confirmActionAndKeepFocus("현재 행 전체를 삭제할까요?", focusPosition)) return;
-    if (editor.chain().focus(focusPosition).deleteRow().run()) {
+    if (tableSelectionCommand().deleteRow().run()) {
       focusNearestTableCell(editor, focusPosition);
     }
   };
 
-  const deleteCurrentColumn = () => {
-    const focusPosition = focusRememberedTableCell();
+  const deleteCurrentColumn = (bookmark = takeTableSelectionBookmark()) => {
+    restoreSelectionBookmark(editor, bookmark);
+    const focusPosition = getCurrentTableCellFocusPosition(editor);
     if (!confirmActionAndKeepFocus("현재 열 전체를 삭제할까요?", focusPosition)) return;
-    if (editor.chain().focus(focusPosition).deleteColumn().run()) {
+    if (tableSelectionCommand().deleteColumn().run()) {
       focusNearestTableCell(editor, focusPosition);
     }
   };
 
-  const deleteCurrentTable = () => {
-    focusRememberedTableCell();
+  const deleteCurrentTable = (bookmark = takeTableSelectionBookmark()) => {
+    restoreSelectionBookmark(editor, bookmark);
     const tableRange = getNearestTableNodeRange(editor);
     if (!tableRange) {
       window.alert("삭제할 표가 없습니다.");
@@ -1100,7 +1149,8 @@ function RichTextToolbar({
   };
 
   const applyTablePreset = (preset: string) => {
-    const chain = tableSelectionCommand(takeTableSelectionBookmark());
+    const bookmark = takeTableSelectionBookmark();
+    const chain = tableSelectionCommand(bookmark);
     if (preset === "header") {
       chain.setCellAttribute("backgroundColor", "#e8f5e9").setCellAttribute("align", "center").setCellAttribute("verticalAlign", "middle").run();
       return;
@@ -1110,10 +1160,12 @@ function RichTextToolbar({
       return;
     }
     if (preset === "strong") {
-      chain.setCellAttribute("backgroundColor", "#1b5e20").setCellAttribute("align", "center").setCellAttribute("verticalAlign", "middle").setColor("#ffffff").run();
+      chain.setCellAttribute("backgroundColor", "#1b5e20").setCellAttribute("align", "center").setCellAttribute("verticalAlign", "middle").run();
+      updateTextStyleColorOnly(editor, "#ffffff", bookmark);
       return;
     }
-    chain.setCellAttribute("backgroundColor", null).setCellAttribute("align", null).setCellAttribute("verticalAlign", null).unsetColor().run();
+    chain.setCellAttribute("backgroundColor", null).setCellAttribute("align", null).setCellAttribute("verticalAlign", null).run();
+    updateTextStyleColorOnly(editor, null, bookmark);
   };
 
   const setNodeTypePreservingAlign = (action: () => void) => {
@@ -1155,6 +1207,7 @@ function RichTextToolbar({
           aria-label="글꼴 선택"
           className={formattingSelectClassName}
           value={currentFontFamily.value}
+          onMouseDown={rememberTextSelection}
           onChange={(event) => handleFontFamilyChange(event.target.value)}
         >
           {FONT_FAMILY_OPTIONS.map((option) => (
@@ -1167,6 +1220,7 @@ function RichTextToolbar({
           aria-label="글자 크기 선택"
           className={formattingSelectClassName}
           value={currentFontSize}
+          onMouseDown={rememberTextSelection}
           onChange={(event) => handleFontSizeChange(event.target.value)}
         >
           {FONT_SIZE_OPTIONS.map((option) => (
@@ -1181,25 +1235,37 @@ function RichTextToolbar({
             aria-label="글자색 적용"
             onMouseDown={(event) => {
               event.preventDefault();
-              handleTextColorChange(currentTextColor);
+              rememberTextSelection();
+              handleTextColorChange(displayedTextColor);
             }}
             className="flex items-center gap-1 px-2 hover:bg-gray-50"
           >
             <span className="text-[11px] font-semibold">색상</span>
-            <span className="inline-block h-3 w-3 rounded-sm border border-gray-300" style={{ backgroundColor: currentTextColor }} />
+            <span className="inline-block h-3 w-3 rounded-sm border border-gray-300" style={{ backgroundColor: displayedTextColor }} />
           </button>
           <label className="flex cursor-pointer items-center justify-center border-l border-gray-200 px-1.5 hover:bg-gray-50">
             <input
               aria-label="글자색 선택"
               type="color"
-              value={currentTextColor}
+              value={displayedTextColor}
               onMouseDown={rememberTextSelection}
-              onChange={(event) => handleTextColorChange(event.target.value)}
+              onInput={(event) => {
+                const value = event.currentTarget.value;
+                setPendingTextColor(value);
+              }}
+              onChange={(event) => {
+                const value = event.currentTarget.value;
+                setPendingTextColor(value);
+                handleTextColorChange(value);
+              }}
               className="h-5 w-5 cursor-pointer border-0 bg-transparent p-0"
             />
           </label>
         </div>
-        <ToolbarButton editor={editor} label="글자색 제거" onClick={() => editor.chain().focus().unsetColor().run()}>
+        <ToolbarButton editor={editor} label="글자색 제거" onClick={() => {
+          rememberTextSelection();
+          clearTextColor();
+        }}>
           <span className="text-[10px] font-semibold">색X</span>
         </ToolbarButton>
         <span className="mx-1 h-8 w-px bg-gray-200" />
@@ -1222,10 +1288,11 @@ function RichTextToolbar({
           aria-label="형광펜 색상"
           className={formattingSelectClassName}
           value=""
+          onMouseDown={rememberTextSelection}
           onChange={(event) => {
             const color = event.target.value;
             if (!color) return;
-            editor.chain().focus().toggleHighlight({ color }).run();
+            restoreCurrentTextSelection(takeTextSelectionBookmark()).toggleHighlight({ color }).run();
             event.target.selectedIndex = 0;
           }}
         >
@@ -1320,7 +1387,8 @@ function RichTextToolbar({
                 onMouseDown={(event) => {
                   event.preventDefault();
                   if (tableToolDisabled) return;
-                  handleCellBackgroundColorChange(currentCellBackgroundColor);
+                  rememberTableSelection();
+                  handleCellBackgroundColorChange(displayedCellBackgroundColor);
                 }}
                 className="flex items-center gap-1 px-2 hover:bg-gray-50 disabled:cursor-not-allowed"
               >
@@ -1330,17 +1398,28 @@ function RichTextToolbar({
                 <input
                   aria-label="셀 배경색 선택"
                   type="color"
-                  value={currentCellBackgroundColor}
+                  value={displayedCellBackgroundColor}
                   disabled={tableToolDisabled}
                   onMouseDown={() => {
                     if (!tableToolDisabled) rememberTableSelection();
                   }}
-                  onChange={(event) => handleCellBackgroundColorChange(event.target.value)}
+                  onInput={(event) => {
+                    const value = event.currentTarget.value;
+                    setPendingCellBackgroundColor(value);
+                  }}
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setPendingCellBackgroundColor(value);
+                    handleCellBackgroundColorChange(value);
+                  }}
                   className="h-5 w-5 cursor-pointer border-0 bg-transparent p-0 disabled:cursor-not-allowed"
                 />
               </label>
             </div>
-            <ToolbarButton editor={editor} label={isInTable ? "셀 배경색 제거" : "표 셀을 클릭하면 셀 배경색 제거 가능"} disabled={tableToolDisabled} onClick={clearCellBackgroundColor}>
+            <ToolbarButton editor={editor} label={isInTable ? "셀 배경색 제거" : "표 셀을 클릭하면 셀 배경색 제거 가능"} disabled={tableToolDisabled} onClick={() => {
+              rememberTableSelection();
+              clearCellBackgroundColor();
+            }}>
               <span className="text-[10px] font-semibold">배X</span>
             </ToolbarButton>
             <select
@@ -1394,43 +1473,82 @@ function RichTextToolbar({
                 </option>
               ))}
             </select>
-            <ToolbarButton editor={editor} label={isInTable ? "위에 행 추가" : "표 셀을 클릭하면 위에 행 추가 가능"} disabled={tableToolDisabled} wide onClick={() => tableCommand().addRowBefore().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "위에 행 추가" : "표 셀을 클릭하면 위에 행 추가 가능"} disabled={tableToolDisabled} wide onClick={() => {
+              rememberTableSelection();
+              tableSelectionCommand(takeTableSelectionBookmark()).addRowBefore().run();
+            }}>
               행+위
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "아래에 행 추가" : "표 셀을 클릭하면 아래에 행 추가 가능"} disabled={tableToolDisabled} wide onClick={() => tableCommand().addRowAfter().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "아래에 행 추가" : "표 셀을 클릭하면 아래에 행 추가 가능"} disabled={tableToolDisabled} wide onClick={() => {
+              rememberTableSelection();
+              tableSelectionCommand(takeTableSelectionBookmark()).addRowAfter().run();
+            }}>
               행+아래
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "왼쪽에 열 추가" : "표 셀을 클릭하면 왼쪽에 열 추가 가능"} disabled={tableToolDisabled} wide onClick={() => tableCommand().addColumnBefore().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "왼쪽에 열 추가" : "표 셀을 클릭하면 왼쪽에 열 추가 가능"} disabled={tableToolDisabled} wide onClick={() => {
+              rememberTableSelection();
+              tableSelectionCommand(takeTableSelectionBookmark()).addColumnBefore().run();
+            }}>
               열+왼쪽
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "오른쪽에 열 추가" : "표 셀을 클릭하면 오른쪽에 열 추가 가능"} disabled={tableToolDisabled} wide onClick={() => tableCommand().addColumnAfter().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "오른쪽에 열 추가" : "표 셀을 클릭하면 오른쪽에 열 추가 가능"} disabled={tableToolDisabled} wide onClick={() => {
+              rememberTableSelection();
+              tableSelectionCommand(takeTableSelectionBookmark()).addColumnAfter().run();
+            }}>
               열+오른쪽
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "셀 내용 삭제" : "표 셀을 클릭하면 셀 내용 삭제 가능"} disabled={tableToolDisabled} variant="danger" wide onClick={clearCurrentCell}>
+            <ToolbarButton editor={editor} label={isInTable ? "셀 내용 삭제" : "표 셀을 클릭하면 셀 내용 삭제 가능"} disabled={tableToolDisabled} variant="danger" wide onClick={() => {
+              rememberTableSelection();
+              clearCurrentCell();
+            }}>
               셀 비움
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "행 삭제" : "표 셀을 클릭하면 행 삭제 가능"} disabled={tableToolDisabled} variant="danger" wide onClick={deleteCurrentRow}>
+            <ToolbarButton editor={editor} label={isInTable ? "행 삭제" : "표 셀을 클릭하면 행 삭제 가능"} disabled={tableToolDisabled} variant="danger" wide onClick={() => {
+              rememberTableSelection();
+              deleteCurrentRow();
+            }}>
               행 삭제
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "열 삭제" : "표 셀을 클릭하면 열 삭제 가능"} disabled={tableToolDisabled} variant="danger" wide onClick={deleteCurrentColumn}>
+            <ToolbarButton editor={editor} label={isInTable ? "열 삭제" : "표 셀을 클릭하면 열 삭제 가능"} disabled={tableToolDisabled} variant="danger" wide onClick={() => {
+              rememberTableSelection();
+              deleteCurrentColumn();
+            }}>
               열 삭제
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "셀 병합" : "표 셀을 클릭하면 셀 병합 가능"} disabled={tableToolDisabled || !editor.can().mergeCells()} wide onClick={() => tableSelectionCommand(takeTableSelectionBookmark()).mergeCells().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "셀 병합" : "표 셀을 클릭하면 셀 병합 가능"} disabled={tableToolDisabled || !editor.can().mergeCells()} wide onClick={() => {
+              rememberTableSelection();
+              tableSelectionCommand(takeTableSelectionBookmark()).mergeCells().run();
+            }}>
               병합
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "셀 분할" : "표 셀을 클릭하면 셀 분할 가능"} disabled={tableToolDisabled || !editor.can().splitCell()} wide onClick={() => tableSelectionCommand(takeTableSelectionBookmark()).splitCell().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "셀 분할" : "표 셀을 클릭하면 셀 분할 가능"} disabled={tableToolDisabled || !editor.can().splitCell()} wide onClick={() => {
+              rememberTableSelection();
+              tableSelectionCommand(takeTableSelectionBookmark()).splitCell().run();
+            }}>
               분할
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "헤더 행" : "표 셀을 클릭하면 헤더 행 설정 가능"} disabled={tableToolDisabled} wide onClick={() => tableCommand().toggleHeaderRow().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "헤더 행" : "표 셀을 클릭하면 헤더 행 설정 가능"} disabled={tableToolDisabled} wide onClick={() => {
+              rememberTableSelection();
+              tableSelectionCommand(takeTableSelectionBookmark()).toggleHeaderRow().run();
+            }}>
               H행
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "헤더 열" : "표 셀을 클릭하면 헤더 열 설정 가능"} disabled={tableToolDisabled} wide onClick={() => tableCommand().toggleHeaderColumn().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "헤더 열" : "표 셀을 클릭하면 헤더 열 설정 가능"} disabled={tableToolDisabled} wide onClick={() => {
+              rememberTableSelection();
+              tableSelectionCommand(takeTableSelectionBookmark()).toggleHeaderColumn().run();
+            }}>
               H열
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={isInTable ? "헤더 셀" : "표 셀을 클릭하면 헤더 셀 설정 가능"} disabled={tableToolDisabled} onClick={() => tableCommand().toggleHeaderCell().run()}>
+            <ToolbarButton editor={editor} label={isInTable ? "헤더 셀" : "표 셀을 클릭하면 헤더 셀 설정 가능"} disabled={tableToolDisabled} onClick={() => {
+              rememberTableSelection();
+              tableSelectionCommand(takeTableSelectionBookmark()).toggleHeaderCell().run();
+            }}>
               <Baseline className="h-4 w-4" />
             </ToolbarButton>
-            <ToolbarButton editor={editor} label={hasTable ? "표 전체 삭제" : "삭제할 표가 없습니다"} disabled={!hasTable} variant="danger" wide onClick={deleteCurrentTable}>
+            <ToolbarButton editor={editor} label={hasTable ? "표 전체 삭제" : "삭제할 표가 없습니다"} disabled={!hasTable} variant="danger" wide onClick={() => {
+              rememberTableSelection();
+              deleteCurrentTable();
+            }}>
               표 삭제
             </ToolbarButton>
           </>
