@@ -17,19 +17,19 @@ import { ChevronLeft, ChevronRight, Download, Images, Paperclip, Upload, X, Zoom
 
 function PageHeader({ title, subtitle, breadcrumb }: { title: string; subtitle?: string; breadcrumb: string[] }) {
   return (
-    <div className="bg-[#1B5E20] text-white py-16 px-4">
+    <div className="bg-[#1B5E20] px-4 py-10 text-white sm:py-16">
       <div className="max-w-5xl mx-auto">
-        <nav className="text-sm text-green-200 mb-4 flex items-center gap-2">
+        <nav className="mb-3 flex items-center gap-2 overflow-x-auto text-xs text-green-200 sm:mb-4 sm:text-sm">
           <Link href="/" className="hover:text-white transition-colors">홈</Link>
           {breadcrumb.map((b, i) => (
-            <span key={i} className="flex items-center gap-2">
+            <span key={i} className="flex shrink-0 items-center gap-2">
               <i className="fas fa-chevron-right text-xs text-green-400"></i>
               <span className={i === breadcrumb.length - 1 ? "text-white font-medium" : ""}>{b}</span>
             </span>
           ))}
         </nav>
-        <h1 className="text-3xl md:text-4xl font-bold" style={{ fontFamily: "'Noto Serif KR', serif" }}>{title}</h1>
-        {subtitle && <p className="mt-3 text-green-100 text-base">{subtitle}</p>}
+        <h1 className="text-2xl font-bold sm:text-3xl md:text-4xl" style={{ fontFamily: "'Noto Serif KR', serif" }}>{title}</h1>
+        {subtitle && <p className="mt-2 text-sm leading-6 text-green-100 sm:mt-3 sm:text-base">{subtitle}</p>}
       </div>
     </div>
   );
@@ -38,10 +38,10 @@ function PageHeader({ title, subtitle, breadcrumb }: { title: string; subtitle?:
 function SubNav({ items }: { items: { label: string; href: string }[] }) {
   return (
     <div className="bg-white border-b border-gray-200 sticky top-0 z-40">
-      <div className="max-w-5xl mx-auto px-4 flex overflow-x-auto">
+      <div className="max-w-5xl mx-auto flex overflow-x-auto px-2 sm:px-4">
         {items.map((item, i) => (
           <Link key={i} href={item.href}
-            className="flex-shrink-0 px-5 py-4 text-sm font-medium text-gray-600 hover:text-[#1B5E20] border-b-2 border-transparent hover:border-[#1B5E20] transition-all whitespace-nowrap">
+            className="flex-shrink-0 whitespace-nowrap border-b-2 border-transparent px-4 py-3 text-sm font-medium text-gray-600 transition-all hover:border-[#1B5E20] hover:text-[#1B5E20] sm:px-5 sm:py-4">
             {item.label}
           </Link>
         ))}
@@ -219,33 +219,36 @@ export function WorshipSchedule() {
     <div className="min-h-screen bg-[#F7F7F5]">
       <PageHeader title="예배시간 안내" subtitle="기쁨의교회 예배 일정을 확인하세요" breadcrumb={["조이풀TV", "예배시간 안내"]} />
       <SubNav items={WORSHIP_NAV} />
-      <div className="max-w-5xl mx-auto px-4 py-14">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-14">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
           {WORSHIP_TIMES.map((wt, i) => (
-            <div key={i} className={`rounded-2xl p-7 shadow-sm ${wt.color}`}>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center">
+            <section key={i} className={`rounded-lg p-5 shadow-sm sm:p-7 ${wt.color}`}>
+              <div className="mb-4 flex items-center gap-3 sm:mb-6">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm">
                   <i className={`fas ${wt.icon} ${wt.iconColor}`}></i>
                 </div>
-                <h3 className="text-lg font-bold text-gray-800" style={{ fontFamily: "'Noto Serif KR', serif" }}>{wt.name}</h3>
+                <h3 className="text-base font-bold text-gray-800 sm:text-lg" style={{ fontFamily: "'Noto Serif KR', serif" }}>{wt.name}</h3>
               </div>
-              <div className="space-y-3">
+              <div>
                 {wt.times.map((t, j) => (
-                  <div key={j} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                    <span className="text-sm text-gray-600">{t.label}</span>
-                    <div className="text-right">
-                      <span className="font-bold text-gray-800 text-base">{t.time}</span>
-                      <p className="text-xs text-gray-400 mt-0.5">{t.note}</p>
+                  <div key={j} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b border-gray-100 py-3 last:border-0">
+                    <div className="min-w-0">
+                      <span className="block break-keep text-sm font-medium text-gray-700">{t.label}</span>
+                      <p className="mt-1 break-keep text-xs leading-5 text-gray-500 sm:hidden">{t.note}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className="block whitespace-nowrap text-base font-bold text-gray-900">{t.time}</span>
+                      <p className="mt-0.5 hidden text-xs text-gray-500 sm:block">{t.note}</p>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
           ))}
         </div>
-        <div className="mt-8 bg-[#E8F5E9] rounded-2xl p-6 text-sm text-[#1B5E20]">
-          <i className="fas fa-info-circle mr-2"></i>
-          예배 시간은 교회 사정에 따라 변경될 수 있습니다. 변경 사항은 주보 및 교회 공지를 통해 안내드립니다.
+        <div className="mt-6 flex gap-2 rounded-lg bg-[#E8F5E9] p-4 text-sm leading-6 text-[#1B5E20] sm:mt-8 sm:p-6">
+          <i className="fas fa-info-circle mt-1 shrink-0"></i>
+          <span>예배 시간은 교회 사정에 따라 변경될 수 있습니다. 변경 사항은 주보 및 교회 공지를 통해 안내드립니다.</span>
         </div>
       </div>
     </div>
