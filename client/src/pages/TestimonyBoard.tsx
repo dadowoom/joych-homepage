@@ -7,6 +7,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
 import SubPageLayout from "@/components/SubPageLayout";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { canManageBoardContent } from "@/lib/contentPermissions";
 import { toast } from "sonner";
 
 type ImageRow = { imageUrl: string; caption?: string };
@@ -40,6 +42,8 @@ const TESTIMONY_SIDE_MENU_ITEMS = [
 ];
 
 export default function TestimonyList() {
+  const { user } = useAuth();
+  const canManage = canManageBoardContent(user, "content:testimonies");
   const {
     data: posts,
     isLoading,
@@ -47,12 +51,29 @@ export default function TestimonyList() {
     error,
     refetch,
   } = trpc.testimony.posts.useQuery(undefined, {
+    enabled: !canManage,
     retry: false,
     staleTime: 60 * 1000,
     refetchOnWindowFocus: false,
   });
+  const adminPostsQuery = trpc.cms.testimonies.posts.useQuery(undefined, {
+    enabled: canManage,
+  });
   const { data: me } = trpc.members.me.useQuery(undefined, { retry: false });
-  const visiblePosts = posts ?? [];
+  const updatePostStatus = trpc.cms.testimonies.updatePostStatus.useMutation({
+    onSuccess: async () => {
+      toast.success("간증 글 상태가 변경됐습니다.");
+      await Promise.all([
+        adminPostsQuery.refetch(),
+        refetch(),
+      ]);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const visiblePosts = canManage ? (adminPostsQuery.data ?? []) : (posts ?? []);
+  const loadingState = canManage ? adminPostsQuery.isLoading : isLoading;
+  const errorState = canManage ? adminPostsQuery.error : error;
+  const isErrorState = canManage ? adminPostsQuery.isError : isError;
 
   return (
     <SubPageLayout
@@ -70,7 +91,7 @@ export default function TestimonyList() {
               </p>
               <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-gray-500">
                 <span>
-                  {isLoading ? (
+                  {loadingState ? (
                     "간증을 불러오는 중입니다."
                   ) : (
                     <>
@@ -95,19 +116,19 @@ export default function TestimonyList() {
         </section>
 
         <section>
-          {isLoading ? (
+          {loadingState ? (
             <div className="py-24 text-center text-gray-400">
               <i className="fas fa-spinner fa-spin text-4xl mb-4 block"></i>
               <p>간증을 불러오는 중입니다.</p>
             </div>
-          ) : isError ? (
+          ) : isErrorState ? (
             <div className="bg-white rounded-2xl p-12 text-center text-gray-500 border border-gray-100">
               <i className="fas fa-circle-exclamation text-4xl mb-4 block text-red-300"></i>
               <p className="font-medium text-gray-700">간증을 불러오지 못했습니다.</p>
-              <p className="mt-2 text-sm text-gray-400">{error?.message ?? "잠시 후 다시 시도해 주세요."}</p>
+              <p className="mt-2 text-sm text-gray-400">{errorState?.message ?? "잠시 후 다시 시도해 주세요."}</p>
               <button
                 type="button"
-                onClick={() => void refetch()}
+                onClick={() => void (canManage ? adminPostsQuery.refetch() : refetch())}
                 className="mt-5 px-5 py-2.5 rounded-full bg-[#1B5E20] text-white text-sm font-medium hover:bg-[#2E7D32] transition-colors"
               >
                 다시 불러오기
@@ -120,9 +141,10 @@ export default function TestimonyList() {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-              {visiblePosts.map((post) => (
-                <Link key={post.id} href={`/community/testimony/${post.id}`}>
-                  <article className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer group h-full flex flex-col">
+              {visiblePosts.map((post) => {
+                const canOpenDetail = !("status" in post) || post.status === "published";
+                const article = (
+                  <article className={`bg-white rounded-2xl overflow-hidden shadow-sm transition-all duration-300 group h-full flex flex-col ${canOpenDetail ? "cursor-pointer hover:shadow-lg" : "border border-dashed border-gray-200"} ${"status" in post && post.status !== "published" ? "opacity-70" : ""}`}>
                     <div className="relative h-52 overflow-hidden bg-[#E8F5E9]">
                       {post.thumbnailUrl || post.images[0] ? (
                         <img
@@ -138,6 +160,11 @@ export default function TestimonyList() {
                       <span className="absolute top-3 left-3 bg-[#1B5E20]/90 text-white text-xs px-2.5 py-1 rounded-full">
                         간증
                       </span>
+                      {"status" in post && post.status !== "published" && (
+                        <span className="absolute top-3 right-3 rounded-full bg-gray-900/80 px-2.5 py-1 text-[11px] font-semibold text-white">
+                          {post.status === "hidden" ? "숨김" : "삭제 대기"}
+                        </span>
+                      )}
                     </div>
                     <div className="p-5 flex-1 flex flex-col">
                       <div className="flex items-center gap-2 text-xs text-gray-400 mb-3">
@@ -161,12 +188,59 @@ export default function TestimonyList() {
                           <i className="fas fa-eye"></i>
                           조회 {post.viewCount}
                         </span>
-                        <span className="ml-auto text-[#1B5E20] font-medium">읽기 →</span>
+                        <span className="ml-auto text-[#1B5E20] font-medium">{canOpenDetail ? "읽기 →" : "관리 전용"}</span>
                       </div>
+                      {canManage && (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              updatePostStatus.mutate({ id: post.id, status: "published" });
+                            }}
+                            className="rounded-full bg-[#1B5E20] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#2E7D32]"
+                          >
+                            공개
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              updatePostStatus.mutate({ id: post.id, status: "hidden" });
+                            }}
+                            className="rounded-full border border-yellow-200 px-3 py-1.5 text-xs font-medium text-yellow-700 hover:bg-yellow-50"
+                          >
+                            숨김
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              if (confirm("이 간증 글을 삭제 처리할까요?")) {
+                                updatePostStatus.mutate({ id: post.id, status: "deleted" });
+                              }
+                            }}
+                            className="rounded-full border border-red-200 px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </article>
-                </Link>
-              ))}
+                );
+
+                return canOpenDetail && !canManage ? (
+                  <Link key={post.id} href={`/community/testimony/${post.id}`}>
+                    {article}
+                  </Link>
+                ) : (
+                  <div key={post.id}>{article}</div>
+                );
+              })}
             </div>
           )}
         </section>
@@ -179,6 +253,8 @@ export function TestimonyDetail() {
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
   const [, navigate] = useLocation();
+  const { user } = useAuth();
+  const canManage = canManageBoardContent(user, "content:testimonies");
   const utils = trpc.useUtils();
   const [comment, setComment] = useState("");
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
@@ -224,6 +300,14 @@ export function TestimonyDetail() {
     },
     onError: (e) => toast.error(e.message),
   });
+  const updateManagedPostStatus = trpc.cms.testimonies.updatePostStatus.useMutation({
+    onSuccess: async () => {
+      toast.success("간증 글 상태가 변경됐습니다.");
+      await utils.testimony.posts.invalidate();
+      navigate("/community/testimony");
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   if (isLoading) {
     return (
@@ -256,14 +340,38 @@ export function TestimonyDetail() {
             <i className="fas fa-chevron-left text-sm"></i>
             <span className="font-medium text-sm">생선 간증 목록</span>
           </Link>
-          {isAuthor && (
+          {(isAuthor || canManage) && (
             <div className="flex items-center gap-2">
-              <Link href={`/community/testimony/edit/${post.id}`} className="text-xs border border-gray-200 px-3 py-1.5 rounded-full text-gray-600 hover:text-[#1B5E20]">
-                수정
-              </Link>
+              {isAuthor && (
+                <Link href={`/community/testimony/edit/${post.id}`} className="text-xs border border-gray-200 px-3 py-1.5 rounded-full text-gray-600 hover:text-[#1B5E20]">
+                  수정
+                </Link>
+              )}
+              {canManage && (
+                <>
+                  <button
+                    onClick={() => updateManagedPostStatus.mutate({ id: post.id, status: "hidden" })}
+                    className="text-xs border border-yellow-200 px-3 py-1.5 rounded-full text-yellow-700 hover:bg-yellow-50"
+                  >
+                    숨김
+                  </button>
+                  <button
+                    onClick={() => updateManagedPostStatus.mutate({ id: post.id, status: "published" })}
+                    className="text-xs border border-[#1B5E20] bg-[#1B5E20] px-3 py-1.5 rounded-full text-white hover:bg-[#2E7D32]"
+                  >
+                    공개
+                  </button>
+                </>
+              )}
               <button
                 onClick={() => {
-                  if (confirm("이 간증 글을 삭제할까요?")) deletePost.mutate({ id: post.id });
+                  const confirmed = confirm("이 간증 글을 삭제할까요?");
+                  if (!confirmed) return;
+                  if (canManage && !isAuthor) {
+                    updateManagedPostStatus.mutate({ id: post.id, status: "deleted" });
+                    return;
+                  }
+                  deletePost.mutate({ id: post.id });
                 }}
                 className="text-xs border border-red-100 px-3 py-1.5 rounded-full text-red-500 hover:bg-red-50"
               >

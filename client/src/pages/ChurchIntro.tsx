@@ -644,7 +644,7 @@ export function PastorBooksPage() {
   );
   const books = (
     canManage
-      ? (adminPastorBooks as PastorBookPublicItem[]).filter((book) => book.isVisible)
+      ? (adminPastorBooks as PastorBookPublicItem[])
       : (pastorBooks as PastorBookPublicItem[])
   );
   const isBooksLoading = canManage ? isLoading || isAdminPastorBooksLoading : isLoading;
@@ -817,7 +817,12 @@ export function PastorBooksPage() {
       ) : viewMode === "grid" ? (
         <div className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {visibleBooks.map((book) => (
-            <article key={book.id} className="group relative border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md">
+            <article key={book.id} className={`group relative border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md ${book.isVisible ? "" : "opacity-70"}`}>
+              {!book.isVisible && (
+                <div className="absolute top-3 left-3 z-10 rounded-full bg-gray-900/80 px-2 py-1 text-[11px] font-semibold text-white">
+                  숨김
+                </div>
+              )}
               <Link href={getPastorBookDetailUrl(book.id)} className="block">
                 <div className="flex h-64 items-center justify-center overflow-hidden bg-gray-50">
                   {book.coverImageUrl ? (
@@ -856,7 +861,7 @@ export function PastorBooksPage() {
             <Link
               key={book.id}
               href={getPastorBookDetailUrl(book.id)}
-              className="flex items-center gap-5 rounded-lg border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md"
+              className={`flex items-center gap-5 rounded-lg border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md ${book.isVisible ? "" : "opacity-70"}`}
             >
               <div className="flex h-24 w-20 flex-shrink-0 items-center justify-center overflow-hidden rounded bg-gray-50">
                 {book.coverImageUrl ? (
@@ -866,7 +871,14 @@ export function PastorBooksPage() {
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <h2 className="text-sm font-semibold text-gray-800">{book.title}</h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-sm font-semibold text-gray-800">{book.title}</h2>
+                  {!book.isVisible && (
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-500">
+                      숨김
+                    </span>
+                  )}
+                </div>
                 {book.summary && <p className="mt-1 line-clamp-2 text-xs text-gray-500">{book.summary}</p>}
                 <p className="mt-2 text-xs text-gray-400">{book.publishedAt || "날짜 미등록"}</p>
               </div>
@@ -926,17 +938,22 @@ export function PastorBookDetailPage({ params }: RouteComponentProps<{ id: strin
   const { user } = useAuth();
   const utils = trpc.useUtils();
   const { data: menuTree } = trpc.home.menus.useQuery();
-  const { data: book, isLoading } = trpc.home.pastorBook.useQuery(
+  const canManage = canManageBoardContent(user, "content:pastorBooks");
+  const { data: publicBook, isLoading: publicBookLoading } = trpc.home.pastorBook.useQuery(
     { id: Number.isFinite(bookId) ? bookId : 0 },
-    { enabled: Number.isFinite(bookId) && bookId > 0 },
+    { enabled: Number.isFinite(bookId) && bookId > 0 && !canManage },
+  );
+  const { data: adminBook, isLoading: adminBookLoading } = trpc.cms.pastorBooks.get.useQuery(
+    { id: Number.isFinite(bookId) ? bookId : 0 },
+    { enabled: Number.isFinite(bookId) && bookId > 0 && canManage },
   );
   const [editorOpen, setEditorOpen] = useState(false);
-  const canManage = canManageBoardContent(user, "content:pastorBooks");
   const sideMenuItems = useMemo(
     () => getStaffSideMenuItems(menuTree, "담임목사 저서"),
     [menuTree],
   );
-  const currentBook = book as PastorBookPublicItem | null | undefined;
+  const currentBook = (canManage ? adminBook : publicBook) as PastorBookPublicItem | null | undefined;
+  const isLoading = canManage ? adminBookLoading : publicBookLoading;
 
   return (
     <SubPageLayout

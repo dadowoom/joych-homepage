@@ -225,6 +225,13 @@ function buildGalleryGroups(items: GalleryItem[]) {
   });
 }
 
+function getGalleryGroupVisibility(group: GalleryGroup) {
+  const visibleCount = group.images.filter((image) => image.isVisible !== false).length;
+  if (visibleCount === 0) return "hidden" as const;
+  if (visibleCount === group.images.length) return "visible" as const;
+  return "partial" as const;
+}
+
 function readFileAsBase64(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -356,7 +363,12 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
   const { user } = useAuth();
   const canManage = canManageBoardContent(user);
   const utils = trpc.useUtils();
-  const { data: items, isLoading } = trpc.home.gallery.useQuery();
+  const publicGalleryQuery = trpc.home.gallery.useQuery(undefined, {
+    enabled: !canManage,
+  });
+  const adminGalleryQuery = trpc.cms.content.gallery.list.useQuery(undefined, {
+    enabled: canManage,
+  });
   const [location, navigate] = useLocation();
   const searchString = useSearch();
   const [lightbox, setLightbox] = useState<{ groupKey: string; imageIndex: number } | null>(null);
@@ -371,6 +383,8 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
   const fileInputRef = useRef<HTMLInputElement>(null);
   const detailFileInputRef = useRef<HTMLInputElement>(null);
 
+  const items = canManage ? adminGalleryQuery.data : publicGalleryQuery.data;
+  const isLoading = canManage ? adminGalleryQuery.isLoading : publicGalleryQuery.isLoading;
   const galleryItems = (localOrder ?? items ?? []) as GalleryItem[];
   const galleryGroups = useMemo(() => buildGalleryGroups(galleryItems), [galleryItems]);
   const filteredGroups = useMemo(() => {
@@ -709,6 +723,25 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
     }
   };
 
+  const handleToggleAlbumVisibility = async (group: GalleryGroup) => {
+    if (!canManage || group.images.length === 0) return;
+
+    const visibility = getGalleryGroupVisibility(group);
+    const nextVisible = visibility !== "visible";
+
+    try {
+      await updateGalleryAlbum.mutateAsync({
+        ids: group.images.map((image) => image.id),
+        isVisible: nextVisible,
+      });
+      await refreshGallery();
+      toast.success(nextVisible ? "앨범을 다시 공개했습니다." : "앨범을 숨김 처리했습니다.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "앨범 공개 상태를 변경하지 못했습니다.";
+      toast.error(message);
+    }
+  };
+
   const handleGroupDragEnd = (group: GalleryGroup, event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -925,6 +958,7 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
 
   if (detailGroup) {
     const listHref = buildGalleryHref(location, searchString);
+    const detailVisibility = getGalleryGroupVisibility(detailGroup);
 
     return (
       <>
@@ -942,7 +976,14 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
 
           <article className="border border-gray-200 bg-white">
             <header className="flex flex-col gap-3 border-t-2 border-[#86C5D8] bg-[#E9F8FC] px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-base font-bold text-[#006B8F]">{detailGroup.title}</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base font-bold text-[#006B8F]">{detailGroup.title}</h2>
+                {canManage && detailVisibility !== "visible" && (
+                  <span className="rounded-full bg-gray-900/80 px-2 py-1 text-[11px] font-semibold text-white">
+                    {detailVisibility === "hidden" ? "숨김 앨범" : "부분 숨김"}
+                  </span>
+                )}
+              </div>
               {canManage && (
                 <button
                   type="button"
@@ -951,6 +992,15 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
                 >
                   {isDetailEditing ? <X className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
                   {isDetailEditing ? "수정 닫기" : "앨범 수정"}
+                </button>
+              )}
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={() => handleToggleAlbumVisibility(detailGroup)}
+                  className="inline-flex h-8 items-center justify-center gap-1.5 self-start border border-yellow-200 bg-white px-3 text-xs font-semibold text-yellow-700 hover:bg-yellow-50 sm:self-auto"
+                >
+                  {detailVisibility === "visible" ? "앨범 숨김" : "앨범 공개"}
                 </button>
               )}
               {canManage && (
@@ -1277,9 +1327,10 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
                     {visibleGroups.map((group, index) => {
                       const detailHref = buildGalleryHref(location, searchString, group.key);
                       const postNumber = filteredGroups.length - ((activePage - 1) * pageSize + index);
+                      const visibility = getGalleryGroupVisibility(group);
 
                       return (
-                        <tr key={group.key} className="transition-colors hover:bg-gray-50">
+                        <tr key={group.key} className={`transition-colors hover:bg-gray-50 ${canManage && visibility !== "visible" ? "bg-gray-50/70" : ""}`}>
                           <td className="px-3 py-3 text-center text-gray-500">{postNumber}</td>
                           <td className="px-3 py-3">
                             <a
@@ -1292,12 +1343,24 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
                             >
                               {group.title}
                             </a>
+                            {canManage && visibility !== "visible" && (
+                              <span className="mt-1 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-500">
+                                {visibility === "hidden" ? "숨김" : "부분 숨김"}
+                              </span>
+                            )}
                           </td>
                           <td className="px-3 py-3 text-center text-gray-600">관리자</td>
                           <td className="px-3 py-3 text-center text-gray-500">{formatGalleryDate(group.createdAt)}</td>
                           <td className="px-3 py-3 text-center text-gray-500">{group.images.length}</td>
                           {canManage && (
                             <td className="px-3 py-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleAlbumVisibility(group)}
+                                className="mr-1 inline-flex h-7 items-center justify-center gap-1 border border-yellow-200 bg-white px-2 text-xs font-semibold text-yellow-700 hover:bg-yellow-50"
+                              >
+                                {visibility === "visible" ? "숨김" : "공개"}
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => handleDeleteAlbum(group)}
@@ -1320,9 +1383,10 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
                 {visibleGroups.map((group) => {
                   const thumbnail = group.images[0];
                   const detailHref = buildGalleryHref(location, searchString, group.key);
+                  const visibility = getGalleryGroupVisibility(group);
 
                   return (
-                    <div key={group.key} className="relative text-center">
+                    <div key={group.key} className={`relative text-center ${canManage && visibility !== "visible" ? "opacity-75" : ""}`}>
                       <a
                         href={detailHref}
                         onClick={(event) => {
@@ -1343,6 +1407,20 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
                           {group.title}
                         </span>
                       </a>
+                      {canManage && visibility !== "visible" && (
+                        <span className="absolute left-2 top-2 inline-flex rounded-full bg-gray-900/80 px-2 py-1 text-[11px] font-semibold text-white shadow-sm">
+                          {visibility === "hidden" ? "숨김" : "부분 숨김"}
+                        </span>
+                      )}
+                      {canManage && (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleAlbumVisibility(group)}
+                          className="absolute right-16 top-2 inline-flex h-8 items-center justify-center rounded-full border border-yellow-200 bg-white/95 px-2 text-xs font-semibold text-yellow-700 shadow-sm hover:bg-yellow-50"
+                        >
+                          {visibility === "visible" ? "숨김" : "공개"}
+                        </button>
+                      )}
                       {canManage && (
                         <button
                           type="button"

@@ -300,6 +300,7 @@ export const contentRouter = router({
         ids: z.array(z.number().int().positive()).min(1).max(500),
         albumTitle: optionalTextSchema(160),
         albumDescription: optionalTextSchema(20000),
+        isVisible: z.boolean().optional(),
       }))
       .mutation(({ input }) => {
         const { ids, ...data } = input;

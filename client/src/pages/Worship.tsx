@@ -11,6 +11,7 @@ import SubPageLayout from "@/components/SubPageLayout";
 import { getSupportSideMenuItems } from "@/lib/supportSideMenu";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { canManageBoardContent } from "@/lib/contentPermissions";
+import AdminBulletinsTab from "@/components/AdminBulletinsTab";
 import { ViewModeToggle, type ViewMode } from "@/components/dynamic-page/ViewModeToggle";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Download, Images, Paperclip, Upload, X, ZoomIn } from "lucide-react";
@@ -513,14 +514,18 @@ export function BulletinDetail() {
   const bulletinId = Number(params.id);
   const { user, loading: authLoading } = useAuth();
   const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, { retry: false });
-  const canReadBulletins = Boolean(memberMe) || canManageBoardContent(user, "content:bulletins");
+  const canManage = canManageBoardContent(user, "content:bulletins");
+  const canReadBulletins = Boolean(memberMe) || canManage;
   const bulletinsQuery = trpc.home.bulletins.useQuery(undefined, {
-    enabled: canReadBulletins,
+    enabled: canReadBulletins && !canManage,
     retry: false,
   });
-  const bulletins = bulletinsQuery.data ?? [];
+  const adminBulletinsQuery = trpc.cms.bulletins.list.useQuery(undefined, {
+    enabled: canManage,
+  });
+  const bulletins = canManage ? (adminBulletinsQuery.data ?? []) : (bulletinsQuery.data ?? []);
   const isAccessDenied = !authLoading && !memberLoading && !canReadBulletins;
-  const isLoading = authLoading || memberLoading || (canReadBulletins && bulletinsQuery.isLoading);
+  const isLoading = authLoading || memberLoading || (canManage ? adminBulletinsQuery.isLoading : (canReadBulletins && bulletinsQuery.isLoading));
   const { data: allMenus } = trpc.home.menus.useQuery();
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);
   const [lightboxPageIndex, setLightboxPageIndex] = useState<number | null>(null);
@@ -784,12 +789,15 @@ export function Bulletin() {
   const canManage = canManageBoardContent(user, "content:bulletins");
   const canReadBulletins = Boolean(memberMe) || canManage;
   const bulletinsQuery = trpc.home.bulletins.useQuery(undefined, {
-    enabled: canReadBulletins,
+    enabled: canReadBulletins && !canManage,
     retry: false,
   });
-  const bulletins = bulletinsQuery.data ?? [];
+  const adminBulletinsQuery = trpc.cms.bulletins.list.useQuery(undefined, {
+    enabled: canManage,
+  });
+  const bulletins = canManage ? (adminBulletinsQuery.data ?? []) : (bulletinsQuery.data ?? []);
   const isAccessDenied = !authLoading && !memberLoading && !canReadBulletins;
-  const isLoading = authLoading || memberLoading || (canReadBulletins && bulletinsQuery.isLoading);
+  const isLoading = authLoading || memberLoading || (canManage ? adminBulletinsQuery.isLoading : (canReadBulletins && bulletinsQuery.isLoading));
   const { data: allMenus } = trpc.home.menus.useQuery();
   const bulletinMenuItem = useMemo(() => findBulletinViewMenuNode(allMenus), [allMenus]);
   const [expandedId] = useState<number | null>(null);
@@ -864,7 +872,7 @@ export function Bulletin() {
           <p className="mt-1 text-xs text-gray-400">목록에서 주보를 선택해 미리보고 내려받을 수 있습니다.</p>
         </div>
 
-        {canManage && <BulletinUploadPanel />}
+        {canManage && <AdminBulletinsTab />}
 
         <div className="mb-4 flex flex-col gap-3 border-b border-[#86C5D8] pb-2 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2 text-xs text-gray-500">

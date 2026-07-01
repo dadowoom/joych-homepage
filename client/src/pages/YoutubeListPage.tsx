@@ -10,7 +10,7 @@ import { ChevronLeft, ChevronRight, PlayCircle, Settings } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { canManageBoardContent } from "@/lib/contentPermissions";
 import DirectVideoPlayer from "@/components/DirectVideoPlayer";
-import YoutubeEditPanel from "@/components/YoutubeEditPanel";
+import YoutubeAdminTab from "@/components/YoutubeAdminTab";
 
 interface YoutubeListPageProps {
   playlistId: number;
@@ -57,21 +57,12 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
   const manageButton = canManage ? (
     <button
       type="button"
-      onClick={() => setIsEditPanelOpen(true)}
+      onClick={() => setIsEditPanelOpen((current) => !current)}
       className="inline-flex items-center justify-center gap-2 rounded-md bg-[#1B5E20] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#2E7D32]"
     >
       <Settings className="h-4 w-4" />
-      영상 관리
+      {isEditPanelOpen ? "관리 닫기" : "영상 관리"}
     </button>
-  ) : null;
-
-  const editPanel = canManage ? (
-    <YoutubeEditPanel
-      open={isEditPanelOpen}
-      onClose={() => setIsEditPanelOpen(false)}
-      initialPlaylistId={playlistId}
-      lockPlaylist
-    />
   ) : null;
 
   const activeVideo = videos[activeIndex];
@@ -129,7 +120,11 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
             <p className="text-sm mt-1">영상이 준비되는 대로 이곳에서 보실 수 있습니다.</p>
           </div>
         </div>
-        {editPanel}
+        {canManage && isEditPanelOpen && (
+          <div className="mt-6 border border-[#D8E8DA] bg-[#F8FCF8] p-4">
+            <YoutubeAdminTab />
+          </div>
+        )}
       </div>
     );
   }
@@ -245,7 +240,11 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
           </button>
         </div>
       )}
-      {editPanel}
+      {canManage && isEditPanelOpen && (
+        <div className="mt-8 border border-[#D8E8DA] bg-[#F8FCF8] p-4">
+          <YoutubeAdminTab />
+        </div>
+      )}
     </div>
   );
 }

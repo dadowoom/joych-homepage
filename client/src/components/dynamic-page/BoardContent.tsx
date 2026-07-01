@@ -159,6 +159,7 @@ function NoticeBoardContent({
   const utils = trpc.useUtils();
   const isAdminResource = mode === "adminResource";
   const isCustomBoard = Boolean(customBoard);
+  const canManageNotices = canManageBoardContent(user, "content:notices");
   const supportsAttachments = isAdminResource || isCustomBoard;
   const customBoardSource = customBoard?.menuSubItemId
     ? { menuSubItemId: customBoard.menuSubItemId }
@@ -199,6 +200,9 @@ function NoticeBoardContent({
 
   const [formState, setFormState] = useState<NoticeFormState>(getBlankForm);
   const noticeQuery = trpc.home.noticeBoard.useQuery(undefined, { enabled: !isAdminResource && !isCustomBoard });
+  const adminNoticeQuery = trpc.cms.notices.list.useQuery(undefined, {
+    enabled: canManageNotices && !isAdminResource && !isCustomBoard,
+  });
   const adminResourceQuery = trpc.home.adminResourceBoard.useQuery(undefined, { enabled: isAdminResource });
   const customBoardQuery = trpc.home.dynamicBoardPosts.useQuery(
     customBoardSource ?? { menuItemId: 0 },
@@ -221,13 +225,18 @@ function NoticeBoardContent({
     ? customBoardQuery.data
     : isAdminResource
       ? adminResourceQuery.data
-      : noticeQuery.data;
+      : canManageNotices
+        ? (adminNoticeQuery.data ?? []).filter((notice) =>
+            notice.category !== ADMIN_RESOURCE_CATEGORY && !String(notice.category ?? "").startsWith("menu-board:")
+          )
+        : noticeQuery.data;
   const isLoading = isCustomBoard
     ? customBoardQuery.isLoading
     : isAdminResource
       ? adminResourceQuery.isLoading
-      : noticeQuery.isLoading;
-  const canManageNotices = canManageBoardContent(user, "content:notices");
+      : canManageNotices
+        ? adminNoticeQuery.isLoading
+        : noticeQuery.isLoading;
   const totalLabel = isAdminResource ? "자료" : isCustomBoard ? "게시글" : "소식";
   const boardDescription = isAdminResource
     ? "행정자료를 게시판 형태로 확인할 수 있습니다."
