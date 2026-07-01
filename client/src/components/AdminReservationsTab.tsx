@@ -14,7 +14,7 @@ import type { Reservation, Facility } from "../../../drizzle/schema";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, Clock, AlertCircle, Calendar, List, ChevronDown, Trash2 } from "lucide-react";
 import { getKstDateKey } from "@/lib/facilityReservationTime";
-import { formatKoreanDateKey, formatKoreanDateTime, formatKoreanNumericDateKey } from "@/lib/koreanDate";
+import { formatKoreanDateKey, formatKoreanDateTime, formatKoreanDateTimeText, formatKoreanNumericDateKey } from "@/lib/koreanDate";
 
 type StatusFilter = "all" | "pending" | "checking" | "approved" | "rejected" | "cancelled";
 type ViewMode = "list" | "calendar";
@@ -47,6 +47,7 @@ type AdminReservationRow = Pick<
   userEmail?: string | null;
   memberPosition?: string | null;
   memberPhone?: string | null;
+  createdAtText?: string | null;
 };
 
 type ReservationGroup = {
@@ -81,6 +82,10 @@ function formatDate(dateStr: string) {
 
 function formatTime(ts: number | Date | string) {
   return formatKoreanDateTime(ts);
+}
+
+function formatCreatedAt(reservation: Pick<AdminReservationRow, "createdAt" | "createdAtText">) {
+  return formatKoreanDateTimeText(reservation.createdAtText) || formatTime(reservation.createdAt);
 }
 
 function formatShortDate(dateStr: string) {
@@ -711,7 +716,7 @@ export default function AdminReservationsTab() {
                         <div><span className="text-gray-500 text-xs">직분/구분</span><p className="font-medium">{getReservationPosition(r)}</p></div>
                         <div><span className="text-gray-500 text-xs">예상 인원</span><p className="font-medium">{r.attendees}명</p></div>
                         <div><span className="text-gray-500 text-xs">사용 목적</span><p className="font-medium">{r.purpose}</p></div>
-                        <div><span className="text-gray-500 text-xs">신청 일시</span><p className="font-medium">{formatTime(r.createdAt)}</p></div>
+                        <div><span className="text-gray-500 text-xs">신청 일시</span><p className="font-medium">{formatCreatedAt(r)}</p></div>
                         {group.isRecurring && (
                           <div className="col-span-2">
                             <span className="text-gray-500 text-xs">반복 예약</span>

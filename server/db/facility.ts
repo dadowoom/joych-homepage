@@ -312,6 +312,7 @@ export async function getAllReservations(facilityId?: number) {
       processedBy: reservations.processedBy,
       processedAt: reservations.processedAt,
       createdAt: reservations.createdAt,
+      createdAtText: sql<string>`DATE_FORMAT(${reservations.createdAt}, '%Y-%m-%d %H:%i:%s')`,
       facilityName: facilities.name,
       userName: churchMembers.name,
       userEmail: churchMembers.email,

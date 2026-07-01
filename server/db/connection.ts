@@ -9,6 +9,7 @@
  */
 
 import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
 
 /** 캐시된 DB 인스턴스 */
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -20,7 +21,11 @@ let _db: ReturnType<typeof drizzle> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      const pool = mysql.createPool({
+        uri: process.env.DATABASE_URL,
+        timezone: "+09:00",
+      });
+      _db = drizzle(pool) as unknown as ReturnType<typeof drizzle>;
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
