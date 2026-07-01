@@ -17,10 +17,12 @@ import {
   getExternalReservationWindow,
   getExternalReservationWindowMessage,
   getFacilityReservationMaxMonths,
+  getKstDateKey,
   getReservationMaxDateKey,
   getReservationTimeRestriction,
   hasReservableStartTime,
 } from "@/lib/facilityReservationTime";
+import { formatKoreanDateKey, getDateKeyDayOfWeek } from "@/lib/koreanDate";
 import {
   generateReservationTimePoints,
 } from "@/lib/facilitySlotSelection";
@@ -303,7 +305,7 @@ function TimeSlotPanel({
   hasReservationOverride: boolean;
   audience: FacilityAudience;
 }) {
-  const dayOfWeek = new Date(selectedDate).getDay();
+  const dayOfWeek = getDateKeyDayOfWeek(selectedDate);
   const slotMinutes = facility?.slotMinutes ?? 60;
   const maxSlots = facility?.maxSlots ?? 8;
 
@@ -391,8 +393,7 @@ function TimeSlotPanel({
 
   // 날짜 포맷 (예: 2026년 4월 18일 (금))
   const dateLabel = useMemo(() => {
-    const d = new Date(selectedDate);
-    return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${DAY_LABELS[d.getDay()]})`;
+    return formatKoreanDateKey(selectedDate);
   }, [selectedDate]);
 
   function renderDisabledTooltip(slot: string, disabledReason?: string) {
@@ -553,8 +554,7 @@ function ReservationCalendar({
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const todayDateKey = getKstDateKey();
   const normalizedSlotMinutes = Math.max(1, Number(slotMinutes) || 60);
 
   function toDateStr(day: number) {
@@ -611,11 +611,10 @@ function ReservationCalendar({
         {days.map((day, i) => {
           if (!day) return <div key={i} />;
           const dateStr = toDateStr(day);
-          const date = new Date(dateStr);
-          const isPast = date < today;
+          const isPast = dateStr < todayDateKey;
           const isAfterReservationWindow = !hasReservationOverride && dateStr > reservationMaxDateKey;
           const isBlocked = blockedSet.has(dateStr);
-          const dayHour = hours?.find((h: FacilityHour) => h.dayOfWeek === date.getDay());
+          const dayHour = hours?.find((h: FacilityHour) => h.dayOfWeek === getDateKeyDayOfWeek(dateStr));
           const hoursLoaded = Boolean(hours);
           const isClosed = hoursLoaded ? !dayHour?.isOpen : false;
           const startSlots =

@@ -9,6 +9,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { formatKoreanDateKey } from "@/lib/koreanDate";
 import {
   Loader2, ChevronRight, Calendar, Clock, MapPin, Users,
   CheckCircle2, XCircle, AlertCircle, Clock3, Ban, RefreshCw
@@ -31,9 +32,7 @@ const FILTER_OPTIONS = [
 ];
 
 function formatDate(dateStr: string) {
-  const d = new Date(dateStr);
-  const days = ["일", "월", "화", "수", "목", "금", "토"];
-  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${days[d.getDay()]})`;
+  return formatKoreanDateKey(dateStr);
 }
 
 export default function MyReservations() {

@@ -28,6 +28,7 @@ import {
   getReservationMaxDateKey,
   getReservationTimeRestriction,
 } from "@/lib/facilityReservationTime";
+import { getDateKeyDayOfWeek } from "@/lib/koreanDate";
 import {
   generateReservationTimePoints,
 } from "@/lib/facilitySlotSelection";
@@ -69,7 +70,7 @@ const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
 
 // 요일 숫자 (0=일, 1=월 ... 6=토)
 function getDayOfWeek(dateStr: string): number {
-  return new Date(dateStr).getDay();
+  return getDateKeyDayOfWeek(dateStr);
 }
 
 // ── 입력 필드 공통 컴포넌트 ──────────────────────────────────

@@ -50,6 +50,7 @@ import {
   canManageAnyContent,
   canManageFullAdmin,
 } from "@/lib/contentPermissions";
+import { KOREA_TIME_ZONE } from "@/lib/koreanDate";
 
 // ─── 탭 타입 ──────────────────────────────────────────────────────────────────
 type Tab =
@@ -317,6 +318,7 @@ function formatNotificationDate(value: Date | string) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleDateString("ko-KR", {
+    timeZone: KOREA_TIME_ZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

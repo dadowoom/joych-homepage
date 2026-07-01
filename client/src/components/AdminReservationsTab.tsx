@@ -13,6 +13,8 @@ import { toast } from "sonner";
 import type { Reservation, Facility } from "../../../drizzle/schema";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, Clock, AlertCircle, Calendar, List, ChevronDown, Trash2 } from "lucide-react";
+import { getKstDateKey } from "@/lib/facilityReservationTime";
+import { formatKoreanDateKey, formatKoreanDateTime, formatKoreanNumericDateKey } from "@/lib/koreanDate";
 
 type StatusFilter = "all" | "pending" | "checking" | "approved" | "rejected" | "cancelled";
 type ViewMode = "list" | "calendar";
@@ -74,20 +76,19 @@ const STATUS_LABELS: Record<string, { label: string; color: string; icon: React.
 };
 
 function formatDate(dateStr: string) {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "short" });
+  return formatKoreanDateKey(dateStr);
 }
 
 function formatTime(ts: number | Date | string) {
-  return new Date(ts).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return formatKoreanDateTime(ts);
 }
 
 function formatShortDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
+  return formatKoreanNumericDateKey(dateStr);
 }
 
-function getLocalDateKey(date = new Date()) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+function getLocalDateKey() {
+  return getKstDateKey();
 }
 
 function getReservationName(reservation: AdminReservationRow) {
