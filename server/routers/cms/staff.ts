@@ -24,6 +24,7 @@ import {
   moveStaffCategory,
   reorderStaffCategories,
   reorderStaffTitleOptions,
+  updateStaffCategoryVisibility,
   updateStaffMember,
 } from "../../db";
 
@@ -57,6 +58,13 @@ export const staffRouter = router({
   createCategory: adminProcedure
     .input(z.object({ label: requiredTextSchema(64, "분류명을 입력해주세요.") }))
     .mutation(({ input }) => createStaffCategory(input.label)),
+
+  updateCategoryVisibility: adminProcedure
+    .input(z.object({
+      categoryKey: staffCategorySchema,
+      isVisible: z.boolean(),
+    }))
+    .mutation(({ input }) => updateStaffCategoryVisibility(input.categoryKey, input.isVisible)),
 
   moveCategory: adminProcedure
     .input(z.object({

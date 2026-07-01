@@ -3,7 +3,7 @@
  * 관리자가 분류를 추가하고, 분류별 정렬 순서를 유지합니다.
  */
 
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import {
   churchStaff,
@@ -211,10 +211,10 @@ export async function getVisibleStaffCategories() {
   if (!db) return toDefaultCategoryRows();
 
   const rows = await db.select().from(churchStaffCategories)
-    .where(eq(churchStaffCategories.isVisible, true))
     .orderBy(asc(churchStaffCategories.sortOrder), asc(churchStaffCategories.id));
 
-  return rows.length > 0 ? rows : toDefaultCategoryRows();
+  if (rows.length === 0) return toDefaultCategoryRows();
+  return rows.filter((row) => row.isVisible);
 }
 
 export async function getAllStaffCategories() {
@@ -389,6 +389,23 @@ export async function createStaffCategory(label: string) {
   });
 }
 
+export async function updateStaffCategoryVisibility(categoryKey: string, isVisible: boolean) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const [category] = await db.select().from(churchStaffCategories)
+    .where(eq(churchStaffCategories.categoryKey, categoryKey))
+    .limit(1);
+
+  if (!category) return null;
+
+  await db.update(churchStaffCategories)
+    .set({ isVisible })
+    .where(eq(churchStaffCategories.categoryKey, categoryKey));
+
+  return { ...category, isVisible };
+}
+
 export async function moveStaffCategory(categoryKey: string, direction: "up" | "down") {
   const db = await getDb();
   if (!db) return;
@@ -456,10 +473,19 @@ export async function getVisibleStaffMembers(category?: StaffCategory) {
   const db = await getDb();
   if (!db) return [];
 
+  const categoryRows = await db.select().from(churchStaffCategories)
+    .orderBy(asc(churchStaffCategories.sortOrder), asc(churchStaffCategories.id));
+  const visibleCategoryKeys = categoryRows.length > 0
+    ? categoryRows.filter((row) => row.isVisible).map((row) => row.categoryKey)
+    : toDefaultCategoryRows().map((row) => row.categoryKey);
+
+  if (visibleCategoryKeys.length === 0) return [];
+  if (category && !visibleCategoryKeys.includes(category)) return [];
+
   const visibleOnly = sql`${churchStaff.isVisible} = 1`;
   const where = category
     ? and(visibleOnly, eq(churchStaff.category, category))
-    : visibleOnly;
+    : and(visibleOnly, inArray(churchStaff.category, visibleCategoryKeys));
 
   try {
     return await db.select().from(churchStaff)

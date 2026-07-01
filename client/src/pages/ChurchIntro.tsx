@@ -364,6 +364,13 @@ export function StaffPage({
     () => mergeStaffCategoryOptions(staffCategories),
     [staffCategories],
   );
+
+  useEffect(() => {
+    if (categoryOptions.length === 0) return;
+    if (categoryOptions.some((category) => category.value === activeCategory)) return;
+    setActiveCategory(categoryOptions[0].value);
+  }, [activeCategory, categoryOptions]);
+
   const activeGroupLabels = useMemo(
     () => getStaffGroupLabels(activeCategory, staffTitleOptions),
     [activeCategory, staffTitleOptions],

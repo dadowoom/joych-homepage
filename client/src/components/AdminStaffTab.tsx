@@ -26,19 +26,19 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { ArrowDown, ArrowUp, GripVertical, ImageIcon, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, GripVertical, ImageIcon, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 
 type StaffCategory = string;
-type StaffCategoryOption = { value: string; label: string; isBuiltIn?: boolean };
+type StaffCategoryOption = { value: string; label: string; isBuiltIn?: boolean; isVisible: boolean };
 
 const DEFAULT_CATEGORY_OPTIONS = [
-  { value: "senior", label: "담임목사" },
-  { value: "associate", label: "부교역자" },
-  { value: "education", label: "교회학교 교역자" },
-  { value: "cooperation", label: "협력사역자" },
-  { value: "elder", label: "장로" },
-  { value: "office", label: "교회직원" },
-  { value: "other", label: "사회복지법인 기쁨의복지재단" },
+  { value: "senior", label: "담임목사", isVisible: true },
+  { value: "associate", label: "부교역자", isVisible: true },
+  { value: "education", label: "교회학교 교역자", isVisible: true },
+  { value: "cooperation", label: "협력사역자", isVisible: true },
+  { value: "elder", label: "장로", isVisible: true },
+  { value: "office", label: "교회직원", isVisible: true },
+  { value: "other", label: "사회복지법인 기쁨의복지재단", isVisible: true },
 ] satisfies StaffCategoryOption[];
 
 const ELDER_TITLE_OPTIONS = ["원로장로", "은퇴장로", "시무장로", "휴무장로"] as const;
@@ -62,6 +62,12 @@ const CUSTOM_TITLE_VALUE = "__custom__";
 
 type StaffMember = inferRouterOutputs<AppRouter>["cms"]["staff"]["list"][number];
 type StaffTitleOption = inferRouterOutputs<AppRouter>["cms"]["staff"]["titleOptions"][number];
+type StaffMemberGroup = {
+  value: string;
+  label: string;
+  isBuiltIn: boolean | undefined;
+  members: StaffMember[];
+};
 
 type StaffForm = {
   category: StaffCategory;
@@ -90,12 +96,13 @@ const EMPTY_FORM: StaffForm = {
 const fieldClass = "border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20 focus:border-[#1B5E20]";
 const labelClass = "block text-xs font-medium text-gray-500 mb-1";
 
-function mergeCategoryOptions(categories: Array<{ categoryKey: string; label: string; isBuiltIn?: boolean }>): StaffCategoryOption[] {
+function mergeCategoryOptions(categories: Array<{ categoryKey: string; label: string; isBuiltIn?: boolean; isVisible?: boolean }>): StaffCategoryOption[] {
   if (categories.length === 0) return DEFAULT_CATEGORY_OPTIONS;
   return categories.map((category) => ({
     value: category.categoryKey,
     label: category.label,
     isBuiltIn: category.isBuiltIn,
+    isVisible: category.isVisible ?? true,
   }));
 }
 
@@ -256,12 +263,16 @@ function SortableCategoryChip({
   category,
   memberCount,
   isDeleting,
+  isTogglingVisibility,
   onDelete,
+  onToggleVisible,
 }: {
   category: StaffCategoryOption;
   memberCount: number;
   isDeleting: boolean;
+  isTogglingVisibility: boolean;
   onDelete: (category: StaffCategoryOption) => void;
+  onToggleVisible: (category: StaffCategoryOption) => void;
 }) {
   const {
     attributes,
@@ -282,7 +293,11 @@ function SortableCategoryChip({
     <div
       ref={setNodeRef}
       style={style}
-      className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 shadow-sm"
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs shadow-sm ${
+        category.isVisible
+          ? "border-gray-200 bg-white text-gray-700"
+          : "border-gray-200 bg-gray-50 text-gray-400"
+      }`}
     >
       <button
         type="button"
@@ -298,7 +313,34 @@ function SortableCategoryChip({
       {category.isBuiltIn && (
         <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">기본</span>
       )}
+      {category.isVisible ? (
+        <span className="inline-flex items-center gap-0.5 rounded-full bg-green-50 px-1.5 py-0.5 text-[10px] text-[#1B5E20]">
+          <Eye className="h-2.5 w-2.5" />
+          노출
+        </span>
+      ) : (
+        <span className="inline-flex items-center gap-0.5 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">
+          <EyeOff className="h-2.5 w-2.5" />
+          숨김
+        </span>
+      )}
       <span className="rounded-full bg-green-50 px-1.5 py-0.5 text-[10px] text-[#1B5E20]">{memberCount}명</span>
+      <button
+        type="button"
+        onClick={() => onToggleVisible(category)}
+        disabled={isTogglingVisibility}
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 hover:bg-gray-50 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+        title={category.isVisible ? "그룹 전체 숨기기" : "그룹 다시 나타내기"}
+      >
+        {isTogglingVisibility ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : category.isVisible ? (
+          <EyeOff className="h-3 w-3" />
+        ) : (
+          <Eye className="h-3 w-3" />
+        )}
+        <span className="sr-only">{category.isVisible ? "그룹 숨기기" : "그룹 나타내기"}</span>
+      </button>
       <button
         type="button"
         onClick={() => onDelete(category)}
@@ -470,6 +512,15 @@ export default function AdminStaffTab() {
     onError: (error) => toast.error(error.message),
   });
 
+  const toggleStaffVisibility = trpc.cms.staff.update.useMutation({
+    onSuccess: (_, variables) => {
+      toast.success(variables.isVisible ? "홈페이지에 나타나도록 변경했습니다." : "홈페이지에서 숨겼습니다.");
+      utils.cms.staff.list.invalidate();
+      utils.home.staff.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
   const deleteStaff = trpc.cms.staff.delete.useMutation({
     onSuccess: () => {
       toast.success("삭제됐습니다.");
@@ -489,6 +540,16 @@ export default function AdminStaffTab() {
         handleCategoryChange(category.categoryKey);
         setCategoryFilter(category.categoryKey);
       }
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const toggleCategoryVisibility = trpc.cms.staff.updateCategoryVisibility.useMutation({
+    onSuccess: (_, variables) => {
+      toast.success(variables.isVisible ? "그룹을 홈페이지에 나타내도록 변경했습니다." : "그룹을 홈페이지에서 숨겼습니다.");
+      utils.cms.staff.categories.invalidate();
+      utils.home.staffCategories.invalidate();
+      utils.home.staff.invalidate();
     },
     onError: (error) => toast.error(error.message),
   });
@@ -581,18 +642,23 @@ export default function AdminStaffTab() {
     return staffMembers.filter((member) => member.category === categoryFilter);
   }, [categoryFilter, staffMembers]);
 
-  const groupedMembers = useMemo(() => {
-    return categoryOptions.flatMap((category) => {
+  const groupedMembers = useMemo<StaffMemberGroup[]>(() => {
+    return categoryOptions.flatMap((category): StaffMemberGroup[] => {
       const categoryMembers = filteredMembers.filter((member) => member.category === category.value);
       if (categoryMembers.length === 0) return [];
 
       if (!isGroupedStaffSortCategory(category.value)) {
-        return [{ ...category, members: categoryMembers }];
+        return [{
+          value: category.value,
+          label: category.label,
+          isBuiltIn: category.isBuiltIn,
+          members: categoryMembers,
+        }];
       }
 
       const titleOptions = getTitleOptionsForCategory(category.value);
       const titleOptionSet = new Set(titleOptions.map((option) => normalizeStaffSortTitle(option)));
-      const titleGroups = titleOptions
+      const titleGroups: StaffMemberGroup[] = titleOptions
         .map((label) => ({
           value: `${category.value}:${label}`,
           label,
@@ -677,7 +743,7 @@ export default function AdminStaffTab() {
   };
 
   const toggleVisible = (member: StaffMember) => {
-    updateStaff.mutate({ id: member.id, isVisible: !member.isVisible });
+    toggleStaffVisibility.mutate({ id: member.id, isVisible: !member.isVisible });
   };
 
   const remove = (member: StaffMember) => {
@@ -765,6 +831,13 @@ export default function AdminStaffTab() {
     deleteCategory.mutate({ categoryKey: category.value });
   };
 
+  const handleToggleCategoryVisible = (category: StaffCategoryOption) => {
+    toggleCategoryVisibility.mutate({
+      categoryKey: category.value,
+      isVisible: !category.isVisible,
+    });
+  };
+
   const titleSelectValue = titleFieldCopy
     ? isCustomTitleMode
       ? CUSTOM_TITLE_VALUE
@@ -842,6 +915,7 @@ export default function AdminStaffTab() {
                   {categoryOptions.map((category) => {
                     const memberCount = categoryMemberCountMap.get(category.value) ?? 0;
                     const isDeleting = deleteCategory.isPending && deleteCategory.variables?.categoryKey === category.value;
+                    const isTogglingVisibility = toggleCategoryVisibility.isPending && toggleCategoryVisibility.variables?.categoryKey === category.value;
 
                     return (
                       <SortableCategoryChip
@@ -849,7 +923,9 @@ export default function AdminStaffTab() {
                         category={category}
                         memberCount={memberCount}
                         isDeleting={isDeleting}
+                        isTogglingVisibility={isTogglingVisibility}
                         onDelete={handleDeleteCategory}
+                        onToggleVisible={handleToggleCategoryVisible}
                       />
                     );
                   })}
@@ -1149,46 +1225,77 @@ export default function AdminStaffTab() {
                 <span className="text-xs text-gray-400">{group.members.length}명</span>
               </div>
               <div className="divide-y divide-gray-100">
-                {group.members.map((member) => (
-                  <div key={member.id} className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0">
-                        {member.imageUrl ? (
-                          <img src={member.imageUrl} alt="" className="w-full h-full object-cover"  loading="lazy"/>
-                        ) : (
-                          <ImageIcon className="w-6 h-6 text-gray-300" />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold text-gray-900">{member.name}</p>
-                          {!member.isVisible && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">숨김</span>}
+                {group.members.map((member) => {
+                  const isTogglingVisibility = toggleStaffVisibility.isPending && toggleStaffVisibility.variables?.id === member.id;
+
+                  return (
+                    <div key={member.id} className={`p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 ${member.isVisible ? "bg-white" : "bg-gray-50/70"}`}>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-14 h-14 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0 ${member.isVisible ? "" : "opacity-60 grayscale"}`}>
+                          {member.imageUrl ? (
+                            <img src={member.imageUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+                          ) : (
+                            <ImageIcon className="w-6 h-6 text-gray-300" />
+                          )}
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {getMemberMeta(member, categoryOptions)}
-                        </p>
-                        {(member.email || member.phone) && (
-                          <p className="text-sm text-gray-600 mt-1 line-clamp-1">
-                            {[member.email, member.phone].filter(Boolean).join(" · ")}
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold text-gray-900">{member.name}</p>
+                            {member.isVisible ? (
+                              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-50 text-[#1B5E20]">
+                                <Eye className="h-3 w-3" />
+                                노출중
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                                <EyeOff className="h-3 w-3" />
+                                숨김
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {getMemberMeta(member, categoryOptions)}
                           </p>
-                        )}
+                          {(member.email || member.phone) && (
+                            <p className="text-sm text-gray-600 mt-1 line-clamp-1">
+                              {[member.email, member.phone].filter(Boolean).join(" · ")}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => toggleVisible(member)}
+                          disabled={isTogglingVisibility}
+                          className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg border disabled:cursor-not-allowed disabled:opacity-50 ${
+                            member.isVisible
+                              ? "border-gray-300 text-gray-600 hover:bg-gray-50"
+                              : "border-green-200 text-[#1B5E20] hover:bg-green-50"
+                          }`}
+                          title={member.isVisible ? "홈페이지에서 숨기기" : "홈페이지에 다시 나타내기"}
+                        >
+                          {isTogglingVisibility ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : member.isVisible ? (
+                            <EyeOff className="w-3.5 h-3.5" />
+                          ) : (
+                            <Eye className="w-3.5 h-3.5" />
+                          )}
+                          {member.isVisible ? "숨기기" : "나타내기"}
+                        </button>
+                        <button type="button" onClick={() => startEdit(member)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg border border-gray-300 hover:bg-gray-50">
+                          <Pencil className="w-3.5 h-3.5" />
+                          수정
+                        </button>
+                        <button type="button" onClick={() => remove(member)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg border border-red-200 text-red-500 hover:bg-red-50">
+                          <Trash2 className="w-3.5 h-3.5" />
+                          삭제
+                        </button>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-1 shrink-0">
-                      <button type="button" onClick={() => toggleVisible(member)} className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 hover:bg-gray-50">
-                        {member.isVisible ? "숨김" : "노출"}
-                      </button>
-                      <button type="button" onClick={() => startEdit(member)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg border border-gray-300 hover:bg-gray-50">
-                        <Pencil className="w-3.5 h-3.5" />
-                        수정
-                      </button>
-                      <button type="button" onClick={() => remove(member)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg border border-red-200 text-red-500 hover:bg-red-50">
-                        <Trash2 className="w-3.5 h-3.5" />
-                        삭제
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
