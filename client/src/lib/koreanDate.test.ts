@@ -28,11 +28,17 @@ describe("korean date helpers", () => {
   });
 
   it("formats timestamps in Korea time", () => {
-    expect(formatKoreanDateTime(new Date("2026-07-01T06:02:38.000Z"))).toContain("오후 03:02");
+    expect(
+      formatKoreanDateTime(new Date("2026-07-01T06:02:38.000Z"))
+    ).toContain("오후 03:02");
   });
 
   it("formats database timestamp text without adding another timezone offset", () => {
-    expect(formatKoreanDateTimeText("2026-07-01 15:30:00")).toBe("7월 1일 오후 03:30");
-    expect(formatKoreanDateTimeText("2026-07-01T00:30:00")).toBe("7월 1일 오전 12:30");
+    expect(formatKoreanDateTimeText("2026-07-01 15:30:00")).toBe(
+      "7월 1일 오후 03:30"
+    );
+    expect(formatKoreanDateTimeText("2026-07-01T00:30:00")).toBe(
+      "7월 1일 오전 12:30"
+    );
   });
 });

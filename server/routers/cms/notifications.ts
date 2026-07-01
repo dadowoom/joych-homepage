@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gt, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   STATIC_ADMIN_PERMISSIONS,
@@ -201,7 +201,7 @@ export const notificationsRouter = router({
       const groupKey = "noticeRecent";
       const where = and(
         eq(notices.isPublished, true),
-        gte(notices.createdAt, cutoffFor(groupKey, "recent"))
+        gt(notices.createdAt, cutoffFor(groupKey, "recent"))
       );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -247,7 +247,7 @@ export const notificationsRouter = router({
       const groupKey = "bulletinRecent";
       const where = and(
         eq(bulletins.status, "published"),
-        gte(bulletins.createdAt, cutoffFor(groupKey, "recent"))
+        gt(bulletins.createdAt, cutoffFor(groupKey, "recent"))
       );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -293,7 +293,7 @@ export const notificationsRouter = router({
       const groupKey = "youtubeVideoRecent";
       const where = and(
         eq(youtubeVideos.isVisible, true),
-        gte(youtubeVideos.createdAt, cutoffFor(groupKey, "recent"))
+        gt(youtubeVideos.createdAt, cutoffFor(groupKey, "recent"))
       );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -343,7 +343,7 @@ export const notificationsRouter = router({
       const groupKey = "popupRecent";
       const where = and(
         eq(noticePopups.isActive, true),
-        gte(noticePopups.createdAt, cutoffFor(groupKey, "recent"))
+        gt(noticePopups.createdAt, cutoffFor(groupKey, "recent"))
       );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -389,7 +389,7 @@ export const notificationsRouter = router({
       const groupKey = "freeBoardRecent";
       const where = and(
         ne(freeBoardPosts.status, "deleted"),
-        gte(freeBoardPosts.createdAt, cutoffFor(groupKey, "recent"))
+        gt(freeBoardPosts.createdAt, cutoffFor(groupKey, "recent"))
       );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -434,7 +434,7 @@ export const notificationsRouter = router({
       const postGroupKey = "testimonyPostRecent";
       const postWhere = and(
         ne(testimonyPosts.status, "deleted"),
-        gte(testimonyPosts.createdAt, cutoffFor(postGroupKey, "recent"))
+        gt(testimonyPosts.createdAt, cutoffFor(postGroupKey, "recent"))
       );
       const [postCountRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -477,7 +477,7 @@ export const notificationsRouter = router({
       const commentGroupKey = "testimonyCommentRecent";
       const commentWhere = and(
         ne(testimonyComments.status, "deleted"),
-        gte(testimonyComments.createdAt, cutoffFor(commentGroupKey, "recent"))
+        gt(testimonyComments.createdAt, cutoffFor(commentGroupKey, "recent"))
       );
       const [commentCountRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -522,7 +522,7 @@ export const notificationsRouter = router({
       const groupKey = "reservationPending";
       const where = and(
         eq(reservations.status, "pending"),
-        gte(reservations.createdAt, cutoffFor(groupKey, "pending"))
+        gt(reservations.createdAt, cutoffFor(groupKey, "pending"))
       );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -571,7 +571,7 @@ export const notificationsRouter = router({
       const groupKey = "vehicleReservationPending";
       const where = and(
         eq(vehicleReservations.status, "pending"),
-        gte(vehicleReservations.createdAt, cutoffFor(groupKey, "pending"))
+        gt(vehicleReservations.createdAt, cutoffFor(groupKey, "pending"))
       );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -624,7 +624,7 @@ export const notificationsRouter = router({
       const courseRecentWhere = and(
         ne(courses.status, "archived"),
         ne(courses.status, "cancelled"),
-        gte(courses.createdAt, cutoffFor(courseGroupKey, "recent"))
+        gt(courses.createdAt, cutoffFor(courseGroupKey, "recent"))
       );
       const [courseRecentCountRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -668,7 +668,7 @@ export const notificationsRouter = router({
       const applicationGroupKey = "courseApplicationPending";
       const where = and(
         eq(courseApplications.status, "pending"),
-        gte(
+        gt(
           courseApplications.createdAt,
           cutoffFor(applicationGroupKey, "pending")
         )
@@ -721,7 +721,7 @@ export const notificationsRouter = router({
       const recentGroupKey = "missionReportRecent";
       const recentWhere = and(
         eq(missionReports.status, "published"),
-        gte(missionReports.createdAt, cutoffFor(recentGroupKey, "recent"))
+        gt(missionReports.createdAt, cutoffFor(recentGroupKey, "recent"))
       );
       const [recentCountRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -765,7 +765,7 @@ export const notificationsRouter = router({
       const pendingGroupKey = "missionReportPending";
       const where = and(
         eq(missionReports.status, "pending"),
-        gte(missionReports.createdAt, cutoffFor(pendingGroupKey, "pending"))
+        gt(missionReports.createdAt, cutoffFor(pendingGroupKey, "pending"))
       );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -811,7 +811,7 @@ export const notificationsRouter = router({
       const groupKey = "memberPending";
       const where = and(
         eq(churchMembers.status, "pending"),
-        gte(churchMembers.createdAt, cutoffFor(groupKey, "pending"))
+        gt(churchMembers.createdAt, cutoffFor(groupKey, "pending"))
       );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -859,7 +859,7 @@ export const notificationsRouter = router({
       const groupKey = "prayerRequestNew";
       const where = and(
         eq(prayerRequests.status, "new"),
-        gte(prayerRequests.createdAt, cutoffFor(groupKey, "pending"))
+        gt(prayerRequests.createdAt, cutoffFor(groupKey, "pending"))
       );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -907,7 +907,7 @@ export const notificationsRouter = router({
       const groupKey = "newMemberRequestNew";
       const where = and(
         eq(newMemberRequests.status, "new"),
-        gte(newMemberRequests.createdAt, cutoffFor(groupKey, "pending"))
+        gt(newMemberRequests.createdAt, cutoffFor(groupKey, "pending"))
       );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -955,7 +955,7 @@ export const notificationsRouter = router({
       const groupKey = "visitRequestNew";
       const where = and(
         eq(visitRequests.status, "new"),
-        gte(visitRequests.createdAt, cutoffFor(groupKey, "pending"))
+        gt(visitRequests.createdAt, cutoffFor(groupKey, "pending"))
       );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -1004,7 +1004,7 @@ export const notificationsRouter = router({
       const groupKey = "subtitleRequestNew";
       const where = and(
         eq(subtitleRequests.status, "new"),
-        gte(subtitleRequests.createdAt, cutoffFor(groupKey, "pending"))
+        gt(subtitleRequests.createdAt, cutoffFor(groupKey, "pending"))
       );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -1055,7 +1055,7 @@ export const notificationsRouter = router({
       const groupKey = "bulletinAdRequestNew";
       const where = and(
         eq(bulletinAdRequests.status, "new"),
-        gte(bulletinAdRequests.createdAt, cutoffFor(groupKey, "pending"))
+        gt(bulletinAdRequests.createdAt, cutoffFor(groupKey, "pending"))
       );
       const [countRow] = await db
         .select({ count: sql<number>`count(*)` })

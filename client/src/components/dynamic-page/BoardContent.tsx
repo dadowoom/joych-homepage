@@ -528,6 +528,8 @@ function NoticeBoardContent({
           title,
           content: dynamicPayload.content,
           thumbnailUrl: dynamicPayload.thumbnailUrl,
+          attachmentName: dynamicPayload.attachmentName,
+          attachmentUrl: dynamicPayload.attachmentUrl,
           isPublished: dynamicPayload.isPublished,
           isPinned: dynamicPayload.isPinned,
         });

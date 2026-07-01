@@ -1,5 +1,6 @@
 const DATE_KEY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
-const DATE_TIME_TEXT_RE = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/;
+const DATE_TIME_TEXT_RE =
+  /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/;
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"] as const;
 
 export const KOREA_TIME_ZONE = "Asia/Seoul";
@@ -37,21 +38,41 @@ export function formatKoreanDateKey(dateKey: string) {
 export function formatKoreanNumericDateKey(dateKey: string) {
   const date = parseDateKey(dateKey);
   if (!date) return dateKey;
-  return `${date.year}. ${String(date.month).padStart(2, "0")}. ${String(date.day).padStart(2, "0")}.`;
+  return `${date.year}. ${String(date.month).padStart(2, "0")}. ${String(
+    date.day
+  ).padStart(2, "0")}.`;
 }
 
-export function formatKoreanDateTime(value: Date | string | number | null | undefined) {
+export function formatKoreanDateTime(
+  value: Date | string | number | null | undefined
+) {
   if (!value) return "";
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "";
 
-  return new Intl.DateTimeFormat("ko-KR", {
+  const parts = new Intl.DateTimeFormat("ko-KR", {
     timeZone: KOREA_TIME_ZONE,
-    month: "short",
+    month: "numeric",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(date);
+    hour12: true,
+  }).formatToParts(date);
+
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  const hour = parts.find((part) => part.type === "hour")?.value;
+  const minute = parts.find((part) => part.type === "minute")?.value;
+  const rawPeriod = parts.find((part) => part.type === "dayPeriod")?.value ?? "";
+  const normalizedPeriod = rawPeriod.toUpperCase() === "AM"
+    ? "오전"
+    : rawPeriod.toUpperCase() === "PM"
+      ? "오후"
+      : rawPeriod;
+
+  if (!month || !day || !hour || !minute) return "";
+
+  return `${month}월 ${day}일 ${normalizedPeriod} ${hour}:${minute}`;
 }
 
 export function formatKoreanDateTimeText(value: string | null | undefined) {
@@ -64,9 +85,14 @@ export function formatKoreanDateTimeText(value: string | null | undefined) {
   const day = Number(match[3]);
   const hour = Number(match[4]);
   const minute = match[5];
-  if (!parseDateKey(`${match[1]}-${match[2]}-${match[3]}`) || hour > 23) return "";
+  if (!parseDateKey(`${match[1]}-${match[2]}-${match[3]}`) || hour > 23) {
+    return "";
+  }
 
   const period = hour < 12 ? "오전" : "오후";
   const displayHour = hour % 12 || 12;
-  return `${month}월 ${day}일 ${period} ${String(displayHour).padStart(2, "0")}:${minute}`;
+  return `${month}월 ${day}일 ${period} ${String(displayHour).padStart(
+    2,
+    "0"
+  )}:${minute}`;
 }

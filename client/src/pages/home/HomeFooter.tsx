@@ -1,10 +1,8 @@
-import { Link } from "wouter";
-
-const CHURCH_ADDRESS = "경상북도 포항시 북구 삼흥로 411";
+const CHURCH_ADDRESS = "경상북도 포항시 북구 새천년대로 411";
 
 function getChurchAddress(address?: string | null) {
   const value = address?.trim();
-  if (!value || value.includes("상통로 411")) {
+  if (!value || value.includes("새천년대로 411")) {
     return CHURCH_ADDRESS;
   }
   return value;
@@ -29,9 +27,9 @@ export default function HomeFooter({
   fax,
 }: HomeFooterProps) {
   return (
-    <footer className="bg-[#0F172A] text-gray-400 py-6">
+    <footer className="bg-[#0F172A] py-6 text-gray-400">
       <div className="container">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-center">
+        <div className="grid grid-cols-1 items-center gap-5 md:grid-cols-3">
           <div>
             <div className="inline-flex rounded-md bg-white px-3 py-2">
               <img
@@ -48,40 +46,18 @@ export default function HomeFooter({
 
           <div className="space-y-1.5 text-sm">
             <p className="flex items-center gap-2">
-              <i className="fas fa-map-marker-alt text-[#4CAF50] w-4"></i>
+              <i className="fas fa-map-marker-alt w-4 text-[#4CAF50]"></i>
               {getChurchAddress(address)}
             </p>
             <p className="flex items-center gap-2">
-              <i className="fas fa-phone text-[#4CAF50] w-4"></i>
+              <i className="fas fa-phone w-4 text-[#4CAF50]"></i>
               TEL : {tel ?? "054) 270-1000"} &nbsp;|&nbsp; FAX :{" "}
               {fax ?? "054) 270-1005"}
             </p>
-            <p className="text-xs text-gray-500 mt-3">
-              Copyright &copy; {new Date().getFullYear()} 기쁨의교회 All
-              rights reserved.
+            <p className="mt-3 text-xs text-gray-500">
+              Copyright &copy; {new Date().getFullYear()} 기쁨의교회 All rights
+              reserved.
             </p>
-            <div className="flex gap-3 mt-2 text-xs">
-              <Link
-                href="/sitemap"
-                className="text-gray-500 hover:text-[#4CAF50] transition-colors underline underline-offset-2"
-              >
-                사이트맵
-              </Link>
-              <span className="text-gray-700">|</span>
-              <Link
-                href="/about/directions"
-                className="text-gray-500 hover:text-[#4CAF50] transition-colors underline underline-offset-2"
-              >
-                오시는 길
-              </Link>
-              <span className="text-gray-700">|</span>
-              <Link
-                href="/support/new-member"
-                className="text-gray-500 hover:text-[#4CAF50] transition-colors underline underline-offset-2"
-              >
-                새가족 안내
-              </Link>
-            </div>
           </div>
 
           {/* socialLinks rendering intentionally hidden */}
