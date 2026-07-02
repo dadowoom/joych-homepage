@@ -990,6 +990,11 @@ function CalendarView({ reservations, facilityFilter, facilities, editingKey, ti
           </div>
         ) : (
           <div>
+            <div className="grid grid-cols-[78px_minmax(0,1fr)_92px] gap-2 border-b border-gray-100 bg-gray-50 px-4 py-2 text-[11px] font-semibold text-gray-500 md:hidden">
+              <div>시간</div>
+              <div>시설 / 목적</div>
+              <div>관리</div>
+            </div>
             <div className="hidden grid-cols-[110px_minmax(0,1.5fr)_150px_140px_120px_220px] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 text-[11px] font-semibold text-gray-500 md:grid">
               <div>시간</div>
               <div>시설 / 목적</div>
