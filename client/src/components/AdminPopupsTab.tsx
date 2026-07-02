@@ -420,11 +420,11 @@ export default function AdminPopupsTab() {
             <div>
               <label className={labelClass}>이미지</label>
               {form.imageUrl && (
-                <div className="relative mb-2 overflow-hidden rounded-xl border border-gray-200 bg-white">
+                <div className="relative mb-2 flex min-h-[260px] items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50 md:min-h-[320px]">
                   <img
                     src={form.imageUrl}
                     alt="팝업 이미지 미리보기"
-                    className="h-40 w-full object-cover"
+                    className="max-h-[320px] w-full object-contain"
                     onError={(event) => {
                       (event.target as HTMLImageElement).style.display = "none";
                     }}
@@ -662,11 +662,11 @@ export default function AdminPopupsTab() {
                           <img
                             src={popup.imageUrl}
                             alt=""
-                            className="h-20 w-full object-cover sm:w-36"
+                            className="h-24 w-full object-contain sm:w-44"
                             loading="lazy"
                           />
                         ) : (
-                          <div className="flex h-20 w-full items-center justify-center text-gray-300 sm:w-36">
+                          <div className="flex h-24 w-full items-center justify-center text-gray-300 sm:w-44">
                             <ImageIcon className="h-5 w-5" />
                           </div>
                         )}

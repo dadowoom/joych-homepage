@@ -128,7 +128,7 @@ export default function NoticePopupLayer() {
   return (
     <>
       {activeModalPopup && (
-        <div className="fixed inset-x-3 bottom-3 z-[320] md:inset-x-auto md:bottom-auto md:right-8 md:top-1/2 md:w-[560px] md:-translate-y-1/2 xl:w-[620px]">
+        <div className="fixed inset-x-3 bottom-3 z-[320] md:inset-x-auto md:bottom-auto md:right-8 md:top-1/2 md:w-[680px] md:-translate-y-1/2 xl:w-[760px]">
           <div
             role="dialog"
             aria-modal="true"
@@ -158,7 +158,7 @@ export default function NoticePopupLayer() {
                     <img
                       src={popup.imageUrl}
                       alt=""
-                      className="h-64 w-full object-cover md:h-80 xl:h-96"
+                      className="max-h-[70vh] w-full object-contain bg-gray-50"
                       loading={index === 0 ? "eager" : "lazy"}
                       decoding="async"
                     />
