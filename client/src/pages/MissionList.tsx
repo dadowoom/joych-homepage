@@ -97,7 +97,7 @@ export default function MissionList() {
             {canWriteMissionReport && (
               <Link href="/mission/write" className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-[#1B5E20] px-4 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32]">
                 <i className="fas fa-pen text-[10px]"></i>
-                {canManage ? "선교보고 관리 작성" : "선교보고 작성"}
+                {canManage ? "선교보고서 작성" : "선교보고 작성"}
               </Link>
             )}
           </div>
