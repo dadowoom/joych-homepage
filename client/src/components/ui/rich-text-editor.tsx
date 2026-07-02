@@ -331,8 +331,11 @@ ${scopeSelector} .rt-table-scroll table {
   ${scopeSelector} [data-rt-mobile-font-size] {
     font-size: min(var(--rt-mobile-font-size), 24px) !important;
   }
-  ${scopeSelector} .rt-table-scroll[data-rt-fit-table="true"] {
+  ${scopeSelector} .rt-table-scroll[data-rt-openable-table="true"] {
     cursor: zoom-in;
+    position: relative;
+  }
+  ${scopeSelector} .rt-table-scroll[data-rt-fit-table="true"] {
     height: var(--rt-table-fit-height);
   }
   ${scopeSelector} .rt-table-scroll[data-rt-fit-table="true"] table {
@@ -341,7 +344,7 @@ ${scopeSelector} .rt-table-scroll table {
     transform: scale(var(--rt-table-scale));
     transform-origin: top left;
   }
-  ${scopeSelector} .rt-table-scroll[data-rt-fit-table="true"]::after {
+  ${scopeSelector} .rt-table-scroll[data-rt-openable-table="true"]::after {
     content: "탭해서 크게 보기";
     position: absolute;
     right: 0.5rem;
@@ -479,6 +482,7 @@ function restoreViewerTableOriginalStyle(table: HTMLTableElement) {
 }
 
 function resetViewerTableFit(wrapper: HTMLElement, table: HTMLTableElement) {
+  wrapper.removeAttribute("data-rt-openable-table");
   wrapper.removeAttribute("data-rt-fit-table");
   wrapper.removeAttribute("role");
   wrapper.removeAttribute("tabindex");
@@ -518,15 +522,13 @@ function applyViewerTableFit(root: HTMLElement) {
     if (naturalWidth <= 0 || naturalHeight <= 0) return;
 
     const scale = Math.min(1, wrapperWidth / naturalWidth);
-    if (scale >= 0.98) {
-      resetViewerTableFit(wrapper, table);
-      return;
-    }
-
-    wrapper.setAttribute("data-rt-fit-table", "true");
+    wrapper.setAttribute("data-rt-openable-table", "true");
     wrapper.setAttribute("role", "button");
     wrapper.setAttribute("tabindex", "0");
     wrapper.setAttribute("title", "표 크게 보기");
+    if (scale >= 0.98) return;
+
+    wrapper.setAttribute("data-rt-fit-table", "true");
     wrapper.style.setProperty("--rt-table-scale", scale.toFixed(4));
     wrapper.style.setProperty("--rt-table-fit-height", `${Math.ceil(naturalHeight * scale)}px`);
     wrapper.style.setProperty("--rt-table-natural-width", `${Math.ceil(naturalWidth)}px`);
@@ -1690,7 +1692,11 @@ function RichTextToolbar({
             </ToolbarButton>
             <ToolbarButton editor={editor} label={isInTable ? "셀 병합" : "표 셀을 클릭하면 셀 병합 가능"} disabled={tableToolDisabled || !editor.can().mergeCells()} wide onClick={() => {
               rememberTableSelection();
-              tableSelectionCommand(takeTableSelectionBookmark()).mergeCells().run();
+              const bookmark = takeTableSelectionBookmark();
+              const merged = tableSelectionCommand(bookmark).mergeCells().run();
+              if (merged) {
+                tableSelectionCommand().setCellAttribute("align", "center").setCellAttribute("verticalAlign", "middle").run();
+              }
             }}>
               병합
             </ToolbarButton>
@@ -2055,7 +2061,7 @@ export function RichTextViewer({ html, className }: RichTextViewerProps) {
 
   const openFittedTable = (target: EventTarget | null) => {
     if (!(target instanceof Element)) return;
-    const wrapper = target.closest<HTMLElement>(".rt-table-scroll[data-rt-fit-table='true']");
+    const wrapper = target.closest<HTMLElement>(".rt-table-scroll[data-rt-openable-table='true']");
     if (!wrapper) return;
     const table = getDirectTableElement(wrapper);
     if (!table) return;
@@ -2095,7 +2101,7 @@ export function RichTextViewer({ html, className }: RichTextViewerProps) {
         onKeyDown={(event) => {
           if (event.key !== "Enter" && event.key !== " ") return;
           const target = event.target;
-          if (!(target instanceof Element) || !target.closest(".rt-table-scroll[data-rt-fit-table='true']")) return;
+          if (!(target instanceof Element) || !target.closest(".rt-table-scroll[data-rt-openable-table='true']")) return;
           event.preventDefault();
           openFittedTable(target);
         }}

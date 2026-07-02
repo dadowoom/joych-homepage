@@ -515,7 +515,9 @@ export function BulletinDetail() {
   const { user, loading: authLoading } = useAuth();
   const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, { retry: false });
   const canManage = canManageBoardContent(user, "content:bulletins");
-  const canReadBulletins = Boolean(memberMe) || canManage;
+  const { data: allMenus } = trpc.home.menus.useQuery();
+  const bulletinMenuItem = useMemo(() => findBulletinViewMenuNode(allMenus), [allMenus]);
+  const canReadBulletins = Boolean(memberMe) || canManage || Boolean(bulletinMenuItem);
   const bulletinsQuery = trpc.home.bulletins.useQuery(undefined, {
     enabled: canReadBulletins && !canManage,
     retry: false,
@@ -526,7 +528,6 @@ export function BulletinDetail() {
   const bulletins = canManage ? (adminBulletinsQuery.data ?? []) : (bulletinsQuery.data ?? []);
   const isAccessDenied = !authLoading && !memberLoading && !canReadBulletins;
   const isLoading = authLoading || memberLoading || (canManage ? adminBulletinsQuery.isLoading : (canReadBulletins && bulletinsQuery.isLoading));
-  const { data: allMenus } = trpc.home.menus.useQuery();
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);
   const [lightboxPageIndex, setLightboxPageIndex] = useState<number | null>(null);
   const touchStartXRef = useRef<number | null>(null);
@@ -787,7 +788,9 @@ export function Bulletin() {
   const { user, loading: authLoading } = useAuth();
   const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, { retry: false });
   const canManage = canManageBoardContent(user, "content:bulletins");
-  const canReadBulletins = Boolean(memberMe) || canManage;
+  const { data: allMenus } = trpc.home.menus.useQuery();
+  const bulletinMenuItem = useMemo(() => findBulletinViewMenuNode(allMenus), [allMenus]);
+  const canReadBulletins = Boolean(memberMe) || canManage || Boolean(bulletinMenuItem);
   const bulletinsQuery = trpc.home.bulletins.useQuery(undefined, {
     enabled: canReadBulletins && !canManage,
     retry: false,
@@ -798,8 +801,6 @@ export function Bulletin() {
   const bulletins = canManage ? (adminBulletinsQuery.data ?? []) : (bulletinsQuery.data ?? []);
   const isAccessDenied = !authLoading && !memberLoading && !canReadBulletins;
   const isLoading = authLoading || memberLoading || (canManage ? adminBulletinsQuery.isLoading : (canReadBulletins && bulletinsQuery.isLoading));
-  const { data: allMenus } = trpc.home.menus.useQuery();
-  const bulletinMenuItem = useMemo(() => findBulletinViewMenuNode(allMenus), [allMenus]);
   const [expandedId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);

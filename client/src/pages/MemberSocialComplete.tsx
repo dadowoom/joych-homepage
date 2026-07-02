@@ -148,6 +148,13 @@ export default function MemberSocialComplete() {
           </p>
         </div>
 
+        <div className="mb-6 rounded-2xl border border-[#D8E8DA] bg-[#F8FCF8] px-4 py-4 text-sm leading-6 text-[#1B5E20]">
+          <p className="font-semibold">기쁨의교회 등록 성도 전용 가입 안내</p>
+          <p className="mt-1 text-[#356046]">
+            간편가입도 기쁨의교회 성도만 신청할 수 있습니다. 방문자나 외부인은 회원가입 대신 교회 안내 또는 사무실로 문의해 주세요.
+          </p>
+        </div>
+
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">

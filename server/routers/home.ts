@@ -117,6 +117,16 @@ function getMenuReadAccess(ctx: { user?: unknown; memberId?: number | null }) {
   return ctx.user || ctx.memberId ? "member" : "guest";
 }
 
+async function canContextReadBulletins(ctx: { user?: AdminPermissionUser; memberId?: number | null }) {
+  if (hasAdminContentPermission(ctx.user, "content:bulletins")) return true;
+  const access = getMenuReadAccess(ctx);
+  const [menuItem, menuSubItem] = await Promise.all([
+    getVisibleMenuItemByHref("/worship/bulletin", access),
+    getVisibleMenuSubItemByHref("/worship/bulletin", access),
+  ]);
+  return Boolean(menuItem || menuSubItem);
+}
+
 type MenuTreeNode = {
   href?: string | null;
   items?: MenuTreeNode[];
@@ -449,8 +459,8 @@ export const homeRouter = router({
     .query(({ input }) => getPastorBookById(input.id, false)),
 
   /** 성도 이상 주보 목록 */
-  bulletins: publicProcedure.query(({ ctx }) => {
-    if (!ctx.memberId && !hasAdminContentPermission(ctx.user, "content:bulletins")) {
+  bulletins: publicProcedure.query(async ({ ctx }) => {
+    if (!(await canContextReadBulletins(ctx))) {
       throw new TRPCError({
         code: "UNAUTHORIZED",
         message: "주보 보기는 성도 로그인 후 이용할 수 있습니다.",
@@ -461,8 +471,8 @@ export const homeRouter = router({
 
   trackBulletinView: publicProcedure
     .input(z.object({ id: idSchema }))
-    .mutation(({ input, ctx }) => {
-      if (!ctx.memberId && !hasAdminContentPermission(ctx.user, "content:bulletins")) {
+    .mutation(async ({ input, ctx }) => {
+      if (!(await canContextReadBulletins(ctx))) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "주보 보기는 성도 로그인 후 이용할 수 있습니다.",

@@ -495,25 +495,51 @@ export default function SiteHeader() {
         {/* 모바일 메뉴 */}
         {mobileOpen && (
           <div className="md:hidden bg-white border-t border-gray-100 shadow-lg max-h-[70vh] overflow-y-auto">
-            {displayMenus.map(menu => (
+            {displayMenus.map(menu => {
+              const parentHref = getUsableHref(menu.href);
+              const hasChildren = (menu.items ?? []).length > 0;
+
+              return (
               <div key={menu.id} className="border-b border-gray-100">
                 {/* 1단 메뉴 */}
-                <button
-                  className="w-full flex items-center justify-between px-5 py-3 text-sm font-medium text-gray-700 hover:bg-[#F1F8E9] hover:text-[#1B5E20] text-left"
-                  onClick={() => {
-                    setMobileExpandedId(
-                      mobileExpandedId === menu.id ? null : menu.id
-                    );
-                    setMobileExpandedSubId(null);
-                  }}
-                >
-                  <span>{translateSiteText(menu.label, language)}</span>
-                  {(menu.items ?? []).length > 0 && (
-                    <i
-                      className={`fas fa-chevron-${mobileExpandedId === menu.id ? "up" : "down"} text-[10px] text-gray-400`}
-                    ></i>
-                  )}
-                </button>
+                {!hasChildren && parentHref ? (
+                  isExternalHref(parentHref) ? (
+                    <a
+                      href={parentHref}
+                      className="flex w-full items-center justify-between px-5 py-3 text-left text-sm font-medium text-gray-700 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
+                      onClick={() => setMobileOpen(false)}
+                    >
+                      <span>{translateSiteText(menu.label, language)}</span>
+                      <i className="fas fa-arrow-right text-[10px] text-gray-400"></i>
+                    </a>
+                  ) : (
+                    <Link
+                      href={parentHref}
+                      className="flex w-full items-center justify-between px-5 py-3 text-left text-sm font-medium text-gray-700 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
+                      onClick={() => setMobileOpen(false)}
+                    >
+                      <span>{translateSiteText(menu.label, language)}</span>
+                      <i className="fas fa-arrow-right text-[10px] text-gray-400"></i>
+                    </Link>
+                  )
+                ) : (
+                  <button
+                    className="w-full flex items-center justify-between px-5 py-3 text-sm font-medium text-gray-700 hover:bg-[#F1F8E9] hover:text-[#1B5E20] text-left"
+                    onClick={() => {
+                      setMobileExpandedId(
+                        mobileExpandedId === menu.id ? null : menu.id
+                      );
+                      setMobileExpandedSubId(null);
+                    }}
+                  >
+                    <span>{translateSiteText(menu.label, language)}</span>
+                    {hasChildren && (
+                      <i
+                        className={`fas fa-chevron-${mobileExpandedId === menu.id ? "up" : "down"} text-[10px] text-gray-400`}
+                      ></i>
+                    )}
+                  </button>
+                )}
                 {/* 2단 메뉴 */}
                 {mobileExpandedId === menu.id &&
                   (menu.items ?? []).length > 0 && (
@@ -580,11 +606,11 @@ export default function SiteHeader() {
                                   )
                                 ) : null}
                               </div>
-                            ) : item.href ? (
-                              item.href.startsWith("http://") ||
-                              item.href.startsWith("https://") ? (
+                            ) : secondLevelHref ? (
+                              secondLevelHref.startsWith("http://") ||
+                              secondLevelHref.startsWith("https://") ? (
                                 <a
-                                  href={item.href}
+                                  href={secondLevelHref}
                                   className="block pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
                                   onClick={() => setMobileOpen(false)}
                                 >
@@ -592,7 +618,7 @@ export default function SiteHeader() {
                                 </a>
                               ) : (
                                 <Link
-                                  href={item.href}
+                                  href={secondLevelHref}
                                   className="block pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
                                   onClick={() => setMobileOpen(false)}
                                 >
@@ -647,7 +673,7 @@ export default function SiteHeader() {
                     </div>
                   )}
               </div>
-            ))}
+            )})}
             <div className="border-t border-gray-200 px-5 py-3 flex gap-4">
               {memberMe ? (
                 <>

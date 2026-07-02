@@ -23,12 +23,12 @@ const READ_LEVEL_OPTIONS: {
 }[] = [
   {
     value: "guest",
-    label: "타교인부터",
+    label: "전체공개",
     description: "비로그인 방문자와 로그인 성도 모두 볼 수 있습니다.",
   },
   {
     value: "member",
-    label: "성도부터",
+    label: "성도 공개",
     description: "로그인한 성도만 볼 수 있습니다.",
   },
   {
@@ -186,7 +186,7 @@ export default function AdminMenuAccessTab() {
             최하위 메뉴 기준으로 누가 볼 수 있는지 최소 읽기 권한을 정합니다. 새로 만든 메뉴도 자동으로 이 목록에 표시됩니다.
           </p>
           <p className="mt-1 text-xs leading-5 text-gray-400">
-            타교인부터는 누구나 볼 수 있고, 성도부터는 로그인한 성도만 볼 수 있습니다.
+            전체공개는 누구나 볼 수 있고, 성도 공개는 로그인한 성도만 볼 수 있습니다.
           </p>
         </div>
         <span className="inline-flex w-fit items-center rounded-full bg-[#E8F5E9] px-3 py-1 text-sm font-semibold text-[#1B5E20]">
