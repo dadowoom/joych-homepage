@@ -11,6 +11,8 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { hasContentPermission } from "@/lib/contentPermissions";
 import {
   AlertCircle,
   Ban,
@@ -21,6 +23,7 @@ import {
   Clock,
   Loader2,
   MapPin,
+  Plus,
   User,
   Users,
   XCircle,
@@ -157,6 +160,7 @@ function ApplicationBadge({ application }: { application: MyApplication }) {
 
 export default function CourseList({ pageHref, title, embedded = false }: CourseListProps = {}) {
   const utils = trpc.useUtils();
+  const { user: adminUser } = useAuth();
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
   const [form, setForm] = useState({
     applicantName: "",
@@ -171,6 +175,9 @@ export default function CourseList({ pageHref, title, embedded = false }: Course
     refetchOnWindowFocus: false,
   });
   const isAuthenticated = Boolean(memberMe);
+  const canManageCourses = hasContentPermission(adminUser, "content:courses");
+  const currentPageHref = pageHref || "/education/courses";
+  const adminCourseCreateHref = `/admin_joych_2026?tab=courses&mode=new&pageHref=${encodeURIComponent(currentPageHref)}`;
   const { data: courses = [], isLoading } = trpc.home.courses.useQuery(pageHref ? { pageHref } : undefined);
   const { data: myApplications = [], isLoading: loadingApplications } = trpc.home.myCourseApplications.useQuery(
     undefined,
@@ -256,6 +263,24 @@ export default function CourseList({ pageHref, title, embedded = false }: Course
 
       <section className={embedded ? "py-2" : "py-10"}>
         <div className="container max-w-5xl mx-auto">
+          {canManageCourses && (
+            <div className="mb-6 rounded-xl border border-green-100 bg-white p-5 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-bold text-[#1B5E20]">관리자 강좌 관리</p>
+                  <p className="mt-1 text-sm text-gray-500">현재 강좌 신청 화면에 표시할 강좌를 바로 추가할 수 있습니다.</p>
+                </div>
+                <Link
+                  href={adminCourseCreateHref}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#1B5E20] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#2E7D32]"
+                >
+                  <Plus className="h-4 w-4" />
+                  강좌 추가
+                </Link>
+              </div>
+            </div>
+          )}
+
           {embedded && title && (
             <div className="mb-5 rounded-xl border border-green-100 bg-white p-5">
               <p className="text-sm font-bold text-[#1B5E20]">{title}</p>

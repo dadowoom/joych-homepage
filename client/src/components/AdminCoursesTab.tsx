@@ -6,7 +6,8 @@
  * - 신청 승인/거절/취소 상태 처리
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearch } from "wouter";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
@@ -290,6 +291,7 @@ function formatDateLabel(dateKey: string) {
 
 export default function AdminCoursesTab() {
   const utils = trpc.useUtils();
+  const searchString = useSearch();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [expandedCourseId, setExpandedCourseId] = useState<number | null>(null);
@@ -313,6 +315,17 @@ export default function AdminCoursesTab() {
     { enabled: expandedCourseId !== null, refetchInterval: 30000 },
   );
   const uploadCourseImage = trpc.cms.upload.courseImage.useMutation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchString);
+    if (params.get("mode") !== "new") return;
+
+    const requestedPageHref = params.get("pageHref") || "/education/courses";
+    setShowForm(true);
+    setEditingId(null);
+    setExpandedCourseId(null);
+    setForm({ ...EMPTY_FORM, pageHref: requestedPageHref });
+  }, [searchString]);
 
   const createCourse = trpc.cms.courses.create.useMutation({
     onSuccess: () => {
