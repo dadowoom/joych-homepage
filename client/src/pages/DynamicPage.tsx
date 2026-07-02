@@ -34,6 +34,7 @@ import { BoardContent } from "@/components/dynamic-page/BoardContent";
 import { YoutubeContent } from "@/components/dynamic-page/YoutubeContent";
 import { EditorContent } from "@/components/dynamic-page/EditorContent";
 import { StaffPage } from "./ChurchIntro";
+import CourseList from "./CourseList";
 import KakaoDirectionsMap from "@/components/KakaoDirectionsMap";
 import {
   findMenuAccessMatchByHref,
@@ -325,6 +326,8 @@ function renderContent(
           menuSubItemId={menuSubItemId}
         />
       );
+    case "course":
+      return <CourseList pageHref={href ?? undefined} title={label} embedded />;
     default:
       return <ImageContent label={label} imageUrl={imageUrl} />;
   }

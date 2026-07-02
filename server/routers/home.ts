@@ -235,7 +235,25 @@ const staticPageHrefSchema = z.string().trim().min(1).max(128).regex(/^\//);
 const staffCategorySchema = z.string().trim().min(1).max(64).regex(/^[a-z0-9][a-z0-9_-]{0,63}$/);
 const translationLocaleSchema = z.enum(["ja"]);
 const courseMemoSchema = z.string().trim().max(2000, "신청 메모는 2000자 이하로 입력해주세요.").optional();
+const courseCustomAnswersSchema = z.record(z.string().max(64), z.string().trim().max(1000)).default({});
 const externalFacilityRulesSettingKey = "external_facility_rules";
+
+function parseCourseApplicationFields(value: string | null | undefined) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((field) => ({
+        id: typeof field?.id === "string" ? field.id.trim() : "",
+        label: typeof field?.label === "string" ? field.label.trim() : "",
+        required: Boolean(field?.required),
+      }))
+      .filter((field) => field.id && field.label);
+  } catch {
+    return [];
+  }
+}
 
 const reservationRepeatSchema = z.object({
   type: z.enum(["none", "daily", "weekly", "monthly-weekday"]).default("none"),
@@ -536,7 +554,12 @@ export const homeRouter = router({
   staffTitleOptions: publicProcedure.query(() => getAllStaffTitleOptions()),
 
   /** 공개 강좌 목록 */
-  courses: publicProcedure.query(() => getVisibleCourses()),
+  courses: publicProcedure
+    .input(z.object({ pageHref: hrefLookupSchema.nullable().optional() }).optional())
+    .query(({ input, ctx }) => getVisibleCourses({
+      pageHref: input?.pageHref ?? null,
+      audience: getMenuReadAccess(ctx),
+    })),
 
   /** 담임목사 저서 목록 */
   pastorBooks: publicProcedure.query(() => getVisiblePastorBooks()),
@@ -572,7 +595,12 @@ export const homeRouter = router({
   /** 공개 강좌 단건 */
   course: publicProcedure
     .input(z.object({ id: idSchema }))
-    .query(({ input }) => getVisibleCourseById(input.id)),
+    .query(async ({ input, ctx }) => {
+      const course = await getVisibleCourseById(input.id);
+      if (!course) return null;
+      if (course.audience === "member" && getMenuReadAccess(ctx) !== "member") return null;
+      return course;
+    }),
 
   /** 내 강좌 신청 내역 조회 (성도 본인 것만) */
   myCourseApplications: memberProtectedProcedure
@@ -586,6 +614,7 @@ export const homeRouter = router({
       applicantPhone: z.string().trim().max(32, "연락처는 32자 이하로 입력해주세요.").optional(),
       applicantEmail: z.string().trim().max(320, "이메일은 320자 이하로 입력해주세요.").optional(),
       memo: courseMemoSchema,
+      customAnswers: courseCustomAnswersSchema.optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const course = await getVisibleCourseById(input.courseId);
@@ -602,6 +631,13 @@ export const homeRouter = router({
       if (course.applyEndDate && today > course.applyEndDate) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "신청 기간이 마감되었습니다." });
       }
+      const customAnswers = input.customAnswers ?? {};
+      const missingRequiredField = parseCourseApplicationFields(course.applicationFields).find((field) =>
+        field.required && !String(customAnswers[field.id] ?? "").trim()
+      );
+      if (missingRequiredField) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `${missingRequiredField.label} 항목을 입력해주세요.` });
+      }
 
       const member = await getMemberById(ctx.memberId);
       if (!member) {
@@ -616,6 +652,7 @@ export const homeRouter = router({
           applicantPhone: input.applicantPhone || member.phone || null,
           applicantEmail: input.applicantEmail || member.email || null,
           memo: input.memo || null,
+          customAnswers: JSON.stringify(customAnswers),
         });
         if (!id) {
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "강좌 신청 저장에 실패했습니다." });

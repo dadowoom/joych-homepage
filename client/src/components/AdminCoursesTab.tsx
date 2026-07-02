@@ -43,6 +43,14 @@ type Course = inferRouterOutputs<AppRouter>["cms"]["courses"]["list"][number];
 type CourseApplication = inferRouterOutputs<AppRouter>["cms"]["courses"]["applications"][number];
 type CourseStatus = Course["status"];
 type ApplicationStatus = CourseApplication["status"];
+type CourseAudience = "all" | "member";
+type ApplicationField = {
+  id: string;
+  label: string;
+  type: "text" | "phone" | "email" | "number" | "select";
+  required: boolean;
+  options: string;
+};
 
 type CourseFacilityReservationRow = {
   id?: number | null;
@@ -92,6 +100,9 @@ const EMPTY_FORM = {
   applyEndDate: "",
   status: "draft" as CourseStatus,
   isVisible: true,
+  audience: "all" as CourseAudience,
+  pageHref: "/education/courses",
+  applicationFields: [] as ApplicationField[],
   applicationNotice: "",
   sortOrder: 0,
 };
@@ -103,6 +114,48 @@ const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 function emptyToNull(value: string) {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function parseApplicationFields(value: string | null | undefined): ApplicationField[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((field) => ({
+        id: typeof field?.id === "string" ? field.id : `field-${Date.now()}`,
+        label: typeof field?.label === "string" ? field.label : "",
+        type: ["text", "phone", "email", "number", "select"].includes(field?.type) ? field.type : "text",
+        required: Boolean(field?.required),
+        options: Array.isArray(field?.options) ? field.options.join(", ") : "",
+      }))
+      .filter((field) => field.label.trim());
+  } catch {
+    return [];
+  }
+}
+
+function serializeApplicationFields(fields: ApplicationField[]) {
+  return fields
+    .filter(field => field.label.trim())
+    .map(field => ({
+      id: field.id,
+      label: field.label.trim(),
+      type: field.type,
+      required: field.required,
+      options: field.options.split(",").map(option => option.trim()).filter(Boolean),
+    }));
+}
+
+function parseCustomAnswers(value: string | null | undefined) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return [];
+    return Object.entries(parsed).filter(([, answer]) => String(answer ?? "").trim());
+  } catch {
+    return [];
+  }
 }
 
 function readFileAsBase64(file: File) {
@@ -254,6 +307,7 @@ export default function AdminCoursesTab() {
 
   const { data: courses = [], isLoading } = trpc.cms.courses.list.useQuery();
   const { data: facilities = [] } = trpc.home.facilities.useQuery();
+  const { data: menus = [] } = trpc.cms.menus.list.useQuery();
   const { data: applications = [], isLoading: loadingApplications } = trpc.cms.courses.applications.useQuery(
     { courseId: expandedCourseId ?? undefined },
     { enabled: expandedCourseId !== null, refetchInterval: 30000 },
@@ -306,6 +360,29 @@ export default function AdminCoursesTab() {
     return courses.filter(course => statusFilter === "all" || course.status === statusFilter);
   }, [courses, statusFilter]);
 
+  const courseMenuOptions = useMemo(() => {
+    const options: { label: string; href: string }[] = [{ label: "강좌 전체", href: "/education/courses" }];
+    for (const menu of menus) {
+      const isCourseTopMenu = menu.label.replace(/\s+/g, "") === "강좌";
+      for (const item of menu.items ?? []) {
+        if (item.href && (isCourseTopMenu || item.pageType === "course" || item.href.startsWith("/education"))) {
+          options.push({ label: `${menu.label} > ${item.label}`, href: item.href });
+        }
+        for (const subItem of item.subItems ?? []) {
+          if (subItem.href && (isCourseTopMenu || subItem.pageType === "course" || subItem.href.startsWith("/education"))) {
+            options.push({ label: `${menu.label} > ${item.label} > ${subItem.label}`, href: subItem.href });
+          }
+        }
+      }
+    }
+    const seen = new Set<string>();
+    return options.filter(option => {
+      if (seen.has(option.href)) return false;
+      seen.add(option.href);
+      return true;
+    });
+  }, [menus]);
+
   const filteredApplications = useMemo(() => {
     return applications.filter(application =>
       applicationFilter === "all" || application.status === applicationFilter
@@ -323,7 +400,7 @@ export default function AdminCoursesTab() {
     }
 
     const rows = [
-      ["강좌명", "강좌 일정", "상태", "신청자명", "연락처", "이메일", "부서", "직분", "신청 메모", "관리자 메모", "신청일", "처리일"],
+      ["강좌명", "강좌 일정", "상태", "신청자명", "연락처", "이메일", "부서", "직분", "신청 메모", "추가 답변", "관리자 메모", "신청일", "처리일"],
       ...filteredApplications.map(application => [
         application.courseTitle ?? exportCourse.title,
         formatDateRange(exportCourse),
@@ -334,6 +411,7 @@ export default function AdminCoursesTab() {
         application.memberDepartment ?? "",
         application.memberPosition ?? "",
         application.memo ?? "",
+        parseCustomAnswers(application.customAnswers).map(([key, answer]) => `${key}: ${answer}`).join(" / "),
         application.adminComment ?? "",
         formatCsvDateTime(application.createdAt),
         formatCsvDateTime(application.processedAt),
@@ -576,6 +654,9 @@ export default function AdminCoursesTab() {
       applyEndDate: course.applyEndDate ?? "",
       status: course.status,
       isVisible: course.isVisible,
+      audience: (course.audience ?? "all") as CourseAudience,
+      pageHref: course.pageHref ?? "/education/courses",
+      applicationFields: parseApplicationFields(course.applicationFields),
       applicationNotice: course.applicationNotice ?? "",
       sortOrder: course.sortOrder,
     });
@@ -601,6 +682,9 @@ export default function AdminCoursesTab() {
       applyEndDate: emptyToNull(form.applyEndDate),
       status: form.status,
       isVisible: form.isVisible,
+      audience: form.audience,
+      pageHref: form.pageHref || "/education/courses",
+      applicationFields: serializeApplicationFields(form.applicationFields),
       applicationNotice: form.applicationNotice,
       sortOrder: Number(form.sortOrder) || 0,
     };
@@ -715,6 +799,30 @@ export default function AdminCoursesTab() {
                 <option value="closed">마감</option>
                 <option value="cancelled">취소</option>
                 <option value="archived">보관</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">등록할 강좌 페이지</label>
+              <select
+                value={form.pageHref}
+                onChange={e => setForm(prev => ({ ...prev, pageHref: e.target.value }))}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]"
+              >
+                {courseMenuOptions.map(option => (
+                  <option key={option.href} value={option.href}>{option.label}</option>
+                ))}
+              </select>
+              <p className="text-[11px] text-gray-400 mt-1">선택한 메뉴의 강좌 목록에만 표시됩니다.</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">노출 대상</label>
+              <select
+                value={form.audience}
+                onChange={e => setForm(prev => ({ ...prev, audience: e.target.value as CourseAudience }))}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]"
+              >
+                <option value="all">전체 공개</option>
+                <option value="member">성도 공개</option>
               </select>
             </div>
             <div className="md:col-span-2">
@@ -950,6 +1058,103 @@ export default function AdminCoursesTab() {
             </div>
           </div>
 
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div>
+                <h5 className="text-sm font-bold text-gray-700">신청 입력 항목</h5>
+                <p className="text-[11px] text-gray-400 mt-0.5">강좌 신청자가 추가로 작성해야 할 항목을 만들 수 있습니다.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm(prev => ({
+                  ...prev,
+                  applicationFields: [
+                    ...prev.applicationFields,
+                    { id: `field-${Date.now()}`, label: "", type: "text", required: false, options: "" },
+                  ],
+                }))}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 px-3 py-2 text-xs font-bold text-[#1B5E20] hover:bg-green-50"
+              >
+                <Plus className="w-3.5 h-3.5" /> 항목 추가
+              </button>
+            </div>
+            {form.applicationFields.length === 0 ? (
+              <div className="rounded-lg bg-gray-50 px-3 py-4 text-center text-xs text-gray-400">추가 입력 항목이 없습니다.</div>
+            ) : (
+              <div className="space-y-2">
+                {form.applicationFields.map((field, index) => (
+                  <div key={field.id} className="grid grid-cols-1 gap-2 rounded-lg border border-gray-100 bg-gray-50 p-3 md:grid-cols-[1fr_130px_90px_40px] md:items-center">
+                    <input
+                      value={field.label}
+                      onChange={e => setForm(prev => ({
+                        ...prev,
+                        applicationFields: prev.applicationFields.map((item, itemIndex) =>
+                          itemIndex === index ? { ...item, label: e.target.value } : item
+                        ),
+                      }))}
+                      placeholder="항목명 예: 생년월일, 보호자 연락처"
+                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]"
+                    />
+                    <select
+                      value={field.type}
+                      onChange={e => setForm(prev => ({
+                        ...prev,
+                        applicationFields: prev.applicationFields.map((item, itemIndex) =>
+                          itemIndex === index ? { ...item, type: e.target.value as ApplicationField["type"] } : item
+                        ),
+                      }))}
+                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]"
+                    >
+                      <option value="text">텍스트</option>
+                      <option value="phone">연락처</option>
+                      <option value="email">이메일</option>
+                      <option value="number">숫자</option>
+                      <option value="select">선택</option>
+                    </select>
+                    <label className="flex items-center gap-2 text-sm text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={field.required}
+                        onChange={e => setForm(prev => ({
+                          ...prev,
+                          applicationFields: prev.applicationFields.map((item, itemIndex) =>
+                            itemIndex === index ? { ...item, required: e.target.checked } : item
+                          ),
+                        }))}
+                        className="rounded border-gray-300 text-[#1B5E20] focus:ring-[#1B5E20]"
+                      />
+                      필수
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setForm(prev => ({
+                        ...prev,
+                        applicationFields: prev.applicationFields.filter((_, itemIndex) => itemIndex !== index),
+                      }))}
+                      className="rounded-lg border border-red-100 bg-white p-2 text-red-500 hover:bg-red-50"
+                      title="항목 삭제"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    {field.type === "select" && (
+                      <input
+                        value={field.options}
+                        onChange={e => setForm(prev => ({
+                          ...prev,
+                          applicationFields: prev.applicationFields.map((item, itemIndex) =>
+                            itemIndex === index ? { ...item, options: e.target.value } : item
+                          ),
+                        }))}
+                        placeholder="선택지 입력: 예, 아니오, 보류"
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20] md:col-span-4"
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-2 pt-2">
             <button
               onClick={handleSave}
@@ -1006,12 +1211,16 @@ export default function AdminCoursesTab() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-bold text-gray-900">{course.title}</p>
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${status.color}`}>{status.label}</span>
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
+                        {course.audience === "member" ? "성도 공개" : "전체 공개"}
+                      </span>
                       {!course.isVisible && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">비노출</span>}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-gray-500 mt-1 flex-wrap">
                       <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{formatDateRange(course)}</span>
                       {course.location && <span>{course.location}</span>}
                       {course.instructor && <span>{course.instructor}</span>}
+                      {course.pageHref && <span>{course.pageHref}</span>}
                       <span className="flex items-center gap-1"><Users className="w-3 h-3" />{course.capacity > 0 ? `${course.activeCount}/${course.capacity}명` : `${course.activeCount}명`}</span>
                       {linkedFacility && <span className="text-[#1B5E20]">시설예약: {linkedFacility.name}</span>}
                       {course.facilityReservationId && <span className="text-blue-600">예약 연결됨</span>}
@@ -1099,6 +1308,13 @@ export default function AdminCoursesTab() {
                                     <span>신청 {formatCreatedAt(application.createdAt)}</span>
                                   </div>
                                   {application.memo && <p className="mt-2 text-xs text-gray-500 bg-gray-50 rounded px-2 py-1.5">{application.memo}</p>}
+                                  {parseCustomAnswers(application.customAnswers).length > 0 && (
+                                    <div className="mt-2 rounded bg-blue-50 px-2 py-1.5 text-xs text-blue-700">
+                                      {parseCustomAnswers(application.customAnswers).map(([key, answer]) => (
+                                        <p key={key}>{key}: {String(answer)}</p>
+                                      ))}
+                                    </div>
+                                  )}
                                   {application.adminComment && <p className="mt-2 text-xs text-red-500 bg-red-50 rounded px-2 py-1.5">{application.adminComment}</p>}
                                 </div>
                                 {application.status === "pending" && (

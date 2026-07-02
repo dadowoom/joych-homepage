@@ -113,8 +113,8 @@ export const menuItems = mysqlTable("menu_items", {
   isVisible: boolean("isVisible").notNull().default(true),
   allowGuest: boolean("allowGuest").notNull().default(true),
   allowMember: boolean("allowMember").notNull().default(true),
-  /** 페이지 표시 타입: image(이미지 전체화면) / gallery(갤러리) / board(게시판) / youtube(유튜브 목록) / editor(텍스트+이미지) */
-  pageType: mysqlEnum("pageType", ["image", "gallery", "board", "youtube", "editor"]).default("image").notNull(),
+  /** 페이지 표시 타입: image(이미지 전체화면) / gallery(갤러리) / board(게시판) / youtube(유튜브 목록) / editor(텍스트+이미지) / course(강좌 목록) */
+  pageType: mysqlEnum("pageType", ["image", "gallery", "board", "youtube", "editor", "course"]).default("image").notNull(),
   /** 이미지 타입일 때 표시할 이미지 URL */
   pageImageUrl: text("pageImageUrl"),
   /** youtube 타입일 때 연결된 플레이리스트 ID */
@@ -141,7 +141,7 @@ export const menuSubItems = mysqlTable("menu_sub_items", {
   allowGuest: boolean("allowGuest").notNull().default(true),
   allowMember: boolean("allowMember").notNull().default(true),
   /** 페이지 표시 타입 */
-  pageType: mysqlEnum("pageType", ["image", "gallery", "board", "youtube", "editor"]).default("image").notNull(),
+  pageType: mysqlEnum("pageType", ["image", "gallery", "board", "youtube", "editor", "course"]).default("image").notNull(),
   /** 이미지 타입일 때 표시할 이미지 URL */
   pageImageUrl: text("pageImageUrl"),
   /** youtube 타입일 때 연결된 플레이리스트 ID */
@@ -1173,6 +1173,12 @@ export const courses = mysqlTable("courses", {
   status: mysqlEnum("status", ["draft", "open", "closed", "cancelled", "archived"]).notNull().default("draft"),
   /** 공개 노출 여부 */
   isVisible: boolean("isVisible").notNull().default(true),
+  /** 노출 대상: all(전체) / member(성도) */
+  audience: mysqlEnum("audience", ["all", "member"]).notNull().default("all"),
+  /** 강좌가 표시될 메뉴 href */
+  pageHref: varchar("pageHref", { length: 255 }),
+  /** 강좌 신청 시 추가 입력 항목 JSON */
+  applicationFields: text("applicationFields"),
   /** 신청 전 안내 문구 */
   applicationNotice: text("applicationNotice"),
   /** 정렬 순서 */
@@ -1207,6 +1213,8 @@ export const courseApplications = mysqlTable("course_applications", {
   applicantEmail: varchar("applicantEmail", { length: 320 }),
   /** 신청 메모 */
   memo: text("memo"),
+  /** 강좌별 추가 입력 답변 JSON */
+  customAnswers: text("customAnswers"),
   /** 상태: pending(대기) / approved(승인) / rejected(거절) / cancelled(취소) */
   status: mysqlEnum("status", ["pending", "approved", "rejected", "cancelled"]).notNull().default("pending"),
   /** 관리자 메모 또는 거절 사유 */

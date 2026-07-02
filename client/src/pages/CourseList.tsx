@@ -28,6 +28,19 @@ import {
 
 type Course = inferRouterOutputs<AppRouter>["home"]["courses"][number];
 type MyApplication = inferRouterOutputs<AppRouter>["home"]["myCourseApplications"][number];
+type ApplicationField = {
+  id: string;
+  label: string;
+  type?: "text" | "phone" | "email" | "number" | "select";
+  required?: boolean;
+  options?: string[];
+};
+
+type CourseListProps = {
+  pageHref?: string;
+  title?: string;
+  embedded?: boolean;
+};
 
 const APPLICATION_STATUS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   pending: { label: "승인 대기", color: "bg-amber-50 text-amber-600 border-amber-200", icon: <Clock className="w-3.5 h-3.5" /> },
@@ -92,6 +105,25 @@ function getApplyState(course: Course) {
   return { open: true, label: "신청 가능" };
 }
 
+function parseApplicationFields(value: string | null | undefined): ApplicationField[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((field) => ({
+        id: typeof field?.id === "string" ? field.id.trim() : "",
+        label: typeof field?.label === "string" ? field.label.trim() : "",
+        type: ["text", "phone", "email", "number", "select"].includes(field?.type) ? field.type : "text",
+        required: Boolean(field?.required),
+        options: Array.isArray(field?.options) ? field.options.map(String).filter(Boolean) : [],
+      }))
+      .filter((field) => field.id && field.label);
+  } catch {
+    return [];
+  }
+}
+
 function CourseHero() {
   return (
     <section className="relative bg-[#1B5E20] py-12 overflow-hidden">
@@ -123,7 +155,7 @@ function ApplicationBadge({ application }: { application: MyApplication }) {
   );
 }
 
-export default function CourseList() {
+export default function CourseList({ pageHref, title, embedded = false }: CourseListProps = {}) {
   const utils = trpc.useUtils();
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
   const [form, setForm] = useState({
@@ -131,6 +163,7 @@ export default function CourseList() {
     applicantPhone: "",
     applicantEmail: "",
     memo: "",
+    customAnswers: {} as Record<string, string>,
   });
 
   const { data: memberMe, isLoading: loadingMember } = trpc.members.me.useQuery(undefined, {
@@ -138,7 +171,7 @@ export default function CourseList() {
     refetchOnWindowFocus: false,
   });
   const isAuthenticated = Boolean(memberMe);
-  const { data: courses = [], isLoading } = trpc.home.courses.useQuery();
+  const { data: courses = [], isLoading } = trpc.home.courses.useQuery(pageHref ? { pageHref } : undefined);
   const { data: myApplications = [], isLoading: loadingApplications } = trpc.home.myCourseApplications.useQuery(
     undefined,
     { enabled: isAuthenticated },
@@ -156,7 +189,7 @@ export default function CourseList() {
     onSuccess: () => {
       toast.success("강좌 신청이 접수되었습니다.");
       setSelectedCourseId(null);
-      setForm(prev => ({ ...prev, memo: "" }));
+      setForm(prev => ({ ...prev, memo: "", customAnswers: {} }));
       utils.home.courses.invalidate();
       utils.home.myCourseApplications.invalidate();
     },
@@ -183,12 +216,20 @@ export default function CourseList() {
       applicantPhone: memberMe?.phone ?? "",
       applicantEmail: memberMe?.email ?? "",
       memo: "",
+      customAnswers: {},
     });
   }
 
   function submitApplication(courseId: number) {
+    const course = courses.find(candidate => candidate.id === courseId);
+    const fields = parseApplicationFields(course?.applicationFields);
     if (!form.applicantName.trim()) {
       toast.error("이름을 입력해주세요.");
+      return;
+    }
+    const missingRequiredField = fields.find(field => field.required && !form.customAnswers[field.id]?.trim());
+    if (missingRequiredField) {
+      toast.error(`${missingRequiredField.label} 항목을 입력해주세요.`);
       return;
     }
     applyCourse.mutate({
@@ -197,6 +238,7 @@ export default function CourseList() {
       applicantPhone: form.applicantPhone || undefined,
       applicantEmail: form.applicantEmail || undefined,
       memo: form.memo || undefined,
+      customAnswers: form.customAnswers,
     });
   }
 
@@ -210,10 +252,16 @@ export default function CourseList() {
 
   return (
     <div className="min-h-screen bg-[#F7F7F5]">
-      <CourseHero />
+      {!embedded && <CourseHero />}
 
-      <section className="py-10">
+      <section className={embedded ? "py-2" : "py-10"}>
         <div className="container max-w-5xl mx-auto">
+          {embedded && title && (
+            <div className="mb-5 rounded-xl border border-green-100 bg-white p-5">
+              <p className="text-sm font-bold text-[#1B5E20]">{title}</p>
+              <p className="mt-1 text-sm text-gray-500">강좌를 확인하고 성도 계정으로 신청할 수 있습니다.</p>
+            </div>
+          )}
           {!isAuthenticated && (
             <div className="mb-6 bg-white border border-gray-100 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-start gap-3">
@@ -283,6 +331,7 @@ export default function CourseList() {
                 const application = applicationByCourseId.get(course.id);
                 const selected = selectedCourseId === course.id;
                 const canReapply = !application || application.status === "rejected" || application.status === "cancelled";
+                const applicationFields = parseApplicationFields(course.applicationFields);
                 return (
                   <div key={course.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                     <div className={course.imageUrl ? "md:grid md:grid-cols-[220px_1fr]" : ""}>
@@ -416,6 +465,42 @@ export default function CourseList() {
                               />
                             </div>
                             <div className="md:col-span-3">
+                              {applicationFields.length > 0 && (
+                                <div className="mb-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  {applicationFields.map(field => (
+                                    <div key={field.id} className={field.type === "select" ? "" : ""}>
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        {field.label}{field.required ? " *" : ""}
+                                      </label>
+                                      {field.type === "select" ? (
+                                        <select
+                                          value={form.customAnswers[field.id] ?? ""}
+                                          onChange={e => setForm(prev => ({
+                                            ...prev,
+                                            customAnswers: { ...prev.customAnswers, [field.id]: e.target.value },
+                                          }))}
+                                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]"
+                                        >
+                                          <option value="">선택</option>
+                                          {(field.options ?? []).map(option => (
+                                            <option key={option} value={option}>{option}</option>
+                                          ))}
+                                        </select>
+                                      ) : (
+                                        <input
+                                          type={field.type === "number" ? "number" : field.type === "email" ? "email" : "text"}
+                                          value={form.customAnswers[field.id] ?? ""}
+                                          onChange={e => setForm(prev => ({
+                                            ...prev,
+                                            customAnswers: { ...prev.customAnswers, [field.id]: e.target.value },
+                                          }))}
+                                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]"
+                                        />
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                               <label className="block text-xs font-medium text-gray-500 mb-1">남길 말</label>
                               <textarea
                                 value={form.memo}

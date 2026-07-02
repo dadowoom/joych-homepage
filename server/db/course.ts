@@ -28,6 +28,7 @@ import {
 
 export type CourseStatus = "draft" | "open" | "closed" | "cancelled" | "archived";
 export type CourseApplicationStatus = "pending" | "approved" | "rejected" | "cancelled";
+export type CourseAudience = "all" | "member";
 
 export class CourseApplicationConflictError extends Error {
   constructor(message = "이미 신청한 강좌입니다.") {
@@ -198,7 +199,7 @@ export async function getCoursesForAdmin() {
   }));
 }
 
-export async function getVisibleCourses() {
+export async function getVisibleCourses(options: { pageHref?: string | null; audience?: "guest" | "member" } = {}) {
   const db = await getDb();
   if (!db) return [];
 
@@ -207,7 +208,13 @@ export async function getVisibleCourses() {
     .from(courses)
     .where(eq(courses.isVisible, true))
     .orderBy(asc(courses.sortOrder), desc(courses.createdAt));
-  const visibleRows = courseRows.filter(course => course.status === "open" || course.status === "closed");
+  const normalizedHref = options.pageHref?.trim() || null;
+  const visibleRows = courseRows.filter(course => {
+    if (course.status !== "open" && course.status !== "closed") return false;
+    if (course.audience === "member" && options.audience !== "member") return false;
+    if (!normalizedHref) return true;
+    return (course.pageHref ?? "/education/courses") === normalizedHref;
+  });
   if (visibleRows.length === 0) return [];
 
   const applicationRows = await db
@@ -302,6 +309,7 @@ export async function getCourseApplications(courseId?: number) {
       applicantPhone: courseApplications.applicantPhone,
       applicantEmail: courseApplications.applicantEmail,
       memo: courseApplications.memo,
+      customAnswers: courseApplications.customAnswers,
       status: courseApplications.status,
       adminComment: courseApplications.adminComment,
       processedBy: courseApplications.processedBy,
@@ -343,6 +351,7 @@ export async function getMyCourseApplications(memberId: number) {
       applicantPhone: courseApplications.applicantPhone,
       applicantEmail: courseApplications.applicantEmail,
       memo: courseApplications.memo,
+      customAnswers: courseApplications.customAnswers,
       status: courseApplications.status,
       adminComment: courseApplications.adminComment,
       processedBy: courseApplications.processedBy,
@@ -425,6 +434,7 @@ export async function createOrReopenCourseApplication(
             applicantPhone: data.applicantPhone ?? null,
             applicantEmail: data.applicantEmail ?? null,
             memo: data.memo ?? null,
+            customAnswers: data.customAnswers ?? null,
             status: "pending",
             adminComment: null,
             processedBy: null,
@@ -439,6 +449,7 @@ export async function createOrReopenCourseApplication(
         applicantPhone: data.applicantPhone ?? null,
         applicantEmail: data.applicantEmail ?? null,
         memo: data.memo ?? null,
+        customAnswers: data.customAnswers ?? null,
         status: "pending",
       });
       return (result as ResultSetHeader).insertId;

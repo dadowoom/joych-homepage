@@ -29,8 +29,16 @@ const idSchema = z.number().int().positive();
 const nullableDateSchema = z.string().regex(DATE_RE, "날짜는 YYYY-MM-DD 형식으로 입력해주세요.").nullable().optional();
 const nullableTimeSchema = z.string().regex(TIME_RE, "시간은 HH:MM 형식으로 입력해주세요.").nullable().optional();
 const courseStatusSchema = z.enum(["draft", "open", "closed", "cancelled", "archived"]);
+const courseAudienceSchema = z.enum(["all", "member"]);
 const applicationStatusSchema = z.enum(["pending", "approved", "rejected", "cancelled"]);
 const courseProcedure = adminPermissionProcedure("content:courses");
+const applicationFieldSchema = z.object({
+  id: z.string().trim().min(1).max(64),
+  label: z.string().trim().min(1).max(80),
+  type: z.enum(["text", "phone", "email", "number", "select"]).default("text"),
+  required: z.boolean().default(false),
+  options: z.array(z.string().trim().max(80)).max(20).optional(),
+});
 
 function compareNullableDate(start?: string | null, end?: string | null) {
   return !start || !end || start <= end;
@@ -59,6 +67,9 @@ const courseShape = {
   applyEndDate: nullableDateSchema,
   status: courseStatusSchema.default("draft"),
   isVisible: z.boolean().default(true),
+  audience: courseAudienceSchema.default("all"),
+  pageHref: z.string().trim().min(1).max(255).nullable().optional(),
+  applicationFields: z.array(applicationFieldSchema).max(20).default([]).transform(fields => JSON.stringify(fields)),
   applicationNotice: optionalTextSchema(10000),
   sortOrder: z.number().int().min(0).max(10000).default(0),
 };

@@ -5,12 +5,12 @@
  */
 
 import React from "react";
-import { Image, LayoutGrid, FileText, Youtube, Type } from "lucide-react";
+import { BookOpen, Image, LayoutGrid, FileText, Youtube, Type } from "lucide-react";
 import { INTERNAL_PAGES, getInternalPagePaths } from "@shared/siteNavigation";
 
 // ─── 타입 정의 ────────────────────────────────────────────────────────────────
 
-export type PageType = "image" | "gallery" | "board" | "youtube" | "editor";
+export type PageType = "image" | "gallery" | "board" | "youtube" | "editor" | "course";
 export type DefaultViewMode = "list" | "grid";
 
 export type MenuSubItemRow = {
@@ -63,6 +63,7 @@ export const PAGE_TYPE_OPTIONS: {
   { value: "board", label: "게시판", icon: <FileText size={12} /> },
   { value: "youtube", label: "유튜브 목록", icon: <Youtube size={12} /> },
   { value: "editor", label: "HTML 편집기", icon: <Type size={12} /> },
+  { value: "course", label: "강좌 신청", icon: <BookOpen size={12} /> },
 ];
 
 // ─── 내부 페이지 경로 목록 ────────────────────────────────────────────────────

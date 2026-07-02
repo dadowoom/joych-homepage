@@ -54,7 +54,7 @@ import {
 } from "../../_core/menuHref";
 
 /** 메뉴 페이지 타입 목록 */
-const PAGE_TYPE = z.enum(["image", "gallery", "board", "youtube", "editor"]);
+const PAGE_TYPE = z.enum(["image", "gallery", "board", "youtube", "editor", "course"]);
 const idSchema = z.number().int().positive();
 const sortOrderSchema = z.number().int().min(0).max(10000).optional();
 const pageImageSchema = safeAssetUrlSchema.nullable().optional();
