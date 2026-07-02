@@ -122,14 +122,37 @@ function getMenuReadAccess(ctx: { user?: unknown; memberId?: number | null }) {
   return ctx.user || ctx.memberId ? "member" : "guest";
 }
 
+function normalizeMenuLabel(label: string | null | undefined) {
+  return (label ?? "").replace(/\s+/g, "");
+}
+
+function canReadBulletinFromVisibleMenus(menus: Awaited<ReturnType<typeof getVisibleMenus>>) {
+  for (const menu of menus) {
+    for (const item of menu.items ?? []) {
+      if (item.href === "/worship/bulletin" || normalizeMenuLabel(item.label) === "주보보기") {
+        return true;
+      }
+
+      for (const subItem of item.subItems ?? []) {
+        if (subItem.href === "/worship/bulletin" || normalizeMenuLabel(subItem.label) === "주보보기") {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
 async function canContextReadBulletins(ctx: { user?: AdminPermissionUser; memberId?: number | null }) {
   if (hasAdminContentPermission(ctx.user, "content:bulletins")) return true;
   const access = getMenuReadAccess(ctx);
-  const [menuItem, menuSubItem] = await Promise.all([
+  const [visibleMenus, menuItem, menuSubItem] = await Promise.all([
+    getVisibleMenus(access),
     getVisibleMenuItemByHref("/worship/bulletin", access),
     getVisibleMenuSubItemByHref("/worship/bulletin", access),
   ]);
-  return Boolean(menuItem || menuSubItem);
+  return Boolean(menuItem || menuSubItem || canReadBulletinFromVisibleMenus(visibleMenus));
 }
 
 type MenuTreeNode = {
