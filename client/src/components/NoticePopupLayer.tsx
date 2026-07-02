@@ -34,12 +34,20 @@ function PopupActionButton({
   popup: Popup;
   onClose: () => void;
 }) {
+  const [, setLocation] = useLocation();
+
   if (!popup.linkLabel || !popup.linkHref) return null;
 
   return (
     <a
       href={popup.linkHref}
-      onClick={onClose}
+      onClick={(event) => {
+        onClose();
+        if (popup.linkHref?.startsWith("/") && !popup.linkHref.startsWith("//")) {
+          event.preventDefault();
+          setLocation(popup.linkHref);
+        }
+      }}
       className="inline-flex items-center justify-center rounded-lg bg-[#1B5E20] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#2E7D32]"
     >
       {popup.linkLabel}
