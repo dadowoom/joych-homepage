@@ -522,6 +522,8 @@ export function VehicleReservationDetail() {
   const params = useParams<{ id: string }>();
   const vehicleId = Number(params.id);
   const [, navigate] = useLocation();
+  const { user: adminUser, loading: adminLoading } = useAuth();
+  const canManageVehicleReservations = hasContentPermission(adminUser, "content:vehicles");
   const [selectedDate, setSelectedDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
@@ -590,7 +592,7 @@ export function VehicleReservationDetail() {
 
   function handleApply() {
     if (!selectedDate) return;
-    if (!memberMe) {
+    if (!memberMe && !canManageVehicleReservations) {
       navigate(getLoginHref(`/support/vehicle/${vehicleId}`));
       return;
     }
@@ -725,7 +727,7 @@ export function VehicleReservationDetail() {
               {vehicleRow.isReservable ? (
                 <Button
                   type="button"
-                  disabled={!selectedDate || memberLoading}
+                  disabled={!selectedDate || memberLoading || adminLoading}
                   onClick={handleApply}
                   className="w-full rounded-xl bg-[#1B5E20] py-6 text-base font-bold text-white hover:bg-[#2E7D32] disabled:opacity-50"
                 >
