@@ -87,6 +87,7 @@ export const dynamicBoardsRouter = router({
       attachmentUrl: optionalAssetUrlInputSchema,
       isPublished: z.boolean().default(true),
       isPinned: z.boolean().default(false),
+      isSecret: z.boolean().default(false),
     }).superRefine(validateSingleBoardSource).superRefine(validateAttachmentPair))
     .mutation(async ({ input, ctx }) => {
       const id = await createDynamicBoardPost({
@@ -99,6 +100,7 @@ export const dynamicBoardsRouter = router({
         attachmentUrl: normalizeOptionalAssetUrlValue(input.attachmentUrl),
         isPublished: input.isPublished,
         isPinned: input.isPinned,
+        isSecret: input.isSecret,
         authorId: ctx.user.id,
       });
       if (!id) {
@@ -120,6 +122,7 @@ export const dynamicBoardsRouter = router({
       attachmentUrl: optionalAssetUrlInputSchema,
       isPublished: z.boolean().optional(),
       isPinned: z.boolean().optional(),
+      isSecret: z.boolean().optional(),
     }).superRefine(validateAttachmentPair))
     .mutation(async ({ input }) => {
       const post = await getDynamicBoardPostById(input.id);

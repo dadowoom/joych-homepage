@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { Check, ChevronLeft, ChevronRight, FileText, Paperclip, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, FileText, Lock, Paperclip, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { RichTextEditor, RichTextViewer, sanitizeRichTextHtml } from "@/components/ui/rich-text-editor";
@@ -36,6 +36,7 @@ type NoticeFormState = {
   attachmentUrl: string;
   isPublished: boolean;
   isPinned: boolean;
+  isSecret: boolean;
 };
 
 type NoticeFormMode = "create" | "edit" | null;
@@ -196,6 +197,7 @@ function NoticeBoardContent({
     attachmentUrl: "",
     isPublished: true,
     isPinned: false,
+    isSecret: false,
   });
 
   const [formState, setFormState] = useState<NoticeFormState>(getBlankForm);
@@ -430,6 +432,7 @@ function NoticeBoardContent({
       attachmentUrl: attachment.url,
       isPublished: notice.isPublished,
       isPinned: notice.isPinned,
+      isSecret: Boolean(notice.isSecret),
     });
   };
 
@@ -514,6 +517,7 @@ function NoticeBoardContent({
       attachmentUrl: supportsAttachments ? formState.attachmentUrl.trim() : undefined,
       isPublished: formState.isPublished,
       isPinned: formState.isPinned,
+      isSecret: formState.isSecret,
     };
 
     if (isCustomBoard) {
@@ -530,6 +534,7 @@ function NoticeBoardContent({
         attachmentUrl: supportsAttachments ? formState.attachmentUrl.trim() : undefined,
         isPublished: formState.isPublished,
         isPinned: formState.isPinned,
+        isSecret: formState.isSecret,
       };
       if (formMode === "edit" && editingNoticeId) {
         updateDynamicPostMutation.mutate({
@@ -541,6 +546,7 @@ function NoticeBoardContent({
           attachmentUrl: dynamicPayload.attachmentUrl,
           isPublished: dynamicPayload.isPublished,
           isPinned: dynamicPayload.isPinned,
+          isSecret: dynamicPayload.isSecret,
         });
         return;
       }
@@ -825,6 +831,15 @@ function NoticeBoardContent({
                 공지글 지정
               </label>
             )}
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={formState.isSecret}
+                onChange={(event) => setFormState((previous) => ({ ...previous, isSecret: event.target.checked }))}
+                className="h-4 w-4 accent-[#1B5E20]"
+              />
+              비밀글
+            </label>
           </div>
         </div>
 
@@ -1005,6 +1020,7 @@ function NoticeBoardContent({
                   const isExpanded = expandedId === notice.id;
                   const displayCategory = normalizeNoticeCategory(getPostCategory(notice));
                   const attachment = getPostAttachment(notice);
+                  const canViewSecret = canViewSecretBoardPost(notice);
                   return (
                     <Fragment key={notice.id}>
                       <tr className="transition-colors hover:bg-gray-50">
@@ -1023,6 +1039,7 @@ function NoticeBoardContent({
                             {!isAdminResource && !isCustomBoard && (
                               <span className="mr-2 text-xs text-[#1B5E20]">[{displayCategory}]</span>
                             )}
+                            {notice.isSecret && <Lock className="mr-1 inline h-3.5 w-3.5 text-gray-400" />}
                             {notice.title}
                             {attachment.url && <Paperclip className="ml-2 inline h-3.5 w-3.5 text-[#1B5E20]" />}
                             {notice.thumbnailUrl && <span className="ml-2 text-[#0F8FB3]">▣</span>}
@@ -1035,7 +1052,7 @@ function NoticeBoardContent({
                       {isExpanded && (
                         <tr className="bg-gray-50/70">
                           <td colSpan={5} className="px-8 py-5">
-                            {notice.thumbnailUrl && (
+                            {canViewSecret && notice.thumbnailUrl && (
                               <img
                                 src={notice.thumbnailUrl}
                                 alt=""
@@ -1093,6 +1110,7 @@ function NoticeBoardContent({
               const isExpanded = expandedId === notice.id;
               const displayCategory = normalizeNoticeCategory(getPostCategory(notice));
               const attachment = getPostAttachment(notice);
+              const canViewSecret = canViewSecretBoardPost(notice);
               return (
                 <article key={notice.id} className={viewMode === "grid" ? "border border-gray-200 bg-white p-4" : "p-4"}>
                   <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
@@ -1108,6 +1126,7 @@ function NoticeBoardContent({
                     {!isAdminResource && !isCustomBoard && (
                       <span className="mr-2 text-xs text-[#1B5E20]">[{displayCategory}]</span>
                     )}
+                    {notice.isSecret && <Lock className="mr-1 inline h-4 w-4 text-gray-400" />}
                     {notice.title}
                     {attachment.url && <Paperclip className="ml-2 inline h-3.5 w-3.5 text-[#1B5E20]" />}
                   </button>
@@ -1117,7 +1136,7 @@ function NoticeBoardContent({
                   </div>
                   {isExpanded && (
                     <div className="mt-4 border-l-2 border-[#1B5E20]/30 pl-3 text-sm leading-6 text-gray-700">
-                      {notice.thumbnailUrl && (
+                      {canViewSecret && notice.thumbnailUrl && (
                         <img
                           src={notice.thumbnailUrl}
                           alt=""
@@ -1236,5 +1255,11 @@ function getPostAttachment(post: unknown) {
     name: typeof value.attachmentName === "string" ? value.attachmentName : "",
     url: typeof value.attachmentUrl === "string" ? value.attachmentUrl : "",
   };
+}
+
+function canViewSecretBoardPost(post: unknown) {
+  if (typeof post !== "object" || post === null) return true;
+  const value = post as { canViewSecret?: unknown };
+  return value.canViewSecret !== false;
 }
 

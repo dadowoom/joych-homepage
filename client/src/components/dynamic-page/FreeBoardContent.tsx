@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { ChevronLeft, ChevronRight, FileText, Pencil, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText, Lock, Pencil, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { RichTextEditor, RichTextViewer, sanitizeRichTextHtml } from "@/components/ui/rich-text-editor";
@@ -51,6 +51,7 @@ export function FreeBoardContent({ defaultViewMode }: { defaultViewMode?: ViewMo
   const [searchKeyword, setSearchKeyword] = useState("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [isSecret, setIsSecret] = useState(false);
   const viewedPostIdsRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
@@ -62,6 +63,7 @@ export function FreeBoardContent({ defaultViewMode }: { defaultViewMode?: ViewMo
     setEditingId(null);
     setTitle("");
     setContent("");
+    setIsSecret(false);
   };
 
   const createPost = trpc.freeBoard.createPost.useMutation({
@@ -109,7 +111,7 @@ export function FreeBoardContent({ defaultViewMode }: { defaultViewMode?: ViewMo
   };
 
   const submit = () => {
-    const payload = { title, content };
+    const payload = { title, content, isSecret };
     if (editingId) {
       updatePost.mutate({ id: editingId, ...payload });
       return;
@@ -121,6 +123,7 @@ export function FreeBoardContent({ defaultViewMode }: { defaultViewMode?: ViewMo
     setEditingId(post.id);
     setTitle(post.title);
     setContent(post.content);
+    setIsSecret(Boolean(post.isSecret));
     setShowForm(true);
   };
 
@@ -215,6 +218,15 @@ export function FreeBoardContent({ defaultViewMode }: { defaultViewMode?: ViewMo
               minHeightClassName="min-h-56 max-h-[55vh]"
               className="rounded-lg"
             />
+            <label className="inline-flex items-center gap-2 text-sm text-gray-600">
+              <input
+                type="checkbox"
+                checked={isSecret}
+                onChange={(event) => setIsSecret(event.target.checked)}
+                className="h-4 w-4 accent-[#1B5E20]"
+              />
+              비밀글
+            </label>
             <div className="flex justify-end gap-2">
               <button
                 type="button"
@@ -323,6 +335,7 @@ export function FreeBoardContent({ defaultViewMode }: { defaultViewMode?: ViewMo
                             className="block max-w-full truncate text-left text-gray-800 hover:text-[#1B5E20]"
                             aria-expanded={isExpanded}
                           >
+                            {post.isSecret && <Lock className="mr-1 inline h-3.5 w-3.5 text-gray-400" />}
                             {post.title}
                           </button>
                         </td>
@@ -334,10 +347,16 @@ export function FreeBoardContent({ defaultViewMode }: { defaultViewMode?: ViewMo
                         <tr className="bg-gray-50/70">
                           <td colSpan={5} className="px-8 py-5">
                             <div className="border-l-2 border-[#1B5E20]/30 pl-4">
-                              <RichTextViewer
-                                html={post.content}
-                                className="text-sm leading-7 text-gray-700"
-                              />
+                              {post.canViewSecret ? (
+                                <RichTextViewer
+                                  html={post.content}
+                                  className="text-sm leading-7 text-gray-700"
+                                />
+                              ) : (
+                                <p className="text-sm leading-7 text-gray-500">
+                                  비밀글입니다. 관리자, 자유게시판 권한자, 작성자만 볼 수 있습니다.
+                                </p>
+                              )}
                             </div>
                             {isOwner && (
                               <div className="mt-4 flex justify-end gap-1">
@@ -388,6 +407,7 @@ export function FreeBoardContent({ defaultViewMode }: { defaultViewMode?: ViewMo
                     className="block w-full text-left text-base font-bold text-gray-900"
                     aria-expanded={isExpanded}
                   >
+                    {post.isSecret && <Lock className="mr-1 inline h-4 w-4 text-gray-400" />}
                     {post.title}
                   </button>
                   <div className="mt-1 flex items-center justify-between gap-2">
@@ -420,10 +440,16 @@ export function FreeBoardContent({ defaultViewMode }: { defaultViewMode?: ViewMo
                   </div>
                   {isExpanded && (
                     <div className="mt-4 border-l-2 border-[#1B5E20]/30 pl-3">
-                      <RichTextViewer
-                        html={post.content}
-                        className="text-sm leading-6 text-gray-700"
-                      />
+                      {post.canViewSecret ? (
+                        <RichTextViewer
+                          html={post.content}
+                          className="text-sm leading-6 text-gray-700"
+                        />
+                      ) : (
+                        <p className="text-sm leading-6 text-gray-500">
+                          비밀글입니다. 관리자, 자유게시판 권한자, 작성자만 볼 수 있습니다.
+                        </p>
+                      )}
                     </div>
                   )}
                 </article>

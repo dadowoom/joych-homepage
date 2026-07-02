@@ -17,6 +17,12 @@ import {
   testimonyPosts,
 } from "../../drizzle/schema";
 import { getDb } from "./connection";
+import {
+  SECRET_POST_MASK_CONTENT,
+  SECRET_POST_MASK_TITLE,
+  canViewSecretPost,
+  type SecretPostViewer,
+} from "./secretPosts";
 
 export type TestimonyPostStatus = "published" | "hidden" | "deleted";
 export type TestimonyCommentStatus = "published" | "hidden" | "deleted";
@@ -27,6 +33,7 @@ export type TestimonyPostListRow = TestimonyPost & {
   authorDepartment: string | null;
   images: string[];
   commentCount: number;
+  canViewSecret: boolean;
 };
 
 export type TestimonyCommentRow = TestimonyComment & {
@@ -45,6 +52,7 @@ const testimonyPostListSelect = {
   content: testimonyPosts.content,
   thumbnailUrl: testimonyPosts.thumbnailUrl,
   status: testimonyPosts.status,
+  isSecret: testimonyPosts.isSecret,
   createdAt: testimonyPosts.createdAt,
 };
 
@@ -62,6 +70,7 @@ type TestimonyPostBaseRow = {
   content: string;
   thumbnailUrl: string | null;
   status: TestimonyPostStatus;
+  isSecret: boolean;
   createdAt: Date;
   viewCount?: number;
   isPinned?: boolean;
@@ -137,11 +146,35 @@ async function hydratePosts(rows: TestimonyPost[]): Promise<TestimonyPostListRow
       authorDepartment: author?.department ?? null,
       images: imagesByPostId.get(post.id) ?? [],
       commentCount: commentCountsByPostId.get(post.id) ?? 0,
+      canViewSecret: true,
     };
   });
 }
 
-export async function getPublishedTestimonyPosts(limit = 100) {
+function applyTestimonySecretAccess(
+  post: TestimonyPostListRow,
+  viewer?: SecretPostViewer,
+): TestimonyPostListRow {
+  const canView = !post.isSecret || canViewSecretPost(viewer, "content:testimonies", post.authorMemberId);
+  if (canView) {
+    return {
+      ...post,
+      canViewSecret: true,
+    };
+  }
+
+  return {
+    ...post,
+    title: SECRET_POST_MASK_TITLE,
+    content: SECRET_POST_MASK_CONTENT,
+    thumbnailUrl: null,
+    images: [],
+    commentCount: 0,
+    canViewSecret: false,
+  };
+}
+
+export async function getPublishedTestimonyPosts(viewer?: SecretPostViewer, limit = 100) {
   const db = await getDb();
   if (!db) return [];
   let rows: TestimonyPostBaseRow[];
@@ -159,7 +192,8 @@ export async function getPublishedTestimonyPosts(limit = 100) {
       .orderBy(desc(testimonyPosts.createdAt), desc(testimonyPosts.id))
       .limit(limit);
   }
-  return hydratePosts(rows.map(normalizeTestimonyPost));
+  return (await hydratePosts(rows.map(normalizeTestimonyPost)))
+    .map((post) => applyTestimonySecretAccess(post, viewer));
 }
 
 export async function getAllTestimonyPosts() {
@@ -178,7 +212,8 @@ export async function getAllTestimonyPosts() {
       .where(ne(testimonyPosts.status, "deleted"))
       .orderBy(desc(testimonyPosts.createdAt), desc(testimonyPosts.id));
   }
-  return hydratePosts(rows.map(normalizeTestimonyPost));
+  return (await hydratePosts(rows.map(normalizeTestimonyPost)))
+    .map((post) => ({ ...post, canViewSecret: true }));
 }
 
 export async function getTestimonyPostsByAuthor(memberId: number) {
@@ -203,7 +238,8 @@ export async function getTestimonyPostsByAuthor(memberId: number) {
       ))
       .orderBy(desc(testimonyPosts.createdAt), desc(testimonyPosts.id));
   }
-  return hydratePosts(rows.map(normalizeTestimonyPost));
+  return (await hydratePosts(rows.map(normalizeTestimonyPost)))
+    .map((post) => ({ ...post, canViewSecret: true }));
 }
 
 export async function getTestimonyPostById(id: number) {
@@ -221,23 +257,49 @@ export async function getTestimonyPostById(id: number) {
   return hydrated ?? null;
 }
 
-export async function getPublishedTestimonyPostById(id: number) {
-  const db = await getDb();
-  if (!db) return null;
-  try {
-    await db.update(testimonyPosts)
-      .set({ viewCount: sql`${testimonyPosts.viewCount} + 1` })
-      .where(and(eq(testimonyPosts.id, id), eq(testimonyPosts.status, "published")));
-  } catch (error) {
-    console.warn("[Testimony] Failed to update view count:", error instanceof Error ? error.message : String(error));
-  }
-
+export async function getPublishedTestimonyPostById(id: number, viewer?: SecretPostViewer) {
   const post = await getTestimonyPostById(id);
   if (!post || post.status !== "published") return null;
+  const canViewSecret = !post.isSecret || canViewSecretPost(viewer, "content:testimonies", post.authorMemberId);
+
+  if (canViewSecret) {
+    const db = await getDb();
+    if (db) {
+      try {
+        await db.update(testimonyPosts)
+          .set({ viewCount: sql`${testimonyPosts.viewCount} + 1` })
+          .where(and(eq(testimonyPosts.id, id), eq(testimonyPosts.status, "published")));
+      } catch (error) {
+        console.warn("[Testimony] Failed to update view count:", error instanceof Error ? error.message : String(error));
+      }
+    }
+  }
+
+  if (!canViewSecret) {
+    return {
+      ...post,
+      title: SECRET_POST_MASK_TITLE,
+      content: SECRET_POST_MASK_CONTENT,
+      thumbnailUrl: null,
+      images: [],
+      commentCount: 0,
+      comments: [],
+      canViewSecret: false,
+    } satisfies TestimonyPostDetail;
+  }
+
   return {
     ...post,
     comments: await getPublishedTestimonyComments(id),
+    canViewSecret: true,
   } satisfies TestimonyPostDetail;
+}
+
+export async function canViewPublishedTestimonyPost(id: number, viewer?: SecretPostViewer) {
+  const post = await getTestimonyPostById(id);
+  if (!post || post.status !== "published") return false;
+  if (!post.isSecret) return true;
+  return canViewSecretPost(viewer, "content:testimonies", post.authorMemberId);
 }
 
 export async function getPublishedTestimonyComments(postId: number) {

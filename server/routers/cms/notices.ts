@@ -126,6 +126,7 @@ export const noticesRouter = router({
       attachmentUrl: optionalAssetUrlInputSchema,
       isPublished: z.boolean().default(true),
       isPinned: z.boolean().default(false),
+      isSecret: z.boolean().default(false),
     }).superRefine(validateAttachmentPair))
     .mutation(({ input, ctx }) =>
       createNotice({
@@ -137,6 +138,7 @@ export const noticesRouter = router({
         attachmentUrl: normalizeOptionalAssetUrlValue(input.attachmentUrl),
         isPublished: input.isPublished,
         isPinned: input.isPinned,
+        isSecret: input.isSecret,
         authorId: ctx.user.id,
       })
     ),
@@ -156,6 +158,7 @@ export const noticesRouter = router({
       attachmentUrl: optionalAssetUrlInputSchema,
       isPublished: z.boolean().optional(),
       isPinned: z.boolean().optional(),
+      isSecret: z.boolean().optional(),
     }).superRefine(validateAttachmentPair))
     .mutation(({ input }) => {
       const { id, ...data } = input;

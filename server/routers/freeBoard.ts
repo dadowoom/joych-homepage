@@ -3,6 +3,7 @@ import { z } from "zod";
 import { normalizeRichTextHtmlContent } from "../_core/contentValidation";
 import { memberProtectedProcedure, publicProcedure, router } from "../_core/trpc";
 import {
+  canViewPublishedFreeBoardPost,
   createFreeBoardPost,
   getFreeBoardPostById,
   getFreeBoardPostsByAuthor,
@@ -17,23 +18,39 @@ const requiredText = (max: number, message: string) =>
   z.string().trim().min(1, message).max(max);
 
 const postInputSchema = z.object({
-  title: requiredText(256, "제목을 입력해주세요."),
-  content: requiredText(50000, "내용을 입력해주세요."),
+  title: requiredText(256, "제목을 입력해 주세요."),
+  content: requiredText(50000, "내용을 입력해 주세요."),
+  isSecret: z.boolean().default(false),
 });
 
 function normalizePostInput(input: z.infer<typeof postInputSchema>) {
   return {
     title: input.title,
     content: normalizeRichTextHtmlContent(input.content, 50000),
+    isSecret: input.isSecret,
   };
 }
 
 export const freeBoardRouter = router({
-  posts: publicProcedure.query(() => getPublishedFreeBoardPosts()),
+  posts: publicProcedure.query(({ ctx }) =>
+    getPublishedFreeBoardPosts({ user: ctx.user, memberId: ctx.memberId }),
+  ),
 
   trackPostView: publicProcedure
     .input(z.object({ id: idSchema }))
-    .mutation(({ input }) => incrementFreeBoardPostViewCount(input.id)),
+    .mutation(async ({ input, ctx }) => {
+      const canView = await canViewPublishedFreeBoardPost(input.id, {
+        user: ctx.user,
+        memberId: ctx.memberId,
+      });
+
+      if (!canView) {
+        return { success: true };
+      }
+
+      await incrementFreeBoardPostViewCount(input.id);
+      return { success: true };
+    }),
 
   myPosts: memberProtectedProcedure.query(({ ctx }) =>
     getFreeBoardPostsByAuthor(ctx.memberId),
@@ -47,14 +64,17 @@ export const freeBoardRouter = router({
         authorMemberId: ctx.memberId,
         title: normalizedInput.title,
         content: normalizedInput.content,
+        isSecret: normalizedInput.isSecret,
         status: "published",
       });
+
       if (!id) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "게시글 저장에 실패했습니다.",
         });
       }
+
       return { id };
     }),
 
@@ -81,10 +101,13 @@ export const freeBoardRouter = router({
           message: "관리자가 숨긴 글은 수정할 수 없습니다.",
         });
       }
+
       await updateFreeBoardPost(input.id, {
         title: normalizedInput.title,
         content: normalizedInput.content,
+        isSecret: normalizedInput.isSecret,
       });
+
       return { success: true };
     }),
 
@@ -104,6 +127,7 @@ export const freeBoardRouter = router({
           message: "본인이 작성한 글만 삭제할 수 있습니다.",
         });
       }
+
       await updateFreeBoardPostStatus(input.id, "deleted");
       return { success: true };
     }),

@@ -31,9 +31,11 @@ import {
 import {
   getVisibleHeroSlides,
   getVisibleQuickMenus,
+  getNoticeById,
   getPublishedNotices,
   getPublishedNoticesByCategory,
   incrementNoticeViewCount,
+  getDynamicBoardPostById,
   getPublishedDynamicBoardPosts,
   incrementDynamicBoardPostViewCount,
   getActiveNoticePopups,
@@ -98,6 +100,7 @@ import {
   ReservationLockError,
   ReservationOverlapError,
 } from "../db";
+import { SECRET_POST_MASK_TITLE } from "../db/secretPosts";
 import { getStaticPageSeed } from "@shared/staticPageContent";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -162,6 +165,38 @@ type AdminPermissionUser = Parameters<typeof hasAdminContentPermission>[0];
 function hasFacilityReservationManagerPermission(user: AdminPermissionUser) {
   return hasAdminContentPermission(user, "content:reservations") ||
     hasAdminContentPermission(user, "content:facilities");
+}
+
+function canContextViewNoticeSecret(ctx: { user?: AdminPermissionUser }) {
+  return hasAdminContentPermission(ctx.user, "content:notices");
+}
+
+type SecretBoardPost = {
+  isSecret: boolean;
+  title: string;
+  content: string | null;
+  thumbnailUrl: string | null;
+  attachmentName?: string | null;
+  attachmentUrl?: string | null;
+};
+
+function applySecretBoardMask<T extends SecretBoardPost>(post: T, canViewSecret: boolean) {
+  if (!post.isSecret || canViewSecret) {
+    return {
+      ...post,
+      canViewSecret: true,
+    };
+  }
+
+  return {
+    ...post,
+    title: SECRET_POST_MASK_TITLE,
+    content: null,
+    thumbnailUrl: null,
+    attachmentName: null,
+    attachmentUrl: null,
+    canViewSecret: false,
+  };
 }
 
 async function canContextUseVehicleReservation(ctx: { user?: AdminPermissionUser; memberId?: number | null }) {
@@ -382,28 +417,54 @@ export const homeRouter = router({
   quickMenus: publicProcedure.query(() => getVisibleQuickMenus()),
 
   /** 교회 소식 최신 5개 (공개된 것만) */
-  notices: publicProcedure.query(() => getPublishedNotices(5)),
+  notices: publicProcedure.query(async ({ ctx }) => {
+    const canViewSecret = canContextViewNoticeSecret(ctx);
+    return (await getPublishedNotices(5)).map((post) => applySecretBoardMask(post, canViewSecret));
+  }),
 
   /** 교회 소식 게시판 전체 목록 (공개된 것만) */
-  noticeBoard: publicProcedure.query(() => getPublishedNotices(100)),
+  noticeBoard: publicProcedure.query(async ({ ctx }) => {
+    const canViewSecret = canContextViewNoticeSecret(ctx);
+    return (await getPublishedNotices(100)).map((post) => applySecretBoardMask(post, canViewSecret));
+  }),
 
   /** 메뉴별 독립 게시판 목록 */
   menuBoard: publicProcedure
     .input(z.object({ category: menuBoardCategorySchema }))
-    .query(({ input }) => getPublishedNoticesByCategory(input.category, 100)),
+    .query(async ({ input, ctx }) => {
+      const canViewSecret = canContextViewNoticeSecret(ctx);
+      return (await getPublishedNoticesByCategory(input.category, 100))
+        .map((post) => applySecretBoardMask(post, canViewSecret));
+    }),
 
   /** 메뉴별 독립 게시판 목록 */
   dynamicBoardPosts: publicProcedure
     .input(dynamicBoardSourceSchema)
-    .query(({ input }) => getPublishedDynamicBoardPosts(input, 100)),
+    .query(async ({ input, ctx }) => {
+      const canViewSecret = canContextViewNoticeSecret(ctx);
+      return (await getPublishedDynamicBoardPosts(input, 100))
+        .map((post) => applySecretBoardMask(post, canViewSecret));
+    }),
 
   trackDynamicBoardPostView: publicProcedure
     .input(z.object({ id: idSchema }))
-    .mutation(({ input }) => incrementDynamicBoardPostViewCount(input.id)),
+    .mutation(async ({ input, ctx }) => {
+      const post = await getDynamicBoardPostById(input.id);
+      if (!post || !post.isPublished) return { success: true };
+      if (post.isSecret && !canContextViewNoticeSecret(ctx)) return { success: true };
+      await incrementDynamicBoardPostViewCount(input.id);
+      return { success: true };
+    }),
 
   trackNoticeView: publicProcedure
     .input(z.object({ id: idSchema }))
-    .mutation(({ input }) => incrementNoticeViewCount(input.id)),
+    .mutation(async ({ input, ctx }) => {
+      const notice = await getNoticeById(input.id);
+      if (!notice || !notice.isPublished) return { success: true };
+      if (notice.isSecret && !canContextViewNoticeSecret(ctx)) return { success: true };
+      await incrementNoticeViewCount(input.id);
+      return { success: true };
+    }),
 
   /** 행정자료 게시판 전체 목록 (공개된 것만) */
   adminResourceBoard: publicProcedure.query(() => getPublishedNoticesByCategory("행정자료", 100)),

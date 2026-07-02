@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
+import { Lock } from "lucide-react";
 import SubPageLayout from "@/components/SubPageLayout";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -160,6 +161,12 @@ export default function TestimonyList() {
                       <span className="absolute top-3 left-3 bg-[#1B5E20]/90 text-white text-xs px-2.5 py-1 rounded-full">
                         간증
                       </span>
+                      {post.isSecret && (
+                        <span className="absolute bottom-3 left-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-gray-700">
+                          <Lock className="h-3 w-3" />
+                          비밀글
+                        </span>
+                      )}
                       {"status" in post && post.status !== "published" && (
                         <span className="absolute top-3 right-3 rounded-full bg-gray-900/80 px-2.5 py-1 text-[11px] font-semibold text-white">
                           {post.status === "hidden" ? "숨김" : "삭제 대기"}
@@ -178,7 +185,9 @@ export default function TestimonyList() {
                       >
                         {post.title}
                       </h2>
-                      <p className="text-sm text-gray-500 leading-relaxed line-clamp-3 flex-1">{post.content}</p>
+                      <p className="text-sm text-gray-500 leading-relaxed line-clamp-3 flex-1">
+                        {post.canViewSecret ? post.content : "비밀글입니다. 관리자, 간증 관리 권한자, 작성자만 볼 수 있습니다."}
+                      </p>
                       <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-4 text-xs text-gray-400">
                         <span className="flex items-center gap-1">
                           <i className="fas fa-comment"></i>
@@ -389,6 +398,12 @@ export function TestimonyDetail() {
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 leading-snug" style={{ fontFamily: "'Noto Serif KR', serif" }}>
               {post.title}
             </h1>
+            {post.isSecret && (
+              <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700">
+                <Lock className="h-3.5 w-3.5" />
+                비밀글
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-3 text-sm text-gray-400 mt-4">
               <span className="font-medium text-gray-700">{post.authorName ?? "성도"}</span>
               {post.authorPosition && <span>{post.authorPosition}</span>}
@@ -397,7 +412,7 @@ export function TestimonyDetail() {
             </div>
           </div>
 
-          {post.images.length > 0 && (
+          {post.canViewSecret && post.images.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
               {post.images.map((imageUrl, index) => (
                 <img
@@ -410,11 +425,18 @@ export function TestimonyDetail() {
             </div>
           )}
 
-          <div className="text-gray-700 leading-8 whitespace-pre-wrap text-[15px]">
-            {post.content}
-          </div>
+          {post.canViewSecret ? (
+            <div className="text-gray-700 leading-8 whitespace-pre-wrap text-[15px]">
+              {post.content}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 px-5 py-6 text-sm leading-7 text-gray-600">
+              비밀글입니다. 관리자, 간증 관리 권한자, 작성자만 내용을 볼 수 있습니다.
+            </div>
+          )}
         </article>
 
+        {post.canViewSecret && (
         <section className="mt-6 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <h2 className="font-bold text-gray-900 mb-5 flex items-center gap-2">
             <i className="fas fa-comments text-[#1B5E20]"></i>
@@ -523,6 +545,7 @@ export function TestimonyDetail() {
             )}
           </div>
         </section>
+        )}
       </main>
     </div>
   );
@@ -548,6 +571,7 @@ export function TestimonyEditor() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [images, setImages] = useState<ImageRow[]>([]);
+  const [isSecret, setIsSecret] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
@@ -555,6 +579,7 @@ export function TestimonyEditor() {
     setTitle(editingPost.title);
     setContent(editingPost.content);
     setImages(editingPost.images.map(imageUrl => ({ imageUrl })));
+    setIsSecret(Boolean(editingPost.isSecret));
   }, [editingPost]);
 
   const createPost = trpc.testimony.createPost.useMutation({
@@ -618,6 +643,7 @@ export function TestimonyEditor() {
       content,
       thumbnailUrl: images[0]?.imageUrl,
       images: images.filter(image => image.imageUrl.trim()),
+      isSecret,
     };
     if (editId) {
       updatePost.mutate({ id: editId, ...payload });
@@ -683,6 +709,16 @@ export function TestimonyEditor() {
               placeholder="간증 내용을 입력해주세요"
             />
           </div>
+
+          <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+            <input
+              type="checkbox"
+              checked={isSecret}
+              onChange={(event) => setIsSecret(event.target.checked)}
+              className="h-4 w-4 accent-[#1B5E20]"
+            />
+            비밀글
+          </label>
 
           <div>
             <div className="flex items-center justify-between gap-3 mb-2">

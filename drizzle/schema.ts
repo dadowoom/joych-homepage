@@ -229,6 +229,7 @@ export const notices = mysqlTable("notices", {
   isPublished: boolean("isPublished").notNull().default(true),
   /** 상단 고정 여부 */
   isPinned: boolean("isPinned").notNull().default(false),
+  isSecret: boolean("isSecret").notNull().default(false),
   /** 작성자 (users.id 참조) */
   authorId: int("authorId"),
   /** 게시글 조회수 */
@@ -270,6 +271,7 @@ export const dynamicBoardPosts = mysqlTable("dynamic_board_posts", {
   attachmentUrl: varchar("attachment_url", { length: 512 }),
   isPublished: boolean("is_published").notNull().default(true),
   isPinned: boolean("is_pinned").notNull().default(false),
+  isSecret: boolean("is_secret").notNull().default(false),
   authorId: int("author_id"),
   viewCount: int("view_count").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -288,6 +290,7 @@ export const freeBoardPosts = mysqlTable("free_board_posts", {
   title: varchar("title", { length: 256 }).notNull(),
   content: text("content").notNull(),
   status: mysqlEnum("status", ["published", "hidden", "deleted"]).notNull().default("published"),
+  isSecret: boolean("is_secret").notNull().default(false),
   /** 게시글 조회수 */
   viewCount: int("view_count").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -1385,6 +1388,7 @@ export const testimonyPosts = mysqlTable("testimony_posts", {
   status: mysqlEnum("status", ["published", "hidden", "deleted"]).notNull().default("published"),
   viewCount: int("view_count").notNull().default(0),
   isPinned: boolean("is_pinned").notNull().default(false),
+  isSecret: boolean("is_secret").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 }, (table) => [

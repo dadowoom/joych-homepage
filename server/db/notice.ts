@@ -52,6 +52,13 @@ export async function getAllNotices() {
   return db.select().from(notices).orderBy(desc(notices.createdAt));
 }
 
+export async function getNoticeById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [notice] = await db.select().from(notices).where(eq(notices.id, id)).limit(1);
+  return notice ?? null;
+}
+
 export async function incrementNoticeViewCount(id: number) {
   const db = await getDb();
   if (!db) return;

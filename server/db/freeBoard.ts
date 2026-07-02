@@ -7,12 +7,19 @@ import {
   type InsertFreeBoardPost,
 } from "../../drizzle/schema";
 import { getDb } from "./connection";
+import {
+  SECRET_POST_MASK_CONTENT,
+  SECRET_POST_MASK_TITLE,
+  canViewSecretPost,
+  type SecretPostViewer,
+} from "./secretPosts";
 
 export type FreeBoardPostStatus = "published" | "hidden" | "deleted";
 
 export type FreeBoardPostRow = FreeBoardPost & {
   authorName: string | null;
   authorPosition: string | null;
+  canViewSecret: boolean;
 };
 
 async function hydrateFreeBoardPosts(rows: FreeBoardPost[]): Promise<FreeBoardPostRow[]> {
@@ -35,11 +42,29 @@ async function hydrateFreeBoardPosts(rows: FreeBoardPost[]): Promise<FreeBoardPo
       ...post,
       authorName: author?.name ?? null,
       authorPosition: author?.position ?? null,
+      canViewSecret: true,
     };
   });
 }
 
-export async function getPublishedFreeBoardPosts(limit = 100) {
+function applyFreeBoardSecretAccess(post: FreeBoardPostRow, viewer?: SecretPostViewer): FreeBoardPostRow {
+  const canView = !post.isSecret || canViewSecretPost(viewer, "content:freeBoard", post.authorMemberId);
+  if (canView) {
+    return {
+      ...post,
+      canViewSecret: true,
+    };
+  }
+
+  return {
+    ...post,
+    title: SECRET_POST_MASK_TITLE,
+    content: SECRET_POST_MASK_CONTENT,
+    canViewSecret: false,
+  };
+}
+
+export async function getPublishedFreeBoardPosts(viewer?: SecretPostViewer, limit = 100) {
   const db = await getDb();
   if (!db) return [];
   const rows = await db.select()
@@ -47,7 +72,7 @@ export async function getPublishedFreeBoardPosts(limit = 100) {
     .where(eq(freeBoardPosts.status, "published"))
     .orderBy(desc(freeBoardPosts.createdAt), desc(freeBoardPosts.id))
     .limit(limit);
-  return hydrateFreeBoardPosts(rows);
+  return (await hydrateFreeBoardPosts(rows)).map((post) => applyFreeBoardSecretAccess(post, viewer));
 }
 
 export async function getAllFreeBoardPosts() {
@@ -57,7 +82,7 @@ export async function getAllFreeBoardPosts() {
     .from(freeBoardPosts)
     .where(ne(freeBoardPosts.status, "deleted"))
     .orderBy(desc(freeBoardPosts.createdAt), desc(freeBoardPosts.id));
-  return hydrateFreeBoardPosts(rows);
+  return (await hydrateFreeBoardPosts(rows)).map((post) => ({ ...post, canViewSecret: true }));
 }
 
 export async function getFreeBoardPostById(id: number) {
@@ -79,7 +104,15 @@ export async function getFreeBoardPostsByAuthor(memberId: number) {
     .from(freeBoardPosts)
     .where(eq(freeBoardPosts.authorMemberId, memberId))
     .orderBy(desc(freeBoardPosts.createdAt), desc(freeBoardPosts.id));
-  return hydrateFreeBoardPosts(rows.filter(post => post.status !== "deleted"));
+  return (await hydrateFreeBoardPosts(rows.filter(post => post.status !== "deleted")))
+    .map((post) => ({ ...post, canViewSecret: true }));
+}
+
+export async function canViewPublishedFreeBoardPost(id: number, viewer?: SecretPostViewer) {
+  const post = await getFreeBoardPostById(id);
+  if (!post || post.status !== "published") return false;
+  if (!post.isSecret) return true;
+  return canViewSecretPost(viewer, "content:freeBoard", post.authorMemberId);
 }
 
 export async function incrementFreeBoardPostViewCount(id: number) {

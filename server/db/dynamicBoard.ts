@@ -119,6 +119,7 @@ export async function createDynamicBoardPost(data: DynamicBoardPostInput) {
     attachmentUrl: data.attachmentUrl,
     isPublished: data.isPublished,
     isPinned: data.isPinned,
+    isSecret: data.isSecret,
     authorId: data.authorId,
   });
   return (result as ResultSetHeader).insertId;
