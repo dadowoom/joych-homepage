@@ -40,6 +40,11 @@ type NoticeFormState = {
   isSecret: boolean;
 };
 
+type BoardAttachment = {
+  name: string;
+  url: string;
+};
+
 type NoticeFormMode = "create" | "edit" | null;
 
 function isFreeBoardPage(label?: string, href?: string | null) {
@@ -143,6 +148,10 @@ function isImageUploadFile(file: File) {
   return file.type.startsWith("image/") || /\.(jpe?g|png|webp|gif)$/i.test(file.name);
 }
 
+function isImageFileName(fileName: string) {
+  return /\.(jpe?g|png|webp|gif)$/i.test(fileName);
+}
+
 function readFileAsBase64(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -153,6 +162,59 @@ function readFileAsBase64(file: File) {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+function normalizeAttachment(value: unknown): BoardAttachment | null {
+  if (typeof value !== "object" || value === null) return null;
+  const item = value as { name?: unknown; url?: unknown };
+  const name = typeof item.name === "string" ? item.name.trim() : "";
+  const url = typeof item.url === "string" ? item.url.trim() : "";
+  if (!url) return null;
+  return { name, url };
+}
+
+function parseAttachmentList(nameValue: unknown, urlValue: unknown): BoardAttachment[] {
+  if (typeof urlValue === "string" && urlValue.trim().startsWith("[")) {
+    try {
+      const parsed = JSON.parse(urlValue) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map(normalizeAttachment)
+          .filter((item): item is BoardAttachment => Boolean(item));
+      }
+    } catch {
+      // Fall back to the legacy single attachment fields below.
+    }
+  }
+
+  const name = typeof nameValue === "string" ? nameValue : "";
+  const url = typeof urlValue === "string" ? urlValue : "";
+  return url ? [{ name, url }] : [];
+}
+
+function serializeAttachmentList(attachments: BoardAttachment[]) {
+  const normalized = attachments
+    .map((item) => ({
+      name: item.name.trim(),
+      url: item.url.trim(),
+    }))
+    .filter((item) => item.url);
+
+  if (normalized.length === 0) {
+    return { attachmentName: "", attachmentUrl: "" };
+  }
+
+  if (normalized.length === 1) {
+    return {
+      attachmentName: normalized[0].name,
+      attachmentUrl: normalized[0].url,
+    };
+  }
+
+  return {
+    attachmentName: `${normalized.length}개 첨부파일`,
+    attachmentUrl: JSON.stringify(normalized),
+  };
 }
 
 function NoticeBoardContent({
@@ -170,6 +232,7 @@ function NoticeBoardContent({
   const isCustomBoard = Boolean(customBoard);
   const canManageNotices = canManageBoardContent(user, "content:notices");
   const supportsAttachments = isAdminResource || isCustomBoard;
+  const supportsMultipleAttachments = isCustomBoard;
   const customBoardSource = customBoard?.menuSubItemId
     ? { menuSubItemId: customBoard.menuSubItemId }
     : customBoard?.menuItemId
@@ -427,7 +490,7 @@ function NoticeBoardContent({
   };
 
   const openEditForm = (notice: NonNullable<typeof notices>[number]) => {
-    const attachment = getPostAttachment(notice);
+    const attachmentFields = getPostAttachmentFields(notice);
     setFormMode("edit");
     setEditingNoticeId(notice.id);
     setFormState({
@@ -438,8 +501,8 @@ function NoticeBoardContent({
       content: notice.content ?? "",
       createdAt: toDateTimeLocalValue(notice.createdAt),
       thumbnailUrl: notice.thumbnailUrl ?? "",
-      attachmentName: attachment.name,
-      attachmentUrl: attachment.url,
+      attachmentName: attachmentFields.name,
+      attachmentUrl: attachmentFields.url,
       isPublished: notice.isPublished,
       isPinned: notice.isPinned,
       isSecret: Boolean(notice.isSecret),
@@ -453,33 +516,33 @@ function NoticeBoardContent({
   };
 
   const handleUploadFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const selectedFiles = Array.from(event.target.files ?? []);
+    if (selectedFiles.length === 0) return;
 
-    const isImage = isImageUploadFile(file);
-    if (!supportsAttachments && !isImage) {
-      toast.error(IMAGE_ONLY_UPLOAD_TEXT);
-      event.target.value = "";
-      return;
-    }
+    const invalidFile = selectedFiles.find((file) => {
+      const isImage = isImageUploadFile(file);
+      if (!supportsAttachments && !isImage) return true;
+      if (!supportsAttachments && file.size > IMAGE_MAX_BYTES) return true;
+      return supportsAttachments && file.size > ATTACHMENT_MAX_BYTES;
+    });
 
-    if (!supportsAttachments && file.size > IMAGE_MAX_BYTES) {
-      toast.error(IMAGE_TOO_LARGE_TEXT);
-      event.target.value = "";
-      return;
-    }
-
-    if (supportsAttachments && file.size > ATTACHMENT_MAX_BYTES) {
-      toast.error(ATTACHMENT_TOO_LARGE_TEXT);
+    if (invalidFile) {
+      if (!supportsAttachments && !isImageUploadFile(invalidFile)) {
+        toast.error(IMAGE_ONLY_UPLOAD_TEXT);
+      } else if (!supportsAttachments) {
+        toast.error(IMAGE_TOO_LARGE_TEXT);
+      } else {
+        toast.error(ATTACHMENT_TOO_LARGE_TEXT);
+      }
       event.target.value = "";
       return;
     }
 
     setUploadingFile(true);
     try {
-      const base64 = await readFileAsBase64(file);
-
       if (!supportsAttachments) {
+        const file = selectedFiles[0];
+        const base64 = await readFileAsBase64(file);
         const { url } = await uploadImageMutation.mutateAsync({
           base64,
           fileName: file.name,
@@ -490,16 +553,31 @@ function NoticeBoardContent({
         return;
       }
 
-      const result = await uploadAttachmentMutation.mutateAsync({
-        base64,
-        fileName: file.name,
-        mimeType: file.type || "application/octet-stream",
-      });
+      const uploadedAttachments: BoardAttachment[] = [];
+      for (const file of selectedFiles) {
+        const base64 = await readFileAsBase64(file);
+        const result = await uploadAttachmentMutation.mutateAsync({
+          base64,
+          fileName: file.name,
+          mimeType: file.type || "application/octet-stream",
+        });
+        uploadedAttachments.push({ name: result.fileName, url: result.url });
+      }
+
       setFormState((previous) => ({
         ...previous,
-        thumbnailUrl: isImage ? result.url : "",
-        attachmentName: result.fileName,
-        attachmentUrl: result.url,
+        thumbnailUrl:
+          previous.thumbnailUrl ||
+          uploadedAttachments.find((attachment) => isImageFileName(attachment.name))?.url ||
+          "",
+        ...serializeAttachmentList(
+          supportsMultipleAttachments
+            ? [
+                ...parseAttachmentList(previous.attachmentName, previous.attachmentUrl),
+                ...uploadedAttachments,
+              ]
+            : uploadedAttachments.slice(-1),
+        ),
       }));
       toast.success(ATTACHMENT_UPLOAD_SUCCESS_TEXT);
     } finally {
@@ -696,6 +774,15 @@ function NoticeBoardContent({
       || updateMutation.isPending
       || createDynamicPostMutation.isPending
       || updateDynamicPostMutation.isPending;
+    const formAttachments = parseAttachmentList(formState.attachmentName, formState.attachmentUrl);
+    const removeFormAttachment = (attachmentUrl: string) => {
+      const nextAttachments = formAttachments.filter((attachment) => attachment.url !== attachmentUrl);
+      setFormState((previous) => ({
+        ...previous,
+        thumbnailUrl: nextAttachments.some((attachment) => attachment.url === previous.thumbnailUrl) ? previous.thumbnailUrl : "",
+        ...serializeAttachmentList(nextAttachments),
+      }));
+    };
     const formTitle = formMode === "edit" ? `${createButtonLabel.replace("작성", "수정")}` : createButtonLabel;
 
     return (
@@ -771,7 +858,7 @@ function NoticeBoardContent({
           <div className="space-y-2 md:col-span-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="block text-sm font-semibold text-gray-700">{ATTACHMENT_LABEL}</span>
-              {(formState.thumbnailUrl || formState.attachmentUrl) && (
+              {(formState.thumbnailUrl || formAttachments.length > 0) && (
                 <button
                   type="button"
                   onClick={() => setFormState((previous) => ({
@@ -813,19 +900,35 @@ function NoticeBoardContent({
               <input
                 ref={fileInputRef}
                 type="file"
+                multiple={supportsMultipleAttachments}
                 accept={supportsAttachments ? ATTACHMENT_ACCEPT : IMAGE_ACCEPT}
                 className="hidden"
                 onChange={handleUploadFileChange}
               />
               <div className="min-w-0 flex-1 border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                {formState.attachmentUrl ? (
-                  <a
-                    href={formState.attachmentUrl}
-                    className="inline-flex max-w-full items-center gap-2 text-[#1B5E20] hover:underline"
-                  >
-                    <Paperclip className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{formState.attachmentName || ATTACHMENT_LABEL}</span>
-                  </a>
+                {formAttachments.length > 0 ? (
+                  <div className="space-y-1">
+                    {formAttachments.map((attachment) => (
+                      <div key={attachment.url} className="flex min-w-0 items-center gap-2">
+                        <a
+                          href={attachment.url}
+                          className="inline-flex min-w-0 flex-1 items-center gap-2 text-[#1B5E20] hover:underline"
+                        >
+                          <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{attachment.name || ATTACHMENT_LABEL}</span>
+                        </a>
+                        {supportsMultipleAttachments && (
+                          <button
+                            type="button"
+                            onClick={() => removeFormAttachment(attachment.url)}
+                            className="shrink-0 text-[11px] text-red-500 hover:underline"
+                          >
+                            삭제
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 ) : (
                   <span>{supportsAttachments ? ATTACHMENT_HELP_TEXT : IMAGE_HELP_TEXT}</span>
                 )}
@@ -1041,7 +1144,7 @@ function NoticeBoardContent({
                   const postNumber = notice.isPinned ? "공지" : String(filteredNotices.length - (pageStart + index));
                   const isExpanded = expandedId === notice.id;
                   const displayCategory = normalizeNoticeCategory(getPostCategory(notice));
-                  const attachment = getPostAttachment(notice);
+                  const attachments = getPostAttachments(notice);
                   const canViewSecret = canViewSecretBoardPost(notice);
                   return (
                     <Fragment key={notice.id}>
@@ -1063,7 +1166,7 @@ function NoticeBoardContent({
                             )}
                             {notice.isSecret && <Lock className="mr-1 inline h-3.5 w-3.5 text-gray-400" />}
                             {notice.title}
-                            {attachment.url && <Paperclip className="ml-2 inline h-3.5 w-3.5 text-[#1B5E20]" />}
+                            {attachments.length > 0 && <Paperclip className="ml-2 inline h-3.5 w-3.5 text-[#1B5E20]" />}
                             {notice.thumbnailUrl && <span className="ml-2 text-[#0F8FB3]">▣</span>}
                           </button>
                         </td>
@@ -1087,15 +1190,18 @@ function NoticeBoardContent({
                             <div className="whitespace-pre-line border-l-2 border-[#1B5E20]/30 pl-4 text-sm leading-7 text-gray-700">
                               {notice.content ? <RichTextViewer html={notice.content} /> : "등록된 본문 내용이 없습니다."}
                             </div>
-                            {attachment.url && (
-                              <div className="mt-4">
-                                <a
-                                  href={attachment.url}
-                                  className="inline-flex items-center gap-2 border border-[#1B5E20]/20 bg-white px-3 py-2 text-sm text-[#1B5E20] hover:bg-[#F1F8E9]"
-                                >
-                                  <Paperclip className="h-4 w-4" />
-                                  <span>{attachment.name || ATTACHMENT_LABEL}</span>
-                                </a>
+                            {attachments.length > 0 && (
+                              <div className="mt-4 flex flex-wrap gap-2">
+                                {attachments.map((item) => (
+                                  <a
+                                    key={item.url}
+                                    href={item.url}
+                                    className="inline-flex max-w-full items-center gap-2 border border-[#1B5E20]/20 bg-white px-3 py-2 text-sm text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                  >
+                                    <Paperclip className="h-4 w-4 shrink-0" />
+                                    <span className="truncate">{item.name || ATTACHMENT_LABEL}</span>
+                                  </a>
+                                ))}
                               </div>
                             )}
                             {canManageNotices && (
@@ -1131,7 +1237,7 @@ function NoticeBoardContent({
               const postNumber = notice.isPinned ? "공지" : String(filteredNotices.length - (pageStart + index));
               const isExpanded = expandedId === notice.id;
               const displayCategory = normalizeNoticeCategory(getPostCategory(notice));
-              const attachment = getPostAttachment(notice);
+              const attachments = getPostAttachments(notice);
               const canViewSecret = canViewSecretBoardPost(notice);
               return (
                 <article key={notice.id} className={viewMode === "grid" ? "border border-gray-200 bg-white p-4" : "p-4"}>
@@ -1150,7 +1256,7 @@ function NoticeBoardContent({
                     )}
                     {notice.isSecret && <Lock className="mr-1 inline h-4 w-4 text-gray-400" />}
                     {notice.title}
-                    {attachment.url && <Paperclip className="ml-2 inline h-3.5 w-3.5 text-[#1B5E20]" />}
+                    {attachments.length > 0 && <Paperclip className="ml-2 inline h-3.5 w-3.5 text-[#1B5E20]" />}
                   </button>
                   <div className="mt-1 flex flex-wrap gap-2 text-xs text-gray-500">
                     <span className="font-medium text-[#1B5E20]">관리자</span>
@@ -1169,15 +1275,18 @@ function NoticeBoardContent({
                          loading="lazy"/>
                       )}
                       {notice.content ? <RichTextViewer html={notice.content} /> : <p>등록된 본문 내용이 없습니다.</p>}
-                      {attachment.url && (
-                        <div className="mt-4">
-                          <a
-                            href={attachment.url}
-                            className="inline-flex items-center gap-2 border border-[#1B5E20]/20 bg-white px-3 py-2 text-sm text-[#1B5E20] hover:bg-[#F1F8E9]"
-                          >
-                            <Paperclip className="h-4 w-4" />
-                            <span>{attachment.name || ATTACHMENT_LABEL}</span>
-                          </a>
+                      {attachments.length > 0 && (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {attachments.map((item) => (
+                            <a
+                              key={item.url}
+                              href={item.url}
+                              className="inline-flex max-w-full items-center gap-2 border border-[#1B5E20]/20 bg-white px-3 py-2 text-sm text-[#1B5E20] hover:bg-[#F1F8E9]"
+                            >
+                              <Paperclip className="h-4 w-4 shrink-0" />
+                              <span className="truncate">{item.name || ATTACHMENT_LABEL}</span>
+                            </a>
+                          ))}
                         </div>
                       )}
                       {canManageNotices && (
@@ -1270,13 +1379,22 @@ function getPostCategory(post: unknown) {
   return typeof value === "string" ? value : undefined;
 }
 
-function getPostAttachment(post: unknown) {
+function getPostAttachmentFields(post: unknown) {
   if (typeof post !== "object" || post === null) return { name: "", url: "" };
   const value = post as { attachmentName?: unknown; attachmentUrl?: unknown };
   return {
     name: typeof value.attachmentName === "string" ? value.attachmentName : "",
     url: typeof value.attachmentUrl === "string" ? value.attachmentUrl : "",
   };
+}
+
+function getPostAttachment(post: unknown) {
+  return getPostAttachments(post)[0] ?? { name: "", url: "" };
+}
+
+function getPostAttachments(post: unknown) {
+  const fields = getPostAttachmentFields(post);
+  return parseAttachmentList(fields.name, fields.url);
 }
 
 function canViewSecretBoardPost(post: unknown) {
