@@ -311,7 +311,7 @@ function getBulletinPages(bulletin: BulletinWithPages) {
 }
 
 const MAX_BULLETIN_UPLOAD_BYTES = 8 * 1024 * 1024;
-const BULLETIN_PAGE_SIZE_OPTIONS = [12, 24, 48] as const;
+const BULLETIN_PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 const MAX_BULLETIN_UPLOAD_COUNT = 12;
 const ALLOWED_BULLETIN_UPLOAD_RE = /\.(jpg|jpeg|png)$/i;
 
@@ -359,6 +359,57 @@ function sortBulletinUploadFiles(files: File[]) {
   return [...files].sort((a, b) =>
     a.name.localeCompare(b.name, "ko-KR", { numeric: true, sensitivity: "base" })
   );
+}
+
+function normalizeBulletinSearchValue(value: string) {
+  return value.toLowerCase().replace(/\s+/g, "").replace(/[.\-_/()[\]]/g, "");
+}
+
+function buildBulletinSearchIndex(
+  bulletin: BulletinWithPages & {
+    id: number;
+    title: string;
+    bulletinDate: string | Date | null;
+    status?: "published" | "hidden" | "archived" | null;
+    viewCount?: number | null;
+  },
+) {
+  const pages = getBulletinPages(bulletin);
+  const formattedDate = formatBulletinDate(bulletin.bulletinDate);
+  const rawDate = typeof bulletin.bulletinDate === "string"
+    ? bulletin.bulletinDate
+    : bulletin.bulletinDate instanceof Date
+      ? bulletin.bulletinDate.toISOString().slice(0, 10)
+      : "";
+  const statusLabel = bulletin.status === "hidden"
+    ? "숨김 비공개 hidden"
+    : bulletin.status === "archived"
+      ? "보관 archived"
+      : "공개 published";
+
+  return [
+    bulletin.title,
+    formattedDate,
+    rawDate,
+    rawDate.replaceAll("-", "."),
+    rawDate.replaceAll("-", ""),
+    String(bulletin.id),
+    `첨부 ${pages.length}`,
+    `첨부 ${pages.length}장`,
+    `페이지 ${pages.length}`,
+    `페이지수 ${pages.length}`,
+    `조회수 ${bulletin.viewCount ?? 0}`,
+    String(bulletin.viewCount ?? 0),
+    statusLabel,
+    ...pages.flatMap((page) => [
+      page.fileName,
+      page.fileMime ?? "",
+      formatBulletinFileSize(page.fileSize),
+      String(page.sortOrder ?? ""),
+    ]),
+  ]
+    .join(" ")
+    .trim();
 }
 
 function BulletinUploadPanel() {
@@ -811,12 +862,15 @@ export function Bulletin() {
   const [lightbox, setLightbox] = useState<{ bulletinId: number; pageIndex: number } | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
-  const [pageSize, setPageSize] = useState<(typeof BULLETIN_PAGE_SIZE_OPTIONS)[number]>(12);
+  const [pageSize, setPageSize] = useState<(typeof BULLETIN_PAGE_SIZE_OPTIONS)[number]>(20);
   const [page, setPage] = useState(1);
   const touchStartXRef = useRef<number | null>(null);
   const { parentLabel, sideMenuItems } = getSupportSideMenuItems(allMenus, "/worship/bulletin");
-  const filteredBulletins = searchKeyword.trim()
-    ? bulletins.filter((bulletin) => bulletin.title.toLowerCase().includes(searchKeyword.trim().toLowerCase()))
+  const normalizedSearchKeyword = normalizeBulletinSearchValue(searchKeyword.trim());
+  const filteredBulletins = normalizedSearchKeyword
+    ? bulletins.filter((bulletin) =>
+        normalizeBulletinSearchValue(buildBulletinSearchIndex(bulletin)).includes(normalizedSearchKeyword)
+      )
     : bulletins;
   const totalPages = Math.max(1, Math.ceil(filteredBulletins.length / pageSize));
   const activePage = Math.min(page, totalPages);
@@ -933,18 +987,12 @@ export function Bulletin() {
                 setSearchKeyword(searchInput);
               }}
             >
-              <select
-                className="h-8 rounded-none border border-gray-300 bg-white px-2 text-xs text-gray-700 outline-none focus:border-[#1B5E20]"
-                aria-label="검색 조건"
-                defaultValue="title"
-              >
-                <option value="title">제목</option>
-              </select>
               <input
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
                 className="h-8 min-w-0 flex-1 rounded-none border border-gray-300 px-2 text-xs outline-none focus:border-[#1B5E20] md:w-56"
                 aria-label="검색어"
+                placeholder="제목, 날짜, 파일명, 조회수 검색"
               />
               <button
                 type="submit"
