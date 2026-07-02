@@ -14,7 +14,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Loader2, Pencil, Plus, Trash2, Youtube } from "lucide-react";
+import { Eye, EyeOff, GripVertical, Loader2, Pencil, Plus, Trash2, Youtube } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,7 @@ type VideoListItem = {
   sermonDate?: string | null;
   thumbnailUrl?: string | null;
   description?: string | null;
+  isVisible?: boolean | null;
 };
 
 function extractVideoId(url: string): string | null {
@@ -62,10 +63,14 @@ function SortableVideoItem({
   video,
   onDelete,
   onEdit,
+  onToggleVisible,
+  isTogglePending,
 }: {
   video: VideoListItem;
   onDelete: (id: number) => void;
   onEdit: (video: VideoListItem) => void;
+  onToggleVisible: (video: VideoListItem) => void;
+  isTogglePending: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: video.id });
@@ -105,7 +110,23 @@ function SortableVideoItem({
       <div className="min-w-0 flex-1">
         <p className="line-clamp-1 text-sm font-medium leading-tight text-gray-800">{video.title}</p>
         {meta && <p className="mt-0.5 line-clamp-1 text-xs text-gray-400">{meta}</p>}
+        {video.isVisible === false && (
+          <span className="mt-1 inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
+            숨김
+          </span>
+        )}
       </div>
+      <button
+        onClick={() => onToggleVisible(video)}
+        disabled={isTogglePending}
+        className={`shrink-0 opacity-0 transition-colors group-hover:opacity-100 ${
+          video.isVisible === false ? "text-gray-400 hover:text-[#1B5E20]" : "text-[#1B5E20] hover:text-[#154a19]"
+        } disabled:cursor-not-allowed disabled:opacity-60`}
+        type="button"
+        title={video.isVisible === false ? "영상 노출하기" : "영상 숨기기"}
+      >
+        {video.isVisible === false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
       <button
         onClick={() => onEdit(video)}
         className="shrink-0 text-gray-300 opacity-0 transition-colors hover:text-[#1B5E20] group-hover:opacity-100"
@@ -191,6 +212,15 @@ export default function YoutubeAdminTab() {
       toast.success("영상 정보가 수정되었습니다.");
     },
     onError: (err) => toast.error(err.message || "영상 정보 수정에 실패했습니다."),
+  });
+
+  const toggleVideoVisibility = trpc.youtube.updateVideo.useMutation({
+    onSuccess: (_, variables) => {
+      utils.youtube.getVideosAdmin.invalidate();
+      utils.youtube.getVideos.invalidate();
+      toast.success(variables.isVisible ? "영상이 노출되도록 변경했습니다." : "영상을 숨김 처리했습니다.");
+    },
+    onError: (err) => toast.error(err.message || "영상 노출 상태 변경에 실패했습니다."),
   });
 
   const deleteVideo = trpc.youtube.deleteVideo.useMutation({
@@ -583,6 +613,16 @@ export default function YoutubeAdminTab() {
                           key={video.id}
                           video={video}
                           onEdit={startEditVideo}
+                          onToggleVisible={(item) => {
+                            toggleVideoVisibility.mutate({
+                              id: item.id,
+                              isVisible: item.isVisible === false,
+                            });
+                          }}
+                          isTogglePending={
+                            toggleVideoVisibility.isPending &&
+                            toggleVideoVisibility.variables?.id === video.id
+                          }
                           onDelete={(id) => {
                             if (confirm("이 영상을 삭제할까요?")) deleteVideo.mutate({ id });
                           }}

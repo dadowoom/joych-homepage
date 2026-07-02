@@ -25,7 +25,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2, Plus, Youtube, Loader2, X } from "lucide-react";
+import { Eye, EyeOff, GripVertical, Trash2, Plus, Youtube, Loader2, X } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 // ─── 유튜브 URL에서 videoId 추출 ───────────────────────────────
@@ -45,9 +45,13 @@ function extractVideoId(url: string): string | null {
 function SortableVideoItem({
   video,
   onDelete,
+  onToggleVisible,
+  isTogglePending,
 }: {
-  video: { id: number; videoId?: string | null; videoUrl?: string | null; title: string; thumbnailUrl?: string | null };
+  video: { id: number; videoId?: string | null; videoUrl?: string | null; title: string; thumbnailUrl?: string | null; isVisible?: boolean | null };
   onDelete: (id: number) => void;
+  onToggleVisible: (id: number, nextVisible: boolean) => void;
+  isTogglePending: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: video.id });
@@ -88,7 +92,25 @@ function SortableVideoItem({
       )}
 
       {/* 제목 */}
-      <p className="flex-1 text-sm text-gray-800 line-clamp-2 leading-tight min-w-0">{video.title}</p>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm text-gray-800 line-clamp-2 leading-tight">{video.title}</p>
+        {video.isVisible === false && (
+          <span className="mt-1 inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
+            숨김
+          </span>
+        )}
+      </div>
+
+      <button
+        onClick={() => onToggleVisible(video.id, video.isVisible === false)}
+        disabled={isTogglePending}
+        className={`flex-shrink-0 transition-colors opacity-0 group-hover:opacity-100 ${
+          video.isVisible === false ? "text-gray-400 hover:text-[#1B5E20]" : "text-[#1B5E20] hover:text-[#154a19]"
+        } disabled:cursor-not-allowed disabled:opacity-60`}
+        title={video.isVisible === false ? "영상 노출하기" : "영상 숨기기"}
+      >
+        {video.isVisible === false ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+      </button>
 
       {/* 삭제 버튼 */}
       <button
@@ -182,6 +204,16 @@ export default function YoutubeEditPanel({
     onSuccess: () => {
       refreshSelectedPlaylistVideos();
       toast.success("영상이 삭제됩니다.");;
+    },
+  });
+
+  const toggleVideoVisibility = trpc.youtube.updateVideo.useMutation({
+    onSuccess: (_, variables) => {
+      refreshSelectedPlaylistVideos();
+      toast.success(variables.isVisible ? "영상이 노출되도록 변경했습니다." : "영상을 숨김 처리했습니다.");
+    },
+    onError: (err) => {
+      toast.error("영상 노출 상태 변경 실패: " + err.message);
     },
   });
 
@@ -407,6 +439,13 @@ export default function YoutubeEditPanel({
                         <SortableVideoItem
                           key={video.id}
                           video={video}
+                          onToggleVisible={(id, nextVisible) => {
+                            toggleVideoVisibility.mutate({ id, isVisible: nextVisible });
+                          }}
+                          isTogglePending={
+                            toggleVideoVisibility.isPending &&
+                            toggleVideoVisibility.variables?.id === video.id
+                          }
                           onDelete={(id) => {
                             if (confirm("이 영상을 삭제할까요?")) deleteVideo.mutate({ id });
                           }}
