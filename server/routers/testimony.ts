@@ -1,7 +1,8 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { memberProtectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { publicProcedure, router } from "../_core/trpc";
 import { safeAssetUrlSchema } from "../_core/contentValidation";
+import { hasAdminContentPermission } from "../db/adminPermissions";
 import {
   canViewPublishedTestimonyPost,
   createTestimonyComment,
@@ -23,6 +24,8 @@ const idSchema = z.number().int().positive();
 const requiredText = (max: number, message: string) =>
   z.string().trim().min(1, message).max(max);
 const optionalImage = safeAssetUrlSchema.optional();
+const TESTIMONY_PERMISSION_KEY = "content:testimonies";
+const ADMIN_TESTIMONY_AUTHOR_MEMBER_ID = 0;
 
 const imageInputSchema = z.object({
   imageUrl: optionalImage,
@@ -47,6 +50,20 @@ function normalizeImages(images: z.infer<typeof imageInputSchema>[]) {
     }));
 }
 
+function canManageTestimonies(user: Parameters<typeof hasAdminContentPermission>[0]) {
+  return hasAdminContentPermission(user, TESTIMONY_PERMISSION_KEY);
+}
+
+function getTestimonyAuthorMemberId(ctx: { user: Parameters<typeof hasAdminContentPermission>[0]; memberId: number | null }) {
+  if (ctx.memberId) return ctx.memberId;
+  if (canManageTestimonies(ctx.user)) return ADMIN_TESTIMONY_AUTHOR_MEMBER_ID;
+
+  throw new TRPCError({
+    code: "UNAUTHORIZED",
+    message: "로그인이 필요합니다.",
+  });
+}
+
 export const testimonyRouter = router({
   posts: publicProcedure.query(({ ctx }) =>
     getPublishedTestimonyPosts({ user: ctx.user, memberId: ctx.memberId }),
@@ -58,17 +75,19 @@ export const testimonyRouter = router({
       getPublishedTestimonyPostById(input.id, { user: ctx.user, memberId: ctx.memberId }),
     ),
 
-  myPosts: memberProtectedProcedure.query(({ ctx }) =>
-    getTestimonyPostsByAuthor(ctx.memberId),
-  ),
+  myPosts: publicProcedure.query(({ ctx }) => {
+    if (!ctx.memberId) return [];
+    return getTestimonyPostsByAuthor(ctx.memberId);
+  }),
 
-  createPost: memberProtectedProcedure
+  createPost: publicProcedure
     .input(postInputSchema)
     .mutation(async ({ input, ctx }) => {
       const images = normalizeImages(input.images);
+      const authorMemberId = getTestimonyAuthorMemberId(ctx);
       const id = await createTestimonyPostWithImages(
         {
-          authorMemberId: ctx.memberId,
+          authorMemberId,
           title: input.title,
           content: input.content,
           thumbnailUrl: input.thumbnailUrl || images[0]?.imageUrl || undefined,
@@ -88,7 +107,7 @@ export const testimonyRouter = router({
       return { id };
     }),
 
-  updatePost: memberProtectedProcedure
+  updatePost: publicProcedure
     .input(postInputSchema.extend({ id: idSchema }))
     .mutation(async ({ input, ctx }) => {
       const post = await getTestimonyPostById(input.id);
@@ -98,10 +117,12 @@ export const testimonyRouter = router({
           message: "간증 글을 찾을 수 없습니다.",
         });
       }
-      if (post.authorMemberId !== ctx.memberId) {
+      const canManage = canManageTestimonies(ctx.user);
+      const isOwner = Boolean(ctx.memberId && post.authorMemberId === ctx.memberId);
+      if (!isOwner && !canManage) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "본인이 작성한 간증만 수정할 수 있습니다.",
+          message: "본인이 작성한 간증 또는 관리 권한이 있는 글만 수정할 수 있습니다.",
         });
       }
 
@@ -121,7 +142,7 @@ export const testimonyRouter = router({
       return { success: true };
     }),
 
-  deletePost: memberProtectedProcedure
+  deletePost: publicProcedure
     .input(z.object({ id: idSchema }))
     .mutation(async ({ input, ctx }) => {
       const post = await getTestimonyPostById(input.id);
@@ -131,10 +152,12 @@ export const testimonyRouter = router({
           message: "간증 글을 찾을 수 없습니다.",
         });
       }
-      if (post.authorMemberId !== ctx.memberId) {
+      const canManage = canManageTestimonies(ctx.user);
+      const isOwner = Boolean(ctx.memberId && post.authorMemberId === ctx.memberId);
+      if (!isOwner && !canManage) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "본인이 작성한 간증만 삭제할 수 있습니다.",
+          message: "본인이 작성한 간증 또는 관리 권한이 있는 글만 삭제할 수 있습니다.",
         });
       }
 
@@ -142,7 +165,7 @@ export const testimonyRouter = router({
       return { success: true };
     }),
 
-  createComment: memberProtectedProcedure
+  createComment: publicProcedure
     .input(z.object({
       postId: idSchema,
       content: requiredText(5000, "댓글 내용을 입력해 주세요."),
@@ -156,6 +179,7 @@ export const testimonyRouter = router({
         });
       }
 
+      const authorMemberId = getTestimonyAuthorMemberId(ctx);
       const canView = await canViewPublishedTestimonyPost(input.postId, {
         user: ctx.user,
         memberId: ctx.memberId,
@@ -169,7 +193,7 @@ export const testimonyRouter = router({
 
       const id = await createTestimonyComment({
         postId: input.postId,
-        authorMemberId: ctx.memberId,
+        authorMemberId,
         content: input.content,
         status: "published",
       });
@@ -184,7 +208,7 @@ export const testimonyRouter = router({
       return { id };
     }),
 
-  deleteComment: memberProtectedProcedure
+  deleteComment: publicProcedure
     .input(z.object({ id: idSchema }))
     .mutation(async ({ input, ctx }) => {
       const comment = await getTestimonyCommentById(input.id);
@@ -194,10 +218,12 @@ export const testimonyRouter = router({
           message: "댓글을 찾을 수 없습니다.",
         });
       }
-      if (comment.authorMemberId !== ctx.memberId) {
+      const canManage = canManageTestimonies(ctx.user);
+      const isOwner = Boolean(ctx.memberId && comment.authorMemberId === ctx.memberId);
+      if (!isOwner && !canManage) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "본인이 작성한 댓글만 삭제할 수 있습니다.",
+          message: "본인이 작성한 댓글 또는 관리 권한이 있는 댓글만 삭제할 수 있습니다.",
         });
       }
 
@@ -205,7 +231,7 @@ export const testimonyRouter = router({
       return { success: true };
     }),
 
-  updateComment: memberProtectedProcedure
+  updateComment: publicProcedure
     .input(z.object({
       id: idSchema,
       content: requiredText(5000, "댓글 내용을 입력해 주세요."),
@@ -218,10 +244,12 @@ export const testimonyRouter = router({
           message: "댓글을 찾을 수 없습니다.",
         });
       }
-      if (comment.authorMemberId !== ctx.memberId) {
+      const canManage = canManageTestimonies(ctx.user);
+      const isOwner = Boolean(ctx.memberId && comment.authorMemberId === ctx.memberId);
+      if (!isOwner && !canManage) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "본인이 작성한 댓글만 수정할 수 있습니다.",
+          message: "본인이 작성한 댓글 또는 관리 권한이 있는 댓글만 수정할 수 있습니다.",
         });
       }
 
@@ -233,15 +261,16 @@ export const testimonyRouter = router({
       return { success: true };
     }),
 
-  uploadImage: memberProtectedProcedure
+  uploadImage: publicProcedure
     .input(z.object({
       base64: z.string(),
       fileName: z.string(),
       mimeType: z.string(),
     }))
     .mutation(async ({ input, ctx }) => {
+      const authorMemberId = getTestimonyAuthorMemberId(ctx);
       const { buffer, ext } = validateImage(input.base64, input.mimeType);
-      const key = `testimonies/${ctx.memberId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const key = `testimonies/${authorMemberId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { url } = await storagePut(key, buffer, input.mimeType);
       return { url };
     }),

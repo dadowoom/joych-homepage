@@ -59,6 +59,7 @@ export default function TestimonyList() {
     refetchOnWindowFocus: false,
   });
   const { data: me } = trpc.members.me.useQuery(undefined, { retry: false });
+  const canWrite = Boolean(me) || canManage;
   const deletePost = trpc.testimony.deletePost.useMutation({
     onSuccess: async () => {
       toast.success("\uAC04\uC99D \uAE00\uC774 \uC0AD\uC81C\uB410\uC2B5\uB2C8\uB2E4.");
@@ -103,13 +104,13 @@ export default function TestimonyList() {
                     </>
                   )}
                 </span>
-                <span className="text-xs text-gray-400">승인된 성도만 글쓰기와 댓글 작성이 가능합니다.</span>
+                <span className="text-xs text-gray-400">승인된 성도와 간증 관리 권한자는 글쓰기와 댓글 작성이 가능합니다.</span>
                 {canManage && (
                   <span className="text-xs font-medium text-[#1B5E20]">게시판에서는 등록/수정/삭제만 가능하며 숨김/노출은 관리자 대시보드에서 처리합니다.</span>
                 )}
               </div>
             </div>
-            {me ? (
+            {canWrite ? (
               <Link href="/community/testimony/write" className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-[#1B5E20] px-4 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32]">
                 <i className="fas fa-pen text-[10px]"></i>
                 간증 작성
@@ -266,6 +267,7 @@ export function TestimonyDetail() {
 
   const { data: post, isLoading } = trpc.testimony.post.useQuery({ id }, { enabled: Number.isFinite(id) });
   const { data: me } = trpc.members.me.useQuery(undefined, { retry: false });
+  const canWriteComment = Boolean(me) || canManage;
 
   const createComment = trpc.testimony.createComment.useMutation({
     onSuccess: async () => {
@@ -422,7 +424,7 @@ export function TestimonyDetail() {
             댓글 {post.comments.length}
           </h2>
 
-          {me ? (
+          {canWriteComment ? (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -453,7 +455,7 @@ export function TestimonyDetail() {
             </form>
           ) : (
             <div className="mb-6 rounded-xl bg-[#F7F7F5] px-4 py-4 text-sm text-gray-500 flex flex-wrap items-center justify-between gap-3">
-              <span>댓글은 로그인한 성도만 작성할 수 있습니다.</span>
+              <span>댓글은 로그인한 성도와 간증 관리 권한자만 작성할 수 있습니다.</span>
               <Link href={`/member/login?next=/community/testimony/${post.id}`} className="text-[#1B5E20] font-medium hover:underline">
                 로그인하기
               </Link>
@@ -463,6 +465,7 @@ export function TestimonyDetail() {
           <div className="divide-y divide-gray-100">
             {post.comments.map((item) => {
               const isCommentAuthor = me?.id === item.authorMemberId;
+              const canManageComment = isCommentAuthor || canManage;
               return (
                 <div key={item.id} className="py-4">
                   <div className="flex items-start justify-between gap-3">
@@ -473,7 +476,7 @@ export function TestimonyDetail() {
                       </p>
                       <p className="text-xs text-gray-400 mt-0.5">{formatDate(item.createdAt)}</p>
                     </div>
-                    {isCommentAuthor && (
+                    {canManageComment && (
                       <div className="flex items-center gap-2 text-xs">
                         <button
                           onClick={() => {
@@ -540,6 +543,7 @@ export function TestimonyEditor() {
   const canManage = canManageBoardContent(user, "content:testimonies");
 
   const { data: me, isLoading } = trpc.members.me.useQuery(undefined, { retry: false });
+  const canWritePost = Boolean(me) || canManage;
   const { data: myPosts = [] } = trpc.testimony.myPosts.useQuery(undefined, {
     enabled: Boolean(me) && Boolean(editId),
     retry: false,
@@ -667,11 +671,11 @@ export function TestimonyEditor() {
     );
   }
 
-  if (!me) {
+  if (!canWritePost) {
     return (
       <div className="min-h-screen bg-[#F7F7F5] flex items-center justify-center px-4">
         <div className="text-center">
-          <p className="text-gray-500 mb-5">간증 작성은 로그인한 성도만 이용할 수 있습니다.</p>
+          <p className="text-gray-500 mb-5">간증 작성은 로그인한 성도와 간증 관리 권한자만 이용할 수 있습니다.</p>
           <Link href="/member/login?next=/community/testimony/write" className="bg-[#1B5E20] text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-[#2E7D32]">
             로그인하기
           </Link>

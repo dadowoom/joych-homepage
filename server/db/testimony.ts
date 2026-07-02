@@ -139,10 +139,11 @@ async function hydratePosts(rows: TestimonyPost[]): Promise<TestimonyPostListRow
 
   return rows.map(post => {
     const author = authorsById.get(post.authorMemberId);
+    const isAdminPost = post.authorMemberId === 0;
     return {
       ...post,
-      authorName: author?.name ?? null,
-      authorPosition: author?.position ?? null,
+      authorName: author?.name ?? (isAdminPost ? "관리자" : null),
+      authorPosition: author?.position ?? (isAdminPost ? "관리자" : null),
       authorDepartment: author?.department ?? null,
       images: imagesByPostId.get(post.id) ?? [],
       commentCount: commentCountsByPostId.get(post.id) ?? 0,
@@ -354,10 +355,11 @@ async function hydrateComments(rows: TestimonyComment[]): Promise<TestimonyComme
 
   return rows.map(comment => {
     const author = authorsById.get(comment.authorMemberId);
+    const isAdminComment = comment.authorMemberId === 0;
     return {
       ...comment,
-      authorName: author?.name ?? null,
-      authorPosition: author?.position ?? null,
+      authorName: author?.name ?? (isAdminComment ? "관리자" : null),
+      authorPosition: author?.position ?? (isAdminComment ? "관리자" : null),
     };
   });
 }
