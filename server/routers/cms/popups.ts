@@ -96,7 +96,12 @@ export const popupsRouter = router({
   create: popupProcedure
     .input(popupBaseSchema)
     .mutation(({ input, ctx }) =>
-      createNoticePopup({ ...input, authorId: ctx.user.id })
+      createNoticePopup({
+        ...input,
+        content: null,
+        placement: "modal",
+        authorId: ctx.user.id,
+      })
     ),
 
   /** 팝업 수정 */
@@ -104,7 +109,11 @@ export const popupsRouter = router({
     .input(popupUpdateSchema)
     .mutation(({ input }) => {
       const { id, ...data } = input;
-      return updateNoticePopup(id, data);
+      return updateNoticePopup(id, {
+        ...data,
+        content: null,
+        placement: "modal",
+      });
     }),
 
   /** 팝업 삭제 */

@@ -157,15 +157,15 @@ async function optimizePopupImage(file: File): Promise<OptimizedImageResult> {
 
   context.drawImage(image, 0, 0, width, height);
 
-  const prefersPng = file.type === "image/png";
-  const mimeType = prefersPng ? "image/png" : "image/jpeg";
-  const quality = prefersPng ? undefined : 0.86;
-  const dataUrl = canvas.toDataURL(mimeType, quality);
+  const optimizedWebp = canvas.toDataURL("image/webp", 0.84);
+  const canUseWebp = optimizedWebp.startsWith("data:image/webp");
+  const mimeType = canUseWebp ? "image/webp" : "image/jpeg";
+  const dataUrl = canUseWebp
+    ? optimizedWebp
+    : canvas.toDataURL("image/jpeg", 0.86);
   const base64 = dataUrl.split(",")[1] ?? "";
   const optimizedBytes = Math.ceil((base64.length * 3) / 4);
-  const fileName = prefersPng
-    ? file.name.replace(/\.[^.]+$/, "") + ".png"
-    : file.name.replace(/\.[^.]+$/, "") + ".jpg";
+  const fileName = file.name.replace(/\.[^.]+$/, "") + (canUseWebp ? ".webp" : ".jpg");
 
   return {
     dataUrl,
@@ -202,9 +202,7 @@ function normalizePayload(form: PopupForm) {
   };
 }
 
-function getPlacementLabel(value: PopupPlacement) {
-  if (value === "top_banner") return "상단 배너(기존)";
-  if (value === "bottom_sheet") return "하단 팝업(기존)";
+function getPlacementLabel(_value: PopupPlacement) {
   return "오른쪽 팝업";
 }
 

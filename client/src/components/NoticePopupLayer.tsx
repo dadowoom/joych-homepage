@@ -63,18 +63,7 @@ export default function NoticePopupLayer() {
     return popups.filter((popup) => !closedIds.includes(popup.id) && !isDismissed(popup));
   }, [closedIds, isAdminRoute, popups]);
 
-  const modalPopups = useMemo(
-    () => visiblePopups.filter((popup) => popup.placement === "modal"),
-    [visiblePopups],
-  );
-  const topBannerPopup = useMemo(
-    () => visiblePopups.find((popup) => popup.placement === "top_banner") ?? null,
-    [visiblePopups],
-  );
-  const bottomSheetPopup = useMemo(
-    () => visiblePopups.find((popup) => popup.placement === "bottom_sheet") ?? null,
-    [visiblePopups],
-  );
+  const modalPopups = visiblePopups;
 
   useEffect(() => {
     if (modalPopups.length === 0) {
@@ -94,7 +83,7 @@ export default function NoticePopupLayer() {
     return () => window.clearInterval(timer);
   }, [modalPopups.length]);
 
-  if (!topBannerPopup && !bottomSheetPopup && modalPopups.length === 0) {
+  if (modalPopups.length === 0) {
     return null;
   }
 
@@ -127,84 +116,8 @@ export default function NoticePopupLayer() {
 
   return (
     <>
-      {topBannerPopup && (
-        <div className="fixed inset-x-0 top-0 z-[300] border-b border-[#1B5E20]/20 bg-white shadow-lg">
-          <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-gray-900">{topBannerPopup.title}</p>
-              {topBannerPopup.content && (
-                <p className="mt-1 line-clamp-2 text-sm text-gray-600">{topBannerPopup.content}</p>
-              )}
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <PopupActionButton popup={topBannerPopup} onClose={() => closePopup(topBannerPopup.id)} />
-              {topBannerPopup.isDismissible && (
-                <button
-                  type="button"
-                  onClick={() => dismissPopup(topBannerPopup)}
-                  className="rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-600 hover:bg-gray-50"
-                >
-                  오늘 하루 보지 않기
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => closePopup(topBannerPopup.id)}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                aria-label="팝업 닫기"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {bottomSheetPopup && (
-        <div className="fixed inset-x-0 bottom-0 z-[300] px-3 pb-3">
-          <div className="mx-auto max-w-md rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-bold text-gray-900">{bottomSheetPopup.title}</p>
-                {bottomSheetPopup.content && (
-                  <p className="mt-2 text-sm leading-relaxed text-gray-600">{bottomSheetPopup.content}</p>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => closePopup(bottomSheetPopup.id)}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                aria-label="팝업 닫기"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            {bottomSheetPopup.imageUrl && (
-              <img
-                src={bottomSheetPopup.imageUrl}
-                alt=""
-                className="mt-3 max-h-44 w-full rounded-xl object-cover"
-                loading="lazy"
-              />
-            )}
-            <div className="mt-4 flex flex-col gap-2">
-              <PopupActionButton popup={bottomSheetPopup} onClose={() => closePopup(bottomSheetPopup.id)} />
-              {bottomSheetPopup.isDismissible && (
-                <button
-                  type="button"
-                  onClick={() => dismissPopup(bottomSheetPopup)}
-                  className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50"
-                >
-                  오늘 하루 보지 않기
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {activeModalPopup && (
-        <div className="fixed inset-x-4 bottom-4 z-[320] md:inset-x-auto md:bottom-auto md:right-6 md:top-1/2 md:w-[440px] md:-translate-y-1/2">
+        <div className="fixed inset-x-3 bottom-3 z-[320] md:inset-x-auto md:bottom-auto md:right-8 md:top-1/2 md:w-[560px] md:-translate-y-1/2 xl:w-[620px]">
           <div
             role="dialog"
             aria-modal="true"
@@ -224,17 +137,18 @@ export default function NoticePopupLayer() {
               <img
                 src={activeModalPopup.imageUrl}
                 alt=""
-                className="h-56 w-full object-cover md:h-64"
+                className="h-64 w-full object-cover md:h-80 xl:h-96"
                 loading="lazy"
+                decoding="async"
               />
             )}
 
-            <div className="p-5 md:p-6">
+            <div className="p-5 md:p-7">
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h2
                     id={`notice-popup-title-${activeModalPopup.id}`}
-                    className="pr-8 text-xl font-bold text-gray-900 md:text-2xl"
+                    className="pr-8 text-xl font-bold text-gray-900 md:text-2xl xl:text-3xl"
                     style={{ fontFamily: "'Noto Serif KR', serif" }}
                   >
                     {activeModalPopup.title}
