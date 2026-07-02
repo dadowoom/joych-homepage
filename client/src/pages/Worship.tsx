@@ -542,7 +542,7 @@ export function BulletinDetail() {
   const canManage = canManageBoardContent(user, "content:bulletins");
   const { data: allMenus } = trpc.home.menus.useQuery();
   const bulletinMenuItem = useMemo(() => findBulletinViewMenuNode(allMenus), [allMenus]);
-  const canReadBulletins = Boolean(memberMe) || canManage || Boolean(bulletinMenuItem);
+  const canReadBulletins = Boolean(memberMe) || canManage;
   const bulletinsQuery = trpc.home.bulletins.useQuery(undefined, {
     enabled: canReadBulletins && !canManage,
     retry: false,
@@ -823,7 +823,7 @@ export function Bulletin() {
   const searchParams = useMemo(() => new URLSearchParams(searchString), [searchString]);
   const bulletinMenuItem = useMemo(() => findBulletinViewMenuNode(allMenus), [allMenus]);
   const isManageView = canManage && searchParams.get("manage") === "1";
-  const canReadBulletins = Boolean(memberMe) || canManage || Boolean(bulletinMenuItem);
+  const canReadBulletins = Boolean(memberMe) || canManage;
   const bulletinsQuery = trpc.home.bulletins.useQuery(undefined, {
     enabled: canReadBulletins && !isManageView,
     retry: false,
