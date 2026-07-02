@@ -106,6 +106,91 @@ type NotificationItem = {
   tone: NotificationTone;
 };
 
+function readCutoffValueForGroup(groupKey: NotificationGroupKey) {
+  const fallback = sql`CURRENT_TIMESTAMP`;
+  const withPadding = (value: ReturnType<typeof sql>) =>
+    sql<Date>`DATE_ADD(COALESCE(${value}, ${fallback}), INTERVAL 1 SECOND)`;
+
+  switch (groupKey) {
+    case "noticeRecent":
+      return withPadding(
+        sql`(SELECT MAX(${notices.createdAt}) FROM ${notices} WHERE ${notices.isPublished} = true)`
+      );
+    case "bulletinRecent":
+      return withPadding(
+        sql`(SELECT MAX(${bulletins.createdAt}) FROM ${bulletins} WHERE ${bulletins.status} = 'published')`
+      );
+    case "youtubeVideoRecent":
+      return withPadding(
+        sql`(SELECT MAX(${youtubeVideos.createdAt}) FROM ${youtubeVideos} WHERE ${youtubeVideos.isVisible} = true)`
+      );
+    case "popupRecent":
+      return withPadding(
+        sql`(SELECT MAX(${noticePopups.createdAt}) FROM ${noticePopups} WHERE ${noticePopups.isActive} = true)`
+      );
+    case "freeBoardRecent":
+      return withPadding(
+        sql`(SELECT MAX(${freeBoardPosts.createdAt}) FROM ${freeBoardPosts} WHERE ${freeBoardPosts.status} <> 'deleted')`
+      );
+    case "testimonyPostRecent":
+      return withPadding(
+        sql`(SELECT MAX(${testimonyPosts.createdAt}) FROM ${testimonyPosts} WHERE ${testimonyPosts.status} <> 'deleted')`
+      );
+    case "testimonyCommentRecent":
+      return withPadding(
+        sql`(SELECT MAX(${testimonyComments.createdAt}) FROM ${testimonyComments} WHERE ${testimonyComments.status} <> 'deleted')`
+      );
+    case "reservationPending":
+      return withPadding(
+        sql`(SELECT MAX(${reservations.createdAt}) FROM ${reservations} WHERE ${reservations.status} = 'pending')`
+      );
+    case "vehicleReservationPending":
+      return withPadding(
+        sql`(SELECT MAX(${vehicleReservations.createdAt}) FROM ${vehicleReservations} WHERE ${vehicleReservations.status} = 'pending')`
+      );
+    case "courseRecent":
+      return withPadding(
+        sql`(SELECT MAX(${courses.createdAt}) FROM ${courses} WHERE ${courses.status} <> 'archived' AND ${courses.status} <> 'cancelled')`
+      );
+    case "courseApplicationPending":
+      return withPadding(
+        sql`(SELECT MAX(${courseApplications.createdAt}) FROM ${courseApplications} WHERE ${courseApplications.status} = 'pending')`
+      );
+    case "missionReportRecent":
+      return withPadding(
+        sql`(SELECT MAX(${missionReports.createdAt}) FROM ${missionReports} WHERE ${missionReports.status} = 'published')`
+      );
+    case "missionReportPending":
+      return withPadding(
+        sql`(SELECT MAX(${missionReports.createdAt}) FROM ${missionReports} WHERE ${missionReports.status} = 'pending')`
+      );
+    case "memberPending":
+      return withPadding(
+        sql`(SELECT MAX(${churchMembers.createdAt}) FROM ${churchMembers} WHERE ${churchMembers.status} = 'pending')`
+      );
+    case "prayerRequestNew":
+      return withPadding(
+        sql`(SELECT MAX(${prayerRequests.createdAt}) FROM ${prayerRequests} WHERE ${prayerRequests.status} = 'new')`
+      );
+    case "newMemberRequestNew":
+      return withPadding(
+        sql`(SELECT MAX(${newMemberRequests.createdAt}) FROM ${newMemberRequests} WHERE ${newMemberRequests.status} = 'new')`
+      );
+    case "visitRequestNew":
+      return withPadding(
+        sql`(SELECT MAX(${visitRequests.createdAt}) FROM ${visitRequests} WHERE ${visitRequests.status} = 'new')`
+      );
+    case "subtitleRequestNew":
+      return withPadding(
+        sql`(SELECT MAX(${subtitleRequests.createdAt}) FROM ${subtitleRequests} WHERE ${subtitleRequests.status} = 'new')`
+      );
+    case "bulletinAdRequestNew":
+      return withPadding(
+        sql`(SELECT MAX(${bulletinAdRequests.createdAt}) FROM ${bulletinAdRequests} WHERE ${bulletinAdRequests.status} = 'new')`
+      );
+  }
+}
+
 function toCount(value: unknown) {
   return Number(value ?? 0);
 }
@@ -1136,7 +1221,7 @@ export const notificationsRouter = router({
         .values({
           userId: ctx.user.id,
           groupKey: input.groupKey,
-          lastSeenAt: sql`CURRENT_TIMESTAMP`,
+          lastSeenAt: readCutoffValueForGroup(input.groupKey),
         });
 
       return { ok: true };
@@ -1156,7 +1241,7 @@ export const notificationsRouter = router({
         .values({
           userId: ctx.user.id,
           groupKey,
-          lastSeenAt: sql`CURRENT_TIMESTAMP`,
+          lastSeenAt: readCutoffValueForGroup(groupKey),
         });
     }
 
