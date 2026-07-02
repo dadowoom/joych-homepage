@@ -232,7 +232,7 @@ function NoticeBoardContent({
   const isCustomBoard = Boolean(customBoard);
   const canManageNotices = canManageBoardContent(user, "content:notices");
   const supportsAttachments = isAdminResource || isCustomBoard;
-  const supportsMultipleAttachments = isCustomBoard;
+  const supportsMultipleAttachments = supportsAttachments;
   const customBoardSource = customBoard?.menuSubItemId
     ? { menuSubItemId: customBoard.menuSubItemId }
     : customBoard?.menuItemId

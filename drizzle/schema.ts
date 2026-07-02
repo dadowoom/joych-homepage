@@ -223,8 +223,8 @@ export const notices = mysqlTable("notices", {
   content: text("content"),
   /** 썸네일 이미지 URL */
   thumbnailUrl: text("thumbnailUrl"),
-  attachmentName: varchar("attachmentName", { length: 255 }),
-  attachmentUrl: varchar("attachmentUrl", { length: 512 }),
+  attachmentName: text("attachmentName"),
+  attachmentUrl: text("attachmentUrl"),
   /** 게시 여부 */
   isPublished: boolean("isPublished").notNull().default(true),
   /** 상단 고정 여부 */

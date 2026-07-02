@@ -1,0 +1,3 @@
+ALTER TABLE notices
+  MODIFY COLUMN attachmentName TEXT NULL,
+  MODIFY COLUMN attachmentUrl TEXT NULL;

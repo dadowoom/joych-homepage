@@ -81,6 +81,11 @@ const optionalAssetUrlInputSchema = z.string()
   .optional()
   .refine((value) => value === undefined || value.length === 0 || isSafeAssetUrl(value), "허용되지 않는 URL 형식입니다.");
 
+const optionalAttachmentTextSchema = z.string()
+  .trim()
+  .max(10000, "첨부파일 정보가 너무 깁니다.")
+  .optional();
+
 function normalizeOptionalTextValue(value: string | undefined) {
   if (value === undefined) return undefined;
   const trimmed = value.trim();
@@ -99,7 +104,39 @@ function validateAttachmentPair(
 ) {
   const hasName = Boolean(value.attachmentName?.trim());
   const hasUrl = Boolean(value.attachmentUrl?.trim());
-  if (hasName === hasUrl) return;
+  if (hasName === hasUrl) {
+    const attachmentUrl = value.attachmentUrl?.trim();
+    if (!attachmentUrl) return;
+    if (!attachmentUrl.startsWith("[")) {
+      if (!isSafeAssetUrl(attachmentUrl)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "허용되지 않는 첨부 URL 형식입니다.",
+          path: ["attachmentUrl"],
+        });
+      }
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(attachmentUrl) as unknown;
+      if (!Array.isArray(parsed)) throw new Error("not-array");
+      const hasInvalidItem = parsed.some((item) => {
+        if (typeof item !== "object" || item === null) return true;
+        const url = (item as { url?: unknown }).url;
+        return typeof url !== "string" || !isSafeAssetUrl(url);
+      });
+      if (hasInvalidItem) throw new Error("invalid-item");
+      return;
+    } catch {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "첨부파일 목록 형식이 올바르지 않습니다.",
+        path: ["attachmentUrl"],
+      });
+      return;
+    }
+  }
 
   ctx.addIssue({
     code: z.ZodIssueCode.custom,
@@ -122,8 +159,8 @@ export const noticesRouter = router({
       title: requiredTextSchema(256, "제목을 입력해주세요."),
       content: optionalTextSchema(50000),
       thumbnailUrl: optionalAssetUrlInputSchema,
-      attachmentName: optionalTextSchema(255),
-      attachmentUrl: optionalAssetUrlInputSchema,
+      attachmentName: optionalAttachmentTextSchema,
+      attachmentUrl: optionalAttachmentTextSchema,
       isPublished: z.boolean().default(true),
       isPinned: z.boolean().default(false),
       isSecret: z.boolean().default(false),
@@ -136,7 +173,7 @@ export const noticesRouter = router({
         content: normalizeNoticeContent(input.content),
         thumbnailUrl: normalizeOptionalAssetUrlValue(input.thumbnailUrl),
         attachmentName: normalizeOptionalTextValue(input.attachmentName),
-        attachmentUrl: normalizeOptionalAssetUrlValue(input.attachmentUrl),
+        attachmentUrl: normalizeOptionalTextValue(input.attachmentUrl),
         isPublished: input.isPublished,
         isPinned: input.isPinned,
         isSecret: input.isSecret,
@@ -156,8 +193,8 @@ export const noticesRouter = router({
       title: requiredTextSchema(256, "제목을 입력해주세요.").optional(),
       content: optionalTextSchema(50000),
       thumbnailUrl: optionalAssetUrlInputSchema,
-      attachmentName: optionalTextSchema(255),
-      attachmentUrl: optionalAssetUrlInputSchema,
+      attachmentName: optionalAttachmentTextSchema,
+      attachmentUrl: optionalAttachmentTextSchema,
       isPublished: z.boolean().optional(),
       isPinned: z.boolean().optional(),
       isSecret: z.boolean().optional(),
@@ -175,7 +212,7 @@ export const noticesRouter = router({
         data.attachmentName = normalizeOptionalTextValue(data.attachmentName);
       }
       if (data.attachmentUrl !== undefined) {
-        data.attachmentUrl = normalizeOptionalAssetUrlValue(data.attachmentUrl);
+        data.attachmentUrl = normalizeOptionalTextValue(data.attachmentUrl);
       }
       return updateNotice(id, data);
     }),
