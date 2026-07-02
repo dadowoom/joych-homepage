@@ -52,29 +52,15 @@ export default function TestimonyList() {
     error,
     refetch,
   } = trpc.testimony.posts.useQuery(undefined, {
-    enabled: !canManage,
     retry: false,
     staleTime: 60 * 1000,
     refetchOnWindowFocus: false,
   });
-  const adminPostsQuery = trpc.cms.testimonies.posts.useQuery(undefined, {
-    enabled: canManage,
-  });
   const { data: me } = trpc.members.me.useQuery(undefined, { retry: false });
-  const updatePostStatus = trpc.cms.testimonies.updatePostStatus.useMutation({
-    onSuccess: async () => {
-      toast.success("간증 글 상태가 변경됐습니다.");
-      await Promise.all([
-        adminPostsQuery.refetch(),
-        refetch(),
-      ]);
-    },
-    onError: (e) => toast.error(e.message),
-  });
-  const visiblePosts = canManage ? (adminPostsQuery.data ?? []) : (posts ?? []);
-  const loadingState = canManage ? adminPostsQuery.isLoading : isLoading;
-  const errorState = canManage ? adminPostsQuery.error : error;
-  const isErrorState = canManage ? adminPostsQuery.isError : isError;
+  const visiblePosts = posts ?? [];
+  const loadingState = isLoading;
+  const errorState = error;
+  const isErrorState = isError;
 
   return (
     <SubPageLayout
@@ -101,6 +87,9 @@ export default function TestimonyList() {
                   )}
                 </span>
                 <span className="text-xs text-gray-400">승인된 성도만 글쓰기와 댓글 작성이 가능합니다.</span>
+                {canManage && (
+                  <span className="text-xs font-medium text-[#1B5E20]">게시판에서는 등록/수정/삭제만 가능하며 숨김/노출은 관리자 대시보드에서 처리합니다.</span>
+                )}
               </div>
             </div>
             {me ? (
@@ -129,7 +118,7 @@ export default function TestimonyList() {
               <p className="mt-2 text-sm text-gray-400">{errorState?.message ?? "잠시 후 다시 시도해 주세요."}</p>
               <button
                 type="button"
-                onClick={() => void (canManage ? adminPostsQuery.refetch() : refetch())}
+                onClick={() => void refetch()}
                 className="mt-5 px-5 py-2.5 rounded-full bg-[#1B5E20] text-white text-sm font-medium hover:bg-[#2E7D32] transition-colors"
               >
                 다시 불러오기
@@ -143,9 +132,8 @@ export default function TestimonyList() {
           ) : (
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
               {visiblePosts.map((post) => {
-                const canOpenDetail = !("status" in post) || post.status === "published";
                 const article = (
-                  <article className={`bg-white rounded-2xl overflow-hidden shadow-sm transition-all duration-300 group h-full flex flex-col ${canOpenDetail ? "cursor-pointer hover:shadow-lg" : "border border-dashed border-gray-200"} ${"status" in post && post.status !== "published" ? "opacity-70" : ""}`}>
+                  <article className="bg-white rounded-2xl overflow-hidden shadow-sm transition-all duration-300 group h-full flex flex-col cursor-pointer hover:shadow-lg">
                     <div className="relative h-52 overflow-hidden bg-[#E8F5E9]">
                       {post.thumbnailUrl || post.images[0] ? (
                         <img
@@ -165,11 +153,6 @@ export default function TestimonyList() {
                         <span className="absolute bottom-3 left-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-gray-700">
                           <Lock className="h-3 w-3" />
                           비밀글
-                        </span>
-                      )}
-                      {"status" in post && post.status !== "published" && (
-                        <span className="absolute top-3 right-3 rounded-full bg-gray-900/80 px-2.5 py-1 text-[11px] font-semibold text-white">
-                          {post.status === "hidden" ? "숨김" : "삭제 대기"}
                         </span>
                       )}
                     </div>
@@ -197,57 +180,16 @@ export default function TestimonyList() {
                           <i className="fas fa-eye"></i>
                           조회 {post.viewCount}
                         </span>
-                        <span className="ml-auto text-[#1B5E20] font-medium">{canOpenDetail ? "읽기 →" : "관리 전용"}</span>
+                        <span className="ml-auto text-[#1B5E20] font-medium">읽기 →</span>
                       </div>
-                      {canManage && (
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              updatePostStatus.mutate({ id: post.id, status: "published" });
-                            }}
-                            className="rounded-full bg-[#1B5E20] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#2E7D32]"
-                          >
-                            공개
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              updatePostStatus.mutate({ id: post.id, status: "hidden" });
-                            }}
-                            className="rounded-full border border-yellow-200 px-3 py-1.5 text-xs font-medium text-yellow-700 hover:bg-yellow-50"
-                          >
-                            숨김
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              if (confirm("이 간증 글을 삭제 처리할까요?")) {
-                                updatePostStatus.mutate({ id: post.id, status: "deleted" });
-                              }
-                            }}
-                            className="rounded-full border border-red-200 px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50"
-                          >
-                            삭제
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </article>
                 );
 
-                return canOpenDetail && !canManage ? (
+                return (
                   <Link key={post.id} href={`/community/testimony/${post.id}`}>
                     {article}
                   </Link>
-                ) : (
-                  <div key={post.id}>{article}</div>
                 );
               })}
             </div>
@@ -351,26 +293,10 @@ export function TestimonyDetail() {
           </Link>
           {(isAuthor || canManage) && (
             <div className="flex items-center gap-2">
-              {isAuthor && (
+              {(isAuthor || canManage) && (
                 <Link href={`/community/testimony/edit/${post.id}`} className="text-xs border border-gray-200 px-3 py-1.5 rounded-full text-gray-600 hover:text-[#1B5E20]">
                   수정
                 </Link>
-              )}
-              {canManage && (
-                <>
-                  <button
-                    onClick={() => updateManagedPostStatus.mutate({ id: post.id, status: "hidden" })}
-                    className="text-xs border border-yellow-200 px-3 py-1.5 rounded-full text-yellow-700 hover:bg-yellow-50"
-                  >
-                    숨김
-                  </button>
-                  <button
-                    onClick={() => updateManagedPostStatus.mutate({ id: post.id, status: "published" })}
-                    className="text-xs border border-[#1B5E20] bg-[#1B5E20] px-3 py-1.5 rounded-full text-white hover:bg-[#2E7D32]"
-                  >
-                    공개
-                  </button>
-                </>
               )}
               <button
                 onClick={() => {
@@ -557,6 +483,8 @@ export function TestimonyEditor() {
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const { user } = useAuth();
+  const canManage = canManageBoardContent(user, "content:testimonies");
 
   const { data: me, isLoading } = trpc.members.me.useQuery(undefined, { retry: false });
   const { data: myPosts = [] } = trpc.testimony.myPosts.useQuery(undefined, {
@@ -567,6 +495,14 @@ export function TestimonyEditor() {
     () => myPosts.find(post => post.id === editId),
     [editId, myPosts],
   );
+  const managedEditingPostQuery = trpc.cms.testimonies.post.useQuery(
+    { id: editId! },
+    {
+      enabled: Boolean(editId) && canManage && !editingPost,
+      retry: false,
+    },
+  );
+  const editablePost = editingPost ?? managedEditingPostQuery.data ?? null;
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -575,12 +511,12 @@ export function TestimonyEditor() {
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    if (!editingPost) return;
-    setTitle(editingPost.title);
-    setContent(editingPost.content);
-    setImages(editingPost.images.map(imageUrl => ({ imageUrl })));
-    setIsSecret(Boolean(editingPost.isSecret));
-  }, [editingPost]);
+    if (!editablePost) return;
+    setTitle(editablePost.title);
+    setContent(editablePost.content);
+    setImages(editablePost.images.map(imageUrl => ({ imageUrl })));
+    setIsSecret(Boolean(editablePost.isSecret));
+  }, [editablePost]);
 
   const createPost = trpc.testimony.createPost.useMutation({
     onSuccess: async ({ id }) => {
@@ -603,11 +539,25 @@ export function TestimonyEditor() {
     onError: (e) => toast.error(e.message),
   });
 
+  const updateManagedPost = trpc.cms.testimonies.updatePost.useMutation({
+    onSuccess: async () => {
+      toast.success("간증이 수정됐습니다.");
+      await utils.testimony.posts.invalidate();
+      await utils.cms.testimonies.posts.invalidate();
+      if (editId) {
+        await utils.testimony.post.invalidate({ id: editId });
+        await utils.cms.testimonies.post.invalidate({ id: editId });
+        navigate(`/community/testimony/${editId}`);
+      }
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const uploadImage = trpc.testimony.uploadImage.useMutation({
     onError: (e) => toast.error("이미지 업로드 실패: " + e.message),
   });
 
-  const isBusy = createPost.isPending || updatePost.isPending;
+  const isBusy = createPost.isPending || updatePost.isPending || updateManagedPost.isPending;
 
   const handleUpload = async (file: File) => {
     if (file.size > 10 * 1024 * 1024) {
@@ -646,13 +596,17 @@ export function TestimonyEditor() {
       isSecret,
     };
     if (editId) {
-      updatePost.mutate({ id: editId, ...payload });
+      if (editingPost) {
+        updatePost.mutate({ id: editId, ...payload });
+      } else if (canManage) {
+        updateManagedPost.mutate({ id: editId, ...payload });
+      }
     } else {
       createPost.mutate(payload);
     }
   };
 
-  if (isLoading) {
+  if (isLoading || managedEditingPostQuery.isLoading) {
     return (
       <div className="min-h-screen bg-[#F7F7F5] flex items-center justify-center">
         <p className="text-gray-400 text-sm">불러오는 중...</p>
@@ -667,6 +621,19 @@ export function TestimonyEditor() {
           <p className="text-gray-500 mb-5">간증 작성은 로그인한 성도만 이용할 수 있습니다.</p>
           <Link href="/member/login?next=/community/testimony/write" className="bg-[#1B5E20] text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-[#2E7D32]">
             로그인하기
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (editId && !editablePost) {
+    return (
+      <div className="min-h-screen bg-[#F7F7F5] flex items-center justify-center px-4">
+        <div className="text-center">
+          <p className="text-gray-500 mb-5">수정할 간증 글을 찾을 수 없습니다.</p>
+          <Link href="/community/testimony" className="bg-[#1B5E20] text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-[#2E7D32]">
+            목록으로
           </Link>
         </div>
       </div>
