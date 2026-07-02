@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { Link, useParams } from "wouter";
+import { Link, useLocation, useParams, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
 import { getSupportSideMenuItems } from "@/lib/supportSideMenu";
@@ -785,22 +785,26 @@ export function BulletinDetail() {
 }
 
 export function Bulletin() {
+  const searchString = useSearch();
+  const [, setLocation] = useLocation();
   const { user, loading: authLoading } = useAuth();
   const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, { retry: false });
   const canManage = canManageBoardContent(user, "content:bulletins");
   const { data: allMenus } = trpc.home.menus.useQuery();
+  const searchParams = useMemo(() => new URLSearchParams(searchString), [searchString]);
   const bulletinMenuItem = useMemo(() => findBulletinViewMenuNode(allMenus), [allMenus]);
+  const isManageView = canManage && searchParams.get("manage") === "1";
   const canReadBulletins = Boolean(memberMe) || canManage || Boolean(bulletinMenuItem);
   const bulletinsQuery = trpc.home.bulletins.useQuery(undefined, {
-    enabled: canReadBulletins && !canManage,
+    enabled: canReadBulletins && !isManageView,
     retry: false,
   });
   const adminBulletinsQuery = trpc.cms.bulletins.list.useQuery(undefined, {
-    enabled: canManage,
+    enabled: isManageView,
   });
-  const bulletins = canManage ? (adminBulletinsQuery.data ?? []) : (bulletinsQuery.data ?? []);
+  const bulletins = isManageView ? (adminBulletinsQuery.data ?? []) : (bulletinsQuery.data ?? []);
   const isAccessDenied = !authLoading && !memberLoading && !canReadBulletins;
-  const isLoading = authLoading || memberLoading || (canManage ? adminBulletinsQuery.isLoading : (canReadBulletins && bulletinsQuery.isLoading));
+  const isLoading = authLoading || memberLoading || (isManageView ? adminBulletinsQuery.isLoading : (canReadBulletins && bulletinsQuery.isLoading));
   const [expandedId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);
@@ -865,6 +869,36 @@ export function Bulletin() {
           <BulletinAccessRequired />
         ) : (
           <>
+        {canManage && (
+          <div className="mb-5 flex flex-col gap-3 border border-[#D8E8DA] bg-[#F8FCF8] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-[#1B5E20]">
+                {isManageView ? "주보 관리 화면" : "일반 성도 화면"}
+              </p>
+              <p className="mt-1 text-xs text-gray-500">
+                {isManageView
+                  ? "등록, 수정, 숨김 처리를 여기서 하고 일반 화면으로 돌아가 바로 확인할 수 있습니다."
+                  : "성도에게 보이는 실제 주보 보기 화면입니다. 수정 확인 전용으로 먼저 이 화면을 보세요."}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLocation(isManageView ? "/worship/bulletin" : "/worship/bulletin?manage=1")}
+              className={`inline-flex h-10 items-center justify-center px-4 text-sm font-semibold ${
+                isManageView
+                  ? "border border-[#1B5E20] bg-white text-[#1B5E20] hover:bg-[#F1F8E9]"
+                  : "bg-[#1B5E20] text-white hover:bg-[#2E7D32]"
+              }`}
+            >
+              {isManageView ? "일반 화면 보기" : "관리 화면"}
+            </button>
+          </div>
+        )}
+
+        {isManageView ? (
+          <AdminBulletinsTab />
+        ) : (
+          <>
         <div className="mb-5 border-b border-gray-100 pb-4">
           <p className="text-sm text-gray-500">
             총 <span className="font-semibold text-[#1B5E20]">{bulletins.length}</span>개의 주보
@@ -872,8 +906,6 @@ export function Bulletin() {
           </p>
           <p className="mt-1 text-xs text-gray-400">목록에서 주보를 선택해 미리보고 내려받을 수 있습니다.</p>
         </div>
-
-        {canManage && <AdminBulletinsTab />}
 
         <div className="mb-4 flex flex-col gap-3 border-b border-[#86C5D8] pb-2 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -1234,6 +1266,8 @@ export function Bulletin() {
               </div>
             </div>
           </div>
+        )}
+          </>
         )}
           </>
         )}
