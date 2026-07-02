@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   closestCenter,
   DndContext,
@@ -14,7 +14,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Eye, EyeOff, GripVertical, Loader2, Pencil, Plus, Trash2, Youtube } from "lucide-react";
+import { Eye, EyeOff, GripVertical, LayoutGrid, List, Loader2, Pencil, Plus, Search, Trash2, Youtube } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,8 @@ type VideoListItem = {
   description?: string | null;
   isVisible?: boolean | null;
 };
+
+type VideoViewMode = "list" | "thumbnail";
 
 function extractVideoId(url: string): string | null {
   const patterns = [
@@ -119,7 +121,7 @@ function SortableVideoItem({
       <button
         onClick={() => onToggleVisible(video)}
         disabled={isTogglePending}
-        className={`shrink-0 opacity-0 transition-colors group-hover:opacity-100 ${
+        className={`shrink-0 transition-colors ${
           video.isVisible === false ? "text-gray-400 hover:text-[#1B5E20]" : "text-[#1B5E20] hover:text-[#154a19]"
         } disabled:cursor-not-allowed disabled:opacity-60`}
         type="button"
@@ -129,7 +131,7 @@ function SortableVideoItem({
       </button>
       <button
         onClick={() => onEdit(video)}
-        className="shrink-0 text-gray-300 opacity-0 transition-colors hover:text-[#1B5E20] group-hover:opacity-100"
+        className="shrink-0 text-gray-400 transition-colors hover:text-[#1B5E20]"
         type="button"
         title="영상 정보 수정"
       >
@@ -137,12 +139,99 @@ function SortableVideoItem({
       </button>
       <button
         onClick={() => onDelete(video.id)}
-        className="shrink-0 text-gray-300 opacity-0 transition-colors hover:text-red-500 group-hover:opacity-100"
+        className="shrink-0 text-gray-400 transition-colors hover:text-red-500"
         type="button"
         title="영상 삭제"
       >
         <Trash2 className="h-4 w-4" />
       </button>
+    </div>
+  );
+}
+
+function SortableVideoThumbnailItem({
+  video,
+  onDelete,
+  onEdit,
+  onToggleVisible,
+  isTogglePending,
+}: {
+  video: VideoListItem;
+  onDelete: (id: number) => void;
+  onEdit: (video: VideoListItem) => void;
+  onToggleVisible: (video: VideoListItem) => void;
+  isTogglePending: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: video.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+  const meta = [video.preacher, video.sermonDate].filter(Boolean).join(" · ");
+  const thumbnailUrl = getThumbnailUrl(video);
+
+  return (
+    <div ref={setNodeRef} style={style} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="relative aspect-video bg-[#eef4ed]">
+        <button
+          {...attributes}
+          {...listeners}
+          className="absolute left-2 top-2 z-10 rounded bg-white/90 p-1 text-gray-500 shadow-sm"
+          type="button"
+          title="순서 변경"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        {video.isVisible === false && (
+          <span className="absolute right-2 top-2 z-10 rounded-full bg-gray-900/75 px-2 py-0.5 text-[11px] font-medium text-white">
+            숨김
+          </span>
+        )}
+        {thumbnailUrl ? (
+          <img src={thumbnailUrl} alt={video.title} className="h-full w-full object-cover" loading="lazy" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-[#1B5E20]">
+            <Youtube className="h-8 w-8 opacity-70" />
+          </div>
+        )}
+      </div>
+      <div className="space-y-2 p-3">
+        <div className="min-h-[44px]">
+          <p className="line-clamp-2 text-sm font-semibold leading-snug text-gray-900">{video.title}</p>
+          {meta && <p className="mt-1 line-clamp-1 text-xs text-gray-500">{meta}</p>}
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t border-gray-100 pt-2">
+          <button
+            onClick={() => onToggleVisible(video)}
+            disabled={isTogglePending}
+            className={`rounded p-1 transition-colors ${
+              video.isVisible === false ? "text-gray-400 hover:text-[#1B5E20]" : "text-[#1B5E20] hover:text-[#154a19]"
+            } disabled:cursor-not-allowed disabled:opacity-60`}
+            type="button"
+            title={video.isVisible === false ? "영상 노출하기" : "영상 숨기기"}
+          >
+            {video.isVisible === false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+          <button
+            onClick={() => onEdit(video)}
+            className="rounded p-1 text-gray-500 transition-colors hover:text-[#1B5E20]"
+            type="button"
+            title="영상 정보 수정"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => onDelete(video.id)}
+            className="rounded p-1 text-gray-500 transition-colors hover:text-red-500"
+            type="button"
+            title="영상 삭제"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -174,6 +263,8 @@ export default function YoutubeAdminTab() {
   const [editVideoScripture, setEditVideoScripture] = useState("");
   const [editVideoSermonDate, setEditVideoSermonDate] = useState("");
   const [editVideoDescription, setEditVideoDescription] = useState("");
+  const [videoSearchTerm, setVideoSearchTerm] = useState("");
+  const [videoViewMode, setVideoViewMode] = useState<VideoViewMode>("list");
 
   const createPlaylist = trpc.youtube.createPlaylist.useMutation({
     onSuccess: () => {
@@ -328,6 +419,19 @@ export default function YoutubeAdminTab() {
   }
 
   const selectedPlaylist = playlists.find((p) => p.id === selectedPlaylistId);
+  const filteredVideos = useMemo(() => {
+    const search = videoSearchTerm.trim().toLowerCase();
+    if (!search) return videos;
+    return videos.filter(video => [
+      video.title,
+      video.preacher,
+      video.scripture,
+      video.sermonDate,
+      video.description,
+      video.videoId,
+      video.videoUrl,
+    ].some(value => (value ?? "").toLowerCase().includes(search)));
+  }, [videoSearchTerm, videos]);
 
   return (
     <div>
@@ -597,6 +701,38 @@ export default function YoutubeAdminTab() {
                 </div>
               )}
 
+              <div className="mb-3 flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50 p-2 sm:flex-row sm:items-center sm:justify-between">
+                <label className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                  <Input
+                    value={videoSearchTerm}
+                    onChange={(event) => setVideoSearchTerm(event.target.value)}
+                    placeholder="설교제목, 날짜, 설교자, 본문 검색"
+                    className="h-8 bg-white pl-8 text-sm"
+                  />
+                </label>
+                <div className="flex shrink-0 rounded-lg border border-gray-200 bg-white p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setVideoViewMode("list")}
+                    className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium ${
+                      videoViewMode === "list" ? "bg-[#1B5E20] text-white" : "text-gray-500 hover:bg-gray-50"
+                    }`}
+                  >
+                    <List className="h-3.5 w-3.5" /> 목록
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVideoViewMode("thumbnail")}
+                    className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium ${
+                      videoViewMode === "thumbnail" ? "bg-[#1B5E20] text-white" : "text-gray-500 hover:bg-gray-50"
+                    }`}
+                  >
+                    <LayoutGrid className="h-3.5 w-3.5" /> 썸네일
+                  </button>
+                </div>
+              </div>
+
               {videosLoading ? (
                 <p className="py-4 text-center text-xs text-gray-400">불러오는 중...</p>
               ) : videos.length === 0 ? (
@@ -604,30 +740,38 @@ export default function YoutubeAdminTab() {
                   <p className="text-sm text-gray-400">등록된 영상이 없습니다.</p>
                   <p className="mt-1 text-xs text-gray-400">위에서 영상을 추가해보세요.</p>
                 </div>
+              ) : filteredVideos.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-gray-200 py-8 text-center">
+                  <p className="text-sm text-gray-400">검색 결과가 없습니다.</p>
+                  <p className="mt-1 text-xs text-gray-400">설교제목, 날짜, 설교자, 본문을 다시 확인해 주세요.</p>
+                </div>
               ) : (
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                  <SortableContext items={videos.map((v) => v.id)} strategy={verticalListSortingStrategy}>
-                    <div className="space-y-2">
-                      {videos.map((video) => (
-                        <SortableVideoItem
-                          key={video.id}
-                          video={video}
-                          onEdit={startEditVideo}
-                          onToggleVisible={(item) => {
+                  <SortableContext items={filteredVideos.map((v) => v.id)} strategy={verticalListSortingStrategy}>
+                    <div className={videoViewMode === "thumbnail" ? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3" : "space-y-2"}>
+                      {filteredVideos.map((video) => {
+                        const commonProps = {
+                          video,
+                          onEdit: startEditVideo,
+                          onToggleVisible: (item: VideoListItem) => {
                             toggleVideoVisibility.mutate({
                               id: item.id,
                               isVisible: item.isVisible === false,
                             });
-                          }}
-                          isTogglePending={
+                          },
+                          isTogglePending:
                             toggleVideoVisibility.isPending &&
-                            toggleVideoVisibility.variables?.id === video.id
-                          }
-                          onDelete={(id) => {
+                            toggleVideoVisibility.variables?.id === video.id,
+                          onDelete: (id: number) => {
                             if (confirm("이 영상을 삭제할까요?")) deleteVideo.mutate({ id });
-                          }}
-                        />
-                      ))}
+                          },
+                        };
+                        return videoViewMode === "thumbnail" ? (
+                          <SortableVideoThumbnailItem key={video.id} {...commonProps} />
+                        ) : (
+                          <SortableVideoItem key={video.id} {...commonProps} />
+                        );
+                      })}
                     </div>
                   </SortableContext>
                 </DndContext>

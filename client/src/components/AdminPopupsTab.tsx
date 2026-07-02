@@ -68,6 +68,8 @@ const BUTTON_LABEL_BYTE_LIMIT = 64;
 
 const audienceOptions: { value: PopupAudience; label: string }[] = [
   { value: "all", label: "전체 방문자" },
+  { value: "guest", label: "비로그인 방문자" },
+  { value: "member", label: "성도" },
 ];
 
 const fieldClass =

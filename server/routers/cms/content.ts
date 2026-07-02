@@ -86,6 +86,8 @@ const SETTING_KEYS = [
   "home_church_intro_section",
   "home_worship_section",
   "home_hero_common_buttons",
+  "member_register_guide_title",
+  "member_register_guide_text",
 ] as const;
 
 const iconClassSchema = z.string()
@@ -274,6 +276,7 @@ export const contentRouter = router({
         gridSpan: gridSpanValueSchema.optional(),
         sortOrder: sortOrderSchema.optional(),
         isHomeGallery: z.boolean().optional(),
+        createdAt: z.coerce.date().optional(),
       }))
       .mutation(({ input }) => createGalleryItem(input)),
     /** 갤러리 항목 수정 (캡션, 순서, 공개 여부, 그리드 크기) */
@@ -289,6 +292,7 @@ export const contentRouter = router({
         sortOrder: sortOrderSchema.optional(),
         isVisible: z.boolean().optional(),
         gridSpan: gridSpanValueSchema.optional(),
+        createdAt: z.coerce.date().optional(),
       }))
       .mutation(({ input }) => {
         const { id, ...data } = input;
@@ -301,6 +305,7 @@ export const contentRouter = router({
         albumTitle: optionalTextSchema(160),
         albumDescription: optionalTextSchema(20000),
         isVisible: z.boolean().optional(),
+        createdAt: z.coerce.date().optional(),
       }))
       .mutation(({ input }) => {
         const { ids, ...data } = input;

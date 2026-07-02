@@ -398,7 +398,7 @@ export async function getAllHomeGalleryItems() {
     .where(eq(galleryItems.isHomeGallery, true))
     .orderBy(asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
 }
-export async function createGalleryItem(data: { imageUrl: string; albumKey?: string; albumTitle?: string; albumDescription?: string; albumSortOrder?: number; caption?: string; gridSpan?: string; sortOrder?: number; isHomeGallery?: boolean }) {
+export async function createGalleryItem(data: { imageUrl: string; albumKey?: string; albumTitle?: string; albumDescription?: string; albumSortOrder?: number; caption?: string; gridSpan?: string; sortOrder?: number; isHomeGallery?: boolean; createdAt?: Date }) {
   const db = await getDb();
   if (!db) return;
   await db.insert(galleryItems).values({
@@ -412,6 +412,7 @@ export async function createGalleryItem(data: { imageUrl: string; albumKey?: str
     sortOrder: data.sortOrder ?? 999,
     isVisible: true,
     isHomeGallery: data.isHomeGallery ?? false,
+    ...(data.createdAt ? { createdAt: data.createdAt } : {}),
   });
 }
 /** 갤러리 항목 삭제 */

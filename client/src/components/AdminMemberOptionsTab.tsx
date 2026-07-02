@@ -1,9 +1,9 @@
 /**
  * AdminMemberOptionsTab.tsx
- * 관리자가 직분/부서/구역/세례 선택지를 직접 관리하는 탭
+ * 관리자가 회원가입 폼의 직분/부서/구역/세례 선택지를 직접 관리하는 탭
  * 성도 회원가입 폼에 표시될 선택지 목록을 추가/수정/삭제할 수 있습니다.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   DndContext,
   closestCenter,
@@ -52,6 +52,12 @@ const FIELD_TYPE_COLORS: Record<FieldType, string> = {
   district: "bg-amber-100 text-amber-800",
   baptism: "bg-purple-100 text-purple-800",
 };
+
+const MEMBER_REGISTER_GUIDE_TITLE_KEY = "member_register_guide_title";
+const MEMBER_REGISTER_GUIDE_TEXT_KEY = "member_register_guide_text";
+const DEFAULT_MEMBER_REGISTER_GUIDE_TITLE = "기쁨의교회 등록 성도 전용 가입 안내";
+const DEFAULT_MEMBER_REGISTER_GUIDE_TEXT =
+  "이 회원가입은 기쁨의교회 성도만 신청할 수 있습니다. 방문자나 외부인의 회원가입 관련 문의는 교회 안내 또는 사무실로 문의해 주세요.";
 
 function SortableOptionItem({
   option,
@@ -152,11 +158,20 @@ export default function AdminMemberOptionsTab() {
   const [newLabel, setNewLabel] = useState("");
   const [editItem, setEditItem] = useState<{ id: number; label: string } | null>(null);
   const [localOrder, setLocalOrder] = useState<MemberFieldOptionRow[] | null>(null);
+  const [guideTitle, setGuideTitle] = useState(DEFAULT_MEMBER_REGISTER_GUIDE_TITLE);
+  const [guideText, setGuideText] = useState(DEFAULT_MEMBER_REGISTER_GUIDE_TEXT);
 
   const utils = trpc.useUtils();
 
   // 전체 선택지 조회
   const { data: options = [], isLoading } = trpc.members.adminFieldOptions.useQuery();
+  const { data: settings } = trpc.home.settings.useQuery();
+
+  useEffect(() => {
+    if (!settings) return;
+    setGuideTitle(settings[MEMBER_REGISTER_GUIDE_TITLE_KEY] || DEFAULT_MEMBER_REGISTER_GUIDE_TITLE);
+    setGuideText(settings[MEMBER_REGISTER_GUIDE_TEXT_KEY] || DEFAULT_MEMBER_REGISTER_GUIDE_TEXT);
+  }, [settings]);
 
   // 현재 탭의 선택지만 필터링
   const filteredOptions = options.filter(o => o.fieldType === activeType);
@@ -207,6 +222,25 @@ export default function AdminMemberOptionsTab() {
     },
     onError: (e) => toast.error(e.message),
   });
+
+  const updateSettingMutation = trpc.cms.content.settings.update.useMutation({
+    onSuccess: () => {
+      utils.home.settings.invalidate();
+      toast.success("회원가입 안내가 저장되었습니다.");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handleSaveGuide = async () => {
+    await updateSettingMutation.mutateAsync({
+      key: MEMBER_REGISTER_GUIDE_TITLE_KEY,
+      value: guideTitle.trim() || DEFAULT_MEMBER_REGISTER_GUIDE_TITLE,
+    });
+    await updateSettingMutation.mutateAsync({
+      key: MEMBER_REGISTER_GUIDE_TEXT_KEY,
+      value: guideText.trim() || DEFAULT_MEMBER_REGISTER_GUIDE_TEXT,
+    });
+  };
 
   const handleAdd = () => {
     if (!newLabel.trim()) return;
@@ -266,12 +300,47 @@ export default function AdminMemberOptionsTab() {
     <div className="space-y-6">
       {/* 안내 메시지 */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-        <p className="font-medium mb-1">선택지 관리 안내</p>
-        <p>여기서 추가한 선택지는 성도 회원가입 화면에서 선택할 수 있는 목록으로 표시됩니다.</p>
+        <p className="font-medium mb-1">회원가입 양식 설정 안내</p>
+        <p>여기서 추가한 선택지는 성도 회원가입 화면의 직분, 부서, 구역, 세례 목록으로 표시됩니다.</p>
         <p className="mt-1">교회 상황에 맞게 자유롭게 추가, 수정, 삭제하세요. 삭제해도 기존 성도 정보는 유지됩니다.</p>
       </div>
 
       {/* 탭 선택 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">회원가입 안내글</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-gray-600">안내 제목</label>
+            <Input
+              value={guideTitle}
+              onChange={(event) => setGuideTitle(event.target.value)}
+              maxLength={120}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-gray-600">안내 내용</label>
+            <textarea
+              value={guideText}
+              onChange={(event) => setGuideText(event.target.value)}
+              maxLength={1000}
+              rows={4}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-[#1B5E20]"
+            />
+          </div>
+          <div className="flex justify-end">
+            <Button
+              onClick={handleSaveGuide}
+              disabled={updateSettingMutation.isPending}
+              className="bg-[#1B5E20] hover:bg-[#154a18]"
+            >
+              저장
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="flex flex-wrap gap-2">
         {(Object.keys(FIELD_TYPE_LABELS) as FieldType[]).map((type) => (
           <button

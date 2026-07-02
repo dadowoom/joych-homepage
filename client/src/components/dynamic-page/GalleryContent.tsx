@@ -97,6 +97,13 @@ function formatGalleryDate(value: unknown) {
   return `${year}.${month}.${day}`;
 }
 
+function toDateTimeLocalValue(value?: string | Date | null) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return "";
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return offsetDate.toISOString().slice(0, 16);
+}
+
 function getPlainRichText(value: string) {
   return value
     .replace(/<br\s*\/?>/gi, "\n")
@@ -406,6 +413,7 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
   const [isDetailEditing, setIsDetailEditing] = useState(false);
   const [editAlbumTitle, setEditAlbumTitle] = useState("");
   const [editAlbumDescription, setEditAlbumDescription] = useState("");
+  const [editAlbumCreatedAt, setEditAlbumCreatedAt] = useState("");
   const [editPhotoCaptions, setEditPhotoCaptions] = useState<Record<number, string>>({});
   const [editingPhotoId, setEditingPhotoId] = useState<number | null>(null);
   const [isSavingDetail, setIsSavingDetail] = useState(false);
@@ -421,6 +429,7 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
       setIsDetailEditing(false);
       setEditAlbumTitle("");
       setEditAlbumDescription("");
+      setEditAlbumCreatedAt("");
       setEditPhotoCaptions({});
       return;
     }
@@ -428,6 +437,7 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
     setIsDetailEditing(false);
     setEditAlbumTitle(detailGroup.title);
     setEditAlbumDescription(normalizeRichTextValue(detailGroup.description));
+    setEditAlbumCreatedAt(toDateTimeLocalValue(detailGroup.createdAt));
     setEditPhotoCaptions(Object.fromEntries(
       detailGroup.images.map((image) => [image.id, normalizeRichTextValue(image.caption)])
     ));
@@ -583,6 +593,7 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
         ids: detailGroup.images.map((image) => image.id),
         albumTitle: title,
         albumDescription: description,
+        createdAt: editAlbumCreatedAt ? new Date(editAlbumCreatedAt) : undefined,
       });
 
       await Promise.all(detailGroup.images.map((image) => {
@@ -1044,6 +1055,18 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
                       />
                     </div>
                     <div>
+                      <label className="block text-xs font-semibold text-gray-600" htmlFor="gallery-edit-created-at">
+                        등록일시
+                      </label>
+                      <input
+                        id="gallery-edit-created-at"
+                        type="datetime-local"
+                        value={editAlbumCreatedAt}
+                        onChange={(event) => setEditAlbumCreatedAt(event.target.value)}
+                        className="mt-1 h-9 w-full border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#1B5E20]"
+                      />
+                    </div>
+                    <div>
                       <label className="block text-xs font-semibold text-gray-600" htmlFor="gallery-edit-description">
                         앨범 글/설명
                       </label>
@@ -1080,6 +1103,7 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
                       onClick={() => {
                         setEditAlbumTitle(detailGroup.title);
                         setEditAlbumDescription(normalizeRichTextValue(detailGroup.description));
+                        setEditAlbumCreatedAt(toDateTimeLocalValue(detailGroup.createdAt));
                         setEditPhotoCaptions(Object.fromEntries(
                           detailGroup.images.map((image) => [image.id, normalizeRichTextValue(image.caption)])
                         ));

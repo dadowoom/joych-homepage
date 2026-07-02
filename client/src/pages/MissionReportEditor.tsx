@@ -275,10 +275,10 @@ export default function MissionReportEditor() {
             <h1 className="text-2xl font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
               {editId
                 ? canManage
-                  ? "선교보고 관리 수정"
+                  ? "선교보고서 수정"
                   : "선교보고 수정"
                 : canManage
-                  ? "선교보고 관리 작성"
+                  ? "선교보고서 작성"
                   : "선교보고 작성"}
             </h1>
             <p className="text-sm text-gray-400 mt-1">

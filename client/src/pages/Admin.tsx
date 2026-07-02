@@ -7,7 +7,7 @@
  *   - 기본 정보    : components/admin/SettingsTab.tsx
  *   - 시설 관리    : components/AdminFacilitiesTab.tsx
  *   - 예약 승인    : components/AdminReservationsTab.tsx
- *   - 선택지 관리  : components/AdminMemberOptionsTab.tsx
+ *   - 회원가입 양식 설정: components/AdminMemberOptionsTab.tsx
  *   - 성도 관리    : components/AdminMembersTab.tsx
  *   - 섬기는 분 관리: components/AdminStaffTab.tsx
  *   - 예배영상 관리: components/YoutubeAdminTab.tsx
@@ -102,11 +102,11 @@ const TABS: TabItem[] = [
   },
   {
     id: "memberOptions",
-    label: "선택지 관리",
+    label: "회원가입 양식 설정",
     icon: "fa-list-ul",
     description:
-      "성도 등록과 사역 분류에 사용되는 공통 선택 항목을 정리합니다.",
-    status: "입력 항목",
+      "회원가입 화면의 직분, 부서, 구역, 세례 선택 항목을 정리합니다.",
+    status: "가입 양식",
   },
   {
     id: "permissions",

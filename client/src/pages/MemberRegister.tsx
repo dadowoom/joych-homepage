@@ -15,6 +15,11 @@ import MemberSocialAuthButtons from "@/components/MemberSocialAuthButtons";
 const PASSWORD_HAS_LETTER = /[A-Za-z]/;
 const PASSWORD_HAS_NUMBER = /\d/;
 const EMAIL_MAX_LENGTH = 128;
+const MEMBER_REGISTER_GUIDE_TITLE_KEY = "member_register_guide_title";
+const MEMBER_REGISTER_GUIDE_TEXT_KEY = "member_register_guide_text";
+const DEFAULT_MEMBER_REGISTER_GUIDE_TITLE = "기쁨의교회 등록 성도 전용 가입 안내";
+const DEFAULT_MEMBER_REGISTER_GUIDE_TEXT =
+  "이 회원가입은 기쁨의교회 성도만 신청할 수 있습니다. 방문자나 외부인의 회원가입 관련 문의는 교회 안내 또는 사무실로 문의해 주세요.";
 
 export default function MemberRegister() {
   const [, navigate] = useLocation();
@@ -44,6 +49,9 @@ export default function MemberRegister() {
   // 선택지 불러오기
   const { data: deptOptions = [] } = trpc.members.fieldOptions.useQuery({ fieldType: "department" });
   const { data: districtOptions = [] } = trpc.members.fieldOptions.useQuery({ fieldType: "district" });
+  const { data: settings } = trpc.home.settings.useQuery();
+  const guideTitle = settings?.[MEMBER_REGISTER_GUIDE_TITLE_KEY] || DEFAULT_MEMBER_REGISTER_GUIDE_TITLE;
+  const guideText = settings?.[MEMBER_REGISTER_GUIDE_TEXT_KEY] || DEFAULT_MEMBER_REGISTER_GUIDE_TEXT;
 
   // 회원가입 뮤테이션
   const registerMutation = trpc.members.register.useMutation({
@@ -139,7 +147,9 @@ export default function MemberRegister() {
           </p>
         </div>
 
-        <div className="mb-6 rounded-2xl border border-[#D8E8DA] bg-[#F8FCF8] px-4 py-4 text-sm leading-6 text-[#1B5E20]">
+        <div className="mb-6 rounded-2xl border border-[#D8E8DA] bg-[#F8FCF8] px-4 py-4 text-sm leading-6 text-[#1B5E20] [&>p:nth-of-type(n+3)]:hidden">
+          <p className="font-semibold">{guideTitle}</p>
+          <p className="mt-1 whitespace-pre-line text-[#356046]">{guideText}</p>
           <p className="font-semibold">기쁨의교회 등록 성도 전용 가입 안내</p>
           <p className="mt-1 text-[#356046]">
             이 회원가입은 기쁨의교회 성도만 신청할 수 있습니다. 방문자나 외부인은 회원가입 대신 교회 안내 또는 사무실로 문의해 주세요.

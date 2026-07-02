@@ -34,6 +34,8 @@ type NoticeRow = {
   thumbnailUrl: string | null;
   isPublished: boolean;
   isPinned: boolean;
+  isSecret: boolean;
+  createdAt: string | Date;
 };
 
 type EditState = {
@@ -41,11 +43,33 @@ type EditState = {
   title: string;
   content: string;
   thumbnailUrl: string;
+  isSecret: boolean;
+  createdAt: string;
 };
 
 function normalizeNoticeCategory(category?: string | null, fallback = DEFAULT_NOTICE_CATEGORY_LABEL) {
   if (category === ADMIN_RESOURCE_CATEGORY) return category;
   return sanitizeNoticePostCategory(category, fallback);
+}
+
+function toDateTimeLocalValue(value?: string | Date | null) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return "";
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return offsetDate.toISOString().slice(0, 16);
+}
+
+function formatNoticeDateTime(value?: string | Date | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 interface NoticeEditPanelProps {
@@ -76,6 +100,8 @@ export default function NoticeEditPanel({
     title: "",
     content: "",
     thumbnailUrl: "",
+    isSecret: false,
+    createdAt: toDateTimeLocalValue(),
   });
 
   // 소식 목록 불러오기
@@ -96,7 +122,14 @@ export default function NoticeEditPanel({
 
   // 편집 상태
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editState, setEditState] = useState<EditState>({ category: "", title: "", content: "", thumbnailUrl: "" });
+  const [editState, setEditState] = useState<EditState>({
+    category: "",
+    title: "",
+    content: "",
+    thumbnailUrl: "",
+    isSecret: false,
+    createdAt: toDateTimeLocalValue(),
+  });
 
   // 새 소식 추가 상태
   const [isAdding, setIsAdding] = useState(false);
@@ -181,6 +214,8 @@ export default function NoticeEditPanel({
       title: notice.title,
       content: notice.content ?? "",
       thumbnailUrl: notice.thumbnailUrl ?? "",
+      isSecret: Boolean(notice.isSecret),
+      createdAt: toDateTimeLocalValue(notice.createdAt),
     });
   };
 
@@ -197,6 +232,8 @@ export default function NoticeEditPanel({
           title: notice.title,
           content: notice.content ?? "",
           thumbnailUrl: notice.thumbnailUrl ?? "",
+          isSecret: Boolean(notice.isSecret),
+          createdAt: toDateTimeLocalValue(notice.createdAt),
         });
       }
       return;
@@ -221,6 +258,8 @@ export default function NoticeEditPanel({
       title: editState.title,
       content: editState.content || undefined,
       thumbnailUrl: editState.thumbnailUrl || undefined,
+      isSecret: editState.isSecret,
+      createdAt: editState.createdAt ? new Date(editState.createdAt) : undefined,
     });
   };
 
@@ -236,6 +275,8 @@ export default function NoticeEditPanel({
       thumbnailUrl: newState.thumbnailUrl || undefined,
       isPublished: true,
       isPinned: false,
+      isSecret: newState.isSecret,
+      createdAt: newState.createdAt ? new Date(newState.createdAt) : undefined,
     });
   };
 
@@ -422,6 +463,26 @@ export default function NoticeEditPanel({
               className="text-sm"
             />
             {/* 이미지 업로드 필드 */}
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+              <label className="block text-xs font-medium text-gray-600">
+                등록일시
+                <Input
+                  type="datetime-local"
+                  value={newState.createdAt}
+                  onChange={(e) => setNewState({ ...newState, createdAt: e.target.value })}
+                  className="mt-1 text-sm"
+                />
+              </label>
+              <label className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={newState.isSecret}
+                  onChange={(e) => setNewState({ ...newState, isSecret: e.target.checked })}
+                  className="h-4 w-4 accent-[#1B5E20]"
+                />
+                비밀글
+              </label>
+            </div>
             {renderImageUploadField(newState, setNewState, "new", newImageInputRef)}
             <div className="flex gap-2">
               <Button
@@ -486,6 +547,26 @@ export default function NoticeEditPanel({
                       className="text-sm"
                     />
                     {/* 이미지 업로드 필드 */}
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+                      <label className="block text-xs font-medium text-gray-600">
+                        등록일시
+                        <Input
+                          type="datetime-local"
+                          value={editState.createdAt}
+                          onChange={(e) => setEditState({ ...editState, createdAt: e.target.value })}
+                          className="mt-1 text-sm"
+                        />
+                      </label>
+                      <label className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={editState.isSecret}
+                          onChange={(e) => setEditState({ ...editState, isSecret: e.target.checked })}
+                          className="h-4 w-4 accent-[#1B5E20]"
+                        />
+                        비밀글
+                      </label>
+                    </div>
                     {renderImageUploadField(editState, setEditState, "edit", editImageInputRef)}
                     <div className="flex gap-2">
                       <Button
