@@ -933,6 +933,8 @@ export function Bulletin() {
           <AdminBulletinsTab />
         ) : (
           <>
+        {canManage && <BulletinUploadPanel />}
+
         <div className="mb-5 border-b border-gray-100 pb-4">
           <p className="text-sm text-gray-500">
             총 <span className="font-semibold text-[#1B5E20]">{bulletins.length}</span>개의 주보
