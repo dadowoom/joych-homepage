@@ -7,7 +7,7 @@
  *   - create/update/delete: 관리자 팝업 CRUD
  */
 
-import { and, desc, eq, gte, isNull, lte, or } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { InsertNoticePopup, noticePopups } from "../../drizzle/schema";
 import { getDb } from "./connection";
 
@@ -19,9 +19,15 @@ import { getDb } from "./connection";
  * - endAt이 없거나 현재보다 미래
  * - priority 높은 순, 최신순
  */
-export async function getActiveNoticePopups(limit = 3, now = new Date()) {
+export async function getActiveNoticePopups(
+  limit = 3,
+  now = new Date(),
+  audience: "guest" | "member" = "guest",
+) {
   const db = await getDb();
   if (!db) return [];
+  const allowedAudiences: ("all" | "guest" | "member")[] =
+    audience === "member" ? ["all", "guest", "member"] : ["all", "guest"];
 
   return db
     .select()
@@ -29,7 +35,7 @@ export async function getActiveNoticePopups(limit = 3, now = new Date()) {
     .where(
       and(
         eq(noticePopups.isActive, true),
-        eq(noticePopups.audience, "all"),
+        inArray(noticePopups.audience, allowedAudiences),
         or(isNull(noticePopups.startAt), lte(noticePopups.startAt, now)),
         or(isNull(noticePopups.endAt), gte(noticePopups.endAt, now))
       )

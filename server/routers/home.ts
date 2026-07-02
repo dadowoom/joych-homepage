@@ -472,7 +472,9 @@ export const homeRouter = router({
   adminResourceBoard: publicProcedure.query(() => getPublishedNoticesByCategory("행정자료", 100)),
 
   /** 홈페이지 팝업/공지 배너 (현재 노출 가능한 것만) */
-  popups: publicProcedure.query(() => getActiveNoticePopups(10)),
+  popups: publicProcedure.query(({ ctx }) =>
+    getActiveNoticePopups(10, new Date(), ctx.user || ctx.memberId ? "member" : "guest")
+  ),
 
   /** 관련기관 목록 (공개된 것만) */
   affiliates: publicProcedure.query(() => getVisibleAffiliates()),

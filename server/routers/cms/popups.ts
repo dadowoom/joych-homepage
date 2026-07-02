@@ -24,7 +24,7 @@ import {
 } from "../../db";
 
 const placementSchema = z.enum(["modal", "top_banner", "bottom_sheet"]);
-const audienceSchema = z.enum(["all", "guest", "member"]);
+const audienceSchema = z.enum(["all", "member"]);
 const nullableDateSchema = z.coerce.date().nullable().optional();
 const popupProcedure = adminPermissionProcedure("content:popups");
 

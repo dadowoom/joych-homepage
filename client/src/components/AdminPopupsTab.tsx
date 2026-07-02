@@ -24,7 +24,7 @@ import {
 
 type PopupRow = inferRouterOutputs<AppRouter>["cms"]["popups"]["list"][number];
 type PopupPlacement = "modal" | "top_banner" | "bottom_sheet";
-type PopupAudience = "all" | "guest" | "member";
+type PopupAudience = "all" | "member";
 
 type PopupForm = {
   title: string;
@@ -67,8 +67,7 @@ const EMPTY_FORM: PopupForm = {
 const BUTTON_LABEL_BYTE_LIMIT = 64;
 
 const audienceOptions: { value: PopupAudience; label: string }[] = [
-  { value: "all", label: "전체 방문자" },
-  { value: "guest", label: "비로그인 방문자" },
+  { value: "all", label: "전체공개" },
   { value: "member", label: "성도" },
 ];
 
@@ -209,6 +208,7 @@ function getPlacementLabel(_value: PopupPlacement) {
 }
 
 function getAudienceLabel(value: string) {
+  if (value === "guest") return "전체공개";
   return audienceOptions.find((option) => option.value === value)?.label ?? value;
 }
 
@@ -284,7 +284,7 @@ export default function AdminPopupsTab() {
       linkLabel: popup.linkLabel ?? "",
       linkHref: popup.linkHref ?? "",
       placement: popup.placement,
-      audience: popup.audience,
+      audience: popup.audience === "member" ? "member" : "all",
       isActive: popup.isActive,
       isDismissible: popup.isDismissible,
       dismissPeriodHours: popup.dismissPeriodHours,
