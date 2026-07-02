@@ -3,9 +3,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NoticePopupLayer from "@/components/NoticePopupLayer";
 import SiteHeader from "@/components/SiteHeader";
 import SitewideAdminEditor from "@/components/SitewideAdminEditor";
+import MenuAccessGate from "@/components/MenuAccessGate";
 import NotFound from "@/pages/NotFound";
 import { lazy, Suspense, useEffect } from "react";
-import { Route, Switch, useLocation } from "wouter";
+import { Route, Switch, useLocation, type RouteComponentProps } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
@@ -80,6 +81,14 @@ const DynamicMenuHrefPage = lazy(() =>
     default: module.DynamicMenuHrefPage,
   }))
 );
+
+function GuardedPastorBookDetailPage(props: RouteComponentProps<{ id: string }>) {
+  return (
+    <MenuAccessGate href="/about/pastor/books">
+      <PastorBookDetailPage {...props} />
+    </MenuAccessGate>
+  );
+}
 const DynamicMenuItemPage = lazy(() =>
   import("./pages/DynamicPage").then(module => ({
     default: module.DynamicMenuItemPage,
@@ -320,45 +329,45 @@ function Router() {
       <Route path="/legacy-vod/:pageCode/:num/:vodType" component={LegacyVodPage} />
 
       {/* 교회소개 */}
-      <Route path="/about/pastor" component={PastorGreeting} />
-      <Route path="/about/history" component={ChurchHistory} />
-      <Route path="/about/vision" component={ChurchVision} />
-      <Route path="/about/pastor/books/:id" component={PastorBookDetailPage} />
-      <Route path="/about/pastor/books" component={PastorBooksPage} />
-      <Route path="/about/staff/associate" component={StaffPage} />
-      <Route path="/about/staff" component={StaffPage} />
-      <Route path="/page/교회소개-담임목사-저서" component={PastorBooksPage} />
-      <Route path="/page/교회소개-섬기는-분" component={StaffPage} />
-      <Route path="/page/교회소개-부교역자" component={StaffPage} />
+      <Route path="/about/pastor"><MenuAccessGate href="/about/pastor"><PastorGreeting /></MenuAccessGate></Route>
+      <Route path="/about/history"><MenuAccessGate href="/about/history"><ChurchHistory /></MenuAccessGate></Route>
+      <Route path="/about/vision"><MenuAccessGate href="/about/vision"><ChurchVision /></MenuAccessGate></Route>
+      <Route path="/about/pastor/books/:id" component={GuardedPastorBookDetailPage} />
+      <Route path="/about/pastor/books"><MenuAccessGate href="/about/pastor/books"><PastorBooksPage /></MenuAccessGate></Route>
+      <Route path="/about/staff/associate"><MenuAccessGate href="/about/staff/associate"><StaffPage /></MenuAccessGate></Route>
+      <Route path="/about/staff"><MenuAccessGate href="/about/staff"><StaffPage /></MenuAccessGate></Route>
+      <Route path="/page/교회소개-담임목사-저서"><MenuAccessGate href="/about/pastor/books"><PastorBooksPage /></MenuAccessGate></Route>
+      <Route path="/page/교회소개-섬기는-분"><MenuAccessGate href="/about/staff"><StaffPage /></MenuAccessGate></Route>
+      <Route path="/page/교회소개-부교역자"><MenuAccessGate href="/about/staff/associate"><StaffPage /></MenuAccessGate></Route>
       <Route path="/about/whitebook" component={WhiteBookPage} />
       <Route path="/about/principle" component={MinistryPrinciplePage} />
       <Route path="/about/ci" component={CIPage} />
-      <Route path="/about/shuttle" component={ShuttleBusPage} />
-      <Route path="/about/directions" component={Location} />
+      <Route path="/about/shuttle"><MenuAccessGate href="/about/shuttle"><ShuttleBusPage /></MenuAccessGate></Route>
+      <Route path="/about/directions"><MenuAccessGate href="/about/directions"><Location /></MenuAccessGate></Route>
 
       {/* 조이풀TV */}
-      <Route path="/worship/tv" component={JoyfulTV} />
+      <Route path="/worship/tv"><MenuAccessGate href="/worship/tv"><JoyfulTV /></MenuAccessGate></Route>
       <Route path="/worship/tv/sunday">
         <LegacyRedirect to="/page/조이풀tv-주일예배" />
       </Route>
-      <Route path="/worship/tv/hebron" component={WednesdayWorshipPage} />
-      <Route path="/worship/tv/shekhinah" component={FridayPrayerPage} />
-      <Route path="/worship/tv/gloria" component={DawnBiblePage} />
-      <Route path="/worship/tv/pastor-series" component={PastorSeriesPage} />
-      <Route path="/worship/tv/hayoungin" component={HaDawnPage} />
-      <Route path="/worship/tv/special" component={SpecialWorshipPage} />
-      <Route path="/worship/tv/feature" component={SpecialFeaturePage} />
-      <Route path="/worship/tv/testimony" component={TestimonyPage} />
-      <Route path="/worship/tv/praise" component={PraisePage} />
+      <Route path="/worship/tv/hebron"><MenuAccessGate href="/worship/tv/hebron"><WednesdayWorshipPage /></MenuAccessGate></Route>
+      <Route path="/worship/tv/shekhinah"><MenuAccessGate href="/worship/tv/shekhinah"><FridayPrayerPage /></MenuAccessGate></Route>
+      <Route path="/worship/tv/gloria"><MenuAccessGate href="/worship/tv/gloria"><DawnBiblePage /></MenuAccessGate></Route>
+      <Route path="/worship/tv/pastor-series"><MenuAccessGate href="/worship/tv/pastor-series"><PastorSeriesPage /></MenuAccessGate></Route>
+      <Route path="/worship/tv/hayoungin"><MenuAccessGate href="/worship/tv/hayoungin"><HaDawnPage /></MenuAccessGate></Route>
+      <Route path="/worship/tv/special"><MenuAccessGate href="/worship/tv/special"><SpecialWorshipPage /></MenuAccessGate></Route>
+      <Route path="/worship/tv/feature"><MenuAccessGate href="/worship/tv/feature"><SpecialFeaturePage /></MenuAccessGate></Route>
+      <Route path="/worship/tv/testimony"><MenuAccessGate href="/worship/tv/testimony"><TestimonyPage /></MenuAccessGate></Route>
+      <Route path="/worship/tv/praise"><MenuAccessGate href="/worship/tv/praise"><PraisePage /></MenuAccessGate></Route>
       <Route path="/worship/schedule" component={DynamicMenuHrefPage} />
-      <Route path="/worship/bulletin/:id" component={BulletinDetail} />
-      <Route path="/worship/bulletin" component={Bulletin} />
+      <Route path="/worship/bulletin/:id"><MenuAccessGate href="/worship/bulletin"><BulletinDetail /></MenuAccessGate></Route>
+      <Route path="/worship/bulletin"><MenuAccessGate href="/worship/bulletin"><Bulletin /></MenuAccessGate></Route>
 
       {/* 양육/훈련 */}
       <Route path="/education/new-member" component={NewMember} />
       <Route path="/education/disciple" component={DiscipleTraining} />
       <Route path="/education/bible" component={BibleStudy} />
-      <Route path="/education/courses" component={CourseList} />
+      <Route path="/education/courses"><MenuAccessGate href="/education/courses"><CourseList /></MenuAccessGate></Route>
       <Route path="/education/hesed" component={HesedAsiaPage} />
       <Route path="/education/disciple2" component={DiscipleTrainingPage} />
       <Route path="/education/elder" component={ElderTrainingPage} />
@@ -386,10 +395,10 @@ function Router() {
       <Route path="/mission-work/domestic" component={DomesticMission} />
       <Route path="/mission-work/overseas" component={OverseasMission} />
       <Route path="/mission-work/volunteer" component={Volunteer} />
-      <Route path="/mission/write" component={MissionReportEditor} />
-      <Route path="/mission/edit/:id" component={MissionReportEditor} />
-      <Route path="/mission/:id" component={MissionDetail} />
-      <Route path="/mission" component={MissionList} />
+      <Route path="/mission/write"><MenuAccessGate href="/mission"><MissionReportEditor /></MenuAccessGate></Route>
+      <Route path="/mission/edit/:id"><MenuAccessGate href="/mission"><MissionReportEditor /></MenuAccessGate></Route>
+      <Route path="/mission/:id"><MenuAccessGate href="/mission"><MissionDetail /></MenuAccessGate></Route>
+      <Route path="/mission"><MenuAccessGate href="/mission"><MissionList /></MenuAccessGate></Route>
 
       {/* 커뮤니티 */}
       <Route path="/community/news">
@@ -402,27 +411,27 @@ function Router() {
       <Route path="/community/photo">
         <LegacyRedirect to="/page/커뮤니티-최근-행사-사진" />
       </Route>
-      <Route path="/community/testimony/write" component={TestimonyEditor} />
-      <Route path="/community/testimony/edit/:id" component={TestimonyEditor} />
-      <Route path="/community/testimony/:id" component={TestimonyDetail} />
-      <Route path="/community/testimony" component={TestimonyList} />
+      <Route path="/community/testimony/write"><MenuAccessGate href="/community/testimony"><TestimonyEditor /></MenuAccessGate></Route>
+      <Route path="/community/testimony/edit/:id"><MenuAccessGate href="/community/testimony"><TestimonyEditor /></MenuAccessGate></Route>
+      <Route path="/community/testimony/:id"><MenuAccessGate href="/community/testimony"><TestimonyDetail /></MenuAccessGate></Route>
+      <Route path="/community/testimony"><MenuAccessGate href="/community/testimony"><TestimonyList /></MenuAccessGate></Route>
       <Route path="/community/joytalk">
         <LegacyRedirect to="/page/커뮤니티-자유게시판" />
       </Route>
 
       {/* 행정지원 */}
-      <Route path="/support/offering" component={Offering} />
-      <Route path="/support/vehicle/my-reservations" component={MyVehicleReservations} />
-      <Route path="/support/vehicle/:id/apply" component={VehicleReservationApply} />
-      <Route path="/support/vehicle/:id" component={VehicleReservationDetail} />
-      <Route path="/support/vehicle" component={VehicleReservationList} />
-      <Route path="/support/new-member" component={NewMemberGuide} />
-      <Route path="/support/store" component={JoyfulStore} />
-      <Route path="/support/bulletin-ad" component={BulletinAdRequestPage} />
-      <Route path="/support/subtitle" component={SubtitleRequestPage} />
-      <Route path="/support/office" component={OnlineOfficePage} />
-      <Route path="/support/tour" component={VisitRequestPage} />
-      <Route path="/support/donation" component={DonationReceiptPage} />
+      <Route path="/support/offering"><MenuAccessGate href="/support/offering"><Offering /></MenuAccessGate></Route>
+      <Route path="/support/vehicle/my-reservations"><MenuAccessGate href="/support/vehicle"><MyVehicleReservations /></MenuAccessGate></Route>
+      <Route path="/support/vehicle/:id/apply"><MenuAccessGate href="/support/vehicle"><VehicleReservationApply /></MenuAccessGate></Route>
+      <Route path="/support/vehicle/:id"><MenuAccessGate href="/support/vehicle"><VehicleReservationDetail /></MenuAccessGate></Route>
+      <Route path="/support/vehicle"><MenuAccessGate href="/support/vehicle"><VehicleReservationList /></MenuAccessGate></Route>
+      <Route path="/support/new-member"><MenuAccessGate href="/support/new-member"><NewMemberGuide /></MenuAccessGate></Route>
+      <Route path="/support/store"><MenuAccessGate href="/support/store"><JoyfulStore /></MenuAccessGate></Route>
+      <Route path="/support/bulletin-ad"><MenuAccessGate href="/support/bulletin-ad"><BulletinAdRequestPage /></MenuAccessGate></Route>
+      <Route path="/support/subtitle"><MenuAccessGate href="/support/subtitle"><SubtitleRequestPage /></MenuAccessGate></Route>
+      <Route path="/support/office"><MenuAccessGate href="/support/office"><OnlineOfficePage /></MenuAccessGate></Route>
+      <Route path="/support/tour"><MenuAccessGate href="/support/tour"><VisitRequestPage /></MenuAccessGate></Route>
+      <Route path="/support/donation"><MenuAccessGate href="/support/donation"><DonationReceiptPage /></MenuAccessGate></Route>
 
       {/* 행정지원 - 기존 공개 URL 호환 */}
       <Route path="/admin/offering" component={Offering} />
@@ -445,10 +454,10 @@ function Router() {
       <Route path="/facility/external/:id/apply" component={ExternalFacilityApply} />
       <Route path="/facility/external/:id" component={ExternalFacilityDetail} />
       <Route path="/facility/external" component={ExternalFacilityList} />
-      <Route path="/facility" component={FacilityList} />
-      <Route path="/facility/my-reservations" component={MyReservations} />
-      <Route path="/facility/:id/apply" component={FacilityApply} />
-      <Route path="/facility/:id" component={FacilityDetail} />
+      <Route path="/facility"><MenuAccessGate href="/facility"><FacilityList /></MenuAccessGate></Route>
+      <Route path="/facility/my-reservations"><MenuAccessGate href="/facility"><MyReservations /></MenuAccessGate></Route>
+      <Route path="/facility/:id/apply"><MenuAccessGate href="/facility"><FacilityApply /></MenuAccessGate></Route>
+      <Route path="/facility/:id"><MenuAccessGate href="/facility"><FacilityDetail /></MenuAccessGate></Route>
 
       {/* 사이트맵 */}
       <Route path="/sitemap" component={Sitemap} />

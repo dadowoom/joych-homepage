@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 
 type LeafKind = "item" | "subItem";
-type ReadLevel = "guest" | "member" | "hidden";
+type ReadLevel = "guest" | "member";
 
 type MenuLeaf = {
   kind: LeafKind;
@@ -17,7 +17,7 @@ type MenuLeaf = {
 };
 
 const READ_LEVEL_OPTIONS: {
-  value: ReadLevel;
+  value: ReadLevel | "hidden";
   label: string;
   description: string;
 }[] = [
@@ -36,12 +36,11 @@ const READ_LEVEL_OPTIONS: {
     label: "숨김",
     description: "일반 방문자와 성도 화면에서 보이지 않습니다.",
   },
-];
+].filter((option): option is { value: ReadLevel; label: string; description: string } => option.value !== "hidden");
 
 function getReadLevel(leaf: Pick<MenuLeaf, "allowGuest" | "allowMember">): ReadLevel {
   if (leaf.allowGuest) return "guest";
-  if (leaf.allowMember) return "member";
-  return "hidden";
+  return "member";
 }
 
 function getReadFlags(level: ReadLevel) {
@@ -265,7 +264,7 @@ export default function AdminMenuAccessTab() {
                             key={option.value}
                             type="button"
                             disabled={isSaving}
-                            onClick={() => setGroupAccess(leaves, option.value)}
+                            onClick={() => setGroupAccess(leaves, option.value as ReadLevel)}
                             className="h-8 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:border-[#1B5E20] hover:text-[#1B5E20] disabled:bg-gray-50 disabled:text-gray-400"
                           >
                             {option.label}

@@ -67,6 +67,11 @@ function getMenuHrefCandidates(href: string) {
     decodedHref,
     ...(MENU_HREF_ALIASES[decodedHref] ?? []),
   ];
+  for (const [canonicalHref, aliasHrefs] of Object.entries(MENU_HREF_ALIASES)) {
+    if (canonicalHref === decodedHref || aliasHrefs.includes(decodedHref)) {
+      candidates.push(canonicalHref, ...aliasHrefs);
+    }
+  }
   return Array.from(new Set(candidates.filter(Boolean)));
 }
 
@@ -498,15 +503,16 @@ export async function getMenuAccessByHref(href: string, access: MenuReadAccess =
 
   for (const candidate of getMenuHrefCandidates(href)) {
     const itemRows = await db.select().from(menuItems)
-      .where(and(eq(menuItems.href, candidate), eq(menuItems.isVisible, true)))
+      .where(eq(menuItems.href, candidate))
       .limit(1);
     const item = itemRows[0];
     if (item) {
       const parentRows = await db.select().from(menus)
-        .where(and(eq(menus.id, item.menuId), eq(menus.isVisible, true)))
+        .where(eq(menus.id, item.menuId))
         .limit(1);
       const parent = parentRows[0];
       if (!parent) continue;
+      const isVisible = Boolean(parent.isVisible) && Boolean(item.isVisible);
 
       return {
         kind: "item" as const,
@@ -520,29 +526,30 @@ export async function getMenuAccessByHref(href: string, access: MenuReadAccess =
         },
         allowGuest: item.allowGuest,
         allowMember: item.allowMember,
-        isReadable: canReadMenuLeaf(item, access),
+        isReadable: isVisible && canReadMenuLeaf(item, access),
       };
     }
 
     const subItemRows = await db.select().from(menuSubItems)
-      .where(and(eq(menuSubItems.href, candidate), eq(menuSubItems.isVisible, true)))
+      .where(eq(menuSubItems.href, candidate))
       .limit(1);
     const subItem = subItemRows[0];
     if (!subItem) continue;
 
     const itemRowsForSub = await db.select().from(menuItems)
-      .where(and(eq(menuItems.id, subItem.menuItemId), eq(menuItems.isVisible, true)))
+      .where(eq(menuItems.id, subItem.menuItemId))
       .limit(1);
     const parentItem = itemRowsForSub[0];
     if (!parentItem) continue;
 
     const parentRows = await db.select().from(menus)
-      .where(and(eq(menus.id, parentItem.menuId), eq(menus.isVisible, true)))
+      .where(eq(menus.id, parentItem.menuId))
       .limit(1);
     const parent = parentRows[0];
     if (!parent) continue;
 
     const effectiveAccess = getEffectiveLeafAccess(parentItem, subItem);
+    const isVisible = Boolean(parent.isVisible) && Boolean(parentItem.isVisible) && Boolean(subItem.isVisible);
     return {
       kind: "subItem" as const,
       id: subItem.id,
@@ -560,7 +567,7 @@ export async function getMenuAccessByHref(href: string, access: MenuReadAccess =
       },
       allowGuest: effectiveAccess.allowGuest,
       allowMember: effectiveAccess.allowMember,
-      isReadable: canReadMenuLeaf(effectiveAccess, access),
+      isReadable: isVisible && canReadMenuLeaf(effectiveAccess, access),
     };
   }
 
@@ -577,16 +584,17 @@ export async function getMenuAccessById(
 
   if (kind === "item") {
     const rows = await db.select().from(menuItems)
-      .where(and(eq(menuItems.id, id), eq(menuItems.isVisible, true)))
+      .where(eq(menuItems.id, id))
       .limit(1);
     const item = rows[0];
     if (!item) return null;
 
     const parentRows = await db.select().from(menus)
-      .where(and(eq(menus.id, item.menuId), eq(menus.isVisible, true)))
+      .where(eq(menus.id, item.menuId))
       .limit(1);
     const parent = parentRows[0];
     if (!parent) return null;
+    const isVisible = Boolean(parent.isVisible) && Boolean(item.isVisible);
 
     return {
       kind: "item" as const,
@@ -600,29 +608,30 @@ export async function getMenuAccessById(
       },
       allowGuest: item.allowGuest,
       allowMember: item.allowMember,
-      isReadable: canReadMenuLeaf(item, access),
+      isReadable: isVisible && canReadMenuLeaf(item, access),
     };
   }
 
   const rows = await db.select().from(menuSubItems)
-    .where(and(eq(menuSubItems.id, id), eq(menuSubItems.isVisible, true)))
+    .where(eq(menuSubItems.id, id))
     .limit(1);
   const subItem = rows[0];
   if (!subItem) return null;
 
   const itemRows = await db.select().from(menuItems)
-    .where(and(eq(menuItems.id, subItem.menuItemId), eq(menuItems.isVisible, true)))
+    .where(eq(menuItems.id, subItem.menuItemId))
     .limit(1);
   const parentItem = itemRows[0];
   if (!parentItem) return null;
 
   const parentRows = await db.select().from(menus)
-    .where(and(eq(menus.id, parentItem.menuId), eq(menus.isVisible, true)))
+    .where(eq(menus.id, parentItem.menuId))
     .limit(1);
   const parent = parentRows[0];
   if (!parent) return null;
 
   const effectiveAccess = getEffectiveLeafAccess(parentItem, subItem);
+  const isVisible = Boolean(parent.isVisible) && Boolean(parentItem.isVisible) && Boolean(subItem.isVisible);
   return {
     kind: "subItem" as const,
     id: subItem.id,
@@ -640,6 +649,6 @@ export async function getMenuAccessById(
     },
     allowGuest: effectiveAccess.allowGuest,
     allowMember: effectiveAccess.allowMember,
-    isReadable: canReadMenuLeaf(effectiveAccess, access),
+    isReadable: isVisible && canReadMenuLeaf(effectiveAccess, access),
   };
 }
