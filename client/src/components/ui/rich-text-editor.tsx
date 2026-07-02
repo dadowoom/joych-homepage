@@ -628,7 +628,7 @@ const RichTableHeader = TableHeader.extend({
   },
 });
 
-function createMergedTableCellVerticalAlignTransaction(editor: Editor) {
+function createMergedTableCellAutoAlignTransaction(editor: Editor) {
   const transaction = editor.state.tr;
   let changed = false;
 
@@ -636,12 +636,17 @@ function createMergedTableCellVerticalAlignTransaction(editor: Editor) {
     if (node.type.name !== "tableCell" && node.type.name !== "tableHeader") return true;
 
     const rowSpan = Number(node.attrs.rowspan ?? 1);
-    const hasVerticalAlign = normalizeTableVerticalAlign(node.attrs.verticalAlign as string | null | undefined);
+    const colSpan = Number(node.attrs.colspan ?? 1);
+    const currentAlign = String(node.attrs.align ?? "").trim().toLowerCase();
+    const currentVerticalAlign = normalizeTableVerticalAlign(node.attrs.verticalAlign as string | null | undefined);
+    const isMergedCell = rowSpan > 1 || colSpan > 1;
 
-    if (rowSpan <= 1 || hasVerticalAlign) return true;
+    if (!isMergedCell) return true;
+    if (currentAlign === "center" && currentVerticalAlign === "middle") return true;
 
     transaction.setNodeMarkup(position, undefined, {
       ...node.attrs,
+      align: "center",
       verticalAlign: "middle",
     });
     changed = true;
@@ -1960,10 +1965,10 @@ export function RichTextEditor({
 
     let isApplyingMergedCellAlign = false;
 
-    const syncMergedCellVerticalAlign = () => {
+    const syncMergedCellAutoAlign = () => {
       if (isApplyingMergedCellAlign) return;
 
-      const transaction = createMergedTableCellVerticalAlignTransaction(editor);
+      const transaction = createMergedTableCellAutoAlignTransaction(editor);
       if (!transaction) return;
 
       isApplyingMergedCellAlign = true;
@@ -1971,11 +1976,11 @@ export function RichTextEditor({
       isApplyingMergedCellAlign = false;
     };
 
-    syncMergedCellVerticalAlign();
-    editor.on("transaction", syncMergedCellVerticalAlign);
+    syncMergedCellAutoAlign();
+    editor.on("transaction", syncMergedCellAutoAlign);
 
     return () => {
-      editor.off("transaction", syncMergedCellVerticalAlign);
+      editor.off("transaction", syncMergedCellAutoAlign);
     };
   }, [editor]);
 
