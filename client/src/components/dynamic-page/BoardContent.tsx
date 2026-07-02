@@ -31,6 +31,7 @@ type NoticeFormState = {
   category: string;
   title: string;
   content: string;
+  createdAt: string;
   thumbnailUrl: string;
   attachmentName: string;
   attachmentUrl: string;
@@ -87,6 +88,13 @@ function formatBoardDate(value: string | Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}.${month}.${day}`;
+}
+
+function toDateTimeLocalValue(value?: string | Date | null) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return "";
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000);
+  return offsetDate.toISOString().slice(0, 16);
 }
 
 function isToday(value: string | Date) {
@@ -192,6 +200,7 @@ function NoticeBoardContent({
       : DEFAULT_NOTICE_CATEGORY_LABEL,
     title: "",
     content: "",
+    createdAt: toDateTimeLocalValue(),
     thumbnailUrl: "",
     attachmentName: "",
     attachmentUrl: "",
@@ -427,6 +436,7 @@ function NoticeBoardContent({
         : sanitizeNoticePostCategory(getPostCategory(notice), writeNoticeCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
       title: notice.title,
       content: notice.content ?? "",
+      createdAt: toDateTimeLocalValue(notice.createdAt),
       thumbnailUrl: notice.thumbnailUrl ?? "",
       attachmentName: attachment.name,
       attachmentUrl: attachment.url,
@@ -512,6 +522,7 @@ function NoticeBoardContent({
         : sanitizeNoticePostCategory(formState.category, writeNoticeCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL),
       title,
       content: formState.content.trim() || undefined,
+      createdAt: formState.createdAt ? new Date(formState.createdAt) : undefined,
       thumbnailUrl: formState.thumbnailUrl.trim(),
       attachmentName: supportsAttachments ? formState.attachmentName.trim() : undefined,
       attachmentUrl: supportsAttachments ? formState.attachmentUrl.trim() : undefined,
@@ -529,6 +540,7 @@ function NoticeBoardContent({
         ...customBoardSource,
         title,
         content: formState.content.trim() || undefined,
+        createdAt: formState.createdAt ? new Date(formState.createdAt) : undefined,
         thumbnailUrl: formState.thumbnailUrl.trim(),
         attachmentName: supportsAttachments ? formState.attachmentName.trim() : undefined,
         attachmentUrl: supportsAttachments ? formState.attachmentUrl.trim() : undefined,
@@ -541,6 +553,7 @@ function NoticeBoardContent({
           id: editingNoticeId,
           title,
           content: dynamicPayload.content,
+          createdAt: dynamicPayload.createdAt,
           thumbnailUrl: dynamicPayload.thumbnailUrl,
           attachmentName: dynamicPayload.attachmentName,
           attachmentUrl: dynamicPayload.attachmentUrl,
@@ -734,6 +747,15 @@ function NoticeBoardContent({
               onChange={(event) => setFormState((previous) => ({ ...previous, title: event.target.value }))}
               placeholder={isAdminResource ? "예: 2026년 행정자료 안내" : "예: 2026년 공동의회 안내"}
               className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#1B5E20]"
+            />
+          </label>
+          <label className="space-y-2 md:col-span-2">
+            <span className="block text-sm font-semibold text-gray-700">등록일시</span>
+            <input
+              type="datetime-local"
+              value={formState.createdAt}
+              onChange={(event) => setFormState((previous) => ({ ...previous, createdAt: event.target.value }))}
+              className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#1B5E20] md:max-w-xs"
             />
           </label>
                 <div className="space-y-2 md:col-span-2">

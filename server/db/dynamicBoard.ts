@@ -121,6 +121,7 @@ export async function createDynamicBoardPost(data: DynamicBoardPostInput) {
     isPinned: data.isPinned,
     isSecret: data.isSecret,
     authorId: data.authorId,
+    ...(data.createdAt ? { createdAt: data.createdAt } : {}),
   });
   return (result as ResultSetHeader).insertId;
 }
