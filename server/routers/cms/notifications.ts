@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   STATIC_ADMIN_PERMISSIONS,
@@ -42,6 +42,7 @@ const RECENT_DAYS = 7;
 const MAX_RECENT_ITEMS = 50;
 const MAX_GROUP_ITEMS = 8;
 const ADMIN_NOTIFICATION_BASELINE_KEY = "admin_notification_baseline_at";
+const GLOBAL_ADMIN_NOTIFICATION_USER_ID = 0;
 
 const ADMIN_NOTIFICATION_PERMISSION_KEYS = Array.from(
   new Set(STATIC_ADMIN_PERMISSIONS.map(permission => permission.key))
@@ -236,6 +237,10 @@ function addGroup(
   items.push(...groupItems);
 }
 
+function readStateUserIds(userId: number) {
+  return Array.from(new Set([GLOBAL_ADMIN_NOTIFICATION_USER_ID, userId]));
+}
+
 export const notificationsRouter = router({
   summary: adminAnyPermissionProcedure(
     ADMIN_NOTIFICATION_PERMISSION_KEYS
@@ -268,7 +273,9 @@ export const notificationsRouter = router({
         lastSeenAt: sql<Date>`max(${adminNotificationReadStates.lastSeenAt})`,
       })
       .from(adminNotificationReadStates)
-      .where(eq(adminNotificationReadStates.userId, ctx.user.id))
+      .where(
+        inArray(adminNotificationReadStates.userId, readStateUserIds(ctx.user.id))
+      )
       .groupBy(adminNotificationReadStates.groupKey);
     const lastSeenByGroup = new Map(
       readRows.map(row => {
@@ -1212,17 +1219,22 @@ export const notificationsRouter = router({
         .delete(adminNotificationReadStates)
         .where(
           and(
-            eq(adminNotificationReadStates.userId, ctx.user.id),
+            inArray(
+              adminNotificationReadStates.userId,
+              readStateUserIds(ctx.user.id)
+            ),
             eq(adminNotificationReadStates.groupKey, input.groupKey)
           )
         );
-      await db
-        .insert(adminNotificationReadStates)
-        .values({
-          userId: ctx.user.id,
-          groupKey: input.groupKey,
-          lastSeenAt: readCutoffValueForGroup(input.groupKey),
-        });
+      for (const userId of readStateUserIds(ctx.user.id)) {
+        await db
+          .insert(adminNotificationReadStates)
+          .values({
+            userId,
+            groupKey: input.groupKey,
+            lastSeenAt: readCutoffValueForGroup(input.groupKey),
+          });
+      }
 
       return { ok: true };
     }),
@@ -1234,15 +1246,19 @@ export const notificationsRouter = router({
 
     await db
       .delete(adminNotificationReadStates)
-      .where(eq(adminNotificationReadStates.userId, ctx.user.id));
+      .where(
+        inArray(adminNotificationReadStates.userId, readStateUserIds(ctx.user.id))
+      );
     for (const groupKey of NOTIFICATION_GROUP_KEYS) {
-      await db
-        .insert(adminNotificationReadStates)
-        .values({
-          userId: ctx.user.id,
-          groupKey,
-          lastSeenAt: readCutoffValueForGroup(groupKey),
-        });
+      for (const userId of readStateUserIds(ctx.user.id)) {
+        await db
+          .insert(adminNotificationReadStates)
+          .values({
+            userId,
+            groupKey,
+            lastSeenAt: readCutoffValueForGroup(groupKey),
+          });
+      }
     }
 
     return { ok: true };
