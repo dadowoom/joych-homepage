@@ -60,7 +60,7 @@ function PopupActionButton({
           setLocation(popup.linkHref);
         }
       }}
-      className="inline-flex items-center justify-center rounded-lg bg-[#1B5E20] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#2E7D32]"
+      className="inline-flex items-center justify-center rounded-lg bg-[#1B5E20] px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-[#2E7D32]"
     >
       {popup.linkLabel}
     </a>
@@ -140,7 +140,7 @@ export default function NoticePopupLayer() {
   return (
     <>
       {activeModalPopup && (
-        <div className="fixed inset-x-3 bottom-3 z-[320] md:inset-x-auto md:bottom-auto md:right-8 md:top-1/2 md:w-[560px] md:-translate-y-1/2 xl:w-[620px]">
+        <div className="fixed inset-x-3 bottom-3 z-[320] md:inset-x-auto md:bottom-auto md:right-8 md:top-1/2 md:w-[min(420px,calc(100vw-2rem))] md:-translate-y-1/2 xl:w-[440px]">
           <div
             role="dialog"
             aria-modal="true"
@@ -171,30 +171,30 @@ export default function NoticePopupLayer() {
                       <img
                         src={popup.imageUrl}
                         alt=""
-                        className="max-h-[42vh] w-auto max-w-full object-contain md:max-h-[52vh]"
+                        className="max-h-[58vh] w-auto max-w-full object-contain md:max-h-[68vh]"
                         loading={index === 0 ? "eager" : "lazy"}
                         decoding="async"
                       />
                     </div>
                   )}
 
-                  <div className="p-5 md:p-6">
+                  <div className="p-4 md:p-5">
                     <div className="mb-3 flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <h2
                           id={`notice-popup-title-${popup.id}`}
-                          className="pr-8 text-xl font-bold text-gray-900 md:text-2xl"
+                          className="pr-8 text-lg font-bold text-gray-900 md:text-xl"
                           style={{ fontFamily: "'Noto Serif KR', serif" }}
                         >
                           {popup.title}
                         </h2>
-                        <p className="mt-1 text-xs text-gray-400">
+                        <p className="mt-0.5 text-[11px] text-gray-400">
                           {index + 1} / {modalPopups.length}
                         </p>
                       </div>
 
                       {canSlide && (
-                        <div className="mt-1 hidden items-center gap-1 md:flex">
+                        <div className="hidden items-center gap-1 md:flex">
                           <button
                             type="button"
                             onClick={() => moveSlide("prev")}
@@ -228,7 +228,7 @@ export default function NoticePopupLayer() {
                           type="button"
                           onClick={() => dismissPopup(popup)}
                           tabIndex={index === modalIndex ? 0 : -1}
-                          className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm text-gray-600 transition-colors hover:bg-gray-50"
+                          className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 transition-colors hover:bg-gray-50"
                         >
                           오늘 하루 보지 않기
                         </button>
@@ -240,7 +240,7 @@ export default function NoticePopupLayer() {
             </div>
 
             {canSlide && (
-              <div className="border-t border-gray-100 px-5 pb-5 pt-4 md:px-7">
+              <div className="border-t border-gray-100 px-4 pb-4 pt-3 md:px-5">
                 <div className="flex items-center justify-center gap-2 md:hidden">
                   <button
                     type="button"

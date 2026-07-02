@@ -110,6 +110,8 @@ const TABLE_PRESET_OPTIONS = [
   { label: "헤더", value: "header" },
   { label: "구분", value: "soft" },
   { label: "강조", value: "strong" },
+  { label: "테두리 없음", value: "borderless" },
+  { label: "테두리 표시", value: "bordered" },
 ];
 const TABLE_SIZE_OPTIONS = [
   { label: "2x2", rows: 2, cols: 2 },
@@ -581,13 +583,20 @@ function normalizeTableVerticalAlign(value: string | null | undefined) {
   return ["top", "middle", "bottom"].includes(normalized) ? normalized : null;
 }
 
+function normalizeTableBorderStyle(value: string | null | undefined) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return normalized === "none" ? "none" : null;
+}
+
 function getTableCellStyle(attributes: Record<string, unknown>) {
   const styles: string[] = [];
   const backgroundColor = normalizeOptionalCssColor(attributes.backgroundColor as string | null | undefined);
   const verticalAlign = normalizeTableVerticalAlign(attributes.verticalAlign as string | null | undefined);
+  const borderStyle = normalizeTableBorderStyle(attributes.borderStyle as string | null | undefined);
 
   if (backgroundColor) styles.push(`background-color: ${backgroundColor}`);
   if (verticalAlign) styles.push(`vertical-align: ${verticalAlign}`);
+  if (borderStyle === "none") styles.push("border: none");
 
   return styles.length ? { style: styles.join("; ") } : {};
 }
@@ -606,6 +615,11 @@ const RichTableCell = TableCell.extend({
         parseHTML: (element: HTMLElement) => normalizeTableVerticalAlign(element.style.verticalAlign),
         renderHTML: getTableCellStyle,
       },
+      borderStyle: {
+        default: null,
+        parseHTML: (element: HTMLElement) => normalizeTableBorderStyle(element.style.borderStyle || element.style.border),
+        renderHTML: getTableCellStyle,
+      },
     };
   },
 });
@@ -622,6 +636,11 @@ const RichTableHeader = TableHeader.extend({
       verticalAlign: {
         default: null,
         parseHTML: (element: HTMLElement) => normalizeTableVerticalAlign(element.style.verticalAlign),
+        renderHTML: getTableCellStyle,
+      },
+      borderStyle: {
+        default: null,
+        parseHTML: (element: HTMLElement) => normalizeTableBorderStyle(element.style.borderStyle || element.style.border),
         renderHTML: getTableCellStyle,
       },
     };
@@ -1351,6 +1370,10 @@ function RichTextToolbar({
     tableSelectionCommand(takeTableSelectionBookmark()).setCellAttribute("verticalAlign", value || null).run();
   };
 
+  const handleCellBorderStyleChange = (value: "none" | null) => {
+    tableSelectionCommand(takeTableSelectionBookmark()).setCellAttribute("borderStyle", value).run();
+  };
+
   const applyTablePreset = (preset: string) => {
     const bookmark = takeTableSelectionBookmark();
     const chain = tableSelectionCommand(bookmark);
@@ -1365,6 +1388,14 @@ function RichTextToolbar({
     if (preset === "strong") {
       chain.setCellAttribute("backgroundColor", "#1b5e20").setCellAttribute("align", "center").setCellAttribute("verticalAlign", "middle").run();
       updateTextStyleColorOnly(editor, "#ffffff", bookmark);
+      return;
+    }
+    if (preset === "borderless") {
+      chain.setCellAttribute("borderStyle", "none").run();
+      return;
+    }
+    if (preset === "bordered") {
+      chain.setCellAttribute("borderStyle", null).run();
       return;
     }
     chain.setCellAttribute("backgroundColor", null).setCellAttribute("align", null).setCellAttribute("verticalAlign", null).run();

@@ -540,10 +540,6 @@ export default function Home() {
               setAdminToolsOpen(false);
               setAffiliatePanelOpen(true);
             }}
-            onOpenGallery={() => {
-              setAdminToolsOpen(false);
-              setGalleryPanelOpen(true);
-            }}
             onOpenHero={() => {
               setAdminToolsOpen(false);
               setHeroPanelOpen(true);

@@ -13,7 +13,6 @@ const QuickMenuEditPanel = lazy(() =>
 const AffiliateEditPanel = lazy(() =>
   import("@/components/AffiliateEditPanel")
 );
-const GalleryEditPanel = lazy(() => import("@/components/GalleryEditPanel"));
 const HomeSectionsEditPanel = lazy(() =>
   import("@/components/HomeSectionsEditPanel")
 );
@@ -34,7 +33,6 @@ export default function SitewideAdminEditor() {
   const [heroPanelOpen, setHeroPanelOpen] = useState(false);
   const [quickMenuPanelOpen, setQuickMenuPanelOpen] = useState(false);
   const [affiliatePanelOpen, setAffiliatePanelOpen] = useState(false);
-  const [galleryPanelOpen, setGalleryPanelOpen] = useState(false);
   const [homeSectionsPanelOpen, setHomeSectionsPanelOpen] = useState(false);
   const [adminToolsOpen, setAdminToolsOpen] = useState(false);
   const utils = trpc.useUtils();
@@ -56,7 +54,6 @@ export default function SitewideAdminEditor() {
     heroPanelOpen ||
     quickMenuPanelOpen ||
     affiliatePanelOpen ||
-    galleryPanelOpen ||
     homeSectionsPanelOpen;
 
   const refreshAfterPanelClose = () => {
@@ -65,7 +62,6 @@ export default function SitewideAdminEditor() {
     if (heroPanelOpen) void utils.home.heroSlides.invalidate();
     if (quickMenuPanelOpen) void utils.home.quickMenus.invalidate();
     if (affiliatePanelOpen) void utils.home.affiliates.invalidate();
-    if (galleryPanelOpen) void utils.home.homeGallery.invalidate();
     if (homeSectionsPanelOpen) void utils.home.settings.invalidate();
   };
 
@@ -76,7 +72,6 @@ export default function SitewideAdminEditor() {
     setHeroPanelOpen(false);
     setQuickMenuPanelOpen(false);
     setAffiliatePanelOpen(false);
-    setGalleryPanelOpen(false);
     setHomeSectionsPanelOpen(false);
   };
 
@@ -101,10 +96,6 @@ export default function SitewideAdminEditor() {
           onOpenAffiliates={() => {
             setAdminToolsOpen(false);
             setAffiliatePanelOpen(true);
-          }}
-          onOpenGallery={() => {
-            setAdminToolsOpen(false);
-            setGalleryPanelOpen(true);
           }}
           onOpenHero={() => {
             setAdminToolsOpen(false);
@@ -192,15 +183,6 @@ export default function SitewideAdminEditor() {
             onClose={() => {
               setAffiliatePanelOpen(false);
               void utils.home.affiliates.invalidate();
-            }}
-          />
-        )}
-        {galleryPanelOpen && (
-          <GalleryEditPanel
-            open={galleryPanelOpen}
-            onClose={() => {
-              setGalleryPanelOpen(false);
-              void utils.home.homeGallery.invalidate();
             }}
           />
         )}

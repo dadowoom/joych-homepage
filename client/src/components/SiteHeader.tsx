@@ -161,6 +161,7 @@ export default function SiteHeader() {
       href: dbSettings?.instagram_url || null,
     },
   ];
+  socialLinks.length = 0;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60);
