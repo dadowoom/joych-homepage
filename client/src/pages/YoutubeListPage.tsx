@@ -6,7 +6,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { ChevronLeft, ChevronRight, LayoutGrid, List, PlayCircle, Search, Settings } from "lucide-react";
+import { ChevronLeft, ChevronRight, LayoutGrid, List, PlayCircle, Search, Settings, X } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { canManageBoardContent } from "@/lib/contentPermissions";
 import DirectVideoPlayer from "@/components/DirectVideoPlayer";
@@ -74,6 +74,17 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
     setSlideOffset(0);
   }, [playlistId, searchTerm, viewMode]);
 
+  useEffect(() => {
+    if (!isEditPanelOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsEditPanelOpen(false);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isEditPanelOpen]);
+
   const manageButton = canManage ? (
     <button
       type="button"
@@ -111,6 +122,36 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
     else if (index >= slideOffset + CARDS_PER_VIEW) setSlideOffset(index - CARDS_PER_VIEW + 1);
   };
 
+  const managementPanel = canManage && isEditPanelOpen ? (
+    <div className="fixed inset-0 z-[80] bg-black/35" role="dialog" aria-modal="true" aria-label="영상 관리">
+      <button
+        type="button"
+        className="absolute inset-0 h-full w-full cursor-default"
+        aria-label="영상 관리 닫기"
+        onClick={() => setIsEditPanelOpen(false)}
+      />
+      <aside className="absolute inset-y-0 right-0 flex w-full max-w-[760px] flex-col bg-white shadow-2xl sm:w-[78vw] lg:w-[720px]">
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-5 py-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#1B5E20]">Joyful TV</p>
+            <h2 className="mt-1 text-lg font-bold text-gray-900">영상 관리</h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsEditPanelOpen(false)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-900"
+            aria-label="영상 관리 닫기"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+          <YoutubeAdminTab />
+        </div>
+      </aside>
+    </div>
+  ) : null;
+
   if (isLoading) {
     return (
       <div className="min-h-[400px] flex items-center justify-center">
@@ -133,6 +174,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
           )}
           {manageButton}
         </div>
+        {managementPanel}
         <div className="min-h-[300px] flex items-center justify-center rounded-xl border border-gray-100 bg-white">
           <div className="text-center text-gray-400">
             <PlayCircle className="w-16 h-16 mx-auto mb-3 opacity-30" />
@@ -140,11 +182,6 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
             <p className="text-sm mt-1">영상이 준비되는 대로 이곳에서 보실 수 있습니다.</p>
           </div>
         </div>
-        {canManage && isEditPanelOpen && (
-          <div className="mt-6 border border-[#D8E8DA] bg-[#F8FCF8] p-4">
-            <YoutubeAdminTab />
-          </div>
-        )}
       </div>
     );
   }
@@ -194,6 +231,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
           {manageButton}
         </div>
       </div>
+      {managementPanel}
 
       {/* 메인 플레이어 */}
       {filteredVideos.length === 0 && (
@@ -325,11 +363,6 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
           >
             <ChevronRight className="w-5 h-5 text-gray-600" />
           </button>
-        </div>
-      )}
-      {canManage && isEditPanelOpen && (
-        <div className="mt-8 border border-[#D8E8DA] bg-[#F8FCF8] p-4">
-          <YoutubeAdminTab />
         </div>
       )}
     </div>
