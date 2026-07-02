@@ -30,9 +30,11 @@ function isDismissed(popup: Popup) {
 function PopupActionButton({
   popup,
   onClose,
+  tabIndex,
 }: {
   popup: Popup;
   onClose: () => void;
+  tabIndex?: number;
 }) {
   const [, setLocation] = useLocation();
 
@@ -41,6 +43,7 @@ function PopupActionButton({
   return (
     <a
       href={popup.linkHref}
+      tabIndex={tabIndex}
       onClick={(event) => {
         onClose();
         if (popup.linkHref?.startsWith("/") && !popup.linkHref.startsWith("//")) {
@@ -141,103 +144,123 @@ export default function NoticePopupLayer() {
               <X className="h-4 w-4" />
             </button>
 
-            {activeModalPopup.imageUrl && (
-              <img
-                src={activeModalPopup.imageUrl}
-                alt=""
-                className="h-64 w-full object-cover md:h-80 xl:h-96"
-                loading="lazy"
-                decoding="async"
-              />
-            )}
+            <div
+              className="flex transition-transform duration-500 ease-out"
+              style={{ transform: `translateX(-${modalIndex * 100}%)` }}
+            >
+              {modalPopups.map((popup, index) => (
+                <section
+                  key={popup.id}
+                  aria-hidden={index !== modalIndex}
+                  className="w-full shrink-0"
+                >
+                  {popup.imageUrl && (
+                    <img
+                      src={popup.imageUrl}
+                      alt=""
+                      className="h-64 w-full object-cover md:h-80 xl:h-96"
+                      loading={index === 0 ? "eager" : "lazy"}
+                      decoding="async"
+                    />
+                  )}
 
-            <div className="p-5 md:p-7">
-              <div className="mb-4 flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h2
-                    id={`notice-popup-title-${activeModalPopup.id}`}
-                    className="pr-8 text-xl font-bold text-gray-900 md:text-2xl xl:text-3xl"
-                    style={{ fontFamily: "'Noto Serif KR', serif" }}
-                  >
-                    {activeModalPopup.title}
-                  </h2>
-                  <p className="mt-1 text-xs text-gray-400">
-                    {modalIndex + 1} / {modalPopups.length}
-                  </p>
-                </div>
+                  <div className="p-5 md:p-7">
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h2
+                          id={`notice-popup-title-${popup.id}`}
+                          className="pr-8 text-xl font-bold text-gray-900 md:text-2xl xl:text-3xl"
+                          style={{ fontFamily: "'Noto Serif KR', serif" }}
+                        >
+                          {popup.title}
+                        </h2>
+                        <p className="mt-1 text-xs text-gray-400">
+                          {index + 1} / {modalPopups.length}
+                        </p>
+                      </div>
 
-                {canSlide && (
-                  <div className="mt-1 hidden items-center gap-1 md:flex">
-                    <button
-                      type="button"
-                      onClick={() => moveSlide("prev")}
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-800"
-                      aria-label="이전 팝업"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => moveSlide("next")}
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-800"
-                      aria-label="다음 팝업"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
+                      {canSlide && (
+                        <div className="mt-1 hidden items-center gap-1 md:flex">
+                          <button
+                            type="button"
+                            onClick={() => moveSlide("prev")}
+                            tabIndex={index === modalIndex ? 0 : -1}
+                            className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-800"
+                            aria-label="이전 팝업"
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveSlide("next")}
+                            tabIndex={index === modalIndex ? 0 : -1}
+                            className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-800"
+                            aria-label="다음 팝업"
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <PopupActionButton
+                        popup={popup}
+                        onClose={() => closePopup(popup.id)}
+                        tabIndex={index === modalIndex ? 0 : -1}
+                      />
+                      {popup.isDismissible && (
+                        <button
+                          type="button"
+                          onClick={() => dismissPopup(popup)}
+                          tabIndex={index === modalIndex ? 0 : -1}
+                          className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm text-gray-600 transition-colors hover:bg-gray-50"
+                        >
+                          오늘 하루 보지 않기
+                        </button>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
+                </section>
+              ))}
+            </div>
 
-              <div className="flex flex-col gap-2">
-                <PopupActionButton popup={activeModalPopup} onClose={() => closePopup(activeModalPopup.id)} />
-                {activeModalPopup.isDismissible && (
+            {canSlide && (
+              <div className="border-t border-gray-100 px-5 pb-5 pt-4 md:px-7">
+                <div className="flex items-center justify-center gap-2 md:hidden">
                   <button
                     type="button"
-                    onClick={() => dismissPopup(activeModalPopup)}
-                    className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm text-gray-600 transition-colors hover:bg-gray-50"
+                    onClick={() => moveSlide("prev")}
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-800"
+                    aria-label="이전 팝업"
                   >
-                    오늘 하루 보지 않기
+                    <ChevronLeft className="h-4 w-4" />
                   </button>
-                )}
-              </div>
-
-              {canSlide && (
-                <div className="mt-4">
-                  <div className="flex items-center justify-center gap-2 md:hidden">
-                    <button
-                      type="button"
-                      onClick={() => moveSlide("prev")}
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-800"
-                      aria-label="이전 팝업"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => moveSlide("next")}
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-800"
-                      aria-label="다음 팝업"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
-                  </div>
-
-                  <div className="mt-3 flex items-center justify-center gap-2">
-                    {modalPopups.map((popup, index) => (
-                      <button
-                        key={popup.id}
-                        type="button"
-                        onClick={() => setModalIndex(index)}
-                        className={`h-2.5 rounded-full transition-all ${
-                          modalIndex === index ? "w-7 bg-[#1B5E20]" : "w-2.5 bg-gray-300"
-                        }`}
-                        aria-label={`${index + 1}번 팝업 보기`}
-                      />
-                    ))}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => moveSlide("next")}
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-800"
+                    aria-label="다음 팝업"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
                 </div>
-              )}
-            </div>
+
+                <div className="mt-3 flex items-center justify-center gap-2 md:mt-0">
+                  {modalPopups.map((popup, index) => (
+                    <button
+                      key={popup.id}
+                      type="button"
+                      onClick={() => setModalIndex(index)}
+                      className={`h-2.5 rounded-full transition-all ${
+                        modalIndex === index ? "w-7 bg-[#1B5E20]" : "w-2.5 bg-gray-300"
+                      }`}
+                      aria-label={`${index + 1}번 팝업 보기`}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
