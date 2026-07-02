@@ -1123,7 +1123,6 @@ export const notificationsRouter = router({
       const db = await getDb();
       if (!db) return { ok: false };
 
-      const now = new Date();
       await db
         .delete(adminNotificationReadStates)
         .where(
@@ -1137,7 +1136,7 @@ export const notificationsRouter = router({
         .values({
           userId: ctx.user.id,
           groupKey: input.groupKey,
-          lastSeenAt: now,
+          lastSeenAt: sql`CURRENT_TIMESTAMP`,
         });
 
       return { ok: true };
@@ -1148,7 +1147,6 @@ export const notificationsRouter = router({
     const db = await getDb();
     if (!db) return { ok: false };
 
-    const now = new Date();
     await db
       .delete(adminNotificationReadStates)
       .where(eq(adminNotificationReadStates.userId, ctx.user.id));
@@ -1158,7 +1156,7 @@ export const notificationsRouter = router({
         .values({
           userId: ctx.user.id,
           groupKey,
-          lastSeenAt: now,
+          lastSeenAt: sql`CURRENT_TIMESTAMP`,
         });
     }
 
