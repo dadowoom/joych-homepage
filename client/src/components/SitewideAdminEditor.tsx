@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from "react";
-import { PencilLine } from "lucide-react";
+import { GraduationCap, PencilLine, Plus } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import HomeAdminDock from "@/components/HomeAdminDock";
@@ -27,6 +27,13 @@ function formatNotificationCount(count: number) {
 export default function SitewideAdminEditor() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
+  const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const isCoursePage =
+    pathname === "/education/courses" ||
+    searchParams?.get("pageHref")?.startsWith("/education") ||
+    searchParams?.get("tab") === "courses";
+  const courseCreateHref = `/admin_joych_2026?tab=courses&mode=new&pageHref=${encodeURIComponent(pathname || "/education/courses")}`;
 
   const [menuPanelOpen, setMenuPanelOpen] = useState(false);
   const [noticePanelOpen, setNoticePanelOpen] = useState(false);
@@ -119,6 +126,21 @@ export default function SitewideAdminEditor() {
           }}
           onToggle={() => setAdminToolsOpen(prev => !prev)}
         />
+      )}
+
+      {!hasOpenPanel && isCoursePage && (
+        <a
+          href={courseCreateHref}
+          className="fixed bottom-28 right-6 z-[125] inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-bold text-[#1B5E20] shadow-[0_14px_36px_rgba(15,23,42,0.18)] ring-1 ring-[#1B5E20]/15 transition hover:-translate-y-0.5 hover:bg-[#F1F8E9]"
+        >
+          <span className="flex size-9 items-center justify-center rounded-full bg-[#E8F5E9]">
+            <GraduationCap className="size-4" />
+          </span>
+          <span className="flex items-center gap-1">
+            <Plus className="size-4" />
+            강좌 추가
+          </span>
+        </a>
       )}
 
       {hasOpenPanel && (

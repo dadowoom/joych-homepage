@@ -175,7 +175,7 @@ export default function CourseList({ pageHref, title, embedded = false }: Course
     refetchOnWindowFocus: false,
   });
   const isAuthenticated = Boolean(memberMe);
-  const canManageCourses = hasContentPermission(adminUser, "content:courses");
+  const canManageCourses = adminUser?.role === "admin" || hasContentPermission(adminUser, "content:courses");
   const currentPageHref = pageHref || "/education/courses";
   const adminCourseCreateHref = `/admin_joych_2026?tab=courses&mode=new&pageHref=${encodeURIComponent(currentPageHref)}`;
   const { data: courses = [], isLoading } = trpc.home.courses.useQuery(pageHref ? { pageHref } : undefined);
