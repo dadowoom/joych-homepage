@@ -35,7 +35,7 @@ import {
 
 type AdminVehicleTabMode = "vehicles" | "reservations" | "access";
 type VehicleReservationViewMode = "list" | "calendar";
-type VehicleStatusFilter = "all" | "pending" | "approved" | "rejected" | "cancelled";
+type VehicleStatusFilter = "approval" | "cancelled";
 type VehicleReservationStatus = "pending" | "approved" | "rejected" | "cancelled";
 type FieldType = "position" | "department" | "district" | "baptism";
 
@@ -261,7 +261,7 @@ export default function AdminVehiclesTab() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<VehicleForm>(EMPTY_FORM);
   const [reservationVehicleFilter, setReservationVehicleFilter] = useState<number | undefined>();
-  const [reservationStatusFilter, setReservationStatusFilter] = useState<VehicleStatusFilter>("all");
+  const [reservationStatusFilter, setReservationStatusFilter] = useState<VehicleStatusFilter>("approval");
   const [reservationViewMode, setReservationViewMode] = useState<VehicleReservationViewMode>("list");
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [rejectComment, setRejectComment] = useState("");
@@ -385,7 +385,9 @@ export default function AdminVehiclesTab() {
   }), [reservationRows]);
 
   const filteredReservations = reservationRows.filter(row =>
-    reservationStatusFilter === "all" ? true : row.status === reservationStatusFilter
+    reservationStatusFilter === "approval"
+      ? row.status === "pending" || row.status === "approved"
+      : row.status === "cancelled"
   );
 
   const optionGroups = useMemo(() => {
@@ -1069,18 +1071,21 @@ export default function AdminVehiclesTab() {
               <option value="">전체 차량</option>
               {vehicleRows.map(vehicle => <option key={vehicle.id} value={vehicle.id}>{getVehicleDisplayName(vehicle)}</option>)}
             </select>
-            {(["all", "pending", "approved", "rejected", "cancelled"] as VehicleStatusFilter[]).map(status => (
+            {([
+              { value: "approval", label: "승인" },
+              { value: "cancelled", label: "취소" },
+            ] as const).map(status => (
               <button
-                key={status}
+                key={status.value}
                 type="button"
-                onClick={() => setReservationStatusFilter(status)}
+                onClick={() => setReservationStatusFilter(status.value)}
                 className={`min-h-11 rounded-lg px-3 py-2 text-xs font-medium transition-colors sm:min-h-0 ${
-                  reservationStatusFilter === status
+                  reservationStatusFilter === status.value
                     ? "bg-[#1B5E20] text-white"
                     : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >
-                {status === "all" ? "전체" : STATUS_LABELS[status].label}
+                {status.label}
               </button>
             ))}
           </div>
