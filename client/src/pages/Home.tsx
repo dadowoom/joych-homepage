@@ -829,8 +829,6 @@ export default function Home() {
         </div>
       </section>
 
-      <PwaInstallCard />
-
       <HomeFeatureCards homeFeatureCards={homeFeatureCards} />
 
       <HomeQuickMenu quickMenus={quickMenus} />
@@ -845,6 +843,8 @@ export default function Home() {
       <HomeGallery gallery={gallery} />
 
       <HomeAffiliates affiliates={affiliates} />
+
+      <PwaInstallCard />
 
       {/* ===== 푸터 ===== */}
       <HomeFooter

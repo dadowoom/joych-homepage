@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Download, Share2, Smartphone } from "lucide-react";
+import { ChevronDown, ChevronUp, Download, Share2, Smartphone } from "lucide-react";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -25,12 +25,15 @@ export default function PwaInstallCard() {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isStandalone, setIsStandalone] = useState(false);
   const [installing, setInstalling] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
+  const [open, setOpen] = useState(false);
 
-  const device = useMemo(() => ({
-    ios: isIosDevice(),
-    android: isAndroidDevice(),
-  }), []);
+  const device = useMemo(
+    () => ({
+      ios: isIosDevice(),
+      android: isAndroidDevice(),
+    }),
+    [],
+  );
 
   useEffect(() => {
     setIsStandalone(isStandaloneDisplay());
@@ -54,7 +57,7 @@ export default function PwaInstallCard() {
 
   const handleInstall = async () => {
     if (!installPrompt) {
-      setShowGuide(true);
+      setOpen(true);
       return;
     }
 
@@ -71,74 +74,61 @@ export default function PwaInstallCard() {
     }
   };
 
-  if (isStandalone) {
-    return (
-      <section className="bg-[#F1F8E9]">
-        <div className="container py-4">
-          <div className="flex items-center gap-3 rounded-xl border border-green-100 bg-white px-4 py-3 text-sm text-[#1B5E20] shadow-sm">
-            <CheckCircle2 className="h-5 w-5 shrink-0" />
-            <span className="font-semibold">홈 화면 앱으로 실행 중입니다.</span>
-          </div>
-        </div>
-      </section>
-    );
-  }
+  if (isStandalone || (!device.ios && !device.android && !installPrompt)) return null;
 
   return (
-    <section className="bg-[#F7F7F5]">
-      <div className="container py-5">
-        <div className="rounded-2xl border border-green-100 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex gap-4">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#E8F5E9] text-[#1B5E20]">
-                <Smartphone className="h-6 w-6" />
-              </span>
-              <div>
-                <p className="text-base font-bold text-gray-900">기쁨의교회 바로가기 만들기</p>
-                <p className="mt-1 text-sm leading-6 text-gray-500">
-                  휴대폰 홈 화면에 추가하면 앱처럼 바로 열 수 있고, 알림도 더 쉽게 받을 수 있습니다.
-                </p>
-              </div>
-            </div>
+    <section className="bg-[#F7F7F5] md:hidden">
+      <div className="container py-4">
+        <div className="overflow-hidden rounded-xl border border-green-100 bg-white shadow-sm">
+          <button
+            type="button"
+            onClick={() => setOpen((prev) => !prev)}
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+          >
+            <span className="flex items-center gap-2 text-sm font-bold text-[#1B5E20]">
+              <Smartphone className="h-4 w-4" />
+              홈화면 추가
+            </span>
+            {open ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+          </button>
 
-            <div className="flex flex-col gap-2 sm:flex-row">
+          {open && (
+            <div className="border-t border-green-50 px-4 pb-4 pt-3">
+              <p className="text-sm font-semibold text-gray-900">기쁨의교회를 앱처럼 바로 열 수 있습니다.</p>
+              <p className="mt-1 text-xs leading-5 text-gray-500">
+                휴대폰 홈 화면에 추가하면 주소를 다시 입력하지 않고 바로 접속할 수 있고, 알림 설정도 더 쉽게 사용할 수 있습니다.
+              </p>
+
               <button
                 type="button"
                 onClick={handleInstall}
                 disabled={installing}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#1B5E20] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#2E7D32] disabled:opacity-60"
+                className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#1B5E20] px-4 py-2 text-sm font-bold text-white transition-colors active:bg-[#2E7D32] disabled:opacity-60"
               >
                 <Download className="h-4 w-4" />
                 {installing ? "확인 중" : installPrompt ? "홈 화면에 추가" : "추가 방법 보기"}
               </button>
-              <button
-                type="button"
-                onClick={() => setShowGuide((prev) => !prev)}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
-              >
-                <Share2 className="h-4 w-4" />
-                안내 보기
-              </button>
-            </div>
-          </div>
 
-          {(showGuide || device.ios || (!installPrompt && device.android)) && (
-            <div className="mt-4 grid gap-3 border-t border-gray-100 pt-4 md:grid-cols-2">
-              <div className="rounded-xl bg-[#F8FAF8] p-4">
-                <p className="text-sm font-bold text-gray-900">아이폰</p>
-                <ol className="mt-2 space-y-1 text-sm leading-6 text-gray-600">
-                  <li>1. Safari로 홈페이지를 엽니다.</li>
-                  <li>2. 아래 공유 버튼을 누릅니다.</li>
-                  <li>3. 홈 화면에 추가를 누릅니다.</li>
-                </ol>
-              </div>
-              <div className="rounded-xl bg-[#F8FAF8] p-4">
-                <p className="text-sm font-bold text-gray-900">안드로이드</p>
-                <ol className="mt-2 space-y-1 text-sm leading-6 text-gray-600">
-                  <li>1. Chrome으로 홈페이지를 엽니다.</li>
-                  <li>2. 홈 화면에 추가 버튼을 누릅니다.</li>
-                  <li>3. 설치 또는 추가를 확인합니다.</li>
-                </ol>
+              <div className="mt-3 grid gap-2">
+                <div className="rounded-lg bg-[#F8FAF8] p-3">
+                  <p className="flex items-center gap-1 text-xs font-bold text-gray-900">
+                    <Share2 className="h-3.5 w-3.5" />
+                    iPhone
+                  </p>
+                  <ol className="mt-1 space-y-0.5 text-xs leading-5 text-gray-600">
+                    <li>1. Safari로 홈페이지를 엽니다.</li>
+                    <li>2. 하단 공유 버튼을 누릅니다.</li>
+                    <li>3. 홈 화면에 추가를 선택합니다.</li>
+                  </ol>
+                </div>
+                <div className="rounded-lg bg-[#F8FAF8] p-3">
+                  <p className="text-xs font-bold text-gray-900">Android</p>
+                  <ol className="mt-1 space-y-0.5 text-xs leading-5 text-gray-600">
+                    <li>1. Chrome으로 홈페이지를 엽니다.</li>
+                    <li>2. 홈 화면에 추가 버튼을 누릅니다.</li>
+                    <li>3. 설치 또는 추가를 확인합니다.</li>
+                  </ol>
+                </div>
               </div>
             </div>
           )}
