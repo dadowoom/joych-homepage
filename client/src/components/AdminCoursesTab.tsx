@@ -374,19 +374,23 @@ export default function AdminCoursesTab() {
   }, [courses, statusFilter]);
 
   const courseMenuOptions = useMemo(() => {
-    const options: { label: string; href: string }[] = [{ label: "강좌 전체", href: "/education/courses" }];
+    const options: { label: string; href: string }[] = [];
     for (const menu of menus) {
       const isCourseTopMenu = menu.label.replace(/\s+/g, "") === "강좌";
+      if (!isCourseTopMenu) continue;
       for (const item of menu.items ?? []) {
-        if (item.href && (isCourseTopMenu || item.pageType === "course" || item.href.startsWith("/education"))) {
-          options.push({ label: `${menu.label} > ${item.label}`, href: item.href });
+        if (item.href && item.isVisible !== false) {
+          options.push({ label: item.label, href: item.href });
         }
         for (const subItem of item.subItems ?? []) {
-          if (subItem.href && (isCourseTopMenu || subItem.pageType === "course" || subItem.href.startsWith("/education"))) {
-            options.push({ label: `${menu.label} > ${item.label} > ${subItem.label}`, href: subItem.href });
+          if (subItem.href && subItem.isVisible !== false) {
+            options.push({ label: subItem.label, href: subItem.href });
           }
         }
       }
+    }
+    if (options.length === 0) {
+      options.push({ label: "강좌 전체", href: "/education/courses" });
     }
     const seen = new Set<string>();
     return options.filter(option => {
