@@ -7,7 +7,8 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { memberProtectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { publicProcedure, router } from "../_core/trpc";
+import { hasAdminContentPermission } from "../db/adminPermissions";
 import {
   createMissionReportWithDetails,
   getMissionAuthorGrantsForMember,
@@ -29,6 +30,8 @@ const idSchema = z.number().int().positive();
 const optionalText = (max: number) => z.string().trim().max(max).optional();
 const requiredText = (max: number, message: string) => z.string().trim().min(1, message).max(max);
 const safeImageUrl = safeAssetUrlSchema.optional();
+const MISSION_REPORT_PERMISSION_KEY = "content:missionReports";
+const ADMIN_MISSION_REPORT_AUTHOR_MEMBER_ID = 0;
 
 const imageInputSchema = z.object({
   imageUrl: safeImageUrl,
@@ -64,6 +67,16 @@ function normalizePrayerTopics(topics: string[]) {
     .map((content, index) => ({ content, sortOrder: index }));
 }
 
+function canManageMissionReports(user: Parameters<typeof hasAdminContentPermission>[0]) {
+  return hasAdminContentPermission(user, MISSION_REPORT_PERMISSION_KEY);
+}
+
+function getMissionReportAuthorMemberId(ctx: { user: Parameters<typeof hasAdminContentPermission>[0]; memberId: number | null }) {
+  if (ctx.memberId) return ctx.memberId;
+  if (canManageMissionReports(ctx.user)) return ADMIN_MISSION_REPORT_AUTHOR_MEMBER_ID;
+  throw new TRPCError({ code: "UNAUTHORIZED", message: "로그인이 필요합니다." });
+}
+
 export const missionRouter = router({
   missionaries: publicProcedure.query(() => getVisibleMissionaries()),
 
@@ -85,25 +98,29 @@ export const missionRouter = router({
       };
     }),
 
-  myAuthorGrants: memberProtectedProcedure.query(({ ctx }) =>
-    getMissionAuthorGrantsForMember(ctx.memberId)
-  ),
+  myAuthorGrants: publicProcedure.query(({ ctx }) => {
+    if (!ctx.memberId) return [];
+    return getMissionAuthorGrantsForMember(ctx.memberId);
+  }),
 
-  myReports: memberProtectedProcedure.query(({ ctx }) =>
-    getMissionReportsByAuthor(ctx.memberId)
-  ),
+  myReports: publicProcedure.query(({ ctx }) => {
+    if (!ctx.memberId) return [];
+    return getMissionReportsByAuthor(ctx.memberId);
+  }),
 
-  createReport: memberProtectedProcedure
+  createReport: publicProcedure
     .input(reportPayloadSchema)
     .mutation(async ({ input, ctx }) => {
-      const canWrite = await hasMissionWriteAccess(ctx.memberId, input.missionaryId);
+      const canManage = canManageMissionReports(ctx.user);
+      const authorMemberId = getMissionReportAuthorMemberId(ctx);
+      const canWrite = canManage || await hasMissionWriteAccess(authorMemberId, input.missionaryId);
       if (!canWrite) {
         throw new TRPCError({ code: "FORBIDDEN", message: "해당 선교보고 작성 권한이 없습니다." });
       }
       const id = await createMissionReportWithDetails(
         {
           missionaryId: input.missionaryId,
-          authorMemberId: ctx.memberId,
+          authorMemberId,
           title: input.title,
           summary: input.summary || undefined,
           content: input.content || undefined,
@@ -120,17 +137,19 @@ export const missionRouter = router({
       return { id };
     }),
 
-  updateReport: memberProtectedProcedure
+  updateReport: publicProcedure
     .input(reportPayloadSchema.extend({ id: idSchema }))
     .mutation(async ({ input, ctx }) => {
       const report = await getMissionReportById(input.id);
       if (!report) {
         throw new TRPCError({ code: "NOT_FOUND", message: "선교보고를 찾을 수 없습니다." });
       }
-      if (report.authorMemberId !== ctx.memberId) {
+      const canManage = canManageMissionReports(ctx.user);
+      const authorMemberId = getMissionReportAuthorMemberId(ctx);
+      if (report.authorMemberId !== authorMemberId && !canManage) {
         throw new TRPCError({ code: "FORBIDDEN", message: "본인이 작성한 선교보고만 수정할 수 있습니다." });
       }
-      const canWrite = await hasMissionWriteAccess(ctx.memberId, input.missionaryId);
+      const canWrite = canManage || await hasMissionWriteAccess(authorMemberId, input.missionaryId);
       if (!canWrite) {
         throw new TRPCError({ code: "FORBIDDEN", message: "해당 선교보고 작성 권한이 없습니다." });
       }
@@ -152,19 +171,21 @@ export const missionRouter = router({
       return { success: true };
     }),
 
-  uploadImage: memberProtectedProcedure
+  uploadImage: publicProcedure
     .input(z.object({
       base64: z.string(),
       fileName: z.string(),
       mimeType: z.string(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const grants = await getMissionAuthorGrantsForMember(ctx.memberId);
-      if (grants.length === 0) {
+      const canManage = canManageMissionReports(ctx.user);
+      const authorMemberId = getMissionReportAuthorMemberId(ctx);
+      const grants = await getMissionAuthorGrantsForMember(authorMemberId);
+      if (!canManage && grants.length === 0) {
         throw new TRPCError({ code: "FORBIDDEN", message: "선교보고 작성 권한이 없습니다." });
       }
       const { buffer, ext } = validateImage(input.base64, input.mimeType);
-      const key = `mission-reports/${ctx.memberId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const key = `mission-reports/${authorMemberId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { url } = await storagePut(key, buffer, input.mimeType);
       return { url };
     }),
