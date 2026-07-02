@@ -128,7 +128,7 @@ export default function NoticePopupLayer() {
   return (
     <>
       {activeModalPopup && (
-        <div className="fixed inset-x-3 bottom-3 z-[320] md:inset-x-auto md:bottom-auto md:right-8 md:top-1/2 md:w-[680px] md:-translate-y-1/2 xl:w-[760px]">
+        <div className="fixed inset-x-3 bottom-3 z-[320] md:inset-x-auto md:bottom-auto md:right-8 md:top-1/2 md:w-[560px] md:-translate-y-1/2 xl:w-[620px]">
           <div
             role="dialog"
             aria-modal="true"
@@ -155,21 +155,23 @@ export default function NoticePopupLayer() {
                   className="w-full shrink-0"
                 >
                   {popup.imageUrl && (
-                    <img
-                      src={popup.imageUrl}
-                      alt=""
-                      className="max-h-[70vh] w-full object-contain bg-gray-50"
-                      loading={index === 0 ? "eager" : "lazy"}
-                      decoding="async"
-                    />
+                    <div className="flex justify-center bg-gray-50">
+                      <img
+                        src={popup.imageUrl}
+                        alt=""
+                        className="max-h-[42vh] w-auto max-w-full object-contain md:max-h-[52vh]"
+                        loading={index === 0 ? "eager" : "lazy"}
+                        decoding="async"
+                      />
+                    </div>
                   )}
 
-                  <div className="p-5 md:p-7">
-                    <div className="mb-4 flex items-start justify-between gap-3">
+                  <div className="p-5 md:p-6">
+                    <div className="mb-3 flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <h2
                           id={`notice-popup-title-${popup.id}`}
-                          className="pr-8 text-xl font-bold text-gray-900 md:text-2xl xl:text-3xl"
+                          className="pr-8 text-xl font-bold text-gray-900 md:text-2xl"
                           style={{ fontFamily: "'Noto Serif KR', serif" }}
                         >
                           {popup.title}
