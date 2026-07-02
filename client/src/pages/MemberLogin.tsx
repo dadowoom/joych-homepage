@@ -87,6 +87,20 @@ function getSafeNextPath(location: string) {
   return next;
 }
 
+async function invalidateMemberSessionBoundQueries(utils: ReturnType<typeof trpc.useUtils>) {
+  await Promise.all([
+    utils.members.me.invalidate(),
+    utils.home.menus.invalidate(),
+    utils.home.menuItem.invalidate(),
+    utils.home.menuSubItem.invalidate(),
+    utils.home.menuItemByHref.invalidate(),
+    utils.home.menuSubItemByHref.invalidate(),
+    utils.home.menuAccessByHref.invalidate(),
+    utils.home.menuAccessById.invalidate(),
+    utils.home.bulletins.invalidate(),
+  ]);
+}
+
 export default function MemberLogin() {
   const [location, navigate] = useLocation();
   const [email, setEmail] = useState("");
@@ -100,7 +114,7 @@ export default function MemberLogin() {
     onSuccess: async (data) => {
       toast.success(`${data.member.name}님, 환영합니다!`);
       // 로그인 후 memberMe 쿼리 즉시 갱신 → 상단 바에 이름 바로 표시
-      await utils.members.me.invalidate();
+      await invalidateMemberSessionBoundQueries(utils);
       navigate(nextPath);
     },
     onError: (e) => {

@@ -100,6 +100,20 @@ function getThirdLevelHref(item: { label?: string | null; href?: string | null }
 
 const fallbackMenus = toFallbackMenuTree();
 
+async function invalidateMemberSessionBoundQueries(utils: ReturnType<typeof trpc.useUtils>) {
+  await Promise.all([
+    utils.members.me.invalidate(),
+    utils.home.menus.invalidate(),
+    utils.home.menuItem.invalidate(),
+    utils.home.menuSubItem.invalidate(),
+    utils.home.menuItemByHref.invalidate(),
+    utils.home.menuSubItemByHref.invalidate(),
+    utils.home.menuAccessByHref.invalidate(),
+    utils.home.menuAccessById.invalidate(),
+    utils.home.bulletins.invalidate(),
+  ]);
+}
+
 export default function SiteHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -111,12 +125,13 @@ export default function SiteHeader() {
   );
   const [, setLocation] = useLocation();
   const { language, toggleLanguage, t } = useLanguage();
+  const utils = trpc.useUtils();
 
-  const { data: memberMe, refetch: refetchMemberMe } =
-    trpc.members.me.useQuery();
+  const { data: memberMe } = trpc.members.me.useQuery();
   const memberLogoutMutation = trpc.members.logout.useMutation({
-    onSuccess: () => {
-      refetchMemberMe();
+    onSuccess: async () => {
+      utils.members.me.setData(undefined, null);
+      await invalidateMemberSessionBoundQueries(utils);
     },
   });
   const {
