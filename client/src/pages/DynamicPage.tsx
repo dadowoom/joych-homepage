@@ -23,10 +23,11 @@
  *       └── EditorContent.tsx    — 에디터 콘텐츠 (뷰어 + 관리자 편집 UI)
  */
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useLocation, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
+import MemberOnlyContentNotice from "@/components/MemberOnlyContentNotice";
 import { ImageContent } from "@/components/dynamic-page/ImageContent";
 import { GalleryContent } from "@/components/dynamic-page/GalleryContent";
 import { BoardContent } from "@/components/dynamic-page/BoardContent";
@@ -34,6 +35,12 @@ import { YoutubeContent } from "@/components/dynamic-page/YoutubeContent";
 import { EditorContent } from "@/components/dynamic-page/EditorContent";
 import { StaffPage } from "./ChurchIntro";
 import KakaoDirectionsMap from "@/components/KakaoDirectionsMap";
+import {
+  findMenuAccessMatchByHref,
+  findMenuAccessMatchById,
+  isMemberOnlyMenuNode,
+  type MenuAccessMatch,
+} from "@/lib/menuAccess";
 
 type DynamicPageItem = {
   id: number;
@@ -43,6 +50,8 @@ type DynamicPageItem = {
   pageImageUrl?: string | null;
   playlistId?: number | null;
   defaultViewMode?: string | null;
+  allowGuest?: boolean;
+  allowMember?: boolean;
 };
 
 type DynamicPageSubItem = DynamicPageItem & {
@@ -279,6 +288,33 @@ function MissingDynamicPage() {
   );
 }
 
+function MemberOnlyDynamicPage({
+  match,
+  activeHref,
+}: {
+  match: MenuAccessMatch;
+  activeHref: string;
+}) {
+  const sideItems = getSecondLevelSideMenuItems(
+    match.topMenu as DynamicMenuTree[number],
+    match.item.id,
+    activeHref
+  );
+
+  return (
+    <SubPageLayout
+      pageTitle={match.node.label}
+      parentLabel={match.topMenu.label}
+      sideMenuItems={sideItems}
+    >
+      <MemberOnlyContentNotice
+        resourceLabel={match.node.label}
+        fallbackPath={activeHref}
+      />
+    </SubPageLayout>
+  );
+}
+
 function MenuItemPageContent({
   item,
   allMenus,
@@ -495,7 +531,11 @@ export function DynamicMenuItemPage() {
     { id: itemId },
     { enabled: !!itemId }
   );
-  const { data: allMenus } = trpc.home.menus.useQuery();
+  const { data: allMenus, isLoading: menusLoading } = trpc.home.menus.useQuery();
+  const accessMatch = useMemo(
+    () => findMenuAccessMatchById(allMenus, "item", itemId),
+    [allMenus, itemId]
+  );
   const canonicalHref = getCanonicalInternalHref(item?.href, legacyHref);
 
   useEffect(() => {
@@ -504,11 +544,14 @@ export function DynamicMenuItemPage() {
     }
   }, [canonicalHref, setLocation]);
 
-  if (isLoading) {
+  if (isLoading || menusLoading) {
     return <LoadingDynamicPage />;
   }
 
   if (!item) {
+    if (accessMatch && isMemberOnlyMenuNode(accessMatch.node)) {
+      return <MemberOnlyDynamicPage match={accessMatch} activeHref={legacyHref} />;
+    }
     return <MissingDynamicPage />;
   }
 
@@ -526,7 +569,11 @@ export function DynamicMenuSubItemPage() {
     { id: itemId },
     { enabled: !!itemId }
   );
-  const { data: allMenus } = trpc.home.menus.useQuery();
+  const { data: allMenus, isLoading: menusLoading } = trpc.home.menus.useQuery();
+  const accessMatch = useMemo(
+    () => findMenuAccessMatchById(allMenus, "subItem", itemId),
+    [allMenus, itemId]
+  );
   const canonicalHref = getCanonicalInternalHref(item?.href, legacyHref);
 
   useEffect(() => {
@@ -535,11 +582,14 @@ export function DynamicMenuSubItemPage() {
     }
   }, [canonicalHref, setLocation]);
 
-  if (isLoading) {
+  if (isLoading || menusLoading) {
     return <LoadingDynamicPage />;
   }
 
   if (!item) {
+    if (accessMatch && isMemberOnlyMenuNode(accessMatch.node)) {
+      return <MemberOnlyDynamicPage match={accessMatch} activeHref={legacyHref} />;
+    }
     return <MissingDynamicPage />;
   }
 
@@ -561,7 +611,11 @@ export function DynamicMenuHrefPage() {
     { href: activeHref },
     { enabled: shouldLoadDynamicPage }
   );
-  const { data: allMenus } = trpc.home.menus.useQuery();
+  const { data: allMenus, isLoading: menusLoading } = trpc.home.menus.useQuery();
+  const accessMatch = useMemo(
+    () => findMenuAccessMatchByHref(allMenus, activeHref),
+    [allMenus, activeHref]
+  );
 
   useEffect(() => {
     if (codeBackedHref) {
@@ -573,7 +627,7 @@ export function DynamicMenuHrefPage() {
     return <LoadingDynamicPage />;
   }
 
-  if (itemLoading || subItemLoading) {
+  if (itemLoading || subItemLoading || menusLoading) {
     return <LoadingDynamicPage />;
   }
 
@@ -583,6 +637,10 @@ export function DynamicMenuHrefPage() {
 
   if (subItem) {
     return <MenuSubItemPageContent item={subItem} allMenus={allMenus} activeHref={activeHref} />;
+  }
+
+  if (accessMatch && isMemberOnlyMenuNode(accessMatch.node)) {
+    return <MemberOnlyDynamicPage match={accessMatch} activeHref={activeHref} />;
   }
 
   return <MissingDynamicPage />;

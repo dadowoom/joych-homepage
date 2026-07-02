@@ -6,6 +6,8 @@
  */
 import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
+import MemberOnlyContentNotice from "@/components/MemberOnlyContentNotice";
+import { findMenuAccessMatchByHref, isMemberOnlyMenuNode } from "@/lib/menuAccess";
 import YoutubeListPage from "./YoutubeListPage";
 
 type VideoMenuSubItem = {
@@ -16,6 +18,8 @@ type VideoMenuSubItem = {
   pageImageUrl?: string | null;
   playlistId?: number | null;
   menuItemId?: number;
+  allowGuest?: boolean;
+  allowMember?: boolean;
 };
 
 type VideoMenuItem = {
@@ -27,6 +31,8 @@ type VideoMenuItem = {
   playlistId?: number | null;
   menuId?: number;
   subItems?: VideoMenuSubItem[];
+  allowGuest?: boolean;
+  allowMember?: boolean;
 };
 
 type VideoMenuTree = Array<{
@@ -161,10 +167,27 @@ function EmptyVideoPage({
 }
 
 // ── 공통: href로 playlistId를 조회해 YoutubeListPage를 렌더링 ──
+function MemberOnlyVideoPage({
+  title,
+  href,
+  sideMenuItems,
+}: {
+  title: string;
+  href: string;
+  sideMenuItems: VideoSideMenuItem[];
+}) {
+  return (
+    <VideoPageShell title={title} sideMenuItems={sideMenuItems}>
+      <MemberOnlyContentNotice resourceLabel={title} fallbackPath={href} />
+    </VideoPageShell>
+  );
+}
+
 function WorshipVideoPage({ href, title }: { href: string; title: string }) {
   const { data: menuItem, isLoading: l1 } = trpc.home.menuItemByHref.useQuery({ href });
   const { data: subItem, isLoading: l2 } = trpc.home.menuSubItemByHref.useQuery({ href });
   const { data: menuTree, isLoading: menuLoading } = trpc.home.menus.useQuery();
+  const accessMatch = findMenuAccessMatchByHref(menuTree, href);
 
   const playlistId = menuItem?.playlistId ?? subItem?.playlistId ?? null;
   const activeItemId = menuItem?.id ?? subItem?.menuItemId;
@@ -187,6 +210,16 @@ function WorshipVideoPage({ href, title }: { href: string; title: string }) {
           </div>
         </div>
       </VideoPageShell>
+    );
+  }
+
+  if (!playlistId && accessMatch && isMemberOnlyMenuNode(accessMatch.node)) {
+    return (
+      <MemberOnlyVideoPage
+        title={title}
+        href={href}
+        sideMenuItems={sideMenuItems}
+      />
     );
   }
 
