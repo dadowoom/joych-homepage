@@ -271,6 +271,7 @@ export default function YoutubeEditPanel({
     <Sheet modal={false} open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent
         side="right"
+        draggableKey="youtube-edit-panel"
         showOverlay={false}
         className="flex w-[360px] max-w-[calc(100vw-16px)] flex-col overflow-hidden bg-white p-0 sm:max-w-[360px]"
         style={{ top: "144px", height: "calc(100vh - 144px)" }}

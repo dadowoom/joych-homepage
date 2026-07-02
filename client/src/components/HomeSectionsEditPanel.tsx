@@ -276,6 +276,7 @@ export default function HomeSectionsEditPanel({
     <Sheet open={open} onOpenChange={value => !value && onClose()}>
       <SheetContent
         side="right"
+        draggableKey="home-sections-edit-panel"
         className="w-[460px] sm:w-[620px] overflow-y-auto bg-white"
         style={{ top: "144px", height: "calc(100vh - 144px)" }}
       >

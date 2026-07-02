@@ -212,6 +212,7 @@ export default function MenuEditPanel({
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent
         side="right"
+        draggableKey="menu-edit-panel"
         className="p-0 flex flex-col overflow-hidden bg-white"
         style={{
           top: "144px",

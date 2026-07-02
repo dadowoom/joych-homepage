@@ -370,6 +370,7 @@ export default function GalleryEditPanel({ open, onClose }: GalleryEditPanelProp
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent
         side="right"
+        draggableKey="gallery-edit-panel"
         className="w-[420px] sm:w-[480px] overflow-y-auto bg-white"
         style={{ top: "144px", height: "calc(100vh - 144px)" }}
       >

@@ -412,7 +412,7 @@ export default function NoticeEditPanel({
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent side="right" className="w-[420px] sm:w-[480px] overflow-y-auto bg-white" style={{ top: "144px", height: "calc(100vh - 144px)" }}>
+      <SheetContent side="right" draggableKey="notice-edit-panel" className="w-[420px] sm:w-[480px] overflow-y-auto bg-white" style={{ top: "144px", height: "calc(100vh - 144px)" }}>
         <SheetHeader className="mb-4">
           <SheetTitle>{panelTitle}</SheetTitle>
           <SheetDescription>{panelDescription}</SheetDescription>

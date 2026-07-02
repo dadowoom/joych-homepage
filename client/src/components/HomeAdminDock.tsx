@@ -28,6 +28,12 @@ const LABEL_CLOSE = "\uD3B8\uC9D1 \uB3C4\uAD6C \uB2EB\uAE30";
 const LABEL_OPEN = "\uD3B8\uC9D1 \uB3C4\uAD6C \uC5F4\uAE30";
 const LABEL_NEW_NOTIFICATION = "\uC0C8 \uC54C\uB9BC";
 const LABEL_COUNT_UNIT = "\uAC74";
+const DOCK_POSITION_STORAGE_KEY = "joych-admin-dock-position";
+
+type DockPosition = {
+  x: number;
+  y: number;
+};
 
 type HomeAdminDockProps = {
   loggingOut: boolean;
@@ -55,6 +61,30 @@ type ActionButtonProps = {
 
 function formatNotificationCount(count: number) {
   return count > 99 ? "99+" : String(count);
+}
+
+function getStoredDockPosition(): DockPosition | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const rawValue = window.localStorage.getItem(DOCK_POSITION_STORAGE_KEY);
+    if (!rawValue) return null;
+    const parsed = JSON.parse(rawValue) as Partial<DockPosition>;
+    if (typeof parsed.x !== "number" || typeof parsed.y !== "number") return null;
+    return parsed as DockPosition;
+  } catch {
+    return null;
+  }
+}
+
+function clampDockPosition(position: DockPosition, element?: HTMLElement | null): DockPosition {
+  if (typeof window === "undefined") return position;
+  const width = element?.offsetWidth ?? 180;
+  const height = element?.offsetHeight ?? 72;
+  const margin = 12;
+  return {
+    x: Math.min(Math.max(position.x, margin), Math.max(margin, window.innerWidth - width - margin)),
+    y: Math.min(Math.max(position.y, margin), Math.max(margin, window.innerHeight - height - margin)),
+  };
 }
 
 function ActionButton({
@@ -126,16 +156,22 @@ export default function HomeAdminDock({
   onOpenQuickMenu,
   onToggle,
 }: HomeAdminDockProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const ignoreNextClickRef = useRef(false);
+  const [customPosition, setCustomPosition] = useState<DockPosition | null>(() => getStoredDockPosition());
   const [dockPlacement, setDockPlacement] = useState({
     rightOffset: 0,
     useLeftFallback: false,
   });
   const hasNotifications = notificationCount > 0;
+  const hasCustomPosition = Boolean(customPosition);
 
   useEffect(() => {
     const updateDockPlacement = () => {
+      if (hasCustomPosition) return;
+
       const openRightPanels = Array.from(
         document.querySelectorAll<HTMLElement>('[data-slot="sheet-content"][data-state="open"]')
       ).filter((element) => {
@@ -189,7 +225,22 @@ export default function HomeAdminDock({
       observer.disconnect();
       window.removeEventListener("resize", updateDockPlacement);
     };
-  }, []);
+  }, [hasCustomPosition]);
+
+  useEffect(() => {
+    if (!customPosition) return;
+    const handleResize = () => {
+      setCustomPosition((current) => {
+        if (!current) return current;
+        const next = clampDockPosition(current, rootRef.current);
+        window.localStorage.setItem(DOCK_POSITION_STORAGE_KEY, JSON.stringify(next));
+        return next;
+      });
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [customPosition]);
 
   useEffect(() => {
     if (!open) return;
@@ -220,14 +271,67 @@ export default function HomeAdminDock({
     };
   }, [onClose, open]);
 
+  const handleDockPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0) return;
+    const rootElement = rootRef.current;
+    if (!rootElement) return;
+
+    const rect = rootElement.getBoundingClientRect();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const offsetX = event.clientX - rect.left;
+    const offsetY = event.clientY - rect.top;
+    let didMove = false;
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const distance = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
+      if (distance > 4) {
+        didMove = true;
+      }
+      const next = clampDockPosition(
+        {
+          x: moveEvent.clientX - offsetX,
+          y: moveEvent.clientY - offsetY,
+        },
+        rootElement,
+      );
+      setCustomPosition(next);
+      window.localStorage.setItem(DOCK_POSITION_STORAGE_KEY, JSON.stringify(next));
+    };
+
+    const handlePointerUp = () => {
+      if (didMove) {
+        ignoreNextClickRef.current = true;
+        window.setTimeout(() => {
+          ignoreNextClickRef.current = false;
+        }, 0);
+      }
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  };
+
+  const resetDockPosition = () => {
+    setCustomPosition(null);
+    window.localStorage.removeItem(DOCK_POSITION_STORAGE_KEY);
+  };
+
   return (
     <div
+      ref={rootRef}
       className={cn(
-        "fixed bottom-4 z-[120] transition-[left,right,transform] duration-200 sm:bottom-6",
-        dockPlacement.useLeftFallback ? "left-4 sm:left-6" : "right-4 sm:right-6"
+        "fixed z-[120] transition-[left,right,top,transform] duration-200",
+        customPosition
+          ? ""
+          : cn("bottom-4 sm:bottom-6", dockPlacement.useLeftFallback ? "left-4 sm:left-6" : "right-4 sm:right-6")
       )}
       style={
-        !dockPlacement.useLeftFallback && dockPlacement.rightOffset > 0
+        customPosition
+          ? { left: customPosition.x, top: customPosition.y }
+          : !dockPlacement.useLeftFallback && dockPlacement.rightOffset > 0
           ? { right: dockPlacement.rightOffset }
           : undefined
       }
@@ -322,11 +426,17 @@ export default function HomeAdminDock({
       <button
         ref={triggerRef}
         type="button"
-        onClick={onToggle}
+        onPointerDown={handleDockPointerDown}
+        onDoubleClick={resetDockPosition}
+        onClick={() => {
+          if (ignoreNextClickRef.current) return;
+          onToggle();
+        }}
         aria-expanded={open}
         aria-label={LABEL_OPEN}
+        title="드래그해서 위치 이동, 더블클릭하면 기본 위치"
         className={cn(
-          "relative flex items-center gap-3 rounded-full border border-[#184D1D]/10 px-4 py-3 text-white shadow-[0_18px_45px_rgba(27,94,32,0.28)] transition-all",
+          "relative flex cursor-move items-center gap-3 rounded-full border border-[#184D1D]/10 px-4 py-3 text-white shadow-[0_18px_45px_rgba(27,94,32,0.28)] transition-all",
           open
             ? "bg-[#174D1A] hover:bg-[#174D1A]"
             : "bg-[#1B5E20] hover:-translate-y-0.5 hover:bg-[#174D1A]"

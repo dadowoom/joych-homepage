@@ -129,7 +129,7 @@ export default function AffiliateEditPanel({ open, onClose }: AffiliateEditPanel
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent side="right" className="w-[420px] sm:w-[480px] overflow-y-auto bg-white" style={{ top: "144px", height: "calc(100vh - 144px)" }}>
+      <SheetContent side="right" draggableKey="affiliate-edit-panel" className="w-[420px] sm:w-[480px] overflow-y-auto bg-white" style={{ top: "144px", height: "calc(100vh - 144px)" }}>
         <SheetHeader className="mb-4">
           <SheetTitle>관련 기관 편집</SheetTitle>
           <SheetDescription>홈페이지 하단 관련 기관을 추가, 수정, 삭제할 수 있습니다.</SheetDescription>
