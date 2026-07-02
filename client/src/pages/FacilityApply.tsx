@@ -231,6 +231,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     department: "",
     depositorName: "",
     purpose: "",
+    purposeDetail: "",
     date: urlDate,
     startTime: urlStartTime,
     endTime: urlEndTime,
@@ -431,6 +432,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     setForm(prev => ({
       ...prev,
       [name]: type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
+      ...(name === "purpose" && value !== "기타" ? { purposeDetail: "" } : {}),
       // 날짜 변경 시 시간 초기화
       ...(name === "date" ? { startTime: "", endTime: "" } : {}),
     }));
@@ -450,12 +452,18 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
   }
 
   function validate(): string | null {
+    const resolvedPurpose = isExternal
+      ? form.purpose.trim()
+      : form.purpose === "기타"
+        ? form.purposeDetail.trim()
+        : form.purpose.trim();
     if (!form.reserverName.trim()) return "신청자 이름을 입력해 주세요.";
     if (!form.reserverPhone.trim()) return "연락처를 입력해 주세요.";
     if (!form.department.trim()) return isExternal ? "단체명을 입력해 주세요." : "소속 부서/단체를 입력해 주세요.";
     if (isExternal && !form.depositorName.trim()) return "입금자명을 입력해 주세요.";
     if (!form.purpose.trim()) return isExternal ? "사용 목적을 입력해 주세요." : "사용 목적을 선택해 주세요.";
     if (!form.date) return "사용 날짜를 선택해 주세요.";
+    if (!resolvedPurpose) return isExternal ? "사용 목적을 입력해 주세요." : (form.purpose === "기타" ? "기타 사용 목적을 입력해 주세요." : "사용 목적을 선택해 주세요.");
     if (selectedDateRangeRestriction) return selectedDateRangeRestriction;
     if (blockedDateSet.has(form.date) && !hasReservationOverride) return "해당 날짜는 예약이 불가능합니다.";
     if (!form.startTime) return "시작 시간을 선택해 주세요.";
@@ -508,6 +516,11 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     }
     const error = validate();
     if (error) { showReservationError(error); return; }
+    const resolvedPurpose = isExternal
+      ? form.purpose.trim()
+      : form.purpose === "기타"
+        ? form.purposeDetail.trim()
+        : form.purpose.trim();
     const payload = {
       facilityId,
       reserverName: form.reserverName,
@@ -515,7 +528,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
       reservationDate: form.date,
       startTime: form.startTime,
       endTime: form.endTime,
-      purpose: form.purpose,
+      purpose: resolvedPurpose,
       department: form.department || undefined,
       attendees: Number(form.attendees),
       notes: isExternal
@@ -719,10 +732,22 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                       className={inputClass}
                     />
                   ) : (
+                    <>
                     <select name="purpose" value={form.purpose} onChange={handleChange} className={inputClass}>
                       <option value="">선택해 주세요</option>
                       {PURPOSE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
+                    {form.purpose === "기타" && (
+                      <input
+                        type="text"
+                        name="purposeDetail"
+                        value={form.purposeDetail}
+                        onChange={handleChange}
+                        placeholder="사용 목적을 직접 입력해 주세요."
+                        className={`${inputClass} mt-3`}
+                      />
+                    )}
+                    </>
                   )}
                 </Field>
 

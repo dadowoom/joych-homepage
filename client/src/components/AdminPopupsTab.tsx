@@ -1,7 +1,7 @@
 /**
  * 관리자 팝업/공지 배너 관리 탭
- * - 제목, 내용, 이미지, 링크, 노출 기간, 우선순위를 관리합니다.
- * - 실제 공개 노출은 NoticePopupLayer에서 home.popups API를 통해 처리합니다.
+ * - 현재 운영 기준은 "오른쪽 팝업" 한 가지로 통일합니다.
+ * - 실제 공개 노출은 NoticePopupLayer에서 슬라이드형 오른쪽 팝업으로 처리합니다.
  */
 
 import { useMemo, useRef, useState } from "react";
@@ -28,7 +28,6 @@ type PopupAudience = "all" | "guest" | "member";
 
 type PopupForm = {
   title: string;
-  content: string;
   imageUrl: string;
   linkLabel: string;
   linkHref: string;
@@ -42,9 +41,16 @@ type PopupForm = {
   endAt: string;
 };
 
+type OptimizedImageResult = {
+  dataUrl: string;
+  fileName: string;
+  mimeType: string;
+  optimizedBytes: number;
+  originalBytes: number;
+};
+
 const EMPTY_FORM: PopupForm = {
   title: "",
-  content: "",
   imageUrl: "",
   linkLabel: "",
   linkHref: "",
@@ -58,11 +64,7 @@ const EMPTY_FORM: PopupForm = {
   endAt: "",
 };
 
-const placementOptions: { value: PopupPlacement; label: string }[] = [
-  { value: "modal", label: "중앙 팝업" },
-  { value: "top_banner", label: "상단 배너" },
-  { value: "bottom_sheet", label: "하단 팝업" },
-];
+const BUTTON_LABEL_BYTE_LIMIT = 64;
 
 const audienceOptions: { value: PopupAudience; label: string }[] = [
   { value: "all", label: "전체 방문자" },
@@ -98,7 +100,11 @@ function formatDateTime(value: Date | string | null | undefined) {
   }).format(date);
 }
 
-function readFileAsBase64(file: File) {
+function getByteLength(value: string) {
+  return new TextEncoder().encode(value).length;
+}
+
+function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result ?? ""));
@@ -107,14 +113,83 @@ function readFileAsBase64(file: File) {
   });
 }
 
+function loadImageElement(file: File) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("이미지를 불러오지 못했습니다."));
+    };
+    image.src = objectUrl;
+  });
+}
+
+async function optimizePopupImage(file: File): Promise<OptimizedImageResult> {
+  if (file.type === "image/gif") {
+    const dataUrl = await readFileAsDataUrl(file);
+    return {
+      dataUrl,
+      fileName: file.name,
+      mimeType: file.type,
+      originalBytes: file.size,
+      optimizedBytes: file.size,
+    };
+  }
+
+  const image = await loadImageElement(file);
+  const maxWidth = 1600;
+  const maxHeight = 1600;
+  const scale = Math.min(1, maxWidth / image.width, maxHeight / image.height);
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("이미지 최적화를 위한 캔버스를 만들지 못했습니다.");
+
+  context.drawImage(image, 0, 0, width, height);
+
+  const prefersPng = file.type === "image/png";
+  const mimeType = prefersPng ? "image/png" : "image/jpeg";
+  const quality = prefersPng ? undefined : 0.86;
+  const dataUrl = canvas.toDataURL(mimeType, quality);
+  const base64 = dataUrl.split(",")[1] ?? "";
+  const optimizedBytes = Math.ceil((base64.length * 3) / 4);
+  const fileName = prefersPng
+    ? file.name.replace(/\.[^.]+$/, "") + ".png"
+    : file.name.replace(/\.[^.]+$/, "") + ".jpg";
+
+  return {
+    dataUrl,
+    fileName,
+    mimeType,
+    originalBytes: file.size,
+    optimizedBytes,
+  };
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)}KB`;
+  return `${bytes}B`;
+}
+
 function normalizePayload(form: PopupForm) {
   return {
     title: form.title.trim(),
-    content: form.content.trim() || undefined,
+    content: "",
     imageUrl: form.imageUrl.trim() || undefined,
     linkLabel: form.linkLabel.trim() || undefined,
     linkHref: form.linkHref.trim() || undefined,
-    placement: form.placement,
+    placement: "modal" as const,
     audience: form.audience,
     isActive: form.isActive,
     isDismissible: form.isDismissible,
@@ -127,8 +202,10 @@ function normalizePayload(form: PopupForm) {
   };
 }
 
-function getPlacementLabel(value: string) {
-  return placementOptions.find((option) => option.value === value)?.label ?? value;
+function getPlacementLabel(value: PopupPlacement) {
+  if (value === "top_banner") return "상단 배너(기존)";
+  if (value === "bottom_sheet") return "하단 팝업(기존)";
+  return "오른쪽 팝업";
 }
 
 function getAudienceLabel(value: string) {
@@ -141,13 +218,15 @@ export default function AdminPopupsTab() {
   const [form, setForm] = useState<PopupForm>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "hidden">("all");
+  const [uploadSummary, setUploadSummary] = useState<{ originalBytes: number; optimizedBytes: number } | null>(null);
 
   const { data: popups = [], isLoading } = trpc.cms.popups.list.useQuery();
+  const linkLabelBytes = getByteLength(form.linkLabel.trim());
 
   const uploadImage = trpc.cms.upload.image.useMutation({
     onSuccess: (result) => {
       setForm((prev) => ({ ...prev, imageUrl: result.url }));
-      toast.success("이미지가 업로드됐습니다.");
+      toast.success("팝업 이미지가 업로드됐습니다.");
     },
     onError: (error) => toast.error(error.message),
   });
@@ -194,13 +273,13 @@ export default function AdminPopupsTab() {
   const resetForm = () => {
     setForm(EMPTY_FORM);
     setEditingId(null);
+    setUploadSummary(null);
   };
 
   const startEdit = (popup: PopupRow) => {
     setEditingId(popup.id);
     setForm({
       title: popup.title,
-      content: popup.content ?? "",
       imageUrl: popup.imageUrl ?? "",
       linkLabel: popup.linkLabel ?? "",
       linkHref: popup.linkHref ?? "",
@@ -213,12 +292,17 @@ export default function AdminPopupsTab() {
       startAt: toDateTimeLocal(popup.startAt),
       endAt: toDateTimeLocal(popup.endAt),
     });
+    setUploadSummary(null);
   };
 
   const submit = () => {
     const payload = normalizePayload(form);
     if (!payload.title) {
       toast.error("팝업 제목을 입력해 주세요.");
+      return;
+    }
+    if (linkLabelBytes > BUTTON_LABEL_BYTE_LIMIT) {
+      toast.error(`버튼 문구는 ${BUTTON_LABEL_BYTE_LIMIT}byte 이하로 입력해 주세요.`);
       return;
     }
     if (payload.linkLabel && !payload.linkHref) {
@@ -240,20 +324,26 @@ export default function AdminPopupsTab() {
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const maxSize = 10 * 1024 * 1024;
+
+    const maxSize = 25 * 1024 * 1024;
     if (file.size > maxSize) {
-      toast.error("이미지는 10MB 이하로 선택해 주세요.");
+      toast.error("이미지는 25MB 이하로 선택해 주세요.");
       event.target.value = "";
       return;
     }
 
     try {
-      const dataUrl = await readFileAsBase64(file);
-      const base64 = dataUrl.split(",")[1];
+      const optimized = await optimizePopupImage(file);
+      setUploadSummary({
+        originalBytes: optimized.originalBytes,
+        optimizedBytes: optimized.optimizedBytes,
+      });
+
+      const base64 = optimized.dataUrl.split(",")[1];
       uploadImage.mutate({
         base64,
-        fileName: file.name,
-        mimeType: file.type || "image/jpeg",
+        fileName: optimized.fileName,
+        mimeType: optimized.mimeType,
       });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "이미지를 읽지 못했습니다.");
@@ -266,11 +356,11 @@ export default function AdminPopupsTab() {
 
   return (
     <div>
-      <div className="flex flex-col gap-2 mb-5 md:flex-row md:items-end md:justify-between">
+      <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
           <h3 className="text-lg font-bold text-gray-800">팝업 관리</h3>
-          <p className="text-sm text-gray-500 mt-1">
-            행사, 긴급공지, 신청 안내를 홈페이지에 노출합니다.
+          <p className="mt-1 text-sm text-gray-500">
+            홈페이지 메인 우측 팝업을 등록합니다. 같은 노출 묶음은 공개 화면에서 자동 슬라이드됩니다.
           </p>
         </div>
         <div className="flex gap-2">
@@ -283,10 +373,10 @@ export default function AdminPopupsTab() {
               key={option.value}
               type="button"
               onClick={() => setStatusFilter(option.value as typeof statusFilter)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                 statusFilter === option.value
                   ? "bg-[#1B5E20] text-white"
-                  : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                  : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
               }`}
             >
               {option.label}
@@ -295,9 +385,9 @@ export default function AdminPopupsTab() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[380px,1fr] gap-6">
-        <div className="border border-gray-200 rounded-xl p-5 bg-gray-50/60">
-          <div className="flex items-center justify-between mb-4">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[420px,1fr]">
+        <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-5">
+          <div className="mb-4 flex items-center justify-between">
             <h4 className="font-bold text-gray-800">
               {editingId ? "팝업 수정" : "새 팝업 등록"}
             </h4>
@@ -305,15 +395,20 @@ export default function AdminPopupsTab() {
               <button
                 type="button"
                 onClick={resetForm}
-                className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
               >
-                <X className="w-3 h-3" />
+                <X className="h-3 w-3" />
                 취소
               </button>
             )}
           </div>
 
           <div className="space-y-4">
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-3 text-xs leading-5 text-emerald-800">
+              노출 방식은 이제 <span className="font-semibold">오른쪽 팝업</span> 하나로 통일합니다.
+              여러 개를 등록하면 공개 화면에서 자동으로 넘어가고, 버튼을 누르면 링크로 이동하면서 팝업은 닫힙니다.
+            </div>
+
             <div>
               <label className={labelClass}>제목</label>
               <input
@@ -325,33 +420,27 @@ export default function AdminPopupsTab() {
             </div>
 
             <div>
-              <label className={labelClass}>내용</label>
-              <textarea
-                value={form.content}
-                onChange={(event) => setForm((prev) => ({ ...prev, content: event.target.value }))}
-                className={`${fieldClass} w-full min-h-24 resize-y`}
-                placeholder="홈페이지 방문자에게 보여줄 안내 문구"
-              />
-            </div>
-
-            <div>
               <label className={labelClass}>이미지</label>
               {form.imageUrl && (
-                <div className="relative mb-2 overflow-hidden rounded-lg border border-gray-200 bg-white">
+                <div className="relative mb-2 overflow-hidden rounded-xl border border-gray-200 bg-white">
                   <img
                     src={form.imageUrl}
                     alt="팝업 이미지 미리보기"
-                    className="h-32 w-full object-cover"
+                    className="h-40 w-full object-cover"
                     onError={(event) => {
                       (event.target as HTMLImageElement).style.display = "none";
                     }}
-                   loading="lazy"/>
+                    loading="lazy"
+                  />
                   <button
                     type="button"
-                    onClick={() => setForm((prev) => ({ ...prev, imageUrl: "" }))}
-                    className="absolute right-2 top-2 rounded-full bg-black/60 text-white w-6 h-6 flex items-center justify-center text-xs"
+                    onClick={() => {
+                      setForm((prev) => ({ ...prev, imageUrl: "" }));
+                      setUploadSummary(null);
+                    }}
+                    className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white"
                   >
-                    ×
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
               )}
@@ -366,12 +455,12 @@ export default function AdminPopupsTab() {
                   type="button"
                   onClick={() => imageInputRef.current?.click()}
                   disabled={uploadImage.isPending}
-                  className="px-3 py-2 text-sm rounded-lg border border-[#1B5E20] text-[#1B5E20] hover:bg-green-50 disabled:opacity-50"
+                  className="rounded-lg border border-[#1B5E20] px-3 py-2 text-sm text-[#1B5E20] hover:bg-green-50 disabled:opacity-50"
                 >
                   {uploadImage.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <ImageIcon className="w-4 h-4" />
+                    <ImageIcon className="h-4 w-4" />
                   )}
                 </button>
                 <input
@@ -382,9 +471,17 @@ export default function AdminPopupsTab() {
                   onChange={handleFileChange}
                 />
               </div>
+              <p className="mt-1 text-xs text-gray-400">
+                가로형 이미지를 권장합니다. 업로드 시 큰 이미지는 자동으로 최적화됩니다.
+              </p>
+              {uploadSummary && (
+                <p className="mt-1 text-xs text-emerald-700">
+                  최적화: {formatFileSize(uploadSummary.originalBytes)} → {formatFileSize(uploadSummary.optimizedBytes)}
+                </p>
+              )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>버튼 문구</label>
                 <input
@@ -393,6 +490,9 @@ export default function AdminPopupsTab() {
                   className={`${fieldClass} w-full`}
                   placeholder="자세히 보기"
                 />
+                <p className={`mt-1 text-[11px] ${linkLabelBytes > BUTTON_LABEL_BYTE_LIMIT ? "text-red-500" : "text-gray-400"}`}>
+                  {linkLabelBytes} / {BUTTON_LABEL_BYTE_LIMIT} byte
+                </p>
               </div>
               <div>
                 <label className={labelClass}>버튼 링크</label>
@@ -405,22 +505,12 @@ export default function AdminPopupsTab() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>노출 방식</label>
-                <select
-                  value={form.placement}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, placement: event.target.value as PopupPlacement }))
-                  }
-                  className={`${fieldClass} w-full`}
-                >
-                  {placementOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700">
+                  오른쪽 팝업
+                </div>
               </div>
               <div>
                 <label className={labelClass}>대상</label>
@@ -440,7 +530,7 @@ export default function AdminPopupsTab() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>노출 시작</label>
                 <input
@@ -461,7 +551,7 @@ export default function AdminPopupsTab() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>우선순위</label>
                 <input
@@ -520,14 +610,14 @@ export default function AdminPopupsTab() {
               type="button"
               onClick={submit}
               disabled={isSaving}
-              className="w-full bg-[#1B5E20] text-white rounded-lg py-2.5 text-sm font-medium hover:bg-[#2E7D32] disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#1B5E20] py-2.5 text-sm font-medium text-white hover:bg-[#2E7D32] disabled:opacity-50"
             >
               {isSaving ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : editingId ? (
-                <Save className="w-4 h-4" />
+                <Save className="h-4 w-4" />
               ) : (
-                <Plus className="w-4 h-4" />
+                <Plus className="h-4 w-4" />
               )}
               {editingId ? "저장" : "등록"}
             </button>
@@ -536,9 +626,9 @@ export default function AdminPopupsTab() {
 
         <div>
           {isLoading ? (
-            <p className="text-gray-500 py-10 text-center">불러오는 중...</p>
+            <p className="py-10 text-center text-gray-500">불러오는 중...</p>
           ) : filteredPopups.length === 0 ? (
-            <div className="border border-dashed border-gray-200 rounded-xl py-12 text-center text-gray-400">
+            <div className="rounded-xl border border-dashed border-gray-200 py-12 text-center text-gray-400">
               등록된 팝업이 없습니다.
             </div>
           ) : (
@@ -546,13 +636,13 @@ export default function AdminPopupsTab() {
               {filteredPopups.map((popup) => (
                 <div
                   key={popup.id}
-                  className="border border-gray-200 rounded-xl bg-white p-4 flex flex-col gap-4 md:flex-row md:items-center"
+                  className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 md:flex-row md:items-center"
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <h4 className="font-bold text-gray-900 truncate">{popup.title}</h4>
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <h4 className="truncate font-bold text-gray-900">{popup.title}</h4>
                       <span
-                        className={`text-xs px-2 py-0.5 rounded-full ${
+                        className={`rounded-full px-2 py-0.5 text-xs ${
                           popup.isActive
                             ? "bg-green-100 text-green-700"
                             : "bg-gray-100 text-gray-500"
@@ -560,27 +650,51 @@ export default function AdminPopupsTab() {
                       >
                         {popup.isActive ? "노출" : "숨김"}
                       </span>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
                         {getPlacementLabel(popup.placement)}
                       </span>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
+                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
                         {getAudienceLabel(popup.audience)}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-500 line-clamp-2">
-                      {popup.content || "내용 없음"}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-xs text-gray-400">
-                      <span className="inline-flex items-center gap-1">
-                        <CalendarClock className="w-3 h-3" />
-                        {formatDateTime(popup.startAt)} ~ {formatDateTime(popup.endAt)}
-                      </span>
-                      <span>우선순위 {popup.priority}</span>
-                      {popup.isDismissible && (
-                        <span>{popup.dismissPeriodHours}시간 숨김 가능</span>
-                      )}
+
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <div className="overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
+                        {popup.imageUrl ? (
+                          <img
+                            src={popup.imageUrl}
+                            alt=""
+                            className="h-20 w-full object-cover sm:w-36"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="flex h-20 w-full items-center justify-center text-gray-300 sm:w-36">
+                            <ImageIcon className="h-5 w-5" />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-gray-700">
+                          버튼: {popup.linkLabel || "미사용"}
+                        </p>
+                        <p className="mt-1 truncate text-xs text-gray-400">
+                          링크: {popup.linkHref || "연결 없음"}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-400">
+                          <span className="inline-flex items-center gap-1">
+                            <CalendarClock className="h-3 w-3" />
+                            {formatDateTime(popup.startAt)} ~ {formatDateTime(popup.endAt)}
+                          </span>
+                          <span>우선순위 {popup.priority}</span>
+                          {popup.isDismissible && (
+                            <span>{popup.dismissPeriodHours}시간 숨김 가능</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
+
                   <div className="flex gap-2 md:shrink-0">
                     <button
                       type="button"
@@ -590,21 +704,21 @@ export default function AdminPopupsTab() {
                           isActive: !popup.isActive,
                         })
                       }
-                      className="px-3 py-2 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 inline-flex items-center gap-1"
+                      className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-600 hover:bg-gray-50"
                     >
                       {popup.isActive ? (
-                        <EyeOff className="w-3 h-3" />
+                        <EyeOff className="h-3 w-3" />
                       ) : (
-                        <Eye className="w-3 h-3" />
+                        <Eye className="h-3 w-3" />
                       )}
                       {popup.isActive ? "숨김" : "노출"}
                     </button>
                     <button
                       type="button"
                       onClick={() => startEdit(popup)}
-                      className="px-3 py-2 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 inline-flex items-center gap-1"
+                      className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-600 hover:bg-gray-50"
                     >
-                      <Pencil className="w-3 h-3" />
+                      <Pencil className="h-3 w-3" />
                       수정
                     </button>
                     <button
@@ -614,9 +728,9 @@ export default function AdminPopupsTab() {
                           deletePopup.mutate({ id: popup.id });
                         }
                       }}
-                      className="px-3 py-2 text-xs rounded-lg border border-red-200 text-red-600 hover:bg-red-50 inline-flex items-center gap-1"
+                      className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-2 text-xs text-red-600 hover:bg-red-50"
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Trash2 className="h-3 w-3" />
                       삭제
                     </button>
                   </div>

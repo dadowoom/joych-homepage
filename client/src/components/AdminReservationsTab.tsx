@@ -1,4 +1,4 @@
-/**
+﻿/**
  * AdminReservationsTab.tsx
  * 관리자 예약 승인/거절 관리 탭
  * - 전체 예약 목록 조회 (시설별 필터링)
@@ -7,7 +7,7 @@
  * - 달력 형태 예약 현황 보기
  */
 
-import { useState } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import type { Reservation, Facility } from "../../../drizzle/schema";
@@ -320,6 +320,20 @@ export default function AdminReservationsTab() {
     cancelled: groupedReservations.filter(group => group.status === "cancelled").length,
   };
 
+  const isMutating =
+    approveMutation.isPending ||
+    approveGroupMutation.isPending ||
+    rejectMutation.isPending ||
+    rejectGroupMutation.isPending ||
+    markCheckingMutation.isPending ||
+    markCheckingGroupMutation.isPending ||
+    cancelMutation.isPending ||
+    cancelGroupMutation.isPending ||
+    updateTimeMutation.isPending ||
+    updateGroupTimeMutation.isPending ||
+    deleteMutation.isPending ||
+    deleteGroupMutation.isPending;
+
   const approveReservation = (group: ReservationGroup) => {
     if (group.isRecurring && group.groupId) {
       approveGroupMutation.mutate({ groupId: group.groupId });
@@ -402,6 +416,43 @@ export default function AdminReservationsTab() {
       startTime: timeEditForm.startTime,
       endTime: timeEditForm.endTime,
     });
+  };
+
+  const startEditSingleReservationTime = (reservation: AdminReservationRow) => {
+    setRejectingKey(null);
+    setEditingKey(`reservation:${reservation.id}`);
+    setTimeEditForm({
+      reservationDate: reservation.reservationDate,
+      startTime: reservation.startTime,
+      endTime: reservation.endTime,
+    });
+  };
+
+  const saveSingleReservationTime = (reservation: AdminReservationRow) => {
+    if (!timeEditForm.startTime || !timeEditForm.endTime) {
+      toast.error("시작 시간과 종료 시간을 입력해주세요.");
+      return;
+    }
+    if (timeEditForm.startTime >= timeEditForm.endTime) {
+      toast.error("시작 시간은 종료 시간보다 빨라야 합니다.");
+      return;
+    }
+    updateTimeMutation.mutate({
+      id: reservation.id,
+      reservationDate: timeEditForm.reservationDate,
+      startTime: timeEditForm.startTime,
+      endTime: timeEditForm.endTime,
+    });
+  };
+
+  const cancelSingleReservation = (reservation: AdminReservationRow) => {
+    if (!confirm("예약을 취소 처리하시겠습니까?")) return;
+    cancelMutation.mutate({ id: reservation.id });
+  };
+
+  const deleteSingleReservation = (reservation: AdminReservationRow) => {
+    if (!confirm("예약을 삭제하시겠습니까? 삭제 후에는 되돌릴 수 없습니다.")) return;
+    deleteMutation.mutate({ id: reservation.id });
   };
 
   return (
@@ -751,16 +802,38 @@ export default function AdminReservationsTab() {
 
       {/* 달력 뷰 */}
       {viewMode === "calendar" && (
-        <CalendarView reservations={reservations ?? []} facilityFilter={facilityFilter} facilities={facilities ?? []} />
+        <CalendarView
+          reservations={reservations ?? []}
+          facilityFilter={facilityFilter}
+          facilities={facilities ?? []}
+          editingKey={editingKey}
+          timeEditForm={timeEditForm}
+          setEditingKey={setEditingKey}
+          setTimeEditForm={setTimeEditForm}
+          isMutating={isMutating}
+          onStartEditTime={startEditSingleReservationTime}
+          onSaveTime={saveSingleReservationTime}
+          onCancelReservation={cancelSingleReservation}
+          onDeleteReservation={deleteSingleReservation}
+        />
       )}
     </div>
   );
 }
 
-function CalendarView({ reservations, facilityFilter, facilities }: {
+function CalendarView({ reservations, facilityFilter, facilities, editingKey, timeEditForm, setEditingKey, setTimeEditForm, isMutating, onStartEditTime, onSaveTime, onCancelReservation, onDeleteReservation }: {
   reservations: AdminReservationRow[];
   facilityFilter: number | undefined;
   facilities: Facility[];
+  editingKey: string | null;
+  timeEditForm: ReservationTimeEditForm;
+  setEditingKey: Dispatch<SetStateAction<string | null>>;
+  setTimeEditForm: Dispatch<SetStateAction<ReservationTimeEditForm>>;
+  isMutating: boolean;
+  onStartEditTime: (reservation: AdminReservationRow) => void;
+  onSaveTime: (reservation: AdminReservationRow) => void;
+  onCancelReservation: (reservation: AdminReservationRow) => void;
+  onDeleteReservation: (reservation: AdminReservationRow) => void;
 }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(() => getLocalDateKey());
@@ -916,44 +989,141 @@ function CalendarView({ reservations, facilityFilter, facilities }: {
             이 날짜에는 예약이 없습니다.
           </div>
         ) : (
-          <div className="divide-y divide-gray-100">
-            {selectedReservations.map(reservation => {
-              const st = STATUS_LABELS[reservation.status] ?? STATUS_LABELS.pending;
-              return (
-                <div key={reservation.id} className="grid gap-3 px-4 py-3 text-sm md:grid-cols-[120px_minmax(0,1fr)_120px_150px_120px] md:items-center">
-                  <div>
-                    <p className="text-xs text-gray-400">시간</p>
-                    <p className="font-semibold text-gray-900">{formatReservationTimeRange(reservation)}</p>
+          <div>
+            <div className="hidden grid-cols-[110px_minmax(0,1.5fr)_150px_140px_120px_220px] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 text-[11px] font-semibold text-gray-500 md:grid">
+              <div>시간</div>
+              <div>시설 / 목적</div>
+              <div>예약자</div>
+              <div>연락처</div>
+              <div>상태 / 인원</div>
+              <div>관리</div>
+            </div>
+
+            <div className="divide-y divide-gray-100">
+              {selectedReservations.map((reservation) => {
+                const statusMeta = STATUS_LABELS[reservation.status] ?? STATUS_LABELS.pending;
+                const rowEditKey = `reservation:${reservation.id}`;
+                const isEditingRow = editingKey === rowEditKey;
+                const isCancelable = reservation.status !== "cancelled" && reservation.status !== "rejected";
+
+                return (
+                  <div key={reservation.id}>
+                    <div className="grid gap-3 px-4 py-3 text-sm md:grid-cols-[110px_minmax(0,1.5fr)_150px_140px_120px_220px] md:items-center">
+                      <div>
+                        <p className="text-xs text-gray-400 md:hidden">시간</p>
+                        <p className="font-semibold text-gray-900">{formatReservationTimeRange(reservation)}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs text-gray-400 md:hidden">시설 / 목적</p>
+                        <p className="truncate font-semibold text-gray-900">{reservation.facilityName ?? "시설"} · {reservation.purpose}</p>
+                        {reservation.notes && <p className="mt-0.5 truncate text-xs text-gray-500">요청: {reservation.notes}</p>}
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 md:hidden">예약자</p>
+                        <span className={"mb-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold " + getReservationAudienceBadgeClass(reservation)}>
+                          {getReservationAudienceLabel(reservation)}
+                        </span>
+                        <p className="font-semibold text-gray-900">{getReservationName(reservation)}</p>
+                        <p className="text-xs text-gray-500">{getReservationPosition(reservation)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 md:hidden">연락처</p>
+                        <p className="font-semibold text-gray-900">{getReservationPhone(reservation)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 md:hidden">상태 / 인원</p>
+                        <span className={"inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium " + statusMeta.color}>
+                          {statusMeta.icon} {statusMeta.label}
+                        </span>
+                        <p className="mt-1 text-xs text-gray-500">{reservation.attendees}명</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 md:hidden">관리</p>
+                        <div className="flex flex-wrap gap-2">
+                          {isCancelable && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="min-h-10 border-gray-300 px-2.5 text-xs text-gray-600 hover:bg-gray-50 sm:min-h-0"
+                              onClick={() => onCancelReservation(reservation)}
+                              disabled={isMutating}
+                            >
+                              취소
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="min-h-10 px-2.5 text-xs sm:min-h-0"
+                            onClick={() => onStartEditTime(reservation)}
+                            disabled={isMutating}
+                          >
+                            시간 수정
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="min-h-10 border-red-200 px-2.5 text-xs text-red-600 hover:bg-red-50 sm:min-h-0"
+                            onClick={() => onDeleteReservation(reservation)}
+                            disabled={isMutating}
+                          >
+                            <Trash2 className="mr-1 h-3.5 w-3.5" />
+                            삭제
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {isEditingRow && (
+                      <div className="border-t border-green-100 bg-green-50 px-4 py-4">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                          <label className="block">
+                            <span className="mb-1 block text-xs font-medium text-green-800">예약 날짜</span>
+                            <input
+                              type="date"
+                              value={timeEditForm.reservationDate}
+                              onChange={e => setTimeEditForm(prev => ({ ...prev, reservationDate: e.target.value }))}
+                              className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="mb-1 block text-xs font-medium text-green-800">시작 시간</span>
+                            <input
+                              type="time"
+                              value={timeEditForm.startTime}
+                              onChange={e => setTimeEditForm(prev => ({ ...prev, startTime: e.target.value }))}
+                              className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="mb-1 block text-xs font-medium text-green-800">종료 시간</span>
+                            <input
+                              type="time"
+                              value={timeEditForm.endTime}
+                              onChange={e => setTimeEditForm(prev => ({ ...prev, endTime: e.target.value }))}
+                              className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"
+                            />
+                          </label>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              className="bg-[#1B5E20] text-white hover:bg-[#2E7D32]"
+                              onClick={() => onSaveTime(reservation)}
+                              disabled={isMutating}
+                            >
+                              저장
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setEditingKey(null)}>
+                              취소
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-gray-400">시설 / 목적</p>
-                    <p className="truncate font-semibold text-gray-900">{reservation.facilityName ?? "시설"} · {reservation.purpose}</p>
-                    {reservation.notes && <p className="mt-0.5 truncate text-xs text-gray-500">요청: {reservation.notes}</p>}
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400">이름 / 직분</p>
-                    <span className={"mb-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold " + getReservationAudienceBadgeClass(reservation)}>
-                      {getReservationAudienceLabel(reservation)}
-                    </span>
-                    <p className="font-semibold text-gray-900">{getReservationName(reservation)}</p>
-                    <p className="text-xs text-gray-500">
-                      {getReservationPosition(reservation)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400">전화번호</p>
-                    <p className="font-semibold text-gray-900">{getReservationPhone(reservation)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400">상태 / 인원</p>
-                    <span className={"inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium " + st.color}>
-                      {st.icon} {st.label}
-                    </span>
-                    <p className="mt-1 text-xs text-gray-500">{reservation.attendees}명</p>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
