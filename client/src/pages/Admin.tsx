@@ -325,6 +325,10 @@ function formatNotificationDate(value: Date | string) {
   });
 }
 
+const NOTIFICATION_GROUP_HREFS: Partial<Record<string, string>> = {
+  noticeRecent: "/page/행정지원-공지사항",
+};
+
 function AdminMobileBlocked() {
   return (
     <div
@@ -433,16 +437,61 @@ export default function AdminPage() {
     });
   const markNotificationGroupRead =
     trpc.cms.notifications.markGroupRead.useMutation({
+      onMutate: async ({ groupKey }) => {
+        await utils.cms.notifications.summary.cancel();
+        const previous = utils.cms.notifications.summary.getData();
+        utils.cms.notifications.summary.setData(undefined, current => {
+          if (!current) return current;
+          const groups = current.groups.filter(group => group.key !== groupKey);
+          const items = current.items.filter(item => item.groupKey !== groupKey);
+          return {
+            ...current,
+            totalCount: groups.reduce((sum, group) => sum + group.count, 0),
+            groups,
+            items,
+          };
+        });
+        return { previous };
+      },
+      onError: (_error, _variables, context) => {
+        if (context?.previous) {
+          utils.cms.notifications.summary.setData(undefined, context.previous);
+        }
+      },
       onSuccess: () => {
-        void utils.cms.notifications.summary.invalidate();
         toast.success("알림을 확인 완료로 표시했습니다.");
+      },
+      onSettled: () => {
+        void utils.cms.notifications.summary.invalidate();
       },
     });
   const markAllNotificationsRead =
     trpc.cms.notifications.markAllRead.useMutation({
+      onMutate: async () => {
+        await utils.cms.notifications.summary.cancel();
+        const previous = utils.cms.notifications.summary.getData();
+        utils.cms.notifications.summary.setData(undefined, current =>
+          current
+            ? {
+                ...current,
+                totalCount: 0,
+                groups: [],
+                items: [],
+              }
+            : current
+        );
+        return { previous };
+      },
+      onError: (_error, _variables, context) => {
+        if (context?.previous) {
+          utils.cms.notifications.summary.setData(undefined, context.previous);
+        }
+      },
       onSuccess: () => {
-        void utils.cms.notifications.summary.invalidate();
         toast.success("현재 알림을 모두 확인 완료로 표시했습니다.");
+      },
+      onSettled: () => {
+        void utils.cms.notifications.summary.invalidate();
       },
     });
   const notificationCountsByTab = useMemo(() => {
@@ -638,6 +687,27 @@ export default function AdminPage() {
   const hasNewAdminNotifications = notificationTotalCount > 0;
   const openNotificationsView = () =>
     setLocation("/admin_joych_2026?view=notifications");
+  const getNotificationTarget = (tab: string, groupKey: string) => {
+    const href = NOTIFICATION_GROUP_HREFS[groupKey];
+    if (href) return { kind: "href" as const, href };
+
+    const targetTab = tab as Tab;
+    if (VALID_TABS.includes(targetTab) && permittedTabs.includes(targetTab)) {
+      return { kind: "tab" as const, tab: targetTab };
+    }
+
+    return null;
+  };
+  const openNotificationTarget = (
+    target: ReturnType<typeof getNotificationTarget>
+  ) => {
+    if (!target) return;
+    if (target.kind === "href") {
+      setLocation(target.href);
+      return;
+    }
+    setActiveTab(target.tab);
+  };
 
   return (
     <div
@@ -1047,9 +1117,10 @@ export default function AdminPage() {
                       {!isNotificationGroupsCollapsed && (
                         <div className="grid gap-3 border-t border-gray-100 p-3 md:grid-cols-2 xl:grid-cols-3">
                           {notificationSummary?.groups.map(group => {
-                            const targetTab = group.tab as Tab;
-                            const canOpenTarget =
-                              permittedTabs.includes(targetTab);
+                            const target = getNotificationTarget(
+                              group.tab,
+                              group.key
+                            );
                             return (
                               <article
                                 key={group.key}
@@ -1076,9 +1147,9 @@ export default function AdminPage() {
                                   <button
                                     type="button"
                                     onClick={() =>
-                                      canOpenTarget && setActiveTab(targetTab)
+                                      openNotificationTarget(target)
                                     }
-                                    disabled={!canOpenTarget}
+                                    disabled={!target}
                                     className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#A5D6A7] bg-white px-3 text-xs font-semibold text-[#1B5E20] transition-colors hover:bg-[#F1F8F2] disabled:cursor-not-allowed disabled:opacity-50"
                                   >
                                     <i className="fas fa-arrow-right text-[10px]"></i>
@@ -1143,9 +1214,10 @@ export default function AdminPage() {
                         {!isNotificationItemsCollapsed && (
                           <div className="divide-y divide-gray-100 border-t border-gray-100">
                             {notificationSummary.items.map(item => {
-                              const targetTab = item.tab as Tab;
-                              const canOpenTarget =
-                                permittedTabs.includes(targetTab);
+                              const target = getNotificationTarget(
+                                item.tab,
+                                item.groupKey
+                              );
                               return (
                                 <div
                                   key={item.id}
@@ -1154,9 +1226,9 @@ export default function AdminPage() {
                                   <button
                                     type="button"
                                     onClick={() =>
-                                      canOpenTarget && setActiveTab(targetTab)
+                                      openNotificationTarget(target)
                                     }
-                                    disabled={!canOpenTarget}
+                                    disabled={!target}
                                     className="min-w-0 flex-1 text-left transition-colors hover:text-[#1B5E20] disabled:cursor-not-allowed disabled:opacity-60"
                                   >
                                     <span className="mb-1 flex items-center gap-2">

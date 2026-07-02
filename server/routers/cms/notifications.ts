@@ -180,12 +180,19 @@ export const notificationsRouter = router({
     const readRows = await db
       .select({
         groupKey: adminNotificationReadStates.groupKey,
-        lastSeenAt: adminNotificationReadStates.lastSeenAt,
+        lastSeenAt: sql<Date>`max(${adminNotificationReadStates.lastSeenAt})`,
       })
       .from(adminNotificationReadStates)
-      .where(eq(adminNotificationReadStates.userId, ctx.user.id));
+      .where(eq(adminNotificationReadStates.userId, ctx.user.id))
+      .groupBy(adminNotificationReadStates.groupKey);
     const lastSeenByGroup = new Map(
-      readRows.map(row => [row.groupKey, row.lastSeenAt] as const)
+      readRows.map(row => {
+        const lastSeenAt =
+          row.lastSeenAt instanceof Date
+            ? row.lastSeenAt
+            : parseDateSetting(String(row.lastSeenAt)) ?? new Date(0);
+        return [row.groupKey, lastSeenAt] as const;
+      })
     );
     const cutoffFor = (
       groupKey: NotificationGroupKey,
@@ -1118,17 +1125,19 @@ export const notificationsRouter = router({
 
       const now = new Date();
       await db
+        .delete(adminNotificationReadStates)
+        .where(
+          and(
+            eq(adminNotificationReadStates.userId, ctx.user.id),
+            eq(adminNotificationReadStates.groupKey, input.groupKey)
+          )
+        );
+      await db
         .insert(adminNotificationReadStates)
         .values({
           userId: ctx.user.id,
           groupKey: input.groupKey,
           lastSeenAt: now,
-        })
-        .onDuplicateKeyUpdate({
-          set: {
-            lastSeenAt: now,
-            updatedAt: now,
-          },
         });
 
       return { ok: true };
@@ -1140,6 +1149,9 @@ export const notificationsRouter = router({
     if (!db) return { ok: false };
 
     const now = new Date();
+    await db
+      .delete(adminNotificationReadStates)
+      .where(eq(adminNotificationReadStates.userId, ctx.user.id));
     for (const groupKey of NOTIFICATION_GROUP_KEYS) {
       await db
         .insert(adminNotificationReadStates)
@@ -1147,12 +1159,6 @@ export const notificationsRouter = router({
           userId: ctx.user.id,
           groupKey,
           lastSeenAt: now,
-        })
-        .onDuplicateKeyUpdate({
-          set: {
-            lastSeenAt: now,
-            updatedAt: now,
-          },
         });
     }
 
