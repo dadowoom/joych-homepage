@@ -123,7 +123,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
   };
 
   const managementPanel = canManage && isEditPanelOpen ? (
-    <div className="fixed inset-0 z-[80] bg-black/35" role="dialog" aria-modal="true" aria-label="영상 관리">
+    <div className="fixed inset-x-0 bottom-0 top-16 z-[80] bg-black/35 md:top-[108px]" role="dialog" aria-modal="true" aria-label="영상 관리">
       <button
         type="button"
         className="absolute inset-0 h-full w-full cursor-default"
