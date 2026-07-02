@@ -1097,13 +1097,14 @@ export default function AdminVehiclesTab() {
           )}
 
           {reservationViewMode === "list" && (
-          <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             {reservationsLoading ? (
               <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[#1B5E20]" /></div>
             ) : filteredReservations.length === 0 ? (
               <div className="py-12 text-center text-sm text-gray-400">해당 조건의 차량 예약이 없습니다.</div>
             ) : (
-              <div>
+              <div className="overflow-x-auto">
+                <div className="xl:min-w-[1180px]">
                 <div className="hidden grid-cols-[120px_120px_minmax(120px,1fr)_minmax(140px,1.2fr)_100px_90px_130px_100px_70px_130px] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 xl:grid">
                   <div>시간</div>
                   <div>차량번호</div>
@@ -1262,6 +1263,7 @@ export default function AdminVehiclesTab() {
                     </div>
                   );
                 })}
+                </div>
               </div>
             )}
           </div>
