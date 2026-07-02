@@ -4,9 +4,9 @@
  * - 나머지 영상: 아래 카드 슬라이드 (좌우 버튼으로 이동)
  * - 카드 클릭 시 메인 플레이어 영상 전환
  */
-import { useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { ChevronLeft, ChevronRight, PlayCircle, Settings } from "lucide-react";
+import { ChevronLeft, ChevronRight, LayoutGrid, List, PlayCircle, Search, Settings } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { canManageBoardContent } from "@/lib/contentPermissions";
 import DirectVideoPlayer from "@/components/DirectVideoPlayer";
@@ -52,7 +52,27 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
   const [activeIndex, setActiveIndex] = useState(0);
   const [slideOffset, setSlideOffset] = useState(0);
   const [isEditPanelOpen, setIsEditPanelOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [viewMode, setViewMode] = useState<"thumbnail" | "list">("thumbnail");
   const containerRef = useRef<HTMLDivElement>(null);
+  const filteredVideos = useMemo(() => {
+    const keyword = searchTerm.trim().toLowerCase();
+    if (!keyword) return videos;
+    return videos.filter((video) => [
+      video.title,
+      video.preacher,
+      video.scripture,
+      video.sermonDate,
+      formatSermonDate(video.sermonDate),
+      video.description,
+      video.videoUrl,
+    ].some((value) => (value ?? "").toLowerCase().includes(keyword)));
+  }, [searchTerm, videos]);
+
+  useEffect(() => {
+    setActiveIndex(0);
+    setSlideOffset(0);
+  }, [playlistId, searchTerm, viewMode]);
 
   const manageButton = canManage ? (
     <button
@@ -65,7 +85,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
     </button>
   ) : null;
 
-  const activeVideo = videos[activeIndex];
+  const activeVideo = filteredVideos[activeIndex];
   const CARDS_PER_VIEW = 4; // 한 번에 보이는 카드 수
   const sermonInfoRows = activeVideo
     ? [
@@ -81,7 +101,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
   };
 
   const handleNext = () => {
-    setSlideOffset((prev) => Math.min(videos.length - CARDS_PER_VIEW, prev + 1));
+    setSlideOffset((prev) => Math.min(Math.max(0, filteredVideos.length - CARDS_PER_VIEW), prev + 1));
   };
 
   const handleCardClick = (index: number) => {
@@ -138,10 +158,52 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
             {title}
           </h2>
         )}
-        {manageButton}
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[360px] sm:flex-row sm:items-center sm:justify-end">
+          <label className="relative min-w-0 flex-1 sm:max-w-xs">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="설교제목, 날짜 검색"
+              className="h-10 w-full rounded-md border border-gray-300 bg-white pl-9 pr-3 text-sm outline-none focus:border-[#1B5E20]"
+            />
+          </label>
+          <div className="flex shrink-0 rounded-md border border-gray-200 bg-white p-0.5">
+            <button
+              type="button"
+              onClick={() => setViewMode("thumbnail")}
+              className={`inline-flex h-9 items-center gap-1.5 rounded px-3 text-xs font-semibold ${
+                viewMode === "thumbnail" ? "bg-[#1B5E20] text-white" : "text-gray-500 hover:bg-gray-50"
+              }`}
+            >
+              <LayoutGrid className="h-4 w-4" />
+              썸네일
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              className={`inline-flex h-9 items-center gap-1.5 rounded px-3 text-xs font-semibold ${
+                viewMode === "list" ? "bg-[#1B5E20] text-white" : "text-gray-500 hover:bg-gray-50"
+              }`}
+            >
+              <List className="h-4 w-4" />
+              목록
+            </button>
+          </div>
+          {manageButton}
+        </div>
       </div>
 
       {/* 메인 플레이어 */}
+      {filteredVideos.length === 0 && (
+        <div className="min-h-[260px] rounded-xl border border-dashed border-gray-200 bg-white p-10 text-center text-gray-400">
+          <PlayCircle className="mx-auto mb-3 h-12 w-12 opacity-30" />
+          <p className="text-base font-medium">검색 결과가 없습니다.</p>
+          <p className="mt-1 text-sm">설교제목, 날짜, 설교자, 본문을 다시 확인해 주세요.</p>
+        </div>
+      )}
+
       {activeVideo && (
         <div className="mb-6">
           <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
@@ -185,7 +247,32 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
       )}
 
       {/* 영상 카드 슬라이드 (2개 이상일 때만 표시) */}
-      {videos.length > 1 && (
+      {viewMode === "list" && filteredVideos.length > 0 && (
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+          {filteredVideos.map((video, index) => (
+            <button
+              key={video.id}
+              type="button"
+              onClick={() => handleCardClick(index)}
+              className={`flex w-full items-center gap-3 border-b border-gray-100 p-3 text-left last:border-b-0 ${
+                index === activeIndex ? "bg-[#F1F8E9]" : "hover:bg-gray-50"
+              }`}
+            >
+              <div className="h-16 w-28 shrink-0 overflow-hidden rounded bg-gray-100">
+                <VideoThumbnail title={video.title} src={getThumbnailUrl(video)} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-gray-900">{video.title}</p>
+                <p className="mt-1 truncate text-xs text-gray-500">
+                  {[video.preacher, formatSermonDate(video.sermonDate), video.scripture].filter(Boolean).join(" · ")}
+                </p>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {viewMode === "thumbnail" && filteredVideos.length > 1 && (
         <div className="relative">
           {/* 좌측 버튼 */}
           <button
@@ -202,7 +289,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
               className="flex gap-3 transition-transform duration-300"
               style={{ transform: `translateX(calc(-${slideOffset} * (100% / ${CARDS_PER_VIEW} + 0.75rem)))` }}
             >
-              {videos.map((video, index) => (
+              {filteredVideos.map((video, index) => (
                 <button
                   key={video.id}
                   onClick={() => handleCardClick(index)}
@@ -233,7 +320,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
           {/* 우측 버튼 */}
           <button
             onClick={handleNext}
-            disabled={slideOffset >= videos.length - CARDS_PER_VIEW}
+            disabled={slideOffset >= filteredVideos.length - CARDS_PER_VIEW}
             className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
           >
             <ChevronRight className="w-5 h-5 text-gray-600" />

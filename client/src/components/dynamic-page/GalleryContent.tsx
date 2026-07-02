@@ -384,6 +384,7 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
   const [searchInput, setSearchInput] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
   const [albumTitle, setAlbumTitle] = useState("");
+  const [albumCreatedAt, setAlbumCreatedAt] = useState(toDateTimeLocalValue());
   const [isUploading, setIsUploading] = useState(false);
   const [isAlbumOrderOpen, setIsAlbumOrderOpen] = useState(false);
   const [localOrder, setLocalOrder] = useState<GalleryItem[] | null>(null);
@@ -530,10 +531,12 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
           caption: "",
           gridSpan: "col-span-1 row-span-1",
           sortOrder: index + 1,
+          createdAt: albumCreatedAt ? new Date(albumCreatedAt) : undefined,
         });
       }
 
       setAlbumTitle("");
+      setAlbumCreatedAt(toDateTimeLocalValue());
       await Promise.all([
         utils.home.gallery.invalidate(),
         utils.cms.content.gallery.list.invalidate(),
@@ -862,6 +865,16 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
             onChange={(event) => setAlbumTitle(event.target.value)}
             className="mt-1 h-9 w-full max-w-xl border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#1B5E20]"
             placeholder="예: 2026년 6월 7일 창립 80주년 기념주일"
+          />
+          <label className="mt-3 block text-xs font-semibold text-gray-600" htmlFor="gallery-album-created-at">
+            등록일시
+          </label>
+          <input
+            id="gallery-album-created-at"
+            type="datetime-local"
+            value={albumCreatedAt}
+            onChange={(event) => setAlbumCreatedAt(event.target.value)}
+            className="mt-1 h-9 w-full max-w-xs border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#1B5E20]"
           />
         </div>
         <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col">
