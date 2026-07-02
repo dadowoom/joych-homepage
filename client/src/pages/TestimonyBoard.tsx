@@ -43,6 +43,8 @@ const TESTIMONY_SIDE_MENU_ITEMS = [
 ];
 
 export default function TestimonyList() {
+  const [, navigate] = useLocation();
+  const utils = trpc.useUtils();
   const { user } = useAuth();
   const canManage = canManageBoardContent(user, "content:testimonies");
   const {
@@ -57,6 +59,21 @@ export default function TestimonyList() {
     refetchOnWindowFocus: false,
   });
   const { data: me } = trpc.members.me.useQuery(undefined, { retry: false });
+  const deletePost = trpc.testimony.deletePost.useMutation({
+    onSuccess: async () => {
+      toast.success("\uAC04\uC99D \uAE00\uC774 \uC0AD\uC81C\uB410\uC2B5\uB2C8\uB2E4.");
+      await utils.testimony.posts.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const updateManagedPostStatus = trpc.cms.testimonies.updatePostStatus.useMutation({
+    onSuccess: async () => {
+      toast.success("\uAC04\uC99D \uAE00 \uC0C1\uD0DC\uAC00 \uBCC0\uACBD\uB410\uC2B5\uB2C8\uB2E4.");
+      await utils.testimony.posts.invalidate();
+      await utils.cms.testimonies.posts.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
   const visiblePosts = posts ?? [];
   const loadingState = isLoading;
   const errorState = error;
@@ -132,6 +149,8 @@ export default function TestimonyList() {
           ) : (
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
               {visiblePosts.map((post) => {
+                const isAuthor = me?.id === post.authorMemberId;
+                const canEdit = isAuthor || canManage;
                 const article = (
                   <article className="bg-white rounded-2xl overflow-hidden shadow-sm transition-all duration-300 group h-full flex flex-col cursor-pointer hover:shadow-lg">
                     <div className="relative h-52 overflow-hidden bg-[#E8F5E9]">
@@ -180,7 +199,41 @@ export default function TestimonyList() {
                           <i className="fas fa-eye"></i>
                           조회 {post.viewCount}
                         </span>
-                        <span className="ml-auto text-[#1B5E20] font-medium">읽기 →</span>
+                        <div className="ml-auto flex items-center gap-2">
+                          {canEdit && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  navigate(`/community/testimony/edit/${post.id}`);
+                                }}
+                                className="inline-flex items-center rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-[#1B5E20]/25 hover:text-[#1B5E20]"
+                              >
+                                {"\uC218\uC815"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  const confirmed = confirm("\uC774 \uAC04\uC99D \uAE00\uC744 \uC0AD\uC81C\uD560\uAE4C\uC694?");
+                                  if (!confirmed) return;
+                                  if (canManage && !isAuthor) {
+                                    updateManagedPostStatus.mutate({ id: post.id, status: "deleted" });
+                                    return;
+                                  }
+                                  deletePost.mutate({ id: post.id });
+                                }}
+                                className="inline-flex items-center rounded-full border border-red-100 px-3 py-1.5 text-xs font-medium text-red-500 transition-colors hover:bg-red-50"
+                              >
+                                {"\uC0AD\uC81C"}
+                              </button>
+                            </>
+                          )}
+                          <span className="ml-1 text-[#1B5E20] font-medium">{"\uC77D\uAE30 \u2192"}</span>
+                        </div>
                       </div>
                     </div>
                   </article>
