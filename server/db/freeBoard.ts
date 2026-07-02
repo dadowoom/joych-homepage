@@ -38,10 +38,11 @@ async function hydrateFreeBoardPosts(rows: FreeBoardPost[]): Promise<FreeBoardPo
   const authorsById = new Map(authors.map(author => [author.id, author]));
   return rows.map(post => {
     const author = authorsById.get(post.authorMemberId);
+    const isAdminPost = post.authorMemberId === 0;
     return {
       ...post,
-      authorName: author?.name ?? null,
-      authorPosition: author?.position ?? null,
+      authorName: author?.name ?? (isAdminPost ? "관리자" : null),
+      authorPosition: author?.position ?? (isAdminPost ? "관리자" : null),
       canViewSecret: true,
     };
   });

@@ -1,7 +1,8 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { normalizeRichTextHtmlContent } from "../_core/contentValidation";
-import { memberProtectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { publicProcedure, router } from "../_core/trpc";
+import { hasAdminContentPermission } from "../db/adminPermissions";
 import {
   canViewPublishedFreeBoardPost,
   createFreeBoardPost,
@@ -23,12 +24,29 @@ const postInputSchema = z.object({
   isSecret: z.boolean().default(false),
 });
 
+const FREE_BOARD_PERMISSION_KEY = "content:freeBoard";
+const ADMIN_FREE_BOARD_AUTHOR_MEMBER_ID = 0;
+
 function normalizePostInput(input: z.infer<typeof postInputSchema>) {
   return {
     title: input.title,
     content: normalizeRichTextHtmlContent(input.content, 50000),
     isSecret: input.isSecret,
   };
+}
+
+function canManageFreeBoard(user: Parameters<typeof hasAdminContentPermission>[0]) {
+  return hasAdminContentPermission(user, FREE_BOARD_PERMISSION_KEY);
+}
+
+function getFreeBoardAuthorMemberId(ctx: { user: Parameters<typeof hasAdminContentPermission>[0]; memberId: number | null }) {
+  if (ctx.memberId) return ctx.memberId;
+  if (canManageFreeBoard(ctx.user)) return ADMIN_FREE_BOARD_AUTHOR_MEMBER_ID;
+
+  throw new TRPCError({
+    code: "UNAUTHORIZED",
+    message: "로그인이 필요합니다.",
+  });
 }
 
 export const freeBoardRouter = router({
@@ -52,16 +70,18 @@ export const freeBoardRouter = router({
       return { success: true };
     }),
 
-  myPosts: memberProtectedProcedure.query(({ ctx }) =>
-    getFreeBoardPostsByAuthor(ctx.memberId),
-  ),
+  myPosts: publicProcedure.query(({ ctx }) => {
+    if (!ctx.memberId) return [];
+    return getFreeBoardPostsByAuthor(ctx.memberId);
+  }),
 
-  createPost: memberProtectedProcedure
+  createPost: publicProcedure
     .input(postInputSchema)
     .mutation(async ({ input, ctx }) => {
       const normalizedInput = normalizePostInput(input);
+      const authorMemberId = getFreeBoardAuthorMemberId(ctx);
       const id = await createFreeBoardPost({
-        authorMemberId: ctx.memberId,
+        authorMemberId,
         title: normalizedInput.title,
         content: normalizedInput.content,
         isSecret: normalizedInput.isSecret,
@@ -78,7 +98,7 @@ export const freeBoardRouter = router({
       return { id };
     }),
 
-  updatePost: memberProtectedProcedure
+  updatePost: publicProcedure
     .input(postInputSchema.extend({ id: idSchema }))
     .mutation(async ({ input, ctx }) => {
       const normalizedInput = normalizePostInput(input);
@@ -89,13 +109,15 @@ export const freeBoardRouter = router({
           message: "게시글을 찾을 수 없습니다.",
         });
       }
-      if (post.authorMemberId !== ctx.memberId) {
+      const canManage = canManageFreeBoard(ctx.user);
+      const isOwner = Boolean(ctx.memberId && post.authorMemberId === ctx.memberId);
+      if (!isOwner && !canManage) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "본인이 작성한 글만 수정할 수 있습니다.",
+          message: "본인이 작성한 글 또는 관리 권한이 있는 글만 수정할 수 있습니다.",
         });
       }
-      if (post.status !== "published") {
+      if (post.status !== "published" && !canManage) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "관리자가 숨긴 글은 수정할 수 없습니다.",
@@ -111,7 +133,7 @@ export const freeBoardRouter = router({
       return { success: true };
     }),
 
-  deletePost: memberProtectedProcedure
+  deletePost: publicProcedure
     .input(z.object({ id: idSchema }))
     .mutation(async ({ input, ctx }) => {
       const post = await getFreeBoardPostById(input.id);
@@ -121,10 +143,12 @@ export const freeBoardRouter = router({
           message: "게시글을 찾을 수 없습니다.",
         });
       }
-      if (post.authorMemberId !== ctx.memberId) {
+      const canManage = canManageFreeBoard(ctx.user);
+      const isOwner = Boolean(ctx.memberId && post.authorMemberId === ctx.memberId);
+      if (!isOwner && !canManage) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "본인이 작성한 글만 삭제할 수 있습니다.",
+          message: "본인이 작성한 글 또는 관리 권한이 있는 글만 삭제할 수 있습니다.",
         });
       }
 

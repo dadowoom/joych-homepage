@@ -2,6 +2,8 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { ChevronLeft, ChevronRight, FileText, Lock, Pencil, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { canManageBoardContent } from "@/lib/contentPermissions";
 import { trpc } from "@/lib/trpc";
 import { RichTextEditor, RichTextViewer, sanitizeRichTextHtml } from "@/components/ui/rich-text-editor";
 import { ViewModeToggle, type ViewMode } from "./ViewModeToggle";
@@ -38,6 +40,7 @@ function toPlainText(value?: string | null) {
 export function FreeBoardContent({ defaultViewMode }: { defaultViewMode?: ViewMode | null } = {}) {
   const [location] = useLocation();
   const utils = trpc.useUtils();
+  const { user } = useAuth();
   const { data: me } = trpc.members.me.useQuery(undefined, { retry: false });
   const { data: posts = [], isLoading } = trpc.freeBoard.posts.useQuery();
 
@@ -129,6 +132,8 @@ export function FreeBoardContent({ defaultViewMode }: { defaultViewMode?: ViewMo
 
   const loginHref = `/member/login?next=${encodeURIComponent(location)}`;
   const isSaving = createPost.isPending || updatePost.isPending;
+  const canManageFreeBoard = canManageBoardContent(user, "content:freeBoard");
+  const canWritePost = Boolean(me) || canManageFreeBoard;
   const pageSize = 15;
   const normalizedKeyword = searchKeyword.trim().toLowerCase();
   const filteredPosts = normalizedKeyword
@@ -148,7 +153,7 @@ export function FreeBoardContent({ defaultViewMode }: { defaultViewMode?: ViewMo
   const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1);
   const newPostCount = filteredPosts.filter((post) => isToday(post.createdAt)).length;
 
-  const writeAction = me ? (
+  const writeAction = canWritePost ? (
     <button
       type="button"
       onClick={() => {
@@ -186,10 +191,12 @@ export function FreeBoardContent({ defaultViewMode }: { defaultViewMode?: ViewMo
             </span>
           )}
         </p>
-        <p className="mt-1 text-xs text-gray-400">로그인한 성도만 자유게시판에 글을 작성할 수 있습니다.</p>
+        <p className="mt-1 text-xs text-gray-400">
+          로그인한 성도와 자유게시판 관리 권한자는 글을 작성할 수 있습니다.
+        </p>
       </div>
 
-      {showForm && me && (
+      {showForm && canWritePost && (
         <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-base font-bold text-gray-900">
@@ -322,6 +329,7 @@ export function FreeBoardContent({ defaultViewMode }: { defaultViewMode?: ViewMo
               <tbody className="divide-y divide-gray-100">
                 {visiblePosts.map((post, index) => {
                   const isOwner = me?.id === post.authorMemberId;
+                  const canManagePost = isOwner || canManageFreeBoard;
                   const postNumber = filteredPosts.length - (pageStart + index);
                   const isExpanded = expandedId === post.id;
                   return (
@@ -358,7 +366,7 @@ export function FreeBoardContent({ defaultViewMode }: { defaultViewMode?: ViewMo
                                 </p>
                               )}
                             </div>
-                            {isOwner && (
+                            {canManagePost && (
                               <div className="mt-4 flex justify-end gap-1">
                                 <button
                                   type="button"
@@ -393,6 +401,7 @@ export function FreeBoardContent({ defaultViewMode }: { defaultViewMode?: ViewMo
           <div className={viewMode === "grid" ? "grid gap-4 md:grid-cols-2" : "divide-y divide-gray-100 border border-gray-200 bg-white md:hidden"}>
             {visiblePosts.map((post, index) => {
               const isOwner = me?.id === post.authorMemberId;
+              const canManagePost = isOwner || canManageFreeBoard;
               const postNumber = filteredPosts.length - (pageStart + index);
               const isExpanded = expandedId === post.id;
               return (
@@ -413,7 +422,7 @@ export function FreeBoardContent({ defaultViewMode }: { defaultViewMode?: ViewMo
                   <div className="mt-1 flex items-center justify-between gap-2">
                     <span className="text-xs font-medium text-[#1B5E20]">{post.authorName ?? "성도"}</span>
                     <span className="text-xs text-gray-500">조회수 {post.viewCount ?? 0}</span>
-                    {isOwner && (
+                    {canManagePost && (
                       <div className="flex gap-1">
                         <button
                           type="button"
