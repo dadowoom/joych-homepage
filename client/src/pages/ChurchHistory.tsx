@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import AdminChurchHistoryTab from "@/components/AdminChurchHistoryTab";
+import SubPageLayout from "@/components/SubPageLayout";
 import { canManageBoardContent } from "@/lib/contentPermissions";
 import { trpc } from "@/lib/trpc";
 
@@ -19,6 +20,26 @@ type HistoryItem = {
   month: number;
   content: string;
   sortOrder: number;
+};
+
+type PublicMenuSubItem = {
+  id: number;
+  label: string;
+  href?: string | null;
+  isVisible?: boolean;
+};
+
+type PublicMenuItem = PublicMenuSubItem & {
+  pageType?: string | null;
+  pageImageUrl?: string | null;
+  subItems?: PublicMenuSubItem[];
+};
+
+type PublicMenu = {
+  id: number;
+  label: string;
+  href?: string | null;
+  items?: PublicMenuItem[];
 };
 
 function sortDecades(decades: HistoryDecade[]) {
@@ -44,10 +65,92 @@ function formatMonth(month: number) {
   return String(month).padStart(2, "0");
 }
 
+function normalizeText(value: string | null | undefined) {
+  return (value ?? "").replace(/\s+/g, "");
+}
+
+function decodeHref(value: string | null | undefined) {
+  try {
+    return decodeURIComponent(value ?? "");
+  } catch {
+    return value ?? "";
+  }
+}
+
+function normalizeHref(value: string | null | undefined) {
+  return decodeHref(value).trim();
+}
+
+function hasOwnMenuContent(item: PublicMenuItem) {
+  const pageType = item.pageType ?? "image";
+  if (pageType === "image") {
+    return Boolean(item.pageImageUrl?.trim());
+  }
+  return true;
+}
+
+function isHistoryHref(href: string | null | undefined) {
+  const normalized = normalizeHref(href);
+  const compact = normalizeText(normalized);
+  return (
+    normalized === "/about/history" ||
+    compact.includes("/page/교회소개-교회역사") ||
+    compact.includes("/page/교회소개-교회연혁") ||
+    compact.includes("/page/援먰쉶?뚭컻-援먰쉶??궗") ||
+    compact.includes("/page/援먰쉶?뚭컻-援먰쉶?고쁺")
+  );
+}
+
+function isHistoryLabel(label: string | null | undefined) {
+  const normalized = normalizeText(label);
+  return normalized === "교회역사" || normalized === "교회연혁";
+}
+
+function mapChurchIntroSideMenuItems(menus: PublicMenu[] | undefined) {
+  const churchIntroMenu =
+    menus?.find((menu) => normalizeText(menu.label) === "교회소개") ??
+    menus?.find((menu) =>
+      (menu.items ?? []).some((item) => isHistoryHref(item.href) || isHistoryLabel(item.label)),
+    );
+
+  return {
+    parentLabel: churchIntroMenu?.label ?? "교회소개",
+    sideMenuItems: (churchIntroMenu?.items ?? [])
+      .filter((item) => item.isVisible !== false)
+      .map((item) => {
+        const subItems = item.subItems?.filter((subItem) => subItem.isVisible !== false) ?? [];
+        const hasSubItems = subItems.length > 0;
+        const itemHref = hasSubItems && !hasOwnMenuContent(item) ? null : item.href ?? null;
+        const mappedSubItems = subItems.map((subItem) => ({
+          id: subItem.id,
+          label: subItem.label,
+          href: subItem.href ?? null,
+          isActive: isHistoryHref(subItem.href) || isHistoryLabel(subItem.label),
+        }));
+
+        return {
+          id: item.id,
+          label: item.label,
+          href: itemHref,
+          isActive:
+            isHistoryHref(item.href) ||
+            isHistoryLabel(item.label) ||
+            mappedSubItems.some((subItem) => subItem.isActive),
+          subItems: mappedSubItems,
+        };
+      }),
+  };
+}
+
 export default function ChurchHistory() {
   const { user } = useAuth();
   const canManageHistory = canManageBoardContent(user, "content:history");
   const { data, isLoading } = trpc.home.history.useQuery();
+  const { data: menuTree } = trpc.home.menus.useQuery();
+  const { parentLabel, sideMenuItems } = useMemo(
+    () => mapChurchIntroSideMenuItems(menuTree as PublicMenu[] | undefined),
+    [menuTree],
+  );
   const decades = useMemo(
     () => sortDecades((data?.decades ?? []) as HistoryDecade[]),
     [data?.decades],
@@ -83,25 +186,19 @@ export default function ChurchHistory() {
   }, [activeItems]);
 
   return (
-    <main className="bg-white">
-      <section className="mx-auto max-w-6xl px-4 py-14 sm:py-20">
-        <div className="text-center">
-          <h1 className="font-serif text-4xl font-bold tracking-normal text-gray-950 sm:text-5xl">
-            교회 역사
-          </h1>
-          <div className="mx-auto mt-5 h-1 w-16 bg-[#0b4f8a]" />
-          {canManageHistory && (
-            <div className="mt-7 flex justify-center">
-              <button
-                type="button"
-                onClick={() => setIsManagerOpen((current) => !current)}
-                className="rounded-md bg-[#16651f] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0f5018]"
-              >
-                {isManagerOpen ? "교회연혁 닫기" : "교회연혁 추가/수정"}
-              </button>
-            </div>
-          )}
-        </div>
+    <SubPageLayout pageTitle="교회 역사" parentLabel={parentLabel} sideMenuItems={sideMenuItems}>
+      <section className="mx-auto max-w-5xl">
+        {canManageHistory && (
+          <div className="mb-8 flex justify-center">
+            <button
+              type="button"
+              onClick={() => setIsManagerOpen((current) => !current)}
+              className="rounded-md bg-[#16651f] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0f5018]"
+            >
+              {isManagerOpen ? "교회연혁 닫기" : "교회연혁 추가/수정"}
+            </button>
+          </div>
+        )}
 
         {canManageHistory && isManagerOpen && (
           <div className="mt-10 rounded-2xl border border-green-100 bg-[#f7fbf7] p-4 sm:p-6">
@@ -130,7 +227,7 @@ export default function ChurchHistory() {
           </div>
         ) : decades.length ? (
           <>
-            <div className="mt-16 flex flex-wrap justify-center border-b border-gray-200">
+            <div className="mt-10 flex flex-wrap justify-center border-b border-gray-200">
               {decades.map((decade) => {
                 const isActive = activeDecadeId === decade.id;
                 return (
@@ -189,6 +286,6 @@ export default function ChurchHistory() {
           </div>
         )}
       </section>
-    </main>
+    </SubPageLayout>
   );
 }
