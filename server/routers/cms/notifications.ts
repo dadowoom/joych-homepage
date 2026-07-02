@@ -202,6 +202,22 @@ function parseDateSetting(value: string | null | undefined) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function parseStoredTimestamp(value: string | Date | null | undefined) {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+
+  const normalized = value.trim();
+  if (!normalized) return null;
+
+  const storedDateMatch = normalized.match(
+    /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})/
+  );
+  const date = storedDateMatch
+    ? new Date(`${storedDateMatch[1]}T${storedDateMatch[2]}.000Z`)
+    : new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function latestDate(...dates: Array<Date | null | undefined>) {
   return dates.reduce<Date>((latest, date) => {
     if (!date || Number.isNaN(date.getTime())) return latest;
@@ -270,7 +286,9 @@ export const notificationsRouter = router({
     const readRows = await db
       .select({
         groupKey: adminNotificationReadStates.groupKey,
-        lastSeenAt: sql<Date>`max(${adminNotificationReadStates.lastSeenAt})`,
+        lastSeenAt: sql<string>`
+          date_format(max(${adminNotificationReadStates.lastSeenAt}), '%Y-%m-%d %H:%i:%s')
+        `,
       })
       .from(adminNotificationReadStates)
       .where(
@@ -279,10 +297,7 @@ export const notificationsRouter = router({
       .groupBy(adminNotificationReadStates.groupKey);
     const lastSeenByGroup = new Map(
       readRows.map(row => {
-        const lastSeenAt =
-          row.lastSeenAt instanceof Date
-            ? row.lastSeenAt
-            : parseDateSetting(String(row.lastSeenAt)) ?? new Date(0);
+        const lastSeenAt = parseStoredTimestamp(row.lastSeenAt) ?? new Date(0);
         return [row.groupKey, lastSeenAt] as const;
       })
     );
