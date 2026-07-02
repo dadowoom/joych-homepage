@@ -628,6 +628,29 @@ const RichTableHeader = TableHeader.extend({
   },
 });
 
+function createMergedTableCellVerticalAlignTransaction(editor: Editor) {
+  const transaction = editor.state.tr;
+  let changed = false;
+
+  editor.state.doc.descendants((node, position) => {
+    if (node.type.name !== "tableCell" && node.type.name !== "tableHeader") return true;
+
+    const rowSpan = Number(node.attrs.rowspan ?? 1);
+    const hasVerticalAlign = normalizeTableVerticalAlign(node.attrs.verticalAlign as string | null | undefined);
+
+    if (rowSpan <= 1 || hasVerticalAlign) return true;
+
+    transaction.setNodeMarkup(position, undefined, {
+      ...node.attrs,
+      verticalAlign: "middle",
+    });
+    changed = true;
+    return true;
+  });
+
+  return changed ? transaction : null;
+}
+
 function getActiveFontFamilyOption(editor: Editor) {
   const activeFontFamily = normalizeFontFamilyName(
     editor.getAttributes("textStyle").fontFamily as string | undefined,
@@ -1929,6 +1952,30 @@ export function RichTextEditor({
       editor.off("transaction", syncToolbarState);
       editor.off("focus", syncToolbarState);
       editor.off("blur", syncToolbarState);
+    };
+  }, [editor]);
+
+  useEffect(() => {
+    if (!editor) return;
+
+    let isApplyingMergedCellAlign = false;
+
+    const syncMergedCellVerticalAlign = () => {
+      if (isApplyingMergedCellAlign) return;
+
+      const transaction = createMergedTableCellVerticalAlignTransaction(editor);
+      if (!transaction) return;
+
+      isApplyingMergedCellAlign = true;
+      editor.view.dispatch(transaction);
+      isApplyingMergedCellAlign = false;
+    };
+
+    syncMergedCellVerticalAlign();
+    editor.on("transaction", syncMergedCellVerticalAlign);
+
+    return () => {
+      editor.off("transaction", syncMergedCellVerticalAlign);
     };
   }, [editor]);
 
