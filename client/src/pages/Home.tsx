@@ -9,6 +9,7 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import HomeAdminDock from "@/components/HomeAdminDock";
+import PwaInstallCard from "@/components/PwaInstallCard";
 import { getLoginUrl } from "@/const";
 import HomeAffiliates from "./home/HomeAffiliates";
 import HomeFeatureCards from "./home/HomeFeatureCards";
@@ -827,6 +828,8 @@ export default function Home() {
           />
         </div>
       </section>
+
+      <PwaInstallCard />
 
       <HomeFeatureCards homeFeatureCards={homeFeatureCards} />
 
