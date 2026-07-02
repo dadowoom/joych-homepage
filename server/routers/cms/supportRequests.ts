@@ -31,14 +31,18 @@ function supportRequestProcedure(kind: SupportRequestPermissionKind) {
   ]);
 }
 
+const supportRequestRootProcedure = adminAnyPermissionProcedure([
+  SUPPORT_REQUEST_ROOT_PERMISSION_KEY,
+]);
+
 export const supportRequestsRouter = router({
-  listPrayer: supportRequestProcedure("prayers").query(() => listPrayerRequests()),
+  listPrayer: supportRequestRootProcedure.query(() => listPrayerRequests()),
   listNewMembers: supportRequestProcedure("newMembers").query(() => listNewMemberRequests()),
   listVisits: supportRequestProcedure("visits").query(() => listVisitRequests()),
   listSubtitles: supportRequestProcedure("subtitles").query(() => listSubtitleRequests()),
   listBulletinAds: supportRequestProcedure("bulletinAds").query(() => listBulletinAdRequests()),
 
-  updatePrayerStatus: supportRequestProcedure("prayers")
+  updatePrayerStatus: supportRequestRootProcedure
     .input(
       z.object({
         id: z.number().int().positive(),

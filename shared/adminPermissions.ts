@@ -34,7 +34,6 @@ export const STATIC_ADMIN_PERMISSIONS: AdminPermissionDefinition[] = [
   { key: SUPPORT_REQUEST_PERMISSION_KEYS.bulletinAds, label: "주보 광고신청 관리", group: "접수/예약 관리", tab: "supportRequests", description: "주보 광고 신청 접수 확인 및 처리를 관리합니다." },
   { key: SUPPORT_REQUEST_PERMISSION_KEYS.subtitles, label: "자막 신청 관리", group: "접수/예약 관리", tab: "supportRequests", description: "예배 자막 신청 접수 확인 및 처리를 관리합니다." },
   { key: SUPPORT_REQUEST_PERMISSION_KEYS.visits, label: "탐방신청 관리", group: "접수/예약 관리", tab: "supportRequests", description: "교회 탐방 신청 접수 확인 및 처리를 관리합니다." },
-  { key: SUPPORT_REQUEST_PERMISSION_KEYS.prayers, label: "기도 요청 관리", group: "접수/예약 관리", tab: "supportRequests", description: "기도 요청 접수 확인 및 처리를 관리합니다." },
   { key: "content:courses", label: "강좌 관리", group: "접수/예약 관리", tab: "courses", description: "강좌 등록, 수정, 수강 신청을 관리합니다." },
   { key: "content:reservations", label: "예약 승인/예외 예약", group: "접수/예약 관리", tab: "reservations", description: "시설예약 승인, 예외 예약, 예약 시간 수정을 관리합니다." },
   { key: "content:facilities", label: "시설 관리", group: "접수/예약 관리", tab: "facilities", description: "시설 정보, 운영 시간, 외부인 공개를 관리합니다." },

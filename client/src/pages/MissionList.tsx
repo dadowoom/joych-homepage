@@ -7,7 +7,9 @@
 
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
+import { useAuth } from "@/_core/hooks/useAuth";
 import SubPageLayout from "@/components/SubPageLayout";
+import { canManageBoardContent } from "@/lib/contentPermissions";
 import { trpc } from "@/lib/trpc";
 import { CONTINENT_LABELS, type MissionContinent } from "@/lib/missionData";
 
@@ -27,15 +29,20 @@ const MISSION_SIDE_MENU_ITEMS = [
 export default function MissionList() {
   const [selectedContinent, setSelectedContinent] = useState<MissionContinent | "all">("all");
   const [selectedMissionary, setSelectedMissionary] = useState<number | "all">("all");
+  const { user } = useAuth();
+  const canManage = canManageBoardContent(user, "content:missionReports");
 
-  const { data: reports = [], isLoading } = trpc.mission.reports.useQuery();
+  const publicReportsQuery = trpc.mission.reports.useQuery(undefined, { enabled: !canManage });
+  const adminReportsQuery = trpc.cms.missionReports.reports.useQuery(undefined, { enabled: canManage });
+  const reports = canManage ? (adminReportsQuery.data ?? []) : (publicReportsQuery.data ?? []);
+  const isLoading = canManage ? adminReportsQuery.isLoading : publicReportsQuery.isLoading;
   const { data: missionaries = [] } = trpc.mission.missionaries.useQuery();
   const { data: me } = trpc.members.me.useQuery(undefined, { retry: false });
   const { data: authorGrants = [] } = trpc.mission.myAuthorGrants.useQuery(undefined, {
     enabled: Boolean(me),
     retry: false,
   });
-  const canWriteMissionReport = authorGrants.length > 0;
+  const canWriteMissionReport = canManage || authorGrants.length > 0;
 
   // 필터 적용
   const filtered = reports.filter((r) => {
@@ -90,7 +97,7 @@ export default function MissionList() {
             {canWriteMissionReport && (
               <Link href="/mission/write" className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-[#1B5E20] px-4 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32]">
                 <i className="fas fa-pen text-[10px]"></i>
-                선교보고 작성
+                {canManage ? "선교보고 관리 작성" : "선교보고 작성"}
               </Link>
             )}
           </div>
@@ -171,7 +178,7 @@ export default function MissionList() {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {filtered.map((report) => (
                 <Link key={report.id} href={`/mission/${report.id}`}>
-                  <article className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer group">
+                  <article className={`bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer group ${canManage && report.status !== "published" ? "opacity-75 ring-1 ring-gray-200" : ""}`}>
                     <div className="relative h-52 overflow-hidden">
                       <img
                         src={report.thumbnailUrl ?? report.images[0] ?? "https://images.unsplash.com/photo-1555636222-cae831e670b3?w=600&q=80"}
@@ -181,6 +188,11 @@ export default function MissionList() {
                       <span className="absolute top-3 left-3 bg-[#1B5E20]/90 text-white text-xs px-2.5 py-1 rounded-full">
                         {CONTINENT_LABELS[report.missionary.continent]}
                       </span>
+                      {canManage && report.status !== "published" && (
+                        <span className="absolute top-3 right-3 rounded-full bg-gray-900/80 px-2.5 py-1 text-[11px] font-semibold text-white">
+                          {report.status === "draft" ? "숨김" : report.status === "pending" ? "검토 대기" : "반려"}
+                        </span>
+                      )}
                     </div>
                     <div className="p-5">
                       <div className="flex items-center gap-3 mb-3">

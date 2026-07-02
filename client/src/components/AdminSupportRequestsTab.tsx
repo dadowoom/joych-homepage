@@ -19,9 +19,9 @@ import {
 type RouterOutput = inferRouterOutputs<AppRouter>;
 type SupportOutput = RouterOutput["cms"]["supportRequests"];
 
-type RequestKind = "bulletinAds" | "subtitles" | "visits" | "prayers" | "newMembers";
+export type SupportRequestKind = "bulletinAds" | "subtitles" | "visits" | "prayers" | "newMembers";
 
-const REQUEST_KIND_ORDER: RequestKind[] = [
+const REQUEST_KIND_ORDER: SupportRequestKind[] = [
   "bulletinAds",
   "subtitles",
   "visits",
@@ -31,7 +31,7 @@ const REQUEST_KIND_ORDER: RequestKind[] = [
 
 type AdminRequestItem = {
   key: string;
-  kind: RequestKind;
+  kind: SupportRequestKind;
   id: number;
   title: string;
   requester: string;
@@ -86,7 +86,7 @@ const visitorTypeLabels: Record<string, string> = {
   other: "기타",
 };
 
-const kindMeta: Record<RequestKind, { title: string; description: string; empty: string }> = {
+const kindMeta: Record<SupportRequestKind, { title: string; description: string; empty: string }> = {
   bulletinAds: {
     title: "주보 광고신청",
     description: "성도 주보 광고 게재 요청",
@@ -158,32 +158,54 @@ function statusBadgeClass(status: string) {
   return "bg-amber-50 text-amber-700";
 }
 
-function makeItemKey(kind: RequestKind, id: number) {
+function makeItemKey(kind: SupportRequestKind, id: number) {
   return `${kind}:${id}`;
 }
 
 function canManageSupportRequestKind(
   user: Parameters<typeof hasContentPermission>[0],
-  kind: RequestKind,
+  kind: SupportRequestKind,
 ) {
+  if (kind === "prayers") {
+    return hasContentPermission(user, SUPPORT_REQUEST_ROOT_PERMISSION_KEY);
+  }
   return (
     hasContentPermission(user, SUPPORT_REQUEST_ROOT_PERMISSION_KEY) ||
     hasContentPermission(user, SUPPORT_REQUEST_PERMISSION_KEYS[kind])
   );
 }
 
-export default function AdminSupportRequestsTab() {
+type AdminSupportRequestsTabProps = {
+  initialKind?: SupportRequestKind;
+  allowedKinds?: SupportRequestKind[];
+  hideKindCards?: boolean;
+  title?: string;
+  description?: string;
+};
+
+export default function AdminSupportRequestsTab({
+  initialKind = "bulletinAds",
+  allowedKinds,
+  hideKindCards = false,
+  title = "접수 관리",
+  description = "접수 유형을 고른 뒤 상태와 검색어로 좁혀서 확인합니다. 주보 광고신청과 자막 신청의 답변은 요청자 화면에도 그대로 보입니다.",
+}: AdminSupportRequestsTabProps = {}) {
   const utils = trpc.useUtils();
   const { user } = useAuth();
-  const [activeKind, setActiveKind] = useState<RequestKind>("bulletinAds");
+  const [activeKind, setActiveKind] = useState<SupportRequestKind>(initialKind);
   const [statusFilter, setStatusFilter] = useState("all");
   const [keyword, setKeyword] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [memoDrafts, setMemoDrafts] = useState<Record<string, string>>({});
 
   const permittedKinds = useMemo(
-    () => REQUEST_KIND_ORDER.filter((kind) => canManageSupportRequestKind(user, kind)),
-    [user],
+    () =>
+      REQUEST_KIND_ORDER.filter(
+        (kind) =>
+          (!allowedKinds || allowedKinds.includes(kind)) &&
+          canManageSupportRequestKind(user, kind),
+      ),
+    [allowedKinds, user],
   );
   const canManageBulletinAds = permittedKinds.includes("bulletinAds");
   const canManageSubtitles = permittedKinds.includes("subtitles");
@@ -381,7 +403,7 @@ export default function AdminSupportRequestsTab() {
     };
   }, [bulletinAds, newMembers, prayers, subtitles, visits]);
 
-  const loadingByKind: Record<RequestKind, boolean> = {
+  const loadingByKind: Record<SupportRequestKind, boolean> = {
     bulletinAds: loadingBulletinAds,
     subtitles: loadingSubtitles,
     visits: loadingVisits,
@@ -420,7 +442,7 @@ export default function AdminSupportRequestsTab() {
   const openCount = permittedSectionItems
     .filter((item) => item.status !== "archived" && item.status !== "completed").length;
 
-  function changeKind(kind: RequestKind) {
+  function changeKind(kind: SupportRequestKind) {
     setActiveKind(kind);
     setStatusFilter("all");
     setKeyword("");
@@ -479,9 +501,9 @@ export default function AdminSupportRequestsTab() {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-bold text-gray-800">접수 관리</h3>
+        <h3 className="text-lg font-bold text-gray-800">{title}</h3>
         <p className="mt-0.5 text-sm text-gray-500">
-          접수 유형을 고른 뒤 상태, 검색어로 좁혀서 확인합니다. 주보 광고신청과 자막 신청의 답변은 신청자가 게시글에서 볼 수 있습니다.
+          {description}
         </p>
       </div>
 
@@ -491,7 +513,7 @@ export default function AdminSupportRequestsTab() {
         </div>
       ) : null}
 
-      {permittedKinds.length > 0 && (
+      {permittedKinds.length > 0 && !hideKindCards && (
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
         {permittedKinds.map((kind) => {
           const items = sections[kind];

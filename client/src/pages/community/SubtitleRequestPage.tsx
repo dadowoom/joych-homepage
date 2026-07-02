@@ -1,5 +1,9 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
+import { useAuth } from "@/_core/hooks/useAuth";
+import AdminSupportRequestsTab from "@/components/AdminSupportRequestsTab";
+import { hasContentPermission } from "@/lib/contentPermissions";
+import { SUPPORT_REQUEST_PERMISSION_KEYS, SUPPORT_REQUEST_ROOT_PERMISSION_KEY } from "@shared/adminPermissions";
 import {
   Building,
   FileText,
@@ -27,6 +31,7 @@ import {
 
 export default function SubtitleRequestPage() {
   const utils = trpc.useUtils();
+  const { user } = useAuth();
   const href = "/support/subtitle";
   const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, {
     retry: false,
@@ -55,6 +60,9 @@ export default function SubtitleRequestPage() {
     () => subItem?.defaultViewMode ?? menuItem?.defaultViewMode ?? "list",
     [menuItem?.defaultViewMode, subItem?.defaultViewMode],
   );
+  const canManageSubtitles =
+    hasContentPermission(user, SUPPORT_REQUEST_ROOT_PERMISSION_KEY) ||
+    hasContentPermission(user, SUPPORT_REQUEST_PERMISSION_KEYS.subtitles);
 
   useEffect(() => {
     if (defaultViewMode === "grid" || defaultViewMode === "list") {
@@ -180,6 +188,16 @@ export default function SubtitleRequestPage() {
               성도 로그인
             </Link>
           </div>
+        )}
+
+        {canManageSubtitles && (
+          <AdminSupportRequestsTab
+            initialKind="subtitles"
+            allowedKinds={["subtitles"]}
+            hideKindCards
+            title="자막 신청 관리"
+            description="이 페이지에서 바로 자막 신청 접수 내용을 확인하고 답변 메모와 처리 상태를 저장합니다."
+          />
         )}
 
         {showForm && memberMe && (

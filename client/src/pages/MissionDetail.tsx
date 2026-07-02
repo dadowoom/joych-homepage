@@ -6,6 +6,8 @@
 
 import { useParams, Link } from "wouter";
 import { useState } from "react";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { canManageBoardContent } from "@/lib/contentPermissions";
 import { trpc } from "@/lib/trpc";
 import { CONTINENT_LABELS } from "@/lib/missionData";
 
@@ -18,15 +20,23 @@ export default function MissionDetail() {
   const { id } = useParams<{ id: string }>();
   const [lightboxImg, setLightboxImg] = useState<string | null>(null);
   const reportId = Number(id);
+  const { user } = useAuth();
+  const canManage = canManageBoardContent(user, "content:missionReports");
 
-  const { data, isLoading } = trpc.mission.report.useQuery(
+  const publicQuery = trpc.mission.report.useQuery(
     { id: reportId },
-    { enabled: Number.isInteger(reportId) && reportId > 0 }
+    { enabled: Number.isInteger(reportId) && reportId > 0 && !canManage }
   );
-  const report = data?.report ?? null;
-  const prevReport = data?.prevReport ?? null;
-  const nextReport = data?.nextReport ?? null;
-  const relatedReports = data?.related ?? [];
+  const adminQuery = trpc.cms.missionReports.report.useQuery(
+    { id: reportId },
+    { enabled: Number.isInteger(reportId) && reportId > 0 && canManage }
+  );
+  const reviewReport = trpc.cms.missionReports.reviewReport.useMutation();
+  const report = canManage ? (adminQuery.data ?? null) : (publicQuery.data?.report ?? null);
+  const prevReport = canManage ? null : (publicQuery.data?.prevReport ?? null);
+  const nextReport = canManage ? null : (publicQuery.data?.nextReport ?? null);
+  const relatedReports = canManage ? [] : (publicQuery.data?.related ?? []);
+  const isLoading = canManage ? adminQuery.isLoading : publicQuery.isLoading;
 
   if (isLoading) {
     return (
@@ -58,9 +68,43 @@ export default function MissionDetail() {
             <i className="fas fa-chevron-left text-sm"></i>
             <span className="font-medium text-sm">선교보고 목록</span>
           </Link>
-          <span className="text-gray-400 text-sm hidden md:block">
-            {report.missionary.region} · {formatDate(report.reportDate)}
-          </span>
+          {canManage ? (
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/mission/edit/${report.id}`}
+                className="inline-flex items-center rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-[#1B5E20] hover:text-[#1B5E20]"
+              >
+                수정
+              </Link>
+              <button
+                type="button"
+                onClick={() =>
+                  reviewReport.mutate(
+                    {
+                      id: report.id,
+                      status: report.status === "published" ? "draft" : "published",
+                    },
+                    {
+                      onSuccess: async () => {
+                        await Promise.all([adminQuery.refetch(), publicQuery.refetch()]);
+                      },
+                    },
+                  )
+                }
+                className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-medium ${
+                  report.status === "published"
+                    ? "border border-yellow-200 text-yellow-700 hover:bg-yellow-50"
+                    : "bg-[#1B5E20] text-white hover:bg-[#2E7D32]"
+                }`}
+              >
+                {report.status === "published" ? "숨김" : "공개"}
+              </button>
+            </div>
+          ) : (
+            <span className="text-gray-400 text-sm hidden md:block">
+              {report.missionary.region} · {formatDate(report.reportDate)}
+            </span>
+          )}
         </div>
       </header>
 

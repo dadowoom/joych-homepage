@@ -5,6 +5,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { canManageBoardContent } from "@/lib/contentPermissions";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
@@ -28,18 +30,26 @@ export default function MissionReportEditor() {
   const editId = params.id ? Number(params.id) : null;
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
+  const { user } = useAuth();
+  const canManage = canManageBoardContent(user, "content:missionReports");
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const { data: me, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, { retry: false });
   const { data: grants = [], isLoading: grantsLoading } = trpc.mission.myAuthorGrants.useQuery(undefined, {
-    enabled: Boolean(me),
+    enabled: Boolean(me) && !canManage,
     retry: false,
   });
   const { data: myReports = [] } = trpc.mission.myReports.useQuery(undefined, {
-    enabled: Boolean(me) && Boolean(editId),
+    enabled: Boolean(me) && Boolean(editId) && !canManage,
     retry: false,
   });
+  const { data: adminMissionaries = [], isLoading: loadingAdminMissionaries } =
+    trpc.cms.missionReports.missionaries.useQuery(undefined, { enabled: canManage });
+  const adminReportQuery = trpc.cms.missionReports.report.useQuery(
+    { id: editId ?? 0 },
+    { enabled: canManage && Boolean(editId) },
+  );
 
   const [missionaryId, setMissionaryId] = useState<number | "">("");
   const [title, setTitle] = useState("");
@@ -53,15 +63,24 @@ export default function MissionReportEditor() {
   const fieldClass = "w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30 focus:border-[#1B5E20]";
 
   const editingReport = useMemo(
-    () => myReports.find(report => report.id === editId),
-    [editId, myReports]
+    () => (canManage ? adminReportQuery.data ?? null : myReports.find(report => report.id === editId) ?? null),
+    [adminReportQuery.data, canManage, editId, myReports]
   );
+  const missionaryOptions = canManage
+    ? adminMissionaries.map((missionary) => ({
+        id: missionary.id,
+        label: `${missionary.name} · ${missionary.region}`,
+      }))
+    : grants.map((grant) => ({
+        id: grant.missionaryId,
+        label: `${grant.missionaryName ?? "선교사"} · ${grant.missionaryRegion ?? "사역지"}`,
+      }));
 
   useEffect(() => {
-    if (!missionaryId && grants[0]?.missionaryId) {
-      setMissionaryId(grants[0].missionaryId);
+    if (!missionaryId && missionaryOptions[0]?.id) {
+      setMissionaryId(missionaryOptions[0].id);
     }
-  }, [grants, missionaryId]);
+  }, [missionaryOptions, missionaryId]);
 
   useEffect(() => {
     if (!editingReport) return;
@@ -95,8 +114,35 @@ export default function MissionReportEditor() {
   const uploadMutation = trpc.mission.uploadImage.useMutation({
     onError: (e) => toast.error("이미지 업로드 실패: " + e.message),
   });
+  const adminCreateMutation = trpc.cms.missionReports.createReport.useMutation({
+    onSuccess: (id) => {
+      toast.success("선교보고가 저장됐습니다.");
+      utils.cms.missionReports.reports.invalidate();
+      utils.mission.reports.invalidate();
+      if (id) {
+        navigate(`/mission/edit/${id}`);
+      }
+    },
+    onError: (e) => toast.error(e.message || "저장에 실패했습니다."),
+  });
+  const adminUpdateMutation = trpc.cms.missionReports.updateReport.useMutation({
+    onSuccess: () => {
+      toast.success("선교보고가 저장됐습니다.");
+      utils.cms.missionReports.reports.invalidate();
+      utils.mission.reports.invalidate();
+      void adminReportQuery.refetch();
+    },
+    onError: (e) => toast.error(e.message || "저장에 실패했습니다."),
+  });
+  const adminUploadMutation = trpc.cms.missionReports.uploadImage.useMutation({
+    onError: (e) => toast.error("이미지 업로드 실패: " + e.message),
+  });
 
-  const isBusy = createMutation.isPending || updateMutation.isPending;
+  const isBusy =
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    adminCreateMutation.isPending ||
+    adminUpdateMutation.isPending;
 
   const uploadFile = async (file: File, target: "thumbnail" | "gallery") => {
     if (file.size > 10 * 1024 * 1024) {
@@ -106,7 +152,7 @@ export default function MissionReportEditor() {
     setUploading(target);
     try {
       const base64 = await fileToBase64(file);
-      const { url } = await uploadMutation.mutateAsync({
+      const { url } = await (canManage ? adminUploadMutation : uploadMutation).mutateAsync({
         base64,
         fileName: file.name,
         mimeType: file.type || "image/jpeg",
@@ -142,6 +188,19 @@ export default function MissionReportEditor() {
       prayerTopics: prayerTopics.map(t => t.trim()).filter(Boolean),
       submitForReview,
     };
+    if (canManage) {
+      const adminPayload = {
+        ...payload,
+        status: submitForReview ? "published" as const : "draft" as const,
+        authorMemberId: editingReport?.authorMemberId ?? undefined,
+      };
+      if (editId) {
+        adminUpdateMutation.mutate({ id: editId, ...adminPayload });
+      } else {
+        adminCreateMutation.mutate(adminPayload);
+      }
+      return;
+    }
     if (editId) {
       updateMutation.mutate({ id: editId, ...payload });
     } else {
@@ -149,7 +208,7 @@ export default function MissionReportEditor() {
     }
   };
 
-  if (memberLoading || grantsLoading) {
+  if (memberLoading || (!canManage && grantsLoading) || (canManage && loadingAdminMissionaries) || (canManage && editId && adminReportQuery.isLoading)) {
     return (
       <div className="min-h-screen bg-[#F7F7F5] flex items-center justify-center">
         <p className="text-gray-400 text-sm">불러오는 중...</p>
@@ -157,7 +216,7 @@ export default function MissionReportEditor() {
     );
   }
 
-  if (!me) {
+  if (!canManage && !me) {
     return (
       <div className="min-h-screen bg-[#F7F7F5] flex items-center justify-center px-4">
         <div className="text-center">
@@ -170,11 +229,24 @@ export default function MissionReportEditor() {
     );
   }
 
-  if (grants.length === 0) {
+  if (!canManage && grants.length === 0) {
     return (
       <div className="min-h-screen bg-[#F7F7F5] flex items-center justify-center px-4">
         <div className="text-center">
           <p className="text-gray-500 mb-5">선교보고 작성 권한이 없습니다. 관리자에게 문의해주세요.</p>
+          <Link href="/mission" className="bg-[#1B5E20] text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-[#2E7D32] transition-colors">
+            선교보고 목록으로
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (editId && !editingReport) {
+    return (
+      <div className="min-h-screen bg-[#F7F7F5] flex items-center justify-center px-4">
+        <div className="text-center">
+          <p className="text-gray-500 mb-5">수정할 선교보고를 찾을 수 없습니다.</p>
           <Link href="/mission" className="bg-[#1B5E20] text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-[#2E7D32] transition-colors">
             선교보고 목록으로
           </Link>
@@ -191,7 +263,9 @@ export default function MissionReportEditor() {
             <i className="fas fa-chevron-left text-sm"></i>
             <span className="font-medium text-sm">선교보고 목록</span>
           </Link>
-          <span className="text-gray-400 text-sm hidden md:block">선교보고 작성</span>
+          <span className="text-gray-400 text-sm hidden md:block">
+            {canManage ? "선교보고 관리 편집" : "선교보고 작성"}
+          </span>
         </div>
       </header>
 
@@ -199,17 +273,27 @@ export default function MissionReportEditor() {
         <div className="bg-white rounded-2xl p-7 shadow-sm space-y-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-              {editId ? "선교보고 수정" : "선교보고 작성"}
+              {editId
+                ? canManage
+                  ? "선교보고 관리 수정"
+                  : "선교보고 수정"
+                : canManage
+                  ? "선교보고 관리 작성"
+                  : "선교보고 작성"}
             </h1>
-            <p className="text-sm text-gray-400 mt-1">작성한 보고서는 관리자 승인 후 공개됩니다.</p>
+            <p className="text-sm text-gray-400 mt-1">
+              {canManage
+                ? "관리자는 숨김 저장 또는 바로 공개로 처리할 수 있습니다."
+                : "작성한 보고서는 관리자 승인 후 공개됩니다."}
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="담당 선교사/사역지">
               <select value={missionaryId} onChange={(e) => setMissionaryId(Number(e.target.value))} className={fieldClass}>
-                {grants.map(grant => (
-                  <option key={grant.id} value={grant.missionaryId}>
-                    {grant.missionaryName ?? "선교사"} · {grant.missionaryRegion ?? "사역지"}
+                {missionaryOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
                   </option>
                 ))}
               </select>
@@ -276,10 +360,10 @@ export default function MissionReportEditor() {
 
           <div className="flex justify-end gap-2 pt-4 border-t border-gray-100">
             <button type="button" onClick={() => save(false)} disabled={isBusy} className="px-5 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50">
-              임시저장
+              {canManage ? "숨김 저장" : "임시저장"}
             </button>
             <button type="button" onClick={() => save(true)} disabled={isBusy} className="px-5 py-2.5 bg-[#1B5E20] text-white rounded-lg text-sm hover:bg-[#2E7D32] disabled:opacity-50">
-              검토 요청
+              {canManage ? "바로 공개" : "검토 요청"}
             </button>
           </div>
         </div>

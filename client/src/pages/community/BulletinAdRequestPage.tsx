@@ -1,5 +1,9 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
+import { useAuth } from "@/_core/hooks/useAuth";
+import AdminSupportRequestsTab from "@/components/AdminSupportRequestsTab";
+import { hasContentPermission } from "@/lib/contentPermissions";
+import { SUPPORT_REQUEST_PERMISSION_KEYS, SUPPORT_REQUEST_ROOT_PERMISSION_KEY } from "@shared/adminPermissions";
 import {
   Building,
   FileText,
@@ -27,6 +31,7 @@ import {
 
 export default function BulletinAdRequestPage() {
   const utils = trpc.useUtils();
+  const { user } = useAuth();
   const href = "/support/bulletin-ad";
   const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, {
     retry: false,
@@ -52,6 +57,9 @@ export default function BulletinAdRequestPage() {
     () => subItem?.defaultViewMode ?? menuItem?.defaultViewMode ?? "list",
     [menuItem?.defaultViewMode, subItem?.defaultViewMode],
   );
+  const canManageBulletinAds =
+    hasContentPermission(user, SUPPORT_REQUEST_ROOT_PERMISSION_KEY) ||
+    hasContentPermission(user, SUPPORT_REQUEST_PERMISSION_KEYS.bulletinAds);
 
   useEffect(() => {
     if (defaultViewMode === "grid" || defaultViewMode === "list") {
@@ -173,6 +181,16 @@ export default function BulletinAdRequestPage() {
               성도 로그인
             </Link>
           </div>
+        )}
+
+        {canManageBulletinAds && (
+          <AdminSupportRequestsTab
+            initialKind="bulletinAds"
+            allowedKinds={["bulletinAds"]}
+            hideKindCards
+            title="주보 광고신청 관리"
+            description="이 페이지에서 바로 주보 광고신청 접수 내용을 확인하고 답변 메모와 처리 상태를 저장합니다."
+          />
         )}
 
         {showForm && memberMe && (

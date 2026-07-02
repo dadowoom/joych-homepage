@@ -19,6 +19,7 @@ import {
   createMissionReportWithDetails,
   createMissionary,
   getAllMissionaries,
+  getMissionReportById,
   getAllMissionReports,
   getMissionAuthorGrants,
   updateMissionAuthorGrant,
@@ -26,6 +27,8 @@ import {
   updateMissionReportWithDetails,
   updateMissionary,
 } from "../../db";
+import { validateImage } from "./upload";
+import { storagePut } from "../../storage";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const idSchema = z.number().int().positive();
@@ -70,6 +73,9 @@ function normalizePrayerTopics(prayerTopics: string[]) {
 
 export const missionReportsRouter = router({
   missionaries: missionReportProcedure.query(() => getAllMissionaries()),
+  report: missionReportProcedure
+    .input(z.object({ id: idSchema }))
+    .query(({ input }) => getMissionReportById(input.id)),
 
   createMissionary: missionReportProcedure
     .input(z.object({
@@ -122,6 +128,19 @@ export const missionReportsRouter = router({
     .mutation(({ input }) => updateMissionAuthorGrant(input.id, { canWrite: input.canWrite })),
 
   reports: missionReportProcedure.query(() => getAllMissionReports()),
+
+  uploadImage: missionReportProcedure
+    .input(z.object({
+      base64: z.string(),
+      fileName: z.string(),
+      mimeType: z.string(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { buffer, ext } = validateImage(input.base64, input.mimeType);
+      const key = `mission-reports/admin-${ctx.user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { url } = await storagePut(key, buffer, input.mimeType);
+      return { url };
+    }),
 
   createReport: missionReportProcedure
     .input(reportInputSchema)

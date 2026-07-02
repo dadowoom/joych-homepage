@@ -853,9 +853,7 @@ export const notificationsRouter = router({
       );
     }
 
-    if (
-      hasSupportPermission(ctx.user, SUPPORT_REQUEST_PERMISSION_KEYS.prayers)
-    ) {
+    if (hasPermission(ctx.user, SUPPORT_REQUEST_ROOT_PERMISSION_KEY)) {
       const groupKey = "prayerRequestNew";
       const where = and(
         eq(prayerRequests.status, "new"),
