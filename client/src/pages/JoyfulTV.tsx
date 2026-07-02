@@ -187,6 +187,7 @@ function WorshipVideoPage({ href, title }: { href: string; title: string }) {
   const { data: menuItem, isLoading: l1 } = trpc.home.menuItemByHref.useQuery({ href });
   const { data: subItem, isLoading: l2 } = trpc.home.menuSubItemByHref.useQuery({ href });
   const { data: menuTree, isLoading: menuLoading } = trpc.home.menus.useQuery();
+  const { data: accessInfo, isLoading: accessLoading } = trpc.home.menuAccessByHref.useQuery({ href });
   const accessMatch = findMenuAccessMatchByHref(menuTree, href);
 
   const playlistId = menuItem?.playlistId ?? subItem?.playlistId ?? null;
@@ -198,7 +199,7 @@ function WorshipVideoPage({ href, title }: { href: string; title: string }) {
     activeItemId,
     activeSubItemId
   );
-  const isLoading = l1 || l2 || menuLoading;
+  const isLoading = l1 || l2 || menuLoading || accessLoading;
 
   if (isLoading) {
     return (
@@ -213,11 +214,21 @@ function WorshipVideoPage({ href, title }: { href: string; title: string }) {
     );
   }
 
-  if (!playlistId && accessMatch && isMemberOnlyMenuNode(accessMatch.node)) {
+  if (!playlistId && (accessMatch && isMemberOnlyMenuNode(accessMatch.node) || accessInfo && isMemberOnlyMenuNode(accessInfo))) {
     return (
       <MemberOnlyVideoPage
         title={title}
         href={href}
+        sideMenuItems={sideMenuItems}
+      />
+    );
+  }
+
+  if (!playlistId && accessInfo && !accessInfo.isReadable) {
+    return (
+      <EmptyVideoPage
+        title={title}
+        message="페이지를 찾을 수 없습니다."
         sideMenuItems={sideMenuItems}
       />
     );

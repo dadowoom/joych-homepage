@@ -69,6 +69,70 @@ type DynamicMenuTree = Array<{
   items?: DynamicMenuTreeItem[];
 }>;
 
+type MenuAccessInfo = {
+  kind: "item" | "subItem";
+  id: number;
+  label: string;
+  href?: string | null;
+  allowGuest: boolean;
+  allowMember: boolean;
+  isReadable: boolean;
+  topMenu: {
+    id: number;
+    label: string;
+    href?: string | null;
+  };
+  parentItem?: {
+    id: number;
+    label: string;
+    href?: string | null;
+  };
+};
+
+function getAccessMatchFromInfo(accessInfo: MenuAccessInfo | null | undefined): MenuAccessMatch | null {
+  if (!accessInfo) return null;
+
+  if (accessInfo.kind === "item") {
+    const item = {
+      id: accessInfo.id,
+      label: accessInfo.label,
+      href: accessInfo.href,
+      allowGuest: accessInfo.allowGuest,
+      allowMember: accessInfo.allowMember,
+      subItems: [],
+    };
+    return {
+      kind: "item",
+      topMenu: { ...accessInfo.topMenu, items: [item] },
+      item,
+      node: item,
+    };
+  }
+
+  const subItem = {
+    id: accessInfo.id,
+    label: accessInfo.label,
+    href: accessInfo.href,
+    allowGuest: accessInfo.allowGuest,
+    allowMember: accessInfo.allowMember,
+  };
+  const item = {
+    id: accessInfo.parentItem?.id ?? -1,
+    label: accessInfo.parentItem?.label ?? accessInfo.label,
+    href: accessInfo.parentItem?.href,
+    allowGuest: accessInfo.allowGuest,
+    allowMember: accessInfo.allowMember,
+    subItems: [subItem],
+  };
+
+  return {
+    kind: "subItem",
+    topMenu: { ...accessInfo.topMenu, items: [item] },
+    item,
+    node: subItem,
+  };
+}
+
 function decodePath(path: string) {
   try {
     return decodeURIComponent(path);
@@ -532,9 +596,13 @@ export function DynamicMenuItemPage() {
     { enabled: !!itemId }
   );
   const { data: allMenus, isLoading: menusLoading } = trpc.home.menus.useQuery();
+  const { data: accessInfo, isLoading: accessLoading } = trpc.home.menuAccessById.useQuery(
+    { kind: "item", id: itemId },
+    { enabled: !!itemId }
+  );
   const accessMatch = useMemo(
-    () => findMenuAccessMatchById(allMenus, "item", itemId),
-    [allMenus, itemId]
+    () => findMenuAccessMatchById(allMenus, "item", itemId) ?? getAccessMatchFromInfo(accessInfo),
+    [allMenus, itemId, accessInfo]
   );
   const canonicalHref = getCanonicalInternalHref(item?.href, legacyHref);
 
@@ -544,7 +612,7 @@ export function DynamicMenuItemPage() {
     }
   }, [canonicalHref, setLocation]);
 
-  if (isLoading || menusLoading) {
+  if (isLoading || menusLoading || accessLoading) {
     return <LoadingDynamicPage />;
   }
 
@@ -570,9 +638,13 @@ export function DynamicMenuSubItemPage() {
     { enabled: !!itemId }
   );
   const { data: allMenus, isLoading: menusLoading } = trpc.home.menus.useQuery();
+  const { data: accessInfo, isLoading: accessLoading } = trpc.home.menuAccessById.useQuery(
+    { kind: "subItem", id: itemId },
+    { enabled: !!itemId }
+  );
   const accessMatch = useMemo(
-    () => findMenuAccessMatchById(allMenus, "subItem", itemId),
-    [allMenus, itemId]
+    () => findMenuAccessMatchById(allMenus, "subItem", itemId) ?? getAccessMatchFromInfo(accessInfo),
+    [allMenus, itemId, accessInfo]
   );
   const canonicalHref = getCanonicalInternalHref(item?.href, legacyHref);
 
@@ -582,7 +654,7 @@ export function DynamicMenuSubItemPage() {
     }
   }, [canonicalHref, setLocation]);
 
-  if (isLoading || menusLoading) {
+  if (isLoading || menusLoading || accessLoading) {
     return <LoadingDynamicPage />;
   }
 
@@ -612,9 +684,13 @@ export function DynamicMenuHrefPage() {
     { enabled: shouldLoadDynamicPage }
   );
   const { data: allMenus, isLoading: menusLoading } = trpc.home.menus.useQuery();
+  const { data: accessInfo, isLoading: accessLoading } = trpc.home.menuAccessByHref.useQuery(
+    { href: activeHref },
+    { enabled: shouldLoadDynamicPage }
+  );
   const accessMatch = useMemo(
-    () => findMenuAccessMatchByHref(allMenus, activeHref),
-    [allMenus, activeHref]
+    () => findMenuAccessMatchByHref(allMenus, activeHref) ?? getAccessMatchFromInfo(accessInfo),
+    [allMenus, activeHref, accessInfo]
   );
 
   useEffect(() => {
@@ -627,7 +703,7 @@ export function DynamicMenuHrefPage() {
     return <LoadingDynamicPage />;
   }
 
-  if (itemLoading || subItemLoading || menusLoading) {
+  if (itemLoading || subItemLoading || menusLoading || accessLoading) {
     return <LoadingDynamicPage />;
   }
 

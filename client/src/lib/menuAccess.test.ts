@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   findMenuAccessMatchByHref,
   findMenuAccessMatchById,
+  isHiddenMenuNode,
   isMemberOnlyMenuNode,
   type MenuTreeForAccess,
 } from "./menuAccess";
@@ -42,6 +43,8 @@ describe("menuAccess", () => {
     expect(isMemberOnlyMenuNode({ allowGuest: false, allowMember: true })).toBe(true);
     expect(isMemberOnlyMenuNode({ allowGuest: true, allowMember: true })).toBe(false);
     expect(isMemberOnlyMenuNode({ allowGuest: false, allowMember: false })).toBe(false);
+    expect(isHiddenMenuNode({ allowGuest: false, allowMember: false })).toBe(true);
+    expect(isHiddenMenuNode({ allowGuest: false, allowMember: true })).toBe(false);
   });
 
   it("finds visible menu access matches by href", () => {

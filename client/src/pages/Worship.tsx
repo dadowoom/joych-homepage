@@ -538,21 +538,20 @@ export function BulletinDetail() {
   const params = useParams<{ id?: string }>();
   const bulletinId = Number(params.id);
   const { user, loading: authLoading } = useAuth();
-  const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, { retry: false });
   const canManage = canManageBoardContent(user, "content:bulletins");
   const { data: allMenus } = trpc.home.menus.useQuery();
   const bulletinMenuItem = useMemo(() => findBulletinViewMenuNode(allMenus), [allMenus]);
-  const canReadBulletins = Boolean(memberMe) || canManage;
   const bulletinsQuery = trpc.home.bulletins.useQuery(undefined, {
-    enabled: canReadBulletins && !canManage,
+    enabled: !authLoading && !canManage,
     retry: false,
   });
   const adminBulletinsQuery = trpc.cms.bulletins.list.useQuery(undefined, {
     enabled: canManage,
   });
   const bulletins = canManage ? (adminBulletinsQuery.data ?? []) : (bulletinsQuery.data ?? []);
-  const isAccessDenied = !authLoading && !memberLoading && !canReadBulletins;
-  const isLoading = authLoading || memberLoading || (canManage ? adminBulletinsQuery.isLoading : (canReadBulletins && bulletinsQuery.isLoading));
+  const canReadBulletins = canManage || !bulletinsQuery.error;
+  const isAccessDenied = !authLoading && !canManage && bulletinsQuery.error?.data?.code === "UNAUTHORIZED";
+  const isLoading = authLoading || (canManage ? adminBulletinsQuery.isLoading : bulletinsQuery.isLoading);
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);
   const [lightboxPageIndex, setLightboxPageIndex] = useState<number | null>(null);
   const touchStartXRef = useRef<number | null>(null);
@@ -817,23 +816,22 @@ export function Bulletin() {
   const searchString = useSearch();
   const [, setLocation] = useLocation();
   const { user, loading: authLoading } = useAuth();
-  const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, { retry: false });
   const canManage = canManageBoardContent(user, "content:bulletins");
   const { data: allMenus } = trpc.home.menus.useQuery();
   const searchParams = useMemo(() => new URLSearchParams(searchString), [searchString]);
   const bulletinMenuItem = useMemo(() => findBulletinViewMenuNode(allMenus), [allMenus]);
   const isManageView = canManage && searchParams.get("manage") === "1";
-  const canReadBulletins = Boolean(memberMe) || canManage;
   const bulletinsQuery = trpc.home.bulletins.useQuery(undefined, {
-    enabled: canReadBulletins && !isManageView,
+    enabled: !authLoading && !isManageView,
     retry: false,
   });
   const adminBulletinsQuery = trpc.cms.bulletins.list.useQuery(undefined, {
     enabled: isManageView,
   });
   const bulletins = isManageView ? (adminBulletinsQuery.data ?? []) : (bulletinsQuery.data ?? []);
-  const isAccessDenied = !authLoading && !memberLoading && !canReadBulletins;
-  const isLoading = authLoading || memberLoading || (isManageView ? adminBulletinsQuery.isLoading : (canReadBulletins && bulletinsQuery.isLoading));
+  const canReadBulletins = canManage || !bulletinsQuery.error;
+  const isAccessDenied = !authLoading && !canManage && bulletinsQuery.error?.data?.code === "UNAUTHORIZED";
+  const isLoading = authLoading || (isManageView ? adminBulletinsQuery.isLoading : bulletinsQuery.isLoading);
   const [expandedId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);

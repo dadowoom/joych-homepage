@@ -64,7 +64,8 @@ export function getSupportSideMenuItems(menus: PublicMenu[] | undefined, activeH
     );
 
   const dbItems = supportMenu?.items ?? [];
-  const sourceItems = dbItems.length > 0 ? dbItems : SUPPORT_FALLBACK_SIDE_ITEMS;
+  const shouldUseFallback = !menus;
+  const sourceItems = dbItems.length > 0 ? dbItems : (shouldUseFallback ? SUPPORT_FALLBACK_SIDE_ITEMS : []);
 
   return {
     parentLabel: supportMenu?.label ?? "행정지원",

@@ -76,6 +76,8 @@ export default function AdminMenuAccessTab() {
       utils.home.menuSubItem.invalidate(),
       utils.home.menuItemByHref.invalidate(),
       utils.home.menuSubItemByHref.invalidate(),
+      utils.home.menuAccessByHref.invalidate(),
+      utils.home.menuAccessById.invalidate(),
     ]);
   };
 
@@ -96,6 +98,16 @@ export default function AdminMenuAccessTab() {
     },
     onError: (error) => {
       toast.error(error.message || "메뉴 읽기 권한 저장에 실패했습니다.");
+    },
+  });
+
+  const updateAccessBatch = trpc.cms.menus.updateAccessBatch.useMutation({
+    onSuccess: async (result) => {
+      toast.success(`${result.count}개 메뉴 읽기 권한을 일괄 적용했습니다.`);
+      await invalidateMenus();
+    },
+    onError: (error) => {
+      toast.error(error.message || "메뉴 읽기 권한 일괄 적용에 실패했습니다.");
     },
   });
 
@@ -148,7 +160,7 @@ export default function AdminMenuAccessTab() {
     return Array.from(groups.entries());
   }, [leafRows]);
 
-  const isSaving = updateItem.isPending || updateSubItem.isPending;
+  const isSaving = updateItem.isPending || updateSubItem.isPending || updateAccessBatch.isPending;
 
   const setAccess = (leaf: MenuLeaf, level: ReadLevel) => {
     const payload = {
@@ -162,6 +174,17 @@ export default function AdminMenuAccessTab() {
     }
 
     updateSubItem.mutate(payload);
+  };
+
+  const setGroupAccess = (leaves: MenuLeaf[], level: ReadLevel) => {
+    const flags = getReadFlags(level);
+    updateAccessBatch.mutate({
+      leaves: leaves.map((leaf) => ({
+        kind: leaf.kind,
+        id: leaf.id,
+        ...flags,
+      })),
+    });
   };
 
   if (menusQuery.isLoading) {
@@ -231,7 +254,26 @@ export default function AdminMenuAccessTab() {
                 </button>
 
                 {!isCollapsed && (
-                  <div className="divide-y divide-gray-100 border-t border-gray-100 px-4">
+                  <div className="border-t border-gray-100 px-4">
+                    <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs font-semibold text-gray-500">
+                        이 메뉴의 하위 항목을 한 번에 적용
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {READ_LEVEL_OPTIONS.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            disabled={isSaving}
+                            onClick={() => setGroupAccess(leaves, option.value)}
+                            className="h-8 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:border-[#1B5E20] hover:text-[#1B5E20] disabled:bg-gray-50 disabled:text-gray-400"
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="divide-y divide-gray-100 border-t border-gray-100">
                     {leaves.map((leaf) => {
                       const currentLevel = getReadLevel(leaf);
 
@@ -273,6 +315,7 @@ export default function AdminMenuAccessTab() {
                         </div>
                       );
                     })}
+                    </div>
                   </div>
                 )}
               </section>

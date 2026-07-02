@@ -331,7 +331,8 @@ function getStaffSideMenuItems(menuTree: StaffMenuTree | undefined, pageTitle: s
       };
     });
 
-  if (liveItems?.length) return ensurePastorBooksSideMenuItems(liveItems, pageTitle);
+  if (liveItems) return liveItems;
+  if (menuTree) return [];
   return ensurePastorBooksSideMenuItems(STAFF_SIDE_MENU_ITEMS, pageTitle).map((item) => ({
     ...item,
     isActive: item.label === pageTitle || item.subItems?.some((subItem) => subItem.label === pageTitle),

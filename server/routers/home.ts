@@ -50,6 +50,8 @@ import {
   getVisibleMenuSubItemById,
   getVisibleMenuItemByHref,
   getVisibleMenuSubItemByHref,
+  getMenuAccessByHref,
+  getMenuAccessById,
   getFacilities,
   getFacilityById,
   getExternalReservableFacilities,
@@ -690,6 +692,17 @@ export const homeRouter = router({
       }
       return getVisibleMenuSubItemByHref(input.href, getMenuReadAccess(ctx));
     }),
+
+  menuAccessByHref: publicProcedure
+    .input(z.object({ href: hrefLookupSchema }))
+    .query(({ input, ctx }) => getMenuAccessByHref(input.href, getMenuReadAccess(ctx))),
+
+  menuAccessById: publicProcedure
+    .input(z.object({
+      kind: z.enum(["item", "subItem"]),
+      id: idSchema,
+    }))
+    .query(({ input, ctx }) => getMenuAccessById(input.kind, input.id, getMenuReadAccess(ctx))),
 
   // ─── 시설 조회 (성도용) ─────────────────────────────────────────────────────
 

@@ -208,6 +208,45 @@ export const menusRouter = router({
       return updateMenuItem(id, data);
     }),
 
+  /** 2/3단 메뉴 읽기 권한 일괄 수정 */
+  updateAccessBatch: adminProcedure
+    .input(z.object({
+      leaves: z.array(z.object({
+        kind: z.enum(["item", "subItem"]),
+        id: idSchema,
+        allowGuest: z.boolean(),
+        allowMember: z.boolean(),
+      })).min(1).max(300),
+    }))
+    .mutation(async ({ input }) => {
+      for (const leaf of input.leaves) {
+        const canUpdate = leaf.kind === "item"
+          ? await canUpdateMenuItemReadAccess(leaf.id)
+          : await canUpdateMenuSubItemReadAccess(leaf.id);
+
+        if (!canUpdate) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "숨김 메뉴는 메뉴읽기권한에서 수정할 수 없습니다. 메뉴편집에서 숨김 해제 후 다시 시도해 주세요.",
+          });
+        }
+
+        if (leaf.kind === "item") {
+          await updateMenuItem(leaf.id, {
+            allowGuest: leaf.allowGuest,
+            allowMember: leaf.allowMember,
+          });
+        } else {
+          await updateMenuSubItem(leaf.id, {
+            allowGuest: leaf.allowGuest,
+            allowMember: leaf.allowMember,
+          });
+        }
+      }
+
+      return { count: input.leaves.length };
+    }),
+
   /** 2단 메뉴 읽기 권한만 수정 */
   updateItemAccess: adminProcedure
     .input(z.object({

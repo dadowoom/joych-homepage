@@ -53,6 +53,12 @@ export function isMemberOnlyMenuNode(
   return Boolean(node?.allowMember) && !Boolean(node?.allowGuest);
 }
 
+export function isHiddenMenuNode(
+  node: Pick<MenuLeafNode, "allowGuest" | "allowMember"> | null | undefined
+) {
+  return !Boolean(node?.allowGuest) && !Boolean(node?.allowMember);
+}
+
 export function findMenuAccessMatchByHref(
   menus: MenuTreeForAccess,
   href: string | null | undefined

@@ -27,6 +27,49 @@ function canReadMenuLeaf(row: ReadableMenuLeaf, access: MenuReadAccess) {
   return access === "member" ? row.allowMember : row.allowGuest;
 }
 
+function getEffectiveLeafAccess(...rows: ReadableMenuLeaf[]) {
+  return {
+    allowGuest: rows.every(row => row.allowGuest),
+    allowMember: rows.every(row => row.allowMember),
+  };
+}
+
+const MENU_HREF_ALIASES: Record<string, string[]> = {
+  "/about/pastor/books": [
+    "/page/교회소개-담임목사-저서",
+    "/page/교회소개-담임목사-소개-담임목사저서",
+    "/page/교회소개-담임목사-소개-담임목사-저서",
+    "/page/교회소개-담임목사소개-담임목사저서",
+    "/page/교회소개-담임목사소개-담임목사-저서",
+  ],
+  "/about/history": [
+    "/page/교회소개-교회역사",
+    "/page/교회소개-교회-역사",
+    "/page/교회소개-교회연혁",
+    "/page/교회소개-교회-연혁",
+  ],
+  "/about/staff": ["/page/교회소개-섬기는-분"],
+  "/about/staff/associate": ["/page/교회소개-부교역자"],
+  "/facility": ["/page/시설사용예약", "/page/시설-사용-예약"],
+};
+
+function decodeHrefCandidate(href: string) {
+  try {
+    return decodeURIComponent(href);
+  } catch {
+    return href;
+  }
+}
+
+function getMenuHrefCandidates(href: string) {
+  const decodedHref = decodeHrefCandidate(href.trim());
+  const candidates = [
+    decodedHref,
+    ...(MENU_HREF_ALIASES[decodedHref] ?? []),
+  ];
+  return Array.from(new Set(candidates.filter(Boolean)));
+}
+
 // ─── 메뉴 조회 ────────────────────────────────────────────────────────────────
 
 /**
@@ -63,16 +106,20 @@ export async function getVisibleMenus(access: MenuReadAccess = "guest") {
     }>
   >();
   for (const item of visibleItems) {
-    const subItems = subItemsByItemId.get(item.id) ?? [];
+    if (!canReadMenuLeaf(item, access)) continue;
+
+    const subItems = (subItemsByItemId.get(item.id) ?? []).filter((subItem) =>
+      canReadMenuLeaf(subItem, access)
+    );
     const visibleSubItemsWithAccess = subItems.map((subItem) => ({
       ...subItem,
-      canRead: canReadMenuLeaf(subItem, access),
+      canRead: true,
     }));
 
     const list = itemsByMenuId.get(item.menuId) ?? [];
     list.push({
       ...item,
-      canRead: canReadMenuLeaf(item, access),
+      canRead: true,
       subItems: visibleSubItemsWithAccess,
     });
     itemsByMenuId.set(item.menuId, list);
@@ -295,6 +342,7 @@ export async function getVisibleMenuSubItemById(id: number, access: MenuReadAcce
     .limit(1);
   const item = itemRows[0];
   if (!item) return null;
+  if (!canReadMenuLeaf(item, access)) return null;
 
   const parentRows = await db.select().from(menus)
     .where(and(eq(menus.id, item.menuId), eq(menus.isVisible, true)))
@@ -436,9 +484,162 @@ export async function getVisibleMenuSubItemByHref(href: string, access: MenuRead
     .limit(1);
   const item = itemRows[0];
   if (!item) return null;
+  if (!canReadMenuLeaf(item, access)) return null;
 
   const parentRows = await db.select().from(menus)
     .where(and(eq(menus.id, item.menuId), eq(menus.isVisible, true)))
     .limit(1);
   return parentRows[0] ? subItem : null;
+}
+
+export async function getMenuAccessByHref(href: string, access: MenuReadAccess = "guest") {
+  const db = await getDb();
+  if (!db) return null;
+
+  for (const candidate of getMenuHrefCandidates(href)) {
+    const itemRows = await db.select().from(menuItems)
+      .where(and(eq(menuItems.href, candidate), eq(menuItems.isVisible, true)))
+      .limit(1);
+    const item = itemRows[0];
+    if (item) {
+      const parentRows = await db.select().from(menus)
+        .where(and(eq(menus.id, item.menuId), eq(menus.isVisible, true)))
+        .limit(1);
+      const parent = parentRows[0];
+      if (!parent) continue;
+
+      return {
+        kind: "item" as const,
+        id: item.id,
+        label: item.label,
+        href: item.href,
+        topMenu: {
+          id: parent.id,
+          label: parent.label,
+          href: parent.href,
+        },
+        allowGuest: item.allowGuest,
+        allowMember: item.allowMember,
+        isReadable: canReadMenuLeaf(item, access),
+      };
+    }
+
+    const subItemRows = await db.select().from(menuSubItems)
+      .where(and(eq(menuSubItems.href, candidate), eq(menuSubItems.isVisible, true)))
+      .limit(1);
+    const subItem = subItemRows[0];
+    if (!subItem) continue;
+
+    const itemRowsForSub = await db.select().from(menuItems)
+      .where(and(eq(menuItems.id, subItem.menuItemId), eq(menuItems.isVisible, true)))
+      .limit(1);
+    const parentItem = itemRowsForSub[0];
+    if (!parentItem) continue;
+
+    const parentRows = await db.select().from(menus)
+      .where(and(eq(menus.id, parentItem.menuId), eq(menus.isVisible, true)))
+      .limit(1);
+    const parent = parentRows[0];
+    if (!parent) continue;
+
+    const effectiveAccess = getEffectiveLeafAccess(parentItem, subItem);
+    return {
+      kind: "subItem" as const,
+      id: subItem.id,
+      label: subItem.label,
+      href: subItem.href,
+      topMenu: {
+        id: parent.id,
+        label: parent.label,
+        href: parent.href,
+      },
+      parentItem: {
+        id: parentItem.id,
+        label: parentItem.label,
+        href: parentItem.href,
+      },
+      allowGuest: effectiveAccess.allowGuest,
+      allowMember: effectiveAccess.allowMember,
+      isReadable: canReadMenuLeaf(effectiveAccess, access),
+    };
+  }
+
+  return null;
+}
+
+export async function getMenuAccessById(
+  kind: "item" | "subItem",
+  id: number,
+  access: MenuReadAccess = "guest"
+) {
+  const db = await getDb();
+  if (!db) return null;
+
+  if (kind === "item") {
+    const rows = await db.select().from(menuItems)
+      .where(and(eq(menuItems.id, id), eq(menuItems.isVisible, true)))
+      .limit(1);
+    const item = rows[0];
+    if (!item) return null;
+
+    const parentRows = await db.select().from(menus)
+      .where(and(eq(menus.id, item.menuId), eq(menus.isVisible, true)))
+      .limit(1);
+    const parent = parentRows[0];
+    if (!parent) return null;
+
+    return {
+      kind: "item" as const,
+      id: item.id,
+      label: item.label,
+      href: item.href,
+      topMenu: {
+        id: parent.id,
+        label: parent.label,
+        href: parent.href,
+      },
+      allowGuest: item.allowGuest,
+      allowMember: item.allowMember,
+      isReadable: canReadMenuLeaf(item, access),
+    };
+  }
+
+  const rows = await db.select().from(menuSubItems)
+    .where(and(eq(menuSubItems.id, id), eq(menuSubItems.isVisible, true)))
+    .limit(1);
+  const subItem = rows[0];
+  if (!subItem) return null;
+
+  const itemRows = await db.select().from(menuItems)
+    .where(and(eq(menuItems.id, subItem.menuItemId), eq(menuItems.isVisible, true)))
+    .limit(1);
+  const parentItem = itemRows[0];
+  if (!parentItem) return null;
+
+  const parentRows = await db.select().from(menus)
+    .where(and(eq(menus.id, parentItem.menuId), eq(menus.isVisible, true)))
+    .limit(1);
+  const parent = parentRows[0];
+  if (!parent) return null;
+
+  const effectiveAccess = getEffectiveLeafAccess(parentItem, subItem);
+  return {
+    kind: "subItem" as const,
+    id: subItem.id,
+    label: subItem.label,
+    href: subItem.href,
+    topMenu: {
+      id: parent.id,
+      label: parent.label,
+      href: parent.href,
+    },
+    parentItem: {
+      id: parentItem.id,
+      label: parentItem.label,
+      href: parentItem.href,
+    },
+    allowGuest: effectiveAccess.allowGuest,
+    allowMember: effectiveAccess.allowMember,
+    isReadable: canReadMenuLeaf(effectiveAccess, access),
+  };
 }
