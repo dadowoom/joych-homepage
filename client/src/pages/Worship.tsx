@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent 
 import { Link, useLocation, useParams, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
+import MemberOnlyContentNotice from "@/components/MemberOnlyContentNotice";
 import { getSupportSideMenuItems } from "@/lib/supportSideMenu";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { canManageBoardContent } from "@/lib/contentPermissions";
@@ -319,33 +320,6 @@ function getTodayDateInputValue() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function getMemberLoginHref(fallbackPath = "/worship/bulletin") {
-  const currentPath = typeof window === "undefined"
-    ? fallbackPath
-    : `${window.location.pathname}${window.location.search}`;
-  return `/member/login?next=${encodeURIComponent(currentPath || fallbackPath)}`;
-}
-
-function BulletinAccessRequired() {
-  return (
-    <div className="flex flex-col items-center justify-center border-2 border-dashed border-[#D8E8DA] bg-[#F8FCF8] px-5 py-20 text-center">
-      <i className="fas fa-lock mb-4 text-4xl text-[#1B5E20]" />
-      <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-        성도 로그인 후 이용할 수 있습니다
-      </h2>
-      <p className="mt-3 max-w-md text-sm leading-6 text-gray-500">
-        주보 보기는 성도 이상 읽기 권한이 필요한 자료입니다. 성도 로그인 후 다시 확인해 주세요.
-      </p>
-      <Link
-        href={getMemberLoginHref()}
-        className="mt-6 inline-flex h-10 items-center justify-center border border-[#1B5E20] bg-[#1B5E20] px-5 text-sm font-semibold text-white hover:bg-[#2E7D32]"
-      >
-        성도 로그인
-      </Link>
-    </div>
-  );
-}
-
 function readBulletinFile(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -641,7 +615,11 @@ export function BulletinDetail() {
         </div>
 
         {isAccessDenied ? (
-          <BulletinAccessRequired />
+          <MemberOnlyContentNotice
+            resourceLabel="주보 보기"
+            description="주보 보기는 성도 이상 읽기 권한이 필요한 자료입니다. 성도 로그인 후 다시 확인해 주세요."
+            fallbackPath="/worship/bulletin"
+          />
         ) : isLoading ? (
           <div className="text-center py-16 text-gray-400">불러오는 중...</div>
         ) : !bulletin ? (
@@ -920,7 +898,11 @@ export function Bulletin() {
     <SubPageLayout pageTitle="주보 보기" parentLabel={parentLabel} sideMenuItems={sideMenuItems}>
       <div className="max-w-5xl">
         {isAccessDenied ? (
-          <BulletinAccessRequired />
+          <MemberOnlyContentNotice
+            resourceLabel="주보 보기"
+            description="주보 보기는 성도 이상 읽기 권한이 필요한 자료입니다. 성도 로그인 후 다시 확인해 주세요."
+            fallbackPath="/worship/bulletin"
+          />
         ) : (
           <>
         {canManage && (

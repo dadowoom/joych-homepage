@@ -10,6 +10,7 @@ import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { formatKoreanDateKey } from "@/lib/koreanDate";
+import MemberOnlyContentNotice from "@/components/MemberOnlyContentNotice";
 import {
   Loader2, ChevronRight, Calendar, Clock, MapPin, Users,
   CheckCircle2, XCircle, AlertCircle, Clock3, Ban, RefreshCw
@@ -66,34 +67,14 @@ export default function MyReservations() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[#F7F7F5]">
-        <section className="bg-[#1B5E20] py-10">
-          <div className="container text-white">
-            <nav className="flex items-center gap-2 text-xs text-green-200 mb-3">
-              <Link href="/" className="hover:text-white">홈</Link>
-              <ChevronRight className="w-3 h-3" />
-              <Link href="/facility" className="hover:text-white">시설 사용 예약</Link>
-              <ChevronRight className="w-3 h-3" />
-              <span className="text-white">내 예약 현황</span>
-            </nav>
-            <h1 className="text-2xl md:text-3xl font-bold" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-              내 예약 현황
-            </h1>
-          </div>
-        </section>
-        <section className="py-20">
-          <div className="container max-w-lg mx-auto text-center">
-            <AlertCircle className="w-14 h-14 text-gray-300 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-gray-700 mb-2">로그인이 필요합니다</h2>
-            <p className="text-gray-500 text-sm mb-6">예약 현황은 로그인 후 확인하실 수 있습니다.</p>
-            <button
-              onClick={() => window.location.href = '/member/login'}
-              className="px-6 py-3 bg-[#1B5E20] text-white rounded-xl font-medium hover:bg-[#2E7D32] transition-colors"
-            >
-              로그인하기
-            </button>
-          </div>
-        </section>
+      <div className="min-h-screen bg-[#F7F7F5] px-4 py-8 sm:py-12">
+        <div className="mx-auto max-w-5xl">
+          <MemberOnlyContentNotice
+            resourceLabel="내 예약 현황"
+            description="예약 현황은 성도 로그인 후 확인하실 수 있습니다. 성도 로그인 후 다시 확인해 주세요."
+            fallbackPath="/facility/my-reservations"
+          />
+        </div>
       </div>
     );
   }
