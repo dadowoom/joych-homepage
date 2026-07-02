@@ -989,13 +989,14 @@ function CalendarView({ reservations, facilityFilter, facilities, editingKey, ti
             이 날짜에는 예약이 없습니다.
           </div>
         ) : (
-          <div>
-            <div className="grid grid-cols-[78px_minmax(0,1fr)_92px] gap-2 border-b border-gray-100 bg-gray-50 px-4 py-2 text-[11px] font-semibold text-gray-500 md:hidden">
+          <div className="overflow-x-auto">
+            <div className="min-w-[1040px]">
+            <div className="grid grid-cols-[90px_minmax(260px,1fr)_110px] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 text-[11px] font-semibold text-gray-500 md:hidden">
               <div>시간</div>
               <div>시설 / 목적</div>
               <div>관리</div>
             </div>
-            <div className="hidden grid-cols-[110px_minmax(0,1.5fr)_150px_140px_120px_220px] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 text-[11px] font-semibold text-gray-500 md:grid">
+            <div className="hidden grid-cols-[110px_minmax(320px,1.6fr)_150px_140px_120px_220px] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 text-[11px] font-semibold text-gray-500 md:grid">
               <div>시간</div>
               <div>시설 / 목적</div>
               <div>예약자</div>
@@ -1013,7 +1014,7 @@ function CalendarView({ reservations, facilityFilter, facilities, editingKey, ti
 
                 return (
                   <div key={reservation.id}>
-                    <div className="grid gap-3 px-4 py-3 text-sm md:grid-cols-[110px_minmax(0,1.5fr)_150px_140px_120px_220px] md:items-center">
+                    <div className="grid grid-cols-[90px_minmax(260px,1fr)_110px] gap-3 px-4 py-3 text-sm md:grid-cols-[110px_minmax(320px,1.6fr)_150px_140px_120px_220px] md:items-center">
                       <div>
                         <p className="text-xs text-gray-400 md:hidden">시간</p>
                         <p className="font-semibold text-gray-900">{formatReservationTimeRange(reservation)}</p>
@@ -1023,7 +1024,7 @@ function CalendarView({ reservations, facilityFilter, facilities, editingKey, ti
                         <p className="truncate font-semibold text-gray-900">{reservation.facilityName ?? "시설"} · {reservation.purpose}</p>
                         {reservation.notes && <p className="mt-0.5 truncate text-xs text-gray-500">요청: {reservation.notes}</p>}
                       </div>
-                      <div>
+                      <div className="hidden md:block">
                         <p className="text-xs text-gray-400 md:hidden">예약자</p>
                         <span className={"mb-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold " + getReservationAudienceBadgeClass(reservation)}>
                           {getReservationAudienceLabel(reservation)}
@@ -1031,11 +1032,11 @@ function CalendarView({ reservations, facilityFilter, facilities, editingKey, ti
                         <p className="font-semibold text-gray-900">{getReservationName(reservation)}</p>
                         <p className="text-xs text-gray-500">{getReservationPosition(reservation)}</p>
                       </div>
-                      <div>
+                      <div className="hidden md:block">
                         <p className="text-xs text-gray-400 md:hidden">연락처</p>
                         <p className="font-semibold text-gray-900">{getReservationPhone(reservation)}</p>
                       </div>
-                      <div>
+                      <div className="hidden md:block">
                         <p className="text-xs text-gray-400 md:hidden">상태 / 인원</p>
                         <span className={"inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium " + statusMeta.color}>
                           {statusMeta.icon} {statusMeta.label}
@@ -1128,6 +1129,7 @@ function CalendarView({ reservations, facilityFilter, facilities, editingKey, ti
                   </div>
                 );
               })}
+            </div>
             </div>
           </div>
         )}
