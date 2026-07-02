@@ -39,6 +39,7 @@ export const STATIC_ADMIN_PERMISSIONS: AdminPermissionDefinition[] = [
   { key: "content:facilities", label: "시설 관리", group: "접수/예약 관리", tab: "facilities", description: "시설 정보, 운영 시간, 외부인 공개를 관리합니다." },
   { key: "content:vehicles", label: "차량예약 관리", group: "차량예약", tab: "vehicles", description: "개별 성도에게 차량예약 이용, 신청, 승인/관리 권한을 부여합니다." },
   { key: "content:missionReports", label: "선교보고 관리", group: "성도/사역 관리", tab: "missionReports", description: "선교보고 작성, 수정, 공개/숨김을 관리합니다." },
+  { key: "content:pushBroadcast", label: "푸시 발송 관리", group: "성도/사역 관리", tab: "pushBroadcast", description: "전체 성도 또는 직분/구역/부서/개별 성도에게 푸시 알림을 발송합니다." },
 ];
 
 export const ADMIN_TAB_PERMISSION_KEYS: Record<string, string> = STATIC_ADMIN_PERMISSIONS

@@ -7,6 +7,7 @@ import { useState, type ChangeEvent } from "react";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { PushNotificationToggle } from "@/components/PushNotificationToggle";
 
 type ChurchForm = {
   position: string;
@@ -192,6 +193,13 @@ export default function MemberMyPage() {
       </header>
 
       <div className="max-w-lg mx-auto px-4 py-8">
+        <div className="mb-4">
+          <PushNotificationToggle
+            title="교회 알림 받기"
+            enabledDescription="이 기기에서 교회 공지와 안내 푸시를 받을 준비가 되어 있습니다."
+            disabledDescription="공지사항, 주보, 구역별 안내 푸시를 받으려면 알림을 켜주세요."
+          />
+        </div>
         {/* 프로필 헤더 */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-4">
           <div className="flex items-center gap-4">

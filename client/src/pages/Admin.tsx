@@ -37,6 +37,7 @@ import AdminSupportRequestsTab from "@/components/AdminSupportRequestsTab";
 import AdminTestimoniesTab from "@/components/AdminTestimoniesTab";
 import AdminCoursesTab from "@/components/AdminCoursesTab";
 import AdminBulletinsTab from "@/components/AdminBulletinsTab";
+import AdminPushBroadcastTab from "@/components/AdminPushBroadcastTab";
 import AdminPermissionsTab from "@/components/AdminPermissionsTab";
 import AdminMenuAccessTab from "@/components/AdminMenuAccessTab";
 import AdminViewModesTab from "@/components/AdminViewModesTab";
@@ -69,6 +70,7 @@ type Tab =
   | "supportRequests"
   | "courses"
   | "bulletins"
+  | "pushBroadcast"
   | "youtube"
   | "popups"
   | "history"
@@ -248,6 +250,13 @@ const TABS: TabItem[] = [
     status: "자료 등록",
   },
   {
+    id: "pushBroadcast",
+    label: "푸시 발송",
+    icon: "fa-bell",
+    description: "전체 성도 또는 직분, 구역, 부서, 개별 성도에게 푸시 알림을 발송합니다.",
+    status: "알림 발송",
+  },
+  {
     id: "courses",
     label: "강좌 관리",
     icon: "fa-graduation-cap",
@@ -279,7 +288,7 @@ const TAB_GROUPS: TabGroup[] = [
   {
     title: "성도/사역 관리",
     description: "성도, 섬김이, 선교 소식",
-    tabs: ["members", "staff", "missionReports"],
+    tabs: ["members", "staff", "missionReports", "pushBroadcast"],
   },
   {
     title: "접수/예약 관리",
@@ -1314,6 +1323,7 @@ export default function AdminPage() {
                 {activeTab === "supportRequests" && <AdminSupportRequestsTab />}
                 {activeTab === "courses" && <AdminCoursesTab />}
                 {activeTab === "bulletins" && <AdminBulletinsTab />}
+                {activeTab === "pushBroadcast" && <AdminPushBroadcastTab />}
                 {activeTab === "youtube" && <YoutubeAdminTab />}
                 {activeTab === "popups" && <AdminPopupsTab />}
                 {activeTab === "history" && <AdminChurchHistoryTab />}

@@ -1,9 +1,9 @@
 import { TRPCError } from "@trpc/server";
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, or, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { pushSubscriptions } from "../../drizzle/schema";
 import { getDb } from "../db";
-import { protectedProcedure, router } from "../_core/trpc";
+import { publicProcedure, router } from "../_core/trpc";
 
 const endpointSchema = z.string().trim().min(1).max(500);
 
@@ -35,9 +35,11 @@ function ensurePushNotificationUser(ctx: {
   memberId: number | null;
 }) {
   const canUsePush =
+    Boolean(ctx.memberId) ||
     ctx.user?.role === "admin" ||
     ctx.user?.contentPermissions?.includes("content:reservations") ||
-    ctx.user?.contentPermissions?.includes("content:vehicles");
+    ctx.user?.contentPermissions?.includes("content:vehicles") ||
+    ctx.user?.contentPermissions?.includes("content:pushBroadcast");
 
   if (
     !canUsePush
@@ -46,13 +48,20 @@ function ensurePushNotificationUser(ctx: {
   }
 
   return {
-    userId: ctx.user!.id,
+    userId: ctx.user?.id ?? null,
     memberId: ctx.memberId,
   };
 }
 
+function ownerConditions(owner: { userId: number | null; memberId: number | null }): SQL[] {
+  const conditions: SQL[] = [];
+  if (owner.userId) conditions.push(eq(pushSubscriptions.userId, owner.userId));
+  if (owner.memberId) conditions.push(eq(pushSubscriptions.memberId, owner.memberId));
+  return conditions;
+}
+
 export const pushRouter = router({
-  reportDiagnostic: protectedProcedure
+  reportDiagnostic: publicProcedure
     .input(diagnosticSchema)
     .mutation(({ input, ctx }) => {
       const owner = ensurePushNotificationUser(ctx);
@@ -76,7 +85,7 @@ export const pushRouter = router({
       return { success: true };
     }),
 
-  subscribe: protectedProcedure
+  subscribe: publicProcedure
     .input(z.object({
       endpoint: endpointSchema,
       keys: z.object({
@@ -116,7 +125,7 @@ export const pushRouter = router({
       return { success: true };
     }),
 
-  unsubscribe: protectedProcedure
+  unsubscribe: publicProcedure
     .input(z.object({ endpoint: endpointSchema }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
@@ -125,23 +134,26 @@ export const pushRouter = router({
       }
 
       const owner = ensurePushNotificationUser(ctx);
+      const conditions = ownerConditions(owner);
+      if (conditions.length === 0) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "알림 설정 권한이 없습니다." });
+      }
       await db.delete(pushSubscriptions).where(and(
         eq(pushSubscriptions.endpoint, input.endpoint),
-        or(
-          eq(pushSubscriptions.userId, owner.userId),
-          owner.memberId ? eq(pushSubscriptions.memberId, owner.memberId) : undefined,
-        ),
+        or(...conditions),
       ));
 
       console.log(`[push] Unsubscribed userId=${owner.userId} memberId=${owner.memberId ?? "none"} endpoint=${endpointPreview(input.endpoint)}`);
       return { success: true };
     }),
 
-  getMySubscriptions: protectedProcedure.query(async ({ ctx }) => {
+  getMySubscriptions: publicProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return [];
 
     const owner = ensurePushNotificationUser(ctx);
+    const conditions = ownerConditions(owner);
+    if (conditions.length === 0) return [];
     return db.select({
       id: pushSubscriptions.id,
       endpoint: pushSubscriptions.endpoint,
@@ -150,9 +162,6 @@ export const pushRouter = router({
       lastUsedAt: pushSubscriptions.lastUsedAt,
     })
       .from(pushSubscriptions)
-      .where(or(
-        eq(pushSubscriptions.userId, owner.userId),
-        owner.memberId ? eq(pushSubscriptions.memberId, owner.memberId) : undefined,
-      ));
+      .where(or(...conditions));
   }),
 });

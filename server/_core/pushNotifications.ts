@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import webpush from "web-push";
-import { eq, inArray, or, type SQL } from "drizzle-orm";
-import { adminContentPermissions, pushSubscriptions, users } from "../../drizzle/schema";
+import { and, eq, inArray, or, type SQL } from "drizzle-orm";
+import { adminContentPermissions, churchMembers, memberDistricts, pushSubscriptions, users } from "../../drizzle/schema";
 import { getDb, getMembersAssignedToDistrict } from "../db";
 
 let initialized = false;
@@ -47,6 +47,13 @@ export type PushPayload = {
 
 type PushSendOutcome = "sent" | "expired" | "failed";
 
+export type PushDispatchResult = {
+  subscriptionCount: number;
+  sentCount: number;
+  expiredCount: number;
+  failedCount: number;
+};
+
 function memberIdFromAdminOpenId(openId: string | null | undefined) {
   const match = openId?.match(/^member:(\d+)$/);
   if (!match) return null;
@@ -59,13 +66,15 @@ async function dispatchPushSubscriptions(
   subscriptions: Array<typeof pushSubscriptions.$inferSelect>,
   payload: PushPayload,
   context: string,
-) {
+): Promise<PushDispatchResult> {
   const db = await getDb();
-  if (!db) return;
+  if (!db) {
+    return { subscriptionCount: subscriptions.length, sentCount: 0, expiredCount: 0, failedCount: subscriptions.length };
+  }
 
   if (subscriptions.length === 0) {
     console.warn(`[push] No subscriptions for ${context} vapid=${vapidPublicKeyFingerprint || "uninitialized"}`);
-    return;
+    return { subscriptionCount: 0, sentCount: 0, expiredCount: 0, failedCount: 0 };
   }
 
   const payloadJson = JSON.stringify(payload);
@@ -109,6 +118,7 @@ async function dispatchPushSubscriptions(
   const expiredCount = outcomes.filter((outcome) => outcome === "expired").length;
   const failedCount = outcomes.filter((outcome) => outcome === "failed").length;
   console.log(`[push] Dispatch ${context} subscriptions=${subscriptions.length} sent=${sentCount} expired=${expiredCount} failed=${failedCount} vapid=${vapidPublicKeyFingerprint}`);
+  return { subscriptionCount: subscriptions.length, sentCount, expiredCount, failedCount };
 }
 
 export async function sendPushToPermissionHolders(
@@ -208,6 +218,122 @@ export function notifyFacilityReservation(params: {
     url: "/admin_joych_2026?tab=reservations",
     tag: `reservation-${params.reservationId}`,
   });
+}
+
+export type MemberPushTarget =
+  | { scope: "all" }
+  | { scope: "position"; values: string[] }
+  | { scope: "department"; values: string[] }
+  | { scope: "district"; values: string[] }
+  | { scope: "members"; memberIds: number[] };
+
+function normalizeTargetValues(values: string[] | undefined) {
+  return Array.from(new Set((values ?? []).map((value) => value.trim()).filter(Boolean))).slice(0, 100);
+}
+
+function normalizeTargetMemberIds(memberIds: number[] | undefined) {
+  return Array.from(
+    new Set((memberIds ?? []).filter((id) => Number.isInteger(id) && id > 0)),
+  ).slice(0, 500);
+}
+
+export async function getMemberIdsForPushTarget(target: MemberPushTarget): Promise<number[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  if (target.scope === "all") {
+    const rows = await db
+      .select({ id: churchMembers.id })
+      .from(churchMembers)
+      .where(eq(churchMembers.status, "approved"));
+    return rows.map((row) => row.id);
+  }
+
+  if (target.scope === "position" || target.scope === "department") {
+    const values = normalizeTargetValues(target.values);
+    if (values.length === 0) return [];
+    const column = target.scope === "position" ? churchMembers.position : churchMembers.department;
+    const rows = await db
+      .select({ id: churchMembers.id })
+      .from(churchMembers)
+      .where(and(eq(churchMembers.status, "approved"), inArray(column, values)));
+    return rows.map((row) => row.id);
+  }
+
+  if (target.scope === "district") {
+    const values = normalizeTargetValues(target.values);
+    if (values.length === 0) return [];
+    const directRows = await db
+      .select({ id: churchMembers.id })
+      .from(churchMembers)
+      .where(and(eq(churchMembers.status, "approved"), inArray(churchMembers.district, values)));
+    const assignedRows = await db
+      .select({ id: churchMembers.id })
+      .from(memberDistricts)
+      .innerJoin(churchMembers, eq(memberDistricts.memberId, churchMembers.id))
+      .where(and(eq(churchMembers.status, "approved"), inArray(memberDistricts.district, values)));
+    return Array.from(new Set([...directRows, ...assignedRows].map((row) => row.id)));
+  }
+
+  const memberIds = normalizeTargetMemberIds(target.memberIds);
+  if (memberIds.length === 0) return [];
+  const rows = await db
+    .select({ id: churchMembers.id })
+    .from(churchMembers)
+    .where(and(eq(churchMembers.status, "approved"), inArray(churchMembers.id, memberIds)));
+  return rows.map((row) => row.id);
+}
+
+export async function previewMemberPushTarget(target: MemberPushTarget) {
+  const db = await getDb();
+  if (!db) return { memberCount: 0, subscriptionCount: 0 };
+
+  const memberIds = await getMemberIdsForPushTarget(target);
+  if (memberIds.length === 0) return { memberCount: 0, subscriptionCount: 0 };
+
+  const subscriptions = await db
+    .select({ endpoint: pushSubscriptions.endpoint })
+    .from(pushSubscriptions)
+    .where(inArray(pushSubscriptions.memberId, memberIds));
+
+  return {
+    memberCount: memberIds.length,
+    subscriptionCount: new Set(subscriptions.map((subscription) => subscription.endpoint)).size,
+  };
+}
+
+export async function sendPushToMemberTarget(
+  target: MemberPushTarget,
+  payload: PushPayload,
+): Promise<PushDispatchResult & { memberCount: number }> {
+  try {
+    if (!initWebPush()) {
+      return { memberCount: 0, subscriptionCount: 0, sentCount: 0, expiredCount: 0, failedCount: 0 };
+    }
+
+    const db = await getDb();
+    if (!db) {
+      return { memberCount: 0, subscriptionCount: 0, sentCount: 0, expiredCount: 0, failedCount: 0 };
+    }
+
+    const memberIds = await getMemberIdsForPushTarget(target);
+    if (memberIds.length === 0) {
+      return { memberCount: 0, subscriptionCount: 0, sentCount: 0, expiredCount: 0, failedCount: 0 };
+    }
+
+    const subscriptions = await db
+      .select()
+      .from(pushSubscriptions)
+      .where(inArray(pushSubscriptions.memberId, memberIds));
+    const uniqueSubscriptions = Array.from(
+      new Map(subscriptions.map((subscription) => [subscription.endpoint, subscription])).values(),
+    );
+    const result = await dispatchPushSubscriptions(uniqueSubscriptions, payload, `member-target=${target.scope}`);
+    return { memberCount: memberIds.length, ...result };
+  } catch (error) {
+    console.error("[push] Member target notification failed", error);
+    return { memberCount: 0, subscriptionCount: 0, sentCount: 0, expiredCount: 0, failedCount: 0 };
+  }
 }
 
 export function notifyVehicleReservation(params: {

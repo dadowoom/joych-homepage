@@ -14,7 +14,17 @@ import {
   unsubscribeFromPush,
 } from "@/lib/pushNotifications";
 
-export function PushNotificationToggle() {
+type PushNotificationToggleProps = {
+  title?: string;
+  enabledDescription?: string;
+  disabledDescription?: string;
+};
+
+export function PushNotificationToggle({
+  title = "예약 알림 받기",
+  enabledDescription = "이 기기에서 새 예약 알림을 받을 준비가 되어 있습니다.",
+  disabledDescription = "시설/차량 예약 담당자는 이 기기에서 알림을 켤 수 있습니다.",
+}: PushNotificationToggleProps = {}) {
   const utils = trpc.useUtils();
   const [supported, setSupported] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission>("default");
@@ -287,11 +297,9 @@ export function PushNotificationToggle() {
             {subscribed ? <Bell className="h-5 w-5" /> : <BellOff className="h-5 w-5" />}
           </span>
           <div>
-            <h3 className="text-sm font-bold text-gray-900">예약 알림 받기</h3>
+            <h3 className="text-sm font-bold text-gray-900">{title}</h3>
             <p className="mt-1 text-xs leading-5 text-gray-500">
-              {subscribed
-                ? "이 기기에서 새 예약 알림을 받을 준비가 되어 있습니다."
-                : "시설/차량 예약 담당자는 이 기기에서 알림을 켤 수 있습니다."}
+              {subscribed ? enabledDescription : disabledDescription}
             </p>
             {iosNeedsPwa && (
               <p className="mt-1 text-xs leading-5 text-amber-700">
