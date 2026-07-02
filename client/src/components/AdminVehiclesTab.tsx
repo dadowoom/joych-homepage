@@ -235,6 +235,23 @@ function getReservationPosition(row: VehicleReservationRow) {
   return row.memberPosition || row.department || "-";
 }
 
+function getVehicleDisplayName(vehicle: Pick<VehicleRow, "name" | "plateNumber">) {
+  return vehicle.plateNumber ? `${vehicle.plateNumber} ${vehicle.name}` : vehicle.name;
+}
+
+function getReservationVehicleName(row: VehicleReservationRow) {
+  return row.vehicleName ?? "차량";
+}
+
+function getReservationPlateNumber(row: VehicleReservationRow) {
+  return row.plateNumber || "-";
+}
+
+function getReservationGroupLabel(row: VehicleReservationRow) {
+  const label = getReservationPosition(row);
+  return label && label !== "-" ? label : "기타";
+}
+
 export default function AdminVehiclesTab() {
   const utils = trpc.useUtils();
   const isMobile = useIsMobile();
@@ -323,6 +340,13 @@ export default function AdminVehiclesTab() {
     },
     onError: (error) => toast.error(error.message),
   });
+  const cancelReservation = trpc.cms.vehicleReservations.cancel.useMutation({
+    onSuccess: () => {
+      utils.cms.vehicleReservations.list.invalidate();
+      toast.success("차량 예약을 취소했습니다.");
+    },
+    onError: (error) => toast.error(error.message),
+  });
   const updateReservationTime = trpc.cms.vehicleReservations.updateTime.useMutation({
     onSuccess: () => {
       utils.cms.vehicleReservations.list.invalidate();
@@ -357,6 +381,7 @@ export default function AdminVehiclesTab() {
     pending: reservationRows.filter(row => row.status === "pending").length,
     approved: reservationRows.filter(row => row.status === "approved").length,
     rejected: reservationRows.filter(row => row.status === "rejected").length,
+    cancelled: reservationRows.filter(row => row.status === "cancelled").length,
   }), [reservationRows]);
 
   const filteredReservations = reservationRows.filter(row =>
@@ -479,6 +504,11 @@ export default function AdminVehiclesTab() {
   function removeReservation(row: VehicleReservationRow) {
     if (!confirm("차량 예약을 삭제하시겠습니까? 삭제 후에는 되돌릴 수 없습니다.")) return;
     deleteReservation.mutate({ id: row.id });
+  }
+
+  function cancelVehicleReservation(row: VehicleReservationRow) {
+    if (!confirm("차량 예약을 취소하시겠습니까?")) return;
+    cancelReservation.mutate({ id: row.id });
   }
 
   function startReservationTimeEdit(row: VehicleReservationRow) {
@@ -604,7 +634,7 @@ export default function AdminVehiclesTab() {
 
   const isSavingVehicle = createVehicle.isPending || updateVehicle.isPending;
   const isMutatingReservation =
-    approveReservation.isPending || rejectReservation.isPending || updateReservationTime.isPending || deleteReservation.isPending;
+    approveReservation.isPending || rejectReservation.isPending || cancelReservation.isPending || updateReservationTime.isPending || deleteReservation.isPending;
 
   if (vehiclesLoading) {
     return <div className="flex justify-center py-16"><Loader2 className="h-7 w-7 animate-spin text-[#1B5E20]" /></div>;
@@ -1021,7 +1051,7 @@ export default function AdminVehiclesTab() {
               { label: "전체", value: stats.total, color: "bg-gray-50 text-gray-700" },
               { label: "승인 대기", value: stats.pending, color: "bg-amber-50 text-amber-700" },
               { label: "승인 완료", value: stats.approved, color: "bg-green-50 text-green-700" },
-              { label: "거절", value: stats.rejected, color: "bg-red-50 text-red-700" },
+              { label: "취소", value: stats.cancelled, color: "bg-gray-50 text-gray-600" },
             ].map(item => (
               <div key={item.label} className={`rounded-xl border border-gray-100 p-4 text-center ${item.color}`}>
                 <p className="text-2xl font-bold">{item.value}</p>
@@ -1037,7 +1067,7 @@ export default function AdminVehiclesTab() {
               className="min-h-11 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none sm:min-h-0"
             >
               <option value="">전체 차량</option>
-              {vehicleRows.map(vehicle => <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>)}
+              {vehicleRows.map(vehicle => <option key={vehicle.id} value={vehicle.id}>{getVehicleDisplayName(vehicle)}</option>)}
             </select>
             {(["all", "pending", "approved", "rejected", "cancelled"] as VehicleStatusFilter[]).map(status => (
               <button
@@ -1060,6 +1090,9 @@ export default function AdminVehiclesTab() {
               reservations={filteredReservations}
               vehicleFilter={reservationVehicleFilter}
               vehicles={vehicleRows}
+              isMutatingReservation={isMutatingReservation}
+              onApprove={(row) => approveReservation.mutate({ id: row.id })}
+              onCancel={cancelVehicleReservation}
             />
           )}
 
@@ -1070,71 +1103,88 @@ export default function AdminVehiclesTab() {
             ) : filteredReservations.length === 0 ? (
               <div className="py-12 text-center text-sm text-gray-400">해당 조건의 차량 예약이 없습니다.</div>
             ) : (
-              <div className="divide-y divide-gray-100">
+              <div>
+                <div className="hidden grid-cols-[120px_120px_minmax(120px,1fr)_minmax(140px,1.2fr)_100px_90px_130px_100px_70px_130px] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 xl:grid">
+                  <div>시간</div>
+                  <div>차량번호</div>
+                  <div>차량</div>
+                  <div>목적</div>
+                  <div>신청자</div>
+                  <div>직분</div>
+                  <div>연락처</div>
+                  <div>상태</div>
+                  <div>인원</div>
+                  <div>관리</div>
+                </div>
                 {filteredReservations.map(row => {
                   const status = STATUS_LABELS[row.status] ?? STATUS_LABELS.pending;
                   return (
-                    <div key={row.id} className="p-4">
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="min-w-0">
-                          <div className="mb-1 flex flex-wrap items-center gap-2">
-                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${status.color}`}>
-                              {status.icon} {status.label}
-                            </span>
-                            <span className="text-xs text-gray-400">신청 {formatCreatedAt(row.createdAt)}</span>
-                          </div>
-                          <p className="font-bold text-gray-900">
-                            {row.vehicleName ?? "차량"} · {formatDate(row.reservationDate)} {formatTimeRange(row.startTime, row.endTime)}
-                          </p>
-                          <p className="mt-1 text-sm text-gray-500">
-                            {getReservationName(row)} · {getReservationPosition(row)} · {getReservationPhone(row)} · {row.passengers}명
-                          </p>
-                          <p className="mt-1 text-sm text-gray-700">목적: {row.purpose}</p>
-                          {row.notes && <p className="mt-1 text-xs text-gray-500">요청: {row.notes}</p>}
-                          {row.adminComment && <p className="mt-1 text-xs text-red-600">관리자 메모: {row.adminComment}</p>}
+                    <div key={row.id} className="border-b border-gray-100 p-4 last:border-b-0">
+                      <div className="grid gap-3 text-sm xl:grid-cols-[120px_120px_minmax(120px,1fr)_minmax(140px,1.2fr)_100px_90px_130px_100px_70px_130px] xl:items-center">
+                        <div>
+                          <p className="text-xs text-gray-400 xl:hidden">시간</p>
+                          <p className="font-semibold text-gray-900">{formatDate(row.reservationDate)}</p>
+                          <p className="text-xs text-gray-600">{formatTimeRange(row.startTime, row.endTime)}</p>
                         </div>
-                        <div className="flex w-full flex-wrap gap-2 lg:w-auto lg:shrink-0">
-                          {row.status === "pending" && (
-                            <>
-                              <Button
-                                size="sm"
-                                className="min-h-11 bg-green-600 text-white hover:bg-green-700 sm:min-h-0"
-                                disabled={isMutatingReservation}
-                                onClick={() => approveReservation.mutate({ id: row.id })}
-                              >
-                                승인
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="min-h-11 border-red-200 text-red-600 hover:bg-red-50 sm:min-h-0"
-                                onClick={() => {
-                                  setRejectingId(row.id);
-                                  setRejectComment("");
-                                }}
-                              >
-                                거절
-                              </Button>
-                            </>
+                        <div>
+                          <p className="text-xs text-gray-400 xl:hidden">차량번호</p>
+                          <p className="font-extrabold text-gray-950">{getReservationPlateNumber(row)}</p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs text-gray-400 xl:hidden">차량</p>
+                          <p className="truncate font-semibold text-gray-900">{getReservationVehicleName(row)}</p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs text-gray-400 xl:hidden">목적</p>
+                          <p className="truncate font-semibold text-gray-900">{row.purpose || "-"}</p>
+                          {row.notes && <p className="mt-0.5 truncate text-xs text-gray-500">요청: {row.notes}</p>}
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400 xl:hidden">신청자</p>
+                          <p className="font-semibold text-gray-900">{getReservationName(row)}</p>
+                          <p className="text-[11px] text-gray-400">신청 {formatCreatedAt(row.createdAt)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400 xl:hidden">직분</p>
+                          <p className="font-semibold text-gray-900">{getReservationPosition(row)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400 xl:hidden">연락처</p>
+                          <p className="font-semibold text-gray-900">{getReservationPhone(row)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400 xl:hidden">상태</p>
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${status.color}`}>
+                            {status.icon} {status.label}
+                          </span>
+                          {row.adminComment && <p className="mt-1 text-xs text-red-600">{row.adminComment}</p>}
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400 xl:hidden">인원</p>
+                          <p className="font-semibold text-gray-900">{row.passengers}명</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {row.status !== "approved" && (
+                            <Button
+                              size="sm"
+                              className="min-h-10 bg-green-600 text-white hover:bg-green-700 sm:min-h-0"
+                              disabled={isMutatingReservation}
+                              onClick={() => approveReservation.mutate({ id: row.id })}
+                            >
+                              승인
+                            </Button>
                           )}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="min-h-11 sm:min-h-0"
-                            disabled={isMutatingReservation}
-                            onClick={() => startReservationTimeEdit(row)}
-                          >
-                            시간 수정
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="min-h-11 border-red-200 text-red-600 hover:bg-red-50 sm:min-h-0"
-                            disabled={isMutatingReservation}
-                            onClick={() => removeReservation(row)}
-                          >
-                            <Trash2 className="mr-1 h-3.5 w-3.5" /> 삭제
-                          </Button>
+                          {row.status !== "cancelled" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="min-h-10 border-red-200 text-red-600 hover:bg-red-50 sm:min-h-0"
+                              disabled={isMutatingReservation}
+                              onClick={() => cancelVehicleReservation(row)}
+                            >
+                              취소
+                            </Button>
+                          )}
                         </div>
                       </div>
 
@@ -1307,10 +1357,16 @@ function VehicleReservationCalendarView({
   reservations,
   vehicleFilter,
   vehicles,
+  isMutatingReservation,
+  onApprove,
+  onCancel,
 }: {
   reservations: VehicleReservationRow[];
   vehicleFilter: number | undefined;
   vehicles: VehicleRow[];
+  isMutatingReservation: boolean;
+  onApprove: (row: VehicleReservationRow) => void;
+  onCancel: (row: VehicleReservationRow) => void;
 }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(() => getLocalDateKey());
@@ -1367,7 +1423,7 @@ function VehicleReservationCalendarView({
 
       {selectedVehicle && (
         <div className="mb-3 rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-xs text-green-800">
-          현재 차량 필터: {selectedVehicle.name}
+          현재 차량 필터: {getVehicleDisplayName(selectedVehicle)}
         </div>
       )}
 
@@ -1389,10 +1445,13 @@ function VehicleReservationCalendarView({
           if (!day) return <div key={`empty-${index}`} />;
           const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
           const dayReservations = reservationsByDate[dateKey] ?? [];
-          const pending = dayReservations.filter((reservation) => reservation.status === "pending").length;
-          const approved = dayReservations.filter((reservation) => reservation.status === "approved").length;
-          const rejected = dayReservations.filter((reservation) => reservation.status === "rejected").length;
-          const cancelled = dayReservations.filter((reservation) => reservation.status === "cancelled").length;
+          const groupCounts = Array.from(
+            dayReservations.reduce((map, reservation) => {
+              const label = getReservationGroupLabel(reservation);
+              map.set(label, (map.get(label) ?? 0) + 1);
+              return map;
+            }, new Map<string, number>()),
+          );
           const isToday = getLocalDateKey() === dateKey;
           const isSelected = selectedDate === dateKey;
           const isSunday = index % 7 === 0;
@@ -1416,15 +1475,17 @@ function VehicleReservationCalendarView({
               }`}>
                 {day}
               </p>
-              {pending > 0 && <CalendarBadge className="bg-amber-100 text-amber-700">대기 {pending}</CalendarBadge>}
-              {approved > 0 && <CalendarBadge className="bg-green-100 text-green-700">승인 {approved}</CalendarBadge>}
-              {rejected > 0 && <CalendarBadge className="bg-red-100 text-red-700">거절 {rejected}</CalendarBadge>}
-              {cancelled > 0 && <CalendarBadge className="bg-gray-100 text-gray-500">취소 {cancelled}</CalendarBadge>}
+              {groupCounts.slice(0, 3).map(([label, count]) => (
+                <CalendarBadge key={label} className="bg-green-50 text-green-700">
+                  {label} {count}
+                </CalendarBadge>
+              ))}
+              {groupCounts.length > 3 && <CalendarBadge className="bg-gray-100 text-gray-500">+{groupCounts.length - 3}</CalendarBadge>}
               {dayReservations.length > 0 && (
                 <div className="mt-1 hidden text-[10px] leading-4 text-gray-500 sm:block">
                   {dayReservations.slice(0, 2).map((reservation) => (
                     <p key={reservation.id} className="truncate">
-                      {reservation.startTime} {reservation.vehicleName ?? "차량"}
+                      {reservation.startTime} {getReservationPlateNumber(reservation)} {getReservationVehicleName(reservation)}
                     </p>
                   ))}
                   {dayReservations.length > 2 && <p className="text-gray-400">+{dayReservations.length - 2}건</p>}
@@ -1437,7 +1498,7 @@ function VehicleReservationCalendarView({
                     {dayReservations.map((reservation) => (
                       <div key={reservation.id} className="rounded-md border border-gray-100 bg-gray-50 px-2 py-1.5">
                         <p className="truncate text-xs font-semibold text-gray-800">
-                          {formatTimeRange(reservation.startTime, reservation.endTime)} · {reservation.vehicleName ?? "차량"}
+                          {formatTimeRange(reservation.startTime, reservation.endTime)} · {getReservationPlateNumber(reservation)} {getReservationVehicleName(reservation)}
                         </p>
                         <p className="mt-0.5 truncate text-[11px] text-gray-500">
                           {getReservationName(reservation)} · {getReservationPosition(reservation)} · {getReservationPhone(reservation)}
@@ -1453,10 +1514,7 @@ function VehicleReservationCalendarView({
       </div>
 
       <div className="mt-4 flex flex-wrap gap-4 text-xs text-gray-500">
-        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-amber-100 ring-1 ring-amber-200" />승인 대기</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-green-100 ring-1 ring-green-200" />승인 완료</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-red-100 ring-1 ring-red-200" />거절</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-gray-100 ring-1 ring-gray-200" />취소</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-green-50 ring-1 ring-green-200" />달력 칸은 직분/분류별 예약 수로 표시됩니다.</span>
       </div>
 
       <div className="mt-5 overflow-hidden rounded-xl border border-gray-200 bg-white">
@@ -1471,38 +1529,87 @@ function VehicleReservationCalendarView({
         {selectedReservations.length === 0 ? (
           <div className="px-4 py-8 text-center text-sm text-gray-400">이 날짜에는 차량 예약이 없습니다.</div>
         ) : (
-          <div className="divide-y divide-gray-100">
+          <div>
+            <div className="hidden grid-cols-[110px_120px_minmax(110px,1fr)_minmax(120px,1fr)_90px_80px_120px_90px_60px_120px] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 xl:grid">
+              <div>시간</div>
+              <div>차량번호</div>
+              <div>차량</div>
+              <div>목적</div>
+              <div>신청자</div>
+              <div>직분</div>
+              <div>연락처</div>
+              <div>상태</div>
+              <div>인원</div>
+              <div>관리</div>
+            </div>
             {selectedReservations.map((reservation) => {
               const status = STATUS_LABELS[reservation.status] ?? STATUS_LABELS.pending;
               return (
                 <div
                   key={reservation.id}
-                  className="grid gap-3 px-4 py-3 text-sm md:grid-cols-[120px_minmax(0,1fr)_150px_150px_110px] md:items-center"
+                  className="grid gap-3 border-b border-gray-100 px-4 py-3 text-sm last:border-b-0 xl:grid-cols-[110px_120px_minmax(110px,1fr)_minmax(120px,1fr)_90px_80px_120px_90px_60px_120px] xl:items-center"
                 >
                   <div>
-                    <p className="text-xs text-gray-400">시간</p>
+                    <p className="text-xs text-gray-400 xl:hidden">시간</p>
                     <p className="font-semibold text-gray-900">{formatTimeRange(reservation.startTime, reservation.endTime)}</p>
                   </div>
+                  <div>
+                    <p className="text-xs text-gray-400 xl:hidden">차량번호</p>
+                    <p className="font-extrabold text-gray-950">{getReservationPlateNumber(reservation)}</p>
+                  </div>
                   <div className="min-w-0">
-                    <p className="text-xs text-gray-400">차량 / 목적</p>
-                    <p className="truncate font-semibold text-gray-900">{reservation.vehicleName ?? "차량"} · {reservation.purpose}</p>
+                    <p className="text-xs text-gray-400 xl:hidden">차량</p>
+                    <p className="truncate font-semibold text-gray-900">{getReservationVehicleName(reservation)}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-400 xl:hidden">목적</p>
+                    <p className="truncate font-semibold text-gray-900">{reservation.purpose || "-"}</p>
                     {reservation.notes && <p className="mt-0.5 truncate text-xs text-gray-500">요청: {reservation.notes}</p>}
                   </div>
                   <div>
-                    <p className="text-xs text-gray-400">신청자 / 직분</p>
+                    <p className="text-xs text-gray-400 xl:hidden">신청자</p>
                     <p className="font-semibold text-gray-900">{getReservationName(reservation)}</p>
-                    <p className="text-xs text-gray-500">{getReservationPosition(reservation)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-400">연락처</p>
+                    <p className="text-xs text-gray-400 xl:hidden">직분</p>
+                    <p className="font-semibold text-gray-900">{getReservationPosition(reservation)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 xl:hidden">연락처</p>
                     <p className="font-semibold text-gray-900">{getReservationPhone(reservation)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-400">상태 / 인원</p>
+                    <p className="text-xs text-gray-400 xl:hidden">상태</p>
                     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${status.color}`}>
                       {status.icon} {status.label}
                     </span>
-                    <p className="mt-1 text-xs text-gray-500">{reservation.passengers}명</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 xl:hidden">인원</p>
+                    <p className="font-semibold text-gray-900">{reservation.passengers}명</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {reservation.status !== "approved" && (
+                      <Button
+                        size="sm"
+                        className="min-h-10 bg-green-600 text-white hover:bg-green-700 sm:min-h-0"
+                        disabled={isMutatingReservation}
+                        onClick={() => onApprove(reservation)}
+                      >
+                        승인
+                      </Button>
+                    )}
+                    {reservation.status !== "cancelled" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="min-h-10 border-red-200 text-red-600 hover:bg-red-50 sm:min-h-0"
+                        disabled={isMutatingReservation}
+                        onClick={() => onCancel(reservation)}
+                      >
+                        취소
+                      </Button>
+                    )}
                   </div>
                 </div>
               );

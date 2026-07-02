@@ -18,6 +18,15 @@ function getDismissStorageKey(id: number) {
   return `joych_notice_popup_dismissed_until_${id}`;
 }
 
+function getSessionClosedStorageKey(id: number) {
+  return `joych_notice_popup_closed_${id}`;
+}
+
+function isSessionClosed(popup: Popup) {
+  if (typeof window === "undefined") return false;
+  return window.sessionStorage.getItem(getSessionClosedStorageKey(popup.id)) === "1";
+}
+
 function isDismissed(popup: Popup) {
   if (typeof window === "undefined") return false;
   const value = window.localStorage.getItem(getDismissStorageKey(popup.id));
@@ -71,7 +80,7 @@ export default function NoticePopupLayer() {
 
   const visiblePopups = useMemo(() => {
     if (isAdminRoute) return [];
-    return popups.filter((popup) => !closedIds.includes(popup.id) && !isDismissed(popup));
+    return popups.filter((popup) => !closedIds.includes(popup.id) && !isSessionClosed(popup) && !isDismissed(popup));
   }, [closedIds, isAdminRoute, popups]);
 
   const modalPopups = visiblePopups;
@@ -99,6 +108,9 @@ export default function NoticePopupLayer() {
   }
 
   const closePopup = (popupId: number) => {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(getSessionClosedStorageKey(popupId), "1");
+    }
     setClosedIds((prev) => (prev.includes(popupId) ? prev : [...prev, popupId]));
   };
 
