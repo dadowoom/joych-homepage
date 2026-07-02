@@ -30,6 +30,10 @@ export class VehicleReservationLockError extends Error {
   }
 }
 
+type InsertVehicleReservationData = Omit<InsertVehicleReservation, "id" | "createdAt" | "updatedAt" | "userId"> & {
+  userId: number | null;
+};
+
 type MemberLike = {
   status?: string | null;
   position?: string | null;
@@ -341,15 +345,15 @@ export async function getAdminVehicleReservationDetailsByDate(vehicleId: number,
     .orderBy(asc(vehicleReservations.startTime), asc(vehicleReservations.id));
 }
 
-export async function createVehicleReservation(data: Omit<InsertVehicleReservation, "id" | "createdAt" | "updatedAt">) {
+export async function createVehicleReservation(data: InsertVehicleReservationData) {
   const db = await getDb();
   if (!db) return null;
-  const [result] = await db.insert(vehicleReservations).values(data).$returningId();
+  const [result] = await db.insert(vehicleReservations).values(data as InsertVehicleReservation).$returningId();
   return result?.id ?? null;
 }
 
 export async function createVehicleReservationIfAvailable(
-  data: Omit<InsertVehicleReservation, "id" | "createdAt" | "updatedAt">
+  data: InsertVehicleReservationData
 ) {
   const db = await getDb();
   if (!db) return null;
@@ -384,7 +388,7 @@ export async function createVehicleReservationIfAvailable(
         throw new VehicleReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime);
       }
 
-      const [result] = await tx.insert(vehicleReservations).values(data).$returningId();
+      const [result] = await tx.insert(vehicleReservations).values(data as InsertVehicleReservation).$returningId();
       return result?.id ?? null;
     } finally {
       await tx.execute(sql`SELECT RELEASE_LOCK(${lockKey})`);

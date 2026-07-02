@@ -101,6 +101,7 @@ export async function getMemberAdminPermissionAssignments(searchTerm = "") {
   const permissionKeysByUserId = new Map<number, string[]>();
   const activePermissionKeys = getActiveAdminPermissionKeySet();
   for (const permission of permissionRows) {
+    if (permission.userId === null) continue;
     if (!activePermissionKeys.has(permission.permissionKey)) continue;
     const list = permissionKeysByUserId.get(permission.userId) ?? [];
     list.push(permission.permissionKey);

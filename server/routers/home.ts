@@ -1244,7 +1244,7 @@ export const homeRouter = router({
       return getAdminVehicleReservationDetailsByDate(input.vehicleId, input.date);
     }),
 
-  createVehicleReservation: memberProtectedProcedure
+  createVehicleReservation: publicProcedure
     .input(z.object({
       vehicleId: idSchema,
       reserverName: z.string().min(1, "예약자 이름을 입력해주세요."),
@@ -1258,11 +1258,14 @@ export const homeRouter = router({
       notes: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const member = await getMemberById(ctx.memberId);
       const canManageVehicleReservations = hasAdminContentPermission(ctx.user, "content:vehicles");
+      if (!ctx.memberId && !canManageVehicleReservations) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "로그인이 필요합니다." });
+      }
+      const member = ctx.memberId ? await getMemberById(ctx.memberId) : null;
       const canUseVehicleReservation =
         canManageVehicleReservations ||
-        await canMemberUseVehicleReservation(member);
+        (member ? await canMemberUseVehicleReservation(member) : false);
       if (!canUseVehicleReservation) {
         throw new TRPCError({
           code: "FORBIDDEN",
@@ -1320,7 +1323,7 @@ export const homeRouter = router({
       try {
         const id = await createVehicleReservationIfAvailable({
           ...input,
-          userId: ctx.memberId,
+          userId: ctx.memberId ?? null,
           status,
         });
         if (!id) {

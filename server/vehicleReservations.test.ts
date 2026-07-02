@@ -346,6 +346,27 @@ describe("vehicle reservations", () => {
     );
   });
 
+  it("lets vehicle admins create reservations without a member login session", async () => {
+    dbMocks.canMemberUseVehicleReservation.mockResolvedValue(false);
+    const caller = appRouter.createCaller(createContext(createAdminUser(), false));
+
+    await expect(caller.home.createVehicleReservation(vehicleReservationInput({
+      reserverName: "Vehicle Admin",
+      reserverPhone: "",
+    }))).resolves.toMatchObject({
+      id: 200,
+      status: "approved",
+    });
+    expect(dbMocks.canMemberUseVehicleReservation).not.toHaveBeenCalled();
+    expect(dbMocks.createVehicleReservationIfAvailable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        vehicleId: 1,
+        userId: null,
+        status: "approved",
+      }),
+    );
+  });
+
   it("lets vehicle managers update reservation time", async () => {
     const caller = appRouter.createCaller(createContext(createAdminUser(), false));
 

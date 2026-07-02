@@ -30,7 +30,7 @@ export type InsertUser = typeof users.$inferInsert;
 
 export const adminContentPermissions = mysqlTable("admin_content_permissions", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("user_id").notNull(),
+  userId: int("user_id"),
   permissionKey: varchar("permission_key", { length: 128 }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),

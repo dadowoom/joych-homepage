@@ -7,11 +7,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/_core/hooks/useAuth";
 import ReservationTimelinePicker from "@/components/facility/ReservationTimelinePicker";
 import ReservationConflictDialog, {
   isReservationConflictMessage,
 } from "@/components/facility/ReservationConflictDialog";
 import { generateReservationTimePoints } from "@/lib/facilitySlotSelection";
+import { hasContentPermission } from "@/lib/contentPermissions";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -757,6 +759,8 @@ export function VehicleReservationApply() {
   const vehicleId = Number(params.id);
   const [, navigate] = useLocation();
   const searchString = useSearch();
+  const { user: adminUser } = useAuth();
+  const canManageVehicleReservations = hasContentPermission(adminUser, "content:vehicles");
   const initialSearchParams = useMemo(() => new URLSearchParams(searchString), [searchString]);
   const vehicleDetailHref = `/support/vehicle/${vehicleId}`;
   const [form, setForm] = useState({
@@ -780,13 +784,13 @@ export function VehicleReservationApply() {
 
   // 로그인한 성도 정보가 늦게 도착해도 신청자 이름/연락처를 자동으로 채웁니다.
   useEffect(() => {
-    if (!memberMe) return;
+    if (!memberMe && !canManageVehicleReservations) return;
     setForm(prev => ({
       ...prev,
-      reserverName: prev.reserverName || memberMe.name || "",
-      reserverPhone: prev.reserverPhone || memberMe.phone || "",
+      reserverName: prev.reserverName || memberMe?.name || adminUser?.name || "",
+      reserverPhone: prev.reserverPhone || memberMe?.phone || "",
     }));
-  }, [memberMe]);
+  }, [adminUser?.name, canManageVehicleReservations, memberMe]);
 
   const { data: vehicle, isLoading, error } = trpc.home.vehicle.useQuery(
     { id: vehicleId },
@@ -865,7 +869,7 @@ export function VehicleReservationApply() {
 
   function validate() {
     if (!vehicleRow) return "차량 정보를 찾을 수 없습니다.";
-    if (!memberMe) return "성도 로그인 후 신청할 수 있습니다.";
+    if (!memberMe && !canManageVehicleReservations) return "성도 로그인 후 신청할 수 있습니다.";
     if (!form.reserverName.trim()) return "신청자 이름을 입력해주세요.";
     if (!form.reserverPhone.trim()) return "연락처를 입력해주세요.";
     if (!form.purpose) return "사용 목적을 선택해주세요.";
@@ -970,7 +974,7 @@ export function VehicleReservationApply() {
                   </Link>
                 </div>
 
-                {!memberMe && (
+                {!memberMe && !canManageVehicleReservations && (
                   <div className="mb-6 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
                     <AlertCircle className="h-5 w-5 shrink-0 text-amber-500" />
                     <div className="flex-1">
