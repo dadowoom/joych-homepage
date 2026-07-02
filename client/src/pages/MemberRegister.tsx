@@ -11,6 +11,11 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import BirthDateInput, { isCompleteBirthDate } from "@/components/BirthDateInput";
 import MemberSocialAuthButtons from "@/components/MemberSocialAuthButtons";
+import {
+  MEMBER_REGISTER_FIELD_CONFIG_KEY,
+  parseMemberRegisterFieldConfig,
+  type MemberRegisterFieldKey,
+} from "@shared/memberRegisterFields";
 
 const PASSWORD_HAS_LETTER = /[A-Za-z]/;
 const PASSWORD_HAS_NUMBER = /\d/;
@@ -52,6 +57,9 @@ export default function MemberRegister() {
   const { data: settings } = trpc.home.settings.useQuery();
   const guideTitle = settings?.[MEMBER_REGISTER_GUIDE_TITLE_KEY] || DEFAULT_MEMBER_REGISTER_GUIDE_TITLE;
   const guideText = settings?.[MEMBER_REGISTER_GUIDE_TEXT_KEY] || DEFAULT_MEMBER_REGISTER_GUIDE_TEXT;
+  const fieldConfig = parseMemberRegisterFieldConfig(settings?.[MEMBER_REGISTER_FIELD_CONFIG_KEY]);
+  const isFieldVisible = (field: MemberRegisterFieldKey) => fieldConfig[field].visible;
+  const isFieldRequired = (field: MemberRegisterFieldKey) => fieldConfig[field].visible && fieldConfig[field].required;
 
   // 회원가입 뮤테이션
   const registerMutation = trpc.members.register.useMutation({
@@ -86,10 +94,24 @@ export default function MemberRegister() {
       newErrors.password = "비밀번호는 영문과 숫자를 모두 포함해야 합니다.";
     }
     if (form.password !== form.passwordConfirm) newErrors.passwordConfirm = "비밀번호가 일치하지 않습니다.";
-    if (!form.phone.trim()) newErrors.phone = "연락처를 입력해주세요.";
+    if (isFieldRequired("phone") && !form.phone.trim()) newErrors.phone = "연락처를 입력해주세요.";
     if (form.birthDate && !isCompleteBirthDate(form.birthDate)) {
       newErrors.birthDate = "생년월일은 YYYY-MM-DD 형식으로 입력해주세요.";
     }
+    if (isFieldRequired("birthDate") && !form.birthDate) newErrors.birthDate = "생년월일을 입력해주세요.";
+    if (isFieldRequired("gender") && !form.gender) newErrors.gender = "성별을 선택해주세요.";
+    if (isFieldRequired("address") && !form.address.trim()) newErrors.address = "주소를 입력해주세요.";
+    if (isFieldRequired("emergencyPhone") && !form.emergencyPhone.trim()) newErrors.emergencyPhone = "비상연락처를 입력해주세요.";
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const validateStep2 = () => {
+    const newErrors: Record<string, string> = {};
+    if (isFieldRequired("department") && !form.department.trim()) newErrors.department = "소속 부서를 선택해주세요.";
+    if (isFieldRequired("district") && !form.district.trim()) newErrors.district = "구역/순을 선택해주세요.";
+    if (isFieldRequired("faithPlusUserId") && !form.faithPlusUserId.trim()) newErrors.faithPlusUserId = "믿음PLUS 사용자 ID를 입력해주세요.";
+    if (isFieldRequired("joinPath") && !form.joinPath.trim()) newErrors.joinPath = "가입 경로를 선택해주세요.";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -99,6 +121,7 @@ export default function MemberRegister() {
   };
 
   const handleSubmit = () => {
+    if (!validateStep2()) return;
     if (!form.agreePrivacy) {
       toast.error("개인정보 수집 및 이용에 동의해주세요.");
       return;
@@ -107,15 +130,15 @@ export default function MemberRegister() {
       name: form.name,
       email: form.email,
       password: form.password,
-      phone: form.phone,
-      birthDate: form.birthDate || undefined,
-      gender: (form.gender as "남" | "여") || undefined,
-      address: form.address || undefined,
-      emergencyPhone: form.emergencyPhone || undefined,
-      joinPath: form.joinPath || undefined,
-      department: form.department || undefined,
-      district: form.district || undefined,
-      faithPlusUserId: form.faithPlusUserId || undefined,
+      phone: isFieldVisible("phone") ? form.phone : undefined,
+      birthDate: isFieldVisible("birthDate") ? form.birthDate || undefined : undefined,
+      gender: isFieldVisible("gender") ? (form.gender as "남" | "여") || undefined : undefined,
+      address: isFieldVisible("address") ? form.address || undefined : undefined,
+      emergencyPhone: isFieldVisible("emergencyPhone") ? form.emergencyPhone || undefined : undefined,
+      joinPath: isFieldVisible("joinPath") ? form.joinPath || undefined : undefined,
+      department: isFieldVisible("department") ? form.department || undefined : undefined,
+      district: isFieldVisible("district") ? form.district || undefined : undefined,
+      faithPlusUserId: isFieldVisible("faithPlusUserId") ? form.faithPlusUserId || undefined : undefined,
     });
   };
 
@@ -259,9 +282,10 @@ export default function MemberRegister() {
               </div>
 
               {/* 연락처 */}
+              {isFieldVisible("phone") && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  연락처 <span className="text-red-500">*</span>
+                  연락처 {isFieldRequired("phone") && <span className="text-red-500">*</span>}
                 </label>
                 <input
                   type="tel"
@@ -277,11 +301,16 @@ export default function MemberRegister() {
                 />
                 {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
               </div>
+              )}
 
               {/* 생년월일 + 성별 */}
+              {(isFieldVisible("birthDate") || isFieldVisible("gender")) && (
               <div className="grid grid-cols-2 gap-3">
+                {isFieldVisible("birthDate") && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">생년월일</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    생년월일 {isFieldRequired("birthDate") && <span className="text-red-500">*</span>}
+                  </label>
                   <BirthDateInput
                     value={form.birthDate}
                     onChange={(value) => update("birthDate", value)}
@@ -292,8 +321,12 @@ export default function MemberRegister() {
                   />
                   {errors.birthDate && <p className="text-xs text-red-500 mt-1">{errors.birthDate}</p>}
                 </div>
+                )}
+                {isFieldVisible("gender") && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">성별</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    성별 {isFieldRequired("gender") && <span className="text-red-500">*</span>}
+                  </label>
                   <div className="flex gap-2 mt-1">
                     {(["남", "여"] as const).map((g) => (
                       <button
@@ -310,8 +343,51 @@ export default function MemberRegister() {
                       </button>
                     ))}
                   </div>
+                  {errors.gender && <p className="text-xs text-red-500 mt-1">{errors.gender}</p>}
                 </div>
+                )}
               </div>
+              )}
+
+              {isFieldVisible("address") && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    주소 {isFieldRequired("address") && <span className="text-red-500">*</span>}
+                  </label>
+                  <input
+                    type="text"
+                    autoComplete="street-address"
+                    maxLength={255}
+                    value={form.address}
+                    onChange={(e) => update("address", e.target.value)}
+                    placeholder="주소를 입력해주세요"
+                    className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30 ${
+                      errors.address ? "border-red-400" : "border-gray-300"
+                    }`}
+                  />
+                  {errors.address && <p className="text-xs text-red-500 mt-1">{errors.address}</p>}
+                </div>
+              )}
+
+              {isFieldVisible("emergencyPhone") && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    비상연락처 {isFieldRequired("emergencyPhone") && <span className="text-red-500">*</span>}
+                  </label>
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    maxLength={32}
+                    value={form.emergencyPhone}
+                    onChange={(e) => update("emergencyPhone", e.target.value)}
+                    placeholder="010-0000-0000"
+                    className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30 ${
+                      errors.emergencyPhone ? "border-red-400" : "border-gray-300"
+                    }`}
+                  />
+                  {errors.emergencyPhone && <p className="text-xs text-red-500 mt-1">{errors.emergencyPhone}</p>}
+                </div>
+              )}
 
               <button
                 onClick={handleNext}
@@ -329,8 +405,11 @@ export default function MemberRegister() {
               </p>
 
               {/* 소속 부서 */}
+              {isFieldVisible("department") && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">소속 부서</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  소속 부서 {isFieldRequired("department") && <span className="text-red-500">*</span>}
+                </label>
                 {deptOptions.length > 0 ? (
                   <select
                     value={form.department}
@@ -345,11 +424,16 @@ export default function MemberRegister() {
                 ) : (
                   <p className="text-sm text-gray-400 py-2">등록된 부서가 없습니다. 관리자에게 문의하세요.</p>
                 )}
+                {errors.department && <p className="text-xs text-red-500 mt-1">{errors.department}</p>}
               </div>
+              )}
 
               {/* 구역/순 */}
+              {isFieldVisible("district") && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">구역 / 순</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  구역 / 순 {isFieldRequired("district") && <span className="text-red-500">*</span>}
+                </label>
                 {districtOptions.length > 0 ? (
                   <select
                     value={form.district}
@@ -364,13 +448,15 @@ export default function MemberRegister() {
                 ) : (
                   <p className="text-sm text-gray-400 py-2">등록된 구역이 없습니다. 관리자에게 문의하세요.</p>
                 )}
+                {errors.district && <p className="text-xs text-red-500 mt-1">{errors.district}</p>}
               </div>
+              )}
 
               {/* 믿음PLUS 유저 ID */}
+              {isFieldVisible("faithPlusUserId") && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  믿음PLUS 유저 ID
-                  <span className="ml-1 text-xs text-gray-400 font-normal">(선택사항)</span>
+                  믿음PLUS 사용자 ID {isFieldRequired("faithPlusUserId") && <span className="text-red-500">*</span>}
                 </label>
                 <input
                   type="text"
@@ -383,11 +469,16 @@ export default function MemberRegister() {
                 <p className="text-xs text-gray-400 mt-1">
                   믿음PLUS 앱을 사용하신다면 입력해주세요. 나중에 마이페이지에서도 입력하실 수 있습니다.
                 </p>
+                {errors.faithPlusUserId && <p className="text-xs text-red-500 mt-1">{errors.faithPlusUserId}</p>}
               </div>
+              )}
 
               {/* 가입 경로 */}
+              {isFieldVisible("joinPath") && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">가입 경로</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  가입 경로 {isFieldRequired("joinPath") && <span className="text-red-500">*</span>}
+                </label>
                 <select
                   value={form.joinPath}
                   onChange={(e) => update("joinPath", e.target.value)}
@@ -400,7 +491,9 @@ export default function MemberRegister() {
                   <option value="현수막/전단지">현수막 / 전단지</option>
                   <option value="기타">기타</option>
                 </select>
+                {errors.joinPath && <p className="text-xs text-red-500 mt-1">{errors.joinPath}</p>}
               </div>
+              )}
 
               {/* 개인정보 동의 */}
               <div className="bg-gray-50 rounded-lg p-4 mt-2">

@@ -28,6 +28,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, GripVertical, ChevronUp, ChevronDown } from "lucide-react";
+import {
+  DEFAULT_MEMBER_REGISTER_FIELD_CONFIG,
+  FIXED_MEMBER_REGISTER_FIELDS,
+  MEMBER_REGISTER_FIELD_CONFIG_KEY,
+  MEMBER_REGISTER_FIELD_DEFINITIONS,
+  parseMemberRegisterFieldConfig,
+  type MemberRegisterFieldConfig,
+  type MemberRegisterFieldKey,
+} from "@shared/memberRegisterFields";
 
 type FieldType = "position" | "department" | "district" | "baptism";
 
@@ -160,6 +169,7 @@ export default function AdminMemberOptionsTab() {
   const [localOrder, setLocalOrder] = useState<MemberFieldOptionRow[] | null>(null);
   const [guideTitle, setGuideTitle] = useState(DEFAULT_MEMBER_REGISTER_GUIDE_TITLE);
   const [guideText, setGuideText] = useState(DEFAULT_MEMBER_REGISTER_GUIDE_TEXT);
+  const [fieldConfig, setFieldConfig] = useState<MemberRegisterFieldConfig>(DEFAULT_MEMBER_REGISTER_FIELD_CONFIG);
 
   const utils = trpc.useUtils();
 
@@ -171,6 +181,7 @@ export default function AdminMemberOptionsTab() {
     if (!settings) return;
     setGuideTitle(settings[MEMBER_REGISTER_GUIDE_TITLE_KEY] || DEFAULT_MEMBER_REGISTER_GUIDE_TITLE);
     setGuideText(settings[MEMBER_REGISTER_GUIDE_TEXT_KEY] || DEFAULT_MEMBER_REGISTER_GUIDE_TEXT);
+    setFieldConfig(parseMemberRegisterFieldConfig(settings[MEMBER_REGISTER_FIELD_CONFIG_KEY]));
   }, [settings]);
 
   // 현재 탭의 선택지만 필터링
@@ -239,6 +250,25 @@ export default function AdminMemberOptionsTab() {
     await updateSettingMutation.mutateAsync({
       key: MEMBER_REGISTER_GUIDE_TEXT_KEY,
       value: guideText.trim() || DEFAULT_MEMBER_REGISTER_GUIDE_TEXT,
+    });
+  };
+
+  const updateRegisterField = (
+    key: MemberRegisterFieldKey,
+    patch: Partial<{ visible: boolean; required: boolean }>,
+  ) => {
+    setFieldConfig((previous) => {
+      const next = { ...previous, [key]: { ...previous[key], ...patch } };
+      if (patch.visible === false) next[key] = { ...next[key], required: false };
+      if (patch.required === true) next[key] = { ...next[key], visible: true };
+      return next;
+    });
+  };
+
+  const handleSaveFieldConfig = () => {
+    updateSettingMutation.mutate({
+      key: MEMBER_REGISTER_FIELD_CONFIG_KEY,
+      value: JSON.stringify(fieldConfig),
     });
   };
 
@@ -336,6 +366,77 @@ export default function AdminMemberOptionsTab() {
               className="bg-[#1B5E20] hover:bg-[#154a18]"
             >
               저장
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">가입 입력 항목 설정</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <p className="mb-2 text-xs font-semibold text-gray-600">고정 필수 항목</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {FIXED_MEMBER_REGISTER_FIELDS.map((field) => (
+                <div key={field.label} className="rounded-md border border-gray-200 bg-white px-3 py-2">
+                  <p className="text-sm font-semibold text-gray-800">{field.label}</p>
+                  <p className="mt-0.5 text-xs text-gray-500">{field.description}</p>
+                  <p className="mt-1 text-[11px] font-semibold text-[#1B5E20]">표시/필수 고정</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-gray-200">
+            <div className="grid grid-cols-[1fr_88px_88px] bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-500">
+              <span>항목</span>
+              <span className="text-center">표시</span>
+              <span className="text-center">필수</span>
+            </div>
+            {MEMBER_REGISTER_FIELD_DEFINITIONS.map((field) => {
+              const setting = fieldConfig[field.key];
+              return (
+                <div key={field.key} className="grid grid-cols-[1fr_88px_88px] items-center border-t border-gray-100 px-3 py-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-semibold text-gray-800">{field.label}</p>
+                      <Badge variant="secondary" className="text-[11px]">
+                        {field.section === "basic" ? "기본 정보" : "교회 정보"}
+                      </Badge>
+                    </div>
+                    <p className="mt-0.5 text-xs text-gray-500">{field.description}</p>
+                  </div>
+                  <label className="flex justify-center">
+                    <input
+                      type="checkbox"
+                      checked={setting.visible}
+                      onChange={(event) => updateRegisterField(field.key, { visible: event.target.checked })}
+                      className="h-4 w-4 accent-[#1B5E20]"
+                    />
+                  </label>
+                  <label className="flex justify-center">
+                    <input
+                      type="checkbox"
+                      checked={setting.required}
+                      disabled={!setting.visible}
+                      onChange={(event) => updateRegisterField(field.key, { required: event.target.checked })}
+                      className="h-4 w-4 accent-[#1B5E20] disabled:opacity-40"
+                    />
+                  </label>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex justify-end">
+            <Button
+              onClick={handleSaveFieldConfig}
+              disabled={updateSettingMutation.isPending}
+              className="bg-[#1B5E20] hover:bg-[#154a18]"
+            >
+              양식 항목 저장
             </Button>
           </div>
         </CardContent>

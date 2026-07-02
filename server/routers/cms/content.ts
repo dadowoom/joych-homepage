@@ -88,6 +88,7 @@ const SETTING_KEYS = [
   "home_hero_common_buttons",
   "member_register_guide_title",
   "member_register_guide_text",
+  "member_register_field_config",
 ] as const;
 
 const iconClassSchema = z.string()

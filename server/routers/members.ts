@@ -40,6 +40,12 @@ import {
   requiredText,
 } from "../_core/memberValidation";
 import {
+  MEMBER_REGISTER_FIELD_CONFIG_KEY,
+  MEMBER_REGISTER_FIELD_DEFINITIONS,
+  parseMemberRegisterFieldConfig,
+  type MemberRegisterFieldKey,
+} from "@shared/memberRegisterFields";
+import {
   getMemberFieldOptions,
   getAllMemberFieldOptions,
   createMemberFieldOption,
@@ -59,6 +65,7 @@ import {
   searchMembersByName,
   setMemberDistrictAssignments,
   withdrawMemberAndErasePersonalData,
+  getSiteSetting,
 } from "../db";
 
 const idSchema = z.number().int().positive();
@@ -67,6 +74,42 @@ const editableChurchDate = z.string()
   .trim()
   .refine((value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value), "날짜 형식은 YYYY-MM-DD여야 합니다.")
   .optional();
+
+type RegisterInputWithConfigurableFields = z.infer<typeof memberRegisterInputSchema>;
+
+function getRegisterFieldValue(input: RegisterInputWithConfigurableFields, key: MemberRegisterFieldKey) {
+  return input[key];
+}
+
+async function getRegisterFieldConfig() {
+  const row = await getSiteSetting(MEMBER_REGISTER_FIELD_CONFIG_KEY);
+  return parseMemberRegisterFieldConfig(row?.settingValue);
+}
+
+function assertRequiredRegisterFields(
+  input: RegisterInputWithConfigurableFields,
+  config: Awaited<ReturnType<typeof getRegisterFieldConfig>>,
+) {
+  for (const field of MEMBER_REGISTER_FIELD_DEFINITIONS) {
+    const setting = config[field.key];
+    if (!setting.visible || !setting.required) continue;
+    const value = getRegisterFieldValue(input, field.key);
+    if (typeof value !== "string" || !value.trim()) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `${field.label} 항목을 입력해주세요.`,
+      });
+    }
+  }
+}
+
+function visibleRegisterValue(
+  input: RegisterInputWithConfigurableFields,
+  config: Awaited<ReturnType<typeof getRegisterFieldConfig>>,
+  key: MemberRegisterFieldKey,
+) {
+  return config[key].visible ? getRegisterFieldValue(input, key) : undefined;
+}
 
 function sanitizeMemberForSelf<T extends Record<string, unknown>>(member: T) {
   const { passwordHash: _passwordHash, adminMemo: _adminMemo, ...safeData } = member;
@@ -137,6 +180,9 @@ export const membersRouter = router({
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: msg });
       }
 
+      const fieldConfig = await getRegisterFieldConfig();
+      assertRequiredRegisterFields(input, fieldConfig);
+
       const bcrypt = await import("bcryptjs");
 
       // 이메일 중복 확인
@@ -152,15 +198,15 @@ export const membersRouter = router({
         email: input.email,
         passwordHash,
         name: input.name,
-        phone: input.phone,
-        birthDate: input.birthDate,
-        gender: input.gender,
-        address: input.address,
-        emergencyPhone: input.emergencyPhone,
-        joinPath: input.joinPath,
-        department: input.department,
-        district: input.district,
-        faithPlusUserId: input.faithPlusUserId,
+        phone: visibleRegisterValue(input, fieldConfig, "phone"),
+        birthDate: visibleRegisterValue(input, fieldConfig, "birthDate"),
+        gender: visibleRegisterValue(input, fieldConfig, "gender"),
+        address: visibleRegisterValue(input, fieldConfig, "address"),
+        emergencyPhone: visibleRegisterValue(input, fieldConfig, "emergencyPhone"),
+        joinPath: visibleRegisterValue(input, fieldConfig, "joinPath"),
+        department: visibleRegisterValue(input, fieldConfig, "department"),
+        district: visibleRegisterValue(input, fieldConfig, "district"),
+        faithPlusUserId: visibleRegisterValue(input, fieldConfig, "faithPlusUserId"),
       });
 
       ctx.res.clearCookie(MEMBER_SESSION_COOKIE, {

@@ -9,7 +9,7 @@ const validSignupInput = {
 };
 
 describe("member registration validation", () => {
-  it("정상 회원가입 입력은 이메일을 소문자로 정규화", () => {
+  it("정상 회원가입 입력은 이메일을 소문자로 정규화한다", () => {
     const result = memberRegisterInputSchema.safeParse(validSignupInput);
 
     expect(result.success).toBe(true);
@@ -18,13 +18,13 @@ describe("member registration validation", () => {
     }
   });
 
-  it("회원가입 연락처는 서버에서도 필수로 검증", () => {
+  it("연락처 필수 여부는 회원가입 양식 설정 검증에서 처리한다", () => {
     const { phone: _phone, ...withoutPhone } = validSignupInput;
 
-    expect(memberRegisterInputSchema.safeParse(withoutPhone).success).toBe(false);
+    expect(memberRegisterInputSchema.safeParse(withoutPhone).success).toBe(true);
   });
 
-  it("비밀번호는 영문과 숫자를 모두 포함해야 함", () => {
+  it("비밀번호는 영문과 숫자를 모두 포함해야 한다", () => {
     expect(memberRegisterInputSchema.safeParse({
       ...validSignupInput,
       password: "joyfulchurch",
@@ -36,7 +36,7 @@ describe("member registration validation", () => {
     }).success).toBe(false);
   });
 
-  it("DB 컬럼 길이를 넘는 이메일은 회원가입 전에 차단", () => {
+  it("DB 컬럼 길이를 넘는 이메일은 회원가입 전에 차단한다", () => {
     const longEmail = `${"a".repeat(120)}@example.com`;
 
     expect(memberRegisterInputSchema.safeParse({

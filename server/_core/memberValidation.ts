@@ -28,7 +28,7 @@ export const memberRegisterInputSchema = z.object({
   email: memberEmailSchema,
   password: memberPasswordSchema,
   name: requiredText(64, "이름을 입력해주세요."),
-  phone: requiredText(32, "연락처를 입력해주세요."),
+  phone: optionalText(32),
   birthDate: optionalDate,
   gender: z.enum(["남", "여"]).optional(),
   address: optionalText(255),
