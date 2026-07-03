@@ -1330,6 +1330,50 @@ try {
 NODE
 fi
 
+MIGRATION_0067="${APP_DIR}/drizzle/0067_notice_multi_attachments.sql"
+if [[ -f "${MIGRATION_0067}" ]]; then
+  echo "[deploy] database migration: notice multi attachments"
+  node --input-type=module <<'NODE'
+import fs from "node:fs/promises";
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required for migration 0067.");
+}
+
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  const [rows] = await connection.execute(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    ["0067_notice_multi_attachments"],
+  );
+  if (Array.isArray(rows) && rows.length > 0) {
+    console.log("[deploy] migration 0067 already applied");
+  } else {
+    const sql = await fs.readFile("drizzle/0067_notice_multi_attachments.sql", "utf8");
+    const statements = sql.split(/;\s*(?:\r?\n|$)/).map((statement) => statement.trim()).filter(Boolean);
+    for (const statement of statements) {
+      await connection.query(statement);
+    }
+    await connection.execute(
+      "INSERT INTO app_migrations (id) VALUES (?)",
+      ["0067_notice_multi_attachments"],
+    );
+    console.log("[deploy] migration 0067 applied");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+fi
+
 MIGRATION_0068="${APP_DIR}/drizzle/0068_facility_contact_text.sql"
 if [[ -f "${MIGRATION_0068}" ]]; then
   echo "[deploy] database migration: facility contact text"
