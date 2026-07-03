@@ -16,9 +16,6 @@ import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import MemberEditModal from "./MemberEditModal";
-import {
-  hasFacilityReservationBlockedMemberMarker,
-} from "@shared/facilityReservationEligibility";
 
 type StatusFilter = "all" | "pending" | "approved" | "rejected" | "withdrawn";
 type ViewMode = "position" | "list" | "district" | "department";
@@ -41,13 +38,6 @@ const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 type PageSize = typeof PAGE_SIZE_OPTIONS[number];
 
 type Member = inferRouterOutputs<AppRouter>["members"]["adminList"][number];
-
-function getFacilityReservationBadge(member: Member) {
-  if (hasFacilityReservationBlockedMemberMarker(member)) {
-    return { text: "예약제한", color: "bg-gray-100 text-gray-500" };
-  }
-  return { text: "일반예약", color: "bg-emerald-100 text-emerald-700" };
-}
 
 export default function AdminMembersTab() {
   const utils = trpc.useUtils();
@@ -442,7 +432,6 @@ export default function AdminMembersTab() {
               <tbody className="divide-y divide-gray-100">
                 {paginated.map((member, index) => {
                   const status = STATUS_LABELS[member.status ?? "pending"] ?? STATUS_LABELS.pending;
-                  const facilityReservationBadge = getFacilityReservationBadge(member);
                   return (
                     <tr key={member.id} className="hover:bg-gray-50">
                       <td className="px-4 py-2 text-xs text-gray-400">
@@ -451,13 +440,10 @@ export default function AdminMembersTab() {
                       <td className="px-4 py-2">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-gray-800">{member.name}</span>
+                          {member.position && <span className="text-xs text-[#1B5E20] font-medium">{member.position}</span>}
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>
                             {status.text}
                           </span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${facilityReservationBadge.color}`}>
-                            {facilityReservationBadge.text}
-                          </span>
-                          {member.position && <span className="text-xs text-[#1B5E20] font-medium">{member.position}</span>}
                         </div>
                       </td>
                       <td className="px-4 py-2 text-gray-600">
@@ -484,20 +470,16 @@ export default function AdminMembersTab() {
           <div className="md:hidden space-y-2">
             {paginated.map((member) => {
               const status = STATUS_LABELS[member.status ?? "pending"] ?? STATUS_LABELS.pending;
-              const facilityReservationBadge = getFacilityReservationBadge(member);
               return (
                 <div key={member.id} className="border border-gray-200 rounded-xl overflow-hidden">
                   <div className="px-4 py-3 bg-gray-50 space-y-3">
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-gray-800 text-sm">{member.name}</span>
+                        {member.position && <span className="text-xs text-[#1B5E20] font-medium">{member.position}</span>}
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>
                           {status.text}
                         </span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${facilityReservationBadge.color}`}>
-                          {facilityReservationBadge.text}
-                        </span>
-                        {member.position && <span className="text-xs text-[#1B5E20] font-medium">{member.position}</span>}
                       </div>
                       <p className="text-xs text-gray-500 mt-0.5 break-all">
                         {member.phone ?? member.email ?? "-"}
@@ -525,7 +507,6 @@ export default function AdminMembersTab() {
               </div>
               {group.members.map((member) => {
                 const status = STATUS_LABELS[member.status ?? "pending"] ?? STATUS_LABELS.pending;
-                const facilityReservationBadge = getFacilityReservationBadge(member);
                 return (
                   <div key={member.id} className="border border-gray-200 rounded-xl overflow-hidden">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 bg-gray-50">
@@ -536,15 +517,12 @@ export default function AdminMembersTab() {
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-semibold text-gray-800 text-sm">{member.name}</span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>
-                              {status.text}
-                            </span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${facilityReservationBadge.color}`}>
-                              {facilityReservationBadge.text}
-                            </span>
                             {member.position && (
                               <span className="text-xs text-[#1B5E20] font-medium">{member.position}</span>
                             )}
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>
+                              {status.text}
+                            </span>
                             {member.district && (
                               <span className="text-xs text-gray-400">{member.district}</span>
                             )}
