@@ -21,7 +21,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Link, useLocation } from "wouter";
 import type { RouteComponentProps } from "wouter";
-import { ArrowLeft, CalendarDays, ChevronRight, Bus, BookOpen, GripVertical, Heart, Image as ImageIcon, Mail, Palette, Pencil, Phone, Plus, UserRound } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronRight, Bus, BookOpen, Eye, EyeOff, GripVertical, Heart, Image as ImageIcon, Mail, Palette, Pencil, Phone, Plus, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -536,11 +536,13 @@ function SortablePastorBookCard({
   isOrdering,
   onEdit,
   onDelete,
+  onToggleVisibility,
 }: {
   book: PastorBookPublicItem;
   isOrdering: boolean;
   onEdit: (book: PastorBookPublicItem) => void;
   onDelete: (book: PastorBookPublicItem) => void;
+  onToggleVisibility: (book: PastorBookPublicItem) => void;
 }) {
   const {
     attributes,
@@ -562,8 +564,16 @@ function SortablePastorBookCard({
     <article
       ref={setNodeRef}
       style={style}
-      className="group relative border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md"
+      className={`group relative border bg-white p-4 transition-shadow hover:shadow-md ${
+        book.isVisible ? "border-gray-200" : "border-gray-300 opacity-75"
+      }`}
     >
+      {!book.isVisible && (
+        <div className="absolute left-14 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-gray-900/85 px-2.5 py-1 text-[11px] font-semibold text-white">
+          <EyeOff className="h-3 w-3" />
+          숨김
+        </div>
+      )}
       <button
         type="button"
         {...attributes}
@@ -576,6 +586,18 @@ function SortablePastorBookCard({
         <GripVertical className="h-4 w-4" />
       </button>
       <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onToggleVisibility(book)}
+          className={`inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold shadow-sm ring-1 ${
+            book.isVisible
+              ? "text-gray-600 ring-gray-200 hover:bg-gray-50"
+              : "text-[#1B5E20] ring-[#D7F0D8] hover:bg-[#F1F8F2]"
+          }`}
+        >
+          {book.isVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          {book.isVisible ? "숨김" : "노출"}
+        </button>
         <button
           type="button"
           onClick={() => onEdit(book)}
@@ -672,6 +694,19 @@ export function PastorBooksPage() {
     },
     onError: (error) => {
       toast.error(error.message || "책 삭제에 실패했습니다.");
+    },
+  });
+  const updateBookVisibility = trpc.cms.pastorBooks.update.useMutation({
+    onSuccess: async (_book, variables) => {
+      await Promise.all([
+        utils.cms.pastorBooks.list.invalidate(),
+        utils.home.pastorBooks.invalidate(),
+        utils.home.pastorBook.invalidate({ id: variables.id }),
+      ]);
+      toast.success(variables.isVisible ? "저서를 홈페이지에 노출했습니다." : "저서를 홈페이지에서 숨겼습니다.");
+    },
+    onError: (error) => {
+      toast.error(error.message || "노출 상태 변경에 실패했습니다.");
     },
   });
   const displayBooks = orderedBooks.length === books.length ? orderedBooks : books;
@@ -789,7 +824,7 @@ export function PastorBooksPage() {
 
       {canManage && books.length > 1 && (
         <div className="mb-6 rounded-xl border border-[#D7F0D8] bg-[#F7FBF7] px-4 py-3 text-sm text-[#1B5E20]">
-          책 카드를 마우스로 드래그하면 순서를 바로 바꿀 수 있습니다.
+          책 카드를 마우스로 드래그하면 순서를 바로 바꿀 수 있습니다. 숨김 책은 관리자에게만 흐리게 표시되고 일반 성도 화면에는 보이지 않습니다.
         </div>
       )}
 
@@ -810,6 +845,12 @@ export function PastorBooksPage() {
                   isOrdering={reorderBooks.isPending}
                   onEdit={openEdit}
                   onDelete={handleDeleteBook}
+                  onToggleVisibility={(targetBook) => {
+                    updateBookVisibility.mutate({
+                      id: targetBook.id,
+                      isVisible: !targetBook.isVisible,
+                    });
+                  }}
                 />
               ))}
             </div>
