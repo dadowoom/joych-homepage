@@ -39,6 +39,7 @@ interface SubPageLayoutProps {
   parentHref?: string;
   /** 사이드 메뉴에 표시할 같은 카테고리 항목들 */
   sideMenuItems?: SideMenuItem[];
+  hideFooterSocialLinks?: boolean;
   /** 페이지 본문 */
   children: React.ReactNode;
 }
@@ -48,6 +49,7 @@ export default function SubPageLayout({
   parentLabel,
   parentHref,
   sideMenuItems = [],
+  hideFooterSocialLinks = false,
   children,
 }: SubPageLayoutProps) {
   const { data: dbSettings } = trpc.home.settings.useQuery();
@@ -266,7 +268,7 @@ export default function SubPageLayout({
       {/* ===== 푸터 ===== */}
       <footer className="bg-[#0F172A] text-gray-400 py-6 mt-auto">
         <div className="container">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-center">
+          <div className={`grid grid-cols-1 ${hideFooterSocialLinks ? "md:grid-cols-2" : "md:grid-cols-3"} gap-5 items-center`}>
             <div>
               <div className="inline-flex rounded-md bg-white px-3 py-2">
                 <img
@@ -290,6 +292,7 @@ export default function SubPageLayout({
                 Copyright &copy; {new Date().getFullYear()} 기쁨의교회 All rights reserved.
               </p>
             </div>
+            {!hideFooterSocialLinks && (
             <div className="flex gap-3 md:justify-end">
               {socialLinks.map((s, i) => (
                 s.href ? (
@@ -312,6 +315,7 @@ export default function SubPageLayout({
                 )
               ))}
             </div>
+            )}
           </div>
         </div>
       </footer>

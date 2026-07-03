@@ -12,7 +12,7 @@ export default function Sitemap() {
   const { data: menus, isLoading } = trpc.home.menus.useQuery();
 
   return (
-    <SubPageLayout pageTitle="사이트맵">
+    <SubPageLayout pageTitle="사이트맵" hideFooterSocialLinks>
       {isLoading ? (
         <div className="flex items-center justify-center py-24 text-gray-400">
           불러오는 중...
@@ -92,35 +92,6 @@ export default function Sitemap() {
                 </ul>
               </div>
             ))}
-          </div>
-
-          {/* 빠른 링크 섹션 */}
-          <div className="mt-10 pt-8 border-t border-gray-200">
-            <h2
-              className="text-lg font-bold text-gray-800 mb-4"
-              style={{ fontFamily: "'Noto Serif KR', serif" }}
-            >
-              자주 찾는 페이지
-            </h2>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { label: "예배 안내", href: "/worship/schedule" },
-                { label: "오시는 길", href: "/about/directions" },
-                { label: "새가족 안내", href: "/support/new-member" },
-                { label: "주보 보기", href: "/worship/bulletin" },
-                { label: "조이풀TV", href: "/worship/tv" },
-                { label: "공지사항", href: "/page/행정지원-공지사항" },
-                { label: "신앙 데이터 검색", href: "/church-directory" },
-              ].map((item, i) => (
-                <Link
-                  key={i}
-                  href={item.href}
-                  className="inline-flex items-center gap-1 px-4 py-2 bg-[#F1F8E9] text-[#1B5E20] text-sm font-medium rounded-full border border-[#1B5E20]/20 hover:bg-[#1B5E20] hover:text-white transition-colors"
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </div>
           </div>
         </div>
       )}
