@@ -107,10 +107,26 @@ function decodeHrefCandidate(href: string) {
   }
 }
 
+function normalizeSameOriginHref(href: string) {
+  const trimmed = href.trim();
+  if (!/^https?:\/\//i.test(trimmed)) return trimmed;
+  try {
+    const url = new URL(trimmed);
+    if (url.hostname === "newjoych.co.kr" || url.hostname === "www.newjoych.co.kr") {
+      return `${url.pathname}${url.search}${url.hash}`;
+    }
+  } catch {
+    return trimmed;
+  }
+  return trimmed;
+}
+
 function getMenuHrefCandidates(href: string) {
-  const decodedHref = decodeHrefCandidate(href.trim());
+  const decodedHref = normalizeSameOriginHref(decodeHrefCandidate(href.trim()));
   const candidates = [
     decodedHref,
+    `https://newjoych.co.kr${decodedHref}`,
+    `https://www.newjoych.co.kr${decodedHref}`,
     ...(MENU_HREF_ALIASES[decodedHref] ?? []),
   ];
   for (const [canonicalHref, aliasHrefs] of Object.entries(MENU_HREF_ALIASES)) {
