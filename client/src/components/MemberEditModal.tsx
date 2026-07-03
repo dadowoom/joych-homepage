@@ -59,6 +59,25 @@ type Props = {
 
 type TabType = "basic" | "church" | "account";
 
+function getDistrictSortRank(label: string) {
+  const normalized = label.trim();
+  const communityMatch = normalized.match(/^([1-6])\s*공동체$/);
+  if (communityMatch) return Number(communityMatch[1]) - 1;
+  if (normalized.includes("새가족")) return 6;
+  if (normalized.includes("청년")) return 7;
+  if (normalized.includes("교육")) return 8;
+  if (normalized.includes("교역자")) return 9;
+  return 100;
+}
+
+function sortDistrictOptions(options: FieldOption[]) {
+  return [...options].sort((a, b) => {
+    const rankDiff = getDistrictSortRank(a.label) - getDistrictSortRank(b.label);
+    if (rankDiff !== 0) return rankDiff;
+    return a.label.localeCompare(b.label, "ko");
+  });
+}
+
 const TAB_LABELS: { key: TabType; label: string }[] = [
   { key: "basic", label: "기본 정보" },
   { key: "church", label: "교회 정보" },
@@ -119,7 +138,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
 
   const positionOptions = fieldOptions.filter(o => o.fieldType === "position" && o.isActive);
   const departmentOptions = fieldOptions.filter(o => o.fieldType === "department" && o.isActive);
-  const districtOptions = fieldOptions.filter(o => o.fieldType === "district" && o.isActive);
+  const districtOptions = sortDistrictOptions(fieldOptions.filter(o => o.fieldType === "district" && o.isActive));
   const baptismOptions = fieldOptions.filter(o => o.fieldType === "baptism" && o.isActive);
 
   const updateMutation = trpc.members.adminUpdate.useMutation({
