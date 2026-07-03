@@ -18,12 +18,16 @@ type PushNotificationToggleProps = {
   title?: string;
   enabledDescription?: string;
   disabledDescription?: string;
+  variant?: "card" | "compact";
+  hideWhenSubscribed?: boolean;
 };
 
 export function PushNotificationToggle({
   title = "예약 알림 받기",
   enabledDescription = "이 기기에서 새 예약 알림을 받을 준비가 되어 있습니다.",
   disabledDescription = "시설/차량 예약 담당자는 이 기기에서 알림을 켤 수 있습니다.",
+  variant = "card",
+  hideWhenSubscribed = false,
 }: PushNotificationToggleProps = {}) {
   const utils = trpc.useUtils();
   const [supported, setSupported] = useState(false);
@@ -277,12 +281,49 @@ export function PushNotificationToggle({
     : "";
 
   if (!supported) {
+    if (variant === "compact") return null;
+
     return (
       <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm">
         이 브라우저는 푸시 알림을 지원하지 않습니다.
         {isIosDevice() && (
           <p className="mt-1 text-xs">iPhone/iPad는 홈 화면에 추가한 앱에서만 알림을 사용할 수 있습니다.</p>
         )}
+      </section>
+    );
+  }
+
+  if (hideWhenSubscribed && subscribed) return null;
+
+  if (variant === "compact") {
+    return (
+      <section className="rounded-full border border-[#D7F0D8] bg-white/95 px-3 py-2 shadow-lg backdrop-blur">
+        <div className="flex items-center gap-2">
+          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+            subscribed ? "bg-[#E8F5E9] text-[#1B5E20]" : "bg-gray-100 text-gray-500"
+          }`}>
+            {subscribed ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-xs font-bold text-gray-900">{title}</p>
+            <p className="truncate text-[11px] text-gray-500">
+              {permission === "denied" ? "브라우저 설정에서 알림을 허용해 주세요." : subscribed ? "이 기기에서 알림을 받고 있습니다." : "새 소식과 예약 결과를 받을 수 있습니다."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={subscribed ? disablePush : enablePush}
+            disabled={disabled || permission === "denied" || !vapidQuery.data}
+            className={`ml-1 inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-full px-3 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+              subscribed
+                ? "border border-gray-200 bg-white text-gray-700"
+                : "bg-[#1B5E20] text-white"
+            }`}
+          >
+            {loading && <Loader2 className="h-3 w-3 animate-spin" />}
+            {permission === "denied" ? "거부됨" : subscribed ? "끄기" : "켜기"}
+          </button>
+        </div>
       </section>
     );
   }

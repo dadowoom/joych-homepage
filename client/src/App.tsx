@@ -3,6 +3,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NoticePopupLayer from "@/components/NoticePopupLayer";
 import SiteHeader from "@/components/SiteHeader";
 import SitewideAdminEditor from "@/components/SitewideAdminEditor";
+import MobilePushNotificationPrompt from "@/components/MobilePushNotificationPrompt";
 import MenuAccessGate from "@/components/MenuAccessGate";
 import NotFound from "@/pages/NotFound";
 import { lazy, Suspense, useEffect } from "react";
@@ -487,6 +488,7 @@ function App() {
           <Toaster />
           <SiteHeader />
           <SitewideAdminEditor />
+          <MobilePushNotificationPrompt />
           <Suspense fallback={null}>
             <Router />
           </Suspense>
