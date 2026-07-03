@@ -46,6 +46,7 @@ import {
   getSiteSetting,
   upsertSiteSetting,
   getVisibleMenus,
+  getNavigationMenus,
   getVisibleMenuItemById,
   getVisibleMenuSubItemById,
   getVisibleMenuItemByHref,
@@ -718,7 +719,7 @@ export const homeRouter = router({
 
   /** 상단 GNB 메뉴 전체 목록 (서브메뉴 포함, 공개된 것만) */
   menus: publicProcedure.query(async ({ ctx }) => {
-    const menuList = await getVisibleMenus(getMenuReadAccess(ctx));
+    const menuList = await getNavigationMenus();
     const canUseVehicleReservation = await canContextUseVehicleReservation(ctx);
     return menuList
       .map(menu => filterVehicleReservationMenu(menu, canUseVehicleReservation))

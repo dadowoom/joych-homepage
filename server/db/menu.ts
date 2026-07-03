@@ -34,6 +34,10 @@ function getEffectiveLeafAccess(...rows: ReadableMenuLeaf[]) {
   };
 }
 
+function shouldShowMenuLeaf(row: ReadableMenuLeaf) {
+  return row.allowGuest || row.allowMember;
+}
+
 const MENU_HREF_ALIASES: Record<string, string[]> = {
   "/about/pastor/books": [
     "/page/교회소개-담임목사-저서",
@@ -126,6 +130,60 @@ export async function getVisibleMenus(access: MenuReadAccess = "guest") {
       ...item,
       canRead: true,
       subItems: visibleSubItemsWithAccess,
+    });
+    itemsByMenuId.set(item.menuId, list);
+  }
+
+  return menuList.map(menu => ({
+    ...menu,
+    items: itemsByMenuId.get(menu.id) ?? [],
+  })).filter(menu => menu.items.length > 0 || menu.href);
+}
+
+/**
+ * GNB/사이트맵 표시용 메뉴 조회
+ * - 성도공개 메뉴도 노출하고, 실제 진입 시 MenuAccessGate에서 로그인 안내를 보여줍니다.
+ * - 읽기 권한이 숨김(allowGuest=false, allowMember=false)인 메뉴는 표시하지 않습니다.
+ */
+export async function getNavigationMenus() {
+  const db = await getDb();
+  if (!db) return [];
+  const [menuList, visibleItems, visibleSubItems] = await Promise.all([
+    db.select().from(menus)
+      .where(eq(menus.isVisible, true))
+      .orderBy(asc(menus.sortOrder)),
+    db.select().from(menuItems)
+      .where(eq(menuItems.isVisible, true))
+      .orderBy(asc(menuItems.sortOrder)),
+    db.select().from(menuSubItems)
+      .where(eq(menuSubItems.isVisible, true))
+      .orderBy(asc(menuSubItems.sortOrder)),
+  ]);
+
+  const subItemsByItemId = new Map<number, typeof visibleSubItems>();
+  for (const subItem of visibleSubItems) {
+    const list = subItemsByItemId.get(subItem.menuItemId) ?? [];
+    list.push(subItem);
+    subItemsByItemId.set(subItem.menuItemId, list);
+  }
+
+  const itemsByMenuId = new Map<
+    number,
+    Array<(typeof visibleItems)[number] & {
+      subItems: typeof visibleSubItems;
+    }>
+  >();
+  for (const item of visibleItems) {
+    const subItems = (subItemsByItemId.get(item.id) ?? []).filter((subItem) =>
+      shouldShowMenuLeaf(getEffectiveLeafAccess(item, subItem))
+    );
+
+    if (!shouldShowMenuLeaf(item) && subItems.length === 0) continue;
+
+    const list = itemsByMenuId.get(item.menuId) ?? [];
+    list.push({
+      ...item,
+      subItems,
     });
     itemsByMenuId.set(item.menuId, list);
   }
