@@ -97,6 +97,8 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
   ) : null;
 
   const activeVideo = filteredVideos[activeIndex];
+  const LIST_VIEW_LIMIT = 20;
+  const listViewVideos = filteredVideos.slice(0, LIST_VIEW_LIMIT);
   const CARDS_PER_VIEW = 4; // 한 번에 보이는 카드 수
   const sermonInfoRows = activeVideo
     ? [
@@ -286,27 +288,34 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
 
       {/* 영상 카드 슬라이드 (2개 이상일 때만 표시) */}
       {viewMode === "list" && filteredVideos.length > 0 && (
-        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-          {filteredVideos.map((video, index) => (
-            <button
-              key={video.id}
-              type="button"
-              onClick={() => handleCardClick(index)}
-              className={`flex w-full items-center gap-3 border-b border-gray-100 p-3 text-left last:border-b-0 ${
-                index === activeIndex ? "bg-[#F1F8E9]" : "hover:bg-gray-50"
-              }`}
-            >
-              <div className="h-16 w-28 shrink-0 overflow-hidden rounded bg-gray-100">
-                <VideoThumbnail title={video.title} src={getThumbnailUrl(video)} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-gray-900">{video.title}</p>
-                <p className="mt-1 truncate text-xs text-gray-500">
-                  {[video.preacher, formatSermonDate(video.sermonDate), video.scripture].filter(Boolean).join(" · ")}
-                </p>
-              </div>
-            </button>
-          ))}
+        <div>
+          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+            {listViewVideos.map((video, index) => (
+              <button
+                key={video.id}
+                type="button"
+                onClick={() => handleCardClick(index)}
+                className={`flex w-full items-center gap-3 border-b border-gray-100 p-3 text-left last:border-b-0 ${
+                  index === activeIndex ? "bg-[#F1F8E9]" : "hover:bg-gray-50"
+                }`}
+              >
+                <div className="h-16 w-28 shrink-0 overflow-hidden rounded bg-gray-100">
+                  <VideoThumbnail title={video.title} src={getThumbnailUrl(video)} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-gray-900">{video.title}</p>
+                  <p className="mt-1 truncate text-xs text-gray-500">
+                    {[video.preacher, formatSermonDate(video.sermonDate), video.scripture].filter(Boolean).join(" · ")}
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+          {filteredVideos.length > LIST_VIEW_LIMIT && (
+            <p className="mt-2 text-right text-xs text-gray-400">
+              목록은 최근 {LIST_VIEW_LIMIT}개까지만 표시됩니다. 검색으로 더 좁혀 볼 수 있습니다.
+            </p>
+          )}
         </div>
       )}
 
