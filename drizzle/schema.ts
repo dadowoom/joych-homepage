@@ -849,6 +849,7 @@ export const facilities = mysqlTable("facilities", {
   /** 외부인 비회원 예약 공개 여부 */
   isExternalReservable: boolean("isExternalReservable").notNull().default(false),
   externalAdvanceDaysOverride: int("externalAdvanceDaysOverride"),
+  contactText: text("contactText"),
   /** 노출 여부 */
   isVisible: boolean("isVisible").notNull().default(true),
   /** 이용 안내 (마크다운 지원) */

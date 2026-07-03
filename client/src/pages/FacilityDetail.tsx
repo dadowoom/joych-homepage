@@ -29,6 +29,11 @@ import {
 import { hasFacilityReservationRuleOverride } from "@shared/facilityReservationEligibility";
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
+const FACILITY_CONTACT_DEFAULT_TEXT_KEY = "facility_contact_default_text";
+const FACILITY_MEMBER_RULES_TITLE_KEY = "facility_member_rules_title";
+const FACILITY_MEMBER_RULES_TEXT_KEY = "facility_member_rules_text";
+const DEFAULT_FACILITY_CONTACT_TEXT = "기쁨의교회 사무국 054-270-1002";
+const DEFAULT_MEMBER_FACILITY_RULES_TITLE = "교인 시설사용 주의사항";
 
 type FacilityBuilding = "hayoungin" | "welfare";
 type FacilityAudience = "member" | "external";
@@ -56,60 +61,6 @@ function useFacilityHoursForAudience(facilityId: number, audience: FacilityAudie
   );
 
   return audience === "external" ? externalHoursQuery : memberHoursQuery;
-}
-
-function formatDayRanges(days: number[]) {
-  const sortedDays = days
-    .filter(day => day >= 0 && day < DAY_LABELS.length)
-    .filter((day, index, validDays) => validDays.indexOf(day) === index)
-    .sort((a, b) => a - b);
-
-  const ranges: string[] = [];
-  let start: number | null = null;
-  let previous: number | null = null;
-
-  for (const day of sortedDays) {
-    if (start === null || previous === null || day !== previous + 1) {
-      if (start !== null && previous !== null) {
-        ranges.push(start === previous ? DAY_LABELS[start] : `${DAY_LABELS[start]}~${DAY_LABELS[previous]}`);
-      }
-      start = day;
-    }
-    previous = day;
-  }
-
-  if (start !== null && previous !== null) {
-    ranges.push(start === previous ? DAY_LABELS[start] : `${DAY_LABELS[start]}~${DAY_LABELS[previous]}`);
-  }
-
-  return ranges.join(", ");
-}
-
-function formatOperatingHoursSummary(hours: FacilityHour[] | undefined) {
-  if (!hours || hours.length === 0) return "운영시간 정보는 시설 안내를 확인해 주세요.";
-
-  const openGroups = new Map<string, number[]>();
-  const closedDays: number[] = [];
-
-  [...hours]
-    .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
-    .forEach(hour => {
-      if (!hour.isOpen || !hour.openTime || !hour.closeTime) {
-        closedDays.push(hour.dayOfWeek);
-        return;
-      }
-
-      const breakLabel = hour.breakStart && hour.breakEnd ? ` (휴게 ${hour.breakStart}~${hour.breakEnd})` : "";
-      const timeLabel = `${hour.openTime} ~ ${hour.closeTime}${breakLabel}`;
-      openGroups.set(timeLabel, [...(openGroups.get(timeLabel) ?? []), hour.dayOfWeek]);
-    });
-
-  const summaries = Array.from(openGroups.entries()).map(([timeLabel, days]) => `${formatDayRanges(days)} ${timeLabel}`);
-  if (closedDays.length > 0) {
-    summaries.push(`${formatDayRanges(closedDays)} 휴무`);
-  }
-
-  return summaries.length > 0 ? summaries.join(" / ") : "운영시간 정보는 시설 안내를 확인해 주세요.";
 }
 
 function generateReservationStartSlots(openTime: string, closeTime: string, slotMinutes: number) {
@@ -198,18 +149,14 @@ function getReservationStatusLabel(status: string) {
   return status;
 }
 
-function FacilityInquiryCard({ facilityId, audience }: { facilityId: number; audience: FacilityAudience }) {
-  const { data: hours } = useFacilityHoursForAudience(facilityId, audience);
-  const hoursSummary = useMemo(() => formatOperatingHoursSummary(hours), [hours]);
-
+function FacilityInquiryCard({ contactText }: { contactText: string }) {
   return (
     <div className="bg-white rounded-xl p-5 border border-gray-100">
       <p className="font-bold text-gray-800 text-sm mb-2 flex items-center gap-2">
         <Phone size={14} className="text-[#1B5E20]" />
         시설 문의
       </p>
-      <p className="text-sm text-gray-500">행정실: <span className="text-[#1B5E20] font-medium">054-270-1000</span></p>
-      <p className="text-xs text-gray-400 mt-1">운영시간: {hoursSummary}</p>
+      <p className="whitespace-pre-line text-sm leading-6 text-gray-600">{contactText}</p>
     </div>
   );
 }
@@ -699,6 +646,20 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
     const externalNotice = facility?.externalNotice?.trim() ?? "";
     return isExternal ? (externalNotice || memberNotice) : memberNotice;
   }, [facility?.externalNotice, facility?.notice, isExternal]);
+  const facilityContactText =
+    facility?.contactText?.trim() ||
+    reservationSettings?.[FACILITY_CONTACT_DEFAULT_TEXT_KEY]?.trim() ||
+    DEFAULT_FACILITY_CONTACT_TEXT;
+  const memberFacilityRuleLines = useMemo(
+    () => (reservationSettings?.[FACILITY_MEMBER_RULES_TEXT_KEY] ?? "")
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean),
+    [reservationSettings],
+  );
+  const memberRulesTitle =
+    reservationSettings?.[FACILITY_MEMBER_RULES_TITLE_KEY]?.trim() ||
+    DEFAULT_MEMBER_FACILITY_RULES_TITLE;
 
   function goToMemberLogin() {
     const nextPath = `/facility/${facilityId}${searchString ? `?${searchString}` : ""}`;
@@ -861,8 +822,22 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
                 </div>
               )}
 
-              {/* 운영 시간 */}
-              <HoursTable facilityId={facilityId} audience={audience} />
+              {!isExternal && memberFacilityRuleLines.length > 0 && (
+                <div className="bg-amber-50 rounded-xl p-6 border border-amber-100">
+                  <h2 className="font-bold text-gray-900 mb-3 text-base flex items-center gap-2">
+                    <AlertCircle className="text-amber-500" size={18} />
+                    {memberRulesTitle}
+                  </h2>
+                  <ol className="list-decimal space-y-1.5 pl-5 text-sm leading-6 text-amber-900">
+                    {memberFacilityRuleLines.map((line, index) => (
+                      <li key={`${index}-${line}`}>{line}</li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
+              {/* 문의 */}
+              <FacilityInquiryCard contactText={facilityContactText} />
             </div>
 
             {/* 오른쪽: 달력 + 시간대 현황 + 예약 버튼 */}
@@ -892,6 +867,9 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
                 />
               )}
 
+              {/* 운영 시간 */}
+              <HoursTable facilityId={facilityId} audience={audience} />
+
               {/* 예약 신청 버튼 */}
               {facility.isReservable ? (
                 <Button
@@ -908,9 +886,6 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
                   <p className="text-xs">관리자에게 문의해 주세요.</p>
                 </div>
               )}
-
-              {/* 문의 */}
-              <FacilityInquiryCard facilityId={facilityId} audience={audience} />
 
               {/* 목록으로 */}
               <button onClick={() => window.history.back()} className="w-full text-center text-sm text-gray-400 hover:text-[#1B5E20] transition-colors cursor-pointer py-2 flex items-center justify-center gap-1">

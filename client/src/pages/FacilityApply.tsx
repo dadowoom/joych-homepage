@@ -46,6 +46,13 @@ const PURPOSE_OPTIONS = [
 type RepeatType = "none" | "daily" | "weekly" | "monthly-weekday";
 type FacilityBuilding = "hayoungin" | "welfare";
 type FacilityAudience = "member" | "external";
+const FACILITY_CONTACT_DEFAULT_TEXT_KEY = "facility_contact_default_text";
+const FACILITY_MEMBER_RULES_TITLE_KEY = "facility_member_rules_title";
+const FACILITY_MEMBER_RULES_TEXT_KEY = "facility_member_rules_text";
+const FACILITY_EXTERNAL_RULES_TITLE_KEY = "facility_external_rules_title";
+const DEFAULT_FACILITY_CONTACT_TEXT = "기쁨의교회 사무국 054-270-1002";
+const DEFAULT_MEMBER_FACILITY_RULES_TITLE = "교인 시설사용 주의사항";
+const DEFAULT_EXTERNAL_FACILITY_RULES_TITLE = "외부 시설사용 주의사항";
 
 function normalizeFacilityBuilding(building: string | null | undefined): FacilityBuilding {
   return building === "hayoungin" ? "hayoungin" : "welfare";
@@ -325,11 +332,25 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
       .filter(Boolean),
     [externalFacilityRulesQuery.data],
   );
+  const memberFacilityRuleLines = useMemo(
+    () => (reservationSettings?.[FACILITY_MEMBER_RULES_TEXT_KEY] ?? "")
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean),
+    [reservationSettings],
+  );
   const facilityNoticeText = useMemo(() => {
     const memberNotice = facility?.notice?.trim() ?? "";
     const externalNotice = facility?.externalNotice?.trim() ?? "";
     return isExternal ? (externalNotice || memberNotice) : memberNotice;
   }, [facility?.externalNotice, facility?.notice, isExternal]);
+  const facilityContactText =
+    facility?.contactText?.trim() ||
+    reservationSettings?.[FACILITY_CONTACT_DEFAULT_TEXT_KEY]?.trim() ||
+    DEFAULT_FACILITY_CONTACT_TEXT;
+  const facilityRulesTitle = isExternal
+    ? (reservationSettings?.[FACILITY_EXTERNAL_RULES_TITLE_KEY]?.trim() || DEFAULT_EXTERNAL_FACILITY_RULES_TITLE)
+    : (reservationSettings?.[FACILITY_MEMBER_RULES_TITLE_KEY]?.trim() || DEFAULT_MEMBER_FACILITY_RULES_TITLE);
 
   const onReservationCreated = (data: { status: string; count?: number | null; recurrenceLabel?: string | null }) => {
     setReservedStatus(data.status);
@@ -904,10 +925,26 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                   />
                 </Field>
 
+                {!isExternal && memberFacilityRuleLines.length > 0 && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <h3 className="mb-3 text-sm font-bold text-amber-900">
+                      {facilityRulesTitle}
+                    </h3>
+                    <ol className="list-decimal space-y-1.5 pl-5 text-xs leading-5 text-amber-900">
+                      {memberFacilityRuleLines.map((line, index) => (
+                        <li key={`${index}-${line}`}>{line}</li>
+                      ))}
+                    </ol>
+                    <p className="mt-3 whitespace-pre-line text-xs leading-5 text-amber-700">
+                      문의: {facilityContactText}
+                    </p>
+                  </div>
+                )}
+
                 {isExternal && (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
                     <h3 className="mb-3 text-sm font-bold text-amber-900">
-                      외부 시설 사용 시 주의사항
+                      {facilityRulesTitle}
                     </h3>
                     {externalFacilityRulesQuery.isLoading ? (
                       <p className="text-xs leading-5 text-amber-900">주의사항을 불러오는 중입니다.</p>
@@ -920,8 +957,8 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                     ) : (
                       <p className="text-xs leading-5 text-amber-900">등록된 주의사항이 없습니다.</p>
                     )}
-                    <p className="mt-3 text-xs text-amber-700">
-                      문의: 기쁨의교회 사무국 054-270-1002
+                    <p className="mt-3 whitespace-pre-line text-xs leading-5 text-amber-700">
+                      문의: {facilityContactText}
                     </p>
                     <label className="mt-3 flex items-center gap-2 cursor-pointer">
                       <input
@@ -973,7 +1010,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                 </button>
                 {isExternal && (
                   <p className="mt-3 text-center text-xs text-gray-500">
-                    자세한 사항은 기쁨의교회 사무국으로 문의 바랍니다. 054-270-1002
+                    자세한 사항은 아래 시설문의로 문의 바랍니다.
                   </p>
                 )}
               </div>

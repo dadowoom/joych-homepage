@@ -57,6 +57,10 @@ const FACILITY_BUILDINGS = [
   { value: "hayoungin", label: "하영인관" },
   { value: "welfare", label: "복지관" },
 ] as const;
+const FACILITY_CONTACT_DEFAULT_TEXT_KEY = "facility_contact_default_text";
+const FACILITY_MEMBER_RULES_TITLE_KEY = "facility_member_rules_title";
+const FACILITY_MEMBER_RULES_TEXT_KEY = "facility_member_rules_text";
+const FACILITY_EXTERNAL_RULES_TITLE_KEY = "facility_external_rules_title";
 const FACILITY_PAGE_SETTING_FIELDS = [
   { key: "facility_hero_eyebrow", label: "상단 영문 라벨", helper: "예: FACILITY RESERVATION" },
   { key: "facility_hero_title", label: "상단 큰 제목", helper: "예: 시설 사용 예약" },
@@ -70,6 +74,10 @@ const FACILITY_PAGE_SETTING_FIELDS = [
   { key: "facility_guide_step3_desc", label: "3단계 설명", helper: "예: 신청 정보를 입력하세요" },
   { key: "facility_guide_step4_title", label: "4단계 제목", helper: "예: 담당자 확인" },
   { key: "facility_guide_step4_desc", label: "4단계 설명", helper: "예: 승인 후 연락을 드립니다" },
+  { key: FACILITY_CONTACT_DEFAULT_TEXT_KEY, label: "시설문의 기본 문구", helper: "시설별 문의문구가 비어 있을 때 공통으로 표시됩니다." },
+  { key: FACILITY_MEMBER_RULES_TITLE_KEY, label: "교인 주의사항 제목", helper: "예: 교인 시설사용 주의사항" },
+  { key: FACILITY_MEMBER_RULES_TEXT_KEY, label: "교인 주의사항 내용", helper: "교인 시설사용 공지와 주의사항을 한 줄에 하나씩 입력합니다." },
+  { key: FACILITY_EXTERNAL_RULES_TITLE_KEY, label: "외부인 주의사항 제목", helper: "예: 외부 시설사용 주의사항" },
 ] as const;
 
 type FacilityBuilding = typeof FACILITY_BUILDINGS[number]["value"];
@@ -144,6 +152,7 @@ interface FacilityForm {
   isExternalReservable: boolean;
   useExternalAdvanceDaysDefault: boolean;
   externalAdvanceDaysOverride: string;
+  contactText: string;
   notice: string;
   externalNotice: string;
 }
@@ -171,6 +180,7 @@ const EMPTY_FORM: FacilityForm = {
   isExternalReservable: false,
   useExternalAdvanceDaysDefault: true,
   externalAdvanceDaysOverride: "",
+  contactText: "",
   notice: "",
   externalNotice: "",
 };
@@ -995,6 +1005,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
         f.externalAdvanceDaysOverride === null || f.externalAdvanceDaysOverride === undefined
           ? ""
           : String(f.externalAdvanceDaysOverride),
+      contactText: f.contactText ?? "",
       notice: f.notice ?? "",
       externalNotice: f.externalNotice ?? "",
     });
@@ -1040,6 +1051,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
       approvalType: form.approvalType,
       isExternalReservable: form.isExternalReservable,
       externalAdvanceDaysOverride,
+      contactText: form.contactText,
       notice: form.notice,
       ...(isExternalMode ? { externalNotice: form.externalNotice } : {}),
     };
@@ -1276,10 +1288,10 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
             <div>
               <h4 className="flex items-center gap-2 text-sm font-bold text-gray-900">
                 <Settings className="h-4 w-4 text-amber-600" />
-                외부 시설 사용 주의사항
+                {pageSettingDrafts[FACILITY_EXTERNAL_RULES_TITLE_KEY] || "외부 시설사용 주의사항"}
               </h4>
               <p className="mt-1 text-xs text-gray-500">
-                외부 신청서에 표시되는 주의사항입니다. 줄바꿈한 각 줄이 번호 목록으로 표시됩니다.
+                외부 신청서에 표시되는 주의사항입니다. 제목은 시설예약 페이지 문구에서 수정하고, 줄바꿈한 각 줄이 번호 목록으로 표시됩니다.
               </p>
             </div>
             <button
@@ -1410,6 +1422,57 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-white/70 bg-white p-5 shadow-sm xl:col-span-2">
+              <div className="mb-4">
+                <p className="text-sm font-bold text-gray-900">시설문의 / 주의사항 문구</p>
+                <p className="mt-1 text-xs text-gray-400">시설별 문의문구가 비어 있으면 기본 문의문구가 사용됩니다. 교인 주의사항은 신청서에 공통으로 표시됩니다.</p>
+              </div>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-gray-600">시설문의 기본 문구</span>
+                  <textarea
+                    value={pageSettingDrafts[FACILITY_CONTACT_DEFAULT_TEXT_KEY]}
+                    onChange={(e) => updatePageSettingDraft(FACILITY_CONTACT_DEFAULT_TEXT_KEY, e.target.value)}
+                    rows={3}
+                    placeholder="예: 기쁨의교회 사무국 054-270-1002"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
+                  />
+                </label>
+                <div className="grid grid-cols-1 gap-3">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-gray-600">교인 주의사항 제목</span>
+                    <input
+                      type="text"
+                      value={pageSettingDrafts[FACILITY_MEMBER_RULES_TITLE_KEY]}
+                      onChange={(e) => updatePageSettingDraft(FACILITY_MEMBER_RULES_TITLE_KEY, e.target.value)}
+                      placeholder="교인 시설사용 주의사항"
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-gray-600">외부인 주의사항 제목</span>
+                    <input
+                      type="text"
+                      value={pageSettingDrafts[FACILITY_EXTERNAL_RULES_TITLE_KEY]}
+                      onChange={(e) => updatePageSettingDraft(FACILITY_EXTERNAL_RULES_TITLE_KEY, e.target.value)}
+                      placeholder="외부 시설사용 주의사항"
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
+                    />
+                  </label>
+                </div>
+                <label className="block lg:col-span-2">
+                  <span className="mb-1 block text-xs font-medium text-gray-600">교인 주의사항 내용</span>
+                  <textarea
+                    value={pageSettingDrafts[FACILITY_MEMBER_RULES_TEXT_KEY]}
+                    onChange={(e) => updatePageSettingDraft(FACILITY_MEMBER_RULES_TEXT_KEY, e.target.value)}
+                    rows={5}
+                    placeholder="교인 시설사용 공지와 주의사항을 한 줄에 하나씩 입력해 주세요."
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm leading-6 focus:border-[#1B5E20] focus:outline-none"
+                  />
+                </label>
               </div>
             </div>
           </div>
@@ -1587,6 +1650,15 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
                 placeholder="시설에 대한 상세 설명을 입력하세요."
                 rows={3}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20] resize-none" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">시설문의 문구 (개별)</label>
+              <textarea value={form.contactText}
+                onChange={e => setForm(p => ({ ...p, contactText: e.target.value }))}
+                placeholder="비워두면 일괄 시설문의 기본 문구를 사용합니다."
+                rows={2}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20] resize-none" />
+              <p className="mt-1 text-[11px] text-gray-400">시설 상세와 신청서의 시설문의 영역에 표시됩니다.</p>
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">이용 안내 (예약 시 성도에게 표시)</label>
