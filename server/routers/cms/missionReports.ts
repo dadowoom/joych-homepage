@@ -27,7 +27,7 @@ import {
   updateMissionReportWithDetails,
   updateMissionary,
 } from "../../db";
-import { validateImage } from "./upload";
+import { validateAttachment, validateImage } from "./upload";
 import { storagePut } from "../../storage";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -35,10 +35,18 @@ const idSchema = z.number().int().positive();
 const continentSchema = z.enum(["asia", "africa", "americas", "europe", "oceania"]);
 const reportStatusSchema = z.enum(["draft", "pending", "published", "rejected"]);
 const missionReportProcedure = adminPermissionProcedure("content:missionReports");
+const MISSION_ATTACHMENT_MAX_BYTES = 80 * 1024 * 1024;
 
 const imageSchema = z.object({
   imageUrl: safeAssetUrlSchema,
   caption: optionalTextSchema(128),
+});
+
+const fileSchema = z.object({
+  fileName: requiredTextSchema(256, "첨부파일 이름이 필요합니다."),
+  fileUrl: safeAssetUrlSchema,
+  fileSize: z.number().int().min(0).optional(),
+  mimeType: optionalTextSchema(128),
 });
 
 const reportInputSchema = z.object({
@@ -50,7 +58,8 @@ const reportInputSchema = z.object({
   thumbnailUrl: safeAssetUrlSchema.optional(),
   reportDate: z.string().regex(DATE_RE, "보고 날짜 형식이 올바르지 않습니다."),
   status: reportStatusSchema.default("published"),
-  images: z.array(imageSchema).max(20).default([]),
+  images: z.array(imageSchema).max(100).default([]),
+  files: z.array(fileSchema).max(20).default([]),
   prayerTopics: z.array(requiredTextSchema(512, "기도제목을 입력해주세요.")).max(20).default([]),
 });
 
@@ -69,6 +78,18 @@ function normalizePrayerTopics(prayerTopics: string[]) {
     .map(topic => topic.trim())
     .filter(Boolean)
     .map((content, index) => ({ content, sortOrder: index }));
+}
+
+function normalizeFiles(files: z.infer<typeof fileSchema>[]) {
+  return files
+    .filter(file => Boolean(file.fileUrl))
+    .map((file, index) => ({
+      fileName: file.fileName,
+      fileUrl: file.fileUrl,
+      fileSize: file.fileSize,
+      mimeType: file.mimeType || undefined,
+      sortOrder: index,
+    }));
 }
 
 export const missionReportsRouter = router({
@@ -142,6 +163,28 @@ export const missionReportsRouter = router({
       return { url };
     }),
 
+  uploadFile: missionReportProcedure
+    .input(z.object({
+      base64: z.string(),
+      fileName: z.string(),
+      mimeType: z.string(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { buffer, ext, mimeType } = validateAttachment(
+        input.base64,
+        input.fileName,
+        input.mimeType,
+        MISSION_ATTACHMENT_MAX_BYTES,
+      );
+      const safeName = input.fileName
+        .replace(/\.[^.]+$/, "")
+        .replace(/[^a-zA-Z0-9가-힣._-]/g, "_")
+        .slice(0, 80);
+      const key = `mission-report-files/admin-${ctx.user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}.${ext}`;
+      const { url } = await storagePut(key, buffer, mimeType);
+      return { url, fileName: input.fileName, fileSize: buffer.length, mimeType };
+    }),
+
   createReport: missionReportProcedure
     .input(reportInputSchema)
     .mutation(({ input }) =>
@@ -158,6 +201,7 @@ export const missionReportsRouter = router({
           publishedAt: input.status === "published" ? new Date() : undefined,
         },
         normalizeImages(input.images),
+        normalizeFiles(input.files),
         normalizePrayerTopics(input.prayerTopics),
       )
     ),
@@ -180,6 +224,7 @@ export const missionReportsRouter = router({
           publishedAt: data.status === "published" ? new Date() : undefined,
         },
         normalizeImages(data.images),
+        normalizeFiles(data.files),
         normalizePrayerTopics(data.prayerTopics),
       );
     }),

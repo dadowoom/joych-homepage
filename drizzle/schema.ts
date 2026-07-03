@@ -1374,6 +1374,20 @@ export const missionReportImages = mysqlTable("mission_report_images", {
 export type MissionReportImage = typeof missionReportImages.$inferSelect;
 export type InsertMissionReportImage = typeof missionReportImages.$inferInsert;
 
+export const missionReportFiles = mysqlTable("mission_report_files", {
+  id: int("id").autoincrement().primaryKey(),
+  reportId: int("reportId").notNull(),
+  fileName: varchar("fileName", { length: 256 }).notNull(),
+  fileUrl: varchar("fileUrl", { length: 512 }).notNull(),
+  fileSize: int("fileSize"),
+  mimeType: varchar("mimeType", { length: 128 }),
+  sortOrder: int("sortOrder").notNull().default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type MissionReportFile = typeof missionReportFiles.$inferSelect;
+export type InsertMissionReportFile = typeof missionReportFiles.$inferInsert;
+
 export const missionReportPrayerTopics = mysqlTable("mission_report_prayer_topics", {
   id: int("id").autoincrement().primaryKey(),
   reportId: int("reportId").notNull(),

@@ -12,11 +12,13 @@ import {
   churchMembers,
   type InsertMissionReport,
   type InsertMissionReportAuthor,
+  type InsertMissionReportFile,
   type InsertMissionReportImage,
   type InsertMissionReportPrayerTopic,
   type InsertMissionary,
   type MissionReport,
   missionReportAuthors,
+  missionReportFiles,
   missionReportImages,
   missionReportPrayerTopics,
   missionReports,
@@ -32,6 +34,12 @@ export type MissionaryRow = typeof missionaries.$inferSelect;
 export type MissionReportListRow = MissionReport & {
   missionary: MissionaryRow;
   images: string[];
+  files: Array<{
+    fileName: string;
+    fileUrl: string;
+    fileSize: number | null;
+    mimeType: string | null;
+  }>;
   prayerTopics: string[];
 };
 
@@ -53,10 +61,19 @@ async function hydrateReports(rows: MissionReport[]): Promise<MissionReportListR
     const topics = await db.select().from(missionReportPrayerTopics)
       .where(eq(missionReportPrayerTopics.reportId, report.id))
       .orderBy(asc(missionReportPrayerTopics.sortOrder), asc(missionReportPrayerTopics.id));
+    const files = await db.select().from(missionReportFiles)
+      .where(eq(missionReportFiles.reportId, report.id))
+      .orderBy(asc(missionReportFiles.sortOrder), asc(missionReportFiles.id));
     result.push({
       ...report,
       missionary,
       images: images.map(img => img.imageUrl),
+      files: files.map(file => ({
+        fileName: file.fileName,
+        fileUrl: file.fileUrl,
+        fileSize: file.fileSize,
+        mimeType: file.mimeType,
+      })),
       prayerTopics: topics.map(topic => topic.content),
     });
   }
@@ -244,6 +261,7 @@ export async function getMissionReportsByAuthor(memberId: number) {
 export async function createMissionReportWithDetails(
   data: InsertMissionReport,
   images: Array<Omit<InsertMissionReportImage, "reportId">>,
+  files: Array<Omit<InsertMissionReportFile, "reportId">>,
   prayerTopics: Array<Omit<InsertMissionReportPrayerTopic, "reportId">>,
 ) {
   const db = await getDb();
@@ -254,6 +272,9 @@ export async function createMissionReportWithDetails(
     if (!reportId) return null;
     if (images.length > 0) {
       await tx.insert(missionReportImages).values(images.map(img => ({ ...img, reportId })));
+    }
+    if (files.length > 0) {
+      await tx.insert(missionReportFiles).values(files.map(file => ({ ...file, reportId })));
     }
     if (prayerTopics.length > 0) {
       await tx.insert(missionReportPrayerTopics).values(prayerTopics.map(topic => ({ ...topic, reportId })));
@@ -266,6 +287,7 @@ export async function updateMissionReportWithDetails(
   id: number,
   data: Partial<InsertMissionReport>,
   images: Array<Omit<InsertMissionReportImage, "reportId">>,
+  files: Array<Omit<InsertMissionReportFile, "reportId">>,
   prayerTopics: Array<Omit<InsertMissionReportPrayerTopic, "reportId">>,
 ) {
   const db = await getDb();
@@ -273,9 +295,13 @@ export async function updateMissionReportWithDetails(
   await db.transaction(async (tx) => {
     await tx.update(missionReports).set(data).where(eq(missionReports.id, id));
     await tx.delete(missionReportImages).where(eq(missionReportImages.reportId, id));
+    await tx.delete(missionReportFiles).where(eq(missionReportFiles.reportId, id));
     await tx.delete(missionReportPrayerTopics).where(eq(missionReportPrayerTopics.reportId, id));
     if (images.length > 0) {
       await tx.insert(missionReportImages).values(images.map(img => ({ ...img, reportId: id })));
+    }
+    if (files.length > 0) {
+      await tx.insert(missionReportFiles).values(files.map(file => ({ ...file, reportId: id })));
     }
     if (prayerTopics.length > 0) {
       await tx.insert(missionReportPrayerTopics).values(prayerTopics.map(topic => ({ ...topic, reportId: id })));

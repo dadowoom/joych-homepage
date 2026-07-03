@@ -135,7 +135,7 @@ export function validateVideo(base64: string, mimeType: string): { buffer: Buffe
   return { buffer, ext };
 }
 
-function validateAttachment(base64: string, fileName: string, mimeType: string) {
+export function validateAttachment(base64: string, fileName: string, mimeType: string, maxBytes = MAX_ATTACHMENT_BYTES) {
   const ext = getFileExtension(fileName);
   if (!ext || !ALLOWED_ATTACHMENT_EXTENSIONS[ext]) {
     throw new TRPCError({
@@ -145,7 +145,7 @@ function validateAttachment(base64: string, fileName: string, mimeType: string) 
   }
 
   const buffer = decodeBase64File(base64);
-  if (buffer.length > MAX_ATTACHMENT_BYTES) {
+  if (buffer.length > maxBytes) {
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: "첨부파일은 최대 25MB까지 업로드할 수 있습니다.",
