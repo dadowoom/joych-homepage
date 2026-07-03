@@ -399,7 +399,6 @@ export const membersRouter = router({
       registeredAt: optionalDate,
       pastor: optionalText(64),
       adminMemo: optionalText(20000),
-      canReserveFacility: z.boolean().optional(),
       status: z.enum(["pending", "approved", "rejected", "withdrawn"]).optional(),
       faithPlusUserId: optionalText(128),
     }))
@@ -493,7 +492,6 @@ export const membersRouter = router({
       registeredAt: optionalDate,
       pastor: optionalText(64),
       adminMemo: optionalText(20000),
-      canReserveFacility: z.boolean().optional(),
       status: z.enum(["pending", "approved", "rejected", "withdrawn"]).optional(),
       faithPlusUserId: optionalText(128),
       assignedDistricts: z.array(z.string().trim().max(64)).max(200).optional(),

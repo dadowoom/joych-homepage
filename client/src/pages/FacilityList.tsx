@@ -212,7 +212,7 @@ function FacilityCard({ facility, activeBuilding, audience }: { facility: Facili
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-600">
             <Clock size={12} className="text-green-600 shrink-0" />
-            <span>{facility.slotMinutes}분 단위 · 최소 {facility.minSlots}시간 ~ 최대 {facility.maxSlots}시간</span>
+            <span>{facility.slotMinutes}분 단위</span>
           </div>
           {facility.pricePerHour > 0 && (
             <div className="flex items-center gap-2 text-xs text-gray-600">

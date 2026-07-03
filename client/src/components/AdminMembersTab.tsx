@@ -18,7 +18,6 @@ import { toast } from "sonner";
 import MemberEditModal from "./MemberEditModal";
 import {
   hasFacilityReservationBlockedMemberMarker,
-  hasFacilityReservationRuleOverride,
 } from "@shared/facilityReservationEligibility";
 
 type StatusFilter = "all" | "pending" | "approved" | "rejected" | "withdrawn";
@@ -46,9 +45,6 @@ type Member = inferRouterOutputs<AppRouter>["members"]["adminList"][number];
 function getFacilityReservationBadge(member: Member) {
   if (hasFacilityReservationBlockedMemberMarker(member)) {
     return { text: "예약제한", color: "bg-gray-100 text-gray-500" };
-  }
-  if (hasFacilityReservationRuleOverride(member)) {
-    return { text: "예약예외", color: "bg-amber-100 text-amber-700" };
   }
   return { text: "일반예약", color: "bg-emerald-100 text-emerald-700" };
 }

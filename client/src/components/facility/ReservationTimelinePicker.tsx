@@ -14,6 +14,8 @@ type ReservationTimelinePickerProps = {
   slotMinutes?: number;
   maxSlots?: number;
   bookedReason?: string;
+  showSelectAll?: boolean;
+  selectAllLabel?: string;
   renderDisabledTooltip?: (slot: string, disabledReason?: string) => ReactNode;
 };
 
@@ -37,6 +39,8 @@ export default function ReservationTimelinePicker({
   slotMinutes = 60,
   maxSlots = 8,
   bookedReason = "예약됨",
+  showSelectAll = false,
+  selectAllLabel = "전체 선택",
   renderDisabledTooltip,
 }: ReservationTimelinePickerProps) {
   const segments = allSlots.slice(0, -1).map((slot, index) => ({
@@ -113,6 +117,13 @@ export default function ReservationTimelinePicker({
     ? `${startTime} ~ ${endTime} 선택됨`
     : `${startTime} 선택됨 - 종료 구간을 선택하세요`;
 
+  const selectAllStart = segments[0]?.start ?? "";
+  const selectAllEnd = segments[segments.length - 1]?.end ?? "";
+  const selectAllDisabledReason = showSelectAll
+    ? segments.map(({ start, end }) => getSegmentRestriction(start, end)).find(Boolean)
+    : null;
+  const canSelectAll = showSelectAll && selectAllStart && selectAllEnd && !selectAllDisabledReason;
+
   if (segments.length === 0) {
     return (
       <p className="rounded-lg bg-gray-50 px-3 py-3 text-center text-sm text-gray-500">
@@ -125,6 +136,17 @@ export default function ReservationTimelinePicker({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-medium text-[#1B5E20]">{guideText}</p>
+        {showSelectAll && (
+          <button
+            type="button"
+            disabled={!canSelectAll}
+            title={!canSelectAll && typeof selectAllDisabledReason === "string" ? selectAllDisabledReason : undefined}
+            onClick={() => onSelect(selectAllStart, selectAllEnd)}
+            className="rounded-full border border-[#1B5E20] bg-white px-2.5 py-1 text-[11px] font-bold text-[#1B5E20] transition-colors hover:bg-green-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-300"
+          >
+            {selectAllLabel}
+          </button>
+        )}
         {(startTime || endTime) && (
           <button
             type="button"

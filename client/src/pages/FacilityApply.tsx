@@ -17,6 +17,7 @@ import ReservationConflictDialog, {
   isReservationConflictMessage,
 } from "@/components/facility/ReservationConflictDialog";
 import ReservationTimelinePicker from "@/components/facility/ReservationTimelinePicker";
+import { hasContentPermission } from "@/lib/contentPermissions";
 import {
   getExternalReservationDateRangeRestriction,
   getExternalReservationMaxDateKey,
@@ -34,7 +35,6 @@ import {
 } from "@/lib/facilitySlotSelection";
 import {
   hasFacilityReservationBlockedMemberMarker,
-  hasFacilityReservationRuleOverride,
 } from "@shared/facilityReservationEligibility";
 
 // ── 목적 옵션 ────────────────────────────────────────────────
@@ -168,6 +168,7 @@ function TimeSlotPicker({
   onSelect,
   slotMinutes = 60,
   maxSlots = 8,
+  showSelectAll = false,
 }: {
   allSlots: string[];
   bookedSlots: Set<string>;
@@ -177,6 +178,7 @@ function TimeSlotPicker({
   onSelect: (start: string, end: string) => void;
   slotMinutes?: number;
   maxSlots?: number;
+  showSelectAll?: boolean;
 }) {
   return (
     <ReservationTimelinePicker
@@ -188,6 +190,7 @@ function TimeSlotPicker({
       onSelect={onSelect}
       slotMinutes={slotMinutes}
       maxSlots={maxSlots}
+      showSelectAll={showSelectAll}
     />
   );
 }
@@ -203,9 +206,17 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     refetchOnWindowFocus: false,
     enabled: !isExternal,
   });
+  const { data: authMe } = trpc.auth.me.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+    enabled: !isExternal,
+  });
   const { data: reservationSettings } = trpc.home.settings.useQuery();
   const isApprovedMember = isExternal || Boolean(memberMe);
-  const hasReservationOverride = !isExternal && hasFacilityReservationRuleOverride(memberMe ?? {});
+  const hasReservationOverride =
+    !isExternal &&
+    (hasContentPermission(authMe, "content:reservations") ||
+      hasContentPermission(authMe, "content:facilities"));
   const canReserveFacility = isExternal || (isApprovedMember && !hasFacilityReservationBlockedMemberMarker(memberMe ?? {}));
 
   // URL 쿼리 파라미터에서 날짜/시간 읽기
@@ -859,7 +870,8 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                           endTime={form.endTime}
                           onSelect={handleTimeSelect}
                           slotMinutes={unitMinutes}
-                          maxSlots={facility.maxSlots ?? 8}
+                          maxSlots={Math.max(1, allTimeSlots.length - 1)}
+                          showSelectAll={hasReservationOverride}
                         />
                       </div>
                     )}

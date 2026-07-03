@@ -1046,8 +1046,8 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
       capacity: form.capacity,
       pricePerHour: form.pricePerHour,
       slotMinutes: form.slotMinutes,
-      minSlots: form.minSlots,
-      maxSlots: form.maxSlots,
+      minSlots: 1,
+      maxSlots: 96,
       approvalType: form.approvalType,
       isExternalReservable: form.isExternalReservable,
       externalAdvanceDaysOverride,
@@ -1686,7 +1686,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
             <h5 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-1.5">
               <Settings className="w-4 h-4" /> 예약 조건
             </h5>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">최대 수용 인원</label>
                 <div className="flex items-center gap-1">
@@ -1708,18 +1708,6 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">최소 예약 (단위)</label>
-                <input type="number" min={1} value={form.minSlots}
-                  onChange={e => setForm(p => ({ ...p, minSlots: Number(e.target.value) }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">최대 예약 (단위)</label>
-                <input type="number" min={1} value={form.maxSlots}
-                  onChange={e => setForm(p => ({ ...p, maxSlots: Number(e.target.value) }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]" />
-              </div>
-              <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">시간당 요금</label>
                 <div className="flex items-center gap-1">
                   <input type="number" min={0} step={1000} value={form.pricePerHour}
@@ -1737,7 +1725,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
                   <option value="auto">자동 승인 (즉시 승인)</option>
                 </select>
               </div>
-              <label className="col-span-2 md:col-span-3 flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+              <label className="col-span-2 md:col-span-4 flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
                 <input
                   type="checkbox"
                   checked={form.isExternalReservable}
@@ -1752,7 +1740,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
                 </span>
               </label>
               {isExternalMode && form.isExternalReservable && (
-                <div className="col-span-2 md:col-span-3 rounded-xl border border-amber-100 bg-amber-50/70 px-4 py-4">
+                <div className="col-span-2 md:col-span-4 rounded-xl border border-amber-100 bg-amber-50/70 px-4 py-4">
                   <div className="flex flex-col gap-3">
                     <label className="flex items-start gap-3">
                       <input

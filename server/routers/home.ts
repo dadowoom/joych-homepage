@@ -19,7 +19,6 @@ import { adminPermissionProcedure, publicProcedure, memberProtectedProcedure, ro
 import { notifyCourseApplicationToDistrictManager, notifyFacilityReservation, notifyVehicleReservation } from "../_core/pushNotifications";
 import {
   canMemberRequestFacilityReservation,
-  hasFacilityReservationRuleOverride,
 } from "@shared/facilityReservationEligibility";
 import {
   getEffectiveExternalReservationWindow,
@@ -925,13 +924,6 @@ export const homeRouter = router({
       if ((startMinutes - openMinutes) % slotMinutes !== 0 || (endMinutes - openMinutes) % slotMinutes !== 0) {
         throw new TRPCError({ code: "BAD_REQUEST", message: `${slotMinutes}분 단위로만 예약할 수 있습니다.` });
       }
-      const selectedSlots = durationMinutes / slotMinutes;
-      if (selectedSlots < facility.minSlots) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `최소 ${facility.minSlots}개 시간 단위 이상 예약해야 합니다.` });
-      }
-      if (selectedSlots > facility.maxSlots) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `최대 ${facility.maxSlots}개 시간 단위까지만 예약할 수 있습니다.` });
-      }
 
       if (dayHour?.breakStart && dayHour.breakEnd) {
         const breakStart = toMinutes(dayHour.breakStart);
@@ -1033,9 +1025,7 @@ export const homeRouter = router({
           message: "시설 사용 예약은 교회 등록 성도만 신청할 수 있습니다. 관리자에게 문의해 주세요.",
         });
       }
-      const canBypassReservationRules =
-        hasFacilityReservationRuleOverride(member) ||
-        canManageFacilityReservations;
+      const canBypassReservationRules = canManageFacilityReservations;
 
       const startMinutes = toMinutes(input.startTime);
       const endMinutes = toMinutes(input.endTime);
@@ -1111,13 +1101,6 @@ export const homeRouter = router({
         const durationMinutes = endMinutes - startMinutes;
         if (!canBypassReservationRules && ((startMinutes - openMinutes) % slotMinutes !== 0 || (endMinutes - openMinutes) % slotMinutes !== 0)) {
           throw new TRPCError({ code: "BAD_REQUEST", message: `${slotMinutes}분 단위로만 예약할 수 있습니다.` });
-        }
-        const selectedSlots = durationMinutes / slotMinutes;
-        if (selectedSlots < facility.minSlots && !canBypassReservationRules) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: `최소 ${facility.minSlots}개 시간 단위 이상 예약해야 합니다.` });
-        }
-        if (selectedSlots > facility.maxSlots && !canBypassReservationRules) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: `최대 ${facility.maxSlots}개 시간 단위까지만 예약할 수 있습니다.` });
         }
 
         if (dayHour?.breakStart && dayHour.breakEnd && !canBypassReservationRules) {

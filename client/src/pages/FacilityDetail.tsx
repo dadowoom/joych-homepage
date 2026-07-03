@@ -11,6 +11,7 @@ import type { Facility, FacilityHour, FacilityImage, FacilityBlockedDate } from 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import ReservationTimelinePicker from "@/components/facility/ReservationTimelinePicker";
+import { hasContentPermission } from "@/lib/contentPermissions";
 import { Users, MapPin, Clock, ChevronLeft, ChevronRight, Phone, AlertCircle, CalendarCheck, Loader2 } from "lucide-react";
 import {
   getExternalReservationMaxDateKey,
@@ -26,7 +27,6 @@ import { formatKoreanDateKey, getDateKeyDayOfWeek } from "@/lib/koreanDate";
 import {
   generateReservationTimePoints,
 } from "@/lib/facilitySlotSelection";
-import { hasFacilityReservationRuleOverride } from "@shared/facilityReservationEligibility";
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 const FACILITY_CONTACT_DEFAULT_TEXT_KEY = "facility_contact_default_text";
@@ -254,7 +254,6 @@ function TimeSlotPanel({
 }) {
   const dayOfWeek = getDateKeyDayOfWeek(selectedDate);
   const slotMinutes = facility?.slotMinutes ?? 60;
-  const maxSlots = facility?.maxSlots ?? 8;
 
   const { data: hours } = useFacilityHoursForAudience(facilityId, audience);
   const { data: reservations, isLoading } = trpc.home.facilityReservationsByDate.useQuery(
@@ -408,7 +407,8 @@ function TimeSlotPanel({
             endTime={endTime}
             onSelect={onSelectTime}
             slotMinutes={slotMinutes}
-            maxSlots={maxSlots}
+            maxSlots={Math.max(1, allSlots.length - 1)}
+            showSelectAll={hasReservationOverride}
             renderDisabledTooltip={renderDisabledTooltip}
           />
 
@@ -621,9 +621,17 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
     retry: false,
     refetchOnWindowFocus: false,
   });
+  const { data: authMe } = trpc.auth.me.useQuery(undefined, {
+    enabled: !isExternal,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
   const { data: reservationSettings } = trpc.home.settings.useQuery();
   const isApprovedMember = isExternal || Boolean(memberMe);
-  const hasReservationOverride = !isExternal && hasFacilityReservationRuleOverride(memberMe ?? {});
+  const hasReservationOverride =
+    !isExternal &&
+    (hasContentPermission(authMe, "content:reservations") ||
+      hasContentPermission(authMe, "content:facilities"));
   const reservationMaxMonths = getFacilityReservationMaxMonths(reservationSettings);
   const externalReservationWindow = isExternal
     ? getExternalReservationWindow(reservationSettings, facility)
