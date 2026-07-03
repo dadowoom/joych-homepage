@@ -52,6 +52,7 @@ export default function MissionReportEditor() {
   );
 
   const [missionaryId, setMissionaryId] = useState<number | "">("");
+  const [missionarySearch, setMissionarySearch] = useState("");
   const [title, setTitle] = useState("");
   const [reportDate, setReportDate] = useState(todayKey());
   const [summary, setSummary] = useState("");
@@ -66,21 +67,41 @@ export default function MissionReportEditor() {
     () => (canManage ? adminReportQuery.data ?? null : myReports.find(report => report.id === editId) ?? null),
     [adminReportQuery.data, canManage, editId, myReports]
   );
-  const missionaryOptions = canManage
-    ? adminMissionaries.map((missionary) => ({
-        id: missionary.id,
-        label: `${missionary.name} · ${missionary.region}`,
-      }))
-    : grants.map((grant) => ({
-        id: grant.missionaryId,
-        label: `${grant.missionaryName ?? "선교사"} · ${grant.missionaryRegion ?? "사역지"}`,
-      }));
+  const missionaryOptions = useMemo(
+    () =>
+      canManage
+        ? adminMissionaries.map((missionary) => ({
+            id: missionary.id,
+            label: `${missionary.name} · ${missionary.region}`,
+          }))
+        : grants.map((grant) => ({
+            id: grant.missionaryId,
+            label: `${grant.missionaryName ?? "선교사"} · ${grant.missionaryRegion ?? "사역지"}`,
+          })),
+    [adminMissionaries, canManage, grants],
+  );
+  const filteredMissionaryOptions = useMemo(() => {
+    const query = missionarySearch.trim().toLowerCase();
+    const options = query
+      ? missionaryOptions.filter((option) => option.label.toLowerCase().includes(query))
+      : missionaryOptions;
+    return options.slice(0, 30);
+  }, [missionaryOptions, missionarySearch]);
 
   useEffect(() => {
-    if (!missionaryId && missionaryOptions[0]?.id) {
+    if (!missionaryId && !missionarySearch && missionaryOptions[0]?.id) {
       setMissionaryId(missionaryOptions[0].id);
+      setMissionarySearch(missionaryOptions[0].label);
     }
-  }, [missionaryOptions, missionaryId]);
+  }, [missionaryOptions, missionaryId, missionarySearch]);
+
+  useEffect(() => {
+    if (!missionaryId) return;
+    const selected = missionaryOptions.find((option) => option.id === missionaryId);
+    if (selected && missionarySearch !== selected.label) {
+      setMissionarySearch(selected.label);
+    }
+  }, [missionaryId, missionaryOptions, missionarySearch]);
 
   useEffect(() => {
     if (!editingReport) return;
@@ -93,6 +114,12 @@ export default function MissionReportEditor() {
     setImages(editingReport.images.map(imageUrl => ({ imageUrl })));
     setPrayerTopics(editingReport.prayerTopics.length > 0 ? editingReport.prayerTopics : [""]);
   }, [editingReport]);
+
+  const changeMissionarySearch = (value: string) => {
+    setMissionarySearch(value);
+    const exact = missionaryOptions.find((option) => option.label === value);
+    setMissionaryId(exact?.id ?? "");
+  };
 
   const createMutation = trpc.mission.createReport.useMutation({
     onSuccess: ({ id }) => {
@@ -290,13 +317,40 @@ export default function MissionReportEditor() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="담당 선교사/사역지">
-              <select value={missionaryId} onChange={(e) => setMissionaryId(Number(e.target.value))} className={fieldClass}>
-                {missionaryOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              <div className="space-y-2">
+                <input
+                  value={missionarySearch}
+                  onChange={(e) => changeMissionarySearch(e.target.value)}
+                  className={fieldClass}
+                  placeholder="선교사 이름 또는 사역지 검색"
+                  list="missionary-options"
+                />
+                <datalist id="missionary-options">
+                  {missionaryOptions.map((option) => (
+                    <option key={option.id} value={option.label} />
+                  ))}
+                </datalist>
+                <select
+                  value={missionaryId}
+                  onChange={(e) => {
+                    const nextId = Number(e.target.value);
+                    const selected = missionaryOptions.find((option) => option.id === nextId);
+                    setMissionaryId(nextId || "");
+                    setMissionarySearch(selected?.label ?? "");
+                  }}
+                  className={fieldClass}
+                >
+                  <option value="">검색 결과에서 선택</option>
+                  {filteredMissionaryOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                {missionarySearch && filteredMissionaryOptions.length === 0 && (
+                  <p className="text-xs text-red-500">검색된 선교사/사역지가 없습니다.</p>
+                )}
+              </div>
             </Field>
             <Field label="보고 날짜">
               <input type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)} className={fieldClass} />
