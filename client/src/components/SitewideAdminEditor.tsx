@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState } from "react";
 import { PencilLine } from "lucide-react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import HomeAdminDock from "@/components/HomeAdminDock";
@@ -13,6 +14,7 @@ const QuickMenuEditPanel = lazy(() =>
 const AffiliateEditPanel = lazy(() =>
   import("@/components/AffiliateEditPanel")
 );
+const GalleryEditPanel = lazy(() => import("@/components/GalleryEditPanel"));
 const HomeSectionsEditPanel = lazy(() =>
   import("@/components/HomeSectionsEditPanel")
 );
@@ -26,13 +28,16 @@ function formatNotificationCount(count: number) {
 
 export default function SitewideAdminEditor() {
   const { user } = useAuth();
+  const [location] = useLocation();
   const isAdmin = user?.role === "admin";
+  const isHomePage = location === "/" || location === "/home";
 
   const [menuPanelOpen, setMenuPanelOpen] = useState(false);
   const [noticePanelOpen, setNoticePanelOpen] = useState(false);
   const [heroPanelOpen, setHeroPanelOpen] = useState(false);
   const [quickMenuPanelOpen, setQuickMenuPanelOpen] = useState(false);
   const [affiliatePanelOpen, setAffiliatePanelOpen] = useState(false);
+  const [galleryPanelOpen, setGalleryPanelOpen] = useState(false);
   const [homeSectionsPanelOpen, setHomeSectionsPanelOpen] = useState(false);
   const [adminToolsOpen, setAdminToolsOpen] = useState(false);
   const utils = trpc.useUtils();
@@ -54,6 +59,7 @@ export default function SitewideAdminEditor() {
     heroPanelOpen ||
     quickMenuPanelOpen ||
     affiliatePanelOpen ||
+    galleryPanelOpen ||
     homeSectionsPanelOpen;
 
   const refreshAfterPanelClose = () => {
@@ -62,6 +68,7 @@ export default function SitewideAdminEditor() {
     if (heroPanelOpen) void utils.home.heroSlides.invalidate();
     if (quickMenuPanelOpen) void utils.home.quickMenus.invalidate();
     if (affiliatePanelOpen) void utils.home.affiliates.invalidate();
+    if (galleryPanelOpen) void utils.home.homeGallery.invalidate();
     if (homeSectionsPanelOpen) void utils.home.settings.invalidate();
   };
 
@@ -72,6 +79,7 @@ export default function SitewideAdminEditor() {
     setHeroPanelOpen(false);
     setQuickMenuPanelOpen(false);
     setAffiliatePanelOpen(false);
+    setGalleryPanelOpen(false);
     setHomeSectionsPanelOpen(false);
   };
 
@@ -80,7 +88,7 @@ export default function SitewideAdminEditor() {
     setAdminToolsOpen(true);
   };
 
-  if (!isAdmin) {
+  if (!isAdmin || isHomePage) {
     return null;
   }
 
@@ -96,6 +104,10 @@ export default function SitewideAdminEditor() {
           onOpenAffiliates={() => {
             setAdminToolsOpen(false);
             setAffiliatePanelOpen(true);
+          }}
+          onOpenGallery={() => {
+            setAdminToolsOpen(false);
+            setGalleryPanelOpen(true);
           }}
           onOpenHero={() => {
             setAdminToolsOpen(false);
@@ -192,6 +204,15 @@ export default function SitewideAdminEditor() {
             onClose={() => {
               setHomeSectionsPanelOpen(false);
               void utils.home.settings.invalidate();
+            }}
+          />
+        )}
+        {galleryPanelOpen && (
+          <GalleryEditPanel
+            open={galleryPanelOpen}
+            onClose={() => {
+              setGalleryPanelOpen(false);
+              void utils.home.homeGallery.invalidate();
             }}
           />
         )}
