@@ -150,6 +150,13 @@
     vertical-align: middle;
   }
 
+  .rich-text-viewer td[rowspan],
+  .rich-text-viewer th[rowspan],
+  .rich-text-viewer td[colspan],
+  .rich-text-viewer th[colspan] {
+    vertical-align: middle !important;
+  }
+
   .rich-text-viewer th {
     background: color-mix(in oklch, var(--accent), white 38%);
     color: var(--accent-foreground);
