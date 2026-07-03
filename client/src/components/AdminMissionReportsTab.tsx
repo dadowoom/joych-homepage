@@ -54,16 +54,35 @@ export default function AdminMissionReportsTab() {
     () => members.filter((member) => member.status === "approved"),
     [members]
   );
+  const selectedMember = useMemo(
+    () => approvedMembers.find((member) => member.id === selectedMemberId) ?? null,
+    [approvedMembers, selectedMemberId]
+  );
   const filteredMembers = useMemo(() => {
     const trimmedSearch = memberSearch.trim();
     const normalizedSearch = trimmedSearch.toLowerCase();
     if (!trimmedSearch) return approvedMembers;
     return approvedMembers.filter(
-      (member) =>
-        member.name.toLowerCase().includes(normalizedSearch) ||
-        (member.phone ?? "").includes(trimmedSearch)
+      (member) => {
+        const haystack = [
+          member.name,
+          member.phone,
+          member.email,
+          member.position,
+          member.department,
+          member.district,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(normalizedSearch) || (member.phone ?? "").includes(trimmedSearch);
+      }
     );
   }, [approvedMembers, memberSearch]);
+  const visibleMemberMatches = useMemo(
+    () => filteredMembers.slice(0, 8),
+    [filteredMembers]
+  );
 
   const createMissionary = trpc.cms.missionReports.createMissionary.useMutation(
     {
@@ -233,9 +252,50 @@ export default function AdminMissionReportsTab() {
             type="text"
             value={memberSearch}
             onChange={(event) => setMemberSearch(event.target.value)}
-            placeholder="이름 또는 전화번호로 검색"
+            placeholder="이름, 직분, 부서, 구역, 전화번호로 검색"
             className={`${adminFieldClass} md:col-span-3`}
           />
+          <div className="md:col-span-3">
+            {selectedMember && (
+              <div className="mb-2 rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-sm text-green-800">
+                선택됨: <span className="font-semibold">{selectedMember.name}</span>
+                {selectedMember.position ? ` · ${selectedMember.position}` : ""}
+                {selectedMember.department ? ` · ${selectedMember.department}` : ""}
+                {selectedMember.district ? ` · ${selectedMember.district}` : ""}
+              </div>
+            )}
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+              {visibleMemberMatches.map((member) => (
+                <button
+                  key={member.id}
+                  type="button"
+                  onClick={() => setSelectedMemberId(member.id)}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+                    selectedMemberId === member.id
+                      ? "border-[#1B5E20] bg-green-50 text-[#1B5E20]"
+                      : "border-gray-200 bg-white text-gray-700 hover:border-green-200 hover:bg-green-50"
+                  }`}
+                >
+                  <span className="block font-semibold">{member.name}</span>
+                  <span className="mt-0.5 block truncate text-xs text-gray-500">
+                    {[member.position, member.department, member.district, member.phone, member.email]
+                      .filter(Boolean)
+                      .join(" · ") || "추가 정보 없음"}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {memberSearch.trim() && filteredMembers.length === 0 && (
+              <p className="mt-2 rounded-lg border border-dashed border-gray-200 px-3 py-3 text-sm text-gray-400">
+                검색된 성도가 없습니다.
+              </p>
+            )}
+            {filteredMembers.length > visibleMemberMatches.length && (
+              <p className="mt-2 text-xs text-gray-400">
+                검색 결과 {filteredMembers.length}명 중 상위 {visibleMemberMatches.length}명만 표시됩니다.
+              </p>
+            )}
+          </div>
           <select
             className={adminFieldClass}
             value={selectedMemberId}
