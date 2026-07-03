@@ -51,6 +51,7 @@ import {
   addBlockedDate,
   addBlockedDates,
   deleteBlockedDate,
+  deleteBlockedDates,
   upsertSiteSetting,
 } from "../../db";
 
@@ -389,5 +390,10 @@ export const facilitiesRouter = router({
     delete: facilityProcedure
       .input(z.object({ id: idSchema }))
       .mutation(({ input }) => deleteBlockedDate(input.id)),
+
+    /** 차단 날짜 여러 건 삭제 (관리자) */
+    deleteMany: facilityProcedure
+      .input(z.object({ ids: z.array(idSchema).min(1).max(730) }))
+      .mutation(({ input }) => deleteBlockedDates(input.ids)),
   }),
 });

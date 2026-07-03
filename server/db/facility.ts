@@ -319,6 +319,13 @@ export async function deleteBlockedDate(id: number) {
   await db.delete(facilityBlockedDates).where(eq(facilityBlockedDates.id, id));
 }
 
+/** 예약 차단 날짜 여러 건 삭제 */
+export async function deleteBlockedDates(ids: number[]) {
+  const db = await getDb();
+  if (!db || ids.length === 0) return;
+  await db.delete(facilityBlockedDates).where(inArray(facilityBlockedDates.id, ids));
+}
+
 // ─── 예약 관리 ────────────────────────────────────────────────────────────────
 
 /** 전체 예약 목록 조회 (관리자용) */

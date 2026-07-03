@@ -219,6 +219,97 @@ function buildBlockedDateKeys(startDate: string, dayCount: number) {
   return Array.from({ length: Math.max(1, dayCount) }, (_, index) => addDaysToDateKey(startDate, index));
 }
 
+type BlockedDateGroup = {
+  key: string;
+  ids: number[];
+  facilityId: number | null;
+  startDate: string;
+  endDate: string;
+  reason: string;
+  count: number;
+  isPartialBlock: boolean;
+  blockStart: string | null;
+  blockEnd: string | null;
+};
+
+function areConsecutiveDateKeys(prevDate: string, nextDate: string) {
+  return addDaysToDateKey(prevDate, 1) === nextDate;
+}
+
+function getBlockedDateCreatedAtKey(value: FacilityBlockedDate["createdAt"]) {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 19);
+}
+
+function groupBlockedDates(blockedDates: FacilityBlockedDate[]) {
+  const sorted = [...blockedDates].sort((a, b) => {
+    const facilityCompare = (a.facilityId ?? -1) - (b.facilityId ?? -1);
+    if (facilityCompare !== 0) return facilityCompare;
+    const partialCompare = Number(a.isPartialBlock) - Number(b.isPartialBlock);
+    if (partialCompare !== 0) return partialCompare;
+    const createdAtCompare = getBlockedDateCreatedAtKey(a.createdAt).localeCompare(getBlockedDateCreatedAtKey(b.createdAt));
+    if (createdAtCompare !== 0) return createdAtCompare;
+    const reasonCompare = (a.reason ?? "").localeCompare(b.reason ?? "", "ko");
+    if (reasonCompare !== 0) return reasonCompare;
+    const blockStartCompare = (a.blockStart ?? "").localeCompare(b.blockStart ?? "");
+    if (blockStartCompare !== 0) return blockStartCompare;
+    const blockEndCompare = (a.blockEnd ?? "").localeCompare(b.blockEnd ?? "");
+    if (blockEndCompare !== 0) return blockEndCompare;
+    return a.blockedDate.localeCompare(b.blockedDate);
+  });
+
+  const groups: BlockedDateGroup[] = [];
+  for (const blockedDate of sorted) {
+    const reason = blockedDate.reason?.trim() ?? "";
+    const createdAtKey = getBlockedDateCreatedAtKey(blockedDate.createdAt);
+    const prev = groups[groups.length - 1];
+    const canMerge = Boolean(
+      prev &&
+      !blockedDate.isPartialBlock &&
+      !prev.isPartialBlock &&
+      prev.facilityId === (blockedDate.facilityId ?? null) &&
+      prev.reason === reason &&
+      prev.blockStart === (blockedDate.blockStart ?? null) &&
+      prev.blockEnd === (blockedDate.blockEnd ?? null) &&
+      prev.key.startsWith(createdAtKey) &&
+      areConsecutiveDateKeys(prev.endDate, blockedDate.blockedDate)
+    );
+
+    if (canMerge && prev) {
+      prev.ids.push(blockedDate.id);
+      prev.endDate = blockedDate.blockedDate;
+      prev.count += 1;
+      continue;
+    }
+
+    groups.push({
+      key: `${createdAtKey}|${blockedDate.facilityId ?? "all"}|${reason}|${blockedDate.isPartialBlock ? "partial" : "full"}|${blockedDate.blockStart ?? ""}|${blockedDate.blockEnd ?? ""}|${blockedDate.id}`,
+      ids: [blockedDate.id],
+      facilityId: blockedDate.facilityId ?? null,
+      startDate: blockedDate.blockedDate,
+      endDate: blockedDate.blockedDate,
+      reason,
+      count: 1,
+      isPartialBlock: blockedDate.isPartialBlock,
+      blockStart: blockedDate.blockStart ?? null,
+      blockEnd: blockedDate.blockEnd ?? null,
+    });
+  }
+
+  return groups;
+}
+
+function formatBlockedDateGroupLabel(group: BlockedDateGroup) {
+  if (group.isPartialBlock) {
+    const timeLabel = group.blockStart && group.blockEnd ? ` ${group.blockStart}~${group.blockEnd}` : "";
+    return `${group.startDate}${timeLabel}`;
+  }
+  if (group.count <= 1) return group.startDate;
+  return `${group.startDate} ~ ${group.endDate}`;
+}
+
 function SortableFacilityRow({
   facility,
   isExpanded,
@@ -229,6 +320,7 @@ function SortableFacilityRow({
   activeBuildingLabel,
   isAddingBlockedDate,
   isDeleting,
+  isRemovingBlockedDate,
   onToggleExpanded,
   onEdit,
   onDelete,
@@ -237,7 +329,7 @@ function SortableFacilityRow({
   onNewBlockReasonChange,
   onAddBlockedDate,
   onAddBuildingBlockedDates,
-  onRemoveBlockedDate,
+  onRemoveBlockedDateGroup,
 }: {
   facility: Facility & { thumbnailUrl?: string | null };
   isExpanded: boolean;
@@ -248,6 +340,7 @@ function SortableFacilityRow({
   activeBuildingLabel: string;
   isAddingBlockedDate: boolean;
   isDeleting: boolean;
+  isRemovingBlockedDate: boolean;
   onToggleExpanded: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -256,7 +349,7 @@ function SortableFacilityRow({
   onNewBlockReasonChange: (value: string) => void;
   onAddBlockedDate: () => void;
   onAddBuildingBlockedDates: () => void;
-  onRemoveBlockedDate: (id: number) => void;
+  onRemoveBlockedDateGroup: (ids: number[]) => void;
 }) {
   const {
     attributes,
@@ -273,6 +366,7 @@ function SortableFacilityRow({
     zIndex: isDragging ? 20 : undefined,
     opacity: isDragging ? 0.75 : 1,
   };
+  const blockedDateGroups = useMemo(() => groupBlockedDates(blockedDates), [blockedDates]);
 
   return (
     <div
@@ -375,16 +469,28 @@ function SortableFacilityRow({
             <p className="text-xs text-gray-400 py-2">설정된 예약 불가 날짜가 없습니다.</p>
           ) : (
             <div className="space-y-1.5">
-              {blockedDates.map((bd) => (
-                <div key={bd.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
+              {blockedDateGroups.map((group) => (
+                <div key={group.key} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
                   <div className="flex items-center gap-2 text-sm">
                     <Calendar className="w-3.5 h-3.5 text-red-400" />
-                    <span className="font-medium text-gray-700">{bd.blockedDate}</span>
-                    {bd.reason && <span className="text-gray-400 text-xs">— {bd.reason}</span>}
+                    <span className="font-medium text-gray-700">{formatBlockedDateGroupLabel(group)}</span>
+                    {group.count > 1 && (
+                      <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-600">
+                        {group.count}일
+                      </span>
+                    )}
+                    {group.reason && <span className="text-gray-400 text-xs">— {group.reason}</span>}
                   </div>
-                  <button onClick={() => onRemoveBlockedDate(bd.id)}
-                    className="text-gray-300 hover:text-red-500 transition-colors">
-                    <X className="w-3.5 h-3.5" />
+                  <button
+                    onClick={() => onRemoveBlockedDateGroup(group.ids)}
+                    disabled={isRemovingBlockedDate}
+                    className="text-gray-300 transition-colors hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isRemovingBlockedDate ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <X className="w-3.5 h-3.5" />
+                    )}
                   </button>
                 </div>
               ))}
@@ -929,6 +1035,14 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
 
   const removeBlockedDate = trpc.cms.facilities.blockedDates.delete.useMutation({
     onSuccess: () => { utils.cms.facilities.blockedDates.list.invalidate(); toast.success("삭제되었습니다."); },
+  });
+
+  const removeBlockedDates = trpc.cms.facilities.blockedDates.deleteMany.useMutation({
+    onSuccess: (_, variables) => {
+      utils.cms.facilities.blockedDates.list.invalidate();
+      toast.success(variables.ids.length > 1 ? `${variables.ids.length}일 묶음이 삭제되었습니다.` : "삭제되었습니다.");
+    },
+    onError: (e) => toast.error(e.message || "예약 불가 날짜 삭제에 실패했습니다."),
   });
 
   function getBlockedDayCount() {
@@ -2025,6 +2139,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
                         activeBuildingLabel={activeBuildingOption.label}
                         isAddingBlockedDate={addBlockedDate.isPending || addBlockedDates.isPending}
                         isDeleting={deleteFacility.isPending}
+                        isRemovingBlockedDate={removeBlockedDate.isPending || removeBlockedDates.isPending}
                         onToggleExpanded={() => setExpandedId(expandedId === f.id ? null : f.id)}
                         onEdit={() => startEdit(f)}
                         onDelete={() => {
@@ -2044,7 +2159,13 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
                           }
                           addBlockedDatesForFacilities(targetIds);
                         }}
-                        onRemoveBlockedDate={(id) => removeBlockedDate.mutate({ id })}
+                        onRemoveBlockedDateGroup={(ids) => {
+                          if (ids.length === 1) {
+                            removeBlockedDate.mutate({ id: ids[0] });
+                            return;
+                          }
+                          removeBlockedDates.mutate({ ids });
+                        }}
                       />
                     ))}
                   </div>
