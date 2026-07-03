@@ -21,6 +21,7 @@ export type MenuReadAccess = "guest" | "member";
 type ReadableMenuLeaf = {
   allowGuest: boolean;
   allowMember: boolean;
+  href?: string | null;
 };
 
 function canReadMenuLeaf(row: ReadableMenuLeaf, access: MenuReadAccess) {
@@ -32,6 +33,11 @@ function getEffectiveLeafAccess(...rows: ReadableMenuLeaf[]) {
     allowGuest: rows.every(row => row.allowGuest),
     allowMember: rows.every(row => row.allowMember),
   };
+}
+
+function getTopMenuAccessForChild(menu: ReadableMenuLeaf) {
+  if (menu.href) return menu;
+  return { allowGuest: true, allowMember: true };
 }
 
 function shouldShowMenuLeaf(row: ReadableMenuLeaf) {
@@ -153,11 +159,11 @@ export async function getVisibleMenus(access: MenuReadAccess = "guest") {
   for (const item of visibleItems) {
     const parentMenu = menuList.find((menu) => menu.id === item.menuId);
     if (!parentMenu) continue;
-    const itemAccess = getEffectiveLeafAccess(parentMenu, item);
+    const itemAccess = getEffectiveLeafAccess(getTopMenuAccessForChild(parentMenu), item);
     if (!canReadMenuLeaf(itemAccess, access)) continue;
 
     const subItems = (subItemsByItemId.get(item.id) ?? []).filter((subItem) =>
-      canReadMenuLeaf(getEffectiveLeafAccess(parentMenu, item, subItem), access)
+      canReadMenuLeaf(getEffectiveLeafAccess(getTopMenuAccessForChild(parentMenu), item, subItem), access)
     );
     const visibleSubItemsWithAccess = subItems.map((subItem) => ({
       ...subItem,
@@ -215,9 +221,9 @@ export async function getNavigationMenus() {
   for (const item of visibleItems) {
     const parentMenu = menuList.find((menu) => menu.id === item.menuId);
     if (!parentMenu) continue;
-    const itemAccess = getEffectiveLeafAccess(parentMenu, item);
+    const itemAccess = getEffectiveLeafAccess(getTopMenuAccessForChild(parentMenu), item);
     const subItems = (subItemsByItemId.get(item.id) ?? []).filter((subItem) =>
-      shouldShowMenuLeaf(getEffectiveLeafAccess(parentMenu, item, subItem))
+      shouldShowMenuLeaf(getEffectiveLeafAccess(getTopMenuAccessForChild(parentMenu), item, subItem))
     );
 
     if (!shouldShowMenuLeaf(itemAccess) && subItems.length === 0) continue;
@@ -373,7 +379,7 @@ export async function getVisibleMenuItemById(id: number, access: MenuReadAccess 
     .limit(1);
   const parent = parentRows[0];
   if (!parent) return null;
-  if (!canReadMenuLeaf(getEffectiveLeafAccess(parent, item), access)) return null;
+  if (!canReadMenuLeaf(getEffectiveLeafAccess(getTopMenuAccessForChild(parent), item), access)) return null;
   return item;
 }
 
@@ -569,7 +575,7 @@ export async function getVisibleMenuItemByHref(href: string, access: MenuReadAcc
     .limit(1);
   const parent = parentRows[0];
   if (!parent) return null;
-  if (!canReadMenuLeaf(getEffectiveLeafAccess(parent, item), access)) return null;
+  if (!canReadMenuLeaf(getEffectiveLeafAccess(getTopMenuAccessForChild(parent), item), access)) return null;
   return item;
 }
 
@@ -607,7 +613,7 @@ export async function getVisibleMenuSubItemByHref(href: string, access: MenuRead
     .limit(1);
   const parent = parentRows[0];
   if (!parent) return null;
-  if (!canReadMenuLeaf(getEffectiveLeafAccess(parent, item, subItem), access)) return null;
+  if (!canReadMenuLeaf(getEffectiveLeafAccess(getTopMenuAccessForChild(parent), item, subItem), access)) return null;
   return subItem;
 }
 
@@ -657,9 +663,9 @@ export async function getMenuAccessByHref(href: string, access: MenuReadAccess =
           label: parent.label,
           href: parent.href,
         },
-        allowGuest: getEffectiveLeafAccess(parent, item).allowGuest,
-        allowMember: getEffectiveLeafAccess(parent, item).allowMember,
-        isReadable: canReadMenuLeaf(getEffectiveLeafAccess(parent, item), access),
+        allowGuest: getEffectiveLeafAccess(getTopMenuAccessForChild(parent), item).allowGuest,
+        allowMember: getEffectiveLeafAccess(getTopMenuAccessForChild(parent), item).allowMember,
+        isReadable: canReadMenuLeaf(getEffectiveLeafAccess(getTopMenuAccessForChild(parent), item), access),
       };
     }
 
@@ -679,7 +685,7 @@ export async function getMenuAccessByHref(href: string, access: MenuReadAccess =
       const parent = parentRows[0];
       if (!parent) continue;
 
-      const effectiveAccess = getEffectiveLeafAccess(parent, parentItem, subItem);
+      const effectiveAccess = getEffectiveLeafAccess(getTopMenuAccessForChild(parent), parentItem, subItem);
       const isVisible = Boolean(parent.isVisible) && Boolean(parentItem.isVisible) && Boolean(subItem.isVisible);
       if (!isVisible) continue;
       return {
@@ -762,9 +768,9 @@ export async function getMenuAccessById(
         label: parent.label,
         href: parent.href,
       },
-      allowGuest: getEffectiveLeafAccess(parent, item).allowGuest,
-      allowMember: getEffectiveLeafAccess(parent, item).allowMember,
-      isReadable: isVisible && canReadMenuLeaf(getEffectiveLeafAccess(parent, item), access),
+      allowGuest: getEffectiveLeafAccess(getTopMenuAccessForChild(parent), item).allowGuest,
+      allowMember: getEffectiveLeafAccess(getTopMenuAccessForChild(parent), item).allowMember,
+      isReadable: isVisible && canReadMenuLeaf(getEffectiveLeafAccess(getTopMenuAccessForChild(parent), item), access),
     };
   }
 
@@ -786,7 +792,7 @@ export async function getMenuAccessById(
   const parent = parentRows[0];
   if (!parent) return null;
 
-  const effectiveAccess = getEffectiveLeafAccess(parent, parentItem, subItem);
+  const effectiveAccess = getEffectiveLeafAccess(getTopMenuAccessForChild(parent), parentItem, subItem);
   const isVisible = Boolean(parent.isVisible) && Boolean(parentItem.isVisible) && Boolean(subItem.isVisible);
   return {
     kind: "subItem" as const,
