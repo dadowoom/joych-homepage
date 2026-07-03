@@ -37,12 +37,6 @@ import {
   hasFacilityReservationBlockedMemberMarker,
 } from "@shared/facilityReservationEligibility";
 
-// ── 목적 옵션 ────────────────────────────────────────────────
-const PURPOSE_OPTIONS = [
-  "주일 예배", "수요 예배", "새벽 기도", "소그룹 모임", "부서 행사",
-  "찬양 연습", "강의/세미나", "회의", "바자회/전시", "외부 단체 행사", "기타",
-];
-
 type RepeatType = "none" | "daily" | "weekly" | "monthly-weekday";
 type FacilityBuilding = "hayoungin" | "welfare";
 type FacilityAudience = "member" | "external";
@@ -484,16 +478,12 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
   }
 
   function validate(): string | null {
-    const resolvedPurpose = isExternal
-      ? form.purpose.trim()
-      : form.purpose === "기타"
-        ? form.purposeDetail.trim()
-        : form.purpose.trim();
+    const resolvedPurpose = form.purpose.trim();
     if (!form.reserverName.trim()) return "신청자 이름을 입력해 주세요.";
     if (!form.reserverPhone.trim()) return "연락처를 입력해 주세요.";
     if (!form.department.trim()) return isExternal ? "단체명을 입력해 주세요." : "소속 부서/단체를 입력해 주세요.";
     if (isExternal && !form.depositorName.trim()) return "입금자명을 입력해 주세요.";
-    if (!form.purpose.trim()) return isExternal ? "사용 목적을 입력해 주세요." : "사용 목적을 선택해 주세요.";
+    if (!form.purpose.trim()) return "?? ??? ??? ???.";
     if (!form.date) return "사용 날짜를 선택해 주세요.";
     if (!resolvedPurpose) return isExternal ? "사용 목적을 입력해 주세요." : (form.purpose === "기타" ? "기타 사용 목적을 입력해 주세요." : "사용 목적을 선택해 주세요.");
     if (selectedDateRangeRestriction) return selectedDateRangeRestriction;
@@ -548,11 +538,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     }
     const error = validate();
     if (error) { showReservationError(error); return; }
-    const resolvedPurpose = isExternal
-      ? form.purpose.trim()
-      : form.purpose === "기타"
-        ? form.purposeDetail.trim()
-        : form.purpose.trim();
+    const resolvedPurpose = form.purpose.trim();
     const payload = {
       facilityId,
       reserverName: form.reserverName,
@@ -753,34 +739,15 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                   </Field>
                 )}
 
-                <Field label="사용 목적" required>
-                  {isExternal ? (
-                    <input
-                      type="text"
-                      name="purpose"
-                      value={form.purpose}
-                      onChange={handleChange}
-                      placeholder="사용 목적을 직접 입력해 주세요. (예: 음악 연습, 외부 세미나)"
-                      className={inputClass}
-                    />
-                  ) : (
-                    <>
-                    <select name="purpose" value={form.purpose} onChange={handleChange} className={inputClass}>
-                      <option value="">선택해 주세요</option>
-                      {PURPOSE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                    {form.purpose === "기타" && (
-                      <input
-                        type="text"
-                        name="purposeDetail"
-                        value={form.purposeDetail}
-                        onChange={handleChange}
-                        placeholder="사용 목적을 직접 입력해 주세요."
-                        className={`${inputClass} mt-3`}
-                      />
-                    )}
-                    </>
-                  )}
+                <Field label="?? ??" required>
+                  <input
+                    type="text"
+                    name="purpose"
+                    value={form.purpose}
+                    onChange={handleChange}
+                    placeholder="?? ??? ?? ??? ???. (?: ??, ??, ??)"
+                    className={inputClass}
+                  />
                 </Field>
 
                 <h2 className="font-bold text-gray-900 text-base pb-3 border-b border-gray-100 pt-2" style={{ fontFamily: "'Noto Serif KR', serif" }}>

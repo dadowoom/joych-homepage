@@ -83,14 +83,6 @@ type MyVehicleReservationRow = {
   createdAt: Date | string;
 };
 
-const PURPOSE_OPTIONS = [
-  "교회 행사",
-  "부서 행사",
-  "심방/탐방",
-  "선교/봉사",
-  "물품 운반",
-  "기타",
-];
 
 const STATUS_LABELS = {
   pending: { label: "승인 대기", color: "bg-amber-100 text-amber-700", icon: <Clock className="h-3.5 w-3.5" /> },
@@ -878,7 +870,7 @@ export function VehicleReservationApply() {
     if (!memberMe && !canManageVehicleReservations) return "성도 로그인 후 신청할 수 있습니다.";
     if (!form.reserverName.trim()) return "신청자 이름을 입력해주세요.";
     if (!form.reserverPhone.trim()) return "연락처를 입력해주세요.";
-    if (!form.purpose) return "사용 목적을 선택해주세요.";
+    if (!form.purpose.trim()) return "?? ??? ??? ???.";
     if (!form.date) return "사용 날짜를 선택해주세요.";
     if (form.date < getKstDateKey()) return "지난 날짜는 예약할 수 없습니다.";
     if (!form.startTime || !form.endTime) return "사용 시간을 선택해주세요.";
@@ -910,7 +902,7 @@ export function VehicleReservationApply() {
       reservationDate: form.date,
       startTime: form.startTime,
       endTime: form.endTime,
-      purpose: form.purpose,
+      purpose: form.purpose.trim(),
       passengers: 1,
       notes: form.notes || undefined,
     });
@@ -1016,10 +1008,13 @@ export function VehicleReservationApply() {
 
                   <label className="block">
                     <span className="mb-1 block text-xs font-medium text-gray-600">사용 목적 *</span>
-                    <select value={form.purpose} onChange={(e) => updateForm("purpose", e.target.value)} className={inputClass}>
-                      <option value="">선택해 주세요</option>
-                      {PURPOSE_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
-                    </select>
+                    <input
+                      type="text"
+                      value={form.purpose}
+                      onChange={(e) => updateForm("purpose", e.target.value)}
+                      placeholder="?? ??? ?? ??? ???. (?: ?? ??, ?? ??)"
+                      className={inputClass}
+                    />
                   </label>
 
                   <h2 className="border-b border-gray-100 pb-3 pt-2 text-base font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>

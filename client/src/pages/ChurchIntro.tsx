@@ -706,6 +706,7 @@ export function PastorBooksPage() {
       toast.success(variables.isVisible ? "저서를 홈페이지에 노출했습니다." : "저서를 홈페이지에서 숨겼습니다.");
     },
     onError: (error) => {
+      setOrderedBooks(books);
       toast.error(error.message || "노출 상태 변경에 실패했습니다.");
     },
   });
@@ -758,21 +759,12 @@ export function PastorBooksPage() {
       ...book,
       sortOrder: totalBookCount - index,
     }));
-    const hiddenBooks = (adminPastorBooks as PastorBookPublicItem[])
-      .filter((book) => !book.isVisible)
-      .sort((a, b) => b.sortOrder - a.sortOrder || b.id - a.id);
     setOrderedBooks(nextBooks);
     reorderBooks.mutate({
-      items: [
-        ...nextBooks.map((book) => ({
-          id: book.id,
-          sortOrder: book.sortOrder,
-        })),
-        ...hiddenBooks.map((book, index) => ({
-          id: book.id,
-          sortOrder: hiddenBooks.length - index,
-        })),
-      ],
+      items: nextBooks.map((book) => ({
+        id: book.id,
+        sortOrder: book.sortOrder,
+      })),
     });
   }
 
@@ -846,6 +838,11 @@ export function PastorBooksPage() {
                   onEdit={openEdit}
                   onDelete={handleDeleteBook}
                   onToggleVisibility={(targetBook) => {
+                    setOrderedBooks((currentBooks) =>
+                      (currentBooks.length === books.length ? currentBooks : books).map((book) =>
+                        book.id === targetBook.id ? { ...book, isVisible: !targetBook.isVisible } : book
+                      )
+                    );
                     updateBookVisibility.mutate({
                       id: targetBook.id,
                       isVisible: !targetBook.isVisible,

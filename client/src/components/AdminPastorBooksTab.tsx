@@ -466,14 +466,18 @@ function SortablePastorBookRow({
   book,
   isDeleting,
   isOrdering,
+  isVisibilityUpdating,
   onEdit,
   onDelete,
+  onToggleVisibility,
 }: {
   book: PastorBookItem;
   isDeleting: boolean;
   isOrdering: boolean;
+  isVisibilityUpdating: boolean;
   onEdit: (book: PastorBookItem) => void;
   onDelete: (book: PastorBookItem) => void;
+  onToggleVisibility: (book: PastorBookItem) => void;
 }) {
   const {
     attributes,
@@ -537,6 +541,19 @@ function SortablePastorBookRow({
       <div className="flex shrink-0 gap-2">
         <button
           type="button"
+          onClick={() => onToggleVisibility(book)}
+          disabled={isVisibilityUpdating}
+          className={`inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${
+            book.isVisible
+              ? "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+              : "border-[#A5D6A7] text-[#1B5E20] hover:bg-[#F1F8F2]"
+          }`}
+        >
+          {book.isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          {book.isVisible ? "숨김" : "노출"}
+        </button>
+        <button
+          type="button"
           onClick={() => onEdit(book)}
           className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-600 hover:border-[#A5D6A7] hover:text-[#1B5E20]"
         >
@@ -561,6 +578,20 @@ export default function AdminPastorBooksTab() {
   const utils = trpc.useUtils();
   const { data: books = [], isLoading } = trpc.cms.pastorBooks.list.useQuery();
   const deleteBook = trpc.cms.pastorBooks.delete.useMutation();
+  const updateBookVisibility = trpc.cms.pastorBooks.update.useMutation({
+    onSuccess: async (_book, variables) => {
+      await Promise.all([
+        utils.cms.pastorBooks.list.invalidate(),
+        utils.home.pastorBooks.invalidate(),
+        utils.home.pastorBook.invalidate({ id: variables.id }),
+      ]);
+      toast.success(variables.isVisible ? "저서를 노출했습니다." : "저서를 숨김 처리했습니다.");
+    },
+    onError: (error) => {
+      setOrderedBooks(books);
+      toast.error(error.message || "노출 상태 변경에 실패했습니다.");
+    },
+  });
   const [editorOpen, setEditorOpen] = useState(false);
   const [selectedBook, setSelectedBook] = useState<PastorBookItem | null>(null);
   const [orderedBooks, setOrderedBooks] = useState<PastorBookItem[]>([]);
@@ -672,8 +703,20 @@ export default function AdminPastorBooksTab() {
                   book={{ ...book, sortOrder: displayBooks.findIndex((item) => item.id === book.id) + 1 }}
                   isDeleting={deleteBook.isPending}
                   isOrdering={reorderBooks.isPending}
+                  isVisibilityUpdating={updateBookVisibility.isPending}
                   onEdit={openEdit}
                   onDelete={handleDelete}
+                  onToggleVisibility={(targetBook) => {
+                    setOrderedBooks((currentBooks) =>
+                      (currentBooks.length === books.length ? currentBooks : books).map((book) =>
+                        book.id === targetBook.id ? { ...book, isVisible: !targetBook.isVisible } : book
+                      )
+                    );
+                    updateBookVisibility.mutate({
+                      id: targetBook.id,
+                      isVisible: !targetBook.isVisible,
+                    });
+                  }}
                 />
               ))}
             </div>
