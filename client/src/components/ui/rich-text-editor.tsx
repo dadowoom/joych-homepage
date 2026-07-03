@@ -326,6 +326,12 @@ ${scopeSelector} .rt-table-scroll {
 ${scopeSelector} .rt-table-scroll table {
   margin: 0;
 }
+${scopeSelector} .rt-table-scroll td[rowspan],
+${scopeSelector} .rt-table-scroll th[rowspan],
+${scopeSelector} .rt-table-scroll td[colspan],
+${scopeSelector} .rt-table-scroll th[colspan] {
+  vertical-align: middle !important;
+}
 @media (max-width: 640px) {
   ${scopeSelector} * {
     max-width: 100%;
@@ -392,9 +398,15 @@ function normalizeRichTextTableLayoutForViewer(html: string) {
   root.querySelectorAll("td, th").forEach((node) => {
     const cell = node as HTMLElement;
     const text = cell.textContent?.replace(/\s+/g, " ").trim() ?? "";
+    const rowSpan = Number(cell.getAttribute("rowspan") ?? "1");
+    const colSpan = Number(cell.getAttribute("colspan") ?? "1");
 
     if (/^\d{1,2}:\d{2}$/.test(text)) {
       cell.style.whiteSpace = "nowrap";
+    }
+
+    if (rowSpan > 1 || colSpan > 1) {
+      cell.style.verticalAlign = "middle";
     }
   });
 
