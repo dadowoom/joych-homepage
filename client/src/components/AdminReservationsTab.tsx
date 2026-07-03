@@ -124,6 +124,10 @@ function getReservationPhone(reservation: AdminReservationRow) {
   return reservation.reserverPhone || reservation.memberPhone || "-";
 }
 
+function getReservationDepartment(reservation: AdminReservationRow) {
+  return reservation.department || reservation.notes || "-";
+}
+
 function formatReservationTimeRange(reservation: Pick<AdminReservationRow, "startTime" | "endTime">) {
   return `${reservation.startTime}~${reservation.endTime}`;
 }
@@ -1050,18 +1054,20 @@ function CalendarView({ searchFilteredReservations, facilityFilter, facilitySear
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <div className="min-w-[1040px]">
+            <div className="min-w-[880px]">
             <div className="grid grid-cols-[90px_minmax(260px,1fr)_110px] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 text-[11px] font-semibold text-gray-500 md:hidden">
               <div>시간</div>
-              <div>시설 / 목적</div>
+              <div>시설 / 목적 / 예약자</div>
               <div>관리</div>
             </div>
-            <div className="hidden grid-cols-[110px_minmax(320px,1.6fr)_150px_140px_120px_220px] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 text-[11px] font-semibold text-gray-500 md:grid">
+            <div className="hidden grid-cols-[82px_minmax(95px,1fr)_minmax(110px,1.15fr)_minmax(95px,1fr)_minmax(145px,1.25fr)_86px_44px_142px] gap-2 border-b border-gray-100 bg-gray-50 px-3 py-3 text-[11px] font-semibold text-gray-500 md:grid">
               <div>시간</div>
-              <div>시설 / 목적</div>
-              <div>예약자</div>
-              <div>연락처</div>
-              <div>상태 / 인원</div>
+              <div>시설</div>
+              <div>목적</div>
+              <div>부서/모임명</div>
+              <div>예약자/연락처</div>
+              <div>상태</div>
+              <div>인원</div>
               <div>관리</div>
             </div>
 
@@ -1074,43 +1080,53 @@ function CalendarView({ searchFilteredReservations, facilityFilter, facilitySear
 
                 return (
                   <div key={reservation.id}>
-                    <div className="grid grid-cols-[90px_minmax(260px,1fr)_110px] gap-3 px-4 py-3 text-sm md:grid-cols-[110px_minmax(320px,1.6fr)_150px_140px_120px_220px] md:items-center">
+                    <div className="grid grid-cols-[90px_minmax(260px,1fr)_110px] gap-3 px-4 py-3 text-sm md:grid-cols-[82px_minmax(95px,1fr)_minmax(110px,1.15fr)_minmax(95px,1fr)_minmax(145px,1.25fr)_86px_44px_142px] md:items-center md:gap-2 md:px-3">
                       <div>
                         <p className="text-xs text-gray-400 md:hidden">시간</p>
-                        <p className="font-semibold text-gray-900">{formatReservationTimeRange(reservation)}</p>
+                        <p className="whitespace-nowrap font-semibold text-gray-900">{formatReservationTimeRange(reservation)}</p>
                       </div>
                       <div className="min-w-0">
-                        <p className="text-xs text-gray-400 md:hidden">시설 / 목적</p>
-                        <p className="truncate font-semibold text-gray-900">{reservation.facilityName ?? "시설"} · {reservation.purpose}</p>
-                        {reservation.notes && <p className="mt-0.5 truncate text-xs text-gray-500">요청: {reservation.notes}</p>}
+                        <p className="text-xs text-gray-400 md:hidden">시설</p>
+                        <p className="truncate font-semibold text-gray-900">{reservation.facilityName ?? "시설"}</p>
+                        <p className="mt-0.5 truncate text-xs text-gray-500 md:hidden">{getReservationName(reservation)} ({getReservationPosition(reservation)}) · {getReservationPhone(reservation)}</p>
                       </div>
-                      <div className="hidden md:block">
-                        <p className="text-xs text-gray-400 md:hidden">예약자</p>
+                      <div className="min-w-0">
+                        <p className="text-xs text-gray-400 md:hidden">목적</p>
+                        <p className="truncate font-semibold text-gray-900">{reservation.purpose || "-"}</p>
+                        <p className="mt-0.5 truncate text-xs text-gray-500 md:hidden">부서/모임: {getReservationDepartment(reservation)}</p>
+                      </div>
+                      <div className="min-w-0 hidden md:block">
+                        <p className="truncate font-semibold text-gray-900">{getReservationDepartment(reservation)}</p>
+                      </div>
+                      <div className="hidden min-w-0 md:block">
+                        <p className="text-xs text-gray-400 md:hidden">예약자/연락처</p>
                         <span className={"mb-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold " + getReservationAudienceBadgeClass(reservation)}>
                           {getReservationAudienceLabel(reservation)}
                         </span>
-                        <p className="font-semibold text-gray-900">{getReservationName(reservation)}</p>
-                        <p className="text-xs text-gray-500">{getReservationPosition(reservation)}</p>
+                        <p className="truncate font-semibold text-gray-900">
+                          {getReservationName(reservation)}
+                          <span className="ml-1 text-xs font-medium text-gray-500">({getReservationPosition(reservation)})</span>
+                        </p>
+                        <p className="mt-0.5 truncate text-xs font-semibold text-gray-700">{getReservationPhone(reservation)}</p>
                       </div>
                       <div className="hidden md:block">
-                        <p className="text-xs text-gray-400 md:hidden">연락처</p>
-                        <p className="font-semibold text-gray-900">{getReservationPhone(reservation)}</p>
-                      </div>
-                      <div className="hidden md:block">
-                        <p className="text-xs text-gray-400 md:hidden">상태 / 인원</p>
+                        <p className="text-xs text-gray-400 md:hidden">상태</p>
                         <span className={"inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium " + statusMeta.color}>
                           {statusMeta.icon} {statusMeta.label}
                         </span>
-                        <p className="mt-1 text-xs text-gray-500">{reservation.attendees}명</p>
+                      </div>
+                      <div className="hidden md:block">
+                        <p className="text-xs text-gray-400 md:hidden">인원</p>
+                        <p className="font-semibold text-gray-900">{reservation.attendees}명</p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-400 md:hidden">관리</p>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-1.5">
                           {isCancelable && (
                             <Button
                               size="sm"
                               variant="outline"
-                              className="min-h-10 border-gray-300 px-2.5 text-xs text-gray-600 hover:bg-gray-50 sm:min-h-0"
+                              className="min-h-10 border-gray-300 px-2 text-xs text-gray-600 hover:bg-gray-50 sm:min-h-0"
                               onClick={() => onCancelReservation(reservation)}
                               disabled={isMutating}
                             >
@@ -1120,7 +1136,7 @@ function CalendarView({ searchFilteredReservations, facilityFilter, facilitySear
                           <Button
                             size="sm"
                             variant="outline"
-                            className="min-h-10 px-2.5 text-xs sm:min-h-0"
+                            className="min-h-10 px-2 text-xs sm:min-h-0"
                             onClick={() => onStartEditTime(reservation)}
                             disabled={isMutating}
                           >
@@ -1129,7 +1145,7 @@ function CalendarView({ searchFilteredReservations, facilityFilter, facilitySear
                           <Button
                             size="sm"
                             variant="outline"
-                            className="min-h-10 border-red-200 px-2.5 text-xs text-red-600 hover:bg-red-50 sm:min-h-0"
+                            className="min-h-10 border-red-200 px-2 text-xs text-red-600 hover:bg-red-50 sm:min-h-0"
                             onClick={() => onDeleteReservation(reservation)}
                             disabled={isMutating}
                           >
