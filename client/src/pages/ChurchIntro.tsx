@@ -569,7 +569,7 @@ function SortablePastorBookCard({
       }`}
     >
       {!book.isVisible && (
-        <div className="absolute left-14 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-gray-900/85 px-2.5 py-1 text-[11px] font-semibold text-white">
+        <div className="absolute left-3 top-14 z-10 inline-flex items-center gap-1 rounded-full bg-gray-900/85 px-2.5 py-1 text-[11px] font-semibold text-white">
           <EyeOff className="h-3 w-3" />
           숨김
         </div>
@@ -585,7 +585,7 @@ function SortablePastorBookCard({
       >
         <GripVertical className="h-4 w-4" />
       </button>
-      <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
+      <div className="absolute right-3 top-3 z-10 flex max-w-[calc(100%-4.25rem)] flex-wrap items-center justify-end gap-1.5">
         <button
           type="button"
           onClick={() => onToggleVisibility(book)}
