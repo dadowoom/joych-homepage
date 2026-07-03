@@ -54,7 +54,43 @@ const MENU_HREF_ALIASES: Record<string, string[]> = {
   ],
   "/about/staff": ["/page/교회소개-섬기는-분"],
   "/about/staff/associate": ["/page/교회소개-부교역자"],
-  "/facility": ["/page/시설사용예약", "/page/시설-사용-예약"],
+  "/community/testimony": [
+    "/page/커뮤니티-생선간증",
+    "/page/커뮤니티-생선-간증",
+    "/page/커뮤니티-은혜의간증",
+    "/page/커뮤니티-은혜의-간증",
+  ],
+  "/mission": [
+    "/page/커뮤니티-선교소식",
+    "/page/커뮤니티-선교-소식",
+    "/page/사역선교-선교소식",
+    "/page/사역선교-선교-소식",
+    "/page/선교-선교소식",
+    "/page/선교-선교-소식",
+  ],
+  "/worship/bulletin": [
+    "/page/행정지원-주보-주보보기",
+    "/page/행정지원-주보보기",
+  ],
+  "/support/bulletin-ad": [
+    "/page/행정지원-주보-주보광고신청",
+    "/page/행정지원-주보광고신청",
+    "/page/행정지원-주보광고",
+  ],
+  "/support/subtitle": [
+    "/page/행정지원-주보-자막신청",
+    "/page/행정지원-자막신청",
+    "/page/행정지원-자막",
+  ],
+  "/support/tour": [
+    "/page/행정지원-탐방신청",
+    "/page/행정지원-탐방",
+  ],
+  "/facility": [
+    "/page/시설사용예약",
+    "/page/시설-사용-예약",
+    "/page/시설사용-예약",
+  ],
 };
 
 function decodeHrefCandidate(href: string) {

@@ -435,15 +435,15 @@ function Router() {
       <Route path="/support/donation"><MenuAccessGate href="/support/donation"><DonationReceiptPage /></MenuAccessGate></Route>
 
       {/* 행정지원 - 기존 공개 URL 호환 */}
-      <Route path="/admin/offering" component={Offering} />
-      <Route path="/admin/vehicle" component={VehicleReservationList} />
-      <Route path="/admin/new-member" component={NewMemberGuide} />
-      <Route path="/admin/store" component={JoyfulStore} />
-      <Route path="/admin/bulletin-ad" component={BulletinAdRequestPage} />
-      <Route path="/admin/subtitle" component={SubtitleRequestPage} />
-      <Route path="/admin/office" component={OnlineOfficePage} />
-      <Route path="/admin/tour" component={VisitRequestPage} />
-      <Route path="/admin/donation" component={DonationReceiptPage} />
+      <Route path="/admin/offering"><MenuAccessGate href="/support/offering"><Offering /></MenuAccessGate></Route>
+      <Route path="/admin/vehicle"><MenuAccessGate href="/support/vehicle"><VehicleReservationList /></MenuAccessGate></Route>
+      <Route path="/admin/new-member"><MenuAccessGate href="/support/new-member"><NewMemberGuide /></MenuAccessGate></Route>
+      <Route path="/admin/store"><MenuAccessGate href="/support/store"><JoyfulStore /></MenuAccessGate></Route>
+      <Route path="/admin/bulletin-ad"><MenuAccessGate href="/support/bulletin-ad"><BulletinAdRequestPage /></MenuAccessGate></Route>
+      <Route path="/admin/subtitle"><MenuAccessGate href="/support/subtitle"><SubtitleRequestPage /></MenuAccessGate></Route>
+      <Route path="/admin/office"><MenuAccessGate href="/support/office"><OnlineOfficePage /></MenuAccessGate></Route>
+      <Route path="/admin/tour"><MenuAccessGate href="/support/tour"><VisitRequestPage /></MenuAccessGate></Route>
+      <Route path="/admin/donation"><MenuAccessGate href="/support/donation"><DonationReceiptPage /></MenuAccessGate></Route>
 
       {/* 시설 예약 */}
       {/* 교회 회원 시스템 */}
