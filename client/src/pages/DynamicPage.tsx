@@ -219,6 +219,10 @@ function isVisitRequestMenuItem(item: DynamicPageItem) {
   return item.label.replace(/\s+/g, "") === "탐방신청";
 }
 
+function isCourseTopMenu(menu: DynamicMenuTree[number] | undefined) {
+  return menu?.label.replace(/\s+/g, "") === "강좌";
+}
+
 function isExternalFacilityReservationMenuItem(item: DynamicPageItem) {
   return (
     item.label.replace(/\s+/g, "") === "외부인" &&
@@ -463,6 +467,10 @@ function MenuItemPageContent({
     );
   }
 
+  if (isCourseTopMenu(parentMenu)) {
+    return <CourseList pageHref={item.href ?? activeHref ?? undefined} title={item.label} embedded />;
+  }
+
   if (shouldRedirectToBulletinView || shouldRedirectToBulletinAd || shouldRedirectToSubtitle || shouldRedirectToVisitRequest || shouldRedirectToExternalFacility) {
     return <LoadingDynamicPage />;
   }
@@ -540,6 +548,10 @@ function MenuSubItemPageContent({
   const shouldRedirectToSubtitle = isSubtitleRequestMenuItem(item);
   const shouldRedirectToVisitRequest = isVisitRequestMenuItem(item);
   const shouldRedirectToExternalFacility = isExternalFacilityReservationMenuItem(item);
+  const isCourseRoom = (allMenus ?? []).some((topMenu) =>
+    isCourseTopMenu(topMenu) &&
+    (topMenu.items ?? []).some((midMenu) => (midMenu.subItems ?? []).some((sub) => sub.id === item.id))
+  );
 
   useEffect(() => {
     if (shouldRedirectToBulletinView) {
@@ -565,6 +577,10 @@ function MenuSubItemPageContent({
 
   if (shouldRedirectToBulletinView || shouldRedirectToBulletinAd || shouldRedirectToSubtitle || shouldRedirectToVisitRequest || shouldRedirectToExternalFacility) {
     return <LoadingDynamicPage />;
+  }
+
+  if (isCourseRoom) {
+    return <CourseList pageHref={item.href ?? activeHref ?? undefined} title={item.label} embedded />;
   }
 
   return (

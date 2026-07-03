@@ -180,6 +180,10 @@ function formatDateRange(course: Pick<Course, "startDate" | "endDate" | "startTi
   return `${date}${time}`;
 }
 
+function normalizeCoursePageHref(value: string | null | undefined) {
+  return value?.trim() || "/education/courses";
+}
+
 function formatCreatedAt(value: Date | string | number) {
   return new Date(value).toLocaleString("ko-KR", {
     month: "short",
@@ -300,6 +304,7 @@ export default function AdminCoursesTab() {
   const [reviewingId, setReviewingId] = useState<number | null>(null);
   const [reviewComment, setReviewComment] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
+  const [selectedCourseRoomHref, setSelectedCourseRoomHref] = useState("/education/courses");
   const [uploadingCourseImage, setUploadingCourseImage] = useState(false);
   const [facilityPickerOpen, setFacilityPickerOpen] = useState(false);
   const [facilityPickerDate, setFacilityPickerDate] = useState("");
@@ -321,6 +326,7 @@ export default function AdminCoursesTab() {
     if (params.get("mode") !== "new") return;
 
     const requestedPageHref = params.get("pageHref") || "/education/courses";
+    setSelectedCourseRoomHref(requestedPageHref);
     setShowForm(true);
     setEditingId(null);
     setExpandedCourseId(null);
@@ -369,10 +375,6 @@ export default function AdminCoursesTab() {
     onError: err => toast.error(err.message || "상태 변경에 실패했습니다."),
   });
 
-  const filteredCourses = useMemo(() => {
-    return courses.filter(course => statusFilter === "all" || course.status === statusFilter);
-  }, [courses, statusFilter]);
-
   const courseMenuOptions = useMemo(() => {
     const options: { label: string; href: string }[] = [];
     for (const menu of menus) {
@@ -384,7 +386,7 @@ export default function AdminCoursesTab() {
         }
         for (const subItem of item.subItems ?? []) {
           if (subItem.href && subItem.isVisible !== false) {
-            options.push({ label: subItem.label, href: subItem.href });
+            options.push({ label: `${item.label} > ${subItem.label}`, href: subItem.href });
           }
         }
       }
@@ -399,6 +401,32 @@ export default function AdminCoursesTab() {
       return true;
     });
   }, [menus]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchString);
+    const requestedPageHref = params.get("pageHref");
+    if (requestedPageHref) {
+      setSelectedCourseRoomHref(requestedPageHref);
+      return;
+    }
+
+    if (!courseMenuOptions.some(option => option.href === selectedCourseRoomHref)) {
+      setSelectedCourseRoomHref(courseMenuOptions[0]?.href ?? "/education/courses");
+    }
+  }, [courseMenuOptions, searchString, selectedCourseRoomHref]);
+
+  const selectedCourseRoom = useMemo(
+    () => courseMenuOptions.find(option => option.href === selectedCourseRoomHref) ?? courseMenuOptions[0] ?? { label: "강좌 전체", href: "/education/courses" },
+    [courseMenuOptions, selectedCourseRoomHref],
+  );
+
+  const coursesInSelectedRoom = useMemo(() => {
+    return courses.filter(course => normalizeCoursePageHref(course.pageHref) === selectedCourseRoom.href);
+  }, [courses, selectedCourseRoom.href]);
+
+  const filteredCourses = useMemo(() => {
+    return coursesInSelectedRoom.filter(course => statusFilter === "all" || course.status === statusFilter);
+  }, [coursesInSelectedRoom, statusFilter]);
 
   const filteredApplications = useMemo(() => {
     return applications.filter(application =>
@@ -441,11 +469,20 @@ export default function AdminCoursesTab() {
   };
 
   const stats = useMemo(() => ({
-    total: courses.length,
-    open: courses.filter(course => course.status === "open").length,
-    pending: courses.reduce((sum, course) => sum + course.pendingCount, 0),
-    approved: courses.reduce((sum, course) => sum + course.approvedCount, 0),
-  }), [courses]);
+    total: coursesInSelectedRoom.length,
+    open: coursesInSelectedRoom.filter(course => course.status === "open").length,
+    pending: coursesInSelectedRoom.reduce((sum, course) => sum + course.pendingCount, 0),
+    approved: coursesInSelectedRoom.reduce((sum, course) => sum + course.approvedCount, 0),
+  }), [coursesInSelectedRoom]);
+
+  const courseRoomCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    courses.forEach(course => {
+      const href = normalizeCoursePageHref(course.pageHref);
+      counts.set(href, (counts.get(href) ?? 0) + 1);
+    });
+    return counts;
+  }, [courses]);
 
   const facilityById = useMemo(() => {
     return new Map(facilities.map(facility => [facility.id, facility]));
@@ -573,8 +610,15 @@ export default function AdminCoursesTab() {
   function resetForm() {
     setShowForm(false);
     setEditingId(null);
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, pageHref: selectedCourseRoom.href });
     setFacilityPickerOpen(false);
+  }
+
+  function startNewCourse(pageHref = selectedCourseRoom.href) {
+    setShowForm(true);
+    setEditingId(null);
+    setExpandedCourseId(null);
+    setForm({ ...EMPTY_FORM, pageHref });
   }
 
   function openFacilityPicker() {
@@ -765,7 +809,7 @@ export default function AdminCoursesTab() {
         </div>
         {!showForm && (
           <button
-            onClick={() => { setShowForm(true); setEditingId(null); setForm(EMPTY_FORM); }}
+            onClick={() => startNewCourse()}
             className="flex items-center gap-1.5 px-4 py-2 bg-[#1B5E20] text-white rounded-lg text-sm font-medium hover:bg-[#2E7D32] transition-colors"
           >
             <Plus className="w-4 h-4" /> 강좌 등록
@@ -773,9 +817,59 @@ export default function AdminCoursesTab() {
         )}
       </div>
 
+      <div className="rounded-xl border border-green-100 bg-green-50/50 p-4">
+        <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-bold text-[#1B5E20]">강좌방 선택</p>
+            <p className="text-xs text-gray-500">
+              강좌 메뉴에 2단 메뉴를 추가하면 이곳에 자동으로 방이 생기고, 선택한 방에 등록한 강좌만 해당 메뉴에 표시됩니다.
+            </p>
+          </div>
+          {!showForm && (
+            <button
+              type="button"
+              onClick={() => startNewCourse(selectedCourseRoom.href)}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-green-200 bg-white px-3 py-2 text-xs font-bold text-[#1B5E20] hover:bg-[#F1F8E9]"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {selectedCourseRoom.label}에 등록
+            </button>
+          )}
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {courseMenuOptions.map(option => {
+            const isSelected = selectedCourseRoom.href === option.href;
+            return (
+              <button
+                key={option.href}
+                type="button"
+                onClick={() => {
+                  setSelectedCourseRoomHref(option.href);
+                  setStatusFilter("all");
+                  setExpandedCourseId(null);
+                  if (!editingId) {
+                    setForm(prev => ({ ...prev, pageHref: option.href }));
+                  }
+                }}
+                className={`shrink-0 rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                  isSelected
+                    ? "border-[#1B5E20] bg-[#1B5E20] text-white"
+                    : "border-gray-200 bg-white text-gray-600 hover:border-green-200 hover:bg-white"
+                }`}
+              >
+                <span className="block font-bold">{option.label}</span>
+                <span className={isSelected ? "text-green-100" : "text-gray-400"}>
+                  {courseRoomCounts.get(option.href) ?? 0}개 강좌
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "전체 강좌", value: stats.total, color: "bg-gray-50 border-gray-200 text-gray-700" },
+          { label: `${selectedCourseRoom.label} 강좌`, value: stats.total, color: "bg-gray-50 border-gray-200 text-gray-700" },
           { label: "신청중", value: stats.open, color: "bg-green-50 border-green-200 text-green-700" },
           { label: "승인 대기", value: stats.pending, color: "bg-amber-50 border-amber-200 text-amber-700" },
           { label: "승인 완료", value: stats.approved, color: "bg-blue-50 border-blue-200 text-blue-700" },
@@ -1205,8 +1299,8 @@ export default function AdminCoursesTab() {
       {filteredCourses.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p>등록된 강좌가 없습니다.</p>
-          <p className="text-sm mt-1">"강좌 등록" 버튼을 눌러 첫 강좌를 등록해 보세요.</p>
+          <p>{selectedCourseRoom.label}에 등록된 강좌가 없습니다.</p>
+          <p className="text-sm mt-1">"강좌 등록" 버튼을 누르면 이 강좌방에 바로 등록됩니다.</p>
         </div>
       ) : (
         <div className="space-y-3">
