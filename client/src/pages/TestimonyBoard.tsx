@@ -35,17 +35,68 @@ function fileToBase64(file: File) {
   });
 }
 
-const TESTIMONY_SIDE_MENU_ITEMS = [
-  { id: 1, label: "교회 소식", href: "/page/행정지원-공지사항" },
-  { id: 2, label: "기도 요청", href: "/community/prayer" },
-  { id: 3, label: "생선 간증", href: "/community/testimony", isActive: true },
-  { id: 4, label: "나눔 게시판", href: "/community/joytalk" },
-];
+type PublicMenuSubItem = {
+  id: number;
+  label: string;
+  href?: string | null;
+};
+
+type PublicMenuItem = PublicMenuSubItem & {
+  subItems?: PublicMenuSubItem[];
+};
+
+type PublicMenu = {
+  id: number;
+  label: string;
+  href?: string | null;
+  items?: PublicMenuItem[];
+};
+
+function normalizeMenuText(value: string) {
+  return value.replace(/\s+/g, "");
+}
+
+function getCommunitySideMenuItems(menus: PublicMenu[] | undefined, activeHref: string) {
+  const communityMenu = menus?.find((menu) => normalizeMenuText(menu.label) === "커뮤니티");
+  const sourceItems = communityMenu?.items ?? [
+    { id: -1, label: "행사 사진", href: "/community/photo" },
+    { id: -2, label: "은혜의 간증", href: "/community/testimony" },
+    { id: -3, label: "선교 소식", href: "/mission" },
+    { id: -4, label: "자유게시판", href: "/community/joytalk" },
+  ];
+
+  return {
+    parentLabel: communityMenu?.label ?? "커뮤니티",
+    sideMenuItems: sourceItems.map((item) => {
+      const subItems = item.subItems ?? [];
+      return {
+        id: item.id,
+        label: item.label,
+        href: item.href ?? null,
+        isActive:
+          item.href === activeHref ||
+          subItems.some((subItem) => subItem.href === activeHref),
+        subItems: subItems.map((subItem) => ({
+          id: subItem.id,
+          label: subItem.label,
+          href: subItem.href ?? null,
+          isActive: subItem.href === activeHref,
+        })),
+      };
+    }),
+  };
+}
 
 export default function TestimonyList() {
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
   const { user } = useAuth();
+  const { data: allMenus } = trpc.home.menus.useQuery();
+  const { parentLabel, sideMenuItems } = useMemo(
+    () => getCommunitySideMenuItems(allMenus, "/community/testimony"),
+    [allMenus],
+  );
+  const pageTitle = sideMenuItems.find((item) => item.isActive)?.label ?? "은혜의 간증";
   const canManage = canManageBoardContent(user, "content:testimonies");
   const {
     data: posts,
@@ -82,9 +133,9 @@ export default function TestimonyList() {
 
   return (
     <SubPageLayout
-      pageTitle="생선 간증"
-      parentLabel="커뮤니티"
-      sideMenuItems={TESTIMONY_SIDE_MENU_ITEMS}
+      pageTitle={pageTitle}
+      parentLabel={parentLabel}
+      sideMenuItems={sideMenuItems}
     >
       <div className="space-y-6">
         <section className="rounded-2xl border border-gray-200 bg-white p-5 md:p-6">
