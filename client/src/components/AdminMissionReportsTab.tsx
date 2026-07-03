@@ -248,14 +248,29 @@ export default function AdminMissionReportsTab() {
       <section className="rounded-xl border border-gray-200 p-4">
         <h4 className="mb-3 font-bold text-gray-800">작성자 권한 부여</h4>
         <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-          <input
-            type="text"
-            value={memberSearch}
-            onChange={(event) => setMemberSearch(event.target.value)}
-            placeholder="이름, 직분, 부서, 구역, 전화번호로 검색"
-            className={`${adminFieldClass} md:col-span-3`}
-          />
-          <div className="md:col-span-3">
+          <div className="rounded-xl border border-green-100 bg-green-50/60 p-3 md:col-span-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <label className="block text-sm font-bold text-[#1B5E20]">
+                  성도 검색
+                </label>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  이름을 입력한 뒤 아래 검색 결과를 클릭하면 작성자로 선택됩니다.
+                </p>
+              </div>
+              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-[#1B5E20] shadow-sm">
+                {filteredMembers.length}명 검색됨
+              </span>
+            </div>
+            <input
+              type="text"
+              value={memberSearch}
+              onChange={(event) => setMemberSearch(event.target.value)}
+              placeholder="예: 홍길동, 집사, 1구역, 010..."
+              className={`${adminFieldClass} w-full border-green-200 bg-white`}
+            />
+          </div>
+          <div className="rounded-xl border border-gray-200 bg-white p-3 md:col-span-3">
             {selectedMember && (
               <div className="mb-2 rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-sm text-green-800">
                 선택됨: <span className="font-semibold">{selectedMember.name}</span>
@@ -264,12 +279,18 @@ export default function AdminMissionReportsTab() {
                 {selectedMember.district ? ` · ${selectedMember.district}` : ""}
               </div>
             )}
+            <p className="mb-2 text-xs font-semibold text-gray-500">
+              검색 결과에서 성도를 클릭하세요
+            </p>
             <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
               {visibleMemberMatches.map((member) => (
                 <button
                   key={member.id}
                   type="button"
-                  onClick={() => setSelectedMemberId(member.id)}
+                  onClick={() => {
+                    setSelectedMemberId(member.id);
+                    setMemberSearch(member.name);
+                  }}
                   className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
                     selectedMemberId === member.id
                       ? "border-[#1B5E20] bg-green-50 text-[#1B5E20]"
