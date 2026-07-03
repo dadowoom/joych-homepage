@@ -189,18 +189,21 @@ export async function updatePastorBook(id: number, data: Partial<Omit<InsertPast
   await db.transaction(async (tx) => {
     const [existing] = await tx.select().from(pastorBooks).where(eq(pastorBooks.id, id)).limit(1);
     if (!existing) return;
+    const hasSortOrder = Object.prototype.hasOwnProperty.call(data, "sortOrder");
 
     await tx
       .update(pastorBooks)
       .set({
         ...data,
-        sortOrder: Object.prototype.hasOwnProperty.call(data, "sortOrder")
+        sortOrder: hasSortOrder
           ? normalizeSortOrder(data.sortOrder)
           : existing.sortOrder,
       })
       .where(eq(pastorBooks.id, id));
 
-    await renumberPastorBooks(tx, id, data.sortOrder ?? existing.sortOrder);
+    if (hasSortOrder) {
+      await renumberPastorBooks(tx, id, data.sortOrder ?? existing.sortOrder);
+    }
   });
   return getPastorBookById(id, true);
 }
