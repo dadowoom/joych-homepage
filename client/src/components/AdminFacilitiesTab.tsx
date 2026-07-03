@@ -58,6 +58,8 @@ const FACILITY_BUILDINGS = [
   { value: "welfare", label: "복지관" },
 ] as const;
 const FACILITY_CONTACT_DEFAULT_TEXT_KEY = "facility_contact_default_text";
+const FACILITY_MEMBER_NOTICE_DEFAULT_TEXT_KEY = "facility_member_notice_default_text";
+const FACILITY_EXTERNAL_NOTICE_DEFAULT_TEXT_KEY = "facility_external_notice_default_text";
 const FACILITY_MEMBER_RULES_TITLE_KEY = "facility_member_rules_title";
 const FACILITY_MEMBER_RULES_TEXT_KEY = "facility_member_rules_text";
 const FACILITY_EXTERNAL_RULES_TITLE_KEY = "facility_external_rules_title";
@@ -83,6 +85,8 @@ const FACILITY_PAGE_SETTING_FIELDS = [
 type FacilityBuilding = typeof FACILITY_BUILDINGS[number]["value"];
 type FacilityPageSettingKey =
   | typeof FACILITY_PAGE_SETTING_FIELDS[number]["key"]
+  | typeof FACILITY_MEMBER_NOTICE_DEFAULT_TEXT_KEY
+  | typeof FACILITY_EXTERNAL_NOTICE_DEFAULT_TEXT_KEY
   | typeof FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY
   | typeof EXTERNAL_RESERVATION_ADVANCE_DAYS_DEFAULT_SETTING_KEY;
 type FacilitySubTab = "list" | "pageSettings" | "externalSchedule";
@@ -103,6 +107,8 @@ function createFacilityPageSettingDrafts(): Record<FacilityPageSettingKey, strin
     drafts[field.key] = "";
     return drafts;
   }, {
+    [FACILITY_MEMBER_NOTICE_DEFAULT_TEXT_KEY]: "",
+    [FACILITY_EXTERNAL_NOTICE_DEFAULT_TEXT_KEY]: "",
     [FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY]: String(DEFAULT_FACILITY_RESERVATION_MAX_MONTHS),
     [EXTERNAL_RESERVATION_ADVANCE_DAYS_DEFAULT_SETTING_KEY]: String(DEFAULT_EXTERNAL_RESERVATION_ADVANCE_DAYS),
   } as Record<FacilityPageSettingKey, string>);
@@ -577,6 +583,10 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
       FACILITY_PAGE_SETTING_FIELDS.forEach((field) => {
         next[field.key] = pageSettings[field.key] ?? "";
       });
+      next[FACILITY_MEMBER_NOTICE_DEFAULT_TEXT_KEY] =
+        pageSettings[FACILITY_MEMBER_NOTICE_DEFAULT_TEXT_KEY] ?? "";
+      next[FACILITY_EXTERNAL_NOTICE_DEFAULT_TEXT_KEY] =
+        pageSettings[FACILITY_EXTERNAL_NOTICE_DEFAULT_TEXT_KEY] ?? "";
       next[FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY] = String(
         normalizeFacilityReservationMaxMonths(pageSettings[FACILITY_RESERVATION_MAX_MONTHS_SETTING_KEY]),
       );
@@ -763,6 +773,14 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
           value: pageSettingDrafts[field.key],
         });
       }
+      await updateFacilityPageSetting.mutateAsync({
+        key: FACILITY_MEMBER_NOTICE_DEFAULT_TEXT_KEY,
+        value: pageSettingDrafts[FACILITY_MEMBER_NOTICE_DEFAULT_TEXT_KEY],
+      });
+      await updateFacilityPageSetting.mutateAsync({
+        key: FACILITY_EXTERNAL_NOTICE_DEFAULT_TEXT_KEY,
+        value: pageSettingDrafts[FACILITY_EXTERNAL_NOTICE_DEFAULT_TEXT_KEY],
+      });
       await utils.home.settings.invalidate();
       toast.success("시설예약 페이지 문구가 저장되었습니다.");
     } catch (error) {
@@ -1439,6 +1457,26 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
                     rows={3}
                     placeholder="예: 기쁨의교회 사무국 054-270-1002"
                     className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-gray-600">성도 시설안내 일괄 메시지</span>
+                  <textarea
+                    value={pageSettingDrafts[FACILITY_MEMBER_NOTICE_DEFAULT_TEXT_KEY]}
+                    onChange={(e) => updatePageSettingDraft(FACILITY_MEMBER_NOTICE_DEFAULT_TEXT_KEY, e.target.value)}
+                    rows={3}
+                    placeholder="개별 시설 안내가 비어 있으면 성도 화면에 공통으로 표시됩니다."
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-gray-600">외부인 시설안내 일괄 메시지</span>
+                  <textarea
+                    value={pageSettingDrafts[FACILITY_EXTERNAL_NOTICE_DEFAULT_TEXT_KEY]}
+                    onChange={(e) => updatePageSettingDraft(FACILITY_EXTERNAL_NOTICE_DEFAULT_TEXT_KEY, e.target.value)}
+                    rows={3}
+                    placeholder="개별 외부인 안내가 비어 있으면 외부인 화면에 공통으로 표시됩니다."
+                    className="w-full rounded-lg border border-teal-100 bg-teal-50/40 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
                   />
                 </label>
                 <div className="grid grid-cols-1 gap-3">

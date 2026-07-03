@@ -76,6 +76,8 @@ const facilityPageSettingKeys = [
   "facility_guide_step4_title",
   "facility_guide_step4_desc",
   "facility_contact_default_text",
+  "facility_member_notice_default_text",
+  "facility_external_notice_default_text",
   "facility_member_rules_title",
   "facility_member_rules_text",
   "facility_external_rules_title",

@@ -41,6 +41,8 @@ type RepeatType = "none" | "daily" | "weekly" | "monthly-weekday";
 type FacilityBuilding = "hayoungin" | "welfare";
 type FacilityAudience = "member" | "external";
 const FACILITY_CONTACT_DEFAULT_TEXT_KEY = "facility_contact_default_text";
+const FACILITY_MEMBER_NOTICE_DEFAULT_TEXT_KEY = "facility_member_notice_default_text";
+const FACILITY_EXTERNAL_NOTICE_DEFAULT_TEXT_KEY = "facility_external_notice_default_text";
 const FACILITY_MEMBER_RULES_TITLE_KEY = "facility_member_rules_title";
 const FACILITY_MEMBER_RULES_TEXT_KEY = "facility_member_rules_text";
 const FACILITY_EXTERNAL_RULES_TITLE_KEY = "facility_external_rules_title";
@@ -347,8 +349,14 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
   const facilityNoticeText = useMemo(() => {
     const memberNotice = facility?.notice?.trim() ?? "";
     const externalNotice = facility?.externalNotice?.trim() ?? "";
-    return isExternal ? (externalNotice || memberNotice) : memberNotice;
-  }, [facility?.externalNotice, facility?.notice, isExternal]);
+    const memberDefaultNotice =
+      reservationSettings?.[FACILITY_MEMBER_NOTICE_DEFAULT_TEXT_KEY]?.trim() ?? "";
+    const externalDefaultNotice =
+      reservationSettings?.[FACILITY_EXTERNAL_NOTICE_DEFAULT_TEXT_KEY]?.trim() ?? "";
+    return isExternal
+      ? (externalNotice || externalDefaultNotice || memberNotice || memberDefaultNotice)
+      : (memberNotice || memberDefaultNotice);
+  }, [facility?.externalNotice, facility?.notice, isExternal, reservationSettings]);
   const facilityContactText =
     facility?.contactText?.trim() ||
     reservationSettings?.[FACILITY_CONTACT_DEFAULT_TEXT_KEY]?.trim() ||
