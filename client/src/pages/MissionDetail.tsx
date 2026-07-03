@@ -4,12 +4,13 @@
  * 구성: 헤더 → 히어로 이미지 → 선교사 프로필 → 본문 → 사진 갤러리 → 기도제목 → 이전/다음
  */
 
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { canManageBoardContent } from "@/lib/contentPermissions";
+import { canManageBoardContent, canManageFullAdmin } from "@/lib/contentPermissions";
 import { trpc } from "@/lib/trpc";
 import { CONTINENT_LABELS } from "@/lib/missionData";
+import { toast } from "sonner";
 
 function formatDate(dateStr: string): string {
   const [y, m, d] = dateStr.split("-");
@@ -24,10 +25,12 @@ function formatFileSize(size?: number | null): string {
 
 export default function MissionDetail() {
   const { id } = useParams<{ id: string }>();
+  const [, navigate] = useLocation();
   const [lightboxImg, setLightboxImg] = useState<string | null>(null);
   const reportId = Number(id);
   const { user } = useAuth();
   const canManage = canManageBoardContent(user, "content:missionReports");
+  const isFullAdmin = canManageFullAdmin(user);
 
   const publicQuery = trpc.mission.report.useQuery(
     { id: reportId },
@@ -38,6 +41,13 @@ export default function MissionDetail() {
     { enabled: Number.isInteger(reportId) && reportId > 0 && canManage }
   );
   const reviewReport = trpc.cms.missionReports.reviewReport.useMutation();
+  const deleteReport = trpc.cms.missionReports.deleteReport.useMutation({
+    onSuccess: () => {
+      toast.success("선교보고가 삭제되었습니다.");
+      navigate("/mission");
+    },
+    onError: (error) => toast.error(error.message || "선교보고 삭제에 실패했습니다."),
+  });
   const report = canManage ? (adminQuery.data ?? null) : (publicQuery.data?.report ?? null);
   const prevReport = canManage ? null : (publicQuery.data?.prevReport ?? null);
   const nextReport = canManage ? null : (publicQuery.data?.nextReport ?? null);
@@ -84,6 +94,17 @@ export default function MissionDetail() {
               </Link>
               <button
                 type="button"
+                onClick={() => {
+                  if (!window.confirm(`"${report.title}" 선교보고를 삭제할까요?`)) return;
+                  deleteReport.mutate({ id: report.id });
+                }}
+                className="inline-flex items-center rounded-full border border-red-100 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+              >
+                삭제
+              </button>
+              {isFullAdmin && (
+                <button
+                type="button"
                 onClick={() =>
                   reviewReport.mutate(
                     {
@@ -105,6 +126,7 @@ export default function MissionDetail() {
               >
                 {report.status === "published" ? "숨김" : "공개"}
               </button>
+              )}
             </div>
           ) : (
             <span className="text-gray-400 text-sm hidden md:block">

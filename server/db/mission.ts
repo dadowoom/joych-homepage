@@ -309,6 +309,17 @@ export async function updateMissionReportWithDetails(
   });
 }
 
+export async function deleteMissionReport(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.transaction(async (tx) => {
+    await tx.delete(missionReportImages).where(eq(missionReportImages.reportId, id));
+    await tx.delete(missionReportFiles).where(eq(missionReportFiles.reportId, id));
+    await tx.delete(missionReportPrayerTopics).where(eq(missionReportPrayerTopics.reportId, id));
+    await tx.delete(missionReports).where(eq(missionReports.id, id));
+  });
+}
+
 export async function updateMissionReportStatus(
   id: number,
   status: MissionReportStatus,

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { canManageBoardContent } from "@/lib/contentPermissions";
+import { canManageBoardContent, canManageFullAdmin } from "@/lib/contentPermissions";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
@@ -41,6 +41,7 @@ export default function MissionReportEditor() {
   const utils = trpc.useUtils();
   const { user } = useAuth();
   const canManage = canManageBoardContent(user, "content:missionReports");
+  const isFullAdmin = canManageFullAdmin(user);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -277,9 +278,12 @@ export default function MissionReportEditor() {
       submitForReview,
     };
     if (canManage) {
+      const nextStatus = isFullAdmin
+        ? (submitForReview ? "published" as const : "draft" as const)
+        : (editingReport?.status ?? "pending" as const);
       const adminPayload = {
         ...payload,
-        status: submitForReview ? "published" as const : "draft" as const,
+        status: nextStatus,
         authorMemberId: editingReport?.authorMemberId ?? undefined,
       };
       if (editId) adminUpdateMutation.mutate({ id: editId, ...adminPayload });
@@ -331,7 +335,7 @@ export default function MissionReportEditor() {
           </Link>
           <div className="hidden items-center gap-2 text-xs text-gray-500 md:flex">
             <span className="rounded-full bg-[#E8F5E9] px-3 py-1 font-semibold text-[#1B5E20]">선교편지 작성</span>
-            <span>{canManage ? "관리자는 저장 또는 바로 공개할 수 있습니다." : "작성 후 관리자 검토를 거쳐 공개됩니다."}</span>
+            <span>{isFullAdmin ? "관리자는 저장 또는 바로 공개할 수 있습니다." : "작성 후 관리자 검토를 거쳐 공개됩니다."}</span>
           </div>
         </div>
       </header>
@@ -526,14 +530,16 @@ export default function MissionReportEditor() {
           <div className="rounded-2xl border border-[#E5DED0] bg-white p-5 shadow-sm">
             <h3 className="text-sm font-bold text-gray-900">저장 방식</h3>
             <p className="mt-2 text-xs leading-5 text-gray-500">
-              임시 저장은 비공개 상태로 보관하고, 공개/검토 요청을 누르면 홈페이지 선교보고 흐름에 반영됩니다.
+              {isFullAdmin ? "숨김 저장은 비공개 상태로 보관하고, 바로 공개를 누르면 홈페이지 선교보고 흐름에 반영됩니다." : "저장한 선교보고서는 관리자가 공개/숨김을 처리합니다."}
             </p>
             <div className="mt-5 space-y-2">
-              <button type="button" onClick={() => save(false)} disabled={isBusy} className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-                {canManage ? "숨김 저장" : "임시 저장"}
-              </button>
-              <button type="button" onClick={() => save(true)} disabled={isBusy} className="w-full rounded-xl bg-[#1B5E20] px-4 py-3 text-sm font-semibold text-white hover:bg-[#2E7D32] disabled:opacity-50">
-                {canManage ? "바로 공개" : "검토 요청"}
+              {isFullAdmin && (
+                <button type="button" onClick={() => save(false)} disabled={isBusy} className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                  숨김 저장
+                </button>
+              )}
+              <button type="button" onClick={() => save(isFullAdmin)} disabled={isBusy} className="w-full rounded-xl bg-[#1B5E20] px-4 py-3 text-sm font-semibold text-white hover:bg-[#2E7D32] disabled:opacity-50">
+                {isFullAdmin ? "바로 공개" : "저장"}
               </button>
             </div>
           </div>

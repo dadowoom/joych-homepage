@@ -6,12 +6,13 @@
  */
 
 import { useMemo, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import SubPageLayout from "@/components/SubPageLayout";
 import { canManageBoardContent } from "@/lib/contentPermissions";
 import { trpc } from "@/lib/trpc";
 import { CONTINENT_LABELS, type MissionContinent } from "@/lib/missionData";
+import { toast } from "sonner";
 
 // 날짜 포맷 헬퍼 (YYYY-MM-DD → YYYY년 MM월 DD일)
 function formatDate(dateStr: string): string {
@@ -29,11 +30,23 @@ const MISSION_SIDE_MENU_ITEMS = [
 export default function MissionList() {
   const [selectedContinent, setSelectedContinent] = useState<MissionContinent | "all">("all");
   const [selectedMissionary, setSelectedMissionary] = useState<number | "all">("all");
+  const [, navigate] = useLocation();
   const { user } = useAuth();
   const canManage = canManageBoardContent(user, "content:missionReports");
 
   const publicReportsQuery = trpc.mission.reports.useQuery(undefined, { enabled: !canManage });
   const adminReportsQuery = trpc.cms.missionReports.reports.useQuery(undefined, { enabled: canManage });
+  const utils = trpc.useUtils();
+  const deleteReport = trpc.cms.missionReports.deleteReport.useMutation({
+    onSuccess: async () => {
+      toast.success("선교보고가 삭제되었습니다.");
+      await Promise.all([
+        utils.cms.missionReports.reports.invalidate(),
+        utils.mission.reports.invalidate(),
+      ]);
+    },
+    onError: (error) => toast.error(error.message || "선교보고 삭제에 실패했습니다."),
+  });
   const reports = canManage ? (adminReportsQuery.data ?? []) : (publicReportsQuery.data ?? []);
   const isLoading = canManage ? adminReportsQuery.isLoading : publicReportsQuery.isLoading;
   const { data: missionaries = [] } = trpc.mission.missionaries.useQuery();
@@ -192,6 +205,33 @@ export default function MissionList() {
                         <span className="absolute top-3 right-3 rounded-full bg-gray-900/80 px-2.5 py-1 text-[11px] font-semibold text-white">
                           {report.status === "draft" ? "숨김" : report.status === "pending" ? "검토 대기" : "반려"}
                         </span>
+                      )}
+                      {canManage && (
+                        <div className="absolute bottom-3 right-3 flex gap-2 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              navigate(`/mission/edit/${report.id}`);
+                            }}
+                            className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold text-[#1B5E20] shadow hover:bg-white"
+                          >
+                            수정
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              if (!window.confirm(`"${report.title}" 선교보고를 삭제할까요?`)) return;
+                              deleteReport.mutate({ id: report.id });
+                            }}
+                            className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold text-red-600 shadow hover:bg-white"
+                          >
+                            삭제
+                          </button>
+                        </div>
                       )}
                     </div>
                     <div className="p-5">

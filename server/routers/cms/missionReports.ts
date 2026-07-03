@@ -8,6 +8,7 @@
  */
 
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { adminPermissionProcedure, router } from "../../_core/trpc";
 import {
   optionalTextSchema,
@@ -18,6 +19,7 @@ import {
   createMissionAuthorGrant,
   createMissionReportWithDetails,
   createMissionary,
+  deleteMissionReport,
   getAllMissionaries,
   getMissionReportById,
   getAllMissionReports,
@@ -235,7 +237,14 @@ export const missionReportsRouter = router({
       status: z.enum(["published", "rejected", "pending", "draft"]),
       comment: optionalTextSchema(20000),
     }))
-    .mutation(({ input, ctx }) =>
-      updateMissionReportStatus(input.id, input.status, ctx.user.id, input.comment)
-    ),
+    .mutation(({ input, ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "선교보고 공개/숨김 처리는 관리자만 할 수 있습니다." });
+      }
+      return updateMissionReportStatus(input.id, input.status, ctx.user.id, input.comment);
+    }),
+
+  deleteReport: missionReportProcedure
+    .input(z.object({ id: idSchema }))
+    .mutation(({ input }) => deleteMissionReport(input.id)),
 });
