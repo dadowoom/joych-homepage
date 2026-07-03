@@ -37,6 +37,7 @@ type PopupForm = {
   isDismissible: boolean;
   dismissPeriodHours: number;
   priority: number;
+  sizePercent: number;
   startAt: string;
   endAt: string;
 };
@@ -60,11 +61,13 @@ const EMPTY_FORM: PopupForm = {
   isDismissible: true,
   dismissPeriodHours: 24,
   priority: 0,
+  sizePercent: 100,
   startAt: "",
   endAt: "",
 };
 
 const BUTTON_LABEL_BYTE_LIMIT = 64;
+const POPUP_SIZE_PRESETS = [80, 90, 100, 110, 120] as const;
 
 const audienceOptions: { value: PopupAudience; label: string }[] = [
   { value: "all", label: "전체공개" },
@@ -184,6 +187,10 @@ function formatFileSize(bytes: number) {
 }
 
 function normalizePayload(form: PopupForm) {
+  const sizePercent = Number.isFinite(form.sizePercent)
+    ? Math.min(120, Math.max(70, Math.round(form.sizePercent)))
+    : 100;
+
   return {
     title: form.title.trim(),
     content: "",
@@ -198,6 +205,7 @@ function normalizePayload(form: PopupForm) {
       ? form.dismissPeriodHours
       : 24,
     priority: Number.isFinite(form.priority) ? form.priority : 0,
+    sizePercent,
     startAt: toDateOrNull(form.startAt),
     endAt: toDateOrNull(form.endAt),
   };
@@ -289,6 +297,7 @@ export default function AdminPopupsTab() {
       isDismissible: popup.isDismissible,
       dismissPeriodHours: popup.dismissPeriodHours,
       priority: popup.priority,
+      sizePercent: popup.sizePercent ?? 100,
       startAt: toDateTimeLocal(popup.startAt),
       endAt: toDateTimeLocal(popup.endAt),
     });
@@ -319,6 +328,20 @@ export default function AdminPopupsTab() {
     } else {
       createPopup.mutate(payload);
     }
+  };
+
+  const applySizeToAllPopups = () => {
+    const sizePercent = normalizePayload(form).sizePercent;
+    if (popups.length === 0) {
+      toast.info("적용할 팝업이 없습니다.");
+      return;
+    }
+    if (!confirm(`등록된 팝업 ${popups.length}개에 크기 ${sizePercent}%를 일괄 적용할까요?`)) {
+      return;
+    }
+    popups.forEach((popup) => {
+      updatePopup.mutate({ id: popup.id, sizePercent });
+    });
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -583,6 +606,65 @@ export default function AdminPopupsTab() {
               </div>
             </div>
 
+            <div className="rounded-xl border border-gray-200 bg-white p-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <label className="text-xs font-medium text-gray-500">팝업 크기</label>
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-[#1B5E20]">
+                  현재 {normalizePayload(form).sizePercent}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min={70}
+                max={120}
+                step={5}
+                value={form.sizePercent}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, sizePercent: Number(event.target.value) }))
+                }
+                className="w-full accent-[#1B5E20]"
+              />
+              <div className="mt-2 grid grid-cols-5 gap-1">
+                {POPUP_SIZE_PRESETS.map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => setForm((prev) => ({ ...prev, sizePercent: size }))}
+                    className={`rounded-lg border px-2 py-1 text-xs ${
+                      normalizePayload(form).sizePercent === size
+                        ? "border-[#1B5E20] bg-[#1B5E20] text-white"
+                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    {size}%
+                  </button>
+                ))}
+              </div>
+              <div className="mt-2 flex gap-2">
+                <input
+                  type="number"
+                  min={70}
+                  max={120}
+                  value={form.sizePercent}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, sizePercent: Number(event.target.value) }))
+                  }
+                  className={`${fieldClass} min-w-0 flex-1`}
+                />
+                <button
+                  type="button"
+                  onClick={applySizeToAllPopups}
+                  disabled={updatePopup.isPending || popups.length === 0}
+                  className="rounded-lg border border-[#1B5E20] px-3 py-2 text-xs font-medium text-[#1B5E20] hover:bg-green-50 disabled:opacity-50"
+                >
+                  전체 적용
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] leading-4 text-gray-400">
+                100을 기준으로 비율을 유지한 채 팝업 전체 크기만 조절합니다.
+              </p>
+            </div>
+
             <div className="flex flex-wrap gap-3 text-sm text-gray-600">
               <label className="inline-flex items-center gap-2">
                 <input
@@ -687,6 +769,7 @@ export default function AdminPopupsTab() {
                             {formatDateTime(popup.startAt)} ~ {formatDateTime(popup.endAt)}
                           </span>
                           <span>우선순위 {popup.priority}</span>
+                          <span>크기 {popup.sizePercent ?? 100}%</span>
                           {popup.isDismissible && (
                             <span>{popup.dismissPeriodHours}시간 숨김 가능</span>
                           )}

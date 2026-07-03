@@ -331,6 +331,8 @@ export const noticePopups = mysqlTable("notice_popups", {
   dismissPeriodHours: int("dismiss_period_hours").notNull().default(24),
   /** 우선순위: 숫자가 클수록 먼저 노출 */
   priority: int("priority").notNull().default(0),
+  /** Popup display size. 100 keeps the previous default size. */
+  sizePercent: int("size_percent").notNull().default(100),
   /** 노출 시작 시각 */
   startAt: timestamp("start_at"),
   /** 노출 종료 시각 */

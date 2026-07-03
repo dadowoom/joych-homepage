@@ -40,6 +40,7 @@ const popupCreateFields = {
   isDismissible: z.boolean().default(true),
   dismissPeriodHours: z.number().int().min(1).max(720).default(24),
   priority: z.number().int().min(0).max(9999).default(0),
+  sizePercent: z.number().int().min(70).max(120).default(100),
   startAt: nullableDateSchema,
   endAt: nullableDateSchema,
 };
@@ -56,6 +57,7 @@ const popupUpdateFields = {
   isDismissible: z.boolean().optional(),
   dismissPeriodHours: z.number().int().min(1).max(720).optional(),
   priority: z.number().int().min(0).max(9999).optional(),
+  sizePercent: z.number().int().min(70).max(120).optional(),
   startAt: nullableDateSchema,
   endAt: nullableDateSchema,
 };

@@ -27,6 +27,12 @@ function isDismissed(popup: Popup) {
   return Date.now() < dismissedUntil;
 }
 
+function getPopupSizePercent(popup: Popup | null | undefined) {
+  const value = Number(popup?.sizePercent ?? 100);
+  if (!Number.isFinite(value)) return 100;
+  return Math.min(120, Math.max(70, Math.round(value)));
+}
+
 function PopupActionButton({
   popup,
   onClose,
@@ -115,6 +121,7 @@ export default function NoticePopupLayer() {
 
   const activeModalPopup = modalPopups[modalIndex] ?? null;
   const canSlide = modalPopups.length > 1;
+  const activeSizePercent = getPopupSizePercent(activeModalPopup);
 
   const moveSlide = (direction: "prev" | "next") => {
     if (modalPopups.length <= 1) return;
@@ -128,7 +135,10 @@ export default function NoticePopupLayer() {
   return (
     <>
       {activeModalPopup && (
-        <div className="fixed inset-x-2 bottom-2 z-[320] md:inset-x-auto md:bottom-auto md:right-8 md:top-1/2 md:w-[min(560px,calc(100vw-2rem))] md:-translate-y-1/2 xl:w-[620px]">
+        <div
+          className="fixed bottom-2 left-1/2 z-[320] w-[calc(100vw-1rem)] -translate-x-1/2 md:bottom-auto md:left-auto md:right-8 md:top-1/2 md:-translate-x-0 md:-translate-y-1/2"
+          style={{ maxWidth: `${Math.round(620 * activeSizePercent / 100)}px` }}
+        >
           <div
             role="dialog"
             aria-modal="true"

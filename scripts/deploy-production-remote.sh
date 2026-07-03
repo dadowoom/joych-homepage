@@ -1423,6 +1423,55 @@ try {
 NODE
 fi
 
+MIGRATION_0069="${APP_DIR}/drizzle/0069_notice_popup_size_percent.sql"
+if [[ -f "${MIGRATION_0069}" ]]; then
+  echo "[deploy] database migration: notice popup size percent"
+  node --input-type=module <<'NODE'
+import fs from "node:fs/promises";
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required for migration 0069.");
+}
+
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  const [rows] = await connection.execute(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    ["0069_notice_popup_size_percent"],
+  );
+  if (Array.isArray(rows) && rows.length > 0) {
+    console.log("[deploy] migration 0069 already applied");
+  } else {
+    const [columns] = await connection.execute(
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notice_popups' AND COLUMN_NAME = 'size_percent' LIMIT 1",
+    );
+    if (!Array.isArray(columns) || columns.length === 0) {
+      const sql = await fs.readFile("drizzle/0069_notice_popup_size_percent.sql", "utf8");
+      const statements = sql.split(/;\s*(?:\r?\n|$)/).map((statement) => statement.trim()).filter(Boolean);
+      for (const statement of statements) {
+        await connection.query(statement);
+      }
+    }
+    await connection.execute(
+      "INSERT INTO app_migrations (id) VALUES (?)",
+      ["0069_notice_popup_size_percent"],
+    );
+    console.log("[deploy] migration 0069 applied");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4
