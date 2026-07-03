@@ -1496,33 +1496,6 @@ function VehicleReservationCalendarView({
                 </CalendarBadge>
               ))}
               {groupCounts.length > 3 && <CalendarBadge className="bg-gray-100 text-gray-500">+{groupCounts.length - 3}</CalendarBadge>}
-              {dayReservations.length > 0 && (
-                <div className="mt-1 hidden text-[10px] leading-4 text-gray-500 sm:block">
-                  {dayReservations.slice(0, 2).map((reservation) => (
-                    <p key={reservation.id} className="truncate">
-                      {reservation.startTime} {getReservationPlateNumber(reservation)} {getReservationVehicleName(reservation)}
-                    </p>
-                  ))}
-                  {dayReservations.length > 2 && <p className="text-gray-400">+{dayReservations.length - 2}건</p>}
-                </div>
-              )}
-              {dayReservations.length > 0 && (
-                <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-72 -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-3 text-left shadow-lg group-hover:block">
-                  <p className="mb-2 text-xs font-bold text-gray-800">{formatDate(dateKey)} 차량 예약</p>
-                  <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
-                    {dayReservations.map((reservation) => (
-                      <div key={reservation.id} className="rounded-md border border-gray-100 bg-gray-50 px-2 py-1.5">
-                        <p className="truncate text-xs font-semibold text-gray-800">
-                          {formatTimeRange(reservation.startTime, reservation.endTime)} · {getReservationPlateNumber(reservation)} {getReservationVehicleName(reservation)}
-                        </p>
-                        <p className="mt-0.5 truncate text-[11px] text-gray-500">
-                          {getReservationName(reservation)} · {getReservationPosition(reservation)} · {getReservationPhone(reservation)}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </button>
           );
         })}
