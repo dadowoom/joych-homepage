@@ -16,6 +16,9 @@ export function ImageContent({
 }) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [isLongImage, setIsLongImage] = useState(false);
+  const isPastorGreetingImage =
+    (label.includes("담임목사") && label.includes("인사")) ||
+    imageUrl?.includes("pastor-greeting");
 
   if (!imageUrl) {
     return (
@@ -35,7 +38,11 @@ export function ImageContent({
     <>
       <div
         className={`relative mx-auto flex justify-center overflow-hidden rounded-xl bg-white shadow-lg cursor-zoom-in group ${
-          isLongImage ? "w-full max-w-2xl" : "w-full max-w-none"
+          isPastorGreetingImage
+            ? "w-full max-w-4xl"
+            : isLongImage
+              ? "w-full max-w-2xl"
+              : "w-full max-w-none"
         }`}
         onClick={() => setLightboxOpen(true)}
       >
