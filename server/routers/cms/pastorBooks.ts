@@ -49,11 +49,15 @@ const bookShape = {
   contentHtml: z.string().max(50000).nullable().optional(),
   publishedAt: z.string().trim().regex(DATE_RE, "날짜는 2026.06.26 또는 2026-06-26 형식으로 입력해주세요.").nullable().optional(),
   externalUrl: safeAssetUrlSchema.nullable().optional(),
-  isVisible: z.boolean().default(true),
-  sortOrder: z.number().int().min(0).max(100000).default(0),
+  isVisible: z.boolean(),
+  sortOrder: z.number().int().min(0).max(100000),
 };
 
-const createSchema = z.object(bookShape).transform((value) => ({
+const createSchema = z.object({
+  ...bookShape,
+  isVisible: bookShape.isVisible.default(true),
+  sortOrder: bookShape.sortOrder.default(0),
+}).transform((value) => ({
   ...value,
   contentHtml: normalizeBookHtml(value.contentHtml),
 }));

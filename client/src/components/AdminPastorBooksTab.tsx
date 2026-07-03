@@ -650,7 +650,7 @@ export default function AdminPastorBooksTab() {
 
     const nextBooks = arrayMove(displayBooks, oldIndex, newIndex).map((book, index) => ({
       ...book,
-      sortOrder: index + 1,
+      sortOrder: displayBooks.length - index,
     }));
     setOrderedBooks(nextBooks);
     reorderBooks.mutate({
@@ -700,7 +700,7 @@ export default function AdminPastorBooksTab() {
               {displayBooks.map((book) => (
                 <SortablePastorBookRow
                   key={book.id}
-                  book={{ ...book, sortOrder: displayBooks.findIndex((item) => item.id === book.id) + 1 }}
+                  book={{ ...book, sortOrder: displayBooks.length - displayBooks.findIndex((item) => item.id === book.id) }}
                   isDeleting={deleteBook.isPending}
                   isOrdering={reorderBooks.isPending}
                   isVisibilityUpdating={updateBookVisibility.isPending}
