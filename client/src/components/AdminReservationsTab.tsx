@@ -7,12 +7,12 @@
  * - 달력 형태 예약 현황 보기
  */
 
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import type { Reservation, Facility } from "../../../drizzle/schema";
+import type { Reservation, Facility, FacilityBlockedDate } from "../../../drizzle/schema";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, Clock, AlertCircle, Calendar, List, ChevronDown, Trash2, Search, X } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, AlertCircle, Calendar, List, ChevronDown, Trash2, Search, X, Ban } from "lucide-react";
 import { getKstDateKey } from "@/lib/facilityReservationTime";
 import { formatKoreanDateKey, formatKoreanDateTime, formatKoreanDateTimeText, formatKoreanNumericDateKey } from "@/lib/koreanDate";
 
@@ -66,6 +66,10 @@ type ReservationTimeEditForm = {
   reservationDate: string;
   startTime: string;
   endTime: string;
+};
+
+type CalendarBlockedDateRow = FacilityBlockedDate & {
+  facilityName?: string | null;
 };
 
 const STATUS_LABELS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -160,6 +164,33 @@ function reservationMatchesFacilitySearch(
   return getFacilitySearchText(reservation, facilityById.get(reservation.facilityId)).includes(query);
 }
 
+function getBlockedDateSearchText(blockedDate: Pick<CalendarBlockedDateRow, "facilityName" | "reason" | "blockStart" | "blockEnd">, facility?: Facility) {
+  return normalizeSearchText([
+    blockedDate.facilityName,
+    facility?.name,
+    facility?.location,
+    facility?.building,
+    blockedDate.reason,
+    blockedDate.blockStart,
+    blockedDate.blockEnd,
+  ].filter(Boolean).join(" "));
+}
+
+function blockedDateMatchesFacilitySearch(
+  blockedDate: CalendarBlockedDateRow,
+  searchQuery: string,
+  facilityById: Map<number, Facility>,
+) {
+  const query = normalizeSearchText(searchQuery);
+  if (!query) return true;
+  return getBlockedDateSearchText(blockedDate, blockedDate.facilityId ? facilityById.get(blockedDate.facilityId) : undefined).includes(query);
+}
+
+function formatBlockedTimeLabel(blockedDate: Pick<CalendarBlockedDateRow, "isPartialBlock" | "blockStart" | "blockEnd">) {
+  if (!blockedDate.isPartialBlock) return "종일";
+  return `${blockedDate.blockStart ?? "--:--"}~${blockedDate.blockEnd ?? "--:--"}`;
+}
+
 function getGroupStatus(items: AdminReservationRow[]): ReservationStatus {
   if (items.some(r => r.status === "pending")) return "pending";
   if (items.some(r => r.status === "checking")) return "checking";
@@ -225,6 +256,10 @@ export default function AdminReservationsTab() {
 
   // 시설 목록 (필터용)
   const { data: facilities } = trpc.home.facilities.useQuery();
+  const { data: blockedDates = [] } = trpc.cms.facilities.blockedDates.list.useQuery(
+    facilityFilter ? { facilityId: facilityFilter } : {},
+    { refetchInterval: 30000 }
+  );
 
   // 예약 목록
   const { data: reservations, isLoading } = trpc.cms.reservations.list.useQuery(
@@ -337,6 +372,14 @@ export default function AdminReservationsTab() {
   });
 
   const facilityById = new Map((facilities ?? []).map(f => [f.id, f]));
+  const searchFilteredBlockedDates = useMemo(() => {
+    return (blockedDates as FacilityBlockedDate[])
+      .map((blockedDate) => ({
+        ...blockedDate,
+        facilityName: blockedDate.facilityId ? (facilityById.get(blockedDate.facilityId)?.name ?? null) : "전체 시설",
+      }))
+      .filter((blockedDate) => blockedDateMatchesFacilitySearch(blockedDate, facilitySearch, facilityById));
+  }, [blockedDates, facilityById, facilitySearch]);
   const searchFilteredReservations = ((reservations ?? []) as AdminReservationRow[]).filter(reservation =>
     reservationMatchesFacilitySearch(reservation, facilitySearch, facilityById)
   );
@@ -861,6 +904,7 @@ export default function AdminReservationsTab() {
       {viewMode === "calendar" && (
         <CalendarView
           searchFilteredReservations={searchFilteredReservations}
+          searchFilteredBlockedDates={searchFilteredBlockedDates}
           facilityFilter={facilityFilter}
           facilitySearch={facilitySearch}
           facilities={facilities ?? []}
@@ -879,8 +923,9 @@ export default function AdminReservationsTab() {
   );
 }
 
-function CalendarView({ searchFilteredReservations, facilityFilter, facilitySearch, facilities, editingKey, timeEditForm, setEditingKey, setTimeEditForm, isMutating, onStartEditTime, onSaveTime, onCancelReservation, onDeleteReservation }: {
+function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, facilityFilter, facilitySearch, facilities, editingKey, timeEditForm, setEditingKey, setTimeEditForm, isMutating, onStartEditTime, onSaveTime, onCancelReservation, onDeleteReservation }: {
   searchFilteredReservations: AdminReservationRow[];
+  searchFilteredBlockedDates: CalendarBlockedDateRow[];
   facilityFilter: number | undefined;
   facilitySearch: string;
   facilities: Facility[];
@@ -922,7 +967,23 @@ function CalendarView({ searchFilteredReservations, facilityFilter, facilitySear
     );
   });
 
+  const blockedDatesByDate: Record<string, CalendarBlockedDateRow[]> = {};
+  searchFilteredBlockedDates.forEach((blockedDate) => {
+    const key = blockedDate.blockedDate;
+    if (!blockedDatesByDate[key]) blockedDatesByDate[key] = [];
+    blockedDatesByDate[key].push(blockedDate);
+  });
+  Object.values(blockedDatesByDate).forEach((items) => {
+    items.sort((a, b) =>
+      Number(a.isPartialBlock) - Number(b.isPartialBlock)
+      || (a.blockStart ?? "").localeCompare(b.blockStart ?? "")
+      || (a.facilityName ?? "").localeCompare(b.facilityName ?? "")
+      || (a.reason ?? "").localeCompare(b.reason ?? "")
+    );
+  });
+
   const selectedReservations = reservationsByDate[selectedDate] ?? [];
+  const selectedBlockedDates = blockedDatesByDate[selectedDate] ?? [];
   const selectedDateLabel = formatDate(selectedDate);
 
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
@@ -967,10 +1028,13 @@ function CalendarView({ searchFilteredReservations, facilityFilter, facilitySear
           if (!day) return <div key={"empty-" + idx} />;
           const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
           const dayReservations = reservationsByDate[dateKey] ?? [];
+          const dayBlockedDates = blockedDatesByDate[dateKey] ?? [];
           const pendingCount = dayReservations.filter(r => r.status === "pending").length;
           const approvedReservations = dayReservations.filter(r => r.status === "approved");
           const externalCount = approvedReservations.filter(r => isExternalReservation(r)).length;
           const memberCount = approvedReservations.length - externalCount;
+          const fullBlockedCount = dayBlockedDates.filter((blockedDate) => !blockedDate.isPartialBlock).length;
+          const partialBlockedCount = dayBlockedDates.length - fullBlockedCount;
           const isToday = getLocalDateKey() === dateKey;
           const isSelected = selectedDate === dateKey;
           const isSun = (idx % 7) === 0;
@@ -1007,10 +1071,31 @@ function CalendarView({ searchFilteredReservations, facilityFilter, facilitySear
                   외부인 {externalCount}건
                 </div>
               )}
-              {dayReservations.length > 0 && (
+              {fullBlockedCount > 0 && (
+                <div className="text-[10px] bg-red-100 text-red-700 rounded px-1 py-0.5 mb-0.5 truncate">
+                  예약불가 {fullBlockedCount}건
+                </div>
+              )}
+              {partialBlockedCount > 0 && (
+                <div className="text-[10px] bg-rose-50 text-rose-700 rounded px-1 py-0.5 truncate">
+                  부분차단 {partialBlockedCount}건
+                </div>
+              )}
+              {(dayReservations.length > 0 || dayBlockedDates.length > 0) && (
                 <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-72 -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-3 text-left shadow-lg group-hover:block">
                   <p className="mb-2 text-xs font-bold text-gray-800">{formatDate(dateKey)} 예약</p>
                   <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
+                    {dayBlockedDates.map((blockedDate) => (
+                      <div key={`blocked-${blockedDate.id}`} className="rounded-md border border-red-100 bg-red-50 px-2 py-1.5">
+                        <p className="truncate text-xs font-semibold text-red-700">
+                          <span className="mr-1 inline-block rounded bg-red-100 px-1 py-0.5 text-[10px] font-medium text-red-700">불가</span>
+                          {formatBlockedTimeLabel(blockedDate)} · {blockedDate.facilityName ?? "시설"}
+                        </p>
+                        <p className="mt-0.5 truncate text-[11px] text-red-500">
+                          {blockedDate.reason?.trim() || "예약 불가 날짜"}{blockedDate.isPartialBlock ? " (부분 차단)" : ""}
+                        </p>
+                      </div>
+                    ))}
                     {dayReservations.map(reservation => (
                       <div key={reservation.id} className="rounded-md border border-gray-100 bg-gray-50 px-2 py-1.5">
                         <p className="truncate text-xs font-semibold text-gray-800">
@@ -1037,6 +1122,8 @@ function CalendarView({ searchFilteredReservations, facilityFilter, facilitySear
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-100 border border-amber-200 inline-block"></span>대기</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-100 border border-green-300 inline-block"></span>성도</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-100 border border-orange-300 inline-block"></span>외부인</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 border border-red-300 inline-block"></span>예약불가</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-rose-50 border border-rose-200 inline-block"></span>부분차단</span>
       </div>
 
       <div className="mt-5 rounded-xl border border-gray-200 bg-white">
@@ -1045,16 +1132,34 @@ function CalendarView({ searchFilteredReservations, facilityFilter, facilitySear
             <p className="text-sm font-bold text-gray-800">{selectedDateLabel} 예약 상세</p>
             <p className="text-xs text-gray-500">날짜를 누르면 해당 날짜 예약자 정보가 바로 바뀝니다.</p>
           </div>
-          <span className="text-xs font-medium text-[#1B5E20]">총 {selectedReservations.length}건</span>
+          <span className="text-xs font-medium text-[#1B5E20]">예약 {selectedReservations.length}건 · 차단 {selectedBlockedDates.length}건</span>
         </div>
 
-        {selectedReservations.length === 0 ? (
+        {selectedReservations.length === 0 && selectedBlockedDates.length === 0 ? (
           <div className="px-4 py-8 text-center text-sm text-gray-400">
             이 날짜에는 예약이 없습니다.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <div className="min-w-[880px]">
+            {selectedBlockedDates.length > 0 && (
+              <div className="border-b border-red-100 bg-red-50/70 px-4 py-3">
+                <p className="mb-2 flex items-center gap-2 text-sm font-bold text-red-700">
+                  <Ban className="h-4 w-4" /> 예약 불가 설정
+                </p>
+                <div className="space-y-2">
+                  {selectedBlockedDates.map((blockedDate) => (
+                    <div key={`selected-blocked-${blockedDate.id}`} className="flex flex-wrap items-center gap-2 rounded-lg border border-red-100 bg-white px-3 py-2 text-sm">
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+                        {formatBlockedTimeLabel(blockedDate)}
+                      </span>
+                      <span className="font-semibold text-gray-900">{blockedDate.facilityName ?? "시설"}</span>
+                      <span className="text-gray-500">{blockedDate.reason?.trim() || "예약 불가 날짜"}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-[90px_minmax(260px,1fr)_110px] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 text-[11px] font-semibold text-gray-500 md:hidden">
               <div>시간</div>
               <div>시설 / 목적 / 예약자</div>
