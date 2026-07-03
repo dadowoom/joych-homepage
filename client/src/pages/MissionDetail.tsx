@@ -16,6 +16,12 @@ function formatDate(dateStr: string): string {
   return `${y}년 ${m}월 ${d}일`;
 }
 
+function formatFileSize(size?: number | null): string {
+  if (!size || size <= 0) return "";
+  if (size >= 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1)}MB`;
+  return `${Math.ceil(size / 1024)}KB`;
+}
+
 export default function MissionDetail() {
   const { id } = useParams<{ id: string }>();
   const [lightboxImg, setLightboxImg] = useState<string | null>(null);
@@ -219,6 +225,32 @@ export default function MissionDetail() {
                         <i className="fas fa-expand text-white opacity-0 group-hover:opacity-100 transition-opacity text-xl"></i>
                       </div>
                     </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {report.files.length > 0 && (
+              <div className="bg-white rounded-2xl p-7 shadow-sm">
+                <h3 className="text-lg font-bold text-gray-800 mb-5 flex items-center gap-2" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+                  <i className="fas fa-paperclip text-[#1B5E20] text-base"></i>
+                  첨부 자료
+                </h3>
+                <div className="space-y-2">
+                  {report.files.map((file, i) => (
+                    <a
+                      key={`${file.fileUrl}-${i}`}
+                      href={file.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-[#F7F7F5] px-4 py-3 text-sm text-gray-700 hover:border-[#1B5E20]/30 hover:bg-[#EEF7ED] transition-colors"
+                    >
+                      <span className="min-w-0 flex items-center gap-3">
+                        <i className="fas fa-file-lines text-[#1B5E20]"></i>
+                        <span className="truncate font-medium">{file.fileName}</span>
+                      </span>
+                      <span className="flex-shrink-0 text-xs text-gray-400">{formatFileSize(file.fileSize)}</span>
+                    </a>
                   ))}
                 </div>
               </div>
