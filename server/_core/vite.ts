@@ -28,14 +28,15 @@ const ADMIN_PUBLIC_ROUTE_REDIRECTS: Array<[string, string]> = [
   ["/admin/donation", "/support/donation"],
 ];
 
-const CMS_ROUTE_REDIRECTS: Array<[string, string]> = [
-  ["/about/pastor", "/page/교회소개-담임목사-소개"],
-  ["/about/vision", "/page/교회소개-3대-비전"],
-  ["/about/staff", "/page/교회소개-섬기는-분"],
-  ["/about/whitebook", "/page/교회소개-교회백서"],
-  ["/worship/tv/sunday", "/page/조이풀tv-주일예배"],
-  ["/community/news", "/page/행정지원-공지사항"],
-  ["/community/photo", "/page/커뮤니티-최근-행사-사진"],
+const LEGACY_PAGE_ROUTE_REDIRECTS: Array<[string, string]> = [
+  ["/page/교회소개-담임목사-소개", "/about/pastor"],
+  ["/page/교회소개-3대-비전", "/about/vision"],
+  ["/page/교회소개-섬기는-분", "/about/staff"],
+  ["/page/교회소개-부교역자", "/about/staff/associate"],
+  ["/page/교회소개-교회백서", "/about/whitebook"],
+  ["/page/조이풀tv-주일예배", "/worship/tv/sunday"],
+  ["/page/행정지원-공지사항", "/community/news"],
+  ["/page/커뮤니티-최근-행사-사진", "/community/photo"],
 ];
 
 const CODE_BACKED_PAGE_ROUTES = new Set([
@@ -46,7 +47,7 @@ const CODE_BACKED_PAGE_ROUTES = new Set([
 
 const PUBLIC_ROUTE_REDIRECTS = new Map<string, string>([
   ...ADMIN_PUBLIC_ROUTE_REDIRECTS,
-  ...CMS_ROUTE_REDIRECTS,
+  ...LEGACY_PAGE_ROUTE_REDIRECTS,
 ]);
 
 function normalizeRoutePath(pathname: string) {

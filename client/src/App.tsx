@@ -159,6 +159,11 @@ const WednesdayWorshipPage = lazy(() =>
     default: module.WednesdayWorshipPage,
   }))
 );
+const SundayWorshipPage = lazy(() =>
+  import("./pages/JoyfulTV").then(module => ({
+    default: module.SundayWorshipPage,
+  }))
+);
 const FridayPrayerPage = lazy(() =>
   import("./pages/JoyfulTV").then(module => ({
     default: module.FridayPrayerPage,
@@ -191,6 +196,10 @@ const TestimonyPage = lazy(() =>
 const PraisePage = lazy(() =>
   import("./pages/JoyfulTV").then(module => ({ default: module.PraisePage }))
 );
+const ChurchNews = lazy(() =>
+  import("./pages/Community").then(module => ({ default: module.ChurchNews }))
+);
+const PhotoPage = lazy(() => import("./pages/community/PhotoPage"));
 
 const NewMember = lazy(() =>
   import("./pages/Education").then(module => ({ default: module.NewMember }))
@@ -348,9 +357,7 @@ function Router() {
 
       {/* 조이풀TV */}
       <Route path="/worship/tv"><MenuAccessGate href="/worship/tv"><JoyfulTV /></MenuAccessGate></Route>
-      <Route path="/worship/tv/sunday">
-        <LegacyRedirect to="/page/조이풀tv-주일예배" />
-      </Route>
+      <Route path="/worship/tv/sunday"><MenuAccessGate href="/worship/tv/sunday"><SundayWorshipPage /></MenuAccessGate></Route>
       <Route path="/worship/tv/hebron"><MenuAccessGate href="/worship/tv/hebron"><WednesdayWorshipPage /></MenuAccessGate></Route>
       <Route path="/worship/tv/shekhinah"><MenuAccessGate href="/worship/tv/shekhinah"><FridayPrayerPage /></MenuAccessGate></Route>
       <Route path="/worship/tv/gloria"><MenuAccessGate href="/worship/tv/gloria"><DawnBiblePage /></MenuAccessGate></Route>
@@ -402,16 +409,12 @@ function Router() {
       <Route path="/mission"><MenuAccessGate href="/mission"><MissionList /></MenuAccessGate></Route>
 
       {/* 커뮤니티 */}
-      <Route path="/community/news">
-        <LegacyRedirect to="/page/행정지원-공지사항" />
-      </Route>
+      <Route path="/community/news"><MenuAccessGate href="/community/news"><ChurchNews /></MenuAccessGate></Route>
       <Route path="/community/prayer" component={PrayerRequest} />
       <Route path="/community/soon" component={SunMeetingPage} />
       <Route path="/community/organization" component={OrganizationPage} />
       <Route path="/community/club" component={ClubPage} />
-      <Route path="/community/photo">
-        <LegacyRedirect to="/page/커뮤니티-최근-행사-사진" />
-      </Route>
+      <Route path="/community/photo"><MenuAccessGate href="/community/photo"><PhotoPage /></MenuAccessGate></Route>
       <Route path="/community/testimony/write"><MenuAccessGate href="/community/testimony"><TestimonyEditor /></MenuAccessGate></Route>
       <Route path="/community/testimony/edit/:id"><MenuAccessGate href="/community/testimony"><TestimonyEditor /></MenuAccessGate></Route>
       <Route path="/community/testimony/:id"><MenuAccessGate href="/community/testimony"><TestimonyDetail /></MenuAccessGate></Route>

@@ -36,7 +36,7 @@ const ROUTES: SeoRoute[] = [
     priority: "1.0",
   },
   {
-    path: "/page/교회소개-담임목사-소개",
+    path: "/about/pastor",
     title: "담임목사 소개 | 기쁨의교회",
     description: "기쁨의교회 담임목사 인사와 목회 방향을 안내합니다.",
     priority: "0.8",
@@ -48,25 +48,25 @@ const ROUTES: SeoRoute[] = [
     priority: "0.7",
   },
   {
-    path: "/page/교회소개-3대-비전",
+    path: "/about/vision",
     title: "3대 비전 | 기쁨의교회",
     description: "기쁨의교회의 비전과 사역 방향을 확인할 수 있습니다.",
     priority: "0.7",
   },
   {
-    path: "/page/교회소개-섬기는-분",
+    path: "/about/staff",
     title: "섬기는 분 | 기쁨의교회",
     description: "기쁨의교회를 섬기는 목회자와 사역자를 소개합니다.",
     priority: "0.7",
   },
   {
-    path: "/page/교회소개-부교역자",
+    path: "/about/staff/associate",
     title: "부교역자 | 기쁨의교회",
     description: "기쁨의교회 부교역자와 담당 사역을 안내합니다.",
     priority: "0.7",
   },
   {
-    path: "/page/교회소개-교회백서",
+    path: "/about/whitebook",
     title: "교회백서 | 기쁨의교회",
     description: "기쁨의교회 사역과 운영 자료를 확인할 수 있습니다.",
     priority: "0.6",
@@ -104,7 +104,7 @@ const ROUTES: SeoRoute[] = [
     priority: "0.9",
   },
   {
-    path: "/page/조이풀tv-주일예배",
+    path: "/worship/tv/sunday",
     title: "주일예배 영상 | 기쁨의교회",
     description: "기쁨의교회 주일예배 말씀 영상을 확인할 수 있습니다.",
     priority: "0.8",
@@ -135,13 +135,13 @@ const ROUTES: SeoRoute[] = [
     priority: "0.7",
   },
   {
-    path: "/page/행정지원-공지사항",
+    path: "/community/news",
     title: "공지사항 | 기쁨의교회",
     description: "기쁨의교회 주요 공지와 행사 안내를 확인할 수 있습니다.",
     priority: "0.8",
   },
   {
-    path: "/page/커뮤니티-최근-행사-사진",
+    path: "/community/photo",
     title: "최근 행사 사진 | 기쁨의교회",
     description: "기쁨의교회 공동체 행사와 예배 사진을 확인할 수 있습니다.",
     priority: "0.7",
