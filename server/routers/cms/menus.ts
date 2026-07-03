@@ -28,6 +28,7 @@ import {
   getAllMenus,
   getMenusForReadAccessSettings,
   getMenuItemById,
+  canUpdateTopMenuReadAccess,
   canUpdateMenuItemReadAccess,
   createMenuItem,
   updateMenuItem,
@@ -212,7 +213,7 @@ export const menusRouter = router({
   updateAccessBatch: adminProcedure
     .input(z.object({
       leaves: z.array(z.object({
-        kind: z.enum(["item", "subItem"]),
+        kind: z.enum(["menu", "item", "subItem"]),
         id: idSchema,
         allowGuest: z.boolean(),
         allowMember: z.boolean(),
@@ -220,9 +221,11 @@ export const menusRouter = router({
     }))
     .mutation(async ({ input }) => {
       for (const leaf of input.leaves) {
-        const canUpdate = leaf.kind === "item"
-          ? await canUpdateMenuItemReadAccess(leaf.id)
-          : await canUpdateMenuSubItemReadAccess(leaf.id);
+        const canUpdate = leaf.kind === "menu"
+          ? await canUpdateTopMenuReadAccess(leaf.id)
+          : leaf.kind === "item"
+            ? await canUpdateMenuItemReadAccess(leaf.id)
+            : await canUpdateMenuSubItemReadAccess(leaf.id);
 
         if (!canUpdate) {
           throw new TRPCError({
@@ -231,7 +234,12 @@ export const menusRouter = router({
           });
         }
 
-        if (leaf.kind === "item") {
+        if (leaf.kind === "menu") {
+          await updateMenu(leaf.id, {
+            allowGuest: leaf.allowGuest,
+            allowMember: leaf.allowMember,
+          });
+        } else if (leaf.kind === "item") {
           await updateMenuItem(leaf.id, {
             allowGuest: leaf.allowGuest,
             allowMember: leaf.allowMember,
@@ -248,6 +256,25 @@ export const menusRouter = router({
     }),
 
   /** 2단 메뉴 읽기 권한만 수정 */
+  updateMenuAccess: adminProcedure
+    .input(z.object({
+      id: idSchema,
+      allowGuest: z.boolean(),
+      allowMember: z.boolean(),
+    }))
+    .mutation(async ({ input }) => {
+      const { id, allowGuest, allowMember } = input;
+      const canUpdate = await canUpdateTopMenuReadAccess(id);
+      if (!canUpdate) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "?? ??? ???????? ??? ? ????. ?????? ?? ?? ? ?? ??? ???.",
+        });
+      }
+
+      return updateMenu(id, { allowGuest, allowMember });
+    }),
+
   updateItemAccess: adminProcedure
     .input(z.object({
       id: idSchema,

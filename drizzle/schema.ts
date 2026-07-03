@@ -93,6 +93,8 @@ export const menus = mysqlTable("menus", {
   sortOrder: int("sortOrder").notNull().default(0),
   /** 표시 여부 */
   isVisible: boolean("isVisible").notNull().default(true),
+  allowGuest: boolean("allowGuest").notNull().default(true),
+  allowMember: boolean("allowMember").notNull().default(true),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

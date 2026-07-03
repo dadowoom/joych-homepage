@@ -71,7 +71,7 @@ type DynamicMenuTree = Array<{
 }>;
 
 type MenuAccessInfo = {
-  kind: "item" | "subItem";
+  kind: "menu" | "item" | "subItem";
   id: number;
   label: string;
   href?: string | null;
@@ -92,6 +92,23 @@ type MenuAccessInfo = {
 
 function getAccessMatchFromInfo(accessInfo: MenuAccessInfo | null | undefined): MenuAccessMatch | null {
   if (!accessInfo) return null;
+
+  if (accessInfo.kind === "menu") {
+    const item = {
+      id: accessInfo.id,
+      label: accessInfo.label,
+      href: accessInfo.href,
+      allowGuest: accessInfo.allowGuest,
+      allowMember: accessInfo.allowMember,
+      subItems: [],
+    };
+    return {
+      kind: "menu",
+      topMenu: { ...accessInfo.topMenu, items: [item] },
+      item,
+      node: item,
+    };
+  }
 
   if (accessInfo.kind === "item") {
     const item = {

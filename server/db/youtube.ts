@@ -199,6 +199,8 @@ export async function syncPlaylistToMenu(playlistId: number, title: string) {
       href: null,
       sortOrder: maxMenuSortOrder + 1,
       isVisible: true,
+      allowGuest: true,
+      allowMember: true,
     }).$returningId();
     if (createdMenu?.id) {
       joyfulTvMenu = {
@@ -207,6 +209,8 @@ export async function syncPlaylistToMenu(playlistId: number, title: string) {
         href: null,
         sortOrder: maxMenuSortOrder + 1,
         isVisible: true,
+        allowGuest: true,
+        allowMember: true,
         createdAt: new Date(),
         updatedAt: new Date(),
       };

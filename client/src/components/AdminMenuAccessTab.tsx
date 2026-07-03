@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 
-type LeafKind = "item" | "subItem";
+type LeafKind = "menu" | "item" | "subItem";
 type ReadLevel = "guest" | "member";
 
 type MenuLeaf = {
@@ -80,6 +80,16 @@ export default function AdminMenuAccessTab() {
     ]);
   };
 
+  const updateMenu = trpc.cms.menus.updateMenuAccess.useMutation({
+    onSuccess: async () => {
+      toast.success("?? ?? ??? ??????.");
+      await invalidateMenus();
+    },
+    onError: (error) => {
+      toast.error(error.message || "?? ?? ?? ??? ??????.");
+    },
+  });
+
   const updateItem = trpc.cms.menus.updateItemAccess.useMutation({
     onSuccess: async () => {
       toast.success("메뉴 읽기 권한을 저장했습니다.");
@@ -115,6 +125,19 @@ export default function AdminMenuAccessTab() {
     const rows: MenuLeaf[] = [];
 
     for (const menu of menus) {
+      if ((menu.href ?? "").trim() && (menu.items ?? []).length === 0) {
+        rows.push({
+          kind: "menu",
+          id: menu.id,
+          groupLabel: menu.label,
+          label: menu.label,
+          path: menu.label,
+          href: menu.href,
+          allowGuest: menu.allowGuest,
+          allowMember: menu.allowMember,
+        });
+      }
+
       for (const item of menu.items ?? []) {
         const subItems = item.subItems ?? [];
         if (subItems.length === 0) {
@@ -159,13 +182,18 @@ export default function AdminMenuAccessTab() {
     return Array.from(groups.entries());
   }, [leafRows]);
 
-  const isSaving = updateItem.isPending || updateSubItem.isPending || updateAccessBatch.isPending;
+  const isSaving = updateMenu.isPending || updateItem.isPending || updateSubItem.isPending || updateAccessBatch.isPending;
 
   const setAccess = (leaf: MenuLeaf, level: ReadLevel) => {
     const payload = {
       id: leaf.id,
       ...getReadFlags(level),
     };
+
+    if (leaf.kind === "menu") {
+      updateMenu.mutate(payload);
+      return;
+    }
 
     if (leaf.kind === "item") {
       updateItem.mutate(payload);

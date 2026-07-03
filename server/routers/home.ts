@@ -761,7 +761,7 @@ export const homeRouter = router({
 
   menuAccessById: publicProcedure
     .input(z.object({
-      kind: z.enum(["item", "subItem"]),
+      kind: z.enum(["menu", "item", "subItem"]),
       id: idSchema,
     }))
     .query(({ input, ctx }) => getMenuAccessById(input.kind, input.id, getMenuReadAccess(ctx))),

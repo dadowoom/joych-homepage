@@ -1472,6 +1472,55 @@ try {
 NODE
 fi
 
+MIGRATION_0070="${APP_DIR}/drizzle/0070_top_menu_read_permissions.sql"
+if [[ -f "${MIGRATION_0070}" ]]; then
+  echo "[deploy] database migration: top menu read permissions"
+  node --input-type=module <<'NODE'
+import fs from "node:fs/promises";
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required for migration 0070.");
+}
+
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  const [rows] = await connection.execute(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    ["0070_top_menu_read_permissions"],
+  );
+  if (Array.isArray(rows) && rows.length > 0) {
+    console.log("[deploy] migration 0070 already applied");
+  } else {
+    const [columns] = await connection.execute(
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'menus' AND COLUMN_NAME = 'allowGuest' LIMIT 1",
+    );
+    if (!Array.isArray(columns) || columns.length === 0) {
+      const sql = await fs.readFile("drizzle/0070_top_menu_read_permissions.sql", "utf8");
+      const statements = sql.split(/;\s*(?:\r?\n|$)/).map((statement) => statement.trim()).filter(Boolean);
+      for (const statement of statements) {
+        await connection.query(statement);
+      }
+    }
+    await connection.execute(
+      "INSERT INTO app_migrations (id) VALUES (?)",
+      ["0070_top_menu_read_permissions"],
+    );
+    console.log("[deploy] migration 0070 applied");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

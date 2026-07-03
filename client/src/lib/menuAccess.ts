@@ -16,12 +16,20 @@ type MenuTopNode = {
   id: number;
   label: string;
   href?: string | null;
+  allowGuest?: boolean;
+  allowMember?: boolean;
   items?: MenuItemNode[];
 };
 
 export type MenuTreeForAccess = MenuTopNode[] | undefined;
 
 export type MenuAccessMatch =
+  | {
+      kind: "menu";
+      topMenu: MenuTopNode;
+      item: MenuLeafNode;
+      node: MenuLeafNode;
+    }
   | {
       kind: "item";
       topMenu: MenuTopNode;
@@ -67,6 +75,17 @@ export function findMenuAccessMatchByHref(
   if (!normalizedHref) return null;
 
   for (const topMenu of menus ?? []) {
+    if (normalizeHref(topMenu.href) === normalizedHref) {
+      const node = {
+        id: topMenu.id,
+        label: topMenu.label,
+        href: topMenu.href,
+        allowGuest: topMenu.allowGuest,
+        allowMember: topMenu.allowMember,
+      };
+      return { kind: "menu", topMenu, item: node, node };
+    }
+
     for (const item of topMenu.items ?? []) {
       if (normalizeHref(item.href) === normalizedHref) {
         return { kind: "item", topMenu, item, node: item };
@@ -85,12 +104,23 @@ export function findMenuAccessMatchByHref(
 
 export function findMenuAccessMatchById(
   menus: MenuTreeForAccess,
-  kind: "item" | "subItem",
+  kind: "menu" | "item" | "subItem",
   id: number
 ): MenuAccessMatch | null {
   if (!Number.isFinite(id) || id <= 0) return null;
 
   for (const topMenu of menus ?? []) {
+    if (kind === "menu" && topMenu.id === id) {
+      const node = {
+        id: topMenu.id,
+        label: topMenu.label,
+        href: topMenu.href,
+        allowGuest: topMenu.allowGuest,
+        allowMember: topMenu.allowMember,
+      };
+      return { kind: "menu", topMenu, item: node, node };
+    }
+
     for (const item of topMenu.items ?? []) {
       if (kind === "item" && item.id === id) {
         return { kind: "item", topMenu, item, node: item };
