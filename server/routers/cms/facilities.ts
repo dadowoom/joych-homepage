@@ -49,6 +49,7 @@ import {
   upsertExternalFacilityHour,
   getBlockedDates,
   addBlockedDate,
+  addBlockedDates,
   deleteBlockedDate,
   upsertSiteSetting,
 } from "../../db";
@@ -209,6 +210,10 @@ const blockedDateSchema = z.object({
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: "부분 차단은 시작/종료 시간을 모두 입력해주세요." });
   }
   addTimeOrderIssue(ctx, value.blockStart, value.blockEnd, "차단 시작 시간은 종료 시간보다 빨라야 합니다.");
+});
+
+const blockedDateBulkSchema = z.object({
+  items: z.array(blockedDateSchema).min(1).max(730),
 });
 
 export const facilitiesRouter = router({
@@ -374,6 +379,11 @@ export const facilitiesRouter = router({
     add: facilityProcedure
       .input(blockedDateSchema)
       .mutation(({ input }) => addBlockedDate(input)),
+
+    /** 차단 날짜 여러 건 추가 (관리자) */
+    addMany: facilityProcedure
+      .input(blockedDateBulkSchema)
+      .mutation(({ input }) => addBlockedDates(input.items)),
 
     /** 차단 날짜 삭제 (관리자) */
     delete: facilityProcedure

@@ -274,6 +274,44 @@ export async function addBlockedDate(data: Omit<InsertFacilityBlockedDate, 'id' 
   await db.insert(facilityBlockedDates).values(data);
 }
 
+/** 예약 차단 날짜 여러 건 추가 */
+export async function addBlockedDates(items: Omit<InsertFacilityBlockedDate, 'id' | 'createdAt'>[]) {
+  const db = await getDb();
+  if (!db || items.length === 0) return { inserted: 0, skipped: 0 };
+
+  const blockedDates = Array.from(new Set(items.map((item) => item.blockedDate)));
+  const facilityIds = Array.from(new Set(
+    items
+      .map((item) => item.facilityId)
+      .filter((id): id is number => typeof id === "number"),
+  ));
+
+  const facilityCondition = facilityIds.length > 0
+    ? or(inArray(facilityBlockedDates.facilityId, facilityIds), isNull(facilityBlockedDates.facilityId))
+    : isNull(facilityBlockedDates.facilityId);
+  const existingRows = await db
+    .select()
+    .from(facilityBlockedDates)
+    .where(and(inArray(facilityBlockedDates.blockedDate, blockedDates), facilityCondition));
+
+  const makeKey = (item: Pick<InsertFacilityBlockedDate, "facilityId" | "blockedDate" | "isPartialBlock" | "blockStart" | "blockEnd">) =>
+    [
+      item.facilityId ?? "all",
+      item.blockedDate,
+      item.isPartialBlock ? "partial" : "full",
+      item.blockStart ?? "",
+      item.blockEnd ?? "",
+    ].join("|");
+  const existingKeys = new Set(existingRows.map(makeKey));
+  const uniqueItems = items.filter((item) => !existingKeys.has(makeKey(item)));
+
+  if (uniqueItems.length > 0) {
+    await db.insert(facilityBlockedDates).values(uniqueItems);
+  }
+
+  return { inserted: uniqueItems.length, skipped: items.length - uniqueItems.length };
+}
+
 /** 예약 차단 날짜 삭제 */
 export async function deleteBlockedDate(id: number) {
   const db = await getDb();
