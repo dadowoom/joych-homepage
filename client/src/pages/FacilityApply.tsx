@@ -483,7 +483,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     if (!form.reserverPhone.trim()) return "연락처를 입력해 주세요.";
     if (!form.department.trim()) return isExternal ? "단체명을 입력해 주세요." : "소속 부서/단체를 입력해 주세요.";
     if (isExternal && !form.depositorName.trim()) return "입금자명을 입력해 주세요.";
-    if (!form.purpose.trim()) return "?? ??? ??? ???.";
+    if (!form.purpose.trim()) return "사용 목적을 입력해 주세요.";
     if (!form.date) return "사용 날짜를 선택해 주세요.";
     if (!resolvedPurpose) return isExternal ? "사용 목적을 입력해 주세요." : (form.purpose === "기타" ? "기타 사용 목적을 입력해 주세요." : "사용 목적을 선택해 주세요.");
     if (selectedDateRangeRestriction) return selectedDateRangeRestriction;
@@ -739,13 +739,13 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                   </Field>
                 )}
 
-                <Field label="?? ??" required>
+                <Field label="사용 목적" required>
                   <input
                     type="text"
                     name="purpose"
                     value={form.purpose}
                     onChange={handleChange}
-                    placeholder="?? ??? ?? ??? ???. (?: ??, ??, ??)"
+                    placeholder="사용 목적을 직접 입력해 주세요. (예: 행사, 회의, 모임)"
                     className={inputClass}
                   />
                 </Field>

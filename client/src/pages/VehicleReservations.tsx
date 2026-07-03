@@ -870,7 +870,7 @@ export function VehicleReservationApply() {
     if (!memberMe && !canManageVehicleReservations) return "성도 로그인 후 신청할 수 있습니다.";
     if (!form.reserverName.trim()) return "신청자 이름을 입력해주세요.";
     if (!form.reserverPhone.trim()) return "연락처를 입력해주세요.";
-    if (!form.purpose.trim()) return "?? ??? ??? ???.";
+    if (!form.purpose.trim()) return "사용 목적을 입력해 주세요.";
     if (!form.date) return "사용 날짜를 선택해주세요.";
     if (form.date < getKstDateKey()) return "지난 날짜는 예약할 수 없습니다.";
     if (!form.startTime || !form.endTime) return "사용 시간을 선택해주세요.";
@@ -1012,7 +1012,7 @@ export function VehicleReservationApply() {
                       type="text"
                       value={form.purpose}
                       onChange={(e) => updateForm("purpose", e.target.value)}
-                      placeholder="?? ??? ?? ??? ???. (?: ?? ??, ?? ??)"
+                      placeholder="사용 목적을 직접 입력해 주세요. (예: 심방 이동, 물품 운반)"
                       className={inputClass}
                     />
                   </label>
