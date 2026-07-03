@@ -108,6 +108,10 @@ function toMinutes(time: string) {
   return hour * 60 + minute;
 }
 
+function formatPlateNumber(plateNumber?: string | null) {
+  return (plateNumber ?? "").trim().replace(/^(\d+[가-힣])\s*(\d+)$/, "$1 $2");
+}
+
 function formatDate(dateKey: string) {
   const date = new Date(dateKey);
   return Number.isNaN(date.getTime())
@@ -235,7 +239,7 @@ function VehicleCard({ vehicle }: { vehicle: VehicleRow }) {
       <div className="p-5">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <h3 className="text-lg font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>{vehicle.name}</h3>
-          {vehicle.plateNumber && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{vehicle.plateNumber}</span>}
+          {vehicle.plateNumber && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{formatPlateNumber(vehicle.plateNumber)}</span>}
         </div>
         {vehicle.description && <p className="mb-4 line-clamp-2 text-sm leading-6 text-gray-500">{vehicle.description}</p>}
         <div className="mb-5 space-y-2 text-sm text-gray-600">
@@ -676,7 +680,7 @@ export function VehicleReservationDetail() {
                     {vehicleRow.name}
                   </h3>
                   {vehicleRow.plateNumber && (
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{vehicleRow.plateNumber}</span>
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{formatPlateNumber(vehicleRow.plateNumber)}</span>
                   )}
                 </div>
                 {vehicleRow.description && <p className="mt-3 text-sm leading-6 text-gray-600">{vehicleRow.description}</p>}
@@ -964,7 +968,7 @@ export function VehicleReservationApply() {
                     {vehicleRow.location && <p className="mb-0.5 text-xs text-gray-400">{vehicleRow.location}</p>}
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="truncate font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>{vehicleRow.name}</p>
-                      {vehicleRow.plateNumber && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{vehicleRow.plateNumber}</span>}
+                      {vehicleRow.plateNumber && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{formatPlateNumber(vehicleRow.plateNumber)}</span>}
                     </div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-gray-500">
                       <span className="flex items-center gap-1"><Users className="h-3 w-3" /> 최대 {vehicleRow.capacity}명</span>

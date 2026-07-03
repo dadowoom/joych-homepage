@@ -238,8 +238,13 @@ function getReservationPosition(row: VehicleReservationRow) {
   return row.memberPosition || row.department || "-";
 }
 
+function formatPlateNumber(plateNumber?: string | null) {
+  return (plateNumber ?? "").trim().replace(/^(\d+[가-힣])\s*(\d+)$/, "$1 $2");
+}
+
 function getVehicleDisplayName(vehicle: Pick<VehicleRow, "name" | "plateNumber">) {
-  return vehicle.plateNumber ? `${vehicle.plateNumber} ${vehicle.name}` : vehicle.name;
+  const plateNumber = formatPlateNumber(vehicle.plateNumber);
+  return plateNumber ? `${plateNumber} ${vehicle.name}` : vehicle.name;
 }
 
 function getReservationVehicleName(row: VehicleReservationRow) {
@@ -247,7 +252,7 @@ function getReservationVehicleName(row: VehicleReservationRow) {
 }
 
 function getReservationPlateNumber(row: VehicleReservationRow) {
-  return row.plateNumber || "-";
+  return formatPlateNumber(row.plateNumber) || "-";
 }
 
 function getReservationGroupLabel(row: VehicleReservationRow) {
