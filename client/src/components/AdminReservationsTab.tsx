@@ -12,7 +12,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import type { Reservation, Facility } from "../../../drizzle/schema";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, Clock, AlertCircle, Calendar, List, ChevronDown, Trash2 } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, AlertCircle, Calendar, List, ChevronDown, Trash2, Search, X } from "lucide-react";
 import { getKstDateKey } from "@/lib/facilityReservationTime";
 import { formatKoreanDateKey, formatKoreanDateTime, formatKoreanDateTimeText, formatKoreanNumericDateKey } from "@/lib/koreanDate";
 
@@ -128,6 +128,34 @@ function formatReservationTimeRange(reservation: Pick<AdminReservationRow, "star
   return `${reservation.startTime}~${reservation.endTime}`;
 }
 
+function normalizeSearchText(value: string | number | null | undefined) {
+  return String(value ?? "").toLowerCase().replace(/\s+/g, "");
+}
+
+function getFacilitySearchText(reservation: AdminReservationRow, facility?: Facility) {
+  return normalizeSearchText([
+    reservation.facilityName,
+    facility?.name,
+    facility?.location,
+    facility?.building,
+    reservation.purpose,
+    reservation.notes,
+    reservation.department,
+    getReservationName(reservation),
+    getReservationPosition(reservation),
+  ].filter(Boolean).join(" "));
+}
+
+function reservationMatchesFacilitySearch(
+  reservation: AdminReservationRow,
+  searchQuery: string,
+  facilityById: Map<number, Facility>,
+) {
+  const query = normalizeSearchText(searchQuery);
+  if (!query) return true;
+  return getFacilitySearchText(reservation, facilityById.get(reservation.facilityId)).includes(query);
+}
+
 function getGroupStatus(items: AdminReservationRow[]): ReservationStatus {
   if (items.some(r => r.status === "pending")) return "pending";
   if (items.some(r => r.status === "checking")) return "checking";
@@ -178,6 +206,7 @@ function buildReservationGroups(rows: AdminReservationRow[]): ReservationGroup[]
 export default function AdminReservationsTab() {
   const utils = trpc.useUtils();
   const [facilityFilter, setFacilityFilter] = useState<number | undefined>(undefined);
+  const [facilitySearch, setFacilitySearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [rejectingKey, setRejectingKey] = useState<string | null>(null);
@@ -303,7 +332,11 @@ export default function AdminReservationsTab() {
     onError: () => toast.error("반복 예약 삭제에 실패했습니다."),
   });
 
-  const groupedReservations = buildReservationGroups((reservations ?? []) as AdminReservationRow[]);
+  const facilityById = new Map((facilities ?? []).map(f => [f.id, f]));
+  const searchFilteredReservations = ((reservations ?? []) as AdminReservationRow[]).filter(reservation =>
+    reservationMatchesFacilitySearch(reservation, facilitySearch, facilityById)
+  );
+  const groupedReservations = buildReservationGroups(searchFilteredReservations);
 
   // 필터 적용
   const filtered = groupedReservations.filter(group =>
@@ -510,6 +543,26 @@ export default function AdminReservationsTab() {
             ))}
           </select>
           <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+        </div>
+
+        <div className="relative min-w-[220px] flex-1 sm:max-w-[320px]">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            value={facilitySearch}
+            onChange={e => setFacilitySearch(e.target.value)}
+            placeholder="실명, 위치, 목적 검색"
+            className="min-h-11 w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-9 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30 sm:min-h-0 sm:py-1.5"
+          />
+          {facilitySearch && (
+            <button
+              type="button"
+              onClick={() => setFacilitySearch("")}
+              className="absolute right-2 top-1/2 rounded p-1 text-gray-400 transition-colors -translate-y-1/2 hover:bg-gray-100 hover:text-gray-600"
+              aria-label="시설 검색어 지우기"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
 
         {/* 상태 필터 */}
@@ -803,8 +856,9 @@ export default function AdminReservationsTab() {
       {/* 달력 뷰 */}
       {viewMode === "calendar" && (
         <CalendarView
-          reservations={reservations ?? []}
+          searchFilteredReservations={searchFilteredReservations}
           facilityFilter={facilityFilter}
+          facilitySearch={facilitySearch}
           facilities={facilities ?? []}
           editingKey={editingKey}
           timeEditForm={timeEditForm}
@@ -821,9 +875,10 @@ export default function AdminReservationsTab() {
   );
 }
 
-function CalendarView({ reservations, facilityFilter, facilities, editingKey, timeEditForm, setEditingKey, setTimeEditForm, isMutating, onStartEditTime, onSaveTime, onCancelReservation, onDeleteReservation }: {
-  reservations: AdminReservationRow[];
+function CalendarView({ searchFilteredReservations, facilityFilter, facilitySearch, facilities, editingKey, timeEditForm, setEditingKey, setTimeEditForm, isMutating, onStartEditTime, onSaveTime, onCancelReservation, onDeleteReservation }: {
+  searchFilteredReservations: AdminReservationRow[];
   facilityFilter: number | undefined;
+  facilitySearch: string;
   facilities: Facility[];
   editingKey: string | null;
   timeEditForm: ReservationTimeEditForm;
@@ -850,7 +905,7 @@ function CalendarView({ reservations, facilityFilter, facilities, editingKey, ti
 
   // 날짜별 예약 수 집계
   const reservationsByDate: Record<string, AdminReservationRow[]> = {};
-  reservations.forEach(r => {
+  searchFilteredReservations.forEach(r => {
     const key = r.reservationDate;
     if (!reservationsByDate[key]) reservationsByDate[key] = [];
     reservationsByDate[key].push(r);
@@ -894,6 +949,11 @@ function CalendarView({ reservations, facilityFilter, facilities, editingKey, ti
       {facilityFilter && (
         <div className="mb-3 rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-xs text-green-800">
           현재 시설 필터: {facilities.find(f => f.id === facilityFilter)?.name ?? "선택 시설"}
+        </div>
+      )}
+      {facilitySearch.trim() && (
+        <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+          현재 실 검색: {facilitySearch.trim()}
         </div>
       )}
 
