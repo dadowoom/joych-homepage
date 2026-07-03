@@ -51,7 +51,7 @@ function PopupActionButton({
           setLocation(popup.linkHref);
         }
       }}
-      className="inline-flex items-center justify-center rounded-lg bg-[#1B5E20] px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-[#2E7D32]"
+      className="inline-flex min-w-0 flex-1 items-center justify-center rounded-lg bg-[#1B5E20] px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-[#2E7D32]"
     >
       {popup.linkLabel}
     </a>
@@ -226,7 +226,7 @@ export default function NoticePopupLayer() {
                       )}
                     </div>
 
-                    <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
                       <PopupActionButton
                         popup={popup}
                         onClose={() => closePopup(popup.id)}
@@ -237,7 +237,7 @@ export default function NoticePopupLayer() {
                           type="button"
                           onClick={() => dismissPopup(popup)}
                           tabIndex={index === modalIndex ? 0 : -1}
-                          className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 transition-colors hover:bg-gray-50"
+                          className="min-w-0 flex-1 rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 transition-colors hover:bg-gray-50"
                         >
                           오늘 하루 보지 않기
                         </button>
