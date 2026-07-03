@@ -128,7 +128,7 @@ export default function NoticePopupLayer() {
   return (
     <>
       {activeModalPopup && (
-        <div className="fixed inset-x-3 bottom-3 z-[320] md:inset-x-auto md:bottom-auto md:right-8 md:top-1/2 md:w-[min(420px,calc(100vw-2rem))] md:-translate-y-1/2 xl:w-[440px]">
+        <div className="fixed inset-x-2 bottom-2 z-[320] md:inset-x-auto md:bottom-auto md:right-8 md:top-1/2 md:w-[min(560px,calc(100vw-2rem))] md:-translate-y-1/2 xl:w-[620px]">
           <div
             role="dialog"
             aria-modal="true"
@@ -143,6 +143,27 @@ export default function NoticePopupLayer() {
             >
               <X className="h-4 w-4" />
             </button>
+
+            {canSlide && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => moveSlide("prev")}
+                  className="absolute left-3 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white/90 text-gray-500 shadow transition hover:bg-white hover:text-gray-800"
+                  aria-label="?댁쟾 ?앹뾽"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveSlide("next")}
+                  className="absolute right-3 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white/90 text-gray-500 shadow transition hover:bg-white hover:text-gray-800"
+                  aria-label="?ㅼ쓬 ?앹뾽"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </>
+            )}
 
             <div
               className="flex transition-transform duration-500 ease-out"
@@ -159,7 +180,7 @@ export default function NoticePopupLayer() {
                       <img
                         src={popup.imageUrl}
                         alt=""
-                        className="max-h-[58vh] w-auto max-w-full object-contain md:max-h-[68vh]"
+                        className="max-h-[64vh] w-full object-contain md:max-h-[72vh]"
                         loading={index === 0 ? "eager" : "lazy"}
                         decoding="async"
                       />
@@ -182,7 +203,7 @@ export default function NoticePopupLayer() {
                       </div>
 
                       {canSlide && (
-                        <div className="hidden items-center gap-1 md:flex">
+                        <div className="hidden">
                           <button
                             type="button"
                             onClick={() => moveSlide("prev")}
@@ -229,7 +250,7 @@ export default function NoticePopupLayer() {
 
             {canSlide && (
               <div className="border-t border-gray-100 px-4 pb-4 pt-3 md:px-5">
-                <div className="flex items-center justify-center gap-2 md:hidden">
+                <div className="hidden">
                   <button
                     type="button"
                     onClick={() => moveSlide("prev")}
@@ -248,7 +269,7 @@ export default function NoticePopupLayer() {
                   </button>
                 </div>
 
-                <div className="mt-3 flex items-center justify-center gap-2 md:mt-0">
+                <div className="flex items-center justify-center gap-2">
                   {modalPopups.map((popup, index) => (
                     <button
                       key={popup.id}
