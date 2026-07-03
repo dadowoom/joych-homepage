@@ -181,7 +181,7 @@ export default function ChurchHistory() {
       grouped.set(item.year, next);
     }
     return Array.from(grouped.entries())
-      .sort(([yearA], [yearB]) => yearA - yearB)
+      .sort(([yearA], [yearB]) => yearB - yearA)
       .map(([year, values]) => ({ year, items: sortItems(values) }));
   }, [activeItems]);
 

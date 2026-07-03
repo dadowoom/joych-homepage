@@ -122,7 +122,7 @@ function groupItemsByYear(items: HistoryItem[]): Array<[number, HistoryItem[]]> 
   }
 
   return Array.from(groups.entries())
-    .sort(([yearA], [yearB]) => yearA - yearB)
+    .sort(([yearA], [yearB]) => yearB - yearA)
     .map(
       ([year, yearItems]): [number, HistoryItem[]] => [
         year,
