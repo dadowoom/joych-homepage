@@ -218,7 +218,7 @@ const blockedDateBulkSchema = z.object({
   items: z.array(blockedDateSchema).min(1).max(730),
 });
 
-const blockedDateUpdateSchema = blockedDateSchema.extend({
+const blockedDateUpdateSchema = blockedDateSchema.safeExtend({
   id: idSchema,
 });
 
