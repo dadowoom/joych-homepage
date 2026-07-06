@@ -298,6 +298,12 @@ export async function getAllMenus() {
  * - 메뉴편집에서 숨김 처리한 1/2/3단 메뉴는 제외합니다.
  * - 권한값(allowGuest/allowMember)은 필터링하지 않고 그대로 내려보내 숨김 해제 후에도 유지됩니다.
  */
+function isVehicleReservationAccessHref(href: string | null | undefined) {
+  return href === "/support/vehicle" ||
+    href === "/admin/vehicle" ||
+    Boolean(href?.startsWith("/support/vehicle/"));
+}
+
 export async function getMenusForReadAccessSettings() {
   const db = await getDb();
   if (!db) return [];
@@ -315,6 +321,7 @@ export async function getMenusForReadAccessSettings() {
 
   const subItemsByItemId = new Map<number, typeof visibleSubItems>();
   for (const subItem of visibleSubItems) {
+    if (isVehicleReservationAccessHref(subItem.href)) continue;
     const list = subItemsByItemId.get(subItem.menuItemId) ?? [];
     list.push(subItem);
     subItemsByItemId.set(subItem.menuItemId, list);
@@ -325,6 +332,7 @@ export async function getMenusForReadAccessSettings() {
     Array<(typeof visibleItems)[number] & { subItems: typeof visibleSubItems }>
   >();
   for (const item of visibleItems) {
+    if (isVehicleReservationAccessHref(item.href)) continue;
     const list = itemsByMenuId.get(item.menuId) ?? [];
     list.push({ ...item, subItems: subItemsByItemId.get(item.id) ?? [] });
     itemsByMenuId.set(item.menuId, list);
@@ -333,7 +341,7 @@ export async function getMenusForReadAccessSettings() {
   return menuList.map(menu => ({
     ...menu,
     items: itemsByMenuId.get(menu.id) ?? [],
-  })).filter(menu => menu.items.length > 0 || menu.href);
+  })).filter(menu => (menu.items.length > 0) || (menu.href && !isVehicleReservationAccessHref(menu.href)));
 }
 
 // ─── 1단 메뉴 CRUD ────────────────────────────────────────────────────────────
