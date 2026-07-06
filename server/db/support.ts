@@ -129,6 +129,48 @@ export async function updateVisitRequestStatus(
     .where(eq(visitRequests.id, id));
 }
 
+export async function updateVisitRequest(
+  id: number,
+  data: {
+    organizationName: string;
+    applicantName: string;
+    phone: string;
+    email?: string | null;
+    visitDate: string;
+    visitTime?: string | null;
+    headcount: number;
+    visitorType: "church" | "institution" | "individual" | "other";
+    purpose: string;
+    message?: string | null;
+    status: VisitRequestStatus;
+    adminMemo?: string | null;
+  }
+) {
+  const db = await requireDb();
+  await db
+    .update(visitRequests)
+    .set({
+      organizationName: data.organizationName,
+      applicantName: data.applicantName,
+      phone: data.phone,
+      email: data.email ?? null,
+      visitDate: data.visitDate,
+      visitTime: data.visitTime ?? null,
+      headcount: data.headcount,
+      visitorType: data.visitorType,
+      purpose: data.purpose,
+      message: data.message ?? null,
+      status: data.status,
+      adminMemo: data.adminMemo ?? null,
+    })
+    .where(eq(visitRequests.id, id));
+}
+
+export async function deleteVisitRequest(id: number) {
+  const db = await requireDb();
+  await db.delete(visitRequests).where(eq(visitRequests.id, id));
+}
+
 export async function createSubtitleRequest(data: InsertSubtitleRequest) {
   const db = await requireDb();
   await db.insert(subtitleRequests).values(data);
@@ -174,6 +216,34 @@ export async function updateSubtitleRequestStatus(
     .where(eq(subtitleRequests.id, id));
 }
 
+export async function updateSubtitleRequest(
+  id: number,
+  data: {
+    title: string;
+    requestedDate?: string | null;
+    content: string;
+    status: SubtitleRequestStatus;
+    adminMemo?: string | null;
+  }
+) {
+  const db = await requireDb();
+  await db
+    .update(subtitleRequests)
+    .set({
+      title: data.title,
+      requestedDate: data.requestedDate ?? null,
+      content: data.content,
+      status: data.status,
+      adminMemo: data.adminMemo ?? null,
+    })
+    .where(eq(subtitleRequests.id, id));
+}
+
+export async function deleteSubtitleRequest(id: number) {
+  const db = await requireDb();
+  await db.delete(subtitleRequests).where(eq(subtitleRequests.id, id));
+}
+
 export async function createBulletinAdRequest(data: InsertBulletinAdRequest) {
   const db = await requireDb();
   await db.insert(bulletinAdRequests).values(data);
@@ -217,4 +287,32 @@ export async function updateBulletinAdRequestStatus(
     .update(bulletinAdRequests)
     .set({ status: data.status, adminMemo: data.adminMemo ?? null })
     .where(eq(bulletinAdRequests.id, id));
+}
+
+export async function updateBulletinAdRequest(
+  id: number,
+  data: {
+    title: string;
+    requestedDate?: string | null;
+    content: string;
+    status: BulletinAdRequestStatus;
+    adminMemo?: string | null;
+  }
+) {
+  const db = await requireDb();
+  await db
+    .update(bulletinAdRequests)
+    .set({
+      title: data.title,
+      requestedDate: data.requestedDate ?? null,
+      content: data.content,
+      status: data.status,
+      adminMemo: data.adminMemo ?? null,
+    })
+    .where(eq(bulletinAdRequests.id, id));
+}
+
+export async function deleteBulletinAdRequest(id: number) {
+  const db = await requireDb();
+  await db.delete(bulletinAdRequests).where(eq(bulletinAdRequests.id, id));
 }
