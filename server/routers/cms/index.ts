@@ -18,6 +18,7 @@
  *   - supportRequests: 기도 요청/새가족 접수 관리
  *   - courses: 교육/강좌 신청 관리
  *   - bulletins: 주보 파일 관리
+ *   - members: 교적부/성도 목회자 전용 요약
  *   - pastorBooks: 담임목사 저서 관리
  */
 
@@ -40,6 +41,7 @@ import { bulletinsRouter } from "./bulletins";
 import { adminPermissionsRouter } from "./adminPermissions";
 import { historyRouter } from "./history";
 import { notificationsRouter } from "./notifications";
+import { cmsMembersRouter } from "./members";
 import { vehiclesRouter } from "./vehicles";
 import { vehicleReservationsRouter } from "./vehicleReservations";
 import { dynamicBoardsRouter } from "./dynamicBoards";
@@ -65,6 +67,7 @@ export const cmsRouter = router({
   adminPermissions: adminPermissionsRouter,
   history: historyRouter,
   notifications: notificationsRouter,
+  members: cmsMembersRouter,
   vehicles: vehiclesRouter,
   vehicleReservations: vehicleReservationsRouter,
   dynamicBoards: dynamicBoardsRouter,

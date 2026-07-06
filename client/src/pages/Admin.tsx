@@ -43,6 +43,7 @@ import AdminMenuAccessTab from "@/components/AdminMenuAccessTab";
 import AdminViewModesTab from "@/components/AdminViewModesTab";
 import AdminChurchHistoryTab from "@/components/AdminChurchHistoryTab";
 import AdminPastorBooksTab from "@/components/AdminPastorBooksTab";
+import AdminMemberAlerts from "@/components/admin/AdminMemberAlerts";
 import { PushNotificationToggle } from "@/components/PushNotificationToggle";
 import YoutubeAdminTab from "@/components/YoutubeAdminTab";
 import { SettingsTab } from "@/components/admin/SettingsTab";
@@ -180,10 +181,10 @@ const TABS: TabItem[] = [
   },
   {
     id: "members",
-    label: "성도 관리",
+    label: "교적부/성도 관리",
     icon: "fa-users",
-    description: "성도 정보와 등록 데이터를 확인하고 관리합니다.",
-    status: "성도 데이터",
+    description: "성도 교적부, 승인 상태, 연락처와 등록 데이터를 확인하고 관리합니다.",
+    status: "교적부",
   },
   {
     id: "staff",
@@ -444,6 +445,18 @@ export default function AdminPage() {
       staleTime: 30_000,
       refetchInterval: 60_000,
     });
+  const shouldLoadMemberAlertSummary = Boolean(
+    user && !isMobile && user.role === "admin"
+  );
+  const {
+    data: memberAlertsSummary,
+    isLoading: memberAlertsLoading,
+    error: memberAlertsError,
+  } = trpc.cms.members.alertSummary.useQuery(undefined, {
+    enabled: shouldLoadMemberAlertSummary,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
   const markNotificationGroupRead =
     trpc.cms.notifications.markGroupRead.useMutation({
       onMutate: async ({ groupKey }) => {
@@ -717,6 +730,42 @@ export default function AdminPage() {
     }
     setActiveTab(target.tab);
   };
+  const memberPathwayItems = [
+    {
+      tab: "members" as Tab,
+      label: "교적부 열람",
+      description: "성도 정보, 승인 상태, 기본정보 보완",
+      icon: "fa-address-book",
+    },
+    {
+      tab: "memberOptions" as Tab,
+      label: "가입 양식",
+      description: "직분, 부서, 구역, 세례 항목 관리",
+      icon: "fa-list-ul",
+    },
+    {
+      tab: "permissions" as Tab,
+      label: "관리 권한",
+      description: "성도별 관리자 권한 배정",
+      icon: "fa-key",
+    },
+    {
+      tab: "pushBroadcast" as Tab,
+      label: "성도 알림",
+      description: "직분, 구역, 부서별 푸시 발송",
+      icon: "fa-bell",
+    },
+    {
+      tab: "supportRequests" as Tab,
+      label: "심방/탐방 접수",
+      description: "방문 신청과 목회 접수 흐름 확인",
+      icon: "fa-handshake",
+    },
+  ].filter(item => effectivePermittedTabs.includes(item.tab));
+  const showMemberPathway =
+    !isMobile && !isNotificationsView && memberPathwayItems.length > 0;
+  const showMemberAlerts =
+    !isMobile && !isNotificationsView && shouldLoadMemberAlertSummary;
 
   return (
     <div
@@ -974,6 +1023,99 @@ export default function AdminPage() {
                   </button>
                 )}
               </div>
+            )}
+
+            {showMemberPathway && (
+              <section className="rounded-xl border border-[#D7F0D8] bg-white p-4 shadow-sm">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="flex gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#E8F5E9] text-[#1B5E20]">
+                      <i className="fas fa-address-card"></i>
+                    </span>
+                    <div>
+                      <div className="mb-1 flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-[#1B5E20] px-2.5 py-1 text-xs font-bold text-white">
+                          관리자 전용
+                        </span>
+                        <span className="rounded-full border border-[#A5D6A7] bg-[#F1F8F2] px-2.5 py-1 text-xs font-semibold text-[#1B5E20]">
+                          공개 홈페이지와 분리
+                        </span>
+                      </div>
+                      <h2
+                        className="text-lg font-bold text-gray-900"
+                        style={{ fontFamily: "'Noto Serif KR', serif" }}
+                      >
+                        교적부 관리
+                      </h2>
+                      <p className="mt-1 text-sm leading-6 text-gray-600">
+                        성도 등록, 승인, 권한, 알림과 심방/탐방 접수를 한 흐름에서 확인합니다.
+                      </p>
+                    </div>
+                  </div>
+                  {effectivePermittedTabs.includes("members") && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("members")}
+                      className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#1B5E20] px-4 text-sm font-bold text-white transition-colors hover:bg-[#2E7D32]"
+                    >
+                      <i className="fas fa-arrow-right text-xs"></i>
+                      교적부 열기
+                    </button>
+                  )}
+                </div>
+
+                <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                  {memberPathwayItems.map(item => {
+                    const notificationCount =
+                      notificationCountsByTab[item.tab] ?? 0;
+                    const isActive = activeTab === item.tab;
+
+                    return (
+                      <button
+                        key={item.tab}
+                        type="button"
+                        onClick={() => setActiveTab(item.tab)}
+                        className={`min-h-[76px] rounded-lg border px-3 py-3 text-left transition-colors ${
+                          isActive
+                            ? "border-[#1B5E20] bg-[#F1F8F2] text-[#1B5E20]"
+                            : "border-gray-200 bg-gray-50 text-gray-700 hover:border-[#A5D6A7] hover:bg-[#F7FBF7] hover:text-[#1B5E20]"
+                        }`}
+                      >
+                        <span className="mb-2 flex items-center justify-between gap-2">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-white text-[#1B5E20] shadow-sm">
+                            <i className={`fas ${item.icon} text-xs`}></i>
+                          </span>
+                          {notificationCount > 0 && (
+                            <span className="rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white">
+                              {formatBadgeCount(notificationCount)}
+                            </span>
+                          )}
+                        </span>
+                        <span className="block text-sm font-bold">
+                          {item.label}
+                        </span>
+                        <span className="mt-0.5 block text-xs leading-4 text-gray-500">
+                          {item.description}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {showMemberAlerts && (
+              <AdminMemberAlerts
+                birthdaysToday={memberAlertsSummary?.birthdaysToday ?? []}
+                last7Days={memberAlertsSummary?.recentMembers.last7Days ?? []}
+                last30Days={memberAlertsSummary?.recentMembers.last30Days ?? []}
+                isLoading={memberAlertsLoading}
+                errorMessage={
+                  memberAlertsError
+                    ? "성도 알림 요약을 아직 불러오지 못했습니다."
+                    : null
+                }
+              />
             )}
 
             {/* 선택 탭 요약 */}

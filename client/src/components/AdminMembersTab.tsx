@@ -253,9 +253,16 @@ export default function AdminMembersTab() {
   return (
     <div>
       {/* 헤더 */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 className="text-lg font-bold text-gray-800">성도 관리</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-lg font-bold text-gray-800">
+              교적부/성도 관리
+            </h3>
+            <span className="rounded-full bg-[#E8F5E9] px-2.5 py-1 text-xs font-semibold text-[#1B5E20]">
+              관리자 전용
+            </span>
+          </div>
           <p className="text-sm text-gray-500 mt-0.5">
             전체 {members.length}명
             {filtered.length !== members.length && (
@@ -267,6 +274,9 @@ export default function AdminMembersTab() {
             {basicMissingCount > 0 && (
               <span className="ml-2 text-red-500 font-medium">· 기본정보 미입력 {basicMissingCount}명</span>
             )}
+          </p>
+          <p className="mt-1 text-xs text-gray-400">
+            공개 홈페이지가 아니라 관리자 화면에서만 확인하는 교적부입니다.
           </p>
         </div>
       </div>

@@ -15,7 +15,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { adminPermissionProcedure, adminProcedure, publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
+import { adminPermissionProcedure, publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
 import { notifyCourseApplicationToDistrictManager, notifyFacilityReservation, notifyVehicleReservation } from "../_core/pushNotifications";
 import {
   canMemberRequestFacilityReservation,
@@ -95,7 +95,6 @@ import {
   getMyCourseApplications,
   cancelMyCourseApplication,
   getMemberById,
-  getMemberAlertsSummary,
   hasAdminContentPermission,
   CourseApplicationCapacityError,
   CourseApplicationConflictError,
@@ -517,8 +516,6 @@ export const homeRouter = router({
   popups: publicProcedure.query(({ ctx }) =>
     getActiveNoticePopups(10, new Date(), ctx.user || ctx.memberId ? "member" : "guest")
   ),
-
-  memberAlertsSummary: adminProcedure.query(() => getMemberAlertsSummary()),
 
   /** 관련기관 목록 (공개된 것만) */
   affiliates: publicProcedure.query(() => getVisibleAffiliates()),
