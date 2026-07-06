@@ -215,8 +215,15 @@ function addDaysToDateKey(dateKey: string, daysToAdd: number) {
   ].join("-");
 }
 
-function buildBlockedDateKeys(startDate: string, dayCount: number) {
-  return Array.from({ length: Math.max(1, dayCount) }, (_, index) => addDaysToDateKey(startDate, index));
+function buildBlockedDateKeys(startDate: string, endDate?: string) {
+  const normalizedEndDate = endDate && endDate >= startDate ? endDate : startDate;
+  const dates: string[] = [];
+  let current = startDate;
+  while (current <= normalizedEndDate) {
+    dates.push(current);
+    current = addDaysToDateKey(current, 1);
+  }
+  return dates;
 }
 
 type BlockedDateGroup = {
@@ -315,7 +322,7 @@ function SortableFacilityRow({
   isExpanded,
   blockedDates,
   newBlockDate,
-  newBlockDays,
+  newBlockEndDate,
   newBlockReason,
   activeBuildingLabel,
   isAddingBlockedDate,
@@ -325,7 +332,7 @@ function SortableFacilityRow({
   onEdit,
   onDelete,
   onNewBlockDateChange,
-  onNewBlockDaysChange,
+  onNewBlockEndDateChange,
   onNewBlockReasonChange,
   onAddBlockedDate,
   onAddBuildingBlockedDates,
@@ -335,7 +342,7 @@ function SortableFacilityRow({
   isExpanded: boolean;
   blockedDates: FacilityBlockedDate[];
   newBlockDate: string;
-  newBlockDays: string;
+  newBlockEndDate: string;
   newBlockReason: string;
   activeBuildingLabel: string;
   isAddingBlockedDate: boolean;
@@ -345,7 +352,7 @@ function SortableFacilityRow({
   onEdit: () => void;
   onDelete: () => void;
   onNewBlockDateChange: (value: string) => void;
-  onNewBlockDaysChange: (value: string) => void;
+  onNewBlockEndDateChange: (value: string) => void;
   onNewBlockReasonChange: (value: string) => void;
   onAddBlockedDate: () => void;
   onAddBuildingBlockedDates: () => void;
@@ -437,14 +444,15 @@ function SortableFacilityRow({
           <h5 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-1.5">
             <Ban className="w-4 h-4 text-red-400" /> 예약 불가 날짜 설정
           </h5>
-          <div className="grid gap-2 mb-3 md:grid-cols-[160px_110px_minmax(0,1fr)_auto_auto]">
+          <div className="grid gap-2 mb-3 md:grid-cols-[150px_150px_minmax(0,1fr)_auto_auto]">
             <input type="date" value={newBlockDate}
               onChange={e => onNewBlockDateChange(e.target.value)}
               min={new Date().toISOString().split("T")[0]}
               className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#1B5E20]" />
-            <input type="number" min={1} max={365} value={newBlockDays}
-              onChange={e => onNewBlockDaysChange(e.target.value)}
-              title="며칠간 예약 불가로 설정할지 입력"
+            <input type="date" value={newBlockEndDate}
+              onChange={e => onNewBlockEndDateChange(e.target.value)}
+              min={newBlockDate || new Date().toISOString().split("T")[0]}
+              title="종료일을 비워두면 시작일 하루만 예약불가로 설정됩니다."
               className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#1B5E20]" />
             <input type="text" value={newBlockReason}
               onChange={e => onNewBlockReasonChange(e.target.value)}
@@ -464,7 +472,7 @@ function SortableFacilityRow({
               {activeBuildingLabel} 전체
             </button>
           </div>
-          <p className="mb-3 text-xs text-gray-400">시작일부터 입력한 일수만큼 예약 불가로 등록됩니다. 기존 예약이 있는 날짜와도 겹쳐 등록할 수 있습니다.</p>
+          <p className="mb-3 text-xs text-gray-400">시작일과 종료일을 선택하면 해당 기간 전체가 예약불가로 등록됩니다. 종료일을 비워두면 1일만 적용되며, 기존 예약이 있는 날짜와 겹쳐도 함께 표시됩니다.</p>
           {blockedDates.length === 0 ? (
             <p className="text-xs text-gray-400 py-2">설정된 예약 불가 날짜가 없습니다.</p>
           ) : (
@@ -651,7 +659,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
   const [busyImageId, setBusyImageId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [newBlockDate, setNewBlockDate] = useState("");
-  const [newBlockDays, setNewBlockDays] = useState("1");
+  const [newBlockEndDate, setNewBlockEndDate] = useState("");
   const [newBlockReason, setNewBlockReason] = useState("");
   const [activeBuilding, setActiveBuilding] = useState<FacilityBuilding>("welfare");
   const [buildingScheduleDrafts, setBuildingScheduleDrafts] = useState<Record<FacilityBuilding, FacilityHoursForm>>({
@@ -1016,7 +1024,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
   const addBlockedDate = trpc.cms.facilities.blockedDates.add.useMutation({
     onSuccess: () => {
       utils.cms.facilities.blockedDates.list.invalidate();
-      setNewBlockDate(""); setNewBlockReason("");
+      setNewBlockDate(""); setNewBlockEndDate(""); setNewBlockReason("");
       toast.success("예약 불가 날짜가 추가되었습니다.");
     },
     onError: (e) => toast.error(e.message || "추가에 실패했습니다."),
@@ -1026,6 +1034,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
     onSuccess: (result) => {
       utils.cms.facilities.blockedDates.list.invalidate();
       setNewBlockDate("");
+      setNewBlockEndDate("");
       setNewBlockReason("");
       const skippedText = result?.skipped ? `, 중복 ${result.skipped}건 제외` : "";
       toast.success(`예약 불가 날짜 ${result?.inserted ?? 0}건이 추가되었습니다${skippedText}.`);
@@ -1045,18 +1054,13 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
     onError: (e) => toast.error(e.message || "예약 불가 날짜 삭제에 실패했습니다."),
   });
 
-  function getBlockedDayCount() {
-    const count = Number.parseInt(newBlockDays, 10);
-    if (!Number.isFinite(count) || count < 1) return 1;
-    return Math.min(count, 365);
-  }
-
   function buildBlockedDateItems(targetFacilityIds: number[]) {
     if (!newBlockDate) {
       toast.error("날짜를 선택해 주세요.");
       return null;
     }
-    const dates = buildBlockedDateKeys(newBlockDate, getBlockedDayCount());
+    const normalizedEndDate = !newBlockEndDate || newBlockEndDate < newBlockDate ? newBlockDate : newBlockEndDate;
+    const dates = buildBlockedDateKeys(newBlockDate, normalizedEndDate);
     return targetFacilityIds.flatMap((facilityId) =>
       dates.map((blockedDate) => ({
         facilityId,
@@ -2134,7 +2138,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
                         isExpanded={expandedId === f.id}
                         blockedDates={blockedDates ?? []}
                         newBlockDate={newBlockDate}
-                        newBlockDays={newBlockDays}
+                        newBlockEndDate={newBlockEndDate}
                         newBlockReason={newBlockReason}
                         activeBuildingLabel={activeBuildingOption.label}
                         isAddingBlockedDate={addBlockedDate.isPending || addBlockedDates.isPending}
@@ -2148,7 +2152,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
                           }
                         }}
                         onNewBlockDateChange={setNewBlockDate}
-                        onNewBlockDaysChange={setNewBlockDays}
+                        onNewBlockEndDateChange={setNewBlockEndDate}
                         onNewBlockReasonChange={setNewBlockReason}
                         onAddBlockedDate={() => addBlockedDatesForFacilities([f.id])}
                         onAddBuildingBlockedDates={() => {

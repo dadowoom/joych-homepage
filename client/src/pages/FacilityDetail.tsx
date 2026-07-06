@@ -258,6 +258,10 @@ function TimeSlotPanel({
   const slotMinutes = facility?.slotMinutes ?? 60;
 
   const { data: hours } = useFacilityHoursForAudience(facilityId, audience);
+  const { data: blockedDates } = trpc.home.facilityBlockedDates.useQuery(
+    { facilityId },
+    { enabled: !!selectedDate }
+  );
   const { data: reservations, isLoading } = trpc.home.facilityReservationsByDate.useQuery(
     { facilityId, date: selectedDate },
     { enabled: !!selectedDate }
@@ -314,6 +318,16 @@ function TimeSlotPanel({
     [reservationRows]
   );
 
+  const selectedBlockedDates = useMemo(
+    () => ((blockedDates ?? []) as FacilityBlockedDate[]).filter((blockedDate) => blockedDate.blockedDate === selectedDate),
+    [blockedDates, selectedDate]
+  );
+
+  const fullDayBlockedDate = useMemo(
+    () => selectedBlockedDates.find((blockedDate) => !blockedDate.isPartialBlock) ?? null,
+    [selectedBlockedDates]
+  );
+
   // Generate selectable start slots within operating hours.
   const allSlots = useMemo(() => {
     if (!hasReservationOverride && (!todayHour || !todayHour.isOpen)) return [];
@@ -330,14 +344,31 @@ function TimeSlotPanel({
   const disabledSlots = useMemo(() => {
     const disabled = new Map<string, string>();
     if (!selectedDate) return disabled;
+    if (!hasReservationOverride && fullDayBlockedDate) {
+      const reason = fullDayBlockedDate.reason?.trim();
+      allSlots.forEach((slot) => disabled.set(slot, reason ? `예약불가: ${reason}` : "예약불가 일정입니다."));
+      return disabled;
+    }
     allSlots.forEach((slot) => {
       const restriction = getReservationTimeRestriction(selectedDate, slot, {
         enforceLeadTime: !hasReservationOverride,
       });
       if (restriction) disabled.set(slot, restriction);
     });
+    if (!hasReservationOverride) {
+      selectedBlockedDates.forEach((blockedDate) => {
+        if (!blockedDate.isPartialBlock || !blockedDate.blockStart || !blockedDate.blockEnd) return;
+        allSlots.forEach((slot, index) => {
+          const nextSlot = allSlots[index + 1];
+          if (!nextSlot) return;
+          if (slot < blockedDate.blockEnd! && nextSlot > blockedDate.blockStart!) {
+            disabled.set(slot, blockedDate.reason?.trim() ? `예약불가: ${blockedDate.reason.trim()}` : "예약불가 시간입니다.");
+          }
+        });
+      });
+    }
     return disabled;
-  }, [allSlots, selectedDate, hasReservationOverride]);
+  }, [allSlots, selectedDate, hasReservationOverride, fullDayBlockedDate, selectedBlockedDates]);
 
   // 날짜 포맷 (예: 2026년 4월 18일 (금))
   const dateLabel = useMemo(() => {
@@ -383,6 +414,25 @@ function TimeSlotPanel({
       )}
 
       {/* 운영 시간 없음 */}
+      {fullDayBlockedDate && !hasReservationOverride && (
+        <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 rounded-lg p-3">
+          <AlertCircle size={14} />
+          <span>
+            이 날짜는 예약불가 일정입니다.
+            {fullDayBlockedDate.reason?.trim() ? ` (${fullDayBlockedDate.reason.trim()})` : ""}
+          </span>
+        </div>
+      )}
+
+      {!fullDayBlockedDate && selectedBlockedDates.some((blockedDate) => blockedDate.isPartialBlock) && !hasReservationOverride && (
+        <div className="rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          {selectedBlockedDates
+            .filter((blockedDate) => blockedDate.isPartialBlock)
+            .map((blockedDate) => `${blockedDate.blockStart ?? "--:--"}~${blockedDate.blockEnd ?? "--:--"}${blockedDate.reason?.trim() ? ` · ${blockedDate.reason.trim()}` : ""}`)
+            .join(" / ")}
+        </div>
+      )}
+
       {!todayHour && (
         <div className="text-sm text-gray-400 text-center py-2">운영 시간 정보가 없습니다.</div>
       )}
@@ -395,7 +445,7 @@ function TimeSlotPanel({
       )}
 
       {/* 시간대 슬롯 선택 */}
-      {!isLoading && (hasReservationOverride || (todayHour && todayHour.isOpen)) && allSlots.length > 0 && (
+      {!isLoading && !fullDayBlockedDate && (hasReservationOverride || (todayHour && todayHour.isOpen)) && allSlots.length > 0 && (
         <>
           <p className="text-xs text-gray-500">
             운영 시간: {todayHour?.openTime ?? facility?.openTime} ~ {todayHour?.closeTime ?? facility?.closeTime}

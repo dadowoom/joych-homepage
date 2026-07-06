@@ -68,6 +68,11 @@ type ReservationTimeEditForm = {
   endTime: string;
 };
 
+type BlockedDateEditForm = {
+  blockedDate: string;
+  reason: string;
+};
+
 type CalendarBlockedDateRow = FacilityBlockedDate & {
   facilityName?: string | null;
 };
@@ -253,6 +258,11 @@ export default function AdminReservationsTab() {
     startTime: "",
     endTime: "",
   });
+  const [editingBlockedDateId, setEditingBlockedDateId] = useState<number | null>(null);
+  const [blockedDateEditForm, setBlockedDateEditForm] = useState<BlockedDateEditForm>({
+    blockedDate: "",
+    reason: "",
+  });
 
   // 시설 목록 (필터용)
   const { data: facilities } = trpc.home.facilities.useQuery();
@@ -371,6 +381,24 @@ export default function AdminReservationsTab() {
     onError: () => toast.error("반복 예약 삭제에 실패했습니다."),
   });
 
+  const updateBlockedDateMutation = trpc.cms.facilities.blockedDates.update.useMutation({
+    onSuccess: () => {
+      utils.cms.facilities.blockedDates.list.invalidate();
+      setEditingBlockedDateId(null);
+      toast.success("예약불가 일정이 수정되었습니다.");
+    },
+    onError: (error) => toast.error(error.message || "예약불가 일정 수정에 실패했습니다."),
+  });
+
+  const deleteBlockedDateMutation = trpc.cms.facilities.blockedDates.delete.useMutation({
+    onSuccess: () => {
+      utils.cms.facilities.blockedDates.list.invalidate();
+      setEditingBlockedDateId(null);
+      toast.success("예약불가 일정이 삭제되었습니다.");
+    },
+    onError: (error) => toast.error(error.message || "예약불가 일정 삭제에 실패했습니다."),
+  });
+
   const facilityById = new Map((facilities ?? []).map(f => [f.id, f]));
   const searchFilteredBlockedDates = useMemo(() => {
     return (blockedDates as FacilityBlockedDate[])
@@ -412,7 +440,34 @@ export default function AdminReservationsTab() {
     updateTimeMutation.isPending ||
     updateGroupTimeMutation.isPending ||
     deleteMutation.isPending ||
-    deleteGroupMutation.isPending;
+    deleteGroupMutation.isPending ||
+    updateBlockedDateMutation.isPending ||
+    deleteBlockedDateMutation.isPending;
+
+  const startBlockedDateEdit = (blockedDate: CalendarBlockedDateRow) => {
+    setEditingBlockedDateId(blockedDate.id);
+    setBlockedDateEditForm({
+      blockedDate: blockedDate.blockedDate,
+      reason: blockedDate.reason ?? "",
+    });
+  };
+
+  const saveBlockedDateEdit = (blockedDate: CalendarBlockedDateRow) => {
+    updateBlockedDateMutation.mutate({
+      id: blockedDate.id,
+      facilityId: blockedDate.facilityId ?? null,
+      blockedDate: blockedDateEditForm.blockedDate,
+      reason: blockedDateEditForm.reason || undefined,
+      isPartialBlock: blockedDate.isPartialBlock,
+      blockStart: blockedDate.blockStart ?? null,
+      blockEnd: blockedDate.blockEnd ?? null,
+    });
+  };
+
+  const removeBlockedDate = (blockedDate: CalendarBlockedDateRow) => {
+    if (!confirm("이 예약불가 일정을 삭제하시겠습니까?")) return;
+    deleteBlockedDateMutation.mutate({ id: blockedDate.id });
+  };
 
   const approveReservation = (group: ReservationGroup) => {
     if (group.isRecurring && group.groupId) {
@@ -913,8 +968,15 @@ export default function AdminReservationsTab() {
           setEditingKey={setEditingKey}
           setTimeEditForm={setTimeEditForm}
           isMutating={isMutating}
+          editingBlockedDateId={editingBlockedDateId}
+          blockedDateEditForm={blockedDateEditForm}
+          setEditingBlockedDateId={setEditingBlockedDateId}
+          setBlockedDateEditForm={setBlockedDateEditForm}
           onStartEditTime={startEditSingleReservationTime}
           onSaveTime={saveSingleReservationTime}
+          onStartBlockedDateEdit={startBlockedDateEdit}
+          onSaveBlockedDateEdit={saveBlockedDateEdit}
+          onDeleteBlockedDate={removeBlockedDate}
           onCancelReservation={cancelSingleReservation}
           onDeleteReservation={deleteSingleReservation}
         />
@@ -923,7 +985,7 @@ export default function AdminReservationsTab() {
   );
 }
 
-function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, facilityFilter, facilitySearch, facilities, editingKey, timeEditForm, setEditingKey, setTimeEditForm, isMutating, onStartEditTime, onSaveTime, onCancelReservation, onDeleteReservation }: {
+function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, facilityFilter, facilitySearch, facilities, editingKey, timeEditForm, setEditingKey, setTimeEditForm, isMutating, editingBlockedDateId, blockedDateEditForm, setEditingBlockedDateId, setBlockedDateEditForm, onStartEditTime, onSaveTime, onStartBlockedDateEdit, onSaveBlockedDateEdit, onDeleteBlockedDate, onCancelReservation, onDeleteReservation }: {
   searchFilteredReservations: AdminReservationRow[];
   searchFilteredBlockedDates: CalendarBlockedDateRow[];
   facilityFilter: number | undefined;
@@ -934,8 +996,15 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
   setEditingKey: Dispatch<SetStateAction<string | null>>;
   setTimeEditForm: Dispatch<SetStateAction<ReservationTimeEditForm>>;
   isMutating: boolean;
+  editingBlockedDateId: number | null;
+  blockedDateEditForm: BlockedDateEditForm;
+  setEditingBlockedDateId: Dispatch<SetStateAction<number | null>>;
+  setBlockedDateEditForm: Dispatch<SetStateAction<BlockedDateEditForm>>;
   onStartEditTime: (reservation: AdminReservationRow) => void;
   onSaveTime: (reservation: AdminReservationRow) => void;
+  onStartBlockedDateEdit: (blockedDate: CalendarBlockedDateRow) => void;
+  onSaveBlockedDateEdit: (blockedDate: CalendarBlockedDateRow) => void;
+  onDeleteBlockedDate: (blockedDate: CalendarBlockedDateRow) => void;
   onCancelReservation: (reservation: AdminReservationRow) => void;
   onDeleteReservation: (reservation: AdminReservationRow) => void;
 }) {
@@ -1149,12 +1218,68 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
                 </p>
                 <div className="space-y-2">
                   {selectedBlockedDates.map((blockedDate) => (
-                    <div key={`selected-blocked-${blockedDate.id}`} className="flex flex-wrap items-center gap-2 rounded-lg border border-red-100 bg-white px-3 py-2 text-sm">
-                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
-                        {formatBlockedTimeLabel(blockedDate)}
-                      </span>
-                      <span className="font-semibold text-gray-900">{blockedDate.facilityName ?? "시설"}</span>
-                      <span className="text-gray-500">{blockedDate.reason?.trim() || "예약 불가 날짜"}</span>
+                    <div key={`selected-blocked-${blockedDate.id}`} className="rounded-lg border border-red-100 bg-white px-3 py-2 text-sm">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+                          {formatBlockedTimeLabel(blockedDate)}
+                        </span>
+                        <span className="font-semibold text-gray-900">{blockedDate.facilityName ?? "시설"}</span>
+                        <span className="text-gray-500">{blockedDate.reason?.trim() || "예약 불가 날짜"}</span>
+                        <div className="ml-auto flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-2 text-xs"
+                            onClick={() => onStartBlockedDateEdit(blockedDate)}
+                            disabled={isMutating}
+                          >
+                            수정
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 border-red-200 px-2 text-xs text-red-600 hover:bg-red-50"
+                            onClick={() => onDeleteBlockedDate(blockedDate)}
+                            disabled={isMutating}
+                          >
+                            삭제
+                          </Button>
+                        </div>
+                      </div>
+                      {editingBlockedDateId === blockedDate.id && (
+                        <div className="mt-3 grid gap-2 md:grid-cols-[160px_minmax(0,1fr)_auto_auto]">
+                          <input
+                            type="date"
+                            value={blockedDateEditForm.blockedDate}
+                            onChange={(event) => setBlockedDateEditForm((prev) => ({ ...prev, blockedDate: event.target.value }))}
+                            className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]"
+                          />
+                          <input
+                            type="text"
+                            value={blockedDateEditForm.reason}
+                            onChange={(event) => setBlockedDateEditForm((prev) => ({ ...prev, reason: event.target.value }))}
+                            placeholder="차단 사유"
+                            className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]"
+                          />
+                          <Button
+                            size="sm"
+                            className="h-10 px-3 text-xs"
+                            onClick={() => onSaveBlockedDateEdit(blockedDate)}
+                            disabled={isMutating}
+                          >
+                            저장
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-10 px-3 text-xs"
+                            onClick={() => setEditingBlockedDateId(null)}
+                            disabled={isMutating}
+                          >
+                            취소
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

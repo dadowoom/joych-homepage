@@ -312,6 +312,26 @@ export async function addBlockedDates(items: Omit<InsertFacilityBlockedDate, 'id
   return { inserted: uniqueItems.length, skipped: items.length - uniqueItems.length };
 }
 
+/** 예약 차단 날짜 수정 */
+export async function updateBlockedDate(
+  id: number,
+  data: Omit<InsertFacilityBlockedDate, "id" | "createdAt">,
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(facilityBlockedDates)
+    .set({
+      facilityId: data.facilityId ?? null,
+      blockedDate: data.blockedDate,
+      reason: data.reason ?? null,
+      isPartialBlock: data.isPartialBlock ?? false,
+      blockStart: data.blockStart ?? null,
+      blockEnd: data.blockEnd ?? null,
+    })
+    .where(eq(facilityBlockedDates.id, id));
+}
+
 /** 예약 차단 날짜 삭제 */
 export async function deleteBlockedDate(id: number) {
   const db = await getDb();

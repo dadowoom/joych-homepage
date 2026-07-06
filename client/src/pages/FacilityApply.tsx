@@ -425,31 +425,18 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     return booked;
   }, [reservationsByDate, unitMinutes]);
 
-  const disabledTimeSlots = useMemo(() => {
-    const disabled = new Map<string, string>();
-    if (!form.date) return disabled;
-    const dateRangeRestriction = isExternal
-      ? getExternalReservationDateRangeRestriction(form.date, reservationSettings, facility)
-      : getReservationDateRangeRestriction(form.date, reservationSettings, {
-          enforceMaxDate: !hasReservationOverride,
-        });
-    if (dateRangeRestriction) {
-      allTimeSlots.forEach((slot) => disabled.set(slot, dateRangeRestriction));
-      return disabled;
-    }
-    allTimeSlots.forEach((slot) => {
-      const restriction = getReservationTimeRestriction(form.date, slot, {
-        enforceLeadTime: !hasReservationOverride,
-      });
-      if (restriction) disabled.set(slot, restriction);
-    });
-    return disabled;
-  }, [allTimeSlots, facility, form.date, hasReservationOverride, isExternal, reservationSettings]);
-
-  // 날짜 비활성화 여부
-  const blockedDateSet = useMemo(() => {
-    return new Set((blockedDates ?? []).map(b => b.blockedDate));
-  }, [blockedDates]);
+  const selectedBlockedDates = useMemo(
+    () => (blockedDates ?? []).filter((blockedDate) => blockedDate.blockedDate === form.date),
+    [blockedDates, form.date],
+  );
+  const fullDayBlockedDate = useMemo(
+    () => selectedBlockedDates.find((blockedDate) => !blockedDate.isPartialBlock) ?? null,
+    [selectedBlockedDates],
+  );
+  const partialBlockedDates = useMemo(
+    () => selectedBlockedDates.filter((blockedDate) => blockedDate.isPartialBlock),
+    [selectedBlockedDates],
+  );
 
   const selectedDateRangeRestriction = useMemo(() => {
     if (!form.date) return null;
@@ -459,6 +446,38 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
           enforceMaxDate: !hasReservationOverride,
         });
   }, [facility, form.date, hasReservationOverride, isExternal, reservationSettings]);
+
+  const disabledTimeSlots = useMemo(() => {
+    const disabled = new Map<string, string>();
+    if (!form.date) return disabled;
+    if (selectedDateRangeRestriction) {
+      allTimeSlots.forEach((slot) => disabled.set(slot, selectedDateRangeRestriction));
+      return disabled;
+    }
+    if (fullDayBlockedDate && !hasReservationOverride) {
+      const reason = fullDayBlockedDate.reason?.trim();
+      allTimeSlots.forEach((slot) => disabled.set(slot, reason ? `예약불가: ${reason}` : "예약불가 일정입니다."));
+      return disabled;
+    }
+    if (!hasReservationOverride && partialBlockedDates.length > 0) {
+      partialBlockedDates.forEach((blockedDate) => {
+        if (!blockedDate.blockStart || !blockedDate.blockEnd) return;
+        const reason = blockedDate.reason?.trim();
+        allTimeSlots.forEach((slot) => {
+          if (slot >= blockedDate.blockStart! && slot < blockedDate.blockEnd!) {
+            disabled.set(slot, reason ? `예약불가: ${reason}` : "예약불가 시간입니다.");
+          }
+        });
+      });
+    }
+    allTimeSlots.forEach((slot) => {
+      const restriction = getReservationTimeRestriction(form.date, slot, {
+        enforceLeadTime: !hasReservationOverride,
+      });
+      if (restriction) disabled.set(slot, restriction);
+    });
+    return disabled;
+  }, [allTimeSlots, form.date, fullDayBlockedDate, hasReservationOverride, partialBlockedDates, selectedDateRangeRestriction]);
 
   // ── 이벤트 핸들러 ─────────────────────────────────────────
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
@@ -495,7 +514,11 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     if (!form.date) return "사용 날짜를 선택해 주세요.";
     if (!resolvedPurpose) return isExternal ? "사용 목적을 입력해 주세요." : (form.purpose === "기타" ? "기타 사용 목적을 입력해 주세요." : "사용 목적을 선택해 주세요.");
     if (selectedDateRangeRestriction) return selectedDateRangeRestriction;
-    if (blockedDateSet.has(form.date) && !hasReservationOverride) return "해당 날짜는 예약이 불가능합니다.";
+    if (fullDayBlockedDate && !hasReservationOverride) {
+      return fullDayBlockedDate.reason?.trim()
+        ? `해당 날짜는 예약불가 일정입니다. (${fullDayBlockedDate.reason.trim()})`
+        : "해당 날짜는 예약이 불가능합니다.";
+    }
     if (!form.startTime) return "시작 시간을 선택해 주세요.";
     if (!form.endTime) return "종료 시간을 선택해 주세요.";
     if (form.startTime >= form.endTime) return "종료 시간은 시작 시간보다 늦어야 합니다.";
@@ -527,7 +550,9 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     while (cur < end) {
       const h = Math.floor(cur / 60).toString().padStart(2, "0");
       const m = (cur % 60).toString().padStart(2, "0");
-      if (bookedSlots.has(`${h}:${m}`)) return "선택하신 시간대에 이미 예약이 있습니다. 다른 시간을 선택해 주세요.";
+      const slot = `${h}:${m}`;
+      if (bookedSlots.has(slot)) return "선택하신 시간대는 이미 예약되어 있습니다. 다른 시간을 선택해 주세요.";
+      if (disabledTimeSlots.has(slot)) return disabledTimeSlots.get(slot) ?? "선택하신 시간에는 예약이 불가능합니다.";
       cur += unitMinutes;
     }
     return null;
@@ -793,10 +818,17 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                       <AlertCircle className="w-3 h-3" /> 해당 요일은 휴무일입니다.
                     </p>
                   )}
-                  {form.date && blockedDateSet.has(form.date) && !hasReservationOverride && (
+                  {form.date && fullDayBlockedDate && !hasReservationOverride && (
                     <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" /> 해당 날짜는 예약이 불가능합니다.
                     </p>
+                  )}
+                  {form.date && partialBlockedDates.length > 0 && !hasReservationOverride && !fullDayBlockedDate && (
+                    <div className="mt-2 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                      {partialBlockedDates
+                        .map((blockedDate) => `${blockedDate.blockStart ?? "--:--"}~${blockedDate.blockEnd ?? "--:--"}${blockedDate.reason?.trim() ? ` · ${blockedDate.reason.trim()}` : ""}`)
+                        .join(" / ")}
+                    </div>
                   )}
                   {selectedDateRangeRestriction && (
                     <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
@@ -816,7 +848,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                 </Field>
 
                 {/* 시간 선택 — 슬롯 버튼 방식 */}
-                {form.date && !selectedDateRangeRestriction && (hasReservationOverride || !todayHour || todayHour.isOpen) && (hasReservationOverride || !blockedDateSet.has(form.date)) && (
+                {form.date && !selectedDateRangeRestriction && (hasReservationOverride || !todayHour || todayHour.isOpen) && (hasReservationOverride || !fullDayBlockedDate) && (
                   <Field
                     label="사용 시간"
                     required

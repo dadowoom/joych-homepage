@@ -50,6 +50,7 @@ import {
   getBlockedDates,
   addBlockedDate,
   addBlockedDates,
+  updateBlockedDate,
   deleteBlockedDate,
   deleteBlockedDates,
   upsertSiteSetting,
@@ -215,6 +216,10 @@ const blockedDateSchema = z.object({
 
 const blockedDateBulkSchema = z.object({
   items: z.array(blockedDateSchema).min(1).max(730),
+});
+
+const blockedDateUpdateSchema = blockedDateSchema.extend({
+  id: idSchema,
 });
 
 export const facilitiesRouter = router({
@@ -385,6 +390,14 @@ export const facilitiesRouter = router({
     addMany: facilityProcedure
       .input(blockedDateBulkSchema)
       .mutation(({ input }) => addBlockedDates(input.items)),
+
+    /** 차단 날짜 수정 (관리자) */
+    update: facilityProcedure
+      .input(blockedDateUpdateSchema)
+      .mutation(({ input }) => {
+        const { id, ...data } = input;
+        return updateBlockedDate(id, data);
+      }),
 
     /** 차단 날짜 삭제 (관리자) */
     delete: facilityProcedure
