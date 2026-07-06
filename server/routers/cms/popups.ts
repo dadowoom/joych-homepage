@@ -90,6 +90,38 @@ const popupUpdateSchema = validatePopupRules(
   z.object({ id: z.number().int().positive(), ...popupUpdateFields })
 );
 
+type PopupWriteData = z.infer<typeof popupBaseSchema>;
+type PopupUpdateData = Omit<z.infer<typeof popupUpdateSchema>, "id">;
+type PopupNormalizedData = Record<string, unknown> & {
+  content: null;
+  placement: "modal";
+  imageUrl?: string | null;
+  linkLabel?: string | null;
+  linkHref?: string | null;
+};
+
+export function normalizePopupWriteData(data: PopupWriteData | PopupUpdateData): PopupNormalizedData {
+  const normalized = {
+    ...data,
+    content: null as null,
+    placement: "modal" as const,
+  } as PopupNormalizedData;
+
+  if ("imageUrl" in data) {
+    normalized.imageUrl = (data as PopupWriteData | PopupUpdateData).imageUrl ?? null;
+  }
+
+  if ("linkLabel" in data) {
+    normalized.linkLabel = (data as PopupWriteData | PopupUpdateData).linkLabel ?? null;
+  }
+
+  if ("linkHref" in data) {
+    normalized.linkHref = (data as PopupWriteData | PopupUpdateData).linkHref ?? null;
+  }
+
+  return normalized;
+}
+
 export const popupsRouter = router({
   /** 전체 팝업 목록 조회 (숨김/기간 종료 포함) */
   list: popupProcedure.query(() => getAllNoticePopups()),
@@ -97,25 +129,18 @@ export const popupsRouter = router({
   /** 팝업 생성 */
   create: popupProcedure
     .input(popupBaseSchema)
-    .mutation(({ input, ctx }) =>
-      createNoticePopup({
-        ...input,
-        content: null,
-        placement: "modal",
-        authorId: ctx.user.id,
-      })
-    ),
+    .mutation(({ input, ctx }) => {
+      const popupData = normalizePopupWriteData(input) as PopupWriteData & PopupNormalizedData;
+      return createNoticePopup(Object.assign({}, popupData, { authorId: ctx.user.id }));
+    }),
 
   /** 팝업 수정 */
   update: popupProcedure
     .input(popupUpdateSchema)
     .mutation(({ input }) => {
       const { id, ...data } = input;
-      return updateNoticePopup(id, {
-        ...data,
-        content: null,
-        placement: "modal",
-      });
+      const popupData = normalizePopupWriteData(data) as PopupUpdateData & PopupNormalizedData;
+      return updateNoticePopup(id, popupData);
     }),
 
   /** 팝업 삭제 */
