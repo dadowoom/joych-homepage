@@ -2,11 +2,13 @@
  * MemberLogin.tsx
  * 성도 로그인 페이지
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import MemberSocialAuthButtons from "@/components/MemberSocialAuthButtons";
+
+const REMEMBERED_MEMBER_EMAIL_KEY = "joych.memberLogin.rememberedEmail";
 
 function getSocialMessage(location: string) {
   const search = location.includes("?")
@@ -105,13 +107,30 @@ export default function MemberLogin() {
   const [location, navigate] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberEmail, setRememberEmail] = useState(false);
+  const [autoLogin, setAutoLogin] = useState(true);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const utils = trpc.useUtils();
   const socialMessage = getSocialMessage(location);
   const nextPath = getSafeNextPath(location);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const rememberedEmail = window.localStorage.getItem(REMEMBERED_MEMBER_EMAIL_KEY)?.trim() ?? "";
+    if (!rememberedEmail) return;
+    setEmail(rememberedEmail);
+    setRememberEmail(true);
+  }, []);
+
   const loginMutation = trpc.members.login.useMutation({
     onSuccess: async (data) => {
+      if (typeof window !== "undefined") {
+        if (rememberEmail && email.trim()) {
+          window.localStorage.setItem(REMEMBERED_MEMBER_EMAIL_KEY, email.trim());
+        } else {
+          window.localStorage.removeItem(REMEMBERED_MEMBER_EMAIL_KEY);
+        }
+      }
       toast.success(`${data.member.name}님, 환영합니다!`);
       // 로그인 후 memberMe 쿼리 즉시 갱신 → 상단 바에 이름 바로 표시
       await invalidateMemberSessionBoundQueries(utils);
@@ -137,7 +156,7 @@ export default function MemberLogin() {
       setErrors(newErrors);
       return;
     }
-    loginMutation.mutate({ email, password });
+    loginMutation.mutate({ email, password, autoLogin });
   };
 
   return (
@@ -210,6 +229,32 @@ export default function MemberLogin() {
                 }`}
               />
               {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
+            </div>
+
+            <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3">
+              <div className="flex flex-col gap-2 text-sm text-gray-600">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={rememberEmail}
+                    onChange={(e) => setRememberEmail(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-[#1B5E20] focus:ring-[#1B5E20]/30"
+                  />
+                  <span>아이디 기억</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={autoLogin}
+                    onChange={(e) => setAutoLogin(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-[#1B5E20] focus:ring-[#1B5E20]/30"
+                  />
+                  <span>자동 로그인</span>
+                </label>
+                <p className="text-xs text-gray-400">
+                  자동 로그인을 끄면 브라우저 종료 시 일반 로그인 세션이 종료됩니다.
+                </p>
+              </div>
             </div>
 
             <button

@@ -224,6 +224,7 @@ export const membersRouter = router({
     .input(z.object({
       email: memberEmailSchema,
       password: z.string().min(1, "비밀번호를 입력해주세요.").max(128, "비밀번호는 128자 이하로 입력해주세요."),
+      autoLogin: z.boolean().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       // ── Rate Limit: IP 및 계정 기준 실패 횟수 제한 ───────────────────────
@@ -271,6 +272,8 @@ export const membersRouter = router({
         id: member.id,
         email: member.email,
         name: member.name,
+      }, {
+        persistent: input.autoLogin !== false,
       });
 
       return {

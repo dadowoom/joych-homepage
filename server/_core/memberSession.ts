@@ -14,24 +14,43 @@ export type MemberSessionIdentity = {
   name: string;
 };
 
-export async function createMemberSessionToken(member: MemberSessionIdentity) {
+export type MemberSessionOptions = {
+  persistent?: boolean;
+};
+
+export async function createMemberSessionToken(
+  member: MemberSessionIdentity,
+  options: MemberSessionOptions = {},
+) {
   return new SignJWT({
     memberId: member.id,
     email: member.email ?? "",
     name: member.name,
     type: "church_member",
+    persistent: options.persistent !== false,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setExpirationTime("30d")
     .sign(getJwtSecretKey());
 }
 
-export async function setMemberSessionCookie(req: Request, res: Response, member: MemberSessionIdentity) {
-  const token = await createMemberSessionToken(member);
-  res.cookie(MEMBER_SESSION_COOKIE, token, {
+export async function setMemberSessionCookie(
+  req: Request,
+  res: Response,
+  member: MemberSessionIdentity,
+  options: MemberSessionOptions = {},
+) {
+  const persistent = options.persistent !== false;
+  const token = await createMemberSessionToken(member, { persistent });
+  const cookieOptions = {
     ...getSessionCookieOptions(req),
-    maxAge: MEMBER_SESSION_MS,
-  });
+  } as ReturnType<typeof getSessionCookieOptions> & { maxAge?: number };
+
+  if (persistent) {
+    cookieOptions.maxAge = MEMBER_SESSION_MS;
+  }
+
+  res.cookie(MEMBER_SESSION_COOKIE, token, cookieOptions);
 }
 
 export async function refreshMemberSessionCookieIfNeeded(
@@ -45,5 +64,7 @@ export async function refreshMemberSessionCookieIfNeeded(
   const remainingMs = (payload.exp - Math.floor(Date.now() / 1000)) * 1000;
   if (remainingMs >= SESSION_REFRESH_THRESHOLD_MS) return;
 
-  await setMemberSessionCookie(req, res, member);
+  await setMemberSessionCookie(req, res, member, {
+    persistent: payload.persistent !== false,
+  });
 }

@@ -46,4 +46,28 @@ describe("member session cookies", () => {
     expect(typeof payload.exp).toBe("number");
     expect((payload.exp ?? 0) * 1000 - Date.now()).toBeGreaterThan(MEMBER_SESSION_MS - 60_000);
   });
+
+  it("supports non-persistent member session cookies when auto login is off", async () => {
+    let cookieOptions: Record<string, unknown> = {};
+    const res = {
+      cookie: (_name: string, _value: string, options: Record<string, unknown>) => {
+        cookieOptions = options;
+      },
+    } as unknown as Response;
+
+    await setMemberSessionCookie(
+      mockRequest(),
+      res,
+      {
+        id: 123,
+        email: "member@example.com",
+        name: "?뚯뒪???깅룄",
+      },
+      { persistent: false },
+    );
+
+    expect(cookieOptions.maxAge).toBeUndefined();
+    expect(cookieOptions.httpOnly).toBe(true);
+    expect(cookieOptions.sameSite).toBe("lax");
+  });
 });
