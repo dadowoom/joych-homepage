@@ -17,6 +17,7 @@ import HomeFooter from "./home/HomeFooter";
 import HomeGallery from "./home/HomeGallery";
 import HomeNews from "./home/HomeNews";
 import HomeQuickMenu from "./home/HomeQuickMenu";
+import HomeMemberAlerts from "./home/HomeMemberAlerts";
 import HomeVision from "./home/HomeVision";
 import HomeWorshipPhoto from "./home/HomeWorshipPhoto";
 import {
@@ -498,6 +499,15 @@ export default function Home() {
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
+  const {
+    data: memberAlertsSummary,
+    isLoading: memberAlertsLoading,
+    error: memberAlertsError,
+  } = trpc.home.memberAlertsSummary.useQuery(undefined, {
+    enabled: isAdmin,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
   const notificationCount = notificationSummary?.totalCount ?? 0;
 
   // 영상이 끝나면 다음 슬라이드로 전환
@@ -834,6 +844,16 @@ export default function Home() {
       </section>
 
       <HomeFeatureCards homeFeatureCards={homeFeatureCards} />
+
+      {isAdmin && (
+        <HomeMemberAlerts
+          birthdaysToday={memberAlertsSummary?.birthdaysToday ?? []}
+          last7Days={memberAlertsSummary?.recentMembers.last7Days ?? []}
+          last30Days={memberAlertsSummary?.recentMembers.last30Days ?? []}
+          isLoading={memberAlertsLoading}
+          errorMessage={memberAlertsError ? "성도 알림 요약을 아직 불러오지 못했습니다." : null}
+        />
+      )}
 
       <HomeQuickMenu quickMenus={quickMenus} />
 

@@ -31,6 +31,113 @@ import { getDb } from "./connection";
 
 export type MemberSocialProvider = "google" | "kakao";
 
+type MemberAlertSummaryItem = {
+  id: number;
+  name: string;
+  position: string | null;
+  department: string | null;
+  district: string | null;
+  birthDate?: string | null;
+  registeredAt?: string | null;
+  createdAt?: Date | null;
+  effectiveRegisteredAt?: string | null;
+  status: string;
+};
+
+function getKstTodayParts() {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+  return {
+    today: `${year}-${month}-${day}`,
+    monthDay: `${month}-${day}`,
+  };
+}
+
+function extractMonthDay(value: string | null | undefined) {
+  const raw = value?.trim();
+  if (!raw) return null;
+
+  const dashed = raw.match(/^(\d{4})[-/.](\d{2})[-/.](\d{2})$/);
+  if (dashed) return `${dashed[2]}-${dashed[3]}`;
+
+  const shortDashed = raw.match(/^(\d{2})[-/.](\d{2})$/);
+  if (shortDashed) return `${shortDashed[1]}-${shortDashed[2]}`;
+
+  const compactLong = raw.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (compactLong) return `${compactLong[2]}-${compactLong[3]}`;
+
+  const compactShort = raw.match(/^(\d{2})(\d{2})$/);
+  if (compactShort) return `${compactShort[1]}-${compactShort[2]}`;
+
+  return null;
+}
+
+function normalizeDateKey(value: string | Date | null | undefined) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  const raw = value.trim();
+  if (!raw) return null;
+
+  const dashed = raw.match(/^(\d{4})[-/.](\d{2})[-/.](\d{2})$/);
+  if (dashed) return `${dashed[1]}-${dashed[2]}-${dashed[3]}`;
+
+  const compact = raw.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (compact) return `${compact[1]}-${compact[2]}-${compact[3]}`;
+
+  return null;
+}
+
+function getRecentWindowStart(days: number) {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() - (days - 1));
+  return date;
+}
+
+function formatIsoDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function toSummaryItem(member: {
+  id: number;
+  name: string;
+  position: string | null;
+  department: string | null;
+  district: string | null;
+  birthDate?: string | null;
+  registeredAt?: string | null;
+  createdAt?: Date | null;
+  status: string;
+}): MemberAlertSummaryItem {
+  return {
+    id: member.id,
+    name: member.name,
+    position: member.position ?? null,
+    department: member.department ?? null,
+    district: member.district ?? null,
+    birthDate: member.birthDate ?? null,
+    registeredAt: member.registeredAt ?? null,
+    createdAt: member.createdAt ?? null,
+    effectiveRegisteredAt: normalizeDateKey(member.registeredAt) ?? normalizeDateKey(member.createdAt),
+    status: member.status,
+  };
+}
+
 // ─── 선택지 관리 (직분, 부서, 구역 등 드롭다운 옵션) ─────────────────────────
 
 /** 선택지 목록 조회 (fieldType별, 활성만) */
@@ -570,4 +677,69 @@ export async function searchMembersByName(name: string, limit = 20) {
     )
     .limit(limit);
   return results;
+}
+
+export async function getMemberAlertsSummary() {
+  const db = await getDb();
+  const { today, monthDay } = getKstTodayParts();
+  const empty = {
+    today,
+    generatedAt: new Date().toISOString(),
+    birthdaysToday: [] as MemberAlertSummaryItem[],
+    recentMembers: {
+      last7Days: [] as MemberAlertSummaryItem[],
+      last30Days: [] as MemberAlertSummaryItem[],
+    },
+  };
+
+  if (!db) return empty;
+
+  const approvedMembers = await db
+    .select({
+      id: churchMembers.id,
+      name: churchMembers.name,
+      position: churchMembers.position,
+      department: churchMembers.department,
+      district: churchMembers.district,
+      birthDate: churchMembers.birthDate,
+      registeredAt: churchMembers.registeredAt,
+      createdAt: churchMembers.createdAt,
+      status: churchMembers.status,
+    })
+    .from(churchMembers)
+    .where(eq(churchMembers.status, "approved"))
+    .orderBy(desc(churchMembers.createdAt), asc(churchMembers.name));
+
+  const normalized = approvedMembers.map(toSummaryItem);
+  const birthdaysToday = normalized
+    .filter((member) => extractMonthDay(member.birthDate) === monthDay)
+    .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+
+  const start7 = formatIsoDate(getRecentWindowStart(7));
+  const start30 = formatIsoDate(getRecentWindowStart(30));
+
+  const recentMembers = normalized
+    .filter((member) => Boolean(member.effectiveRegisteredAt))
+    .sort((a, b) => {
+      const left = a.effectiveRegisteredAt ?? "";
+      const right = b.effectiveRegisteredAt ?? "";
+      if (left === right) return a.name.localeCompare(b.name, "ko");
+      return right.localeCompare(left);
+    });
+
+  return {
+    today,
+    generatedAt: new Date().toISOString(),
+    birthdaysToday,
+    recentMembers: {
+      last7Days: recentMembers.filter((member) => {
+        const key = member.effectiveRegisteredAt;
+        return Boolean(key && key >= start7 && key <= today);
+      }),
+      last30Days: recentMembers.filter((member) => {
+        const key = member.effectiveRegisteredAt;
+        return Boolean(key && key >= start30 && key <= today);
+      }),
+    },
+  };
 }
