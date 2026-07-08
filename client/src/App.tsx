@@ -369,20 +369,6 @@ function Router() {
       <Route path="/about/pastor/books"><MenuAccessGate href="/about/pastor/books"><PastorBooksPage /></MenuAccessGate></Route>
       <Route path="/about/staff/associate"><MenuAccessGate href="/about/staff/associate"><StaffPage /></MenuAccessGate></Route>
       <Route path="/about/staff"><MenuAccessGate href="/about/staff"><StaffPage /></MenuAccessGate></Route>
-      <Route path="/page/교회소개-담임목사-소개"><MenuAccessGate href="/about/pastor"><PastorGreeting /></MenuAccessGate></Route>
-      <Route path="/page/교회소개-담임목사-저서"><MenuAccessGate href="/about/pastor/books"><PastorBooksPage /></MenuAccessGate></Route>
-      <Route path="/page/교회소개-담임목사-소개-담임목사저서"><MenuAccessGate href="/about/pastor/books"><PastorBooksPage /></MenuAccessGate></Route>
-      <Route path="/page/교회소개-담임목사-소개-담임목사-저서"><MenuAccessGate href="/about/pastor/books"><PastorBooksPage /></MenuAccessGate></Route>
-      <Route path="/page/교회소개-담임목사소개-담임목사저서"><MenuAccessGate href="/about/pastor/books"><PastorBooksPage /></MenuAccessGate></Route>
-      <Route path="/page/교회소개-담임목사소개-담임목사-저서"><MenuAccessGate href="/about/pastor/books"><PastorBooksPage /></MenuAccessGate></Route>
-      <Route path="/page/교회소개-섬기는-분"><MenuAccessGate href="/about/staff"><StaffPage /></MenuAccessGate></Route>
-      <Route path="/page/교회소개-부교역자"><MenuAccessGate href="/about/staff/associate"><StaffPage /></MenuAccessGate></Route>
-      <Route path="/page/교회소개-3대-비전"><MenuAccessGate href="/about/vision"><ChurchVision /></MenuAccessGate></Route>
-      <Route path="/page/교회소개-교회역사"><MenuAccessGate href="/about/history"><ChurchHistory /></MenuAccessGate></Route>
-      <Route path="/page/교회소개-교회-역사"><MenuAccessGate href="/about/history"><ChurchHistory /></MenuAccessGate></Route>
-      <Route path="/page/교회소개-교회연혁"><MenuAccessGate href="/about/history"><ChurchHistory /></MenuAccessGate></Route>
-      <Route path="/page/교회소개-교회-연혁"><MenuAccessGate href="/about/history"><ChurchHistory /></MenuAccessGate></Route>
-      <Route path="/page/교회소개-교회백서"><MenuAccessGate href="/about/whitebook"><WhiteBookPage /></MenuAccessGate></Route>
       <Route path="/about/whitebook" component={WhiteBookPage} />
       <Route path="/about/principle" component={MinistryPrinciplePage} />
       <Route path="/about/ci" component={CIPage} />
@@ -401,7 +387,6 @@ function Router() {
       <Route path="/worship/tv/feature"><MenuAccessGate href="/worship/tv/feature"><SpecialFeaturePage /></MenuAccessGate></Route>
       <Route path="/worship/tv/testimony"><MenuAccessGate href="/worship/tv/testimony"><TestimonyPage /></MenuAccessGate></Route>
       <Route path="/worship/tv/praise"><MenuAccessGate href="/worship/tv/praise"><PraisePage /></MenuAccessGate></Route>
-      <Route path="/page/조이풀tv-주일예배"><MenuAccessGate href="/worship/tv/sunday"><SundayWorshipPage /></MenuAccessGate></Route>
       <Route path="/worship/schedule"><MenuAccessGate href="/worship/schedule"><WorshipSchedule /></MenuAccessGate></Route>
       <Route path="/worship/bulletin/:id"><MenuAccessGate href="/worship/bulletin"><BulletinDetail /></MenuAccessGate></Route>
       <Route path="/worship/bulletin"><MenuAccessGate href="/worship/bulletin"><Bulletin /></MenuAccessGate></Route>

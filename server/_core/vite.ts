@@ -28,29 +28,7 @@ const ADMIN_PUBLIC_ROUTE_REDIRECTS: Array<[string, string]> = [
   ["/admin/donation", "/support/donation"],
 ];
 
-const LEGACY_PAGE_ROUTE_REDIRECTS: Array<[string, string]> = [
-  ["/page/교회소개-담임목사-소개", "/about/pastor"],
-  ["/page/교회소개-3대-비전", "/about/vision"],
-  ["/page/교회소개-섬기는-분", "/about/staff"],
-  ["/page/교회소개-부교역자", "/about/staff/associate"],
-  ["/page/교회소개-교회백서", "/about/whitebook"],
-  ["/page/조이풀tv-주일예배", "/worship/tv/sunday"],
-];
-
-const CODE_BACKED_PAGE_ROUTES = new Set([
-  ...LEGACY_PAGE_ROUTE_REDIRECTS.map(([legacyPath]) => legacyPath),
-  "/page/교회소개-담임목사-저서",
-  "/page/교회소개-담임목사-소개-담임목사저서",
-  "/page/교회소개-담임목사-소개-담임목사-저서",
-  "/page/교회소개-담임목사소개-담임목사저서",
-  "/page/교회소개-담임목사소개-담임목사-저서",
-  "/page/교회소개-교회역사",
-  "/page/교회소개-교회-역사",
-  "/page/교회소개-교회연혁",
-  "/page/교회소개-교회-연혁",
-  "/page/교회소개-섬기는-분",
-  "/page/교회소개-부교역자",
-]);
+const LEGACY_PAGE_ROUTE_REDIRECTS: Array<[string, string]> = [];
 
 const PUBLIC_ROUTE_REDIRECTS = new Map<string, string>([
   ...ADMIN_PUBLIC_ROUTE_REDIRECTS,
@@ -153,10 +131,6 @@ async function publicRouteGuard(
   }
 
   if (normalizedPath.startsWith("/page/")) {
-    if (CODE_BACKED_PAGE_ROUTES.has(normalizedPath)) {
-      return next();
-    }
-
     const [item, subItem] = await Promise.all([
       getVisibleMenuItemByHref(normalizedPath, "member"),
       getVisibleMenuSubItemByHref(normalizedPath, "member"),

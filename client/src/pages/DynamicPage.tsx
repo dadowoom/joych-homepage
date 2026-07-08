@@ -164,17 +164,7 @@ function normalizeDynamicHref(path: string | null | undefined) {
   return decodePath(path ?? "").replace(/[\s-]+/g, "");
 }
 
-const CODE_BACKED_PAGE_ALIASES = new Map<string, string>([
-  ["/page/교회소개-담임목사-저서", "/about/pastor/books"],
-  ["/page/교회소개-담임목사-소개-담임목사저서", "/about/pastor/books"],
-  ["/page/교회소개-담임목사-소개-담임목사-저서", "/about/pastor/books"],
-  ["/page/교회소개-담임목사소개-담임목사저서", "/about/pastor/books"],
-  ["/page/교회소개-담임목사소개-담임목사-저서", "/about/pastor/books"],
-  ["/page/교회소개-교회역사", "/about/history"],
-  ["/page/교회소개-교회-역사", "/about/history"],
-  ["/page/교회소개-교회연혁", "/about/history"],
-  ["/page/교회소개-교회-연혁", "/about/history"],
-]);
+const CODE_BACKED_PAGE_ALIASES = new Map<string, string>();
 
 function getCodeBackedPageAlias(href: string | null | undefined) {
   const value = href?.trim();
