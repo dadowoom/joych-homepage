@@ -298,12 +298,15 @@ export async function getAllMenus() {
   >();
   for (const item of itemList) {
     const list = itemsByMenuId.get(item.menuId) ?? [];
-    list.push({ ...item, subItems: subItemsByItemId.get(item.id) ?? [] });
+    list.push({
+      ...canonicalizePublicMenuNode(item),
+      subItems: (subItemsByItemId.get(item.id) ?? []).map(canonicalizePublicMenuNode),
+    });
     itemsByMenuId.set(item.menuId, list);
   }
 
   return menuList.map(menu => ({
-    ...menu,
+    ...canonicalizePublicMenuNode(menu),
     items: itemsByMenuId.get(menu.id) ?? [],
   }));
 }
