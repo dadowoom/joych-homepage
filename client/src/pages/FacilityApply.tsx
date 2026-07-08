@@ -263,6 +263,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
   const [reservedCount, setReservedCount] = useState(1);
   const [reservedRecurrenceLabel, setReservedRecurrenceLabel] = useState<string | null>(null);
   const [reservationConflictMessage, setReservationConflictMessage] = useState<string | null>(null);
+  const [showDateChangePicker, setShowDateChangePicker] = useState(!urlDate);
 
   // URL 파라미터 변경 시 폼 동기화
   useEffect(() => {
@@ -491,6 +492,10 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
       // 날짜 변경 시 시간 초기화
       ...(name === "date" ? { startTime: "", endTime: "" } : {}),
     }));
+  }
+
+  function handleDateChangeClick() {
+    setShowDateChangePicker(true);
   }
 
   // 시간 슬롯 선택 핸들러
@@ -813,30 +818,34 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
 
                 {/* 사용 날짜 */}
                 <Field label="사용 날짜" required hint={blockedDates && blockedDates.length > 0 ? ("예약 불가 날짜: " + blockedDates.map((b: FacilityBlockedDate) => b.blockedDate).join(", ")) : undefined}>
-                  {urlDate ? (
-                    <div className="flex items-center gap-2">
-                      <div className={`${inputClass} flex items-center gap-2 bg-gray-50 cursor-default`}>
-                        <Calendar className="w-4 h-4 text-[#1B5E20] shrink-0" />
-                        <span className="font-medium text-gray-800">{form.date}</span>
+                  <div className="space-y-2">
+                    {urlDate && !showDateChangePicker && (
+                      <div className="flex items-center gap-2">
+                        <div className={`${inputClass} flex items-center gap-2 bg-gray-50 cursor-default`}>
+                          <Calendar className="w-4 h-4 text-[#1B5E20] shrink-0" />
+                          <span className="font-medium text-gray-800">{form.date}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleDateChangeClick}
+                          className="text-xs text-[#1B5E20] hover:underline shrink-0 whitespace-nowrap"
+                        >
+                          ← 날짜 변경
+                        </button>
                       </div>
-                      <Link
-                        href={facilityDetailHref}
-                        className="text-xs text-[#1B5E20] hover:underline shrink-0 whitespace-nowrap"
-                      >
-                        ← 날짜 변경
-                      </Link>
-                    </div>
-                  ) : (
-                    <input
-                      type="date"
-                      name="date"
-                      value={form.date}
-                      onChange={handleChange}
-                      min={hasReservationOverride ? getKstDateKey() : getReservationLeadDateKey()}
-                      max={hasReservationOverride ? undefined : reservationMaxDateKey}
-                      className={inputClass}
-                    />
-                  )}
+                    )}
+                    {(!urlDate || showDateChangePicker) && (
+                      <input
+                        type="date"
+                        name="date"
+                        value={form.date}
+                        onChange={handleChange}
+                        min={hasReservationOverride ? getKstDateKey() : getReservationLeadDateKey()}
+                        max={hasReservationOverride ? undefined : reservationMaxDateKey}
+                        className={inputClass}
+                      />
+                    )}
+                  </div>
                   {form.date && todayHour && !todayHour.isOpen && !hasReservationOverride && (
                     <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" /> 해당 요일은 휴무일입니다.
