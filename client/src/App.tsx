@@ -170,6 +170,9 @@ const ShuttleBusPage = lazy(() =>
 const JoyfulTV = lazy(() =>
   import("./pages/Worship").then(module => ({ default: module.JoyfulTV }))
 );
+const WorshipSchedule = lazy(() =>
+  import("./pages/Worship").then(module => ({ default: module.WorshipSchedule }))
+);
 const Bulletin = lazy(() =>
   import("./pages/Worship").then(module => ({ default: module.Bulletin }))
 );
@@ -403,7 +406,9 @@ function Router() {
       <Route path="/worship/tv/testimony"><MenuAccessGate href="/worship/tv/testimony"><TestimonyPage /></MenuAccessGate></Route>
       <Route path="/worship/tv/praise"><MenuAccessGate href="/worship/tv/praise"><PraisePage /></MenuAccessGate></Route>
       <Route path="/page/조이풀tv-주일예배"><MenuAccessGate href="/worship/tv/sunday"><SundayWorshipPage /></MenuAccessGate></Route>
-      <Route path="/worship/schedule" component={DynamicMenuHrefPage} />
+      <Route path="/page/교회소개-예배안내"><MenuAccessGate href="/worship/schedule"><WorshipSchedule /></MenuAccessGate></Route>
+      <Route path="/page/교회소개-예배-안내"><MenuAccessGate href="/worship/schedule"><WorshipSchedule /></MenuAccessGate></Route>
+      <Route path="/worship/schedule"><MenuAccessGate href="/worship/schedule"><WorshipSchedule /></MenuAccessGate></Route>
       <Route path="/worship/bulletin/:id"><MenuAccessGate href="/worship/bulletin"><BulletinDetail /></MenuAccessGate></Route>
       <Route path="/worship/bulletin"><MenuAccessGate href="/worship/bulletin"><Bulletin /></MenuAccessGate></Route>
 
