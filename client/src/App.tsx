@@ -222,9 +222,6 @@ const TestimonyPage = lazy(() =>
 const PraisePage = lazy(() =>
   import("./pages/JoyfulTV").then(module => ({ default: module.PraisePage }))
 );
-const ChurchNews = lazy(() =>
-  import("./pages/Community").then(module => ({ default: module.ChurchNews }))
-);
 
 const NewMember = lazy(() =>
   import("./pages/Education").then(module => ({ default: module.NewMember }))
@@ -450,8 +447,9 @@ function Router() {
       <Route path="/mission"><MenuAccessGate href="/mission"><MissionList /></MenuAccessGate></Route>
 
       {/* 커뮤니티 */}
-      <Route path="/community/news"><MenuAccessGate href="/community/news"><ChurchNews /></MenuAccessGate></Route>
-      <Route path="/page/행정지원-공지사항"><MenuAccessGate href="/community/news"><ChurchNews /></MenuAccessGate></Route>
+      <Route path="/community/news">
+        <LegacyRedirect to="/page/행정지원-공지사항" />
+      </Route>
       <Route path="/community/prayer" component={PrayerRequest} />
       <Route path="/community/soon" component={SunMeetingPage} />
       <Route path="/community/organization" component={OrganizationPage} />
