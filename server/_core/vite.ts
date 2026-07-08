@@ -58,6 +58,7 @@ const CODE_BACKED_PAGE_ROUTES = new Set([
 
 const PUBLIC_ROUTE_REDIRECTS = new Map<string, string>([
   ...ADMIN_PUBLIC_ROUTE_REDIRECTS,
+  ...LEGACY_PAGE_ROUTE_REDIRECTS,
 ]);
 
 function normalizeRoutePath(pathname: string) {
