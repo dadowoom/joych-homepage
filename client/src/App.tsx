@@ -225,7 +225,6 @@ const PraisePage = lazy(() =>
 const ChurchNews = lazy(() =>
   import("./pages/Community").then(module => ({ default: module.ChurchNews }))
 );
-const PhotoPage = lazy(() => import("./pages/community/PhotoPage"));
 
 const NewMember = lazy(() =>
   import("./pages/Education").then(module => ({ default: module.NewMember }))
@@ -457,8 +456,9 @@ function Router() {
       <Route path="/community/soon" component={SunMeetingPage} />
       <Route path="/community/organization" component={OrganizationPage} />
       <Route path="/community/club" component={ClubPage} />
-      <Route path="/community/photo"><MenuAccessGate href="/community/photo"><PhotoPage /></MenuAccessGate></Route>
-      <Route path="/page/커뮤니티-최근-행사-사진"><MenuAccessGate href="/community/photo"><PhotoPage /></MenuAccessGate></Route>
+      <Route path="/community/photo">
+        <LegacyRedirect to="/page/커뮤니티-최근-행사-사진" />
+      </Route>
       <Route path="/community/testimony/write"><MenuAccessGate href="/community/testimony"><TestimonyEditor /></MenuAccessGate></Route>
       <Route path="/community/testimony/edit/:id"><MenuAccessGate href="/community/testimony"><TestimonyEditor /></MenuAccessGate></Route>
       <Route path="/community/testimony/:id"><MenuAccessGate href="/community/testimony"><TestimonyDetail /></MenuAccessGate></Route>
