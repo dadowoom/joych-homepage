@@ -34,8 +34,6 @@ const LEGACY_PAGE_ROUTE_REDIRECTS: Array<[string, string]> = [
   ["/page/교회소개-섬기는-분", "/about/staff"],
   ["/page/교회소개-부교역자", "/about/staff/associate"],
   ["/page/교회소개-교회백서", "/about/whitebook"],
-  ["/page/교회소개-예배안내", "/worship/schedule"],
-  ["/page/교회소개-예배-안내", "/worship/schedule"],
   ["/page/조이풀tv-주일예배", "/worship/tv/sunday"],
 ];
 

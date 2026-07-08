@@ -20,14 +20,18 @@ type MenuAccessGateProps = {
 
 export default function MenuAccessGate({ href, title, children }: MenuAccessGateProps) {
   const { user, loading: authLoading } = useAuth();
+  const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
   const { data: accessInfo, isLoading } = trpc.home.menuAccessByHref.useQuery({ href });
   const { data: menus, isLoading: menusLoading } = trpc.home.menus.useQuery();
   const hasAdminAccess = canManageAnyContent(user);
   const fallbackMatch = findMenuAccessMatchByHref(menus, href);
   const fallbackNode = fallbackMatch?.node;
-  const isSignedIn = Boolean(user);
+  const isSignedIn = Boolean(user || memberMe);
 
-  if (isLoading || authLoading || menusLoading) {
+  if (isLoading || authLoading || memberLoading || menusLoading) {
     return (
       <div className="flex min-h-[320px] items-center justify-center text-sm text-gray-400">
         Loading...

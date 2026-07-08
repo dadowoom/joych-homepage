@@ -174,8 +174,6 @@ const CODE_BACKED_PAGE_ALIASES = new Map<string, string>([
   ["/page/교회소개-교회-역사", "/about/history"],
   ["/page/교회소개-교회연혁", "/about/history"],
   ["/page/교회소개-교회-연혁", "/about/history"],
-  ["/page/교회소개-예배안내", "/worship/schedule"],
-  ["/page/교회소개-예배-안내", "/worship/schedule"],
 ]);
 
 function getCodeBackedPageAlias(href: string | null | undefined) {

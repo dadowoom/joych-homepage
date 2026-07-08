@@ -124,9 +124,17 @@ function normalizeMenuLabel(label: string | null | undefined) {
   return (label ?? "").replace(/\s+/g, "");
 }
 
+const CHURCH_INTRO_LABEL = "\uAD50\uD68C\uC18C\uAC1C";
+const WORSHIP_GUIDE_LABEL = "\uC608\uBC30\uC548\uB0B4";
+const WORSHIP_GUIDE_CANONICAL_HREF = "/page/\uAD50\uD68C\uC18C\uAC1C-\uC608\uBC30-\uC548\uB0B4";
+const WORSHIP_GUIDE_HREFS = new Set([
+  WORSHIP_GUIDE_CANONICAL_HREF,
+  "/page/\uAD50\uD68C\uC18C\uAC1C-\uC608\uBC30\uC548\uB0B4",
+]);
+
 function getCanonicalPublicMenuHref(label: string | null | undefined, href: string | null | undefined) {
-  if (normalizeMenuLabel(label) === "\uC608\uBC30\uC548\uB0B4") {
-    return "/worship/schedule";
+  if (normalizeMenuLabel(label) === WORSHIP_GUIDE_LABEL) {
+    return WORSHIP_GUIDE_CANONICAL_HREF;
   }
   return href ?? null;
 }
@@ -150,6 +158,40 @@ function getMenuHrefCandidates(href: string) {
     }
   }
   return Array.from(new Set(candidates.filter(Boolean)));
+}
+
+function isWorshipGuideHref(href: string) {
+  const decodedHref = normalizeSameOriginHref(decodeHrefCandidate(href.trim()));
+  return WORSHIP_GUIDE_HREFS.has(decodedHref);
+}
+
+async function findWorshipGuideMenuItem(visibleOnly = false) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const menuList = await db.select().from(menus).orderBy(asc(menus.sortOrder));
+  const parentIds = new Set(
+    menuList
+      .filter(menu =>
+        normalizeMenuLabel(menu.label) === CHURCH_INTRO_LABEL &&
+        (!visibleOnly || menu.isVisible)
+      )
+      .map(menu => menu.id)
+  );
+  if (parentIds.size === 0) return null;
+
+  const itemList = await db.select().from(menuItems).orderBy(asc(menuItems.sortOrder));
+  const item = itemList.find(row =>
+    parentIds.has(row.menuId) &&
+    normalizeMenuLabel(row.label) === WORSHIP_GUIDE_LABEL &&
+    (!visibleOnly || row.isVisible)
+  );
+  if (!item) return null;
+
+  const parent = menuList.find(menu => menu.id === item.menuId) ?? null;
+  if (!parent) return null;
+
+  return { item, parent };
 }
 
 // ─── 메뉴 조회 ────────────────────────────────────────────────────────────────
@@ -600,6 +642,10 @@ export async function getMenuItemByHref(href: string) {
     const rows = await db.select().from(menuItems).where(eq(menuItems.href, candidate)).limit(1);
     if (rows[0]) return rows[0];
   }
+  if (isWorshipGuideHref(href)) {
+    const match = await findWorshipGuideMenuItem();
+    if (match) return match.item;
+  }
   return null;
 }
 
@@ -610,6 +656,7 @@ export async function getVisibleMenuItemByHref(href: string, access: MenuReadAcc
   const db = await getDb();
   if (!db) return null;
   let item: (typeof menuItems.$inferSelect) | undefined;
+  let fallbackParent: (typeof menus.$inferSelect) | undefined;
   for (const candidate of getMenuHrefCandidates(href)) {
     const rows = await db.select().from(menuItems)
       .where(and(eq(menuItems.href, candidate), eq(menuItems.isVisible, true)))
@@ -619,12 +666,18 @@ export async function getVisibleMenuItemByHref(href: string, access: MenuReadAcc
       break;
     }
   }
+  if (!item && isWorshipGuideHref(href)) {
+    const match = await findWorshipGuideMenuItem(true);
+    if (match) {
+      item = match.item;
+      fallbackParent = match.parent;
+    }
+  }
   if (!item) return null;
 
-  const parentRows = await db.select().from(menus)
+  const parent = fallbackParent ?? (await db.select().from(menus)
     .where(and(eq(menus.id, item.menuId), eq(menus.isVisible, true)))
-    .limit(1);
-  const parent = parentRows[0];
+    .limit(1))[0];
   if (!parent) return null;
   if (!canReadMenuLeaf(getEffectiveLeafAccess(getTopMenuAccessForChild(parent), item), access)) return null;
   return item;
@@ -762,6 +815,28 @@ export async function getMenuAccessByHref(href: string, access: MenuReadAccess =
           id: parentItem.id,
           label: parentItem.label,
           href: parentItem.href,
+        },
+        allowGuest: effectiveAccess.allowGuest,
+        allowMember: effectiveAccess.allowMember,
+        isReadable: canReadMenuLeaf(effectiveAccess, access),
+      };
+    }
+  }
+
+  if (isWorshipGuideHref(href)) {
+    const match = await findWorshipGuideMenuItem(true);
+    if (match) {
+      const { item, parent } = match;
+      const effectiveAccess = getEffectiveLeafAccess(getTopMenuAccessForChild(parent), item);
+      return {
+        kind: "item" as const,
+        id: item.id,
+        label: item.label,
+        href: WORSHIP_GUIDE_CANONICAL_HREF,
+        topMenu: {
+          id: parent.id,
+          label: parent.label,
+          href: parent.href,
         },
         allowGuest: effectiveAccess.allowGuest,
         allowMember: effectiveAccess.allowMember,
