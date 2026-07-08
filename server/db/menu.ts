@@ -120,6 +120,22 @@ function normalizeSameOriginHref(href: string) {
   return trimmed;
 }
 
+function normalizeMenuLabel(label: string | null | undefined) {
+  return (label ?? "").replace(/\s+/g, "");
+}
+
+function getCanonicalPublicMenuHref(label: string | null | undefined, href: string | null | undefined) {
+  if (normalizeMenuLabel(label) === "\uC608\uBC30\uC548\uB0B4") {
+    return "/worship/schedule";
+  }
+  return href ?? null;
+}
+
+function canonicalizePublicMenuNode<T extends { label: string; href: string | null }>(node: T): T {
+  const href = getCanonicalPublicMenuHref(node.label, node.href);
+  return href === node.href ? node : { ...node, href };
+}
+
 function getMenuHrefCandidates(href: string) {
   const decodedHref = normalizeSameOriginHref(decodeHrefCandidate(href.trim()));
   const candidates = [
@@ -181,13 +197,13 @@ export async function getVisibleMenus(access: MenuReadAccess = "guest") {
       canReadMenuLeaf(getEffectiveLeafAccess(getTopMenuAccessForChild(parentMenu), item, subItem), access)
     );
     const visibleSubItemsWithAccess = subItems.map((subItem) => ({
-      ...subItem,
+      ...canonicalizePublicMenuNode(subItem),
       canRead: true,
     }));
 
     const list = itemsByMenuId.get(item.menuId) ?? [];
     list.push({
-      ...item,
+      ...canonicalizePublicMenuNode(item),
       canRead: true,
       subItems: visibleSubItemsWithAccess,
     });
@@ -195,7 +211,7 @@ export async function getVisibleMenus(access: MenuReadAccess = "guest") {
   }
 
   return menuList.map(menu => ({
-    ...menu,
+    ...canonicalizePublicMenuNode(menu),
     items: itemsByMenuId.get(menu.id) ?? [],
   })).filter(menu => menu.items.length > 0 || menu.href);
 }
@@ -245,14 +261,14 @@ export async function getNavigationMenus() {
 
     const list = itemsByMenuId.get(item.menuId) ?? [];
     list.push({
-      ...item,
-      subItems,
+      ...canonicalizePublicMenuNode(item),
+      subItems: subItems.map(canonicalizePublicMenuNode),
     });
     itemsByMenuId.set(item.menuId, list);
   }
 
   return menuList.map(menu => ({
-    ...menu,
+    ...canonicalizePublicMenuNode(menu),
     items: itemsByMenuId.get(menu.id) ?? [],
   })).filter(menu => shouldShowMenuLeaf(menu) && (menu.items.length > 0 || menu.href));
 }
