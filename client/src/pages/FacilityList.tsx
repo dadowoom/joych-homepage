@@ -7,6 +7,7 @@ import { useMemo } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { canManageAdminTab } from "@/lib/contentPermissions";
+import MemberOnlyContentNotice from "@/components/MemberOnlyContentNotice";
 import type { Facility, FacilityImage } from "../../../drizzle/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -242,7 +243,12 @@ function FacilityList({ audience = "member" }: { audience?: FacilityAudience }) 
   const externalFacilitiesQuery = trpc.home.externalFacilities.useQuery(undefined, { enabled: isExternal });
   const facilities = isExternal ? externalFacilitiesQuery.data : memberFacilitiesQuery.data;
   const isLoading = isExternal ? externalFacilitiesQuery.isLoading : memberFacilitiesQuery.isLoading;
-  const { data: authMe } = trpc.auth.me.useQuery(undefined, {
+  const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, {
+    enabled: !isExternal,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const { data: authMe, isLoading: authLoading } = trpc.auth.me.useQuery(undefined, {
     enabled: !isExternal,
     retry: false,
     refetchOnWindowFocus: false,
@@ -251,6 +257,7 @@ function FacilityList({ audience = "member" }: { audience?: FacilityAudience }) 
   const searchString = useSearch();
   const [, navigate] = useLocation();
   const canManageReservations = canManageAdminTab(authMe ?? null, "reservations");
+  const canBypassMemberGate = isExternal || Boolean(memberMe) || canManageReservations;
   const activeBuilding = useMemo(
     () => getFacilityBuildingFromSearch(searchString),
     [searchString],
@@ -267,6 +274,31 @@ function FacilityList({ audience = "member" }: { audience?: FacilityAudience }) 
     });
     return counts;
   }, [facilities]);
+
+  if (!isExternal && (memberLoading || authLoading)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F7F7F5]">
+        <div className="text-center text-gray-400">
+          <div className="w-12 h-12 border-4 border-green-200 border-t-green-600 rounded-full animate-spin mx-auto mb-4" />
+          <p>시설 예약 정보를 확인하는 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!canBypassMemberGate) {
+    return (
+      <div className="min-h-screen bg-[#F7F7F5] px-4 py-8 sm:py-12">
+        <div className="mx-auto max-w-5xl">
+          <MemberOnlyContentNotice
+            resourceLabel="시설 사용 예약"
+            description="시설 사용 예약은 성도 로그인 후 이용할 수 있습니다. 성도 로그인 후 다시 확인해 주세요."
+            fallbackPath="/facility"
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F7F7F5]">

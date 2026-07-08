@@ -190,8 +190,8 @@ function WorshipVideoPage({ href, title }: { href: string; title: string }) {
   const { data: accessInfo, isLoading: accessLoading } = trpc.home.menuAccessByHref.useQuery({ href });
   const accessMatch = findMenuAccessMatchByHref(menuTree, href);
 
-  const playlistId = menuItem?.playlistId ?? subItem?.playlistId ?? null;
-  const activeItemId = menuItem?.id ?? subItem?.menuItemId;
+  const playlistId = subItem?.playlistId ?? menuItem?.playlistId ?? null;
+  const activeItemId = subItem?.menuItemId ?? menuItem?.id;
   const activeSubItemId = subItem?.id;
   const sideMenuItems = getVideoSideMenuItems(
     menuTree,

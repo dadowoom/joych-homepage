@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
+import { isExternalSiteHref, isInternalSiteHref, normalizeSiteHref } from "@/lib/siteHref";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -43,18 +44,21 @@ function PopupActionButton({
   tabIndex?: number;
 }) {
   const [, setLocation] = useLocation();
+  const normalizedHref = normalizeSiteHref(popup.linkHref);
 
-  if (!popup.linkLabel || !popup.linkHref) return null;
+  if (!popup.linkLabel || !normalizedHref) return null;
 
   return (
     <a
-      href={popup.linkHref}
+      href={normalizedHref}
+      target={isExternalSiteHref(normalizedHref) ? "_blank" : undefined}
+      rel={isExternalSiteHref(normalizedHref) ? "noreferrer noopener" : undefined}
       tabIndex={tabIndex}
       onClick={(event) => {
         onClose();
-        if (popup.linkHref?.startsWith("/") && !popup.linkHref.startsWith("//")) {
+        if (isInternalSiteHref(normalizedHref)) {
           event.preventDefault();
-          setLocation(popup.linkHref);
+          setLocation(normalizedHref);
         }
       }}
       className="inline-flex min-w-0 flex-1 items-center justify-center rounded-lg bg-[#1B5E20] px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-[#2E7D32]"

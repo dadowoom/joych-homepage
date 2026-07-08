@@ -35,6 +35,7 @@ import { YoutubeContent } from "@/components/dynamic-page/YoutubeContent";
 import { EditorContent } from "@/components/dynamic-page/EditorContent";
 import { StaffPage } from "./ChurchIntro";
 import CourseList from "./CourseList";
+import { getCanonicalCourseHref, isCourseMenuItemWithinTopMenu } from "@/lib/courseRoutes";
 import KakaoDirectionsMap from "@/components/KakaoDirectionsMap";
 import {
   findMenuAccessMatchByHref,
@@ -743,12 +744,28 @@ export function DynamicMenuHrefPage() {
     return <LoadingDynamicPage />;
   }
 
-  if (item) {
-    return <MenuItemPageContent item={item} allMenus={allMenus} activeHref={activeHref} />;
+  if (item && isCourseMenuItemWithinTopMenu(allMenus, item.href)) {
+    const canonicalCourseHref = getCanonicalCourseHref(item.label, item.href);
+    if (decodePath(canonicalCourseHref) !== decodePath(activeHref)) {
+      setLocation(canonicalCourseHref, { replace: true });
+      return <LoadingDynamicPage />;
+    }
+  }
+
+  if (subItem && isCourseMenuItemWithinTopMenu(allMenus, subItem.href)) {
+    const canonicalCourseHref = getCanonicalCourseHref(subItem.label, subItem.href);
+    if (decodePath(canonicalCourseHref) !== decodePath(activeHref)) {
+      setLocation(canonicalCourseHref, { replace: true });
+      return <LoadingDynamicPage />;
+    }
   }
 
   if (subItem) {
     return <MenuSubItemPageContent item={subItem} allMenus={allMenus} activeHref={activeHref} />;
+  }
+
+  if (item) {
+    return <MenuItemPageContent item={item} allMenus={allMenus} activeHref={activeHref} />;
   }
 
   if (accessMatch && isMemberOnlyMenuNode(accessMatch.node)) {

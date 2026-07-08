@@ -13,6 +13,8 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { hasContentPermission } from "@/lib/contentPermissions";
+import SubPageLayout from "@/components/SubPageLayout";
+import { getSideLayoutByHref } from "@/lib/menuSideLayout";
 import {
   AlertCircle,
   Ban,
@@ -43,6 +45,7 @@ type CourseListProps = {
   pageHref?: string;
   title?: string;
   embedded?: boolean;
+  showHero?: boolean;
 };
 
 const APPLICATION_STATUS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -158,9 +161,10 @@ function ApplicationBadge({ application }: { application: MyApplication }) {
   );
 }
 
-export default function CourseList({ pageHref, title, embedded = false }: CourseListProps = {}) {
+export default function CourseList({ pageHref, title, embedded = false, showHero = true }: CourseListProps = {}) {
   const utils = trpc.useUtils();
   const { user: adminUser } = useAuth();
+  const { data: allMenus } = trpc.home.menus.useQuery();
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
   const [form, setForm] = useState({
     applicantName: "",
@@ -177,6 +181,10 @@ export default function CourseList({ pageHref, title, embedded = false }: Course
   const isAuthenticated = Boolean(memberMe);
   const canManageCourses = adminUser?.role === "admin" || hasContentPermission(adminUser, "content:courses");
   const currentPageHref = pageHref || "/education/courses";
+  const sideLayout = useMemo(
+    () => getSideLayoutByHref(allMenus, currentPageHref, title ?? "교육/강좌 신청"),
+    [allMenus, currentPageHref, title],
+  );
   const adminCourseCreateHref = `/admin_joych_2026?tab=courses&mode=new&pageHref=${encodeURIComponent(currentPageHref)}`;
   const { data: courses = [], isLoading } = trpc.home.courses.useQuery({ pageHref: currentPageHref });
   const { data: myApplications = [], isLoading: loadingApplications } = trpc.home.myCourseApplications.useQuery(
@@ -257,9 +265,9 @@ export default function CourseList({ pageHref, title, embedded = false }: Course
     );
   }
 
-  return (
+  const content = (
     <div className="min-h-screen bg-[#F7F7F5]">
-      {!embedded && <CourseHero />}
+      {!embedded && showHero && <CourseHero />}
 
       <section className={embedded ? "py-2" : "py-10"}>
         <div className="container max-w-5xl mx-auto">
@@ -565,4 +573,18 @@ export default function CourseList({ pageHref, title, embedded = false }: Course
       </section>
     </div>
   );
+
+  if (!embedded && sideLayout) {
+    return (
+      <SubPageLayout
+        pageTitle={sideLayout.pageTitle}
+        parentLabel={sideLayout.parentLabel}
+        sideMenuItems={sideLayout.sideMenuItems}
+      >
+        {content}
+      </SubPageLayout>
+    );
+  }
+
+  return content;
 }

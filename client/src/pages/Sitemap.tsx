@@ -6,6 +6,7 @@
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
+import { isExternalSiteHref } from "@/lib/siteHref";
 import { ChevronRight } from "lucide-react";
 
 export default function Sitemap() {
@@ -30,9 +31,20 @@ export default function Sitemap() {
                 {/* 1단 메뉴 헤더 */}
                 <div className="bg-[#1B5E20] px-4 py-3">
                   {topMenu.href ? (
-                    <Link href={topMenu.href} className="text-white font-bold text-sm hover:text-[#A5D6A7] transition-colors">
-                      {topMenu.label}
-                    </Link>
+                    isExternalSiteHref(topMenu.href) ? (
+                      <a
+                        href={topMenu.href}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="text-white font-bold text-sm hover:text-[#A5D6A7] transition-colors"
+                      >
+                        {topMenu.label}
+                      </a>
+                    ) : (
+                      <Link href={topMenu.href} className="text-white font-bold text-sm hover:text-[#A5D6A7] transition-colors">
+                        {topMenu.label}
+                      </Link>
+                    )
                   ) : (
                     <span className="text-white font-bold text-sm">{topMenu.label}</span>
                   )}
@@ -54,12 +66,23 @@ export default function Sitemap() {
                           <div className="flex items-center gap-1 px-4 py-2.5 hover:bg-[#F1F8E9] transition-colors group">
                             <ChevronRight className="w-3 h-3 text-[#1B5E20] shrink-0" />
                             {midMenu.href ? (
-                              <Link
-                                href={midMenu.href}
-                                className="text-sm text-gray-700 group-hover:text-[#1B5E20] font-medium transition-colors"
-                              >
-                                {midMenu.label}
-                              </Link>
+                              isExternalSiteHref(midMenu.href) ? (
+                                <a
+                                  href={midMenu.href}
+                                  target="_blank"
+                                  rel="noreferrer noopener"
+                                  className="text-sm text-gray-700 group-hover:text-[#1B5E20] font-medium transition-colors"
+                                >
+                                  {midMenu.label}
+                                </a>
+                              ) : (
+                                <Link
+                                  href={midMenu.href}
+                                  className="text-sm text-gray-700 group-hover:text-[#1B5E20] font-medium transition-colors"
+                                >
+                                  {midMenu.label}
+                                </Link>
+                              )
                             ) : (
                               <span className="text-sm text-gray-500">{midMenu.label}</span>
                             )}
@@ -72,12 +95,23 @@ export default function Sitemap() {
                                 <li key={sub.id} className="flex items-center gap-1 pl-8 pr-4 py-2 hover:bg-[#F1F8E9] transition-colors group">
                                   <span className="w-1.5 h-1.5 rounded-full bg-gray-300 shrink-0 group-hover:bg-[#1B5E20] transition-colors"></span>
                                   {sub.href ? (
-                                    <Link
-                                      href={sub.href}
-                                      className="text-xs text-gray-600 group-hover:text-[#1B5E20] transition-colors"
-                                    >
-                                      {sub.label}
-                                    </Link>
+                                    isExternalSiteHref(sub.href) ? (
+                                      <a
+                                        href={sub.href}
+                                        target="_blank"
+                                        rel="noreferrer noopener"
+                                        className="text-xs text-gray-600 group-hover:text-[#1B5E20] transition-colors"
+                                      >
+                                        {sub.label}
+                                      </a>
+                                    ) : (
+                                      <Link
+                                        href={sub.href}
+                                        className="text-xs text-gray-600 group-hover:text-[#1B5E20] transition-colors"
+                                      >
+                                        {sub.label}
+                                      </Link>
+                                    )
                                   ) : (
                                     <span className="text-xs text-gray-400">{sub.label}</span>
                                   )}

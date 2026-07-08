@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import AdminSupportRequestsTab from "@/components/AdminSupportRequestsTab";
+import MemberOnlyContentNotice from "@/components/MemberOnlyContentNotice";
 import { hasContentPermission } from "@/lib/contentPermissions";
 import { SUPPORT_REQUEST_PERMISSION_KEYS, SUPPORT_REQUEST_ROOT_PERMISSION_KEY } from "@shared/adminPermissions";
 import {
@@ -147,6 +148,17 @@ export default function BulletinAdRequestPage() {
   };
 
   const isSaving = submitBulletinAd.isPending;
+
+  if (!memberLoading && !memberMe && !canManageBulletinAds) {
+    return (
+      <SupportPageWrapper title="주보 광고신청" activeHref="/support/bulletin-ad">
+        <MemberOnlyContentNotice
+          resourceLabel="주보 광고신청"
+          fallbackPath="/support/bulletin-ad"
+        />
+      </SupportPageWrapper>
+    );
+  }
 
   return (
     <SupportPageWrapper title="주보 광고신청" activeHref="/support/bulletin-ad">

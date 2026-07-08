@@ -5,9 +5,9 @@ describe("normalizePopupWriteData", () => {
   it("clears optional popup button fields to null when edit form removes them", () => {
     const normalized = normalizePopupWriteData({
       title: "여름사역 팝업",
-      imageUrl: undefined,
-      linkLabel: undefined,
-      linkHref: undefined,
+      imageUrl: null,
+      linkLabel: null,
+      linkHref: null,
       audience: "all" as const,
       isActive: true,
       isDismissible: true,

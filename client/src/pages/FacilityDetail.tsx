@@ -10,6 +10,7 @@ import { trpc } from "@/lib/trpc";
 import type { Facility, FacilityHour, FacilityImage, FacilityBlockedDate } from "../../../drizzle/schema";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import MemberOnlyContentNotice from "@/components/MemberOnlyContentNotice";
 import ReservationTimelinePicker from "@/components/facility/ReservationTimelinePicker";
 import { hasContentPermission } from "@/lib/contentPermissions";
 import { Users, MapPin, Clock, ChevronLeft, ChevronRight, Phone, AlertCircle, CalendarCheck, Loader2 } from "lucide-react";
@@ -673,7 +674,7 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
     retry: false,
     refetchOnWindowFocus: false,
   });
-  const { data: authMe } = trpc.auth.me.useQuery(undefined, {
+  const { data: authMe, isLoading: authLoading } = trpc.auth.me.useQuery(undefined, {
     enabled: !isExternal,
     retry: false,
     refetchOnWindowFocus: false,
@@ -684,6 +685,7 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
     !isExternal &&
     (hasContentPermission(authMe, "content:reservations") ||
       hasContentPermission(authMe, "content:facilities"));
+  const canBypassMemberGate = isExternal || isApprovedMember || hasReservationOverride;
   const reservationMaxMonths = getFacilityReservationMaxMonths(reservationSettings);
   const externalReservationWindow = isExternal
     ? getExternalReservationWindow(reservationSettings, facility)
@@ -737,6 +739,31 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
   }
 
   // 날짜 변경 시 시간 초기화
+  if (!isExternal && (memberLoading || authLoading)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F7F7F5]">
+        <div className="text-center text-gray-400">
+          <div className="w-12 h-12 border-4 border-green-200 border-t-green-600 rounded-full animate-spin mx-auto mb-4" />
+          <p>시설 예약 정보를 확인하는 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!canBypassMemberGate) {
+    return (
+      <div className="min-h-screen bg-[#F7F7F5] px-4 py-8 sm:py-12">
+        <div className="mx-auto max-w-5xl">
+          <MemberOnlyContentNotice
+            resourceLabel="시설 사용 예약"
+            description="시설 사용 예약은 성도 로그인 후 이용할 수 있습니다. 성도 로그인 후 다시 확인해 주세요."
+            fallbackPath={`/facility/${facilityId}`}
+          />
+        </div>
+      </div>
+    );
+  }
+
   function handleSelectDate(date: string) {
     setSelectedDate(date);
     setStartTime("");

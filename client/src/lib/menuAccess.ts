@@ -51,8 +51,24 @@ function decodePath(path: string) {
   }
 }
 
+function normalizeSameOriginHref(path: string) {
+  const trimmed = path.trim();
+  if (!/^https?:\/\//i.test(trimmed)) return trimmed;
+
+  try {
+    const url = new URL(trimmed);
+    if (url.hostname === "newjoych.co.kr" || url.hostname === "www.newjoych.co.kr") {
+      return `${url.pathname}${url.search}${url.hash}`;
+    }
+  } catch {
+    return trimmed;
+  }
+
+  return trimmed;
+}
+
 function normalizeHref(path: string | null | undefined) {
-  return decodePath(path ?? "").trim();
+  return normalizeSameOriginHref(decodePath(path ?? ""));
 }
 
 export function isMemberOnlyMenuNode(

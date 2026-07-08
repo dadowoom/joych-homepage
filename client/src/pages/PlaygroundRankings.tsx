@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Award, Medal, RefreshCw, Trophy, Users } from "lucide-react";
+import { type FormEvent, useMemo, useState } from "react";
+import { Award, ExternalLink, Medal, RefreshCw, Search, Trophy, User, Users } from "lucide-react";
 import SubPageLayout from "@/components/SubPageLayout";
 import { trpc } from "@/lib/trpc";
 
@@ -20,6 +20,17 @@ type RankingEntry = {
   lightCount: number | null;
   saltCount: number | null;
   heritageCount: number | null;
+};
+
+type FaithPlusUser = {
+  userId: number;
+  displayName: string;
+  churchName: string | null;
+  profilePhoto: string | null;
+  totalScore: number;
+  totalBibleDays: number;
+  totalPrayerCount: number;
+  worshipCount: number;
 };
 
 const periodOptions: Array<{ value: RankingPeriod; label: string }> = [
@@ -214,6 +225,146 @@ function RankingSkeleton() {
   );
 }
 
+function FaithPlusUserSearch() {
+  const [input, setInput] = useState("");
+  const [query, setQuery] = useState("");
+  const [users, setUsers] = useState<FaithPlusUser[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const trpcUtils = trpc.useUtils();
+
+  async function handleSearch(e: FormEvent) {
+    e.preventDefault();
+    const trimmed = input.trim();
+    if (trimmed.length < 2) {
+      setError("이름을 2글자 이상 입력해주세요.");
+      setUsers([]);
+      setQuery(trimmed);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setUsers([]);
+    setQuery(trimmed);
+    try {
+      const data = await trpcUtils.playground.searchUsers.fetch({ name: trimmed });
+      const nextUsers = data.users ?? [];
+      setUsers(nextUsers);
+      if (nextUsers.length === 0) {
+        setError("검색된 FaithPlus 이용자가 없습니다.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "FaithPlus 서버에 연결하지 못했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="flex items-center gap-2 text-sm font-semibold text-[#1B5E20]">
+            <Search className="h-4 w-4" />
+            FaithPlus User Search
+          </p>
+          <h2 className="mt-2 text-2xl font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+            믿음PLUS 이용자 검색
+          </h2>
+          <p className="mt-1 text-sm text-gray-500">
+            이름으로 FaithPlus 이용자를 찾아 신앙 데이터를 확인합니다.
+          </p>
+        </div>
+
+        <form onSubmit={handleSearch} className="flex w-full gap-2 lg:max-w-md">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="성도 이름 검색"
+              className="h-11 w-full rounded-lg border border-gray-200 bg-white pl-10 pr-3 text-sm outline-none transition focus:border-[#1B5E20] focus:ring-2 focus:ring-[#1B5E20]/15"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="h-11 rounded-lg bg-[#1B5E20] px-5 text-sm font-semibold text-white transition hover:bg-[#2E7D32] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? "검색 중" : "검색"}
+          </button>
+        </form>
+      </div>
+
+      {(query || loading) && (
+        <div className="mt-5 border-t border-gray-100 pt-5">
+          {loading ? (
+            <div className="flex min-h-32 items-center justify-center text-sm text-gray-400">
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              FaithPlus 이용자를 검색하는 중입니다.
+            </div>
+          ) : error ? (
+            <div className="flex min-h-32 flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-[#FAFAF8] text-center">
+              <User className="h-9 w-9 text-gray-300" />
+              <p className="mt-3 text-sm font-semibold text-gray-600">{error}</p>
+            </div>
+          ) : (
+            <div>
+              <p className="mb-3 text-sm text-gray-500">
+                <span className="font-semibold text-[#1B5E20]">{query}</span> 검색 결과 {users.length}명
+              </p>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {users.map((user) => (
+                  <a
+                    key={user.userId}
+                    href={`/faith-data?name=${encodeURIComponent(user.displayName)}`}
+                    className="group rounded-lg border border-gray-100 bg-[#FAFAF8] p-4 transition hover:border-[#1B5E20]/40 hover:bg-white hover:shadow-sm"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#E8F5E9] text-sm font-bold text-[#1B5E20]">
+                        {user.profilePhoto ? (
+                          <img src={user.profilePhoto} alt={user.displayName} className="h-full w-full object-cover" loading="lazy" />
+                        ) : (
+                          user.displayName.charAt(0)
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-bold text-gray-900">{user.displayName}</p>
+                        <p className="truncate text-xs text-gray-400">{user.churchName || "교회 미등록"}</p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 shrink-0 text-gray-300 transition group-hover:text-[#1B5E20]" />
+                    </div>
+                    <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+                      <div className="rounded-md bg-white py-2">
+                        <p className="text-xs font-bold text-[#1B5E20]">{user.totalScore?.toLocaleString?.() ?? 0}</p>
+                        <p className="text-[10px] text-gray-400">점수</p>
+                      </div>
+                      <div className="rounded-md bg-white py-2">
+                        <p className="text-xs font-bold text-[#1B5E20]">{user.totalBibleDays ?? 0}</p>
+                        <p className="text-[10px] text-gray-400">말씀</p>
+                      </div>
+                      <div className="rounded-md bg-white py-2">
+                        <p className="text-xs font-bold text-[#1B5E20]">{user.totalPrayerCount ?? 0}</p>
+                        <p className="text-[10px] text-gray-400">기도</p>
+                      </div>
+                      <div className="rounded-md bg-white py-2">
+                        <p className="text-xs font-bold text-[#1B5E20]">{user.worshipCount ?? 0}</p>
+                        <p className="text-[10px] text-gray-400">예배</p>
+                      </div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function PlaygroundRankings() {
   const [period, setPeriod] = useState<RankingPeriod>("weekly");
   const [metric, setMetric] = useState<RankingMetric>("total");
@@ -232,6 +383,8 @@ export default function PlaygroundRankings() {
   return (
     <SubPageLayout pageTitle="플레이 그라운드" parentLabel="커뮤니티">
       <div className="space-y-6">
+        <FaithPlusUserSearch />
+
         <section className="rounded-lg border border-gray-200 bg-white p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>

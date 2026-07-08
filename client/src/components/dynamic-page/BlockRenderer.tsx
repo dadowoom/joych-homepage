@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { ZoomIn } from "lucide-react";
 import { RichTextViewer } from "@/components/ui/rich-text-editor";
+import { isExternalSiteHref, normalizeSiteHref } from "@/lib/siteHref";
 import { Lightbox } from "./Lightbox";
 import { normalizeHtmlBlockValue } from "./htmlBlockUtils";
 
@@ -215,11 +216,12 @@ export function BlockRenderer({
         </div>
       );
     case "button": {
+      const normalizedHref = normalizeSiteHref(c.href);
       const buttonClassName =
         c.style === "outline"
           ? "inline-block max-w-full whitespace-normal break-words rounded-lg border-2 border-green-700 px-6 py-3 text-center font-medium text-green-700 transition-colors hover:bg-green-50 [overflow-wrap:anywhere]"
           : "inline-block max-w-full whitespace-normal break-words rounded-lg bg-green-700 px-6 py-3 text-center font-medium text-white transition-colors hover:bg-green-800 [overflow-wrap:anywhere]";
-      if (!c.href?.trim()) {
+      if (!normalizedHref) {
         return (
           <div className="my-4">
             <span className={`${buttonClassName} cursor-default`}>
@@ -231,7 +233,9 @@ export function BlockRenderer({
       return (
         <div className="my-4">
           <a
-            href={c.href}
+            href={normalizedHref}
+            target={isExternalSiteHref(normalizedHref) ? "_blank" : undefined}
+            rel={isExternalSiteHref(normalizedHref) ? "noreferrer noopener" : undefined}
             className={buttonClassName}
           >
             {c.label ?? "링크"}

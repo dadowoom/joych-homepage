@@ -40,14 +40,22 @@ const LEGACY_PAGE_ROUTE_REDIRECTS: Array<[string, string]> = [
 ];
 
 const CODE_BACKED_PAGE_ROUTES = new Set([
+  ...LEGACY_PAGE_ROUTE_REDIRECTS.map(([legacyPath]) => legacyPath),
   "/page/교회소개-담임목사-저서",
+  "/page/교회소개-담임목사-소개-담임목사저서",
+  "/page/교회소개-담임목사-소개-담임목사-저서",
+  "/page/교회소개-담임목사소개-담임목사저서",
+  "/page/교회소개-담임목사소개-담임목사-저서",
+  "/page/교회소개-교회역사",
+  "/page/교회소개-교회-역사",
+  "/page/교회소개-교회연혁",
+  "/page/교회소개-교회-연혁",
   "/page/교회소개-섬기는-분",
   "/page/교회소개-부교역자",
 ]);
 
 const PUBLIC_ROUTE_REDIRECTS = new Map<string, string>([
   ...ADMIN_PUBLIC_ROUTE_REDIRECTS,
-  ...LEGACY_PAGE_ROUTE_REDIRECTS,
 ]);
 
 function normalizeRoutePath(pathname: string) {

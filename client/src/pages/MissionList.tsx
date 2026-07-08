@@ -10,6 +10,7 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import SubPageLayout from "@/components/SubPageLayout";
 import { canManageBoardContent } from "@/lib/contentPermissions";
+import { findMenuAccessMatchByHref } from "@/lib/menuAccess";
 import { trpc } from "@/lib/trpc";
 import { CONTINENT_LABELS, type MissionContinent } from "@/lib/missionData";
 import { toast } from "sonner";
@@ -27,12 +28,32 @@ const MISSION_SIDE_MENU_ITEMS = [
   { id: 4, label: "선교보고", href: "/mission", isActive: true },
 ];
 
+function normalizeMenuHref(href: string | null | undefined) {
+  const trimmed = href?.trim() ?? "";
+  if (!trimmed) return "";
+
+  try {
+    const decoded = decodeURIComponent(trimmed);
+    if (!/^https?:\/\//i.test(decoded)) return decoded;
+
+    const url = new URL(decoded);
+    if (url.hostname === "newjoych.co.kr" || url.hostname === "www.newjoych.co.kr") {
+      return `${url.pathname}${url.search}${url.hash}`;
+    }
+
+    return decoded;
+  } catch {
+    return trimmed;
+  }
+}
+
 export default function MissionList() {
   const [selectedContinent, setSelectedContinent] = useState<MissionContinent | "all">("all");
   const [selectedMissionary, setSelectedMissionary] = useState<number | "all">("all");
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const canManage = canManageBoardContent(user, "content:missionReports");
+  const { data: allMenus } = trpc.home.menus.useQuery();
 
   const publicReportsQuery = trpc.mission.reports.useQuery(undefined, { enabled: !canManage });
   const adminReportsQuery = trpc.cms.missionReports.reports.useQuery(undefined, { enabled: canManage });
@@ -56,6 +77,26 @@ export default function MissionList() {
     retry: false,
   });
   const canWriteMissionReport = canManage || authorGrants.length > 0;
+  const menuMatch = useMemo(() => findMenuAccessMatchByHref(allMenus, "/mission"), [allMenus]);
+  const sideMenuItems = useMemo(() => {
+    if (!menuMatch) return MISSION_SIDE_MENU_ITEMS;
+
+    const activeHref = normalizeMenuHref(menuMatch.node.href);
+    return (menuMatch.topMenu.items ?? []).map((item) => ({
+      id: item.id,
+      label: item.label,
+      href: item.href ?? null,
+      isActive: normalizeMenuHref(item.href) === activeHref,
+      subItems: (item.subItems ?? []).map((subItem) => ({
+        id: subItem.id,
+        label: subItem.label,
+        href: subItem.href ?? null,
+        isActive: normalizeMenuHref(subItem.href) === activeHref,
+      })),
+    }));
+  }, [menuMatch]);
+  const parentLabel = menuMatch?.topMenu.label ?? "사역/선교";
+  const pageTitle = menuMatch?.node.label ?? "선교보고";
 
   // 필터 적용
   const filtered = reports.filter((r) => {
@@ -78,9 +119,9 @@ export default function MissionList() {
 
   return (
     <SubPageLayout
-      pageTitle="선교보고"
-      parentLabel="사역/선교"
-      sideMenuItems={MISSION_SIDE_MENU_ITEMS}
+      pageTitle={pageTitle}
+      parentLabel={parentLabel}
+      sideMenuItems={sideMenuItems}
     >
       <div className="space-y-6">
         <section className="rounded-2xl border border-gray-200 bg-white p-5 md:p-6">

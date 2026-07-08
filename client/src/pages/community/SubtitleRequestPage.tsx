@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import AdminSupportRequestsTab from "@/components/AdminSupportRequestsTab";
+import MemberOnlyContentNotice from "@/components/MemberOnlyContentNotice";
 import { hasContentPermission } from "@/lib/contentPermissions";
 import { SUPPORT_REQUEST_PERMISSION_KEYS, SUPPORT_REQUEST_ROOT_PERMISSION_KEY } from "@shared/adminPermissions";
 import {
@@ -154,6 +155,17 @@ export default function SubtitleRequestPage() {
   };
 
   const isSaving = submitSubtitle.isPending;
+
+  if (!memberLoading && !memberMe && !canManageSubtitles) {
+    return (
+      <SupportPageWrapper title="자막 신청" activeHref="/support/subtitle">
+        <MemberOnlyContentNotice
+          resourceLabel="자막 신청"
+          fallbackPath="/support/subtitle"
+        />
+      </SupportPageWrapper>
+    );
+  }
 
   return (
     <SupportPageWrapper title="자막 신청" activeHref="/support/subtitle">

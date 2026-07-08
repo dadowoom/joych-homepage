@@ -8,16 +8,12 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { isExternalSiteHref, normalizeSiteHref } from "@/lib/siteHref";
 import { toFallbackMenuTree } from "@shared/siteNavigation";
 import { useLanguage, translateSiteText } from "@/contexts/LanguageContext";
 
 function getUsableHref(href?: string | null) {
-  const trimmed = href?.trim();
-  return trimmed && trimmed !== "#" ? trimmed : null;
-}
-
-function isExternalHref(href: string) {
-  return href.startsWith("http://") || href.startsWith("https://");
+  return normalizeSiteHref(href);
 }
 
 function normalizeMenuLabel(label: string) {
@@ -119,6 +115,8 @@ export default function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
   const [searchName, setSearchName] = useState("");
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [desktopOpenId, setDesktopOpenId] = useState<number | null>(null);
+  const [desktopOpenSubId, setDesktopOpenSubId] = useState<number | null>(null);
   const [mobileExpandedId, setMobileExpandedId] = useState<number | null>(null);
   const [mobileExpandedSubId, setMobileExpandedSubId] = useState<number | null>(
     null
@@ -172,6 +170,8 @@ export default function SiteHeader() {
   // 페이지 이동 시 모바일 메뉴 닫기
   const [location] = useLocation();
   useEffect(() => {
+    setDesktopOpenId(null);
+    setDesktopOpenSubId(null);
     setMobileOpen(false);
     setMobileSearchOpen(false);
   }, [location]);
@@ -181,12 +181,12 @@ export default function SiteHeader() {
     const trimmed = searchName.trim();
     if (!trimmed) return;
     setMobileSearchOpen(false);
-    const searchPath = `/church-directory?name=${encodeURIComponent(trimmed)}`;
-    if (!memberMe) {
-      setLocation(`/member/login?next=${encodeURIComponent(searchPath)}`);
-      return;
-    }
-    setLocation(searchPath);
+    setLocation(`/search?q=${encodeURIComponent(trimmed)}`);
+  };
+
+  const closeDesktopMenus = () => {
+    setDesktopOpenId(null);
+    setDesktopOpenSubId(null);
   };
 
   return (
@@ -276,7 +276,7 @@ export default function SiteHeader() {
             />
           </Link>
 
-          {/* 신앙 데이터 검색창 — PC */}
+          {/* 통합 검색창 — PC */}
           <form
             onSubmit={handleSearch}
             className="hidden md:flex items-center gap-0 mx-4 flex-1 max-w-[320px]"
@@ -286,7 +286,7 @@ export default function SiteHeader() {
                 type="text"
                 value={searchName}
                 onChange={e => setSearchName(e.target.value)}
-                placeholder={t("이름으로 신앙 데이터 검색")}
+                placeholder="통합 검색"
                 className="w-full h-10 pl-4 pr-10 text-sm rounded-full border border-gray-200 bg-[#F7F7F5] text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#1B5E20] focus:ring-1 focus:ring-[#1B5E20] transition-all duration-200"
               />
               <button
@@ -306,28 +306,47 @@ export default function SiteHeader() {
                 const parentClassName =
                   "text-sm font-medium text-gray-700 hover:text-[#1B5E20] transition-colors";
                 return (
-                  <li key={item.id} className="relative group">
+                  <li
+                    key={item.id}
+                    className="relative"
+                    onMouseEnter={() => {
+                      setDesktopOpenId(item.id);
+                      setDesktopOpenSubId(null);
+                    }}
+                    onMouseLeave={() => {
+                      if (desktopOpenId === item.id) {
+                        closeDesktopMenus();
+                      }
+                    }}
+                  >
                     <div className="flex items-center h-[72px] px-4 relative">
                       {parentHref ? (
-                        isExternalHref(parentHref) ? (
+                        isExternalSiteHref(parentHref) ? (
                           <a
                             href={parentHref}
+                            target="_blank"
+                            rel="noreferrer noopener"
                             className={parentClassName}
+                            onClick={closeDesktopMenus}
                           >
                             {translateSiteText(item.label, language)}
                           </a>
                         ) : (
-                          <Link href={parentHref} className={parentClassName}>
+                          <Link href={parentHref} className={parentClassName} onClick={closeDesktopMenus}>
                             {translateSiteText(item.label, language)}
                           </Link>
                         )
                       ) : (
                         <span className={parentClassName}>{translateSiteText(item.label, language)}</span>
                       )}
-                      <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#1B5E20] scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left"></span>
+                      <span
+                        className={`absolute bottom-0 left-0 right-0 h-[3px] bg-[#1B5E20] transition-transform duration-200 origin-left ${
+                          desktopOpenId === item.id ? "scale-x-100" : "scale-x-0"
+                        }`}
+                      ></span>
                     </div>
-                    {(item.items ?? []).length > 0 && (
-                      <ul className="absolute top-[72px] left-0 bg-white border-t-2 border-[#1B5E20] shadow-xl min-w-[160px] z-[200] py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150">
+                    {(item.items ?? []).length > 0 && desktopOpenId === item.id && (
+                      <ul className="absolute top-[72px] left-0 bg-white border-t-2 border-[#1B5E20] shadow-xl min-w-[160px] z-[200] py-1 opacity-100 visible transition-all duration-150">
                         {(item.items ?? []).map((s, j) => {
                           const hasSubItems =
                             (
@@ -365,12 +384,26 @@ export default function SiteHeader() {
                           const cls =
                             "flex items-center justify-between px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
                           return (
-                            <li key={j} className="relative group/sub">
+                            <li
+                              key={j}
+                              className="relative"
+                              onMouseEnter={() => {
+                                if (hasSubItems) setDesktopOpenSubId(s.id);
+                              }}
+                              onMouseLeave={() => {
+                                if (desktopOpenSubId === s.id) {
+                                  setDesktopOpenSubId(null);
+                                }
+                              }}
+                            >
                               {secondLevelHref ? (
-                                isExternalHref(secondLevelHref) ? (
+                                isExternalSiteHref(secondLevelHref) ? (
                                   <a
                                     href={secondLevelHref}
+                                    target="_blank"
+                                    rel="noreferrer noopener"
                                     className={cls}
+                                    onClick={closeDesktopMenus}
                                   >
                                     <span>{translateSiteText(s.label, language)}</span>
                                     {hasSubItems && (
@@ -381,6 +414,7 @@ export default function SiteHeader() {
                                   <Link
                                     href={secondLevelHref}
                                     className={cls}
+                                    onClick={closeDesktopMenus}
                                   >
                                     <span>{translateSiteText(s.label, language)}</span>
                                     {hasSubItems && (
@@ -396,8 +430,8 @@ export default function SiteHeader() {
                                   )}
                                 </span>
                               )}
-                              {hasSubItems && (
-                                <ul className="absolute left-full top-0 bg-white border-l-2 border-[#1B5E20] shadow-xl min-w-[150px] z-[300] py-1 opacity-0 invisible group-hover/sub:opacity-100 group-hover/sub:visible transition-all duration-150">
+                              {hasSubItems && desktopOpenSubId === s.id && (
+                                <ul className="absolute left-full top-0 bg-white border-l-2 border-[#1B5E20] shadow-xl min-w-[150px] z-[300] py-1 opacity-100 visible transition-all duration-150">
                                   {subItems.map((sub, k) => {
                                     const thirdLevelHref = getThirdLevelHref(sub);
                                     const subCls =
@@ -405,12 +439,15 @@ export default function SiteHeader() {
                                     return (
                                       <li key={k}>
                                         {thirdLevelHref ? (
-                                          isExternalHref(
+                                          isExternalSiteHref(
                                             thirdLevelHref
                                           ) ? (
                                             <a
                                               href={thirdLevelHref}
+                                              target="_blank"
+                                              rel="noreferrer noopener"
                                               className={subCls}
+                                              onClick={closeDesktopMenus}
                                             >
                                               {translateSiteText(sub.label, language)}
                                             </a>
@@ -418,6 +455,7 @@ export default function SiteHeader() {
                                             <Link
                                               href={thirdLevelHref}
                                               className={subCls}
+                                              onClick={closeDesktopMenus}
                                             >
                                               {translateSiteText(sub.label, language)}
                                             </Link>
@@ -461,7 +499,7 @@ export default function SiteHeader() {
                 setMobileSearchOpen(!mobileSearchOpen);
                 setMobileOpen(false);
               }}
-              aria-label="신앙 데이터 검색"
+              aria-label="통합 검색"
             >
               <i
                 className={`fas ${mobileSearchOpen ? "fa-times" : "fa-search"} text-lg`}
@@ -490,7 +528,7 @@ export default function SiteHeader() {
                   type="text"
                   value={searchName}
                   onChange={e => setSearchName(e.target.value)}
-                  placeholder={t("이름으로 신앙 데이터 검색")}
+                  placeholder="통합 검색"
                   autoFocus
                   className="w-full h-11 pl-4 pr-4 text-base rounded-full border-2 border-[#1B5E20]/40 bg-white text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#1B5E20] transition-all duration-200"
                 />
@@ -503,7 +541,7 @@ export default function SiteHeader() {
               </button>
             </form>
             <p className="text-xs text-gray-400 mt-2 pl-1">
-              {t("성도 이름을 입력하면 신앙 데이터 페이지로 이동합니다.")}
+              설교/영상과 게시물을 한 번에 검색합니다.
             </p>
           </div>
         )}
@@ -519,9 +557,11 @@ export default function SiteHeader() {
               <div key={menu.id} className="border-b border-gray-100">
                 {/* 1단 메뉴 */}
                 {!hasChildren && parentHref ? (
-                  isExternalHref(parentHref) ? (
+                  isExternalSiteHref(parentHref) ? (
                     <a
                       href={parentHref}
+                      target="_blank"
+                      rel="noreferrer noopener"
                       className="flex w-full items-center justify-between px-5 py-3 text-left text-sm font-medium text-gray-700 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
                       onClick={() => setMobileOpen(false)}
                     >
@@ -601,9 +641,11 @@ export default function SiteHeader() {
                                   ></i>
                                 </button>
                                 {secondLevelHref ? (
-                                  isExternalHref(secondLevelHref) ? (
+                                  isExternalSiteHref(secondLevelHref) ? (
                                     <a
                                       href={secondLevelHref}
+                                      target="_blank"
+                                      rel="noreferrer noopener"
                                       className="px-3 py-2.5 text-gray-400 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
                                       onClick={() => setMobileOpen(false)}
                                       aria-label={`${translateSiteText(item.label, language)} 이동`}
@@ -623,10 +665,11 @@ export default function SiteHeader() {
                                 ) : null}
                               </div>
                             ) : secondLevelHref ? (
-                              secondLevelHref.startsWith("http://") ||
-                              secondLevelHref.startsWith("https://") ? (
+                              isExternalSiteHref(secondLevelHref) ? (
                                 <a
                                   href={secondLevelHref}
+                                  target="_blank"
+                                  rel="noreferrer noopener"
                                   className="block pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
                                   onClick={() => setMobileOpen(false)}
                                 >
@@ -652,11 +695,12 @@ export default function SiteHeader() {
                                 {subItems.map(sub => {
                                   const thirdLevelHref = getThirdLevelHref(sub);
                                   return thirdLevelHref ? (
-                                    thirdLevelHref.startsWith("http://") ||
-                                    thirdLevelHref.startsWith("https://") ? (
+                                    isExternalSiteHref(thirdLevelHref) ? (
                                       <a
                                         key={sub.id}
                                         href={thirdLevelHref}
+                                        target="_blank"
+                                        rel="noreferrer noopener"
                                         className="block pl-12 pr-5 py-2 text-sm text-gray-500 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
                                         onClick={() => setMobileOpen(false)}
                                       >

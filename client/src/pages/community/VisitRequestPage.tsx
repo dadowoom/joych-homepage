@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import AdminSupportRequestsTab from "@/components/AdminSupportRequestsTab";
+import MemberOnlyContentNotice from "@/components/MemberOnlyContentNotice";
 import { hasContentPermission } from "@/lib/contentPermissions";
 import { SUPPORT_REQUEST_PERMISSION_KEYS, SUPPORT_REQUEST_ROOT_PERMISSION_KEY } from "@shared/adminPermissions";
 import {
@@ -51,6 +52,10 @@ const VISIT_STATUS_LABELS: Record<string, string> = {
 function VisitRequestBoardPage() {
   const utils = trpc.useUtils();
   const { user } = useAuth();
+  const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
   const href = "/support/tour";
   const { data: requests = [], isLoading } = trpc.support.listVisits.useQuery();
   const { data: menuItem } = trpc.home.menuItemByHref.useQuery({ href });
@@ -140,6 +145,17 @@ function VisitRequestBoardPage() {
       message: form.message,
     });
   };
+
+  if (!memberLoading && !memberMe && !canManageVisits) {
+    return (
+      <SupportPageWrapper title="탐방 신청" activeHref="/support/tour">
+        <MemberOnlyContentNotice
+          resourceLabel="탐방 신청"
+          fallbackPath="/support/tour"
+        />
+      </SupportPageWrapper>
+    );
+  }
 
   return (
     <SupportPageWrapper title="탐방 신청" activeHref="/support/tour">

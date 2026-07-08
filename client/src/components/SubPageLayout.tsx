@@ -7,8 +7,9 @@
  *    App.tsx에서 이미 <SiteHeader />를 렌더링하므로 여기서는 중복 렌더링하지 않습니다.
  */
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { isExternalSiteHref, normalizeSiteHref } from "@/lib/siteHref";
 import { ChevronDown, ChevronRight, Home } from "lucide-react";
 
 const LOGO_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-logo_35c62cc5.jpg";
@@ -29,6 +30,16 @@ type SideMenuItem = {
   isActive?: boolean;
   subItems?: SideMenuItem[];
 };
+
+function normalizeSideMenuHref(href: string | null | undefined) {
+  const normalized = normalizeSiteHref(href);
+  if (!normalized) return "";
+  try {
+    return decodeURIComponent(normalized);
+  } catch {
+    return normalized;
+  }
+}
 
 interface SubPageLayoutProps {
   /** 현재 페이지 제목 (브레드크럼 마지막 항목) */
@@ -53,13 +64,21 @@ export default function SubPageLayout({
   children,
 }: SubPageLayoutProps) {
   const { data: dbSettings } = trpc.home.settings.useQuery();
+  const [location] = useLocation();
   const [openSideMenuIds, setOpenSideMenuIds] = useState<Set<number>>(new Set());
+  const normalizedLocation = useMemo(() => normalizeSideMenuHref(location), [location]);
+  const isSubItemActive = (subItem: SideMenuItem) =>
+    subItem.isActive || normalizeSideMenuHref(subItem.href) === normalizedLocation;
+  const isItemActive = (item: SideMenuItem) =>
+    item.isActive ||
+    normalizeSideMenuHref(item.href) === normalizedLocation ||
+    Boolean(item.subItems?.some(isSubItemActive));
   const activeSideMenuIds = useMemo(
     () =>
       sideMenuItems
-        .filter((item) => item.isActive || item.subItems?.some((subItem) => subItem.isActive))
+        .filter((item) => isItemActive(item))
         .map((item) => item.id),
-    [sideMenuItems]
+    [sideMenuItems, normalizedLocation]
   );
   const activeSideMenuKey = activeSideMenuIds.join(",");
 
@@ -112,7 +131,18 @@ export default function SubPageLayout({
               <>
                 <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
                 {parentHref ? (
-                  <Link href={parentHref} className="hover:text-[#1B5E20] transition-colors">{parentLabel}</Link>
+                  isExternalSiteHref(parentHref) ? (
+                    <a
+                      href={parentHref}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="hover:text-[#1B5E20] transition-colors"
+                    >
+                      {parentLabel}
+                    </a>
+                  ) : (
+                    <Link href={parentHref} className="hover:text-[#1B5E20] transition-colors">{parentLabel}</Link>
+                  )
                 ) : (
                   <span>{parentLabel}</span>
                 )}
@@ -141,23 +171,35 @@ export default function SubPageLayout({
                   {sideMenuItems.map((item) => {
                     const hasSubItems = Boolean(item.subItems?.length);
                     const isOpen = openSideMenuIds.has(item.id);
+                    const activeItem = isItemActive(item);
 
                     return (
                       <li key={item.id}>
                         {hasSubItems && item.href ? (
                           <div
                             className={`flex items-stretch border-b border-gray-100 last:border-0 transition-colors ${
-                              item.isActive
+                              activeItem
                                 ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
                                 : "text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
                             }`}
                           >
-                            <Link
-                              href={item.href}
-                              className="flex min-w-0 flex-1 items-center px-4 py-3 text-sm"
-                            >
-                              <span className="truncate">{item.label}</span>
-                            </Link>
+                            {isExternalSiteHref(item.href) ? (
+                              <a
+                                href={item.href}
+                                target="_blank"
+                                rel="noreferrer noopener"
+                                className="flex min-w-0 flex-1 items-center px-4 py-3 text-sm"
+                              >
+                                <span className="truncate">{item.label}</span>
+                              </a>
+                            ) : (
+                              <Link
+                                href={item.href}
+                                className="flex min-w-0 flex-1 items-center px-4 py-3 text-sm"
+                              >
+                                <span className="truncate">{item.label}</span>
+                              </Link>
+                            )}
                             <button
                               type="button"
                               aria-expanded={isOpen}
@@ -178,7 +220,7 @@ export default function SubPageLayout({
                             aria-expanded={isOpen}
                             onClick={() => toggleSideMenu(item.id)}
                             className={`flex w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm border-b border-gray-100 last:border-0 transition-colors ${
-                              item.isActive
+                              activeItem
                                 ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
                                 : "text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
                             }`}
@@ -191,20 +233,35 @@ export default function SubPageLayout({
                             )}
                           </button>
                         ) : item.href ? (
-                          <Link
-                            href={item.href}
-                            className={`block px-4 py-3 text-sm border-b border-gray-100 last:border-0 transition-colors ${
-                              item.isActive
-                                ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
-                                : "text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
-                            }`}
-                          >
-                            {item.label}
-                          </Link>
+                          isExternalSiteHref(item.href) ? (
+                            <a
+                              href={item.href}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              className={`block px-4 py-3 text-sm border-b border-gray-100 last:border-0 transition-colors ${
+                                activeItem
+                                  ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
+                                  : "text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
+                              }`}
+                            >
+                              {item.label}
+                            </a>
+                          ) : (
+                            <Link
+                              href={item.href}
+                              className={`block px-4 py-3 text-sm border-b border-gray-100 last:border-0 transition-colors ${
+                                activeItem
+                                  ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
+                                  : "text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
+                              }`}
+                            >
+                              {item.label}
+                            </Link>
+                          )
                         ) : (
                           <span
                             className={`block px-4 py-3 text-sm border-b border-gray-100 last:border-0 ${
-                              item.isActive
+                              activeItem
                                 ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
                                 : "text-gray-400"
                             }`}
@@ -214,32 +271,50 @@ export default function SubPageLayout({
                         )}
                         {hasSubItems && isOpen && (
                           <ul className="bg-white border-t border-gray-100">
-                            {item.subItems?.map((subItem) => (
-                              <li key={subItem.id}>
-                                {subItem.href ? (
-                                  <Link
-                                    href={subItem.href}
-                                    className={`block py-2.5 pl-7 pr-4 text-xs border-b border-gray-100 last:border-0 transition-colors ${
-                                      subItem.isActive
-                                        ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
-                                        : "text-gray-500 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
-                                    }`}
-                                  >
-                                    {subItem.label}
-                                  </Link>
-                                ) : (
-                                  <span
-                                    className={`block py-2.5 pl-7 pr-4 text-xs border-b border-gray-100 last:border-0 ${
-                                      subItem.isActive
-                                        ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
-                                        : "text-gray-400"
-                                    }`}
-                                  >
-                                    {subItem.label}
-                                  </span>
-                                )}
-                              </li>
-                            ))}
+                            {item.subItems?.map((subItem) => {
+                              const activeSubItem = isSubItemActive(subItem);
+                              return (
+                                <li key={subItem.id}>
+                                  {subItem.href ? (
+                                    isExternalSiteHref(subItem.href) ? (
+                                      <a
+                                        href={subItem.href}
+                                        target="_blank"
+                                        rel="noreferrer noopener"
+                                        className={`block py-2.5 pl-7 pr-4 text-xs border-b border-gray-100 last:border-0 transition-colors ${
+                                          activeSubItem
+                                            ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
+                                            : "text-gray-500 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
+                                        }`}
+                                      >
+                                        {subItem.label}
+                                      </a>
+                                    ) : (
+                                      <Link
+                                        href={subItem.href}
+                                        className={`block py-2.5 pl-7 pr-4 text-xs border-b border-gray-100 last:border-0 transition-colors ${
+                                          activeSubItem
+                                            ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
+                                            : "text-gray-500 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
+                                        }`}
+                                      >
+                                        {subItem.label}
+                                      </Link>
+                                    )
+                                  ) : (
+                                    <span
+                                      className={`block py-2.5 pl-7 pr-4 text-xs border-b border-gray-100 last:border-0 ${
+                                        activeSubItem
+                                          ? "bg-[#F1F8E9] text-[#1B5E20] font-semibold"
+                                          : "text-gray-400"
+                                      }`}
+                                    >
+                                      {subItem.label}
+                                    </span>
+                                  )}
+                                </li>
+                              );
+                            })}
                           </ul>
                         )}
                       </li>
@@ -299,6 +374,8 @@ export default function SubPageLayout({
                   <a
                     key={i}
                     href={s.href}
+                    target={isExternalSiteHref(s.href) ? "_blank" : undefined}
+                    rel={isExternalSiteHref(s.href) ? "noreferrer noopener" : undefined}
                     aria-label={s.label}
                     className="w-9 h-9 rounded-full border border-gray-700 flex items-center justify-center text-gray-400 hover:bg-[#1B5E20] hover:border-[#1B5E20] hover:text-white transition-colors text-sm"
                   >

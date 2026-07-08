@@ -32,6 +32,17 @@ type RankingResponse = {
   rankings: RankingEntry[];
 };
 
+type FaithPlusUser = {
+  userId: number;
+  displayName: string;
+  churchName: string | null;
+  profilePhoto: string | null;
+  totalScore: number;
+  totalBibleDays: number;
+  totalPrayerCount: number;
+  worshipCount: number;
+};
+
 const FAITHPLUS_BASE_URL =
   process.env.FAITHPLUS_API_BASE_URL?.replace(/\/+$/, "") ||
   "https://faithplus.co.kr";
@@ -165,6 +176,81 @@ function normalizeRankingResponse(
   };
 }
 
+function normalizeFaithPlusUser(value: unknown): FaithPlusUser | null {
+  if (!isRecord(value)) return null;
+
+  const userId = pickNumber(value, ["userId", "user_id", "id"]);
+  const displayName =
+    pickText(value, ["displayName", "display_name", "name", "userName", "memberName"]) ?? "";
+  if (!userId || !displayName) return null;
+
+  return {
+    userId,
+    displayName,
+    churchName: pickText(value, ["churchName", "church_name", "church"]),
+    profilePhoto: pickText(value, ["profilePhoto", "profile_photo", "photoUrl", "avatarUrl", "imageUrl"]),
+    totalScore: pickNumber(value, ["totalScore", "total_score", "score", "points"]) ?? 0,
+    totalBibleDays: pickNumber(value, ["totalBibleDays", "total_bible_days", "bibleDays", "bible_days"]) ?? 0,
+    totalPrayerCount: pickNumber(value, ["totalPrayerCount", "total_prayer_count", "prayerCount", "prayer_count"]) ?? 0,
+    worshipCount: pickNumber(value, ["worshipCount", "worship_count", "totalWorshipCount"]) ?? 0,
+  };
+}
+
+async function searchFaithPlusUsers(name: string) {
+  const url = new URL("/api/search", FAITHPLUS_BASE_URL);
+  url.searchParams.set("name", name);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "joych-homepage/1.0",
+      },
+      signal: controller.signal,
+    });
+
+    const text = await response.text();
+    if (!response.ok) {
+      throw new TRPCError({
+        code: "BAD_GATEWAY",
+        message: "FaithPlus 이용자 검색 데이터를 불러오지 못했습니다.",
+      });
+    }
+
+    let raw: unknown;
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      throw new TRPCError({
+        code: "BAD_GATEWAY",
+        message: "FaithPlus 이용자 검색 응답 형식이 올바르지 않습니다.",
+      });
+    }
+
+    const users = isRecord(raw) && Array.isArray(raw.users)
+      ? raw.users
+      : Array.isArray(raw)
+        ? raw
+        : [];
+
+    return {
+      users: users
+        .map((user) => normalizeFaithPlusUser(user))
+        .filter((user): user is FaithPlusUser => Boolean(user)),
+    };
+  } catch (error) {
+    if (error instanceof TRPCError) throw error;
+    throw new TRPCError({
+      code: "BAD_GATEWAY",
+      message: "FaithPlus 이용자 검색 서버에 연결하지 못했습니다.",
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function fetchFaithPlusRankings(input: {
   period: RankingPeriod;
   metric: RankingMetric;
@@ -220,6 +306,15 @@ async function fetchFaithPlusRankings(input: {
 }
 
 export const playgroundRouter = router({
+  searchUsers: publicProcedure
+    .input(
+      z.object({
+        name: z.string().trim().min(2, "이름을 2글자 이상 입력해 주세요.").max(40),
+      })
+    )
+    .query(async ({ input }) => {
+      return searchFaithPlusUsers(input.name);
+    }),
   rankings: publicProcedure
     .input(
       z.object({

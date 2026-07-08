@@ -105,10 +105,6 @@ export default function SitewideAdminEditor() {
             setAdminToolsOpen(false);
             setAffiliatePanelOpen(true);
           }}
-          onOpenGallery={() => {
-            setAdminToolsOpen(false);
-            setGalleryPanelOpen(true);
-          }}
           onOpenHero={() => {
             setAdminToolsOpen(false);
             setHeroPanelOpen(true);
@@ -120,10 +116,6 @@ export default function SitewideAdminEditor() {
           onOpenMenu={() => {
             setAdminToolsOpen(false);
             setMenuPanelOpen(true);
-          }}
-          onOpenNotice={() => {
-            setAdminToolsOpen(false);
-            setNoticePanelOpen(true);
           }}
           onOpenQuickMenu={() => {
             setAdminToolsOpen(false);

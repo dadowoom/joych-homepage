@@ -21,6 +21,7 @@ import HomeVision from "./home/HomeVision";
 import HomeWorshipPhoto from "./home/HomeWorshipPhoto";
 import {
   getUsableHref,
+  isExternalHref,
   type HomeFeatureCard,
   type HomeSectionConfig,
 } from "./home/_helpers";
@@ -541,10 +542,6 @@ export default function Home() {
               setAdminToolsOpen(false);
               setAffiliatePanelOpen(true);
             }}
-            onOpenGallery={() => {
-              setAdminToolsOpen(false);
-              setGalleryPanelOpen(true);
-            }}
             onOpenHero={() => {
               setAdminToolsOpen(false);
               setHeroPanelOpen(true);
@@ -556,10 +553,6 @@ export default function Home() {
             onOpenMenu={() => {
               setAdminToolsOpen(false);
               setMenuPanelOpen(true);
-            }}
-            onOpenNotice={() => {
-              setAdminToolsOpen(false);
-              setNoticePanelOpen(true);
             }}
             onOpenQuickMenu={() => {
               setAdminToolsOpen(false);
@@ -794,11 +787,18 @@ export default function Home() {
             >
               {currentHeroButtons.map((button, index) => {
                 const { className, style } = getHeroButtonPresentation(button, index);
+                const href = getUsableHref(
+                  button.href,
+                  DEFAULT_HERO_BUTTONS[index]?.href ?? "#"
+                );
+                const openInNewTab = isExternalHref(href);
 
                 return (
                   <a
                     key={`${button.label}-${button.href}-${index}`}
-                    href={getUsableHref(button.href, DEFAULT_HERO_BUTTONS[index]?.href ?? "#")}
+                    href={href}
+                    target={openInNewTab ? "_blank" : undefined}
+                    rel={openInNewTab ? "noreferrer noopener" : undefined}
                     className={`px-5 md:px-7 py-2.5 md:py-3 text-xs md:text-sm font-medium rounded transition-colors ${className}`}
                     style={style}
                   >

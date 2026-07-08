@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
+
 type MemberAlertSummaryItem = {
   id: number;
   name: string;
@@ -21,6 +24,7 @@ function MetaLine({ member }: { member: MemberAlertSummaryItem }) {
   if (parts.length === 0) {
     return <p className="text-xs text-gray-500">등록 정보 확인 필요</p>;
   }
+
   return <p className="text-xs text-gray-500">{parts.join(" · ")}</p>;
 }
 
@@ -71,7 +75,7 @@ function MemberList({
         <p className="py-5 text-sm text-gray-500">{emptyText}</p>
       ) : (
         <div className="divide-y divide-gray-100">
-          {items.slice(0, 6).map(member => (
+          {items.slice(0, 6).map((member) => (
             <div
               key={member.id}
               className="flex items-start justify-between gap-3 py-3"
@@ -102,6 +106,8 @@ export default function AdminMemberAlerts({
   isLoading = false,
   errorMessage,
 }: AdminMemberAlertsProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   return (
     <section className="rounded-xl border border-[#D7F0D8] bg-[#F7FBF7] p-5 shadow-sm">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -146,26 +152,43 @@ export default function AdminMemberAlerts({
         <SummaryCard label="최근 30일 등록" count={last30Days.length} tone="blue" />
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-3">
-        <MemberList
-          title="오늘 생일 성도"
-          emptyText={isLoading ? "불러오는 중입니다." : "오늘 생일인 성도가 없습니다."}
-          items={birthdaysToday}
-          dateLabel={member => member.birthDate?.slice(5) ?? null}
-        />
-        <MemberList
-          title="최근 7일 등록"
-          emptyText={isLoading ? "불러오는 중입니다." : "최근 7일 등록 성도가 없습니다."}
-          items={last7Days}
-          dateLabel={member => member.effectiveRegisteredAt ?? null}
-        />
-        <MemberList
-          title="최근 30일 등록"
-          emptyText={isLoading ? "불러오는 중입니다." : "최근 30일 등록 성도가 없습니다."}
-          items={last30Days}
-          dateLabel={member => member.effectiveRegisteredAt ?? null}
-        />
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <p className="text-xs text-gray-500">
+          상세 목록은 필요할 때만 펼쳐서 보도록 바꿨습니다.
+        </p>
+        <button
+          type="button"
+          onClick={() => setIsExpanded((current) => !current)}
+          className="inline-flex items-center gap-2 rounded-lg border border-[#D7F0D8] bg-white px-3 py-2 text-sm font-semibold text-[#1B5E20] transition-colors hover:bg-[#F1F8F2]"
+          aria-expanded={isExpanded}
+        >
+          {isExpanded ? "상세 접기" : "상세 보기"}
+          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </button>
       </div>
+
+      {isExpanded ? (
+        <div className="mt-4 grid gap-4 xl:grid-cols-3">
+          <MemberList
+            title="오늘 생일 성도"
+            emptyText={isLoading ? "불러오는 중입니다." : "오늘 생일인 성도가 없습니다."}
+            items={birthdaysToday}
+            dateLabel={(member) => member.birthDate?.slice(5) ?? null}
+          />
+          <MemberList
+            title="최근 7일 등록"
+            emptyText={isLoading ? "불러오는 중입니다." : "최근 7일 등록 성도가 없습니다."}
+            items={last7Days}
+            dateLabel={(member) => member.effectiveRegisteredAt ?? null}
+          />
+          <MemberList
+            title="최근 30일 등록"
+            emptyText={isLoading ? "불러오는 중입니다." : "최근 30일 등록 성도가 없습니다."}
+            items={last30Days}
+            dateLabel={(member) => member.effectiveRegisteredAt ?? null}
+          />
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -36,8 +36,7 @@ function getEffectiveLeafAccess(...rows: ReadableMenuLeaf[]) {
 }
 
 function getTopMenuAccessForChild(menu: ReadableMenuLeaf) {
-  if (menu.href) return menu;
-  return { allowGuest: true, allowMember: true };
+  return menu;
 }
 
 function shouldShowMenuLeaf(row: ReadableMenuLeaf) {
@@ -578,8 +577,11 @@ export async function reorderMenuSubItems(items: { id: number; sortOrder: number
 export async function getMenuItemByHref(href: string) {
   const db = await getDb();
   if (!db) return null;
-  const rows = await db.select().from(menuItems).where(eq(menuItems.href, href)).limit(1);
-  return rows[0] ?? null;
+  for (const candidate of getMenuHrefCandidates(href)) {
+    const rows = await db.select().from(menuItems).where(eq(menuItems.href, candidate)).limit(1);
+    if (rows[0]) return rows[0];
+  }
+  return null;
 }
 
 /**
@@ -588,10 +590,16 @@ export async function getMenuItemByHref(href: string) {
 export async function getVisibleMenuItemByHref(href: string, access: MenuReadAccess = "guest") {
   const db = await getDb();
   if (!db) return null;
-  const rows = await db.select().from(menuItems)
-    .where(and(eq(menuItems.href, href), eq(menuItems.isVisible, true)))
-    .limit(1);
-  const item = rows[0];
+  let item: (typeof menuItems.$inferSelect) | undefined;
+  for (const candidate of getMenuHrefCandidates(href)) {
+    const rows = await db.select().from(menuItems)
+      .where(and(eq(menuItems.href, candidate), eq(menuItems.isVisible, true)))
+      .limit(1);
+    if (rows[0]) {
+      item = rows[0];
+      break;
+    }
+  }
   if (!item) return null;
 
   const parentRows = await db.select().from(menus)
@@ -610,8 +618,11 @@ export async function getVisibleMenuItemByHref(href: string, access: MenuReadAcc
 export async function getMenuSubItemByHref(href: string) {
   const db = await getDb();
   if (!db) return null;
-  const rows = await db.select().from(menuSubItems).where(eq(menuSubItems.href, href)).limit(1);
-  return rows[0] ?? null;
+  for (const candidate of getMenuHrefCandidates(href)) {
+    const rows = await db.select().from(menuSubItems).where(eq(menuSubItems.href, candidate)).limit(1);
+    if (rows[0]) return rows[0];
+  }
+  return null;
 }
 
 /**
@@ -620,10 +631,16 @@ export async function getMenuSubItemByHref(href: string) {
 export async function getVisibleMenuSubItemByHref(href: string, access: MenuReadAccess = "guest") {
   const db = await getDb();
   if (!db) return null;
-  const rows = await db.select().from(menuSubItems)
-    .where(and(eq(menuSubItems.href, href), eq(menuSubItems.isVisible, true)))
-    .limit(1);
-  const subItem = rows[0];
+  let subItem: (typeof menuSubItems.$inferSelect) | undefined;
+  for (const candidate of getMenuHrefCandidates(href)) {
+    const rows = await db.select().from(menuSubItems)
+      .where(and(eq(menuSubItems.href, candidate), eq(menuSubItems.isVisible, true)))
+      .limit(1);
+    if (rows[0]) {
+      subItem = rows[0];
+      break;
+    }
+  }
   if (!subItem) return null;
 
   const itemRows = await db.select().from(menuItems)

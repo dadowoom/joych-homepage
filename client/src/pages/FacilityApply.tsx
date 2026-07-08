@@ -13,6 +13,7 @@ import type { FacilityBlockedDate } from "../../../drizzle/schema";
 import { toast } from "sonner";
 import { Loader2, ChevronRight, Clock, Users, MapPin, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import MemberOnlyContentNotice from "@/components/MemberOnlyContentNotice";
 import ReservationConflictDialog, {
   isReservationConflictMessage,
 } from "@/components/facility/ReservationConflictDialog";
@@ -202,7 +203,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     refetchOnWindowFocus: false,
     enabled: !isExternal,
   });
-  const { data: authMe } = trpc.auth.me.useQuery(undefined, {
+  const { data: authMe, isLoading: authLoading } = trpc.auth.me.useQuery(undefined, {
     retry: false,
     refetchOnWindowFocus: false,
     enabled: !isExternal,
@@ -214,6 +215,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     (hasContentPermission(authMe, "content:reservations") ||
       hasContentPermission(authMe, "content:facilities"));
   const canReserveFacility = isExternal || (isApprovedMember && !hasFacilityReservationBlockedMemberMarker(memberMe ?? {}));
+  const canBypassMemberGate = isExternal || isApprovedMember || hasReservationOverride;
 
   // URL 쿼리 파라미터에서 날짜/시간 읽기
   const searchString = useSearch();
@@ -608,6 +610,28 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
       onClose={() => setReservationConflictMessage(null)}
     />
   );
+
+  if (!isExternal && (memberLoading || authLoading)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F7F7F5]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#1B5E20]" />
+      </div>
+    );
+  }
+
+  if (!canBypassMemberGate) {
+    return (
+      <div className="min-h-screen bg-[#F7F7F5] px-4 py-8 sm:py-12">
+        <div className="mx-auto max-w-5xl">
+          <MemberOnlyContentNotice
+            resourceLabel="시설 사용 예약"
+            description="시설 사용 예약 신청은 성도 로그인 후 이용할 수 있습니다. 성도 로그인 후 다시 확인해 주세요."
+            fallbackPath={`/facility/${facilityId}/apply`}
+          />
+        </div>
+      </div>
+    );
+  }
 
   if (loadingFacility) {
     return (

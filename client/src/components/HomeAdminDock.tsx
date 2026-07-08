@@ -2,12 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import {
   Building2,
   House,
-  Images,
   LayoutGrid,
   LogOut,
   Menu,
   MonitorPlay,
-  Newspaper,
   PencilLine,
   Shield,
   X,
@@ -18,11 +16,9 @@ import { cn } from "@/lib/utils";
 const LABEL_EDIT_TOOLS = "\uD3B8\uC9D1 \uB3C4\uAD6C";
 const LABEL_HOME_SECTIONS = "\uD648\uC139\uC158 \uD3B8\uC9D1";
 const LABEL_MENU = "\uBA54\uB274 \uD3B8\uC9D1";
-const LABEL_NOTICE = "\uAD50\uD68C \uC18C\uC2DD \uD3B8\uC9D1";
 const LABEL_HERO = "\uC2AC\uB77C\uC774\uB4DC \uD3B8\uC9D1";
 const LABEL_QUICK_MENU = "\uD035\uBA54\uB274 \uD3B8\uC9D1";
 const LABEL_AFFILIATES = "\uAD00\uB828\uAE30\uAD00 \uD3B8\uC9D1";
-const LABEL_GALLERY = "\uAC24\uB7EC\uB9AC \uD3B8\uC9D1";
 const LABEL_DASHBOARD = "\uAD00\uB9AC\uC790 \uB300\uC2DC\uBCF4\uB4DC";
 const LABEL_LOGOUT = "\uB85C\uADF8\uC544\uC6C3";
 const LABEL_LOGGING_OUT = "\uB85C\uADF8\uC544\uC6C3 \uC911";
@@ -44,11 +40,9 @@ type HomeAdminDockProps = {
   onClose: () => void;
   onLogout: () => void;
   onOpenAffiliates: () => void;
-  onOpenGallery: () => void;
   onOpenHero: () => void;
   onOpenHomeSections: () => void;
   onOpenMenu: () => void;
-  onOpenNotice: () => void;
   onOpenQuickMenu: () => void;
   onToggle: () => void;
 };
@@ -152,11 +146,9 @@ export default function HomeAdminDock({
   onClose,
   onLogout,
   onOpenAffiliates,
-  onOpenGallery,
   onOpenHero,
   onOpenHomeSections,
   onOpenMenu,
-  onOpenNotice,
   onOpenQuickMenu,
   onToggle,
 }: HomeAdminDockProps) {
@@ -381,11 +373,6 @@ export default function HomeAdminDock({
                 onClick={onOpenMenu}
               />
               <ActionButton
-                icon={<Newspaper className="size-4" />}
-                label={LABEL_NOTICE}
-                onClick={onOpenNotice}
-              />
-              <ActionButton
                 icon={<MonitorPlay className="size-4" />}
                 label={LABEL_HERO}
                 onClick={onOpenHero}
@@ -399,11 +386,6 @@ export default function HomeAdminDock({
                 icon={<Building2 className="size-4" />}
                 label={LABEL_AFFILIATES}
                 onClick={onOpenAffiliates}
-              />
-              <ActionButton
-                icon={<Images className="size-4" />}
-                label={LABEL_GALLERY}
-                onClick={onOpenGallery}
               />
             </div>
 

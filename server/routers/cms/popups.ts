@@ -27,13 +27,18 @@ const placementSchema = z.enum(["modal", "top_banner", "bottom_sheet"]);
 const audienceSchema = z.enum(["all", "member"]);
 const nullableDateSchema = z.coerce.date().nullable().optional();
 const popupProcedure = adminPermissionProcedure("content:popups");
+const popupOptionalImageSchema = z.union([safeAssetUrlSchema, z.null()]).optional();
+const popupOptionalButtonLabelSchema = z
+  .union([z.string().trim().max(64, "64자 이하로 입력해주세요."), z.null()])
+  .optional();
+const popupOptionalHrefSchema = z.union([safeHrefSchema, z.null()]).optional();
 
 const popupCreateFields = {
   title: requiredTextSchema(160, "팝업 제목을 입력해주세요."),
   content: optionalTextSchema(10000),
-  imageUrl: safeAssetUrlSchema.optional(),
-  linkLabel: optionalTextSchema(64),
-  linkHref: safeHrefSchema.optional(),
+  imageUrl: popupOptionalImageSchema,
+  linkLabel: popupOptionalButtonLabelSchema,
+  linkHref: popupOptionalHrefSchema,
   placement: placementSchema.default("modal"),
   audience: audienceSchema.default("all"),
   isActive: z.boolean().default(true),
@@ -48,9 +53,9 @@ const popupCreateFields = {
 const popupUpdateFields = {
   title: requiredTextSchema(160, "팝업 제목을 입력해주세요.").optional(),
   content: optionalTextSchema(10000),
-  imageUrl: safeAssetUrlSchema.optional(),
-  linkLabel: optionalTextSchema(64),
-  linkHref: safeHrefSchema.optional(),
+  imageUrl: popupOptionalImageSchema,
+  linkLabel: popupOptionalButtonLabelSchema,
+  linkHref: popupOptionalHrefSchema,
   placement: placementSchema.optional(),
   audience: audienceSchema.optional(),
   isActive: z.boolean().optional(),
@@ -66,8 +71,9 @@ const validatePopupRules = <
   T extends {
     startAt?: Date | null;
     endAt?: Date | null;
-    linkLabel?: string;
-    linkHref?: string;
+    imageUrl?: string | null;
+    linkLabel?: string | null;
+    linkHref?: string | null;
   },
 >(
   schema: z.ZodType<T>
@@ -108,15 +114,15 @@ export function normalizePopupWriteData(data: PopupWriteData | PopupUpdateData):
   } as PopupNormalizedData;
 
   if ("imageUrl" in data) {
-    normalized.imageUrl = (data as PopupWriteData | PopupUpdateData).imageUrl ?? null;
+    normalized.imageUrl = data.imageUrl ?? null;
   }
 
   if ("linkLabel" in data) {
-    normalized.linkLabel = (data as PopupWriteData | PopupUpdateData).linkLabel ?? null;
+    normalized.linkLabel = data.linkLabel ?? null;
   }
 
   if ("linkHref" in data) {
-    normalized.linkHref = (data as PopupWriteData | PopupUpdateData).linkHref ?? null;
+    normalized.linkHref = data.linkHref ?? null;
   }
 
   return normalized;

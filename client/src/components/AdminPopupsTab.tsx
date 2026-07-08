@@ -194,9 +194,9 @@ function normalizePayload(form: PopupForm) {
   return {
     title: form.title.trim(),
     content: "",
-    imageUrl: form.imageUrl.trim() || undefined,
-    linkLabel: form.linkLabel.trim() || undefined,
-    linkHref: form.linkHref.trim() || undefined,
+    imageUrl: form.imageUrl.trim() || null,
+    linkLabel: form.linkLabel.trim() || null,
+    linkHref: form.linkHref.trim() || null,
     placement: "modal" as const,
     audience: form.audience,
     isActive: form.isActive,

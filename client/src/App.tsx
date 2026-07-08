@@ -5,6 +5,8 @@ import SiteHeader from "@/components/SiteHeader";
 import SitewideAdminEditor from "@/components/SitewideAdminEditor";
 import MobilePushNotificationPrompt from "@/components/MobilePushNotificationPrompt";
 import MenuAccessGate from "@/components/MenuAccessGate";
+import { trpc } from "@/lib/trpc";
+import { findCourseRoomBySlug } from "@/lib/courseRoutes";
 import NotFound from "@/pages/NotFound";
 import { lazy, Suspense, useEffect } from "react";
 import { Route, Switch, useLocation, type RouteComponentProps } from "wouter";
@@ -16,6 +18,7 @@ const AdminPage = lazy(() => import("./pages/Admin"));
 const Sitemap = lazy(() => import("./pages/Sitemap"));
 const FaithData = lazy(() => import("./pages/FaithData"));
 const ChurchDirectory = lazy(() => import("./pages/ChurchDirectory"));
+const SearchPage = lazy(() => import("./pages/SearchPage"));
 const PlaygroundRankings = lazy(() => import("./pages/PlaygroundRankings"));
 const LegacyVodPage = lazy(() => import("./pages/LegacyVodPage"));
 const MemberRegister = lazy(() => import("./pages/MemberRegister"));
@@ -89,6 +92,26 @@ function GuardedPastorBookDetailPage(props: RouteComponentProps<{ id: string }>)
       <PastorBookDetailPage {...props} />
     </MenuAccessGate>
   );
+}
+
+function CourseRoomPage(props: RouteComponentProps<{ slug: string }>) {
+  const slug = props.params.slug;
+  const { data: menus, isLoading } = trpc.home.menus.useQuery();
+  const room = findCourseRoomBySlug(menus, slug);
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[320px] items-center justify-center text-sm text-gray-400">
+        불러오는 중...
+      </div>
+    );
+  }
+
+  if (!room?.href) {
+    return <NotFound />;
+  }
+
+  return <CourseList pageHref={room.href} title={room.label} showHero={false} />;
 }
 const DynamicMenuItemPage = lazy(() =>
   import("./pages/DynamicPage").then(module => ({
@@ -335,6 +358,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/faith-data" component={FaithData} />
       <Route path="/church-directory" component={ChurchDirectory} />
+      <Route path="/search" component={SearchPage} />
       <Route path="/playground" component={PlaygroundRankings} />
       <Route path="/legacy-vod/:pageCode/:num/:vodType" component={LegacyVodPage} />
 
@@ -346,9 +370,20 @@ function Router() {
       <Route path="/about/pastor/books"><MenuAccessGate href="/about/pastor/books"><PastorBooksPage /></MenuAccessGate></Route>
       <Route path="/about/staff/associate"><MenuAccessGate href="/about/staff/associate"><StaffPage /></MenuAccessGate></Route>
       <Route path="/about/staff"><MenuAccessGate href="/about/staff"><StaffPage /></MenuAccessGate></Route>
+      <Route path="/page/교회소개-담임목사-소개"><MenuAccessGate href="/about/pastor"><PastorGreeting /></MenuAccessGate></Route>
       <Route path="/page/교회소개-담임목사-저서"><MenuAccessGate href="/about/pastor/books"><PastorBooksPage /></MenuAccessGate></Route>
+      <Route path="/page/교회소개-담임목사-소개-담임목사저서"><MenuAccessGate href="/about/pastor/books"><PastorBooksPage /></MenuAccessGate></Route>
+      <Route path="/page/교회소개-담임목사-소개-담임목사-저서"><MenuAccessGate href="/about/pastor/books"><PastorBooksPage /></MenuAccessGate></Route>
+      <Route path="/page/교회소개-담임목사소개-담임목사저서"><MenuAccessGate href="/about/pastor/books"><PastorBooksPage /></MenuAccessGate></Route>
+      <Route path="/page/교회소개-담임목사소개-담임목사-저서"><MenuAccessGate href="/about/pastor/books"><PastorBooksPage /></MenuAccessGate></Route>
       <Route path="/page/교회소개-섬기는-분"><MenuAccessGate href="/about/staff"><StaffPage /></MenuAccessGate></Route>
       <Route path="/page/교회소개-부교역자"><MenuAccessGate href="/about/staff/associate"><StaffPage /></MenuAccessGate></Route>
+      <Route path="/page/교회소개-3대-비전"><MenuAccessGate href="/about/vision"><ChurchVision /></MenuAccessGate></Route>
+      <Route path="/page/교회소개-교회역사"><MenuAccessGate href="/about/history"><ChurchHistory /></MenuAccessGate></Route>
+      <Route path="/page/교회소개-교회-역사"><MenuAccessGate href="/about/history"><ChurchHistory /></MenuAccessGate></Route>
+      <Route path="/page/교회소개-교회연혁"><MenuAccessGate href="/about/history"><ChurchHistory /></MenuAccessGate></Route>
+      <Route path="/page/교회소개-교회-연혁"><MenuAccessGate href="/about/history"><ChurchHistory /></MenuAccessGate></Route>
+      <Route path="/page/교회소개-교회백서"><MenuAccessGate href="/about/whitebook"><WhiteBookPage /></MenuAccessGate></Route>
       <Route path="/about/whitebook" component={WhiteBookPage} />
       <Route path="/about/principle" component={MinistryPrinciplePage} />
       <Route path="/about/ci" component={CIPage} />
@@ -367,6 +402,7 @@ function Router() {
       <Route path="/worship/tv/feature"><MenuAccessGate href="/worship/tv/feature"><SpecialFeaturePage /></MenuAccessGate></Route>
       <Route path="/worship/tv/testimony"><MenuAccessGate href="/worship/tv/testimony"><TestimonyPage /></MenuAccessGate></Route>
       <Route path="/worship/tv/praise"><MenuAccessGate href="/worship/tv/praise"><PraisePage /></MenuAccessGate></Route>
+      <Route path="/page/조이풀tv-주일예배"><MenuAccessGate href="/worship/tv/sunday"><SundayWorshipPage /></MenuAccessGate></Route>
       <Route path="/worship/schedule" component={DynamicMenuHrefPage} />
       <Route path="/worship/bulletin/:id"><MenuAccessGate href="/worship/bulletin"><BulletinDetail /></MenuAccessGate></Route>
       <Route path="/worship/bulletin"><MenuAccessGate href="/worship/bulletin"><Bulletin /></MenuAccessGate></Route>
@@ -375,7 +411,8 @@ function Router() {
       <Route path="/education/new-member" component={NewMember} />
       <Route path="/education/disciple" component={DiscipleTraining} />
       <Route path="/education/bible" component={BibleStudy} />
-      <Route path="/education/courses"><MenuAccessGate href="/education/courses"><CourseList /></MenuAccessGate></Route>
+      <Route path="/education/courses/:slug" component={CourseRoomPage} />
+      <Route path="/education/courses"><MenuAccessGate href="/education/courses"><CourseList showHero={false} /></MenuAccessGate></Route>
       <Route path="/education/hesed" component={HesedAsiaPage} />
       <Route path="/education/disciple2" component={DiscipleTrainingPage} />
       <Route path="/education/elder" component={ElderTrainingPage} />
@@ -400,9 +437,9 @@ function Router() {
       <Route path="/school/young-adult" component={YoungAdultDept} />
 
       {/* 사역/선교 */}
-      <Route path="/mission-work/domestic" component={DomesticMission} />
-      <Route path="/mission-work/overseas" component={OverseasMission} />
-      <Route path="/mission-work/volunteer" component={Volunteer} />
+      <Route path="/mission-work/domestic"><MenuAccessGate href="/mission"><DomesticMission /></MenuAccessGate></Route>
+      <Route path="/mission-work/overseas"><MenuAccessGate href="/mission"><OverseasMission /></MenuAccessGate></Route>
+      <Route path="/mission-work/volunteer"><MenuAccessGate href="/mission"><Volunteer /></MenuAccessGate></Route>
       <Route path="/mission/write"><MenuAccessGate href="/mission"><MissionReportEditor /></MenuAccessGate></Route>
       <Route path="/mission/edit/:id"><MenuAccessGate href="/mission"><MissionReportEditor /></MenuAccessGate></Route>
       <Route path="/mission/:id"><MenuAccessGate href="/mission"><MissionDetail /></MenuAccessGate></Route>
@@ -410,11 +447,13 @@ function Router() {
 
       {/* 커뮤니티 */}
       <Route path="/community/news"><MenuAccessGate href="/community/news"><ChurchNews /></MenuAccessGate></Route>
+      <Route path="/page/행정지원-공지사항"><MenuAccessGate href="/community/news"><ChurchNews /></MenuAccessGate></Route>
       <Route path="/community/prayer" component={PrayerRequest} />
       <Route path="/community/soon" component={SunMeetingPage} />
       <Route path="/community/organization" component={OrganizationPage} />
       <Route path="/community/club" component={ClubPage} />
       <Route path="/community/photo"><MenuAccessGate href="/community/photo"><PhotoPage /></MenuAccessGate></Route>
+      <Route path="/page/커뮤니티-최근-행사-사진"><MenuAccessGate href="/community/photo"><PhotoPage /></MenuAccessGate></Route>
       <Route path="/community/testimony/write"><MenuAccessGate href="/community/testimony"><TestimonyEditor /></MenuAccessGate></Route>
       <Route path="/community/testimony/edit/:id"><MenuAccessGate href="/community/testimony"><TestimonyEditor /></MenuAccessGate></Route>
       <Route path="/community/testimony/:id"><MenuAccessGate href="/community/testimony"><TestimonyDetail /></MenuAccessGate></Route>
@@ -464,7 +503,7 @@ function Router() {
       <Route path="/facility/:id"><MenuAccessGate href="/facility"><FacilityDetail /></MenuAccessGate></Route>
 
       {/* 사이트맵 */}
-      <Route path="/sitemap" component={Sitemap} />
+      <Route path="/sitemap"><MenuAccessGate href="/sitemap"><Sitemap /></MenuAccessGate></Route>
 
       {/* 동적 메뉴 페이지 (pageType에 따라 다른 UI 표시) */}
       <Route path="/page/item/:id" component={DynamicMenuItemPage} />
