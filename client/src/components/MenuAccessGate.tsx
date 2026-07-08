@@ -25,6 +25,7 @@ export default function MenuAccessGate({ href, title, children }: MenuAccessGate
   const hasAdminAccess = canManageAnyContent(user);
   const fallbackMatch = findMenuAccessMatchByHref(menus, href);
   const fallbackNode = fallbackMatch?.node;
+  const isSignedIn = Boolean(user);
 
   if (isLoading || authLoading || menusLoading) {
     return (
@@ -38,7 +39,7 @@ export default function MenuAccessGate({ href, title, children }: MenuAccessGate
     return <>{children}</>;
   }
 
-  if (accessInfo?.isReadable) {
+  if (accessInfo?.isReadable || (isSignedIn && isMemberOnlyMenuNode(fallbackNode))) {
     return <>{children}</>;
   }
 
