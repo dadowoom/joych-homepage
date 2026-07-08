@@ -158,8 +158,8 @@ async function publicRouteGuard(
     }
 
     const [item, subItem] = await Promise.all([
-      getVisibleMenuItemByHref(normalizedPath),
-      getVisibleMenuSubItemByHref(normalizedPath),
+      getVisibleMenuItemByHref(normalizedPath, "member"),
+      getVisibleMenuSubItemByHref(normalizedPath, "member"),
     ]);
     if (!item && !subItem) {
       return sendRouteNotFound(res, indexHtmlPath);
