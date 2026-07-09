@@ -76,6 +76,7 @@ type Tab =
   | "popups"
   | "history"
   | "pastorBooks"
+  | "memberDashboard"
   | "menuAccess"
   | "viewModes"
   | "permissions";
@@ -178,6 +179,14 @@ const TABS: TabItem[] = [
     icon: "fa-book-open",
     description: "담임목사 저서 목록, 대표 이미지, 상세 본문을 관리합니다.",
     status: "저서 관리",
+  },
+  {
+    id: "memberDashboard",
+    label: "교적부 홈",
+    icon: "fa-address-card",
+    description:
+      "교적부 바로가기와 성도 알림 요약을 한 화면에서 확인합니다.",
+    status: "요약/바로가기",
   },
   {
     id: "members",
@@ -289,7 +298,13 @@ const TAB_GROUPS: TabGroup[] = [
   {
     title: "성도/사역 관리",
     description: "성도, 섬김이, 선교 소식",
-    tabs: ["members", "staff", "missionReports", "pushBroadcast"],
+    tabs: [
+      "memberDashboard",
+      "members",
+      "staff",
+      "missionReports",
+      "pushBroadcast",
+    ],
   },
   {
     title: "접수/예약 관리",
@@ -319,6 +334,13 @@ const TABS_BY_ID = TABS.reduce(
 );
 
 const VALID_TABS: Tab[] = TABS.map(tab => tab.id);
+const MEMBER_DASHBOARD_SOURCE_TABS: Tab[] = [
+  "members",
+  "memberOptions",
+  "permissions",
+  "pushBroadcast",
+  "supportRequests",
+];
 
 function formatBadgeCount(count: number) {
   return count > 99 ? "99+" : String(count);
@@ -446,7 +468,10 @@ export default function AdminPage() {
       refetchInterval: 60_000,
     });
   const shouldLoadMemberAlertSummary = Boolean(
-    user && !isMobile && user.role === "admin"
+    user &&
+      !isMobile &&
+      user.role === "admin" &&
+      requestedTab === "memberDashboard"
   );
   const {
     data: memberAlertsSummary,
@@ -653,13 +678,16 @@ export default function AdminPage() {
     );
   }
 
-  const permittedTabs = VALID_TABS.filter(tab =>
-    tab === "viewModes"
-      ? canManageAdminTab(user, "menuAccess")
-      : tab === "facilitySchedule" || tab === "externalFacilities"
-        ? canManageAdminTab(user, "facilities")
-        : canManageAdminTab(user, tab)
-  );
+  const canAccessTab = (tab: Tab): boolean =>
+    tab === "memberDashboard"
+      ? MEMBER_DASHBOARD_SOURCE_TABS.some(sourceTab => canAccessTab(sourceTab))
+      : tab === "viewModes"
+        ? canManageAdminTab(user, "menuAccess")
+        : tab === "facilitySchedule" || tab === "externalFacilities"
+          ? canManageAdminTab(user, "facilities")
+          : canManageAdminTab(user, tab);
+
+  const permittedTabs = VALID_TABS.filter(tab => canAccessTab(tab));
 
   const mobileReservationTabs = permittedTabs.filter(tab =>
     tab === "reservations" || tab === "vehicles"
@@ -695,10 +723,13 @@ export default function AdminPage() {
   }
 
   const effectivePermittedTabs = isMobile ? mobileReservationTabs : permittedTabs;
+  const defaultTabs = effectivePermittedTabs.filter(
+    tab => tab !== "memberDashboard"
+  );
   const activeTab: Tab =
     requestedTab && effectivePermittedTabs.includes(requestedTab)
       ? requestedTab
-      : (effectivePermittedTabs[0] ?? "youtube");
+      : (defaultTabs[0] ?? effectivePermittedTabs[0] ?? "youtube");
   const visibleTabGroups = TAB_GROUPS.map(group => ({
     ...group,
     tabs: group.tabs.filter(tab => effectivePermittedTabs.includes(tab)),
@@ -763,9 +794,15 @@ export default function AdminPage() {
     },
   ].filter(item => effectivePermittedTabs.includes(item.tab));
   const showMemberPathway =
-    !isMobile && !isNotificationsView && memberPathwayItems.length > 0;
+    !isMobile &&
+    !isNotificationsView &&
+    activeTab === "memberDashboard" &&
+    memberPathwayItems.length > 0;
   const showMemberAlerts =
-    !isMobile && !isNotificationsView && shouldLoadMemberAlertSummary;
+    !isMobile &&
+    !isNotificationsView &&
+    activeTab === "memberDashboard" &&
+    shouldLoadMemberAlertSummary;
 
   return (
     <div
@@ -1119,7 +1156,7 @@ export default function AdminPage() {
             )}
 
             {/* 선택 탭 요약 */}
-            {!isNotificationsView && (
+            {!isNotificationsView && activeTab !== "memberDashboard" && (
               <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex gap-4">
@@ -1441,7 +1478,7 @@ export default function AdminPage() {
             )}
 
             {/* 탭 콘텐츠 */}
-            {!isNotificationsView && (
+            {!isNotificationsView && activeTab !== "memberDashboard" && (
               <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
                 {activeTab === "settings" && <SettingsTab />}
                 {activeTab === "facilities" && <AdminFacilitiesTab />}

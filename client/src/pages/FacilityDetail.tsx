@@ -329,18 +329,35 @@ function TimeSlotPanel({
     [selectedBlockedDates]
   );
 
+  const preferFacilityDefaultHours =
+    audience === "external" && hasReservationOverride;
+  const reservableOpenTime = hasReservationOverride
+    ? (preferFacilityDefaultHours ? facility?.openTime : todayHour?.openTime) ??
+      todayHour?.openTime ??
+      facility?.openTime
+    : todayHour?.openTime;
+  const reservableCloseTime = hasReservationOverride
+    ? (preferFacilityDefaultHours ? facility?.closeTime : todayHour?.closeTime) ??
+      todayHour?.closeTime ??
+      facility?.closeTime
+    : todayHour?.closeTime;
+
   // Generate selectable start slots within operating hours.
   const allSlots = useMemo(() => {
     if (!hasReservationOverride && (!todayHour || !todayHour.isOpen)) return [];
-    const openTime = hasReservationOverride
-      ? (todayHour?.openTime ?? facility?.openTime)
-      : todayHour?.openTime;
-    const closeTime = hasReservationOverride
-      ? (todayHour?.closeTime ?? facility?.closeTime)
-      : todayHour?.closeTime;
-    if (!openTime || !closeTime) return [];
-    return generateReservationTimePoints(openTime, closeTime, slotMinutes);
-  }, [todayHour, slotMinutes, hasReservationOverride, facility?.openTime, facility?.closeTime]);
+    if (!reservableOpenTime || !reservableCloseTime) return [];
+    return generateReservationTimePoints(
+      reservableOpenTime,
+      reservableCloseTime,
+      slotMinutes
+    );
+  }, [
+    hasReservationOverride,
+    reservableCloseTime,
+    reservableOpenTime,
+    slotMinutes,
+    todayHour,
+  ]);
 
   const disabledSlots = useMemo(() => {
     const disabled = new Map<string, string>();
@@ -446,10 +463,13 @@ function TimeSlotPanel({
       )}
 
       {/* 시간대 슬롯 선택 */}
-      {!isLoading && !fullDayBlockedDate && (hasReservationOverride || (todayHour && todayHour.isOpen)) && allSlots.length > 0 && (
+      {!isLoading &&
+        (hasReservationOverride || !fullDayBlockedDate) &&
+        (hasReservationOverride || (todayHour && todayHour.isOpen)) &&
+        allSlots.length > 0 && (
         <>
           <p className="text-xs text-gray-500">
-            운영 시간: {todayHour?.openTime ?? facility?.openTime} ~ {todayHour?.closeTime ?? facility?.closeTime}
+            운영 시간: {reservableOpenTime} ~ {reservableCloseTime}
           </p>
 
           <ReservationTimelinePicker
@@ -675,14 +695,12 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
     refetchOnWindowFocus: false,
   });
   const { data: authMe, isLoading: authLoading } = trpc.auth.me.useQuery(undefined, {
-    enabled: !isExternal,
     retry: false,
     refetchOnWindowFocus: false,
   });
   const { data: reservationSettings } = trpc.home.settings.useQuery();
   const isApprovedMember = isExternal || Boolean(memberMe);
   const hasReservationOverride =
-    !isExternal &&
     (hasContentPermission(authMe, "content:reservations") ||
       hasContentPermission(authMe, "content:facilities"));
   const canBypassMemberGate = isExternal || isApprovedMember || hasReservationOverride;
@@ -739,7 +757,7 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
   }
 
   // 날짜 변경 시 시간 초기화
-  if (!isExternal && (memberLoading || authLoading)) {
+  if (authLoading || (!isExternal && memberLoading)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F7F7F5]">
         <div className="text-center text-gray-400">

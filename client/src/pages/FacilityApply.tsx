@@ -393,18 +393,33 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
   const dayOfWeek = form.date ? getDayOfWeek(form.date) : -1;
   const todayHour = facilityHours?.find(h => h.dayOfWeek === dayOfWeek);
   const unitMinutes = facility?.slotMinutes ?? 60;
+  const preferFacilityDefaultHours = isExternal && hasReservationOverride;
+  const reservableOpenTime = hasReservationOverride
+    ? (preferFacilityDefaultHours ? facility?.openTime : todayHour?.openTime) ??
+      todayHour?.openTime ??
+      facility?.openTime
+    : todayHour?.openTime;
+  const reservableCloseTime = hasReservationOverride
+    ? (preferFacilityDefaultHours ? facility?.closeTime : todayHour?.closeTime) ??
+      todayHour?.closeTime ??
+      facility?.closeTime
+    : todayHour?.closeTime;
 
   const allTimeSlots = useMemo(() => {
     if (!hasReservationOverride && (!todayHour || !todayHour.isOpen)) return [];
-    const openTime = hasReservationOverride
-      ? (todayHour?.openTime ?? facility?.openTime)
-      : todayHour?.openTime;
-    const closeTime = hasReservationOverride
-      ? (todayHour?.closeTime ?? facility?.closeTime)
-      : todayHour?.closeTime;
-    if (!openTime || !closeTime) return [];
-    return generateReservationTimePoints(openTime, closeTime, unitMinutes);
-  }, [todayHour, unitMinutes, hasReservationOverride, facility?.openTime, facility?.closeTime]);
+    if (!reservableOpenTime || !reservableCloseTime) return [];
+    return generateReservationTimePoints(
+      reservableOpenTime,
+      reservableCloseTime,
+      unitMinutes
+    );
+  }, [
+    hasReservationOverride,
+    reservableCloseTime,
+    reservableOpenTime,
+    todayHour,
+    unitMinutes,
+  ]);
 
   // 이미 예약된 시간 슬롯 (승인 대기 + 승인 완료)
   const bookedSlots = useMemo(() => {
@@ -615,7 +630,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     />
   );
 
-  if (!isExternal && (memberLoading || authLoading)) {
+  if (authLoading || (!isExternal && memberLoading)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F7F7F5]">
         <Loader2 className="w-8 h-8 animate-spin text-[#1B5E20]" />
