@@ -66,7 +66,9 @@ import {
   deleteReservationsByIds,
   getMyReservations,
   getReservationById,
+  getReservationsByGroupId,
   updateReservationStatus,
+  updateReservationGroupStatus,
   canMemberUseVehicleReservation,
   createVehicleReservationIfAvailable,
   getAdminVehicleReservationDetailsByDate,
@@ -1251,6 +1253,31 @@ export const homeRouter = router({
     }),
 
   // ─── 차량 예약 (성도용, 지정 그룹만) ─────────────────────────────────────
+
+  cancelReservationGroup: memberProtectedProcedure
+    .input(z.object({ groupId: z.string().trim().min(1).max(128) }))
+    .mutation(async ({ input, ctx }) => {
+      const groupReservations = await getReservationsByGroupId(input.groupId);
+      if (groupReservations.length === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "반복 예약 묶음을 찾을 수 없습니다." });
+      }
+      if (groupReservations.some((reservation) => reservation.userId !== ctx.memberId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "본인의 반복 예약만 일괄 취소할 수 있습니다." });
+      }
+
+      const cancellableCount = groupReservations.filter(
+        (reservation) => reservation.status === "pending" || reservation.status === "approved"
+      ).length;
+      if (cancellableCount === 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "취소할 수 있는 예약이 없습니다.",
+        });
+      }
+
+      await updateReservationGroupStatus(input.groupId, "cancelled");
+      return { success: true, count: cancellableCount };
+    }),
 
   vehicleReservationAccess: publicProcedure
     .query(async ({ ctx }) => {
