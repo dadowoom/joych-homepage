@@ -12,7 +12,7 @@ const statusLabels: Record<string, string> = {
   archived: "삭제됨",
 };
 
-const MAX_BULLETIN_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_BULLETIN_IMAGE_BYTES = 1 * 1024 * 1024;
 const MAX_BULLETIN_IMAGE_COUNT = 12;
 const ALLOWED_BULLETIN_IMAGE_RE = /\.(jpg|jpeg|png)$/i;
 
@@ -131,7 +131,7 @@ export default function AdminBulletinsTab() {
       return;
     }
     if (selectedFiles.some((file) => file.size > MAX_BULLETIN_IMAGE_BYTES)) {
-      toast.error("주보 이미지는 한 장당 최대 8MB까지 업로드할 수 있습니다.");
+      toast.error("주보 이미지는 한 장당 최대 1MB까지 업로드할 수 있습니다.");
       return;
     }
 
@@ -242,7 +242,7 @@ export default function AdminBulletinsTab() {
                     return;
                   }
                   if (files.some((file) => file.size > MAX_BULLETIN_IMAGE_BYTES)) {
-                    toast.error("주보 이미지는 한 장당 최대 8MB까지 업로드할 수 있습니다.");
+                    toast.error("주보 이미지는 한 장당 최대 1MB까지 업로드할 수 있습니다.");
                     event.currentTarget.value = "";
                     return;
                   }
@@ -288,7 +288,7 @@ export default function AdminBulletinsTab() {
                 </ol>
               </div>
             ) : (
-              <p className="text-xs text-gray-400">JPG, PNG / 최대 12장 / 한 장당 8MB</p>
+              <p className="text-xs text-gray-400">JPG, PNG / 최대 12장 / 한 장당 1MB</p>
             )}
           </div>
         </form>

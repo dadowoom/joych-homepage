@@ -13,7 +13,7 @@ type FileRow = {
   mimeType?: string;
 };
 
-const MISSION_ATTACHMENT_MAX_BYTES = 80 * 1024 * 1024;
+const MISSION_ATTACHMENT_MAX_BYTES = 1 * 1024 * 1024;
 
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
@@ -195,8 +195,8 @@ export default function MissionReportEditor() {
     adminUpdateMutation.isPending;
 
   const uploadImageFile = async (file: File, target: "thumbnail" | "gallery") => {
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("이미지는 10MB 이하만 업로드할 수 있습니다.");
+    if (file.size > 1 * 1024 * 1024) {
+      toast.error("이미지는 1MB 이하만 업로드할 수 있습니다.");
       return;
     }
     setUploading(target);
@@ -232,7 +232,7 @@ export default function MissionReportEditor() {
       const uploaded: FileRow[] = [];
       for (const file of list) {
         if (file.size > MISSION_ATTACHMENT_MAX_BYTES) {
-          toast.error(`${file.name}은 80MB를 초과해 업로드할 수 없습니다.`);
+          toast.error(`${file.name}은 1MB를 초과해 업로드할 수 없습니다.`);
           continue;
         }
         const base64 = await fileToBase64(file);
@@ -451,7 +451,7 @@ export default function MissionReportEditor() {
             <input ref={galleryInputRef} type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={(e) => uploadGalleryFiles(e.target.files)} />
           </UploadSection>
 
-          <UploadSection title="첨부파일" description="PPT, PDF, 한글, 워드, 엑셀, ZIP 등을 첨부할 수 있습니다. 파일 1개당 최대 80MB입니다.">
+          <UploadSection title="첨부파일" description="PPT, PDF, 한글, 워드, 엑셀, ZIP 등을 첨부할 수 있습니다. 파일 1개당 최대 1MB입니다.">
             {files.length > 0 && (
               <div className="mb-4 space-y-2">
                 {files.map((file, index) => (

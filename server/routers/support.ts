@@ -77,7 +77,7 @@ const bulletinAdDateSchema = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, "광고 게재 희망일을 선택해 주세요.")
   .optional();
 
-const MAX_SUBTITLE_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const MAX_SUBTITLE_ATTACHMENT_BYTES = 1 * 1024 * 1024;
 const ALLOWED_SUBTITLE_ATTACHMENT_EXTS = new Set([
   "pdf",
   "doc",
@@ -115,7 +115,7 @@ function decodeAttachmentBase64(base64: string) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "빈 파일은 업로드할 수 없습니다." });
   }
   if (buffer.length > MAX_SUBTITLE_ATTACHMENT_BYTES) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "첨부파일은 최대 10MB까지 업로드할 수 있습니다." });
+    throw new TRPCError({ code: "BAD_REQUEST", message: "첨부파일은 최대 1MB까지 업로드할 수 있습니다." });
   }
   return buffer;
 }

@@ -668,8 +668,8 @@ export function TestimonyEditor() {
   const isBusy = createPost.isPending || updatePost.isPending || updateManagedPost.isPending;
 
   const handleUpload = async (file: File) => {
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("이미지는 10MB 이하만 업로드할 수 있습니다.");
+    if (file.size > 1 * 1024 * 1024) {
+      toast.error("이미지는 1MB 이하만 업로드할 수 있습니다.");
       return;
     }
     setUploading(true);

@@ -32,7 +32,7 @@ const requiredText = (max: number, message: string) => z.string().trim().min(1, 
 const safeImageUrl = safeAssetUrlSchema.optional();
 const MISSION_REPORT_PERMISSION_KEY = "content:missionReports";
 const ADMIN_MISSION_REPORT_AUTHOR_MEMBER_ID = 0;
-const MISSION_ATTACHMENT_MAX_BYTES = 80 * 1024 * 1024;
+const MISSION_ATTACHMENT_MAX_BYTES = 1 * 1024 * 1024;
 
 const imageInputSchema = z.object({
   imageUrl: safeImageUrl,

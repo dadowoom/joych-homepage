@@ -9,7 +9,7 @@
  *   3. 차단 해제 후 정상 동작 (Rate Limiter)
  *   4. 허용되지 않는 이미지 MIME 타입 업로드 실패
  *   5. 허용되지 않는 영상 MIME 타입 업로드 실패
- *   6. 이미지 크기 초과 시 업로드 실패 (10MB 초과)
+ *   6. 이미지 크기 초과 시 업로드 실패 (1MB 초과)
  *   7. 영상 크기 초과 시 업로드 실패 (100MB 초과)
  *   8. 허용된 MIME 타입은 정상 처리
  */
@@ -291,12 +291,12 @@ describe("[보안 7번] 파일 업로드 — MIME 화이트리스트 및 크기 
     );
   });
 
-  it("이미지 크기 10MB 초과 시 업로드 실패", () => {
-    // 10MB + 1바이트 크기의 버퍼 생성 후 base64 인코딩
-    const oversizedBuffer = Buffer.alloc(10 * 1024 * 1024 + 1, 0);
+  it("이미지 크기 1MB 초과 시 업로드 실패", () => {
+    // 1MB + 1바이트 크기의 버퍼 생성 후 base64 인코딩
+    const oversizedBuffer = Buffer.alloc(1 * 1024 * 1024 + 1, 0);
     const oversizedBase64 = oversizedBuffer.toString("base64");
     expect(() => validateImage(oversizedBase64, "image/png")).toThrow(
-      "이미지 파일 크기가 너무 큽니다. 최대 10MB까지 업로드 가능합니다."
+      "이미지는 최대 1MB까지 업로드할 수 있습니다."
     );
   });
 

@@ -76,7 +76,7 @@ function normalizeViewMode(value?: string | null, fallback: ViewMode = "grid"): 
   return value === "list" ? "list" : fallback;
 }
 
-const MAX_GALLERY_UPLOAD_SIZE = 10 * 1024 * 1024;
+const MAX_GALLERY_UPLOAD_SIZE = 1 * 1024 * 1024;
 const MAX_GALLERY_UPLOAD_COUNT = 100;
 const ALLOWED_GALLERY_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
@@ -506,7 +506,7 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
 
     const oversizedFile = files.find((file) => file.size > MAX_GALLERY_UPLOAD_SIZE);
     if (oversizedFile) {
-      toast.error("이미지 1장당 10MB 이하로 업로드해주세요.");
+      toast.error("이미지 1장당 1MB 이하로 업로드해주세요.");
       event.target.value = "";
       return;
     }
@@ -573,7 +573,7 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
 
     const oversizedFile = files.find((file) => file.size > MAX_GALLERY_UPLOAD_SIZE);
     if (oversizedFile) {
-      toast.error("이미지 1장당 10MB 이하로 업로드해주세요.");
+      toast.error("이미지 1장당 1MB 이하로 업로드해주세요.");
       return false;
     }
 
@@ -887,7 +887,7 @@ export function GalleryContent({ defaultViewMode }: { defaultViewMode?: ViewMode
             {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
             {isUploading ? "업로드 중" : "사진 업로드"}
           </button>
-          <p className="text-xs text-gray-400">JPG, PNG, WEBP, GIF / 장당 10MB</p>
+          <p className="text-xs text-gray-400">JPG, PNG, WEBP, GIF / 장당 1MB</p>
         </div>
       </div>
       <input

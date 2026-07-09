@@ -219,8 +219,8 @@ export default function HomeSectionsEditPanel({
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("이미지는 10MB 이하 파일만 업로드할 수 있습니다.");
+    if (file.size > 1 * 1024 * 1024) {
+      toast.error("이미지는 1MB 이하 파일만 업로드할 수 있습니다.");
       event.target.value = "";
       return;
     }

@@ -52,9 +52,9 @@ const ALLOWED_ATTACHMENT_EXTENSIONS: Record<string, string> = {
   gif: "image/gif",
 };
 
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;  // 10MB
+const MAX_IMAGE_BYTES = 1 * 1024 * 1024;  // 1MB
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100MB
-const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024; // 25MB
+const MAX_ATTACHMENT_BYTES = 1 * 1024 * 1024; // 1MB
 
 /** 파일명에서 위험 문자 제거 (경로 탐색 공격 방지) */
 function sanitizeFileName(name: string): string {
@@ -114,7 +114,7 @@ export function validateImage(base64: string, mimeType: string): { buffer: Buffe
   }
   const buffer = decodeBase64File(base64);
   if (buffer.length > MAX_IMAGE_BYTES) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: `이미지 파일 크기가 너무 큽니다. 최대 10MB까지 업로드 가능합니다.` });
+    throw new TRPCError({ code: "BAD_REQUEST", message: "이미지는 최대 1MB까지 업로드할 수 있습니다." });
   }
   assertImageSignature(buffer, mime);
   return { buffer, ext };
@@ -148,7 +148,7 @@ export function validateAttachment(base64: string, fileName: string, mimeType: s
   if (buffer.length > maxBytes) {
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: "첨부파일은 최대 25MB까지 업로드할 수 있습니다.",
+      message: "첨부파일은 최대 1MB까지 업로드할 수 있습니다.",
     });
   }
 
@@ -181,7 +181,7 @@ export const uploadRouter = router({
   /**
    * 이미지 파일 업로드 (공지사항 썸네일용)
    * - S3 경로: notice-images/{timestamp}-{random}.{ext}
-   * - 허용: jpg, png, webp, gif / 최대 10MB
+   * - 허용: jpg, png, webp, gif / 최대 1MB
    */
   image: adminAnyPermissionProcedure(["content:notices", "content:popups"])
     .input(z.object({
@@ -212,7 +212,7 @@ export const uploadRouter = router({
   /**
    * 갤러리 이미지 업로드
    * - S3 경로: gallery-images/{timestamp}-{random}.{ext}
-   * - 허용: jpg, png, webp, gif / 최대 10MB
+   * - 허용: jpg, png, webp, gif / 최대 1MB
    */
   attachment: adminAnyPermissionProcedure(["content:notices"])
     .input(z.object({

@@ -291,9 +291,9 @@ export default function GalleryEditPanel({ open, onClose }: GalleryEditPanelProp
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const MAX_SIZE = 10 * 1024 * 1024;
+    const MAX_SIZE = 1 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
-      toast.error("파일 크기가 너무 큽니다. 10MB 이하의 이미지를 선택해 주세요.");
+      toast.error("파일 크기가 너무 큽니다. 1MB 이하의 이미지를 선택해 주세요.");
       return;
     }
 
@@ -431,7 +431,7 @@ export default function GalleryEditPanel({ open, onClose }: GalleryEditPanelProp
             className="hidden"
             onChange={handleFileChange}
           />
-          <p className="text-xs text-gray-400">JPG, PNG, WEBP, GIF · 최대 10MB</p>
+          <p className="text-xs text-gray-400">JPG, PNG, WEBP, GIF · 최대 1MB</p>
         </div>
 
         {/* 드래그 안내 */}

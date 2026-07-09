@@ -109,7 +109,7 @@ const EMPTY_FORM = {
 };
 
 const COURSE_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"]);
-const MAX_COURSE_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_COURSE_IMAGE_BYTES = 1 * 1024 * 1024;
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
 function emptyToNull(value: string) {
@@ -774,7 +774,7 @@ export default function AdminCoursesTab() {
       return;
     }
     if (file.size > MAX_COURSE_IMAGE_BYTES) {
-      toast.error("대표 사진은 10MB 이하로 업로드해주세요.");
+      toast.error("대표 사진은 1MB 이하로 업로드해주세요.");
       return;
     }
 
@@ -989,7 +989,7 @@ export default function AdminCoursesTab() {
                       className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]"
                     />
                   </div>
-                  <p className="text-[11px] text-gray-400">강좌 목록과 상세 카드에 표시됩니다. 세로 포스터 비율 권장 / jpg, png, webp, gif / 최대 10MB</p>
+                  <p className="text-[11px] text-gray-400">강좌 목록과 상세 카드에 표시됩니다. 세로 포스터 비율 권장 / jpg, png, webp, gif / 최대 1MB</p>
                 </div>
               </div>
             </div>

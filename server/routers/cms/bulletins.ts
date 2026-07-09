@@ -16,7 +16,7 @@ import {
 } from "../../db";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const MAX_BULLETIN_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_BULLETIN_IMAGE_BYTES = 1 * 1024 * 1024;
 const MAX_BULLETIN_IMAGE_COUNT = 12;
 const ALLOWED_BULLETIN_EXTS = new Set(["jpg", "jpeg", "png"]);
 const bulletinProcedure = adminPermissionProcedure("content:bulletins");
@@ -52,7 +52,7 @@ function decodeUploadBase64(base64: string) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "빈 파일은 업로드할 수 없습니다." });
   }
   if (buffer.length > MAX_BULLETIN_IMAGE_BYTES) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "주보 이미지는 한 장당 최대 8MB까지 업로드할 수 있습니다." });
+    throw new TRPCError({ code: "BAD_REQUEST", message: "주보 이미지는 한 장당 최대 1MB까지 업로드할 수 있습니다." });
   }
   return buffer;
 }

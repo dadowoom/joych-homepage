@@ -43,7 +43,7 @@ type FieldType = "position" | "department" | "district" | "baptism";
 // 나중에 부서/구역 기준이 필요하면 이 배열에 다시 추가하면 됩니다.
 const VEHICLE_ACCESS_FIELD_TYPES: FieldType[] = ["position"];
 const VEHICLE_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"]);
-const MAX_VEHICLE_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_VEHICLE_IMAGE_BYTES = 1 * 1024 * 1024;
 const TIME_24H_RE = /^(([01]\d|2[0-3]):[0-5]\d|24:00)$/;
 
 type VehicleRow = {
@@ -567,7 +567,7 @@ export default function AdminVehiclesTab() {
       return;
     }
     if (file.size > MAX_VEHICLE_IMAGE_BYTES) {
-      toast.error("차량 이미지는 최대 10MB까지 업로드할 수 있습니다.");
+      toast.error("차량 이미지는 최대 1MB까지 업로드할 수 있습니다.");
       return;
     }
 

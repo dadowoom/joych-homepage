@@ -348,9 +348,9 @@ export default function AdminPopupsTab() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const maxSize = 25 * 1024 * 1024;
+    const maxSize = 1 * 1024 * 1024;
     if (file.size > maxSize) {
-      toast.error("이미지는 25MB 이하로 선택해 주세요.");
+      toast.error("이미지는 1MB 이하로 선택해 주세요.");
       event.target.value = "";
       return;
     }

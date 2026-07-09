@@ -37,7 +37,7 @@ const idSchema = z.number().int().positive();
 const continentSchema = z.enum(["asia", "africa", "americas", "europe", "oceania"]);
 const reportStatusSchema = z.enum(["draft", "pending", "published", "rejected"]);
 const missionReportProcedure = adminPermissionProcedure("content:missionReports");
-const MISSION_ATTACHMENT_MAX_BYTES = 80 * 1024 * 1024;
+const MISSION_ATTACHMENT_MAX_BYTES = 1 * 1024 * 1024;
 
 const imageSchema = z.object({
   imageUrl: safeAssetUrlSchema,

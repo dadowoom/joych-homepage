@@ -291,10 +291,10 @@ export default function NoticeEditPanel({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 파일 크기 제한: 10MB
-    const MAX_SIZE = 10 * 1024 * 1024;
+    // 파일 크기 제한: 1MB
+    const MAX_SIZE = 1 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
-      toast.error("파일 크기가 너무 큽니다. 10MB 이하의 이미지를 선택해 주세요.");
+      toast.error("파일 크기가 너무 큽니다. 1MB 이하의 이미지를 선택해 주세요.");
       return;
     }
 

@@ -130,8 +130,8 @@ export default function SubtitleRequestPage() {
 
     let attachment: { fileName: string; mimeType: string; base64: string } | undefined;
     if (selectedFile) {
-      if (selectedFile.size > 10 * 1024 * 1024) {
-        toast.error("첨부파일은 최대 10MB까지 업로드할 수 있습니다.");
+      if (selectedFile.size > 1 * 1024 * 1024) {
+        toast.error("첨부파일은 최대 1MB까지 업로드할 수 있습니다.");
         return;
       }
       try {
@@ -304,8 +304,8 @@ export default function SubtitleRequestPage() {
                         accept=".pdf,.doc,.docx,.hwp,.hwpx,.txt,.jpg,.jpeg,.png"
                         onChange={(event) => {
                           const file = event.target.files?.[0] ?? null;
-                          if (file && file.size > 10 * 1024 * 1024) {
-                            toast.error("첨부파일은 최대 10MB까지 업로드할 수 있습니다.");
+                          if (file && file.size > 1 * 1024 * 1024) {
+                            toast.error("첨부파일은 최대 1MB까지 업로드할 수 있습니다.");
                             event.currentTarget.value = "";
                             return;
                           }
@@ -314,7 +314,7 @@ export default function SubtitleRequestPage() {
                       />
                     </label>
                     <span className="min-w-0 truncate text-sm text-gray-500">
-                      {selectedFile ? selectedFile.name : "PDF, DOCX, HWP, TXT, JPG, PNG / 최대 10MB"}
+                      {selectedFile ? selectedFile.name : "PDF, DOCX, HWP, TXT, JPG, PNG / 최대 1MB"}
                     </span>
                     {selectedFile && (
                       <button

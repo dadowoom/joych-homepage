@@ -311,7 +311,7 @@ function getBulletinPages(bulletin: BulletinWithPages) {
       }];
 }
 
-const MAX_BULLETIN_UPLOAD_BYTES = 8 * 1024 * 1024;
+const MAX_BULLETIN_UPLOAD_BYTES = 1 * 1024 * 1024;
 const BULLETIN_PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 const MAX_BULLETIN_UPLOAD_COUNT = 12;
 const ALLOWED_BULLETIN_UPLOAD_RE = /\.(jpg|jpeg|png)$/i;
@@ -428,7 +428,7 @@ function BulletinUploadPanel() {
       return;
     }
     if (files.some((file) => file.size > MAX_BULLETIN_UPLOAD_BYTES)) {
-      toast.error("주보 이미지는 한 장당 최대 8MB까지 업로드할 수 있습니다.");
+      toast.error("주보 이미지는 한 장당 최대 1MB까지 업로드할 수 있습니다.");
       event.currentTarget.value = "";
       return;
     }

@@ -104,8 +104,8 @@ export function InlineEditForm({
   const handlePageImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("파일 크기는 10MB 이하만 가능합니다.");
+    if (file.size > 1 * 1024 * 1024) {
+      toast.error("파일 크기는 1MB 이하만 가능합니다.");
       return;
     }
 
@@ -131,8 +131,8 @@ export function InlineEditForm({
   const handleGalleryImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("파일 크기는 10MB 이하만 가능합니다.");
+    if (file.size > 1 * 1024 * 1024) {
+      toast.error("파일 크기는 1MB 이하만 가능합니다.");
       return;
     }
 
@@ -293,7 +293,7 @@ export function InlineEditForm({
             <ImageIcon size={10} />
             {uploading ? "업로드 중..." : pageImageUrl ? "이미지 변경" : "이미지 업로드"}
           </button>
-          <p className="text-[9px] text-gray-400">권장: 1920 x 1080px, 최대 10MB, JPG/PNG/WEBP</p>
+          <p className="text-[9px] text-gray-400">권장: 1920 x 1080px, 최대 1MB, JPG/PNG/WEBP</p>
           <input
             ref={fileInputRef}
             type="file"
