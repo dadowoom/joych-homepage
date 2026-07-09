@@ -345,6 +345,61 @@ describe("facility reservation lead-time guard", () => {
     expect(dbMocks.createReservationIfAvailable).not.toHaveBeenCalled();
   });
 
+  it("allows reservation managers to bypass external facility reservation rules", async () => {
+    dbMocks.getSiteSettings.mockResolvedValue({
+      external_reservation_advance_days_default: "14",
+    });
+    dbMocks.getExternalReservableFacilityById.mockResolvedValue({
+      ...reservableFacility,
+      capacity: 2,
+    });
+    dbMocks.getExternalFacilityHours.mockResolvedValue([
+      {
+        facilityId: 1,
+        dayOfWeek: 3,
+        isOpen: false,
+        openTime: "09:00",
+        closeTime: "21:00",
+        breakStart: null,
+        breakEnd: null,
+      },
+    ]);
+    dbMocks.getBlockedDates.mockResolvedValue([
+      {
+        facilityId: 1,
+        blockedDate: "2026-07-01",
+        isPartialBlock: false,
+        blockStart: null,
+        blockEnd: null,
+        reason: "maintenance",
+      },
+    ]);
+
+    const caller = appRouter.createCaller(createContext(createUserWithReservationPermission()));
+
+    await expect(
+      caller.home.createExternalReservation(
+        externalReservationInput({
+          reservationDate: "2026-07-01",
+          startTime: "08:00",
+          endTime: "09:00",
+          attendees: 10,
+        }),
+      ),
+    ).resolves.toMatchObject({ id: 100, status: "approved", count: 1 });
+
+    expect(dbMocks.createReservationIfAvailable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reservationDate: "2026-07-01",
+        startTime: "08:00",
+        endTime: "09:00",
+        attendees: 10,
+        reservationType: "external",
+        status: "approved",
+      }),
+    );
+  });
+
   it("allows external facility reservations within the default advance-day window", async () => {
     dbMocks.getSiteSettings.mockResolvedValue({
       external_reservation_advance_days_default: "14",

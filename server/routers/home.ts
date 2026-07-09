@@ -859,7 +859,8 @@ export const homeRouter = router({
       attendees: z.number().int().min(1, "사용 인원은 1명 이상이어야 합니다.").default(1),
       notes: z.string().trim().max(2000, "추가 요청사항은 2000자 이하로 입력해주세요.").optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const canBypassReservationRules = hasFacilityReservationManagerPermission(ctx.user);
       const startMinutes = toMinutes(input.startTime);
       const endMinutes = toMinutes(input.endTime);
       if (startMinutes === null || endMinutes === null) {
@@ -873,7 +874,7 @@ export const homeRouter = router({
       if (!facility) {
         throw new TRPCError({ code: "NOT_FOUND", message: "외부인 예약이 가능한 시설을 찾을 수 없습니다." });
       }
-      if (input.attendees > facility.capacity) {
+      if (input.attendees > facility.capacity && !canBypassReservationRules) {
         throw new TRPCError({ code: "BAD_REQUEST", message: `최대 수용 인원(${facility.capacity}명)을 초과할 수 없습니다.` });
       }
 
@@ -888,20 +889,22 @@ export const homeRouter = router({
         reservationSettings,
         facility,
       );
-      if (isReservationDateAfterMax(input.reservationDate, externalReservationWindow.effectiveMaxDateKey)) {
+      if (!canBypassReservationRules && isReservationDateAfterMax(input.reservationDate, externalReservationWindow.effectiveMaxDateKey)) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: getExternalReservationWindowMessage(externalReservationWindow),
         });
       }
 
-      assertReservationLeadTime(input.reservationDate, input.startTime);
+      if (!canBypassReservationRules) {
+        assertReservationLeadTime(input.reservationDate, input.startTime);
+      }
 
       const hours = await getExternalFacilityHours(input.facilityId);
       const reservationDateObject = parseDateKey(input.reservationDate);
       const reservationDayOfWeek = reservationDateObject?.getUTCDay() ?? 0;
       const dayHour = hours.find(h => h.dayOfWeek === reservationDayOfWeek);
-      if (dayHour && !dayHour.isOpen) {
+      if (dayHour && !dayHour.isOpen && !canBypassReservationRules) {
         throw new TRPCError({ code: "BAD_REQUEST", message: `${input.reservationDate}은 시설 운영일이 아닙니다.` });
       }
 
@@ -912,7 +915,7 @@ export const homeRouter = router({
       if (openMinutes === null || closeMinutes === null) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "시설 운영 시간이 올바르지 않습니다. 관리자에게 문의해주세요." });
       }
-      if (startMinutes < openMinutes || endMinutes > closeMinutes) {
+      if ((startMinutes < openMinutes || endMinutes > closeMinutes) && !canBypassReservationRules) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: `${input.reservationDate}은 운영 시간(${openTime}~${closeTime}) 내에서만 예약 가능합니다.`,
@@ -921,11 +924,11 @@ export const homeRouter = router({
 
       const slotMinutes = facility.slotMinutes > 0 ? facility.slotMinutes : 60;
       const durationMinutes = endMinutes - startMinutes;
-      if ((startMinutes - openMinutes) % slotMinutes !== 0 || (endMinutes - openMinutes) % slotMinutes !== 0) {
+      if (!canBypassReservationRules && ((startMinutes - openMinutes) % slotMinutes !== 0 || (endMinutes - openMinutes) % slotMinutes !== 0)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: `${slotMinutes}분 단위로만 예약할 수 있습니다.` });
       }
 
-      if (dayHour?.breakStart && dayHour.breakEnd) {
+      if (dayHour?.breakStart && dayHour.breakEnd && !canBypassReservationRules) {
         const breakStart = toMinutes(dayHour.breakStart);
         const breakEnd = toMinutes(dayHour.breakEnd);
         if (breakStart !== null && breakEnd !== null && startMinutes < breakEnd && endMinutes > breakStart) {
@@ -933,17 +936,19 @@ export const homeRouter = router({
         }
       }
 
-      const blocked = await getBlockedDates(input.facilityId);
-      for (const b of blocked) {
-        if (b.blockedDate !== input.reservationDate) continue;
-        if (!b.isPartialBlock) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: `${input.reservationDate}은 예약이 차단된 날입니다.${b.reason ? ` (${b.reason})` : ""}` });
-        }
-        if (b.blockStart && b.blockEnd && input.startTime < b.blockEnd && input.endTime > b.blockStart) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: `${input.reservationDate} 해당 시간대(${b.blockStart}~${b.blockEnd})는 예약이 차단되어 있습니다.${b.reason ? ` (${b.reason})` : ""}`,
-          });
+      if (!canBypassReservationRules) {
+        const blocked = await getBlockedDates(input.facilityId);
+        for (const b of blocked) {
+          if (b.blockedDate !== input.reservationDate) continue;
+          if (!b.isPartialBlock) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `${input.reservationDate}은 예약이 차단된 날입니다.${b.reason ? ` (${b.reason})` : ""}` });
+          }
+          if (b.blockStart && b.blockEnd && input.startTime < b.blockEnd && input.endTime > b.blockStart) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `${input.reservationDate} 해당 시간대(${b.blockStart}~${b.blockEnd})는 예약이 차단되어 있습니다.${b.reason ? ` (${b.reason})` : ""}`,
+            });
+          }
         }
       }
 
@@ -959,12 +964,14 @@ export const homeRouter = router({
         }
       }
 
+      const status: "approved" | "pending" = canBypassReservationRules ? "approved" : "pending";
+
       try {
         const id = await createReservationIfAvailable({
           ...input,
           userId: null,
           reservationType: "external",
-          status: "pending",
+          status,
           recurrenceGroupId: null,
           recurrenceLabel: null,
           recurrenceSequence: 0,
@@ -980,9 +987,9 @@ export const homeRouter = router({
           endTime: input.endTime,
           reservationType: "external",
           reservationId: id,
-          status: "pending",
+          status,
         });
-        return { id, status: "pending" as const, count: 1, recurrenceLabel: null };
+        return { id, status, count: 1, recurrenceLabel: null };
       } catch (error) {
         if (error instanceof ReservationOverlapError) {
           throw new TRPCError({ code: "CONFLICT", message: error.message });

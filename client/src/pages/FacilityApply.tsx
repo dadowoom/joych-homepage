@@ -206,14 +206,12 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
   const { data: authMe, isLoading: authLoading } = trpc.auth.me.useQuery(undefined, {
     retry: false,
     refetchOnWindowFocus: false,
-    enabled: !isExternal,
   });
   const { data: reservationSettings } = trpc.home.settings.useQuery();
   const isApprovedMember = isExternal || Boolean(memberMe);
   const hasReservationOverride =
-    !isExternal &&
-    (hasContentPermission(authMe, "content:reservations") ||
-      hasContentPermission(authMe, "content:facilities"));
+    hasContentPermission(authMe, "content:reservations") ||
+    hasContentPermission(authMe, "content:facilities");
   const canReserveFacility = isExternal || (isApprovedMember && !hasFacilityReservationBlockedMemberMarker(memberMe ?? {}));
   const canBypassMemberGate = isExternal || isApprovedMember || hasReservationOverride;
 
@@ -443,10 +441,11 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
 
   const selectedDateRangeRestriction = useMemo(() => {
     if (!form.date) return null;
+    if (hasReservationOverride) return null;
     return isExternal
       ? getExternalReservationDateRangeRestriction(form.date, reservationSettings, facility)
       : getReservationDateRangeRestriction(form.date, reservationSettings, {
-          enforceMaxDate: !hasReservationOverride,
+          enforceMaxDate: true,
         });
   }, [facility, form.date, hasReservationOverride, isExternal, reservationSettings]);
 
