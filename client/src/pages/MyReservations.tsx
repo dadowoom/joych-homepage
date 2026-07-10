@@ -15,24 +15,18 @@ import {
   Loader2,
   ChevronRight,
   Calendar,
-  Clock,
-  MapPin,
-  Users,
-  CheckCircle2,
   XCircle,
-  Clock3,
   Ban,
   RefreshCw,
   Search,
   RotateCcw,
-  Layers3,
 } from "lucide-react";
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; icon: ReactNode }> = {
-  pending: { label: "승인 대기", color: "bg-amber-50 text-amber-600 border-amber-200", icon: <Clock3 className="h-3.5 w-3.5" /> },
-  approved: { label: "승인 완료", color: "bg-green-50 text-green-700 border-green-200", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
-  rejected: { label: "거절됨", color: "bg-red-50 text-red-600 border-red-200", icon: <XCircle className="h-3.5 w-3.5" /> },
-  cancelled: { label: "취소됨", color: "bg-gray-50 text-gray-500 border-gray-200", icon: <Ban className="h-3.5 w-3.5" /> },
+const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
+  pending: { label: "승인 대기", color: "bg-amber-50 text-amber-600 border-amber-200" },
+  approved: { label: "승인 완료", color: "bg-green-50 text-green-700 border-green-200" },
+  rejected: { label: "거절됨", color: "bg-red-50 text-red-600 border-red-200" },
+  cancelled: { label: "취소됨", color: "bg-gray-50 text-gray-500 border-gray-200" },
 };
 
 const FILTER_OPTIONS = [
@@ -52,6 +46,15 @@ function getGroupStatus(statuses: string[]) {
   if (statuses.some((status) => status === "approved")) return "approved";
   if (statuses.some((status) => status === "rejected")) return "rejected";
   return "cancelled";
+}
+
+function ReservationInfo({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid min-w-0 grid-cols-[88px_minmax(0,1fr)] items-start gap-2">
+      <dt className="text-xs font-semibold text-gray-400">{label}</dt>
+      <dd className="min-w-0 break-words text-sm font-medium text-gray-700">{children}</dd>
+    </div>
+  );
 }
 
 export default function MyReservations() {
@@ -126,6 +129,7 @@ export default function MyReservations() {
           count: sorted.length,
           facilityName: first.facilityName ?? `시설 #${first.facilityId}`,
           facilityId: first.facilityId,
+          department: first.department?.trim() || "미입력",
           purpose: first.purpose,
           attendees: first.attendees,
           recurrenceLabel: first.recurrenceLabel,
@@ -152,8 +156,7 @@ export default function MyReservations() {
     const statusOk = filter === "all" || group.status === filter || group.reservations.some((r) => r.status === filter);
     const facilityOk =
       !normalizedFacilityQuery ||
-      group.facilityName.toLowerCase().includes(normalizedFacilityQuery) ||
-      group.purpose.toLowerCase().includes(normalizedFacilityQuery);
+      group.facilityName.toLowerCase().includes(normalizedFacilityQuery);
     const dateOk = !dateQuery || group.reservations.some((reservation) => reservation.reservationDate === dateQuery);
     return statusOk && facilityOk && dateOk;
   });
@@ -257,22 +260,28 @@ export default function MyReservations() {
             ))}
           </div>
 
-          <div className="mb-4 grid gap-2 rounded-xl border border-gray-100 bg-white p-3 sm:grid-cols-[1fr_180px_auto]">
-            <label className="relative block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-300" />
+          <div className="mb-4 grid items-end gap-3 rounded-xl border border-gray-100 bg-white p-4 sm:grid-cols-[1fr_190px_auto]">
+            <label className="block min-w-0">
+              <span className="mb-1.5 block text-xs font-semibold text-gray-500">장소 검색</span>
+              <span className="relative block">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-300" />
+                <input
+                  value={facilityQuery}
+                  onChange={(event) => setFacilityQuery(event.target.value)}
+                  placeholder="장소명을 입력하세요"
+                  className="h-10 w-full rounded-lg border border-gray-200 pl-9 pr-3 text-sm outline-none focus:border-[#1B5E20]"
+                />
+              </span>
+            </label>
+            <label className="block min-w-0">
+              <span className="mb-1.5 block text-xs font-semibold text-gray-500">일자 검색</span>
               <input
-                value={facilityQuery}
-                onChange={(event) => setFacilityQuery(event.target.value)}
-                placeholder="장소명 또는 목적 검색"
-                className="h-10 w-full rounded-lg border border-gray-200 pl-9 pr-3 text-sm outline-none focus:border-[#1B5E20]"
+                type="date"
+                value={dateQuery}
+                onChange={(event) => setDateQuery(event.target.value)}
+                className="h-10 w-full rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-[#1B5E20]"
               />
             </label>
-            <input
-              type="date"
-              value={dateQuery}
-              onChange={(event) => setDateQuery(event.target.value)}
-              className="h-10 rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-[#1B5E20]"
-            />
             <button
               onClick={() => {
                 setFacilityQuery("");
@@ -312,43 +321,28 @@ export default function MyReservations() {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="truncate text-base font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-                            {group.facilityName}
+                            {group.isRecurring ? `반복 예약 ${group.count}건` : "시설 예약"}
                           </p>
                           {group.isRecurring && (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
-                              <Layers3 className="h-3.5 w-3.5" />
-                              반복 {group.count}건
+                            <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+                              일괄 관리
                             </span>
                           )}
                         </div>
-                        <p className="mt-0.5 text-xs text-gray-400">
-                          {group.isRecurring ? "반복 예약 묶음" : `예약번호 #${group.id}`}
-                        </p>
                       </div>
-                      <span className={`flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${statusConf.color}`}>
-                        {statusConf.icon}
+                      <span className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium ${statusConf.color}`}>
                         {statusConf.label}
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-2 text-sm text-gray-600 sm:grid-cols-2">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 shrink-0 text-gray-300" />
-                        <span>{group.dateLabel}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 shrink-0 text-gray-300" />
-                        <span>{group.timeLabel}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 shrink-0 text-gray-300" />
-                        <span>{group.attendees}명</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 shrink-0 text-gray-300" />
-                        <span className="truncate">{group.purpose}</span>
-                      </div>
-                    </div>
+                    <dl className="grid grid-cols-1 gap-x-6 gap-y-2.5 sm:grid-cols-2">
+                      <ReservationInfo label="장소">{group.facilityName}</ReservationInfo>
+                      <ReservationInfo label="단체/부서명">{group.department}</ReservationInfo>
+                      <ReservationInfo label="목적">{group.purpose}</ReservationInfo>
+                      <ReservationInfo label="날짜">{group.dateLabel}</ReservationInfo>
+                      <ReservationInfo label="시간">{group.timeLabel}</ReservationInfo>
+                      <ReservationInfo label="인원">{group.attendees}명</ReservationInfo>
+                    </dl>
 
                     {group.recurrenceLabel && (
                       <div className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700">

@@ -1285,12 +1285,12 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
                 </div>
               </div>
             )}
-            <div className="grid grid-cols-[90px_minmax(260px,1fr)_110px] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 text-[11px] font-semibold text-gray-500 md:hidden">
+            <div className="grid grid-cols-[90px_minmax(260px,1fr)_110px] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-500 md:hidden">
               <div>시간</div>
               <div>시설 / 목적 / 예약자</div>
               <div>관리</div>
             </div>
-            <div className="hidden grid-cols-[76px_minmax(78px,0.9fr)_minmax(92px,1fr)_minmax(82px,0.95fr)_minmax(126px,1.15fr)_78px_42px_minmax(186px,auto)] gap-1.5 border-b border-gray-100 bg-gray-50 px-2 py-3 text-[11px] font-semibold text-gray-500 md:grid">
+            <div className="hidden grid-cols-[100px_minmax(88px,0.9fr)_minmax(100px,1fr)_minmax(108px,1fr)_minmax(138px,1.15fr)_94px_48px_minmax(186px,auto)] gap-2.5 border-b border-gray-100 bg-gray-50 px-3 py-3 text-sm font-semibold text-gray-500 md:grid">
               <div>시간</div>
               <div>시설</div>
               <div>목적</div>
@@ -1310,8 +1310,8 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
 
                 return (
                   <div key={reservation.id}>
-                    <div className="grid grid-cols-[90px_minmax(260px,1fr)_110px] gap-3 px-4 py-3 text-sm md:grid-cols-[76px_minmax(78px,0.9fr)_minmax(92px,1fr)_minmax(82px,0.95fr)_minmax(126px,1.15fr)_78px_42px_minmax(186px,auto)] md:items-center md:gap-1.5 md:px-2">
-                      <div>
+                    <div className="grid grid-cols-[90px_minmax(260px,1fr)_110px] gap-3 px-4 py-3 text-sm md:grid-cols-[100px_minmax(88px,0.9fr)_minmax(100px,1fr)_minmax(108px,1fr)_minmax(138px,1.15fr)_94px_48px_minmax(186px,auto)] md:items-center md:gap-2.5 md:px-3">
+                      <div className="pr-1">
                         <p className="text-xs text-gray-400 md:hidden">시간</p>
                         <p className="whitespace-nowrap font-semibold text-gray-900">{formatReservationTimeRange(reservation)}</p>
                       </div>
@@ -1323,10 +1323,10 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
                       <div className="min-w-0">
                         <p className="text-xs text-gray-400 md:hidden">목적</p>
                         <p className="truncate font-semibold text-gray-900">{reservation.purpose || "-"}</p>
-                        <p className="mt-0.5 truncate text-xs text-gray-500 md:hidden">부서/모임: {getReservationDepartment(reservation)}</p>
+                        <p className="mt-0.5 break-words text-xs text-gray-500 md:hidden">부서/모임: {getReservationDepartment(reservation)}</p>
                       </div>
                       <div className="min-w-0 hidden md:block">
-                        <p className="truncate font-semibold text-gray-900">{getReservationDepartment(reservation)}</p>
+                        <p className="break-words font-semibold text-gray-900">{getReservationDepartment(reservation)}</p>
                       </div>
                       <div className="hidden min-w-0 md:block">
                         <p className="text-xs text-gray-400 md:hidden">예약자/연락처</p>
@@ -1341,7 +1341,7 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
                       </div>
                       <div className="hidden md:block">
                         <p className="text-xs text-gray-400 md:hidden">상태</p>
-                        <span className={"inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium " + statusMeta.color}>
+                        <span className={"inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-1 text-xs font-medium " + statusMeta.color}>
                           {statusMeta.icon} {statusMeta.label}
                         </span>
                       </div>
@@ -1372,7 +1372,7 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
                             onClick={() => onStartEditTime(reservation)}
                             disabled={isMutating}
                           >
-                            시간 수정
+                            수정
                           </Button>
                           <Button
                             size="sm"
