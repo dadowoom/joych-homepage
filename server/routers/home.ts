@@ -608,8 +608,8 @@ export const homeRouter = router({
   myCourseApplications: memberProtectedProcedure
     .query(({ ctx }) => getMyCourseApplications(ctx.memberId)),
 
-  /** 강좌 신청 (성도 로그인 필요) */
-  applyCourse: memberProtectedProcedure
+  /** 강좌 신청 (전체 공개 강좌는 비회원 허용, 성도 공개 강좌는 로그인 필요) */
+  applyCourse: publicProcedure
     .input(z.object({
       courseId: idSchema,
       applicantName: z.string().trim().min(1, "이름을 입력해주세요.").max(64, "이름은 64자 이하로 입력해주세요."),
@@ -617,6 +617,7 @@ export const homeRouter = router({
       applicantEmail: z.string().trim().max(320, "이메일은 320자 이하로 입력해주세요.").optional(),
       memo: courseMemoSchema,
       customAnswers: courseCustomAnswersSchema.optional(),
+      privacyAgreed: z.boolean().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const course = await getVisibleCourseById(input.courseId);
@@ -641,31 +642,43 @@ export const homeRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: `${missingRequiredField.label} 항목을 입력해주세요.` });
       }
 
-      const member = await getMemberById(ctx.memberId);
-      if (!member) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "성도 정보를 찾을 수 없습니다." });
+      const member = ctx.memberId ? await getMemberById(ctx.memberId) : null;
+      if (course.audience === "member" && !member) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "성도 공개 강좌는 로그인 후 신청할 수 있습니다." });
+      }
+
+      const applicantName = input.applicantName || member?.name || "";
+      const applicantPhone = (input.applicantPhone || member?.phone || "").replace(/[^0-9+]/g, "");
+      const applicantEmail = input.applicantEmail || member?.email || null;
+      if (!member && !applicantPhone) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "비회원 신청에는 연락처가 필요합니다." });
+      }
+      if (!member && input.privacyAgreed !== true) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "개인정보 수집 및 이용에 동의해주세요." });
       }
 
       try {
         const id = await createOrReopenCourseApplication({
           courseId: input.courseId,
-          memberId: ctx.memberId,
-          applicantName: input.applicantName || member.name,
-          applicantPhone: input.applicantPhone || member.phone || null,
-          applicantEmail: input.applicantEmail || member.email || null,
+          memberId: member?.id ?? null,
+          applicantName,
+          applicantPhone,
+          applicantEmail,
           memo: input.memo || null,
           customAnswers: JSON.stringify(customAnswers),
         });
         if (!id) {
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "강좌 신청 저장에 실패했습니다." });
         }
-        notifyCourseApplicationToDistrictManager({
-          applicantName: input.applicantName || member.name,
-          applicantDistrict: member.district,
-          courseTitle: course.title,
-          applicationId: id,
-        });
-        return { id, status: "pending" as const };
+        if (member) {
+          notifyCourseApplicationToDistrictManager({
+            applicantName,
+            applicantDistrict: member.district,
+            courseTitle: course.title,
+            applicationId: id,
+          });
+        }
+        return { id, status: "pending" as const, guest: !member };
       } catch (error) {
         if (error instanceof CourseApplicationConflictError) {
           throw new TRPCError({ code: "CONFLICT", message: error.message });

@@ -385,6 +385,11 @@ export async function createOrReopenCourseApplication(
   const db = await getDb();
   if (!db) return null;
 
+  const guestPhone = data.memberId == null ? data.applicantPhone?.trim() : null;
+  if (data.memberId == null && !guestPhone) {
+    throw new CourseApplicationConflictError("비회원 신청에는 연락처가 필요합니다.");
+  }
+
   const lockKey = `course:${data.courseId}`;
   return db.transaction(async (tx) => {
     const lockResult = await tx.execute(sql`SELECT GET_LOCK(${lockKey}, 5) AS locked`);
@@ -396,12 +401,15 @@ export async function createOrReopenCourseApplication(
       const [course] = await tx.select().from(courses).where(eq(courses.id, data.courseId)).limit(1);
       if (!course) return null;
 
+      const applicantIdentity = data.memberId != null
+        ? eq(courseApplications.memberId, data.memberId)
+        : eq(courseApplications.applicantPhone, guestPhone!);
       const existingRows = await tx
         .select()
         .from(courseApplications)
         .where(and(
           eq(courseApplications.courseId, data.courseId),
-          eq(courseApplications.memberId, data.memberId),
+          applicantIdentity,
         ))
         .limit(1);
       const existing = existingRows[0];

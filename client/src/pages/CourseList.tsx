@@ -165,12 +165,14 @@ export default function CourseList({ pageHref, title, embedded = false, showHero
   const { user: adminUser } = useAuth();
   const { data: allMenus } = trpc.home.menus.useQuery();
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
+  const [guestSubmittedCourseIds, setGuestSubmittedCourseIds] = useState<Set<number>>(() => new Set());
   const [form, setForm] = useState({
     applicantName: "",
     applicantPhone: "",
     applicantEmail: "",
     memo: "",
     customAnswers: {} as Record<string, string>,
+    privacyAgreed: false,
   });
 
   const { data: memberMe, isLoading: loadingMember } = trpc.members.me.useQuery(undefined, {
@@ -200,10 +202,13 @@ export default function CourseList({ pageHref, title, embedded = false, showHero
   }, [myApplications]);
 
   const applyCourse = trpc.home.applyCourse.useMutation({
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
       toast.success("강좌 신청이 접수되었습니다.");
+      if (!isAuthenticated) {
+        setGuestSubmittedCourseIds(previous => new Set(previous).add(variables.courseId));
+      }
       setSelectedCourseId(null);
-      setForm(prev => ({ ...prev, memo: "", customAnswers: {} }));
+      setForm(prev => ({ ...prev, memo: "", customAnswers: {}, privacyAgreed: false }));
       utils.home.courses.invalidate();
       utils.home.myCourseApplications.invalidate();
     },
@@ -219,18 +224,19 @@ export default function CourseList({ pageHref, title, embedded = false, showHero
     onError: err => toast.error(err.message || "신청 취소에 실패했습니다."),
   });
 
-  function openApplicationForm(courseId: number) {
-    if (!isAuthenticated) {
-      window.location.href = "/member/login";
+  function openApplicationForm(course: Course) {
+    if (!isAuthenticated && course.audience === "member") {
+      window.location.href = `/member/login?next=${encodeURIComponent(currentPageHref)}`;
       return;
     }
-    setSelectedCourseId(courseId);
+    setSelectedCourseId(course.id);
     setForm({
       applicantName: memberMe?.name ?? "",
       applicantPhone: memberMe?.phone ?? "",
       applicantEmail: memberMe?.email ?? "",
       memo: "",
       customAnswers: {},
+      privacyAgreed: false,
     });
   }
 
@@ -239,6 +245,14 @@ export default function CourseList({ pageHref, title, embedded = false, showHero
     const fields = parseApplicationFields(course?.applicationFields);
     if (!form.applicantName.trim()) {
       toast.error("이름을 입력해주세요.");
+      return;
+    }
+    if (!isAuthenticated && !form.applicantPhone.trim()) {
+      toast.error("비회원 신청에는 연락처가 필요합니다.");
+      return;
+    }
+    if (!isAuthenticated && !form.privacyAgreed) {
+      toast.error("개인정보 수집 및 이용에 동의해주세요.");
       return;
     }
     const missingRequiredField = fields.find(field => field.required && !form.customAnswers[field.id]?.trim());
@@ -253,6 +267,7 @@ export default function CourseList({ pageHref, title, embedded = false, showHero
       applicantEmail: form.applicantEmail || undefined,
       memo: form.memo || undefined,
       customAnswers: form.customAnswers,
+      privacyAgreed: form.privacyAgreed,
     });
   }
 
@@ -344,7 +359,8 @@ export default function CourseList({ pageHref, title, embedded = false, showHero
                 const deadlineInfo = getApplyDeadlineInfo(course);
                 const application = applicationByCourseId.get(course.id);
                 const selected = selectedCourseId === course.id;
-                const canReapply = !application || application.status === "rejected" || application.status === "cancelled";
+                const guestSubmitted = guestSubmittedCourseIds.has(course.id);
+                const canReapply = !guestSubmitted && (!application || application.status === "rejected" || application.status === "cancelled");
                 const applicationFields = parseApplicationFields(course.applicationFields);
                 return (
                   <div key={course.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -425,7 +441,7 @@ export default function CourseList({ pageHref, title, embedded = false, showHero
                             </button>
                           ) : (
                             <button
-                              onClick={() => openApplicationForm(course.id)}
+                              onClick={() => openApplicationForm(course)}
                               disabled={!applyState.open || !canReapply}
                               className={`w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                                 applyState.open && canReapply
@@ -433,7 +449,7 @@ export default function CourseList({ pageHref, title, embedded = false, showHero
                                   : "bg-gray-100 text-gray-400 cursor-not-allowed"
                               }`}
                             >
-                              {application?.status === "approved" ? "신청 완료" : "신청하기"}
+                              {application?.status === "approved" || guestSubmitted ? "신청 접수" : "신청하기"}
                             </button>
                           )}
                         </div>
@@ -463,8 +479,11 @@ export default function CourseList({ pageHref, title, embedded = false, showHero
                               />
                             </div>
                             <div>
-                              <label className="block text-xs font-medium text-gray-500 mb-1">연락처</label>
+                              <label className="block text-xs font-medium text-gray-500 mb-1">
+                                연락처{!isAuthenticated ? " *" : ""}
+                              </label>
                               <input
+                                type="tel"
                                 value={form.applicantPhone}
                                 onChange={e => setForm(prev => ({ ...prev, applicantPhone: e.target.value }))}
                                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]"
@@ -525,6 +544,17 @@ export default function CourseList({ pageHref, title, embedded = false, showHero
                               />
                             </div>
                           </div>
+                          {!isAuthenticated && (
+                            <label className="mt-4 flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-3 text-sm text-gray-600">
+                              <input
+                                type="checkbox"
+                                checked={form.privacyAgreed}
+                                onChange={event => setForm(prev => ({ ...prev, privacyAgreed: event.target.checked }))}
+                                className="mt-0.5 h-4 w-4 accent-[#1B5E20]"
+                              />
+                              <span>강좌 신청 처리를 위한 이름과 연락처 수집 및 이용에 동의합니다. *</span>
+                            </label>
+                          )}
                           <div className="flex justify-end gap-2 mt-4">
                             <button
                               onClick={() => setSelectedCourseId(null)}

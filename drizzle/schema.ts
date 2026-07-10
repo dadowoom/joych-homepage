@@ -1209,7 +1209,7 @@ export const courseApplications = mysqlTable("course_applications", {
   /** 강좌 ID */
   courseId: int("courseId").notNull(),
   /** 신청 성도 ID */
-  memberId: int("memberId").notNull(),
+  memberId: int("memberId"),
   /** 신청자 이름 */
   applicantName: varchar("applicantName", { length: 64 }).notNull(),
   /** 신청자 연락처 */
