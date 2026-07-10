@@ -512,6 +512,30 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     setShowDateChangePicker(true);
   }
 
+  function handleAdditionalReservation() {
+    const nextSearchParams = new URLSearchParams(searchString);
+    nextSearchParams.delete("date");
+    nextSearchParams.delete("startTime");
+    nextSearchParams.delete("endTime");
+    const nextSearch = nextSearchParams.toString();
+    const applyPath = isExternal
+      ? `/facility/external/${facilityId}/apply`
+      : `/facility/${facilityId}/apply`;
+
+    setSubmitted(false);
+    setShowDateChangePicker(true);
+    setReservationConflictMessage(null);
+    setForm(prev => ({
+      ...prev,
+      date: "",
+      startTime: "",
+      endTime: "",
+      repeatType: "none",
+      repeatUntilDate: "",
+    }));
+    navigate(`${applyPath}${nextSearch ? `?${nextSearch}` : ""}`);
+  }
+
   // 시간 슬롯 선택 핸들러
   function handleTimeSelect(start: string, end: string) {
     setForm(prev => ({ ...prev, startTime: start, endTime: end }));
@@ -712,7 +736,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                 recurrenceLabel={reservedRecurrenceLabel}
                 facilityListHref={facilityListHref}
                 showMyReservations={!isExternal}
-                onReset={() => { setSubmitted(false); setForm(prev => ({ ...prev, date: "", startTime: "", endTime: "", repeatType: "none", repeatUntilDate: "" })); }}
+                onReset={handleAdditionalReservation}
               />
             </div>
           ) : (
@@ -895,6 +919,34 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                 </Field>
 
                 {/* 시간 선택 — 슬롯 버튼 방식 */}
+                {!form.date && (
+                  <Field
+                    label="사용 시간"
+                    required
+                    hint={`${unitMinutes}분 단위 · 날짜 선택 후 예약 가능한 시간이 표시됩니다.`}
+                  >
+                    <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                      <p className="mb-3 flex items-center gap-2 text-xs font-medium text-gray-500">
+                        <Clock className="h-4 w-4 shrink-0" />
+                        사용 날짜를 먼저 선택해 주세요.
+                      </p>
+                      <div
+                        aria-hidden="true"
+                        className="flex h-14 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
+                      >
+                        {Array.from({ length: 6 }, (_, index) => (
+                          <span
+                            key={index}
+                            className="flex min-w-[68px] flex-1 items-center justify-center border-r border-gray-200 bg-gray-100 last:border-r-0"
+                          >
+                            <span className="h-2 w-10 rounded bg-gray-200" />
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </Field>
+                )}
+
                 {form.date && !selectedDateRangeRestriction && (hasReservationOverride || !todayHour || todayHour.isOpen) && (hasReservationOverride || !fullDayBlockedDate) && (
                   <Field
                     label="사용 시간"
