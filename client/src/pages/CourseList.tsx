@@ -247,8 +247,16 @@ export default function CourseList({ pageHref, title, embedded = false, showHero
       toast.error("이름을 입력해주세요.");
       return;
     }
-    if (!isAuthenticated && !form.applicantPhone.trim()) {
-      toast.error("비회원 신청에는 연락처가 필요합니다.");
+    if (!form.applicantPhone.trim()) {
+      toast.error("연락처를 입력해주세요.");
+      return;
+    }
+    if (!form.applicantEmail.trim()) {
+      toast.error("이메일을 입력해주세요.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.applicantEmail.trim())) {
+      toast.error("올바른 이메일 형식을 입력해주세요.");
       return;
     }
     if (!isAuthenticated && !form.privacyAgreed) {
@@ -263,8 +271,8 @@ export default function CourseList({ pageHref, title, embedded = false, showHero
     applyCourse.mutate({
       courseId,
       applicantName: form.applicantName,
-      applicantPhone: form.applicantPhone || undefined,
-      applicantEmail: form.applicantEmail || undefined,
+      applicantPhone: form.applicantPhone,
+      applicantEmail: form.applicantEmail,
       memo: form.memo || undefined,
       customAnswers: form.customAnswers,
       privacyAgreed: form.privacyAgreed,
@@ -480,18 +488,21 @@ export default function CourseList({ pageHref, title, embedded = false, showHero
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-gray-500 mb-1">
-                                연락처{!isAuthenticated ? " *" : ""}
+                                연락처 *
                               </label>
                               <input
                                 type="tel"
+                                required
                                 value={form.applicantPhone}
                                 onChange={e => setForm(prev => ({ ...prev, applicantPhone: e.target.value }))}
                                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]"
                               />
                             </div>
                             <div>
-                              <label className="block text-xs font-medium text-gray-500 mb-1">이메일</label>
+                              <label className="block text-xs font-medium text-gray-500 mb-1">이메일 *</label>
                               <input
+                                type="email"
+                                required
                                 value={form.applicantEmail}
                                 onChange={e => setForm(prev => ({ ...prev, applicantEmail: e.target.value }))}
                                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]"
@@ -552,7 +563,7 @@ export default function CourseList({ pageHref, title, embedded = false, showHero
                                 onChange={event => setForm(prev => ({ ...prev, privacyAgreed: event.target.checked }))}
                                 className="mt-0.5 h-4 w-4 accent-[#1B5E20]"
                               />
-                              <span>강좌 신청 처리를 위한 이름과 연락처 수집 및 이용에 동의합니다. *</span>
+                              <span>강좌 신청 처리를 위한 이름, 연락처, 이메일 수집 및 이용에 동의합니다. *</span>
                             </label>
                           )}
                           <div className="flex justify-end gap-2 mt-4">

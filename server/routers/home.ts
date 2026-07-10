@@ -614,7 +614,7 @@ export const homeRouter = router({
       courseId: idSchema,
       applicantName: z.string().trim().min(1, "이름을 입력해주세요.").max(64, "이름은 64자 이하로 입력해주세요."),
       applicantPhone: z.string().trim().max(32, "연락처는 32자 이하로 입력해주세요.").optional(),
-      applicantEmail: z.string().trim().max(320, "이메일은 320자 이하로 입력해주세요.").optional(),
+      applicantEmail: z.string().trim().email("올바른 이메일 형식을 입력해주세요.").max(320, "이메일은 320자 이하로 입력해주세요.").optional(),
       memo: courseMemoSchema,
       customAnswers: courseCustomAnswersSchema.optional(),
       privacyAgreed: z.boolean().optional(),
@@ -650,8 +650,11 @@ export const homeRouter = router({
       const applicantName = input.applicantName || member?.name || "";
       const applicantPhone = (input.applicantPhone || member?.phone || "").replace(/[^0-9+]/g, "");
       const applicantEmail = input.applicantEmail || member?.email || null;
-      if (!member && !applicantPhone) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "비회원 신청에는 연락처가 필요합니다." });
+      if (!applicantPhone) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "연락처를 입력해주세요." });
+      }
+      if (!applicantEmail) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "이메일을 입력해주세요." });
       }
       if (!member && input.privacyAgreed !== true) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "개인정보 수집 및 이용에 동의해주세요." });

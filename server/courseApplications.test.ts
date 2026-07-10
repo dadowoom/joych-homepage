@@ -91,12 +91,13 @@ describe("course applications", () => {
     expect(dbMocks.createOrReopenCourseApplication).not.toHaveBeenCalled();
   });
 
-  it("requires contact information and privacy consent for guest applications", async () => {
+  it("requires phone, email, and privacy consent for guest applications", async () => {
     const caller = appRouter.createCaller(createContext());
 
     await expect(caller.home.applyCourse({
       courseId: 7,
       applicantName: "Guest Applicant",
+      applicantEmail: "guest@example.com",
       privacyAgreed: true,
     })).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
@@ -104,6 +105,28 @@ describe("course applications", () => {
       courseId: 7,
       applicantName: "Guest Applicant",
       applicantPhone: "01012345678",
+      privacyAgreed: true,
     })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    await expect(caller.home.applyCourse({
+      courseId: 7,
+      applicantName: "Guest Applicant",
+      applicantPhone: "01012345678",
+      applicantEmail: "guest@example.com",
+    })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("rejects invalid applicant email addresses", async () => {
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(caller.home.applyCourse({
+      courseId: 7,
+      applicantName: "Guest Applicant",
+      applicantPhone: "01012345678",
+      applicantEmail: "invalid-email",
+      privacyAgreed: true,
+    })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    expect(dbMocks.createOrReopenCourseApplication).not.toHaveBeenCalled();
   });
 });
