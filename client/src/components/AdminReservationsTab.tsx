@@ -1209,8 +1209,7 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
             이 날짜에는 예약이 없습니다.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <div className="min-w-[820px]">
+          <div className="min-w-0">
             {selectedBlockedDates.length > 0 && (
               <div className="border-b border-red-100 bg-red-50/70 px-4 py-3">
                 <p className="mb-2 flex items-center gap-2 text-sm font-bold text-red-700">
@@ -1285,12 +1284,12 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
                 </div>
               </div>
             )}
-            <div className="grid grid-cols-[90px_minmax(260px,1fr)_110px] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-500 md:hidden">
+            <div className="grid grid-cols-[94px_minmax(0,1fr)_80px] gap-2 border-b border-gray-100 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-500 md:hidden">
               <div>시간</div>
               <div>시설 / 목적 / 예약자</div>
               <div>관리</div>
             </div>
-            <div className="hidden grid-cols-[100px_minmax(88px,0.9fr)_minmax(100px,1fr)_minmax(108px,1fr)_minmax(138px,1.15fr)_94px_48px_minmax(186px,auto)] gap-2.5 border-b border-gray-100 bg-gray-50 px-3 py-3 text-sm font-semibold text-gray-500 md:grid">
+            <div className="hidden grid-cols-[94px_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1.15fr)_86px_44px_148px] gap-2 border-b border-gray-100 bg-gray-50 px-2 py-3 text-sm font-semibold text-gray-500 md:grid">
               <div>시간</div>
               <div>시설</div>
               <div>목적</div>
@@ -1310,8 +1309,8 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
 
                 return (
                   <div key={reservation.id}>
-                    <div className="grid grid-cols-[90px_minmax(260px,1fr)_110px] gap-3 px-4 py-3 text-sm md:grid-cols-[100px_minmax(88px,0.9fr)_minmax(100px,1fr)_minmax(108px,1fr)_minmax(138px,1.15fr)_94px_48px_minmax(186px,auto)] md:items-center md:gap-2.5 md:px-3">
-                      <div className="pr-1">
+                    <div className="grid grid-cols-[94px_minmax(0,1fr)_80px] gap-2 px-3 py-3 text-sm md:grid-cols-[94px_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1.15fr)_86px_44px_148px] md:items-center md:px-2">
+                      <div className="row-span-2 pr-1 md:row-span-1">
                         <p className="text-xs text-gray-400 md:hidden">시간</p>
                         <p className="whitespace-nowrap font-semibold text-gray-900">{formatReservationTimeRange(reservation)}</p>
                       </div>
@@ -1320,7 +1319,7 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
                         <p className="truncate font-semibold text-gray-900">{reservation.facilityName ?? "시설"}</p>
                         <p className="mt-0.5 truncate text-xs text-gray-500 md:hidden">{getReservationName(reservation)} ({getReservationPosition(reservation)}) · {getReservationPhone(reservation)}</p>
                       </div>
-                      <div className="min-w-0">
+                      <div className="col-start-2 min-w-0 md:col-start-auto">
                         <p className="text-xs text-gray-400 md:hidden">목적</p>
                         <p className="truncate font-semibold text-gray-900">{reservation.purpose || "-"}</p>
                         <p className="mt-0.5 break-words text-xs text-gray-500 md:hidden">부서/모임: {getReservationDepartment(reservation)}</p>
@@ -1349,10 +1348,10 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
                         <p className="text-xs text-gray-400 md:hidden">인원</p>
                         <p className="font-semibold text-gray-900">{reservation.attendees}명</p>
                       </div>
-                      <div className="md:justify-self-end">
+                      <div className="col-start-3 row-span-2 row-start-1 md:col-start-auto md:row-span-1 md:row-start-auto md:justify-self-end">
                         <p className="text-xs text-gray-400 md:hidden">관리</p>
                         <div
-                          className={"grid min-w-[186px] grid-cols-3 gap-1 " + (isCancelable ? "" : "grid-cols-2 min-w-[126px]")}
+                          className={"grid min-w-0 grid-cols-1 gap-1 " + (isCancelable ? "md:min-w-[148px] md:grid-cols-3" : "md:min-w-[100px] md:grid-cols-2")}
                         >
                           {isCancelable && (
                             <Button
@@ -1436,7 +1435,6 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
                   </div>
                 );
               })}
-            </div>
             </div>
           </div>
         )}
