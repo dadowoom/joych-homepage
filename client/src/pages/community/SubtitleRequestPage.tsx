@@ -2,7 +2,6 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import AdminSupportRequestsTab from "@/components/AdminSupportRequestsTab";
-import MemberOnlyContentNotice from "@/components/MemberOnlyContentNotice";
 import { hasContentPermission } from "@/lib/contentPermissions";
 import { SUPPORT_REQUEST_PERMISSION_KEYS, SUPPORT_REQUEST_ROOT_PERMISSION_KEY } from "@shared/adminPermissions";
 import {
@@ -156,17 +155,6 @@ export default function SubtitleRequestPage() {
 
   const isSaving = submitSubtitle.isPending;
 
-  if (!memberLoading && !memberMe && !canManageSubtitles) {
-    return (
-      <SupportPageWrapper title="자막 신청" activeHref="/support/subtitle">
-        <MemberOnlyContentNotice
-          resourceLabel="자막 신청"
-          fallbackPath="/support/subtitle"
-        />
-      </SupportPageWrapper>
-    );
-  }
-
   return (
     <SupportPageWrapper title="자막 신청" activeHref="/support/subtitle">
       <div className="space-y-5">
@@ -192,15 +180,6 @@ export default function SubtitleRequestPage() {
             </button>
           </div>
         </div>
-
-        {!memberLoading && !memberMe && (
-          <div className="border border-[#d8f3dc] bg-[#f1f8f3] px-5 py-4 text-sm text-gray-700">
-            자막신청은 로그인한 성도만 작성할 수 있습니다.
-            <Link href="/member/login?next=/support/subtitle" className="ml-2 font-semibold text-[#1B5E20] underline-offset-2 hover:underline">
-              성도 로그인
-            </Link>
-          </div>
-        )}
 
         {canManageSubtitles && (
           <AdminSupportRequestsTab

@@ -16,7 +16,6 @@ import { hasContentPermission } from "@/lib/contentPermissions";
 import SubPageLayout from "@/components/SubPageLayout";
 import { getSideLayoutByHref } from "@/lib/menuSideLayout";
 import {
-  AlertCircle,
   Ban,
   BookOpen,
   Calendar,
@@ -295,24 +294,6 @@ export default function CourseList({ pageHref, title, embedded = false, showHero
               <p className="mt-1 text-sm text-gray-500">강좌를 확인하고 성도 계정으로 신청할 수 있습니다.</p>
             </div>
           )}
-          {!isAuthenticated && (
-            <div className="mb-6 bg-white border border-gray-100 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-[#1B5E20] shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-gray-800">성도 로그인 후 신청할 수 있습니다</p>
-                  <p className="text-sm text-gray-500 mt-0.5">강좌 신청 내역은 본인 계정에서 확인됩니다.</p>
-                </div>
-              </div>
-              <Link
-                href="/member/login"
-                className="inline-flex items-center justify-center px-4 py-2 bg-[#1B5E20] text-white rounded-lg text-sm font-medium hover:bg-[#2E7D32] transition-colors"
-              >
-                로그인하기
-              </Link>
-            </div>
-          )}
-
           {isAuthenticated && !loadingApplications && myApplications.length > 0 && (
             <div className="mb-6 bg-white border border-gray-100 rounded-xl p-5">
               <div className="flex items-center justify-between gap-3 mb-3">

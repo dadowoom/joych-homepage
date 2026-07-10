@@ -2,7 +2,6 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import AdminSupportRequestsTab from "@/components/AdminSupportRequestsTab";
-import MemberOnlyContentNotice from "@/components/MemberOnlyContentNotice";
 import { hasContentPermission } from "@/lib/contentPermissions";
 import { SUPPORT_REQUEST_PERMISSION_KEYS, SUPPORT_REQUEST_ROOT_PERMISSION_KEY } from "@shared/adminPermissions";
 import {
@@ -149,17 +148,6 @@ export default function BulletinAdRequestPage() {
 
   const isSaving = submitBulletinAd.isPending;
 
-  if (!memberLoading && !memberMe && !canManageBulletinAds) {
-    return (
-      <SupportPageWrapper title="주보 광고신청" activeHref="/support/bulletin-ad">
-        <MemberOnlyContentNotice
-          resourceLabel="주보 광고신청"
-          fallbackPath="/support/bulletin-ad"
-        />
-      </SupportPageWrapper>
-    );
-  }
-
   return (
     <SupportPageWrapper title="주보 광고신청" activeHref="/support/bulletin-ad">
       <div className="space-y-5">
@@ -185,15 +173,6 @@ export default function BulletinAdRequestPage() {
             </button>
           </div>
         </div>
-
-        {!memberLoading && !memberMe && (
-          <div className="border border-[#d8f3dc] bg-[#f1f8f3] px-5 py-4 text-sm text-gray-700">
-            주보 광고신청은 로그인한 성도만 작성할 수 있습니다.
-            <Link href="/member/login?next=/support/bulletin-ad" className="ml-2 font-semibold text-[#1B5E20] underline-offset-2 hover:underline">
-              성도 로그인
-            </Link>
-          </div>
-        )}
 
         {canManageBulletinAds && (
           <AdminSupportRequestsTab
