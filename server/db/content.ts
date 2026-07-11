@@ -91,7 +91,10 @@ export async function getVisibleGalleryItems() {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(galleryItems)
-    .where(eq(galleryItems.isVisible, true))
+    .where(and(
+      eq(galleryItems.isVisible, true),
+      eq(galleryItems.isHomeGallery, false),
+    ))
     .orderBy(desc(galleryItems.albumSortOrder), asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
 }
 
@@ -99,7 +102,10 @@ export async function getVisibleHomeGalleryItems() {
   const db = await getDb();
   if (!db) return [];
   const items = await db.select().from(galleryItems)
-    .where(eq(galleryItems.isVisible, true))
+    .where(and(
+      eq(galleryItems.isVisible, true),
+      eq(galleryItems.isHomeGallery, false),
+    ))
     .orderBy(desc(galleryItems.albumSortOrder), asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
 
   const seenAlbums = new Set<string>();
@@ -388,6 +394,7 @@ export async function getAllGalleryItems() {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(galleryItems)
+    .where(eq(galleryItems.isHomeGallery, false))
     .orderBy(desc(galleryItems.albumSortOrder), asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
 }
 /** 갤러리 새 항목 추가 */

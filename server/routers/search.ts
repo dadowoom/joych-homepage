@@ -140,6 +140,7 @@ type SearchDataset = {
     caption: string | null;
     createdAt: Date | string;
     isVisible: boolean;
+    isHomeGallery: boolean;
     albumSortOrder: number;
   }>;
   pageBlocks: Array<{
@@ -705,6 +706,8 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
   const galleryMatches = dataset.galleryItems
     .filter((item) =>
       item.isVisible &&
+      !item.isHomeGallery &&
+      Boolean(item.albumKey?.trim() || item.albumTitle?.trim()) &&
       matchesKeyword(keyword, item.albumTitle, item.albumDescription, item.caption),
     )
     .sort((left, right) => {
@@ -1196,12 +1199,14 @@ async function loadSearchDataset(keyword: string): Promise<SearchDataset | null>
         caption: galleryItems.caption,
         createdAt: galleryItems.createdAt,
         isVisible: galleryItems.isVisible,
+        isHomeGallery: galleryItems.isHomeGallery,
         albumSortOrder: galleryItems.albumSortOrder,
       })
       .from(galleryItems)
       .where(
         and(
           eq(galleryItems.isVisible, true),
+          eq(galleryItems.isHomeGallery, false),
           or(
             like(galleryItems.albumTitle, keywordLike),
             like(galleryItems.albumDescription, keywordLike),

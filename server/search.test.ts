@@ -125,6 +125,7 @@ function createDataset(overrides: Partial<SearchDataset> = {}): SearchDataset {
         caption: "Grace photo",
         createdAt: "2026-06-28",
         isVisible: true,
+        isHomeGallery: false,
         albumSortOrder: 5,
       },
       {
@@ -135,7 +136,19 @@ function createDataset(overrides: Partial<SearchDataset> = {}): SearchDataset {
         caption: "Hidden",
         createdAt: "2026-06-27",
         isVisible: false,
+        isHomeGallery: false,
         albumSortOrder: 4,
+      },
+      {
+        id: 403,
+        albumKey: null,
+        albumTitle: null,
+        albumDescription: null,
+        caption: "Grace Home Gallery",
+        createdAt: "2026-06-26",
+        isVisible: true,
+        isHomeGallery: true,
+        albumSortOrder: 0,
       },
     ],
     pageBlocks: [
@@ -410,6 +423,7 @@ describe("grouped backend search", () => {
     expect(titles).not.toContain("Secret Free Board");
     expect(titles).not.toContain("Hidden Staff");
     expect(titles).not.toContain("Member Course");
+    expect(titles).not.toContain("Grace Home Gallery");
     expect(serialized).not.toContain("secret@example.com");
     expect(serialized).not.toContain("010-1234-5678");
   });

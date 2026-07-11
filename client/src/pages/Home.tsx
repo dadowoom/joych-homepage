@@ -88,49 +88,6 @@ const FALLBACK_AFFILIATES = [
   },
 ];
 
-const FALLBACK_GALLERY = [
-  {
-    imageUrl:
-      "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-exterior-3_82fdf499.jpg",
-    albumKey: null,
-    albumTitle: null,
-    caption: "기쁨의교회 야경",
-    gridSpan: "col-span-2 row-span-2",
-  },
-  {
-    imageUrl:
-      "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-worship-praise_d34c61eb.webp",
-    albumKey: null,
-    albumTitle: null,
-    caption: "찬양 집회",
-    gridSpan: "col-span-1 row-span-1",
-  },
-  {
-    imageUrl:
-      "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-worship-sunday_f599f896.jpg",
-    albumKey: null,
-    albumTitle: null,
-    caption: "주일예배",
-    gridSpan: "col-span-1 row-span-1",
-  },
-  {
-    imageUrl:
-      "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-exterior-1_eb2be3e7.webp",
-    albumKey: null,
-    albumTitle: null,
-    caption: "교회 전경 (야경)",
-    gridSpan: "col-span-1 row-span-1",
-  },
-  {
-    imageUrl:
-      "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-exterior-2_b3093207.jpg",
-    albumKey: null,
-    albumTitle: null,
-    caption: "교회 전경 (주간)",
-    gridSpan: "col-span-1 row-span-1",
-  },
-];
-
 type HeroButtonConfig = {
   label: string;
   href: string;
@@ -385,11 +342,7 @@ export default function Home() {
     isFetched: affiliatesFetched,
     isError: affiliatesError,
   } = trpc.home.affiliates.useQuery();
-  const {
-    data: dbGallery,
-    isFetched: galleryFetched,
-    isError: galleryError,
-  } = trpc.home.homeGallery.useQuery();
+  const { data: dbGallery } = trpc.home.homeGallery.useQuery();
   const { data: dbSettings } = trpc.home.settings.useQuery();
 
   // DB 데이터 또는 폴백 데이터 사용.
@@ -403,9 +356,6 @@ export default function Home() {
   const shouldUseAffiliatesFallback =
     (affiliatesFetched || affiliatesError) &&
     (!dbAffiliates || dbAffiliates.length === 0);
-  const shouldUseGalleryFallback =
-    (galleryFetched || galleryError) &&
-    (!dbGallery || dbGallery.length === 0);
   const heroSlides =
     dbHeroSlides && dbHeroSlides.length > 0
       ? dbHeroSlides
@@ -437,12 +387,7 @@ export default function Home() {
       : shouldUseAffiliatesFallback
         ? FALLBACK_AFFILIATES
         : [];
-  const gallery =
-    dbGallery && dbGallery.length > 0
-      ? dbGallery
-      : shouldUseGalleryFallback
-        ? FALLBACK_GALLERY
-        : [];
+  const gallery = dbGallery ?? [];
   const homeFeatureCards = sanitizeHomeFeatureCards(
     dbSettings?.home_feature_cards
   );

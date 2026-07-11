@@ -92,18 +92,6 @@ await db.execute(`
 `);
 console.log("✅ notices 입력 완료");
 
-// ── 6. gallery_items (갤러리 사진) ───────────────────
-await db.execute(`
-  INSERT IGNORE INTO gallery_items (imageUrl, caption, gridSpan, sortOrder, isVisible) VALUES
-  ('https://images.unsplash.com/photo-1438032005730-c779502df39b?w=800&q=80', '교회 예배당',  'col-span-2 row-span-2', 1, 1),
-  ('https://images.unsplash.com/photo-1529070538774-1843cb3265df?w=600&q=80', '찬양 예배',    'col-span-1 row-span-1', 2, 1),
-  ('https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80', '찬양대',       'col-span-1 row-span-1', 3, 1),
-  ('https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=600&q=80', '교회 행사',    'col-span-1 row-span-1', 4, 1),
-  ('https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=600&q=80', '컨퍼런스',     'col-span-1 row-span-1', 5, 1),
-  ('https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=800&q=80', '수련회',       'col-span-2 row-span-1', 6, 1)
-`);
-console.log("✅ gallery_items 입력 완료");
-
 // ── 7. affiliates (관련 기관) ─────────────────────────
 await db.execute(`
   INSERT IGNORE INTO affiliates (icon, label, href, sortOrder, isVisible) VALUES
