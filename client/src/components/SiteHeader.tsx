@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { isExternalSiteHref, normalizeSiteHref } from "@/lib/siteHref";
 import { toFallbackMenuTree } from "@shared/siteNavigation";
@@ -39,19 +39,22 @@ function getSpecialMenuHref(label?: string | null, href?: string | null) {
   if (normalized === "주보광고신청") return "/support/bulletin-ad";
   if (normalized === "자막신청") return "/support/subtitle";
   if (normalized === "탐방신청") return "/support/tour";
-  if (normalized === "외부인" && normalizedHref.includes("시설사용예약외부인")) return "/facility/external";
+  if (normalized === "외부인" && normalizedHref.includes("시설사용예약외부인"))
+    return "/facility/external";
   return null;
 }
 
 function isContainerOnlySecondLevelItem(item: unknown) {
   const data = item as Record<string, unknown>;
-  const label = typeof data.label === "string" ? normalizeMenuLabel(data.label) : "";
+  const label =
+    typeof data.label === "string" ? normalizeMenuLabel(data.label) : "";
   return label === "자료실";
 }
 
 function isRepresentativeLinkSecondLevelItem(item: unknown) {
   const data = item as Record<string, unknown>;
-  const label = typeof data.label === "string" ? normalizeMenuLabel(data.label) : "";
+  const label =
+    typeof data.label === "string" ? normalizeMenuLabel(data.label) : "";
   return label === "주보";
 }
 
@@ -60,8 +63,14 @@ function getRepresentativeSubItemHref(item: unknown) {
     subItems?: Array<{ label?: string | null; href?: string | null }>;
   };
   const subItems = data.subItems ?? [];
-  const bulletinView = subItems.find((sub) => normalizeMenuLabel(sub.label ?? "") === "주보보기");
-  return getSpecialMenuHref(bulletinView?.label, bulletinView?.href) ?? getUsableHref(bulletinView?.href) ?? getUsableHref(subItems.find((sub) => getUsableHref(sub.href))?.href);
+  const bulletinView = subItems.find(
+    sub => normalizeMenuLabel(sub.label ?? "") === "주보보기"
+  );
+  return (
+    getSpecialMenuHref(bulletinView?.label, bulletinView?.href) ??
+    getUsableHref(bulletinView?.href) ??
+    getUsableHref(subItems.find(sub => getUsableHref(sub.href))?.href)
+  );
 }
 
 function hasOwnSecondLevelContent(item: unknown) {
@@ -70,19 +79,28 @@ function hasOwnSecondLevelContent(item: unknown) {
   const data = item as Record<string, unknown>;
   const pageType = typeof data.pageType === "string" ? data.pageType : "image";
   if (pageType === "image") {
-    return typeof data.pageImageUrl === "string" && data.pageImageUrl.trim().length > 0;
+    return (
+      typeof data.pageImageUrl === "string" &&
+      data.pageImageUrl.trim().length > 0
+    );
   }
   return true;
 }
 
 function getSecondLevelHref(item: unknown, hasSubItems: boolean) {
-  const specialHref = getSpecialMenuHref((item as { label?: string | null }).label, (item as { href?: string | null }).href);
+  const specialHref = getSpecialMenuHref(
+    (item as { label?: string | null }).label,
+    (item as { href?: string | null }).href
+  );
   if (specialHref) return specialHref;
 
   if (hasSubItems) {
     if (isContainerOnlySecondLevelItem(item)) return null;
     if (isRepresentativeLinkSecondLevelItem(item)) {
-      return getRepresentativeSubItemHref(item) ?? getUsableHref((item as { href?: string | null }).href);
+      return (
+        getRepresentativeSubItemHref(item) ??
+        getUsableHref((item as { href?: string | null }).href)
+      );
     }
     if (!hasOwnSecondLevelContent(item)) return null;
   }
@@ -90,13 +108,18 @@ function getSecondLevelHref(item: unknown, hasSubItems: boolean) {
   return getUsableHref((item as { href?: string | null }).href);
 }
 
-function getThirdLevelHref(item: { label?: string | null; href?: string | null }) {
+function getThirdLevelHref(item: {
+  label?: string | null;
+  href?: string | null;
+}) {
   return getSpecialMenuHref(item.label, item.href) ?? getUsableHref(item.href);
 }
 
 const fallbackMenus = toFallbackMenuTree();
 
-async function invalidateMemberSessionBoundQueries(utils: ReturnType<typeof trpc.useUtils>) {
+async function invalidateMemberSessionBoundQueries(
+  utils: ReturnType<typeof trpc.useUtils>
+) {
   await Promise.all([
     utils.members.me.invalidate(),
     utils.home.menus.invalidate(),
@@ -121,7 +144,8 @@ export default function SiteHeader() {
   const [mobileExpandedSubId, setMobileExpandedSubId] = useState<number | null>(
     null
   );
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
+  const searchString = useSearch();
   const { language, toggleLanguage, t } = useLanguage();
   const utils = trpc.useUtils();
 
@@ -132,16 +156,20 @@ export default function SiteHeader() {
       await invalidateMemberSessionBoundQueries(utils);
     },
   });
-  const {
-    data: dbMenus,
-    isLoading: menusLoading,
-  } = trpc.home.menus.useQuery(undefined, {
-    staleTime: 0,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: true,
-  });
+  const { data: dbMenus, isLoading: menusLoading } = trpc.home.menus.useQuery(
+    undefined,
+    {
+      staleTime: 0,
+      refetchOnMount: "always",
+      refetchOnWindowFocus: true,
+    }
+  );
   const { data: dbSettings } = trpc.home.settings.useQuery();
-  const displayMenus = Array.isArray(dbMenus) ? dbMenus : (menusLoading ? [] : fallbackMenus);
+  const displayMenus = Array.isArray(dbMenus)
+    ? dbMenus
+    : menusLoading
+      ? []
+      : fallbackMenus;
   const socialLinks = [
     {
       icon: "fab fa-youtube",
@@ -168,13 +196,19 @@ export default function SiteHeader() {
   }, []);
 
   // 페이지 이동 시 모바일 메뉴 닫기
-  const [location] = useLocation();
   useEffect(() => {
     setDesktopOpenId(null);
     setDesktopOpenSubId(null);
     setMobileOpen(false);
     setMobileSearchOpen(false);
   }, [location]);
+
+  useEffect(() => {
+    if (location !== "/search") return;
+
+    const nextKeyword = new URLSearchParams(searchString).get("q") ?? "";
+    setSearchName(nextKeyword);
+  }, [location, searchString]);
 
   const handleSearch = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -194,7 +228,9 @@ export default function SiteHeader() {
       {/* ===== 상단 유틸 바 ===== */}
       <div className="bg-[#0F172A] text-gray-400 text-xs py-2 hidden md:block">
         <div className="container flex justify-between items-center">
-          <span className="tracking-wide">{t("깊이있는 성장, 위대한 교회")}</span>
+          <span className="tracking-wide">
+            {t("깊이있는 성장, 위대한 교회")}
+          </span>
           <div className="flex gap-4 items-center">
             {memberMe ? (
               <>
@@ -332,151 +368,176 @@ export default function SiteHeader() {
                             {translateSiteText(item.label, language)}
                           </a>
                         ) : (
-                          <Link href={parentHref} className={parentClassName} onClick={closeDesktopMenus}>
+                          <Link
+                            href={parentHref}
+                            className={parentClassName}
+                            onClick={closeDesktopMenus}
+                          >
                             {translateSiteText(item.label, language)}
                           </Link>
                         )
                       ) : (
-                        <span className={parentClassName}>{translateSiteText(item.label, language)}</span>
+                        <span className={parentClassName}>
+                          {translateSiteText(item.label, language)}
+                        </span>
                       )}
                       <span
                         className={`absolute bottom-0 left-0 right-0 h-[3px] bg-[#1B5E20] transition-transform duration-200 origin-left ${
-                          desktopOpenId === item.id ? "scale-x-100" : "scale-x-0"
+                          desktopOpenId === item.id
+                            ? "scale-x-100"
+                            : "scale-x-0"
                         }`}
                       ></span>
                     </div>
-                    {(item.items ?? []).length > 0 && desktopOpenId === item.id && (
-                      <ul className="absolute top-[72px] left-0 bg-white border-t-2 border-[#1B5E20] shadow-xl min-w-[160px] z-[200] py-1 opacity-100 visible transition-all duration-150">
-                        {(item.items ?? []).map((s, j) => {
-                          const hasSubItems =
-                            (
-                              s as {
-                                subItems?: {
-                                  id: number;
-                                  label: string;
-                                  href?: string | null;
-                                }[];
-                              }
-                            ).subItems &&
-                            (
-                              s as {
-                                subItems?: {
-                                  id: number;
-                                  label: string;
-                                  href?: string | null;
-                                }[];
-                              }
-                            ).subItems!.length > 0;
-                          const subItems =
-                            (
-                              s as {
-                                subItems?: {
-                                  id: number;
-                                  label: string;
-                                  href?: string | null;
-                                }[];
-                              }
-                            ).subItems ?? [];
-                          const secondLevelHref = getSecondLevelHref(
-                            s,
-                            Boolean(hasSubItems)
-                          );
-                          const cls =
-                            "flex items-center justify-between px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
-                          return (
-                            <li
-                              key={j}
-                              className="relative"
-                              onMouseEnter={() => {
-                                if (hasSubItems) setDesktopOpenSubId(s.id);
-                              }}
-                              onMouseLeave={() => {
-                                if (desktopOpenSubId === s.id) {
-                                  setDesktopOpenSubId(null);
+                    {(item.items ?? []).length > 0 &&
+                      desktopOpenId === item.id && (
+                        <ul className="absolute top-[72px] left-0 bg-white border-t-2 border-[#1B5E20] shadow-xl min-w-[160px] z-[200] py-1 opacity-100 visible transition-all duration-150">
+                          {(item.items ?? []).map((s, j) => {
+                            const hasSubItems =
+                              (
+                                s as {
+                                  subItems?: {
+                                    id: number;
+                                    label: string;
+                                    href?: string | null;
+                                  }[];
                                 }
-                              }}
-                            >
-                              {secondLevelHref ? (
-                                isExternalSiteHref(secondLevelHref) ? (
-                                  <a
-                                    href={secondLevelHref}
-                                    target="_blank"
-                                    rel="noreferrer noopener"
-                                    className={cls}
-                                    onClick={closeDesktopMenus}
-                                  >
-                                    <span>{translateSiteText(s.label, language)}</span>
-                                    {hasSubItems && (
-                                      <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>
-                                    )}
-                                  </a>
+                              ).subItems &&
+                              (
+                                s as {
+                                  subItems?: {
+                                    id: number;
+                                    label: string;
+                                    href?: string | null;
+                                  }[];
+                                }
+                              ).subItems!.length > 0;
+                            const subItems =
+                              (
+                                s as {
+                                  subItems?: {
+                                    id: number;
+                                    label: string;
+                                    href?: string | null;
+                                  }[];
+                                }
+                              ).subItems ?? [];
+                            const secondLevelHref = getSecondLevelHref(
+                              s,
+                              Boolean(hasSubItems)
+                            );
+                            const cls =
+                              "flex items-center justify-between px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
+                            return (
+                              <li
+                                key={j}
+                                className="relative"
+                                onMouseEnter={() => {
+                                  if (hasSubItems) setDesktopOpenSubId(s.id);
+                                }}
+                                onMouseLeave={() => {
+                                  if (desktopOpenSubId === s.id) {
+                                    setDesktopOpenSubId(null);
+                                  }
+                                }}
+                              >
+                                {secondLevelHref ? (
+                                  isExternalSiteHref(secondLevelHref) ? (
+                                    <a
+                                      href={secondLevelHref}
+                                      target="_blank"
+                                      rel="noreferrer noopener"
+                                      className={cls}
+                                      onClick={closeDesktopMenus}
+                                    >
+                                      <span>
+                                        {translateSiteText(s.label, language)}
+                                      </span>
+                                      {hasSubItems && (
+                                        <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>
+                                      )}
+                                    </a>
+                                  ) : (
+                                    <Link
+                                      href={secondLevelHref}
+                                      className={cls}
+                                      onClick={closeDesktopMenus}
+                                    >
+                                      <span>
+                                        {translateSiteText(s.label, language)}
+                                      </span>
+                                      {hasSubItems && (
+                                        <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>
+                                      )}
+                                    </Link>
+                                  )
                                 ) : (
-                                  <Link
-                                    href={secondLevelHref}
-                                    className={cls}
-                                    onClick={closeDesktopMenus}
-                                  >
-                                    <span>{translateSiteText(s.label, language)}</span>
+                                  <span className={`${cls} cursor-default`}>
+                                    <span>
+                                      {translateSiteText(s.label, language)}
+                                    </span>
                                     {hasSubItems && (
                                       <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>
                                     )}
-                                  </Link>
-                                )
-                              ) : (
-                                <span className={`${cls} cursor-default`}>
-                                  <span>{translateSiteText(s.label, language)}</span>
-                                  {hasSubItems && (
-                                    <i className="fas fa-chevron-right text-[10px] text-gray-400 ml-2"></i>
-                                  )}
-                                </span>
-                              )}
-                              {hasSubItems && desktopOpenSubId === s.id && (
-                                <ul className="absolute left-full top-0 bg-white border-l-2 border-[#1B5E20] shadow-xl min-w-[150px] z-[300] py-1 opacity-100 visible transition-all duration-150">
-                                  {subItems.map((sub, k) => {
-                                    const thirdLevelHref = getThirdLevelHref(sub);
-                                    const subCls =
-                                      "block px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
-                                    return (
-                                      <li key={k}>
-                                        {thirdLevelHref ? (
-                                          isExternalSiteHref(
-                                            thirdLevelHref
-                                          ) ? (
-                                            <a
-                                              href={thirdLevelHref}
-                                              target="_blank"
-                                              rel="noreferrer noopener"
-                                              className={subCls}
-                                              onClick={closeDesktopMenus}
-                                            >
-                                              {translateSiteText(sub.label, language)}
-                                            </a>
+                                  </span>
+                                )}
+                                {hasSubItems && desktopOpenSubId === s.id && (
+                                  <ul className="absolute left-full top-0 bg-white border-l-2 border-[#1B5E20] shadow-xl min-w-[150px] z-[300] py-1 opacity-100 visible transition-all duration-150">
+                                    {subItems.map((sub, k) => {
+                                      const thirdLevelHref =
+                                        getThirdLevelHref(sub);
+                                      const subCls =
+                                        "block px-5 py-2.5 text-sm text-gray-600 hover:bg-[#F1F8E9] hover:text-[#1B5E20] transition-colors border-b border-gray-50 last:border-0 whitespace-nowrap";
+                                      return (
+                                        <li key={k}>
+                                          {thirdLevelHref ? (
+                                            isExternalSiteHref(
+                                              thirdLevelHref
+                                            ) ? (
+                                              <a
+                                                href={thirdLevelHref}
+                                                target="_blank"
+                                                rel="noreferrer noopener"
+                                                className={subCls}
+                                                onClick={closeDesktopMenus}
+                                              >
+                                                {translateSiteText(
+                                                  sub.label,
+                                                  language
+                                                )}
+                                              </a>
+                                            ) : (
+                                              <Link
+                                                href={thirdLevelHref}
+                                                className={subCls}
+                                                onClick={closeDesktopMenus}
+                                              >
+                                                {translateSiteText(
+                                                  sub.label,
+                                                  language
+                                                )}
+                                              </Link>
+                                            )
                                           ) : (
-                                            <Link
-                                              href={thirdLevelHref}
-                                              className={subCls}
-                                              onClick={closeDesktopMenus}
+                                            <span
+                                              className={`${subCls} cursor-default`}
                                             >
-                                              {translateSiteText(sub.label, language)}
-                                            </Link>
-                                          )
-                                        ) : (
-                                          <span
-                                            className={`${subCls} cursor-default`}
-                                          >
-                                            {translateSiteText(sub.label, language)}
-                                          </span>
-                                        )}
-                                      </li>
-                                    );
-                                  })}
-                                </ul>
-                              )}
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
+                                              {translateSiteText(
+                                                sub.label,
+                                                language
+                                              )}
+                                            </span>
+                                          )}
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
                   </li>
                 );
               })}
@@ -554,186 +615,200 @@ export default function SiteHeader() {
               const hasChildren = (menu.items ?? []).length > 0;
 
               return (
-              <div key={menu.id} className="border-b border-gray-100">
-                {/* 1단 메뉴 */}
-                {!hasChildren && parentHref ? (
-                  isExternalSiteHref(parentHref) ? (
-                    <a
-                      href={parentHref}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="flex w-full items-center justify-between px-5 py-3 text-left text-sm font-medium text-gray-700 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
-                      onClick={() => setMobileOpen(false)}
-                    >
-                      <span>{translateSiteText(menu.label, language)}</span>
-                      <i className="fas fa-arrow-right text-[10px] text-gray-400"></i>
-                    </a>
+                <div key={menu.id} className="border-b border-gray-100">
+                  {/* 1단 메뉴 */}
+                  {!hasChildren && parentHref ? (
+                    isExternalSiteHref(parentHref) ? (
+                      <a
+                        href={parentHref}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="flex w-full items-center justify-between px-5 py-3 text-left text-sm font-medium text-gray-700 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        <span>{translateSiteText(menu.label, language)}</span>
+                        <i className="fas fa-arrow-right text-[10px] text-gray-400"></i>
+                      </a>
+                    ) : (
+                      <Link
+                        href={parentHref}
+                        className="flex w-full items-center justify-between px-5 py-3 text-left text-sm font-medium text-gray-700 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        <span>{translateSiteText(menu.label, language)}</span>
+                        <i className="fas fa-arrow-right text-[10px] text-gray-400"></i>
+                      </Link>
+                    )
                   ) : (
-                    <Link
-                      href={parentHref}
-                      className="flex w-full items-center justify-between px-5 py-3 text-left text-sm font-medium text-gray-700 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
-                      onClick={() => setMobileOpen(false)}
+                    <button
+                      className="w-full flex items-center justify-between px-5 py-3 text-sm font-medium text-gray-700 hover:bg-[#F1F8E9] hover:text-[#1B5E20] text-left"
+                      onClick={() => {
+                        setMobileExpandedId(
+                          mobileExpandedId === menu.id ? null : menu.id
+                        );
+                        setMobileExpandedSubId(null);
+                      }}
                     >
                       <span>{translateSiteText(menu.label, language)}</span>
-                      <i className="fas fa-arrow-right text-[10px] text-gray-400"></i>
-                    </Link>
-                  )
-                ) : (
-                  <button
-                    className="w-full flex items-center justify-between px-5 py-3 text-sm font-medium text-gray-700 hover:bg-[#F1F8E9] hover:text-[#1B5E20] text-left"
-                    onClick={() => {
-                      setMobileExpandedId(
-                        mobileExpandedId === menu.id ? null : menu.id
-                      );
-                      setMobileExpandedSubId(null);
-                    }}
-                  >
-                    <span>{translateSiteText(menu.label, language)}</span>
-                    {hasChildren && (
-                      <i
-                        className={`fas fa-chevron-${mobileExpandedId === menu.id ? "up" : "down"} text-[10px] text-gray-400`}
-                      ></i>
-                    )}
-                  </button>
-                )}
-                {/* 2단 메뉴 */}
-                {mobileExpandedId === menu.id &&
-                  (menu.items ?? []).length > 0 && (
-                    <div className="bg-gray-50">
-                      {(menu.items ?? []).map(item => {
-                        const hasSubItems =
-                          (item as { subItems?: unknown[] }).subItems &&
-                          (item as { subItems?: unknown[] }).subItems!.length >
-                            0;
-                        const subItems =
-                          (
-                            item as {
-                              subItems?: {
-                                id: number;
-                                label: string;
-                                href?: string | null;
-                              }[];
-                            }
-                          ).subItems ?? [];
-                        const secondLevelHref = getSecondLevelHref(
-                          item,
-                          Boolean(hasSubItems)
-                        );
-                        return (
-                          <div key={item.id}>
-                            {hasSubItems ? (
-                              <div className="flex items-center">
-                                <button
-                                  type="button"
-                                  className="w-full flex items-center justify-between flex-1 pl-8 pr-3 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9] text-left"
-                                  onClick={() =>
-                                    setMobileExpandedSubId(
-                                      mobileExpandedSubId === item.id
-                                        ? null
-                                        : item.id
-                                    )
-                                  }
-                                  aria-label={`${translateSiteText(item.label, language)} 하위 메뉴 열기`}
-                                >
-                                  <span>{translateSiteText(item.label, language)}</span>
-                                  <i
-                                    className={`fas fa-chevron-${mobileExpandedSubId === item.id ? "up" : "down"} text-[10px] text-gray-400`}
-                                  ></i>
-                                </button>
-                                {secondLevelHref ? (
-                                  isExternalSiteHref(secondLevelHref) ? (
-                                    <a
-                                      href={secondLevelHref}
-                                      target="_blank"
-                                      rel="noreferrer noopener"
-                                      className="px-3 py-2.5 text-gray-400 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
-                                      onClick={() => setMobileOpen(false)}
-                                      aria-label={`${translateSiteText(item.label, language)} 이동`}
-                                    >
-                                      <i className="fas fa-external-link-alt text-[12px]"></i>
-                                    </a>
-                                  ) : (
-                                    <Link
-                                      href={secondLevelHref}
-                                      className="px-3 py-2.5 text-gray-400 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
-                                      onClick={() => setMobileOpen(false)}
-                                      aria-label={`${translateSiteText(item.label, language)} 이동`}
-                                    >
-                                      <i className="fas fa-arrow-right text-[12px]"></i>
-                                    </Link>
-                                  )
-                                ) : null}
-                              </div>
-                            ) : secondLevelHref ? (
-                              isExternalSiteHref(secondLevelHref) ? (
-                                <a
-                                  href={secondLevelHref}
-                                  target="_blank"
-                                  rel="noreferrer noopener"
-                                  className="block pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
-                                  onClick={() => setMobileOpen(false)}
-                                >
-                                  {translateSiteText(item.label, language)}
-                                </a>
-                              ) : (
-                                <Link
-                                  href={secondLevelHref}
-                                  className="block pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
-                                  onClick={() => setMobileOpen(false)}
-                                >
-                                  {translateSiteText(item.label, language)}
-                                </Link>
-                              )
-                            ) : (
-                              <span className="block pl-8 pr-5 py-2.5 text-sm text-gray-400">
-                                {translateSiteText(item.label, language)}
-                              </span>
-                            )}
-                            {/* 3단 메뉴 */}
-                            {hasSubItems && mobileExpandedSubId === item.id && (
-                              <div className="bg-white">
-                                {subItems.map(sub => {
-                                  const thirdLevelHref = getThirdLevelHref(sub);
-                                  return thirdLevelHref ? (
-                                    isExternalSiteHref(thirdLevelHref) ? (
+                      {hasChildren && (
+                        <i
+                          className={`fas fa-chevron-${mobileExpandedId === menu.id ? "up" : "down"} text-[10px] text-gray-400`}
+                        ></i>
+                      )}
+                    </button>
+                  )}
+                  {/* 2단 메뉴 */}
+                  {mobileExpandedId === menu.id &&
+                    (menu.items ?? []).length > 0 && (
+                      <div className="bg-gray-50">
+                        {(menu.items ?? []).map(item => {
+                          const hasSubItems =
+                            (item as { subItems?: unknown[] }).subItems &&
+                            (item as { subItems?: unknown[] }).subItems!
+                              .length > 0;
+                          const subItems =
+                            (
+                              item as {
+                                subItems?: {
+                                  id: number;
+                                  label: string;
+                                  href?: string | null;
+                                }[];
+                              }
+                            ).subItems ?? [];
+                          const secondLevelHref = getSecondLevelHref(
+                            item,
+                            Boolean(hasSubItems)
+                          );
+                          return (
+                            <div key={item.id}>
+                              {hasSubItems ? (
+                                <div className="flex items-center">
+                                  <button
+                                    type="button"
+                                    className="w-full flex items-center justify-between flex-1 pl-8 pr-3 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9] text-left"
+                                    onClick={() =>
+                                      setMobileExpandedSubId(
+                                        mobileExpandedSubId === item.id
+                                          ? null
+                                          : item.id
+                                      )
+                                    }
+                                    aria-label={`${translateSiteText(item.label, language)} 하위 메뉴 열기`}
+                                  >
+                                    <span>
+                                      {translateSiteText(item.label, language)}
+                                    </span>
+                                    <i
+                                      className={`fas fa-chevron-${mobileExpandedSubId === item.id ? "up" : "down"} text-[10px] text-gray-400`}
+                                    ></i>
+                                  </button>
+                                  {secondLevelHref ? (
+                                    isExternalSiteHref(secondLevelHref) ? (
                                       <a
-                                        key={sub.id}
-                                        href={thirdLevelHref}
+                                        href={secondLevelHref}
                                         target="_blank"
                                         rel="noreferrer noopener"
-                                        className="block pl-12 pr-5 py-2 text-sm text-gray-500 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                        className="px-3 py-2.5 text-gray-400 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
                                         onClick={() => setMobileOpen(false)}
+                                        aria-label={`${translateSiteText(item.label, language)} 이동`}
                                       >
-                                        {translateSiteText(sub.label, language)}
+                                        <i className="fas fa-external-link-alt text-[12px]"></i>
                                       </a>
                                     ) : (
                                       <Link
-                                        key={sub.id}
-                                        href={thirdLevelHref}
-                                        className="block pl-12 pr-5 py-2 text-sm text-gray-500 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                        href={secondLevelHref}
+                                        className="px-3 py-2.5 text-gray-400 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
                                         onClick={() => setMobileOpen(false)}
+                                        aria-label={`${translateSiteText(item.label, language)} 이동`}
                                       >
-                                        {translateSiteText(sub.label, language)}
+                                        <i className="fas fa-arrow-right text-[12px]"></i>
                                       </Link>
                                     )
-                                  ) : (
-                                    <span
-                                      key={sub.id}
-                                      className="block pl-12 pr-5 py-2 text-sm text-gray-400"
-                                    >
-                                      {translateSiteText(sub.label, language)}
-                                    </span>
-                                  )
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-              </div>
-            )})}
+                                  ) : null}
+                                </div>
+                              ) : secondLevelHref ? (
+                                isExternalSiteHref(secondLevelHref) ? (
+                                  <a
+                                    href={secondLevelHref}
+                                    target="_blank"
+                                    rel="noreferrer noopener"
+                                    className="block pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                    onClick={() => setMobileOpen(false)}
+                                  >
+                                    {translateSiteText(item.label, language)}
+                                  </a>
+                                ) : (
+                                  <Link
+                                    href={secondLevelHref}
+                                    className="block pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                    onClick={() => setMobileOpen(false)}
+                                  >
+                                    {translateSiteText(item.label, language)}
+                                  </Link>
+                                )
+                              ) : (
+                                <span className="block pl-8 pr-5 py-2.5 text-sm text-gray-400">
+                                  {translateSiteText(item.label, language)}
+                                </span>
+                              )}
+                              {/* 3단 메뉴 */}
+                              {hasSubItems &&
+                                mobileExpandedSubId === item.id && (
+                                  <div className="bg-white">
+                                    {subItems.map(sub => {
+                                      const thirdLevelHref =
+                                        getThirdLevelHref(sub);
+                                      return thirdLevelHref ? (
+                                        isExternalSiteHref(thirdLevelHref) ? (
+                                          <a
+                                            key={sub.id}
+                                            href={thirdLevelHref}
+                                            target="_blank"
+                                            rel="noreferrer noopener"
+                                            className="block pl-12 pr-5 py-2 text-sm text-gray-500 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                            onClick={() => setMobileOpen(false)}
+                                          >
+                                            {translateSiteText(
+                                              sub.label,
+                                              language
+                                            )}
+                                          </a>
+                                        ) : (
+                                          <Link
+                                            key={sub.id}
+                                            href={thirdLevelHref}
+                                            className="block pl-12 pr-5 py-2 text-sm text-gray-500 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                            onClick={() => setMobileOpen(false)}
+                                          >
+                                            {translateSiteText(
+                                              sub.label,
+                                              language
+                                            )}
+                                          </Link>
+                                        )
+                                      ) : (
+                                        <span
+                                          key={sub.id}
+                                          className="block pl-12 pr-5 py-2 text-sm text-gray-400"
+                                        >
+                                          {translateSiteText(
+                                            sub.label,
+                                            language
+                                          )}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                </div>
+              );
+            })}
             <div className="border-t border-gray-200 px-5 py-3 flex gap-4">
               {memberMe ? (
                 <>

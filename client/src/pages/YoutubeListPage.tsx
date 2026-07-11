@@ -5,6 +5,7 @@
  * - 카드 클릭 시 메인 플레이어 영상 전환
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { ChevronLeft, ChevronRight, LayoutGrid, List, PlayCircle, Search, Settings, X } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -47,6 +48,7 @@ function VideoThumbnail({ title, src }: { title: string; src: string | null }) {
 
 export default function YoutubeListPage({ playlistId, title }: YoutubeListPageProps) {
   const { data: videos = [], isLoading } = trpc.youtube.getVideos.useQuery({ playlistId });
+  const searchString = useSearch();
   const { user } = useAuth();
   const canManage = canManageBoardContent(user, "content:youtube");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -55,6 +57,11 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"thumbnail" | "list">("thumbnail");
   const containerRef = useRef<HTMLDivElement>(null);
+  const selectedVideoId = useMemo(() => {
+    const raw = new URLSearchParams(searchString).get("video");
+    const parsed = raw ? Number(raw) : NaN;
+    return Number.isFinite(parsed) ? parsed : null;
+  }, [searchString]);
   const filteredVideos = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase();
     if (!keyword) return videos;
@@ -100,6 +107,16 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
   const LIST_VIEW_LIMIT = 20;
   const listViewVideos = filteredVideos.slice(0, LIST_VIEW_LIMIT);
   const CARDS_PER_VIEW = 4; // 한 번에 보이는 카드 수
+
+  useEffect(() => {
+    if (!selectedVideoId || filteredVideos.length === 0) return;
+    const nextIndex = filteredVideos.findIndex((video) => video.id === selectedVideoId);
+    if (nextIndex < 0) return;
+
+    setActiveIndex(nextIndex);
+    setSlideOffset(Math.min(nextIndex, Math.max(0, filteredVideos.length - CARDS_PER_VIEW)));
+  }, [selectedVideoId, filteredVideos, CARDS_PER_VIEW]);
+
   const sermonInfoRows = activeVideo
     ? [
         { label: "제목", value: activeVideo.title },
