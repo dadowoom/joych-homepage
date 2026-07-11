@@ -22,14 +22,6 @@ const FAITH_TYPE_LABEL: Record<string, string> = {
   balanced: "균형형",
 };
 
-const ACTIVITY_TYPE_LABEL: Record<string, string> = {
-  bible: "성경읽기",
-  prayer: "기도",
-  worship: "예배",
-  light: "세상의 빛",
-  evangelism: "전도",
-};
-
 function formatSeconds(sec: number): string {
   if (!sec) return "0분";
   const h = Math.floor(sec / 3600);
@@ -479,44 +471,6 @@ export default function FaithData() {
               </div>
             )}
 
-            {/* 최근 활동 기록 */}
-            {selectedUser.recentActivities.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-100 p-5">
-                <h3 className="font-semibold text-gray-700 flex items-center gap-2 mb-4">
-                  <i className="fas fa-history text-[#1B5E20]"></i>
-                  최근 활동 기록
-                </h3>
-                <div className="space-y-3">
-                  {selectedUser.recentActivities.slice(0, 10).map((act, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-[#E8F5E9] flex items-center justify-center shrink-0">
-                        <i className={`fas ${
-                          act.type === "bible" ? "fa-book-open" :
-                          act.type === "prayer" ? "fa-hands-praying" :
-                          act.type === "worship" ? "fa-church" :
-                          act.type === "light" ? "fa-sun" : "fa-star"
-                        } text-[#1B5E20] text-xs`}></i>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-gray-700 truncate">{act.description || (ACTIVITY_TYPE_LABEL[act.type] ?? act.type)}</p>
-                        <p className="text-xs text-gray-400">{act.date}</p>
-                      </div>
-                      {act.points > 0 && (
-                        <span className="text-xs font-semibold text-[#1B5E20] shrink-0">+{act.points}pt</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* 활동 기록이 없을 때 */}
-            {selectedUser.recentActivities.length === 0 && (
-              <div className="bg-white rounded-xl border border-gray-100 p-8 text-center text-gray-400">
-                <i className="fas fa-leaf text-3xl text-gray-200 mb-2"></i>
-                <p className="text-sm">아직 활동 기록이 없습니다.</p>
-              </div>
-            )}
           </div>
         )}
 
