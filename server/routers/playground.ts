@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { publicProcedure, router } from "../_core/trpc";
+import { fetchFaithPlusProfile } from "../faithPlusProfile";
 
 const rankingPeriodSchema = z.enum(["weekly", "monthly", "yearly", "all"]);
 const rankingMetricSchema = z.enum(["total", "bible", "prayer", "worship", "light", "salt", "heritage"]);
@@ -314,6 +315,15 @@ export const playgroundRouter = router({
     )
     .query(async ({ input }) => {
       return searchFaithPlusUsers(input.name);
+    }),
+  profile: publicProcedure
+    .input(
+      z.object({
+        userId: z.number().int().positive(),
+      })
+    )
+    .query(async ({ input }) => {
+      return fetchFaithPlusProfile(FAITHPLUS_BASE_URL, input.userId);
     }),
   rankings: publicProcedure
     .input(

@@ -319,7 +319,7 @@ function FaithPlusUserSearch() {
                 {users.map((user) => (
                   <a
                     key={user.userId}
-                    href={`/faith-data?name=${encodeURIComponent(user.displayName)}`}
+                    href={`/faith-data?userId=${user.userId}&name=${encodeURIComponent(user.displayName)}`}
                     className="group rounded-lg border border-gray-100 bg-[#FAFAF8] p-4 transition hover:border-[#1B5E20]/40 hover:bg-white hover:shadow-sm"
                   >
                     <div className="flex items-center gap-3">

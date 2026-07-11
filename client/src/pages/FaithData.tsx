@@ -5,69 +5,14 @@
  */
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
+import { trpc } from "@/lib/trpc";
+import type { inferRouterOutputs } from "@trpc/server";
+import type { AppRouter } from "../../../server/routers";
 
 // ─── API 타입 정의 ───────────────────────────────────────────────
-interface SearchUser {
-  userId: number;
-  displayName: string;
-  churchName: string;
-  gender: string;
-  age: number;
-  profilePhoto: string | null;
-  totalScore: number;
-  totalBibleDays: number;
-  totalPrayerCount: number;
-  worshipCount: number;
-  lightOfWorldCount: number;
-  totalPrayerSec: number;
-  monthlyBibleDays: number;
-  monthlyPrayerCount: number;
-  monthlyWorshipCount: number;
-  monthlyLightOfWorldCount: number;
-}
-
-interface FaithType {
-  faith_type: string;
-  faith_type_code: string;
-  bible_score: number;
-  prayer_score: number;
-  worship_score: number;
-  light_score: number;
-  salt_score: number;
-  ai_analysis: string | null;
-  ai_advice: string | null;
-  recommended_verse: string | null;
-  year_month: string;
-}
-
-interface ProfileData {
-  profile: {
-    userId: number;
-    displayName: string;
-    churchName: string;
-    gender: string;
-    age: number;
-    profilePhoto: string | null;
-    totalScore: number;
-    totalBibleDays: number;
-    totalPrayerCount: number;
-    worshipCount: number;
-    lightOfWorldCount: number;
-    totalPrayerSec: number;
-    monthlyBibleDays: number;
-    monthlyPrayerCount: number;
-    monthlyWorshipCount: number;
-    monthlyLightOfWorldCount: number;
-    monthlyPrayerSec: number;
-  };
-  rank: number | null;
-  faithType: FaithType | string | null;
-  faithHistory: { date: string; type: string; description: string }[];
-  recentActivities: { date: string; type: string; description: string; points: number }[];
-  bibleProgress: { booksRead: number; chaptersRead: number };
-  evangelism: { contactCount: number };
-  garden: { currentStage: number; totalActivityPoints: number; totalFruits: number };
-}
+type PlaygroundOutputs = inferRouterOutputs<AppRouter>["playground"];
+type SearchUser = PlaygroundOutputs["searchUsers"]["users"][number];
+type ProfileData = PlaygroundOutputs["profile"];
 
 const FAITH_TYPE_LABEL: Record<string, string> = {
   prayer: "기도형",
@@ -97,6 +42,7 @@ function formatSeconds(sec: number): string {
 export default function FaithData() {
   const params = new URLSearchParams(window.location.search);
   const initialName = params.get("name") ?? "";
+  const initialUserId = Number(params.get("userId")) || null;
 
   const [searchInput, setSearchInput] = useState(initialName);
   const [query, setQuery] = useState(initialName);
@@ -105,36 +51,35 @@ export default function FaithData() {
   const [error, setError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<ProfileData | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const trpcUtils = trpc.useUtils();
 
   // URL의 name 파라미터로 자동 검색
   useEffect(() => {
-    if (query.trim()) {
+    if (initialUserId) {
+      loadProfile(initialUserId);
+    } else if (query.trim()) {
       doSearch(query.trim());
     }
-  }, [query]);
+  }, [query, initialUserId]);
 
   async function doSearch(name: string) {
     setLoading(true);
     setError(null);
     setSelectedUser(null);
     setUsers([]);
+    if (name.length < 2) {
+      setError("검색어를 2글자 이상 입력해 주세요.");
+      setLoading(false);
+      return;
+    }
     try {
-      const res = await fetch(`https://faithplus.co.kr/api/search?name=${encodeURIComponent(name)}`);
-      if (!res.ok) {
-        if (res.status === 400) {
-          setError("검색어를 2글자 이상 입력해 주세요.");
-        } else {
-          setError("검색 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
-        }
-        return;
-      }
-      const data = await res.json();
-      setUsers(data.users ?? []);
-      if ((data.users ?? []).length === 0) {
+      const data = await trpcUtils.playground.searchUsers.fetch({ name });
+      setUsers(data.users);
+      if (data.users.length === 0) {
         setError("검색 결과가 없습니다.");
       }
     } catch {
-      setError("서버에 연결할 수 없습니다. 네트워크를 확인해 주세요.");
+      setError("신앙 데이터 검색 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setLoading(false);
     }
@@ -144,9 +89,7 @@ export default function FaithData() {
     setProfileLoading(true);
     setSelectedUser(null);
     try {
-      const res = await fetch(`https://faithplus.co.kr/api/search/profile/${userId}`);
-      if (!res.ok) throw new Error("프로필 로딩 실패");
-      const data: ProfileData = await res.json();
+      const data = await trpcUtils.playground.profile.fetch({ userId });
       setSelectedUser(data);
     } catch {
       alert("프로필을 불러오는 데 실패했습니다.");
@@ -297,7 +240,12 @@ export default function FaithData() {
           <div>
             {/* 뒤로 가기 */}
             <button
-              onClick={() => setSelectedUser(null)}
+              onClick={() => {
+                setSelectedUser(null);
+                if (users.length === 0 && query.trim()) {
+                  void doSearch(query.trim());
+                }
+              }}
               className="flex items-center gap-2 text-sm text-[#1B5E20] hover:text-[#2E7D32] mb-5 transition-colors"
             >
               <i className="fas fa-arrow-left"></i>
