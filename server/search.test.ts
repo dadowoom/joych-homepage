@@ -101,7 +101,7 @@ function createDataset(overrides: Partial<SearchDataset> = {}): SearchDataset {
         summary: "Grace summary",
         contentHtml: "<p>Grace content</p>",
         publishedAt: "2026-06-30",
-        externalUrl: null,
+        externalUrl: "http://www.joych.org/main/sub.html?Mode=view&boardID=1",
         isVisible: true,
         sortOrder: 1,
       },
@@ -392,6 +392,10 @@ describe("grouped backend search", () => {
     expect(groups.get("gallery")?.items[0]?.href).toBe("/page/커뮤니티-최근-행사-사진?gallery=grace-album");
     expect(groups.get("courses")?.items[0]?.href).toBe("/education/courses/새가족반");
     expect(groups.get("staff")?.items[0]?.href).toBe("/about/staff/associate");
+    expect(groups.get("pastor-books")?.items[0]).toMatchObject({
+      href: "/about/pastor/books/301",
+      linkType: "internal",
+    });
     expect(groups.get("homepage")?.items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ title: "Grace Partner", linkType: "external" }),

@@ -699,7 +699,9 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
         category: "담임목사 저서",
         summary: excerpt(item.summary || item.contentHtml),
         date: item.publishedAt,
-        href: item.externalUrl || `/about/pastor/books/${item.id}`,
+        // 외부 참고 URL은 저서 관리 데이터에 남아 있을 수 있지만, 검색 결과는
+        // 현재 홈페이지의 저서 상세 페이지로만 이동해야 한다.
+        href: `/about/pastor/books/${item.id}`,
       }),
     );
 
