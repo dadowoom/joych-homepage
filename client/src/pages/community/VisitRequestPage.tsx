@@ -27,6 +27,7 @@ import {
   isToday,
   fileToBase64,
   getEmptyVisitForm,
+  getTodayKstDateKey,
 } from "./_shared";
 
 export default function VisitRequestPage() {
@@ -249,6 +250,7 @@ function VisitRequestBoardPage() {
                   <input
                     type="date"
                     required
+                    min={getTodayKstDateKey()}
                     value={form.visitDate}
                     onChange={(event) => setForm({ ...form, visitDate: event.target.value })}
                     className="w-full border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"

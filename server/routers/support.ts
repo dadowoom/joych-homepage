@@ -46,10 +46,17 @@ const optionalEmailSchema = z
   .optional()
   .refine((value) => !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value), "이메일 형식이 올바르지 않습니다.");
 
+function todayKstDateKey() {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+const futureOrTodayDate = (value: string) => value >= todayKstDateKey();
+
 const dateSchema = z
   .string()
   .trim()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "방문 희망일을 선택해 주세요.");
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "방문 희망일을 선택해 주세요.")
+  .refine(futureOrTodayDate, "오늘 이전 날짜는 선택할 수 없습니다.");
 
 const timeSchema = z
   .string()
@@ -69,12 +76,14 @@ const subtitleDateSchema = z
   .string()
   .trim()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "자막이 필요한 날짜를 선택해 주세요.")
+  .refine(futureOrTodayDate, "오늘 이전 날짜는 선택할 수 없습니다.")
   .optional();
 
 const bulletinAdDateSchema = z
   .string()
   .trim()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "광고 게재 희망일을 선택해 주세요.")
+  .refine(futureOrTodayDate, "오늘 이전 날짜는 선택할 수 없습니다.")
   .optional();
 
 const MAX_SUBTITLE_ATTACHMENT_BYTES = 1 * 1024 * 1024;

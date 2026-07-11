@@ -90,6 +90,10 @@ export function getEmptyVisitForm() {
   };
 }
 
+export function getTodayKstDateKey() {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 export function formatSupportDate(value: string | Date | null | undefined) {
   if (!value) return "-";
   const date = value instanceof Date ? value : new Date(value);

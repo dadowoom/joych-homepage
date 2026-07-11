@@ -27,6 +27,7 @@ import {
   isToday,
   fileToBase64,
   getEmptyVisitForm,
+  getTodayKstDateKey,
 } from "./_shared";
 
 export default function BulletinAdRequestPage() {
@@ -221,6 +222,7 @@ export default function BulletinAdRequestPage() {
                   <label className="mb-2 block text-sm font-medium text-gray-700">게재 희망일</label>
                   <input
                     type="date"
+                    min={getTodayKstDateKey()}
                     value={form.requestedDate}
                     onChange={(event) => setForm({ ...form, requestedDate: event.target.value })}
                     className="w-full border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
