@@ -234,9 +234,6 @@ const DiscipleTraining = lazy(() =>
 const BibleStudy = lazy(() =>
   import("./pages/Education").then(module => ({ default: module.BibleStudy }))
 );
-const SundaySchool = lazy(() =>
-  import("./pages/Education").then(module => ({ default: module.SundaySchool }))
-);
 
 const HesedAsiaPage = lazy(() =>
   import("./pages/Ministry").then(module => ({ default: module.HesedAsiaPage }))
@@ -331,14 +328,6 @@ const Volunteer = lazy(() =>
   import("./pages/Mission").then(module => ({ default: module.Volunteer }))
 );
 
-// 교회학교 래퍼 컴포넌트
-const InfantDept = () => <SundaySchool dept="infant" />;
-const KinderDept = () => <SundaySchool dept="kindergarten" />;
-const ElementaryDept = () => <SundaySchool dept="elementary" />;
-const YouthDept = () => <SundaySchool dept="youth" />;
-const AwanaDept = () => <SundaySchool dept="awana" />;
-const YoungAdultDept = () => <SundaySchool dept="young-adult" />;
-
 function LegacyRedirect({ to }: { to: string }) {
   const [, setLocation] = useLocation();
 
@@ -421,14 +410,6 @@ function Router() {
       <Route path="/ministry/welfare" component={WelfarePage} />
       <Route path="/ministry/vision-univ" component={VisionUniversityPage} />
       <Route path="/ministry/joylab" component={JoyLabPage} />
-
-      {/* 교회학교 */}
-      <Route path="/school/infant" component={InfantDept} />
-      <Route path="/school/kinder" component={KinderDept} />
-      <Route path="/school/elementary" component={ElementaryDept} />
-      <Route path="/school/youth" component={YouthDept} />
-      <Route path="/school/awana" component={AwanaDept} />
-      <Route path="/school/young-adult" component={YoungAdultDept} />
 
       {/* 사역/선교 */}
       <Route path="/mission-work/domestic"><MenuAccessGate href="/mission"><DomesticMission /></MenuAccessGate></Route>

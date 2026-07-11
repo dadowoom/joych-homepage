@@ -324,34 +324,6 @@ function createDataset(overrides: Partial<SearchDataset> = {}): SearchDataset {
         status: "rejected",
       },
     ],
-    schoolDepartments: [
-      {
-        id: 1301,
-        name: "청년부",
-        category: "youth",
-        ageRange: "19+",
-        worshipTime: "Sunday",
-        worshipPlace: "Youth Hall",
-        description: "Grace community",
-        educationGoals: "Grow",
-        prayerTopics: "Pray",
-        staffInfo: "Grace team",
-        isVisible: true,
-      },
-    ],
-    schoolPosts: [
-      {
-        id: 1302,
-        departmentId: 1301,
-        departmentName: "청년부",
-        title: "Grace Retreat",
-        content: "Grace weekend together",
-        authorName: "Leader",
-        createdAt: "2026-07-03",
-        isVisible: true,
-        departmentIsVisible: true,
-      },
-    ],
     heroSlides: [
       {
         id: 1401,

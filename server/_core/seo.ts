@@ -321,42 +321,6 @@ const EXTRA_SITEMAP_ROUTES: SeoRoute[] = [
     priority: "0.7",
   },
   {
-    path: "/school/infant",
-    title: "영아부 | 기쁨의교회",
-    description: DEFAULT_DESCRIPTION,
-    priority: "0.6",
-  },
-  {
-    path: "/school/kinder",
-    title: "유치부 | 기쁨의교회",
-    description: DEFAULT_DESCRIPTION,
-    priority: "0.6",
-  },
-  {
-    path: "/school/elementary",
-    title: "초등부 | 기쁨의교회",
-    description: DEFAULT_DESCRIPTION,
-    priority: "0.6",
-  },
-  {
-    path: "/school/youth",
-    title: "청소년부 | 기쁨의교회",
-    description: DEFAULT_DESCRIPTION,
-    priority: "0.6",
-  },
-  {
-    path: "/school/awana",
-    title: "AWANA | 기쁨의교회",
-    description: DEFAULT_DESCRIPTION,
-    priority: "0.6",
-  },
-  {
-    path: "/school/young-adult",
-    title: "청년부 | 기쁨의교회",
-    description: DEFAULT_DESCRIPTION,
-    priority: "0.6",
-  },
-  {
     path: "/mission-work/domestic",
     title: "국내 선교 | 기쁨의교회",
     description: DEFAULT_DESCRIPTION,

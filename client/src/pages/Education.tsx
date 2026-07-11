@@ -1,10 +1,9 @@
 /**
- * 기쁨의교회 — 양육/훈련/교회학교 그룹 페이지
+ * 기쁨의교회 — 양육/훈련 그룹 페이지
  * 디자인: Warm Modern Sacred — 녹색 포인트, Noto Serif KR
- * 포함: NewMember / DiscipleTraining / BibleStudy / SundaySchool (유아~중고등부 통합)
+ * 포함: NewMember / DiscipleTraining / BibleStudy
  */
 
-import { useState } from "react";
 import { Link } from "wouter";
 
 function PageHeader({ title, subtitle, breadcrumb }: { title: string; subtitle?: string; breadcrumb: string[] }) {
@@ -46,15 +45,6 @@ const TRAINING_NAV = [
   { label: "새가족 교육", href: "/education/new-member" },
   { label: "제자훈련", href: "/education/disciple" },
   { label: "성경공부", href: "/education/bible" },
-];
-
-const SCHOOL_NAV = [
-  { label: "유아부", href: "/school/infant" },
-  { label: "유치부", href: "/school/kinder" },
-  { label: "초등부", href: "/school/elementary" },
-  { label: "중고등부", href: "/school/youth" },
-  { label: "AWANA", href: "/school/awana" },
-  { label: "청년부", href: "/school/young-adult" },
 ];
 
 function notifyEducationContact(programName: string) {
@@ -198,74 +188,6 @@ export function BibleStudy() {
               </div>
             </div>
           ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── 교회학교 (유아~중고등부 통합) ─────────────────────────────────
-const SCHOOL_DEPTS = [
-  { id: "infant", name: "유아부", age: "0~3세", icon: "fa-baby", color: "bg-pink-50 border-pink-200", iconBg: "bg-pink-100", iconColor: "text-pink-600", teacher: "부서 담당자", time: "주일 오전 11:00", room: "교육관 101호", desc: "하나님의 사랑 안에서 건강하게 자라나는 우리 아이들을 위한 예배입니다." },
-  { id: "kindergarten", name: "유치부", age: "4~7세", icon: "fa-child", color: "bg-yellow-50 border-yellow-200", iconBg: "bg-yellow-100", iconColor: "text-yellow-600", teacher: "부서 담당자", time: "주일 오전 11:00", room: "교육관 102호", desc: "찬양과 말씀으로 하나님을 알아가는 유치부 예배입니다." },
-  { id: "elementary", name: "초등부", age: "초등학교 1~6학년", icon: "fa-pencil-alt", color: "bg-blue-50 border-blue-200", iconBg: "bg-blue-100", iconColor: "text-blue-600", teacher: "부서 담당자", time: "주일 오전 11:00", room: "교육관 201~203호", desc: "말씀과 친구들과 함께 믿음이 자라는 초등부 예배입니다." },
-  { id: "youth", name: "중고등부", age: "중학교 1학년 ~ 고등학교 3학년", icon: "fa-graduation-cap", color: "bg-purple-50 border-purple-200", iconBg: "bg-purple-100", iconColor: "text-purple-600", teacher: "부서 담당자", time: "주일 오전 11:00", room: "교육관 301~303호", desc: "다음 세대 리더를 세우는 중고등부 예배입니다." },
-  { id: "awana", name: "AWANA", age: "어린이 및 청소년", icon: "fa-star", color: "bg-amber-50 border-amber-200", iconBg: "bg-amber-100", iconColor: "text-amber-600", teacher: "부서 담당자", time: "일정 문의", room: "교회 교육 공간", desc: "말씀 암송과 활동을 통해 믿음의 기초를 세우는 다음세대 프로그램입니다." },
-  { id: "young-adult", name: "청년부", age: "청년", icon: "fa-users", color: "bg-emerald-50 border-emerald-200", iconBg: "bg-emerald-100", iconColor: "text-emerald-600", teacher: "부서 담당자", time: "주일 예배 후", room: "청년부 모임 공간", desc: "예배와 말씀, 공동체 안에서 신앙과 삶을 함께 세워가는 청년 공동체입니다." },
-];
-
-export function SundaySchool({ dept }: { dept: string }) {
-  const info = SCHOOL_DEPTS.find(d => d.id === dept) || SCHOOL_DEPTS[0];
-  return (
-    <div className="min-h-screen bg-[#F7F7F5]">
-      <PageHeader title={info.name} subtitle={`${info.age} 대상 교회학교`} breadcrumb={["교회학교", info.name]} />
-      <SubNav items={SCHOOL_NAV} />
-      <div className="max-w-5xl mx-auto px-4 py-14">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* 부서 정보 */}
-          <div className="lg:col-span-1">
-            <div className={`rounded-2xl border p-7 shadow-sm ${info.color}`}>
-              <div className={`w-16 h-16 rounded-full ${info.iconBg} flex items-center justify-center mb-5`}>
-                <i className={`fas ${info.icon} ${info.iconColor} text-2xl`}></i>
-              </div>
-              <h2 className="text-xl font-bold text-gray-800 mb-2" style={{ fontFamily: "'Noto Serif KR', serif" }}>{info.name}</h2>
-              <p className="text-gray-600 text-sm leading-relaxed mb-5">{info.desc}</p>
-              <div className="space-y-3 text-sm text-gray-600">
-                <div className="flex items-start gap-3"><i className="fas fa-user text-[#1B5E20] w-4 mt-0.5"></i><span>담당: {info.teacher}</span></div>
-                <div className="flex items-start gap-3"><i className="fas fa-clock text-[#1B5E20] w-4 mt-0.5"></i><span>{info.time}</span></div>
-                <div className="flex items-start gap-3"><i className="fas fa-map-marker-alt text-[#1B5E20] w-4 mt-0.5"></i><span>{info.room}</span></div>
-                <div className="flex items-start gap-3"><i className="fas fa-users text-[#1B5E20] w-4 mt-0.5"></i><span>대상: {info.age}</span></div>
-              </div>
-            </div>
-          </div>
-          {/* 주요 활동 */}
-          <div className="lg:col-span-2 space-y-5">
-            <div className="bg-white rounded-2xl p-7 shadow-sm">
-              <h3 className="font-bold text-gray-800 text-lg mb-5" style={{ fontFamily: "'Noto Serif KR', serif" }}>주요 활동</h3>
-              <div className="grid grid-cols-2 gap-4">
-                {["주일 예배", "소그룹 모임", "여름 성경학교", "수련회", "찬양 예배", "봉사 활동"].map((act, i) => (
-                  <div key={i} className="flex items-center gap-3 text-sm text-gray-600">
-                    <i className="fas fa-check-circle text-[#1B5E20]"></i> {act}
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="bg-white rounded-2xl p-7 shadow-sm">
-              <h3 className="font-bold text-gray-800 text-lg mb-5" style={{ fontFamily: "'Noto Serif KR', serif" }}>최근 소식</h3>
-              <div className="space-y-4">
-                {[
-                  { title: `${info.name} 공지사항은 준비 중입니다`, date: "공지 예정" },
-                  { title: `${info.name} 행사 일정은 확정 후 안내됩니다`, date: "공지 예정" },
-                  { title: `${info.name} 문의는 교회 사무실로 연락해 주세요`, date: "054-270-1000" },
-                ].map((n, i) => (
-                  <div key={i} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
-                    <span className="text-sm text-gray-700">{n.title}</span>
-                    <span className="text-xs text-gray-400 flex-shrink-0 ml-4">{n.date}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

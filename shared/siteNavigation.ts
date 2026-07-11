@@ -67,17 +67,6 @@ export const INTERNAL_PAGES: InternalPageGroup[] = [
       { label: "조이랩", path: "/ministry/joylab" },
     ],
   },
-  {
-    group: "교회학교",
-    pages: [
-      { label: "영아/유아부", path: "/school/infant" },
-      { label: "유치부", path: "/school/kinder" },
-      { label: "초등부", path: "/school/elementary" },
-      { label: "중고등부", path: "/school/youth" },
-      { label: "AWANA", path: "/school/awana" },
-      { label: "청년부", path: "/school/young-adult" },
-    ],
-  },
   { group: "선교보고", pages: [{ label: "선교보고 목록", path: "/mission" }] },
   {
     group: "커뮤니티",
@@ -194,27 +183,6 @@ export const FALLBACK_NAV_ITEMS: FallbackNavItem[] = [
       복지사역: "/ministry/welfare",
       비전대학교: "/ministry/vision-univ",
       조이랩: "/ministry/joylab",
-    },
-  },
-  {
-    label: "교회학교",
-    sub: [
-      "영아부",
-      "유아부",
-      "유치부",
-      "초등부",
-      "중고등부",
-      "청년부",
-      "AWANA",
-    ],
-    subHref: {
-      영아부: "/school/infant",
-      유아부: "/school/infant",
-      유치부: "/school/kinder",
-      초등부: "/school/elementary",
-      중고등부: "/school/youth",
-      청년부: "/school/young-adult",
-      AWANA: "/school/awana",
     },
   },
   {

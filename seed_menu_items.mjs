@@ -48,15 +48,6 @@ const menuItemsData = {
     { label: '비전대학교', href: '/ministry/vision-univ', sortOrder: 11 },
     { label: '조이랩', href: '/ministry/joylab', sortOrder: 12 },
   ],
-  '교회학교': [
-    { label: '영아부', href: '/school/infant', sortOrder: 1 },
-    { label: '유아부', href: '/school/infant', sortOrder: 2 },
-    { label: '유치부', href: '/school/kinder', sortOrder: 3 },
-    { label: '초등부', href: '/school/elementary', sortOrder: 4 },
-    { label: '중고등부', href: '/school/youth', sortOrder: 5 },
-    { label: '청년부', href: '/school/young-adult', sortOrder: 6 },
-    { label: 'AWANA', href: '/school/awana', sortOrder: 7 },
-  ],
   '선교보고': [
     { label: '선교보고 목록', href: '/mission', sortOrder: 1 },
   ],

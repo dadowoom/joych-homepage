@@ -24,8 +24,6 @@ import {
   pageBlocks,
   pastorBooks,
   quickMenus,
-  schoolDepartments,
-  schoolPosts,
   testimonyPosts,
   youtubePlaylists,
   youtubeVideos,
@@ -51,7 +49,6 @@ const STAFF_ASSOCIATE_PAGE_HREF = "/about/staff/associate";
 const FACILITY_PAGE_HREF = "/facility";
 const COURSE_PAGE_HREF = "/education/courses";
 const MISSION_PAGE_HREF = "/mission";
-const SCHOOL_PAGE_HREF = "/school/infant";
 
 type SearchLinkType = "internal" | "external" | "none";
 
@@ -245,30 +242,6 @@ type SearchDataset = {
     content: string | null;
     reportDate: string;
     status: string;
-  }>;
-  schoolDepartments: Array<{
-    id: number;
-    name: string;
-    category: string;
-    ageRange: string | null;
-    worshipTime: string | null;
-    worshipPlace: string | null;
-    description: string | null;
-    educationGoals: string | null;
-    prayerTopics: string | null;
-    staffInfo: string | null;
-    isVisible: boolean;
-  }>;
-  schoolPosts: Array<{
-    id: number;
-    departmentId: number;
-    departmentName: string;
-    title: string;
-    content: string | null;
-    authorName: string;
-    createdAt: Date | string;
-    isVisible: boolean;
-    departmentIsVisible: boolean;
   }>;
   heroSlides: Array<{
     id: number;
@@ -531,17 +504,6 @@ function parseHeroButtons(rawButtons: string | null | undefined) {
 function isFreeBoardMenuTarget(label: string, href: string | null | undefined) {
   const normalized = normalizeMenuLabel(`${label} ${href ?? ""}`);
   return normalized.includes("자유게시판") || normalized.includes("joytalk");
-}
-
-function getSchoolDepartmentHref(name: string) {
-  const normalized = normalizeMenuLabel(name);
-  if (normalized.includes("영아") || normalized.includes("유아")) return "/school/infant";
-  if (normalized.includes("유치")) return "/school/kinder";
-  if (normalized.includes("초등") || normalized.includes("유년") || normalized.includes("소년")) return "/school/elementary";
-  if (normalized.includes("중고") || normalized.includes("청소년")) return "/school/youth";
-  if (normalized.includes("awana")) return "/school/awana";
-  if (normalized.includes("청년")) return "/school/young-adult";
-  return SCHOOL_PAGE_HREF;
 }
 
 function getCourseHref(pageHref: string | null | undefined) {
@@ -975,55 +937,6 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
       ),
   ].sort((left, right) => compareDateDesc(left.date, right.date));
 
-  const schoolItems = [
-    ...dataset.schoolDepartments
-      .filter((item) =>
-        item.isVisible &&
-        matchesKeyword(
-          keyword,
-          item.name,
-          item.ageRange,
-          item.worshipTime,
-          item.worshipPlace,
-          item.description,
-          item.educationGoals,
-          item.prayerTopics,
-          item.staffInfo,
-        ),
-      )
-      .map((item) =>
-        buildSearchItem({
-          id: `school-department-${item.id}`,
-          title: item.name,
-          category: "교회학교",
-          summary: excerpt(
-            [item.ageRange, item.worshipTime, item.worshipPlace, item.description]
-              .filter(Boolean)
-              .join(" · "),
-          ),
-          date: null,
-          href: getSchoolDepartmentHref(item.name),
-        }),
-      ),
-    ...dataset.schoolPosts
-      .filter((item) =>
-        item.isVisible &&
-        item.departmentIsVisible &&
-        matchesKeyword(keyword, item.departmentName, item.title, item.content, item.authorName),
-      )
-      .map((item) => {
-        const baseHref = getSchoolDepartmentHref(item.departmentName);
-        return buildSearchItem({
-          id: `school-post-${item.id}`,
-          title: item.title,
-          category: item.departmentName,
-          summary: excerpt(item.content),
-          date: formatDate(item.createdAt),
-          href: appendQueryParam(baseHref, "post", item.id),
-        });
-      }),
-  ].sort((left, right) => compareDateDesc(left.date, right.date));
-
   const homepageItems = [
     ...dataset.heroSlides
       .filter((item) =>
@@ -1101,7 +1014,6 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
     createGroup("facilities", "시설", "공개 시설 안내 검색 결과입니다.", FACILITY_PAGE_HREF, facilityItems),
     createGroup("courses", "강좌", "공개 강좌 검색 결과입니다.", COURSE_PAGE_HREF, courseItems),
     createGroup("mission", "선교", "공개 선교사와 선교보고 검색 결과입니다.", MISSION_PAGE_HREF, missionItems),
-    createGroup("school", "교회학교", "공개 교회학교 부서와 게시물 검색 결과입니다.", schoolItems[0]?.href || SCHOOL_PAGE_HREF, schoolItems),
     createGroup("homepage", "홈페이지", "홈 화면의 공개 문구와 바로가기 검색 결과입니다.", "/", homepageItems),
   ].filter((group): group is GroupedSearchGroup => Boolean(group));
 
@@ -1169,8 +1081,6 @@ async function loadSearchDataset(keyword: string): Promise<SearchDataset | null>
     courseRows,
     missionaryRows,
     missionReportRows,
-    schoolDepartmentRows,
-    schoolPostRows,
     heroRows,
     quickMenuRows,
     affiliateRows,
@@ -1559,67 +1469,6 @@ async function loadSearchDataset(keyword: string): Promise<SearchDataset | null>
 
     db
       .select({
-        id: schoolDepartments.id,
-        name: schoolDepartments.name,
-        category: schoolDepartments.category,
-        ageRange: schoolDepartments.ageRange,
-        worshipTime: schoolDepartments.worshipTime,
-        worshipPlace: schoolDepartments.worshipPlace,
-        description: schoolDepartments.description,
-        educationGoals: schoolDepartments.educationGoals,
-        prayerTopics: schoolDepartments.prayerTopics,
-        staffInfo: schoolDepartments.staffInfo,
-        isVisible: schoolDepartments.isVisible,
-      })
-      .from(schoolDepartments)
-      .where(
-        and(
-          eq(schoolDepartments.isVisible, true),
-          or(
-            like(schoolDepartments.name, keywordLike),
-            like(schoolDepartments.ageRange, keywordLike),
-            like(schoolDepartments.worshipTime, keywordLike),
-            like(schoolDepartments.worshipPlace, keywordLike),
-            like(schoolDepartments.description, keywordLike),
-            like(schoolDepartments.educationGoals, keywordLike),
-            like(schoolDepartments.prayerTopics, keywordLike),
-            like(schoolDepartments.staffInfo, keywordLike),
-          ),
-        ),
-      )
-      .orderBy(schoolDepartments.sortOrder, schoolDepartments.id)
-      .limit(24),
-
-    db
-      .select({
-        id: schoolPosts.id,
-        departmentId: schoolPosts.departmentId,
-        departmentName: schoolDepartments.name,
-        title: schoolPosts.title,
-        content: schoolPosts.content,
-        authorName: schoolPosts.authorName,
-        createdAt: schoolPosts.createdAt,
-        isVisible: schoolPosts.isVisible,
-        departmentIsVisible: schoolDepartments.isVisible,
-      })
-      .from(schoolPosts)
-      .innerJoin(schoolDepartments, eq(schoolPosts.departmentId, schoolDepartments.id))
-      .where(
-        and(
-          eq(schoolPosts.isVisible, true),
-          eq(schoolDepartments.isVisible, true),
-          or(
-            like(schoolPosts.title, keywordLike),
-            like(schoolPosts.content, keywordLike),
-            like(schoolDepartments.name, keywordLike),
-          ),
-        ),
-      )
-      .orderBy(desc(schoolPosts.createdAt), desc(schoolPosts.id))
-      .limit(24),
-
-    db
-      .select({
         id: heroSlides.id,
         yearLabel: heroSlides.yearLabel,
         mainTitle: heroSlides.mainTitle,
@@ -1702,8 +1551,6 @@ async function loadSearchDataset(keyword: string): Promise<SearchDataset | null>
     courses: courseRows,
     missionaries: missionaryRows,
     missionReports: missionReportRows,
-    schoolDepartments: schoolDepartmentRows,
-    schoolPosts: schoolPostRows,
     heroSlides: heroRows,
     quickMenus: quickMenuRows,
     affiliates: affiliateRows,
