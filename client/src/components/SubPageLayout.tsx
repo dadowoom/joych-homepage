@@ -64,7 +64,7 @@ export default function SubPageLayout({
   children,
 }: SubPageLayoutProps) {
   const { data: dbSettings } = trpc.home.settings.useQuery();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const [openSideMenuIds, setOpenSideMenuIds] = useState<Set<number>>(new Set());
   const normalizedLocation = useMemo(() => normalizeSideMenuHref(location), [location]);
   const isSubItemActive = (subItem: SideMenuItem) =>
@@ -81,6 +81,36 @@ export default function SubPageLayout({
     [sideMenuItems, normalizedLocation]
   );
   const activeSideMenuKey = activeSideMenuIds.join(",");
+  const mobileSideMenuOptions = useMemo(
+    () =>
+      sideMenuItems.flatMap((item) => [
+        ...(item.href
+          ? [
+              {
+                key: `item-${item.id}`,
+                label: item.label,
+                href: item.href,
+                isActive:
+                  item.isActive ||
+                  normalizeSideMenuHref(item.href) === normalizedLocation,
+              },
+            ]
+          : []),
+        ...(item.subItems ?? [])
+          .filter((subItem) => Boolean(subItem.href))
+          .map((subItem) => ({
+            key: `sub-${subItem.id}`,
+            label: `${item.label} · ${subItem.label}`,
+            href: subItem.href as string,
+            isActive:
+              subItem.isActive ||
+              normalizeSideMenuHref(subItem.href) === normalizedLocation,
+          })),
+      ]),
+    [normalizedLocation, sideMenuItems]
+  );
+  const activeMobileSideMenuHref =
+    mobileSideMenuOptions.find((option) => option.isActive)?.href ?? "";
 
   useEffect(() => {
     if (!activeSideMenuKey) return;
@@ -333,6 +363,36 @@ export default function SubPageLayout({
               >
                 {pageTitle}
               </h1>
+              {mobileSideMenuOptions.length > 0 && (
+                <label className="mb-5 block md:hidden">
+                  <span className="mb-2 block text-xs font-semibold text-[#1B5E20]">
+                    {parentLabel ? `${parentLabel} 메뉴` : "페이지 메뉴"}
+                  </span>
+                  <select
+                    aria-label={parentLabel ? `${parentLabel} 메뉴` : "페이지 메뉴"}
+                    value={activeMobileSideMenuHref}
+                    onChange={(event) => {
+                      const href = event.target.value;
+                      if (!href) return;
+                      if (isExternalSiteHref(href)) {
+                        window.open(href, "_blank", "noopener,noreferrer");
+                        return;
+                      }
+                      setLocation(href);
+                    }}
+                    className="h-11 w-full rounded-md border border-[#1B5E20] bg-white px-3 text-sm font-medium text-gray-700 outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                  >
+                    <option value="" disabled>
+                      이동할 메뉴를 선택하세요
+                    </option>
+                    {mobileSideMenuOptions.map((option) => (
+                      <option key={option.key} value={option.href}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               {children}
             </main>
 

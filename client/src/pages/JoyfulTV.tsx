@@ -8,8 +8,6 @@ import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
 import MemberOnlyContentNotice from "@/components/MemberOnlyContentNotice";
 import { findMenuAccessMatchByHref, isMemberOnlyMenuNode } from "@/lib/menuAccess";
-import { isExternalSiteHref } from "@/lib/siteHref";
-import { useLocation } from "wouter";
 import YoutubeListPage from "./YoutubeListPage";
 
 type VideoMenuSubItem = {
@@ -51,68 +49,6 @@ type VideoSideMenuItem = {
   isActive?: boolean;
   subItems?: VideoSideMenuItem[];
 };
-
-function MobileVideoMenu({
-  sideMenuItems,
-}: {
-  sideMenuItems: VideoSideMenuItem[];
-}) {
-  const [, navigate] = useLocation();
-  const options = sideMenuItems.flatMap(item => [
-    ...(item.href
-      ? [
-          {
-            id: `item-${item.id}`,
-            label: item.label,
-            href: item.href,
-            isActive: item.isActive,
-          },
-        ]
-      : []),
-    ...(item.subItems ?? [])
-      .filter(subItem => Boolean(subItem.href))
-      .map(subItem => ({
-        id: `sub-${subItem.id}`,
-        label: `${item.label} · ${subItem.label}`,
-        href: subItem.href as string,
-        isActive: subItem.isActive,
-      })),
-  ]);
-  const activeHref = options.find(option => option.isActive)?.href ?? "";
-
-  if (options.length === 0) return null;
-
-  return (
-    <label className="mb-5 block md:hidden">
-      <span className="mb-2 block text-xs font-semibold text-[#1B5E20]">
-        조이풀TV 메뉴
-      </span>
-      <select
-        aria-label="조이풀TV 메뉴"
-        value={activeHref}
-        onChange={event => {
-          const href = event.target.value;
-          if (!href) return;
-          if (isExternalSiteHref(href)) {
-            window.open(href, "_blank", "noopener,noreferrer");
-            return;
-          }
-          navigate(href);
-        }}
-        className="h-11 w-full rounded-md border border-[#1B5E20] bg-white px-3 text-sm font-medium text-gray-700 outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
-      >
-        <option value="" disabled>
-          이동할 조이풀TV 메뉴를 선택하세요
-        </option>
-        {options.map(option => (
-          <option key={option.id} value={option.href}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
 
 function decodePath(path: string) {
   try {
@@ -203,7 +139,6 @@ function VideoPageShell({
       parentLabel="조이풀TV"
       sideMenuItems={sideMenuItems}
     >
-      <MobileVideoMenu sideMenuItems={sideMenuItems} />
       {children}
     </SubPageLayout>
   );
