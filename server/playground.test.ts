@@ -78,6 +78,11 @@ describe("믿음PLUS 플레이그라운드 프록시", () => {
           faithType: {
             faith_type: "말씀형",
             faith_type_code: "bible",
+            bible_score: 70,
+            prayer_score: 62,
+            worship_score: 56,
+            light_score: 65,
+            salt_score: 63,
           },
           recentActivities: [
             {
@@ -90,6 +95,10 @@ describe("믿음PLUS 플레이그라운드 프록시", () => {
           bibleProgress: { booksRead: 10, chaptersRead: 120 },
           garden: { currentStage: 2, totalActivityPoints: 80, totalFruits: 3 },
           evangelism: { contactCount: 1 },
+          monthlyActivity: [{ month: "2026-07", bible: 4, prayer: 3, salt: 2, total: 9 }],
+          prayerStats: { totalSessions: 12, totalSec: 7200, avgSec: 600, maxSec: 1200 },
+          worshipStats: [{ worshipType: "sunday", cnt: 2 }],
+          lightActivities: [{ activityDate: "2026-07-10", content: "이웃 섬김", count: 1 }],
         }),
         { status: 200 }
       )
@@ -107,5 +116,9 @@ describe("믿음PLUS 플레이그라운드 프록시", () => {
     expect(result.bibleProgress).toEqual({ booksRead: 10, chaptersRead: 120 });
     expect(result.recentActivities).toHaveLength(1);
     expect(result.garden.totalFruits).toBe(3);
+    expect(result.monthlyActivity).toEqual([{ month: "2026-07", bible: 4, prayer: 3, salt: 2, total: 9 }]);
+    expect(result.prayerStats.maxSec).toBe(1200);
+    expect(result.worshipStats).toEqual([{ worshipType: "sunday", count: 2 }]);
+    expect(result.lightActivities[0]).toMatchObject({ date: "2026-07-10", content: "이웃 섬김" });
   });
 });

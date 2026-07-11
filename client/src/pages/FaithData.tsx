@@ -38,6 +38,35 @@ function formatSeconds(sec: number): string {
   return `${m}분`;
 }
 
+function getFaithScores(faithType: ProfileData["faithType"]) {
+  if (!faithType || typeof faithType === "string") return [];
+  return [
+    { label: "말씀", value: faithType.bible_score, color: "bg-emerald-600" },
+    { label: "기도", value: faithType.prayer_score, color: "bg-sky-600" },
+    { label: "예배", value: faithType.worship_score, color: "bg-violet-600" },
+    { label: "세상의 빛", value: faithType.light_score, color: "bg-amber-500" },
+    { label: "마음의 소금", value: faithType.salt_score, color: "bg-rose-500" },
+  ];
+}
+
+function getFaithAnalysis(faithType: ProfileData["faithType"]) {
+  if (!faithType || typeof faithType === "string" || !faithType.ai_analysis) return null;
+  try {
+    const parsed = JSON.parse(faithType.ai_analysis) as { summary?: string; verse?: string; encouragement?: string };
+    return {
+      summary: typeof parsed.summary === "string" ? parsed.summary : "",
+      verse: typeof parsed.verse === "string" ? parsed.verse : "",
+      encouragement: typeof parsed.encouragement === "string" ? parsed.encouragement : "",
+    };
+  } catch {
+    return { summary: faithType.ai_analysis, verse: faithType.recommended_verse ?? "", encouragement: "" };
+  }
+}
+
+function formatMonth(month: string) {
+  return /^\d{4}-\d{2}$/.test(month) ? `${month.slice(5)}월` : month;
+}
+
 // ─── 메인 컴포넌트 ───────────────────────────────────────────────
 export default function FaithData() {
   const params = new URLSearchParams(window.location.search);
@@ -111,6 +140,11 @@ export default function FaithData() {
   const biblePercent = selectedUser
     ? Math.min(100, Math.round((selectedUser.bibleProgress.booksRead / 66) * 100))
     : 0;
+  const faithScores = selectedUser ? getFaithScores(selectedUser.faithType) : [];
+  const faithAnalysis = selectedUser ? getFaithAnalysis(selectedUser.faithType) : null;
+  const monthlyMax = selectedUser
+    ? Math.max(1, ...selectedUser.monthlyActivity.map((item) => item.total))
+    : 1;
 
   return (
     <div className="min-h-screen bg-[#FAFAF8]" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
@@ -304,6 +338,51 @@ export default function FaithData() {
               ))}
             </div>
 
+            {faithScores.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-100 p-5 mb-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                  <h3 className="font-semibold text-gray-700 flex items-center gap-2">
+                    <i className="fas fa-chart-bar text-[#1B5E20]"></i>
+                    신앙 영역 분석
+                  </h3>
+                  {typeof selectedUser.faithType === "object" && selectedUser.faithType?.year_month && (
+                    <span className="text-xs text-gray-400">{selectedUser.faithType.year_month} 기준</span>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  {faithScores.map((score) => (
+                    <div key={score.label} className="grid grid-cols-[76px_1fr_40px] items-center gap-3">
+                      <span className="text-sm text-gray-600">{score.label}</span>
+                      <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
+                        <div className={`${score.color} h-full rounded-full transition-all duration-700`} style={{ width: `${Math.min(100, score.value)}%` }} />
+                      </div>
+                      <span className="text-right text-sm font-bold text-gray-700">{score.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedUser.monthlyActivity.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-100 p-5 mb-4">
+                <h3 className="font-semibold text-gray-700 flex items-center gap-2 mb-5">
+                  <i className="fas fa-chart-column text-[#1B5E20]"></i>
+                  최근 6개월 활동 추이
+                </h3>
+                <div className="h-44 flex items-end gap-2 sm:gap-4">
+                  {selectedUser.monthlyActivity.slice(0, 6).reverse().map((item) => (
+                    <div key={item.month} className="flex-1 min-w-0 h-full flex flex-col justify-end items-center gap-2">
+                      <span className="text-xs font-semibold text-[#1B5E20]">{item.total}</span>
+                      <div className="w-full max-w-11 h-28 flex items-end rounded-t-md bg-[#F1F8E9] overflow-hidden">
+                        <div className="w-full bg-gradient-to-t from-[#1B5E20] to-[#66BB6A] rounded-t-md" style={{ height: `${Math.max(5, Math.round((item.total / monthlyMax) * 100))}%` }} />
+                      </div>
+                      <span className="text-[11px] text-gray-400">{formatMonth(item.month)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* 성경읽기 진행률 */}
             <div className="bg-white rounded-xl border border-gray-100 p-5 mb-4">
               <div className="flex items-center justify-between mb-3">
@@ -345,6 +424,60 @@ export default function FaithData() {
                 </p>
               </div>
             </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
+              <div className="bg-white rounded-xl border border-gray-100 p-5">
+                <h3 className="font-semibold text-gray-700 flex items-center gap-2 mb-3">
+                  <i className="fas fa-hands-praying text-[#1B5E20]"></i>
+                  기도 통계
+                </h3>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-lg bg-[#F1F8E9] p-3"><p className="text-lg font-bold text-[#1B5E20]">{selectedUser.prayerStats.totalSessions}</p><p className="text-[11px] text-gray-400">총 기도</p></div>
+                  <div className="rounded-lg bg-[#F1F8E9] p-3"><p className="text-lg font-bold text-[#1B5E20]">{formatSeconds(selectedUser.prayerStats.avgSec)}</p><p className="text-[11px] text-gray-400">평균 시간</p></div>
+                  <div className="rounded-lg bg-[#F1F8E9] p-3"><p className="text-lg font-bold text-[#1B5E20]">{formatSeconds(selectedUser.prayerStats.maxSec)}</p><p className="text-[11px] text-gray-400">최장 시간</p></div>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl border border-gray-100 p-5">
+                <h3 className="font-semibold text-gray-700 flex items-center gap-2 mb-3">
+                  <i className="fas fa-church text-[#1B5E20]"></i>
+                  예배 참석 현황
+                </h3>
+                {selectedUser.worshipStats.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedUser.worshipStats.map((item) => (
+                      <div key={item.worshipType} className="flex items-center justify-between rounded-lg bg-[#F8FAF8] px-3 py-2">
+                        <span className="text-sm text-gray-600">{item.worshipType === "sunday" ? "주일 예배" : item.worshipType === "special" ? "특별 예배" : item.worshipType}</span>
+                        <span className="font-bold text-[#1B5E20]">{item.count}회</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : <p className="text-sm text-gray-400 py-4 text-center">집계된 예배 기록이 없습니다.</p>}
+              </div>
+            </div>
+
+            {faithAnalysis && (faithAnalysis.summary || faithAnalysis.verse || faithAnalysis.encouragement) && (
+              <div className="rounded-xl border border-[#C8E6C9] bg-[#F7FCF7] p-5 mb-4">
+                <h3 className="font-semibold text-[#1B5E20] flex items-center gap-2 mb-3"><i className="fas fa-sparkles"></i> 믿음PLUS 신앙 리포트</h3>
+                {faithAnalysis.summary && <p className="text-sm leading-6 text-gray-700">{faithAnalysis.summary}</p>}
+                {faithAnalysis.verse && <p className="mt-3 text-sm font-medium text-[#2E7D32]">{faithAnalysis.verse}</p>}
+                {faithAnalysis.encouragement && <p className="mt-2 text-xs leading-5 text-gray-500">{faithAnalysis.encouragement}</p>}
+              </div>
+            )}
+
+            {selectedUser.lightActivities.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-100 p-5 mb-4">
+                <h3 className="font-semibold text-gray-700 flex items-center gap-2 mb-3"><i className="fas fa-sun text-[#1B5E20]"></i> 세상의 빛 기록</h3>
+                <div className="space-y-2">
+                  {selectedUser.lightActivities.slice(0, 5).map((item, index) => (
+                    <div key={`${item.date}-${index}`} className="flex items-center gap-3 border-b border-gray-50 pb-2 last:border-0 last:pb-0">
+                      <span className="text-xs text-gray-400 shrink-0">{item.date}</span>
+                      <span className="text-sm text-gray-700 flex-1 truncate">{item.content || "세상의 빛 실천 기록"}</span>
+                      {item.count > 1 && <span className="text-xs font-semibold text-[#1B5E20] shrink-0">{item.count}회</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* 최근 활동 기록 */}
             {selectedUser.recentActivities.length > 0 && (

@@ -21,6 +21,8 @@ export type FaithPlusProfileResponse = {
     monthlyPrayerSec: number;
   };
   rank: number | null;
+  rankScore: number;
+  totalUsers: number;
   faithType:
     | {
         faith_type: string;
@@ -37,7 +39,16 @@ export type FaithPlusProfileResponse = {
       }
     | string
     | null;
-  faithHistory: Array<{ date: string; type: string; description: string }>;
+  faithHistory: Array<{
+    date: string;
+    type: string;
+    description: string;
+    bibleScore: number;
+    prayerScore: number;
+    worshipScore: number;
+    lightScore: number;
+    saltScore: number;
+  }>;
   recentActivities: Array<{
     date: string;
     type: string;
@@ -47,6 +58,10 @@ export type FaithPlusProfileResponse = {
   bibleProgress: { booksRead: number; chaptersRead: number };
   evangelism: { contactCount: number };
   garden: { currentStage: number; totalActivityPoints: number; totalFruits: number };
+  monthlyActivity: Array<{ month: string; bible: number; prayer: number; salt: number; total: number }>;
+  prayerStats: { totalSessions: number; totalSec: number; avgSec: number; maxSec: number };
+  worshipStats: Array<{ worshipType: string; count: number }>;
+  lightActivities: Array<{ date: string; content: string; count: number }>;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -101,7 +116,7 @@ function normalizeFaithType(value: unknown): FaithPlusProfileResponse["faithType
   };
 }
 
-function normalizeHistory(value: unknown) {
+function normalizeHistory(value: unknown): FaithPlusProfileResponse["faithHistory"] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
     if (!isRecord(item)) return [];
@@ -109,6 +124,11 @@ function normalizeHistory(value: unknown) {
       date: pickText(item, ["date", "activityDate", "activity_date", "createdAt", "created_at"]) ?? "",
       type: pickText(item, ["type", "activityType", "activity_type"]) ?? "",
       description: pickText(item, ["description", "memo", "content", "title"]) ?? "",
+      bibleScore: pickNumber(item, ["bible_score", "bibleScore"]) ?? 0,
+      prayerScore: pickNumber(item, ["prayer_score", "prayerScore"]) ?? 0,
+      worshipScore: pickNumber(item, ["worship_score", "worshipScore"]) ?? 0,
+      lightScore: pickNumber(item, ["light_score", "lightScore"]) ?? 0,
+      saltScore: pickNumber(item, ["salt_score", "saltScore"]) ?? 0,
     }];
   });
 }
@@ -122,6 +142,43 @@ function normalizeRecentActivities(value: unknown) {
       type: pickText(item, ["type", "activityType", "activity_type"]) ?? "",
       description: pickText(item, ["description", "memo", "content", "title"]) ?? "",
       points: pickNumber(item, ["points", "score", "value"]) ?? 0,
+    }];
+  });
+}
+
+function normalizeMonthlyActivity(value: unknown): FaithPlusProfileResponse["monthlyActivity"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    return [{
+      month: pickText(item, ["month", "year_month", "yearMonth"]) ?? "",
+      bible: pickNumber(item, ["bible", "bibleCount", "bible_count"]) ?? 0,
+      prayer: pickNumber(item, ["prayer", "prayerCount", "prayer_count"]) ?? 0,
+      salt: pickNumber(item, ["salt", "saltCount", "salt_count"]) ?? 0,
+      total: pickNumber(item, ["total", "totalCount", "total_count"]) ?? 0,
+    }];
+  });
+}
+
+function normalizeWorshipStats(value: unknown): FaithPlusProfileResponse["worshipStats"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    return [{
+      worshipType: pickText(item, ["worshipType", "worship_type", "type"]) ?? "",
+      count: pickNumber(item, ["cnt", "count", "total"]) ?? 0,
+    }];
+  });
+}
+
+function normalizeLightActivities(value: unknown): FaithPlusProfileResponse["lightActivities"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    return [{
+      date: pickText(item, ["date", "activityDate", "activity_date"]) ?? "",
+      content: pickText(item, ["content", "memo", "description", "title"]) ?? "",
+      count: pickNumber(item, ["count", "cnt", "total"]) ?? 0,
     }];
   });
 }
@@ -147,6 +204,7 @@ function normalizeProfile(raw: unknown): FaithPlusProfileResponse {
   const bibleProgress = isRecord(raw.bibleProgress) ? raw.bibleProgress : {};
   const evangelism = isRecord(raw.evangelism) ? raw.evangelism : {};
   const garden = isRecord(raw.garden) ? raw.garden : {};
+  const prayerStats = isRecord(raw.prayerStats) ? raw.prayerStats : {};
 
   return {
     profile: {
@@ -169,6 +227,8 @@ function normalizeProfile(raw: unknown): FaithPlusProfileResponse {
       monthlyPrayerSec: pickNumber(profile, ["monthlyPrayerSec", "monthly_prayer_sec"]) ?? 0,
     },
     rank: pickNumber(raw, ["rank", "ranking"]),
+    rankScore: pickNumber(raw, ["rankScore", "rank_score"]) ?? 0,
+    totalUsers: pickNumber(raw, ["totalUsers", "total_users"]) ?? 0,
     faithType: normalizeFaithType(raw.faithType),
     faithHistory: normalizeHistory(raw.faithHistory),
     recentActivities: normalizeRecentActivities(raw.recentActivities),
@@ -184,6 +244,15 @@ function normalizeProfile(raw: unknown): FaithPlusProfileResponse {
       totalActivityPoints: pickNumber(garden, ["totalActivityPoints", "total_activity_points", "points"]) ?? 0,
       totalFruits: pickNumber(garden, ["totalFruits", "total_fruits", "fruits"]) ?? 0,
     },
+    monthlyActivity: normalizeMonthlyActivity(raw.monthlyActivity),
+    prayerStats: {
+      totalSessions: pickNumber(prayerStats, ["totalSessions", "total_sessions", "count"]) ?? 0,
+      totalSec: pickNumber(prayerStats, ["totalSec", "total_sec", "seconds"]) ?? 0,
+      avgSec: pickNumber(prayerStats, ["avgSec", "avg_sec", "averageSec"]) ?? 0,
+      maxSec: pickNumber(prayerStats, ["maxSec", "max_sec", "maximumSec"]) ?? 0,
+    },
+    worshipStats: normalizeWorshipStats(raw.worshipStats),
+    lightActivities: normalizeLightActivities(raw.lightActivities),
   };
 }
 
