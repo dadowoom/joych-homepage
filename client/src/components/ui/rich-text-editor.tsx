@@ -1117,6 +1117,7 @@ function RichTextToolbar({
 
     setIsUploadingImage(true);
     let failedCount = 0;
+    const uploadedUrls: string[] = [];
 
     try {
       for (const file of imageFiles) {
@@ -1137,10 +1138,19 @@ function RichTextToolbar({
             fileName: file.name,
           });
 
-          editor.chain().focus().setImage({ src: result.url }).run();
+          uploadedUrls.push(result.url);
         } catch {
           failedCount += 1;
         }
+      }
+
+      if (uploadedUrls.length > 0) {
+        editor.chain().focus().insertContent(
+          uploadedUrls.map((url) => ({
+            type: "image",
+            attrs: { src: url },
+          })),
+        ).run();
       }
 
       setImageUrl("");
