@@ -1104,35 +1104,50 @@ function RichTextToolbar({
     setIsImageInputOpen(false);
   };
 
-  const insertUploadedImage = async (file: File) => {
-    if (!file.type.startsWith("image/")) {
+  const insertUploadedImages = async (files: File[]) => {
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    if (imageFiles.length === 0) {
       window.alert("이미지 파일만 업로드할 수 있습니다.");
       return;
     }
 
+    if (imageFiles.length !== files.length) {
+      window.alert("이미지 파일만 본문에 추가했습니다.");
+    }
+
     setIsUploadingImage(true);
+    let failedCount = 0;
+
     try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = String(reader.result ?? "");
-          resolve(result.split(",")[1] ?? "");
-        };
-        reader.onerror = () => reject(reader.error ?? new Error("이미지를 읽지 못했습니다."));
-        reader.readAsDataURL(file);
-      });
+      for (const file of imageFiles) {
+        try {
+          const base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const result = String(reader.result ?? "");
+              resolve(result.split(",")[1] ?? "");
+            };
+            reader.onerror = () => reject(reader.error ?? new Error("이미지를 읽지 못했습니다."));
+            reader.readAsDataURL(file);
+          });
 
-      const result = await uploadImageMutation.mutateAsync({
-        base64,
-        mimeType: file.type,
-        fileName: file.name,
-      });
+          const result = await uploadImageMutation.mutateAsync({
+            base64,
+            mimeType: file.type,
+            fileName: file.name,
+          });
 
-      editor.chain().focus().setImage({ src: result.url }).run();
+          editor.chain().focus().setImage({ src: result.url }).run();
+        } catch {
+          failedCount += 1;
+        }
+      }
+
       setImageUrl("");
       setIsImageInputOpen(false);
-    } catch {
-      window.alert("이미지 업로드에 실패했습니다. 파일을 확인한 뒤 다시 시도해주세요.");
+      if (failedCount > 0) {
+        window.alert(`${failedCount}장의 이미지 업로드에 실패했습니다. 파일 용량과 형식을 확인해주세요.`);
+      }
     } finally {
       setIsUploadingImage(false);
       if (imageFileInputRef.current) imageFileInputRef.current.value = "";
@@ -1829,10 +1844,11 @@ function RichTextToolbar({
             ref={imageFileInputRef}
             type="file"
             accept="image/*"
+            multiple
             className="hidden"
             onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) void insertUploadedImage(file);
+              const files = Array.from(event.target.files ?? []);
+              if (files.length > 0) void insertUploadedImages(files);
             }}
           />
           <button
