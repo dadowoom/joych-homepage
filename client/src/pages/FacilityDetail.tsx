@@ -882,7 +882,7 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
                 <h2 className="font-bold text-gray-900 mb-4 text-base" style={{ fontFamily: "'Noto Serif KR', serif" }}>
                   시설 정보
                 </h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-5">
+                <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-5">
                   <div className="text-center p-3 bg-[#F1F8E9] rounded-lg">
                     <Users className="text-[#1B5E20] mx-auto mb-1" size={20} />
                     <p className="text-xs text-gray-500">수용 인원</p>
