@@ -127,6 +127,60 @@ function getButtonColorSelectValue(color: string | undefined, index: number) {
   return index === 0 ? "primary" : "secondary";
 }
 
+function HeroButtonHexColorInput({
+  color,
+  index,
+  disabled,
+  onChange,
+}: {
+  color: string | undefined;
+  index: number;
+  disabled: boolean;
+  onChange: (color: string) => void;
+}) {
+  const resolvedColor = getButtonPickerColor(color, index) || DEFAULT_HERO_BUTTON_PICKER_COLORS[0];
+  const [draftColor, setDraftColor] = useState(resolvedColor);
+
+  useEffect(() => {
+    setDraftColor(resolvedColor);
+  }, [resolvedColor]);
+
+  const commitColor = (value: string) => {
+    const normalized = value.startsWith("#") ? value : `#${value}`;
+    if (!isHexColor(normalized)) return false;
+    onChange(normalized.toUpperCase());
+    return true;
+  };
+
+  return (
+    <div className="mt-0.5 flex items-center gap-2">
+      <span
+        aria-hidden="true"
+        className="h-9 w-12 shrink-0 rounded border border-gray-300"
+        style={{ backgroundColor: resolvedColor }}
+      />
+      <Input
+        value={draftColor}
+        disabled={disabled}
+        onChange={(event) => {
+          const nextValue = event.target.value.trim();
+          if (!/^#?[0-9a-fA-F]{0,6}$/.test(nextValue)) return;
+          setDraftColor(nextValue);
+          commitColor(nextValue);
+        }}
+        onBlur={() => {
+          if (!commitColor(draftColor)) {
+            setDraftColor(resolvedColor);
+          }
+        }}
+        placeholder="#1B5E20"
+        className="h-9 min-w-0 flex-1 font-mono text-xs"
+        aria-label={`버튼 ${index + 1} 사용자 지정 색상`}
+      />
+    </div>
+  );
+}
+
 function hasIncompleteButton(buttons: HeroButtonDraft[]) {
   return buttons.some((button) => {
     const hasLabel = button.label.trim().length > 0;
@@ -563,13 +617,12 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
             <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <label className="text-[11px] text-gray-600">
                 버튼 색상
-                <div className="mt-0.5 flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={getButtonPickerColor(button.color, index)}
+                <div className="mt-0.5 space-y-2">
+                  <HeroButtonHexColorInput
+                    color={button.color}
+                    index={index}
                     disabled={disabled}
-                    onChange={(event) => updateButtonDraft(visibleButtons, setButtons, index, { color: event.target.value })}
-                    className="h-9 w-14 cursor-pointer rounded border border-gray-300 bg-white p-1 disabled:cursor-not-allowed"
+                    onChange={(color) => updateButtonDraft(visibleButtons, setButtons, index, { color })}
                   />
                   <Select
                     value={getButtonColorSelectValue(button.color, index)}
@@ -579,7 +632,7 @@ export default function HeroEditPanel({ open, onClose }: HeroEditPanelProps) {
                       updateButtonDraft(visibleButtons, setButtons, index, { color: value });
                     }}
                   >
-                    <SelectTrigger className="h-9 flex-1 text-xs font-mono">
+                    <SelectTrigger className="h-9 w-full text-xs font-mono">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent align="start" className="w-[var(--radix-select-trigger-width)]">
