@@ -1286,7 +1286,7 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
             )}
             <div className="grid grid-cols-[94px_minmax(0,1fr)_80px] gap-2 border-b border-gray-100 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-500 md:hidden">
               <div>시간</div>
-              <div>시설 / 목적 / 예약자</div>
+              <div>예약 정보</div>
               <div>관리</div>
             </div>
             <div className="hidden grid-cols-[94px_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1.15fr)_86px_44px_148px] gap-2 border-b border-gray-100 bg-gray-50 px-2 py-3 text-sm font-semibold text-gray-500 md:grid">
@@ -1317,12 +1317,22 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
                       <div className="min-w-0">
                         <p className="text-xs text-gray-400 md:hidden">시설</p>
                         <p className="truncate font-semibold text-gray-900">{reservation.facilityName ?? "시설"}</p>
-                        <p className="mt-0.5 truncate text-xs text-gray-500 md:hidden">{getReservationName(reservation)} ({getReservationPosition(reservation)}) · {getReservationPhone(reservation)}</p>
+                        <div className="mt-1.5 space-y-1.5 text-xs md:hidden">
+                          <span className={"inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold " + getReservationAudienceBadgeClass(reservation)}>
+                            {getReservationAudienceLabel(reservation)}
+                          </span>
+                          <p className="break-words text-gray-600">부서/모임: {getReservationDepartment(reservation)}</p>
+                          <p className="break-words text-gray-600">목적: {reservation.purpose || "-"}</p>
+                          <p className="font-semibold text-gray-900">
+                            {getReservationName(reservation)}
+                            <span className="ml-1 font-medium text-gray-500">({getReservationPosition(reservation)})</span>
+                          </p>
+                          <p className="font-semibold text-gray-700">{getReservationPhone(reservation)}</p>
+                          <p className="text-gray-500">{statusMeta.label} · {reservation.attendees}명</p>
+                        </div>
                       </div>
-                      <div className="col-start-2 min-w-0 md:col-start-auto">
-                        <p className="text-xs text-gray-400 md:hidden">목적</p>
+                      <div className="hidden min-w-0 md:block">
                         <p className="truncate font-semibold text-gray-900">{reservation.purpose || "-"}</p>
-                        <p className="mt-0.5 break-words text-xs text-gray-500 md:hidden">부서/모임: {getReservationDepartment(reservation)}</p>
                       </div>
                       <div className="min-w-0 hidden md:block">
                         <p className="break-words font-semibold text-gray-900">{getReservationDepartment(reservation)}</p>
