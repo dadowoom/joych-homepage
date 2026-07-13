@@ -19,6 +19,7 @@ import {
   createMissionAuthorGrant,
   createMissionReportWithDetails,
   createMissionary,
+  deleteMissionary,
   deleteMissionReport,
   getAllMissionaries,
   getMissionReportById,
@@ -130,6 +131,19 @@ export const missionReportsRouter = router({
     .mutation(({ input }) => {
       const { id, ...data } = input;
       return updateMissionary(id, data);
+    }),
+
+  deleteMissionary: missionReportProcedure
+    .input(z.object({ id: idSchema }))
+    .mutation(async ({ input }) => {
+      const result = await deleteMissionary(input.id);
+      if (!result.deleted) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: result.reason ?? "선교사/사역지를 삭제하지 못했습니다.",
+        });
+      }
+      return result;
     }),
 
   authorGrants: missionReportProcedure.query(() => getMissionAuthorGrants()),

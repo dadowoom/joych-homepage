@@ -115,6 +115,33 @@ export async function updateMissionary(id: number, data: Partial<InsertMissionar
   await db.update(missionaries).set(data).where(eq(missionaries.id, id));
 }
 
+export async function deleteMissionary(id: number) {
+  const db = await getDb();
+  if (!db) {
+    return { deleted: false, reason: "데이터베이스 연결을 확인할 수 없습니다." };
+  }
+
+  const [linkedReport] = await db
+    .select({ id: missionReports.id })
+    .from(missionReports)
+    .where(eq(missionReports.missionaryId, id))
+    .limit(1);
+
+  if (linkedReport) {
+    return {
+      deleted: false,
+      reason: "등록된 선교보고가 있어 삭제할 수 없습니다. 먼저 해당 보고서를 다른 사역지로 변경하거나 삭제해주세요.",
+    };
+  }
+
+  await db.transaction(async (tx) => {
+    await tx.delete(missionReportAuthors).where(eq(missionReportAuthors.missionaryId, id));
+    await tx.delete(missionaries).where(eq(missionaries.id, id));
+  });
+
+  return { deleted: true };
+}
+
 export async function getPublishedMissionReports(limit = 200) {
   const db = await getDb();
   if (!db) return [];

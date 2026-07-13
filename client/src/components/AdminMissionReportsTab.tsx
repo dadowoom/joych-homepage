@@ -27,17 +27,32 @@ const STATUS_LABELS: Record<string, string> = {
 const adminFieldClass =
   "border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20 focus:border-[#1B5E20]";
 
-export default function AdminMissionReportsTab() {
-  const utils = trpc.useUtils();
-  const [memberSearch, setMemberSearch] = useState("");
-  const [missionaryForm, setMissionaryForm] = useState({
+type MissionaryFormState = {
+  name: string;
+  region: string;
+  continent: (typeof CONTINENT_OPTIONS)[number]["value"];
+  sentYear: number;
+  organization: string;
+  profileImage: string;
+};
+
+function getEmptyMissionaryForm(): MissionaryFormState {
+  return {
     name: "",
     region: "",
-    continent: "asia" as const,
+    continent: "asia",
     sentYear: new Date().getFullYear(),
     organization: "",
     profileImage: "",
-  });
+  };
+}
+
+export default function AdminMissionReportsTab() {
+  const utils = trpc.useUtils();
+  const [memberSearch, setMemberSearch] = useState("");
+  const [missionaryForm, setMissionaryForm] = useState<MissionaryFormState>(getEmptyMissionaryForm);
+  const [editingMissionaryId, setEditingMissionaryId] = useState<number | null>(null);
+  const [editingMissionaryForm, setEditingMissionaryForm] = useState<MissionaryFormState>(getEmptyMissionaryForm);
   const [selectedMemberId, setSelectedMemberId] = useState<number | "">("");
   const [selectedMissionaryId, setSelectedMissionaryId] = useState<number | "">(
     ""
@@ -88,20 +103,34 @@ export default function AdminMissionReportsTab() {
     {
       onSuccess: () => {
         toast.success("선교사/사역지가 추가됐습니다.");
-        setMissionaryForm({
-          name: "",
-          region: "",
-          continent: "asia",
-          sentYear: new Date().getFullYear(),
-          organization: "",
-          profileImage: "",
-        });
+        setMissionaryForm(getEmptyMissionaryForm());
         utils.cms.missionReports.missionaries.invalidate();
         utils.mission.missionaries.invalidate();
       },
       onError: (e) => toast.error(e.message),
     }
   );
+
+  const updateMissionary = trpc.cms.missionReports.updateMissionary.useMutation({
+    onSuccess: () => {
+      toast.success("선교사/사역지가 수정됐습니다.");
+      setEditingMissionaryId(null);
+      utils.cms.missionReports.missionaries.invalidate();
+      utils.mission.missionaries.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const deleteMissionary = trpc.cms.missionReports.deleteMissionary.useMutation({
+    onSuccess: () => {
+      toast.success("선교사/사역지가 삭제됐습니다.");
+      setEditingMissionaryId(null);
+      utils.cms.missionReports.missionaries.invalidate();
+      utils.cms.missionReports.authorGrants.invalidate();
+      utils.mission.missionaries.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const createGrant = trpc.cms.missionReports.createAuthorGrant.useMutation({
     onSuccess: () => {
@@ -150,6 +179,32 @@ export default function AdminMissionReportsTab() {
     createGrant.mutate({
       memberId: selectedMemberId,
       missionaryId: selectedMissionaryId,
+    });
+  };
+
+  const startMissionaryEdit = (missionary: typeof missionaries[number]) => {
+    setEditingMissionaryId(missionary.id);
+    setEditingMissionaryForm({
+      name: missionary.name,
+      region: missionary.region,
+      continent: missionary.continent,
+      sentYear: missionary.sentYear,
+      organization: missionary.organization ?? "",
+      profileImage: missionary.profileImage ?? "",
+    });
+  };
+
+  const submitMissionaryEdit = () => {
+    if (!editingMissionaryId) return;
+    if (!editingMissionaryForm.name.trim() || !editingMissionaryForm.region.trim()) {
+      toast.error("이름과 사역 지역을 입력해 주세요.");
+      return;
+    }
+    updateMissionary.mutate({
+      id: editingMissionaryId,
+      ...editingMissionaryForm,
+      organization: editingMissionaryForm.organization || undefined,
+      profileImage: editingMissionaryForm.profileImage || undefined,
     });
   };
 
@@ -243,6 +298,133 @@ export default function AdminMissionReportsTab() {
         >
           추가
         </button>
+      </section>
+
+      <section className="rounded-xl border border-gray-200 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h4 className="font-bold text-gray-800">등록된 선교사/사역지</h4>
+            <p className="mt-0.5 text-xs text-gray-500">수정하거나, 연결된 보고서가 없는 항목은 삭제할 수 있습니다.</p>
+          </div>
+          <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-[#1B5E20]">
+            {missionaries.length}개
+          </span>
+        </div>
+        <div className="space-y-2">
+          {missionaries.map((missionary) => {
+            const isEditing = editingMissionaryId === missionary.id;
+            return (
+              <div key={missionary.id} className="rounded-xl border border-gray-100 bg-white p-3">
+                {isEditing ? (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                      <input
+                        className={adminFieldClass}
+                        value={editingMissionaryForm.name}
+                        onChange={(e) => setEditingMissionaryForm((prev) => ({ ...prev, name: e.target.value }))}
+                        placeholder="이름 또는 사역명"
+                      />
+                      <input
+                        className={adminFieldClass}
+                        value={editingMissionaryForm.region}
+                        onChange={(e) => setEditingMissionaryForm((prev) => ({ ...prev, region: e.target.value }))}
+                        placeholder="사역 지역"
+                      />
+                      <select
+                        className={adminFieldClass}
+                        value={editingMissionaryForm.continent}
+                        onChange={(e) => setEditingMissionaryForm((prev) => ({
+                          ...prev,
+                          continent: e.target.value as MissionaryFormState["continent"],
+                        }))}
+                      >
+                        {CONTINENT_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                      <input
+                        className={adminFieldClass}
+                        type="number"
+                        value={editingMissionaryForm.sentYear}
+                        onChange={(e) => setEditingMissionaryForm((prev) => ({ ...prev, sentYear: Number(e.target.value) }))}
+                        placeholder="시작 연도"
+                      />
+                      <input
+                        className={adminFieldClass}
+                        value={editingMissionaryForm.organization}
+                        onChange={(e) => setEditingMissionaryForm((prev) => ({ ...prev, organization: e.target.value }))}
+                        placeholder="소속 기관"
+                      />
+                      <input
+                        className={adminFieldClass}
+                        value={editingMissionaryForm.profileImage}
+                        onChange={(e) => setEditingMissionaryForm((prev) => ({ ...prev, profileImage: e.target.value }))}
+                        placeholder="프로필 이미지 URL"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditingMissionaryId(null)}
+                        className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+                      >
+                        취소
+                      </button>
+                      <button
+                        type="button"
+                        onClick={submitMissionaryEdit}
+                        disabled={updateMissionary.isPending}
+                        className="rounded-lg bg-[#1B5E20] px-3 py-1.5 text-xs text-white hover:bg-[#2E7D32] disabled:opacity-50"
+                      >
+                        저장
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-800">
+                        {missionary.name} <span className="font-normal text-gray-400">· {missionary.region}</span>
+                      </p>
+                      <p className="mt-0.5 text-xs text-gray-400">
+                        {CONTINENT_OPTIONS.find((option) => option.value === missionary.continent)?.label ?? missionary.continent}
+                        {missionary.sentYear ? ` · ${missionary.sentYear}년` : ""}
+                        {missionary.organization ? ` · ${missionary.organization}` : ""}
+                        {!missionary.isActive ? " · 숨김" : ""}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startMissionaryEdit(missionary)}
+                        className="rounded-lg border border-green-200 px-3 py-1.5 text-xs text-[#1B5E20] hover:bg-green-50"
+                      >
+                        수정
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`${missionary.name} 항목을 삭제할까요?`)) {
+                            deleteMissionary.mutate({ id: missionary.id });
+                          }
+                        }}
+                        disabled={deleteMissionary.isPending}
+                        className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {missionaries.length === 0 && (
+            <p className="rounded-lg border border-dashed border-gray-200 px-3 py-5 text-center text-sm text-gray-400">
+              등록된 선교사/사역지가 없습니다.
+            </p>
+          )}
+        </div>
       </section>
 
       <section className="rounded-xl border border-gray-200 p-4">
