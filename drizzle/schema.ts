@@ -1205,6 +1205,26 @@ export type Course = typeof courses.$inferSelect;
 export type InsertCourse = typeof courses.$inferInsert;
 
 /**
+ * course_room_managers: 강좌방별 담당 성도 권한
+ * 전체 강좌 관리 권한과 별도로, 지정된 강좌 메뉴 주소에서만 관리할 수 있습니다.
+ */
+export const courseRoomManagers = mysqlTable("course_room_managers", {
+  id: int("id").autoincrement().primaryKey(),
+  memberId: int("memberId").notNull(),
+  pageHref: varchar("pageHref", { length: 255 }).notNull(),
+  canManage: boolean("canManage").notNull().default(true),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("course_room_managers_member_page_unique").on(table.memberId, table.pageHref),
+  index("course_room_managers_page_access_idx").on(table.pageHref, table.canManage),
+]);
+
+export type CourseRoomManager = typeof courseRoomManagers.$inferSelect;
+export type InsertCourseRoomManager = typeof courseRoomManagers.$inferInsert;
+
+/**
  * course_applications: 강좌 신청 내역
  * 승인 대기, 승인, 거절, 신청 취소 상태를 관리합니다.
  */

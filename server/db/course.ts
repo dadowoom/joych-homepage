@@ -13,9 +13,11 @@ import {
   churchMembers,
   Course,
   courseApplications,
+  courseRoomManagers,
   courses,
   InsertCourse,
   InsertCourseApplication,
+  InsertCourseRoomManager,
   InsertReservation,
 } from "../../drizzle/schema";
 import { getDb } from "./connection";
@@ -174,7 +176,7 @@ async function syncCourseFacilityReservation(current: Course | null, nextCourse:
   return nextReservationId;
 }
 
-export async function getCoursesForAdmin() {
+export async function getCoursesForAdmin(pageHref?: string) {
   const db = await getDb();
   if (!db) return [];
 
@@ -187,7 +189,10 @@ export async function getCoursesForAdmin() {
     .from(courseApplications);
   const counts = summarizeApplications(applicationRows);
 
-  return courseRows.map((course) => ({
+  const normalizedHref = pageHref?.trim() || null;
+  return courseRows
+    .filter((course) => !normalizedHref || (course.pageHref ?? "/education/courses") === normalizedHref)
+    .map((course) => ({
     ...course,
     ...(counts.get(course.id) ?? {
       pendingCount: 0,
@@ -196,7 +201,7 @@ export async function getCoursesForAdmin() {
       cancelledCount: 0,
       activeCount: 0,
     }),
-  }));
+    }));
 }
 
 export async function getVisibleCourses(options: { pageHref?: string | null; audience?: "guest" | "member" } = {}) {
@@ -321,6 +326,7 @@ export async function getCourseApplications(courseId?: number) {
       courseEndDate: courses.endDate,
       courseStartTime: courses.startTime,
       courseEndTime: courses.endTime,
+      coursePageHref: courses.pageHref,
       memberName: churchMembers.name,
       memberPhone: churchMembers.phone,
       memberEmail: churchMembers.email,
@@ -336,6 +342,71 @@ export async function getCourseApplications(courseId?: number) {
     return rows.filter(row => row.courseId === courseId);
   }
   return rows;
+}
+
+export async function getCourseRoomManagers() {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select({
+    id: courseRoomManagers.id,
+    memberId: courseRoomManagers.memberId,
+    pageHref: courseRoomManagers.pageHref,
+    canManage: courseRoomManagers.canManage,
+    createdBy: courseRoomManagers.createdBy,
+    createdAt: courseRoomManagers.createdAt,
+    updatedAt: courseRoomManagers.updatedAt,
+    memberName: churchMembers.name,
+    memberEmail: churchMembers.email,
+    memberPhone: churchMembers.phone,
+    memberPosition: churchMembers.position,
+    memberDepartment: churchMembers.department,
+    memberDistrict: churchMembers.district,
+  })
+    .from(courseRoomManagers)
+    .leftJoin(churchMembers, eq(courseRoomManagers.memberId, churchMembers.id))
+    .orderBy(asc(courseRoomManagers.pageHref), desc(courseRoomManagers.createdAt));
+}
+
+export async function hasCourseRoomManagementAccess(memberId: number, pageHref: string) {
+  const db = await getDb();
+  if (!db) return false;
+  const [row] = await db.select({ id: courseRoomManagers.id })
+    .from(courseRoomManagers)
+    .where(and(
+      eq(courseRoomManagers.memberId, memberId),
+      eq(courseRoomManagers.pageHref, pageHref),
+      eq(courseRoomManagers.canManage, true),
+    ))
+    .limit(1);
+  return Boolean(row);
+}
+
+export async function createCourseRoomManager(data: InsertCourseRoomManager) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const [existing] = await db.select().from(courseRoomManagers)
+    .where(and(
+      eq(courseRoomManagers.memberId, data.memberId),
+      eq(courseRoomManagers.pageHref, data.pageHref),
+    ))
+    .limit(1);
+  if (existing) {
+    await db.update(courseRoomManagers)
+      .set({ canManage: true, createdBy: data.createdBy ?? null })
+      .where(eq(courseRoomManagers.id, existing.id));
+    return existing.id;
+  }
+
+  const [result] = await db.insert(courseRoomManagers).values(data).$returningId();
+  return result?.id ?? null;
+}
+
+export async function updateCourseRoomManager(id: number, data: Partial<InsertCourseRoomManager>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(courseRoomManagers).set(data).where(eq(courseRoomManagers.id, id));
 }
 
 export async function getMyCourseApplications(memberId: number) {

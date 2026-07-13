@@ -12,6 +12,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
 import ReservationTimelinePicker from "@/components/facility/ReservationTimelinePicker";
+import CourseRoomPermissionManager from "@/components/CourseRoomPermissionManager";
 import { getReservationTimeRestriction } from "@/lib/facilityReservationTime";
 import { generateReservationTimePoints } from "@/lib/facilitySlotSelection";
 import { toast } from "sonner";
@@ -816,6 +817,8 @@ export default function AdminCoursesTab() {
           </button>
         )}
       </div>
+
+      <CourseRoomPermissionManager rooms={courseMenuOptions} />
 
       <div className="rounded-xl border border-green-100 bg-green-50/50 p-4">
         <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">

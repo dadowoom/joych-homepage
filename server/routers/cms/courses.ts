@@ -13,13 +13,17 @@ import { adminPermissionProcedure, router } from "../../_core/trpc";
 import { optionalTextSchema, requiredTextSchema, safeAssetUrlSchema } from "../../_core/contentValidation";
 import {
   createCourse,
+  createCourseRoomManager,
   deleteCourse,
+  getAllMembers,
   getCourseApplications,
+  getCourseRoomManagers,
   getCoursesForAdmin,
   ReservationLockError,
   ReservationOverlapError,
   updateCourse,
   updateCourseApplicationStatus,
+  updateCourseRoomManager,
 } from "../../db";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -159,4 +163,33 @@ export const coursesRouter = router({
     .mutation(({ input, ctx }) =>
       updateCourseApplicationStatus(input.id, input.status, input.comment, ctx.user.id)
     ),
+
+  roomManagerMembers: courseProcedure.query(async () => {
+    const members = await getAllMembers();
+    return members.map((member) => ({
+      id: member.id,
+      name: member.name,
+      email: member.email,
+      phone: member.phone,
+      status: member.status,
+      position: member.position,
+      department: member.department,
+      district: member.district,
+    }));
+  }),
+
+  roomManagers: courseProcedure.query(() => getCourseRoomManagers()),
+
+  createRoomManager: courseProcedure
+    .input(z.object({
+      memberId: idSchema,
+      pageHref: z.string().trim().min(1).max(255).startsWith("/"),
+    }))
+    .mutation(({ input, ctx }) =>
+      createCourseRoomManager({ ...input, canManage: true, createdBy: ctx.user.id })
+    ),
+
+  updateRoomManager: courseProcedure
+    .input(z.object({ id: idSchema, canManage: z.boolean() }))
+    .mutation(({ input }) => updateCourseRoomManager(input.id, { canManage: input.canManage })),
 });
