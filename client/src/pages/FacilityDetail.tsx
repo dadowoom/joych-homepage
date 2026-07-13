@@ -485,7 +485,7 @@ function TimeSlotPanel({
             renderDisabledTooltip={renderDisabledTooltip}
           />
 
-          {adminReservations.length > 0 && (
+          {hasReservationOverride && adminReservations.length > 0 && (
             <div className="mt-3 rounded-lg border border-green-100 bg-green-50/60 p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <p className="text-xs font-bold text-[#1B5E20]">관리자용 예약 상세</p>
@@ -510,22 +510,21 @@ function TimeSlotPanel({
                         </span>
                       </span>
                     </div>
-                    <div className="mt-1 grid grid-cols-[52px_1fr] gap-x-2 gap-y-1">
-                      <span className="text-gray-400">구분</span>
-                      <span>{getReservationTypeLabel(reservation)}</span>
-                      <span className="text-gray-400">이름</span>
-                      <span className="font-medium text-gray-900">{getReservationName(reservation)}</span>
-                      <span className="text-gray-400">직분/부서</span>
-                      <span>{getReservationPosition(reservation)}</span>
-                      <span className="text-gray-400">전화번호</span>
-                      <span>{getReservationPhone(reservation)}</span>
-                      {reservation.purpose && (
-                        <>
-                          <span className="text-gray-400">목적</span>
-                          <span className="line-clamp-2">{reservation.purpose}</span>
-                        </>
-                      )}
-                    </div>
+                    <dl className="mt-1 grid grid-cols-[64px_minmax(0,1fr)] gap-x-2 gap-y-1">
+                      <dt className="text-gray-400">구분</dt>
+                      <dd>{getReservationTypeLabel(reservation)}</dd>
+                      <dt className="text-gray-400">부서/모임</dt>
+                      <dd className="break-words">{reservation.department || "-"}</dd>
+                      <dt className="text-gray-400">목적</dt>
+                      <dd className="line-clamp-2">{reservation.purpose || "-"}</dd>
+                      <dt className="text-gray-400">예약자</dt>
+                      <dd className="font-medium text-gray-900">
+                        {getReservationName(reservation)}
+                        <span className="ml-1 font-normal text-gray-500">({getReservationPosition(reservation)})</span>
+                      </dd>
+                      <dt className="text-gray-400">전화번호</dt>
+                      <dd>{getReservationPhone(reservation)}</dd>
+                    </dl>
                   </div>
                 ))}
               </div>
