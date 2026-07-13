@@ -4,6 +4,7 @@ export type NoticeCategoryConfig = {
 };
 
 export const NOTICE_CATEGORY_SETTINGS_KEY = "notice_categories";
+export const NOTICE_BOARD_DESCRIPTION_KEY = "notice_board_description";
 export const NOTICE_ALL_CATEGORY_LABEL = "전체";
 export const DEFAULT_NOTICE_CATEGORY_LABEL = "공지";
 export const ADMIN_RESOURCE_CATEGORY = "행정자료";

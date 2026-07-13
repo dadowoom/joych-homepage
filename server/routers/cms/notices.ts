@@ -15,6 +15,7 @@ import { adminPermissionProcedure, router } from "../../_core/trpc";
 import {
   ADMIN_RESOURCE_CATEGORY,
   NOTICE_ALL_CATEGORY_LABEL,
+  NOTICE_BOARD_DESCRIPTION_KEY,
   NOTICE_CATEGORY_SETTINGS_KEY,
   normalizeNoticeCategorySettings,
 } from "@shared/noticeCategories";
@@ -230,5 +231,16 @@ export const noticesRouter = router({
         const categories = normalizeNoticeCategorySettings(input.categories);
         return upsertSiteSetting(NOTICE_CATEGORY_SETTINGS_KEY, JSON.stringify(categories));
       }),
+  }),
+
+  /** 공지사항 게시판 소개 문구 저장 */
+  intro: router({
+    update: noticeProcedure
+      .input(z.object({
+        description: z.string().trim().max(500, "소개 문구는 500자 이하로 입력해주세요."),
+      }))
+      .mutation(({ input }) =>
+        upsertSiteSetting(NOTICE_BOARD_DESCRIPTION_KEY, input.description)
+      ),
   }),
 });

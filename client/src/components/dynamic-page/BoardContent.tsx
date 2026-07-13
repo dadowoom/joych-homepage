@@ -36,6 +36,7 @@ import {
   ADMIN_RESOURCE_CATEGORY,
   DEFAULT_NOTICE_CATEGORY_LABEL,
   NOTICE_ALL_CATEGORY_LABEL,
+  NOTICE_BOARD_DESCRIPTION_KEY,
   NOTICE_CATEGORY_SETTINGS_KEY,
   getNoticeWriteCategoryLabels,
   getVisibleNoticeFilterCategoryLabels,
@@ -315,6 +316,8 @@ function NoticeBoardContent({
   const [uploadingFile, setUploadingFile] = useState(false);
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
   const [newCategoryLabel, setNewCategoryLabel] = useState("");
+  const [introEditorOpen, setIntroEditorOpen] = useState(false);
+  const [introDescription, setIntroDescription] = useState("");
   const searchString = useSearch();
   const targetPostId = useMemo(
     () => parseTargetPostId(searchString),
@@ -330,6 +333,10 @@ function NoticeBoardContent({
   useEffect(() => {
     setViewMode(normalizeViewMode(defaultViewMode));
   }, [defaultViewMode]);
+
+  const { data: siteSettings } = trpc.home.settings.useQuery(undefined, {
+    enabled: !isAdminResource && !isCustomBoard,
+  });
 
   const getBlankForm = (): NoticeFormState => ({
     category: isAdminResource
@@ -398,11 +405,14 @@ function NoticeBoardContent({
     : isCustomBoard
       ? "게시글"
       : "소식";
-  const boardDescription = isAdminResource
+  const defaultBoardDescription = isAdminResource
     ? "행정자료를 게시판 형태로 확인할 수 있습니다."
     : isCustomBoard
       ? "이 메뉴에 등록된 게시글만 표시됩니다."
       : "공지와 안내를 게시판 형태로 확인할 수 있습니다.";
+  const boardDescription = !isAdminResource && !isCustomBoard
+    ? siteSettings?.[NOTICE_BOARD_DESCRIPTION_KEY]?.trim() || defaultBoardDescription
+    : defaultBoardDescription;
   const createButtonLabel = isAdminResource
     ? "행정자료 작성"
     : isCustomBoard
@@ -528,6 +538,21 @@ function NoticeBoardContent({
       },
       onError: error => toast.error(`분류 저장 실패: ${error.message}`),
     });
+
+  const updateIntroMutation = trpc.cms.notices.intro.update.useMutation({
+    onSuccess: () => {
+      void utils.home.settings.invalidate();
+      setIntroEditorOpen(false);
+      toast.success("게시판 소개 문구가 저장됐습니다.");
+    },
+    onError: error => toast.error(`소개 문구 저장 실패: ${error.message}`),
+  });
+
+  useEffect(() => {
+    if (!introEditorOpen) {
+      setIntroDescription(boardDescription);
+    }
+  }, [boardDescription, introEditorOpen]);
 
   const trackNoticeViewMutation = trpc.home.trackNoticeView.useMutation({
     onSuccess: () => {
@@ -1413,15 +1438,66 @@ function NoticeBoardContent({
           <p className="mt-1 text-xs text-gray-400">{boardDescription}</p>
         </div>
         {canManageNotices && (
-          <button
-            type="button"
-            onClick={formMode ? closeForm : openCreateForm}
-            className="inline-flex h-10 items-center justify-center rounded-md bg-[#1B5E20] px-4 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32]"
-          >
-            {formMode ? "작성 닫기" : createButtonLabel}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {!isAdminResource && !isCustomBoard && (
+              <button
+                type="button"
+                onClick={() => setIntroEditorOpen(open => !open)}
+                className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#1B5E20]/30 bg-white px-3 text-sm font-medium text-[#1B5E20] transition-colors hover:bg-[#F1F8E9]"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                소개 수정
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={formMode ? closeForm : openCreateForm}
+              className="inline-flex h-10 items-center justify-center rounded-md bg-[#1B5E20] px-4 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32]"
+            >
+              {formMode ? "작성 닫기" : createButtonLabel}
+            </button>
+          </div>
         )}
       </div>
+
+      {introEditorOpen && !isAdminResource && !isCustomBoard && (
+        <form
+          className="border border-emerald-100 bg-emerald-50/60 p-4"
+          onSubmit={event => {
+            event.preventDefault();
+            updateIntroMutation.mutate({ description: introDescription });
+          }}
+        >
+          <label className="block text-sm font-semibold text-gray-900">
+            게시판 소개 문구
+            <textarea
+              value={introDescription}
+              onChange={event => setIntroDescription(event.target.value)}
+              maxLength={500}
+              rows={3}
+              className="mt-2 w-full resize-y border border-gray-300 bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-[#1B5E20]"
+              placeholder="교회 소식 게시판에 표시할 소개 문구를 입력해주세요."
+            />
+          </label>
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setIntroEditorOpen(false)}
+              className="h-9 border border-gray-300 bg-white px-3 text-sm text-gray-600 hover:bg-gray-50"
+            >
+              취소
+            </button>
+            <button
+              type="submit"
+              disabled={updateIntroMutation.isPending}
+              className="inline-flex h-9 items-center gap-1.5 bg-[#1B5E20] px-3 text-sm font-medium text-white hover:bg-[#2E7D32] disabled:opacity-50"
+            >
+              <Check className="h-4 w-4" />
+              {updateIntroMutation.isPending ? "저장 중" : "저장"}
+            </button>
+          </div>
+        </form>
+      )}
 
       {renderCategoryManager()}
 
