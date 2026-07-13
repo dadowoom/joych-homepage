@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
+  GripVertical,
   Lock,
   Paperclip,
   Pencil,
@@ -20,6 +21,20 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import {
+  closestCenter,
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  horizontalListSortingStrategy,
+  SortableContext,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 import { useSearch } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -72,6 +87,77 @@ type BoardAttachment = {
 };
 
 type NoticeFormMode = "create" | "edit" | null;
+
+function SortableNoticeCategory({
+  category,
+  draggable,
+  isSaving,
+  onToggle,
+  onDelete,
+}: {
+  category: NoticeCategoryConfig;
+  draggable: boolean;
+  isSaving: boolean;
+  onToggle: (label: string) => void;
+  onDelete: (label: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: category.label, disabled: !draggable });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.45 : 1,
+      }}
+      className="flex items-center gap-2 border border-gray-200 bg-white px-3 py-2 text-sm"
+    >
+      <button
+        type="button"
+        onClick={() => onToggle(category.label)}
+        disabled={isSaving}
+        className={`h-5 w-9 rounded-full p-0.5 transition-colors ${category.isVisible ? "bg-[#1B5E20]" : "bg-gray-300"}`}
+        aria-label={`${category.label} ${category.isVisible ? "숨기기" : "보이기"}`}
+      >
+        <span
+          className={`block h-4 w-4 rounded-full bg-white transition-transform ${category.isVisible ? "translate-x-4" : ""}`}
+        />
+      </button>
+      <span className={category.isVisible ? "text-gray-800" : "text-gray-400"}>
+        {category.label}
+      </span>
+      {draggable && (
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="touch-none text-gray-300 hover:text-[#1B5E20]"
+          aria-label={`${category.label} 순서 변경`}
+          title="마우스로 끌어 순서 변경"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => onDelete(category.label)}
+        disabled={isSaving}
+        className="text-gray-300 hover:text-red-500"
+        aria-label={`${category.label} 삭제`}
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
 
 function isFreeBoardPage(label?: string, href?: string | null) {
   const normalized = `${label ?? ""} ${href ?? ""}`.replace(/\s+/g, "");
@@ -329,6 +415,9 @@ function NoticeBoardContent({
   const cardRefs = useRef(new Map<number, HTMLElement>());
   const pendingScrollPostIdRef = useRef<number | null>(null);
   const handledTargetPostIdRef = useRef<number | null>(null);
+  const categoryDragSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+  );
 
   useEffect(() => {
     setViewMode(normalizeViewMode(defaultViewMode));
@@ -1003,26 +1092,37 @@ function NoticeBoardContent({
     );
   };
 
-  const moveNoticeCategory = (label: string, direction: -1 | 1) => {
-    const currentIndex = noticeCategorySettings.findIndex(
-      category => category.label === label
-    );
-    const targetIndex = currentIndex + direction;
-    // '전체'는 항상 맨 앞에 유지합니다.
-    if (currentIndex <= 0 || targetIndex <= 0 || targetIndex >= noticeCategorySettings.length) {
-      return;
-    }
+  const handleCategoryDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
 
-    const nextCategories = [...noticeCategorySettings];
-    [nextCategories[currentIndex], nextCategories[targetIndex]] = [
-      nextCategories[targetIndex],
-      nextCategories[currentIndex],
-    ];
-    saveNoticeCategories(nextCategories);
+    const fixedCategory = noticeCategorySettings.find(
+      category => category.label === NOTICE_ALL_CATEGORY_LABEL
+    );
+    const movableCategories = noticeCategorySettings.filter(
+      category => category.label !== NOTICE_ALL_CATEGORY_LABEL
+    );
+    const fromIndex = movableCategories.findIndex(
+      category => category.label === active.id
+    );
+    const toIndex = movableCategories.findIndex(
+      category => category.label === over.id
+    );
+    if (fromIndex < 0 || toIndex < 0) return;
+
+    const reordered = [...movableCategories];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+    saveNoticeCategories(fixedCategory ? [fixedCategory, ...reordered] : reordered);
   };
 
   const renderCategoryManager = () => {
     if (!canManageNotices || isAdminResource || isCustomBoard) return null;
+    const allCategory = noticeCategorySettings.find(
+      category => category.label === NOTICE_ALL_CATEGORY_LABEL
+    );
+    const movableCategories = noticeCategorySettings.filter(
+      category => category.label !== NOTICE_ALL_CATEGORY_LABEL
+    );
 
     return (
       <div className="border border-emerald-100 bg-emerald-50/60 p-4">
@@ -1046,62 +1146,38 @@ function NoticeBoardContent({
         {categoryManagerOpen && (
           <div className="mt-4 space-y-3">
             <div className="flex flex-wrap gap-2">
-              {noticeCategorySettings.map((category, index) => (
-                <div
-                  key={category.label}
-                  className="flex items-center gap-2 border border-gray-200 bg-white px-3 py-2 text-sm"
+              {allCategory && (
+                <SortableNoticeCategory
+                  category={allCategory}
+                  draggable={false}
+                  isSaving={updateCategoriesMutation.isPending}
+                  onToggle={toggleNoticeCategory}
+                  onDelete={deleteNoticeCategory}
+                />
+              )}
+              <DndContext
+                sensors={categoryDragSensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleCategoryDragEnd}
+              >
+                <SortableContext
+                  items={movableCategories.map(category => category.label)}
+                  strategy={horizontalListSortingStrategy}
                 >
-                  <button
-                    type="button"
-                    onClick={() => toggleNoticeCategory(category.label)}
-                    disabled={updateCategoriesMutation.isPending}
-                    className={`h-5 w-9 rounded-full p-0.5 transition-colors ${category.isVisible ? "bg-[#1B5E20]" : "bg-gray-300"}`}
-                    aria-label={`${category.label} ${category.isVisible ? "숨기기" : "보이기"}`}
-                  >
-                    <span
-                      className={`block h-4 w-4 rounded-full bg-white transition-transform ${category.isVisible ? "translate-x-4" : ""}`}
-                    />
-                  </button>
-                  <span
-                    className={
-                      category.isVisible ? "text-gray-800" : "text-gray-400"
-                    }
-                  >
-                    {category.label}
-                  </span>
-                  {category.label !== NOTICE_ALL_CATEGORY_LABEL && (
-                    <span className="flex items-center gap-1 border-l border-gray-100 pl-2">
-                      <button
-                        type="button"
-                        onClick={() => moveNoticeCategory(category.label, -1)}
-                        disabled={index <= 1 || updateCategoriesMutation.isPending}
-                        className="text-xs text-gray-500 hover:text-[#1B5E20] disabled:cursor-not-allowed disabled:text-gray-300"
-                        aria-label={`${category.label} 위로 이동`}
-                      >
-                        위
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveNoticeCategory(category.label, 1)}
-                        disabled={index >= noticeCategorySettings.length - 1 || updateCategoriesMutation.isPending}
-                        className="text-xs text-gray-500 hover:text-[#1B5E20] disabled:cursor-not-allowed disabled:text-gray-300"
-                        aria-label={`${category.label} 아래로 이동`}
-                      >
-                        아래
-                      </button>
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => deleteNoticeCategory(category.label)}
-                    disabled={updateCategoriesMutation.isPending}
-                    className="text-gray-300 hover:text-red-500"
-                    aria-label={`${category.label} 삭제`}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
+                  <div className="flex flex-wrap gap-2">
+                    {movableCategories.map(category => (
+                      <SortableNoticeCategory
+                        key={category.label}
+                        category={category}
+                        draggable
+                        isSaving={updateCategoriesMutation.isPending}
+                        onToggle={toggleNoticeCategory}
+                        onDelete={deleteNoticeCategory}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             </div>
             <div className="flex flex-wrap gap-2">
               <input
