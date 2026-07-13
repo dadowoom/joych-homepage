@@ -1789,7 +1789,6 @@ MIGRATION_0077="${APP_DIR}/drizzle/0077_course_room_managers.sql"
 if [[ -f "${MIGRATION_0077}" ]]; then
   echo "[deploy] database migration: course room managers"
   node --input-type=module <<'NODE'
-import fs from "node:fs/promises";
 import mysql from "mysql2/promise";
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -1812,10 +1811,29 @@ try {
   if (Array.isArray(rows) && rows.length > 0) {
     console.log("[deploy] migration 0077 already applied");
   } else {
-    const sql = await fs.readFile("drizzle/0077_course_room_managers.sql", "utf8");
-    const statements = sql.split(/;\s*(?:\r?\n|$)/).map((statement) => statement.trim()).filter(Boolean);
-    for (const statement of statements) {
-      await connection.query(statement);
+    // The deploy can be retried after a partially applied schema change, so
+    // create the table and index independently instead of replaying the file.
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS course_room_managers (
+        id int AUTO_INCREMENT NOT NULL,
+        memberId int NOT NULL,
+        pageHref varchar(255) NOT NULL,
+        canManage boolean NOT NULL DEFAULT true,
+        createdBy int,
+        createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY course_room_managers_member_page_unique (memberId, pageHref)
+      )
+    `);
+    const [indexes] = await connection.query(
+      "SHOW INDEX FROM course_room_managers WHERE Key_name = ?",
+      ["course_room_managers_page_access_idx"],
+    );
+    if (!Array.isArray(indexes) || indexes.length === 0) {
+      await connection.query(
+        "CREATE INDEX course_room_managers_page_access_idx ON course_room_managers (pageHref, canManage)",
+      );
     }
     await connection.execute(
       "INSERT INTO app_migrations (id) VALUES (?)",
