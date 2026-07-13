@@ -785,7 +785,7 @@ export function TestimonyEditor() {
             />
           </div>
 
-          <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+          <label className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium text-gray-700">
             <input
               type="checkbox"
               checked={isSecret}
@@ -793,6 +793,9 @@ export function TestimonyEditor() {
               className="h-4 w-4 accent-[#1B5E20]"
             />
             비밀글
+            <span className="text-xs font-normal text-gray-500">
+              비밀글을 체크하고 작성하시면 작성자와 관리자, 간증 관리 권한이 부여된 교역자만 볼 수 있습니다.
+            </span>
           </label>
 
           <div>
