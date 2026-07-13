@@ -8,9 +8,7 @@
 import { useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
-import AdminMissionReportsTab from "@/components/AdminMissionReportsTab";
 import SubPageLayout from "@/components/SubPageLayout";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { canManageBoardContent } from "@/lib/contentPermissions";
 import { findMenuAccessMatchByHref } from "@/lib/menuAccess";
 import { trpc } from "@/lib/trpc";
@@ -52,7 +50,7 @@ function normalizeMenuHref(href: string | null | undefined) {
 export default function MissionList() {
   const [selectedContinent, setSelectedContinent] = useState<MissionContinent | "all">("all");
   const [selectedMissionary, setSelectedMissionary] = useState<number | "all">("all");
-  const [isMissionManagerOpen, setIsMissionManagerOpen] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<"all" | "pending" | "published" | "rejected" | "draft">("all");
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const canManage = canManageBoardContent(user, "content:missionReports");
@@ -70,6 +68,17 @@ export default function MissionList() {
       ]);
     },
     onError: (error) => toast.error(error.message || "선교보고 삭제에 실패했습니다."),
+  });
+  const reviewReport = trpc.cms.missionReports.reviewReport.useMutation({
+    onSuccess: async (_, variables) => {
+      const statusLabel = variables.status === "published" ? "공개" : variables.status === "rejected" ? "반려" : "숨김";
+      toast.success(`선교보고를 ${statusLabel} 처리했습니다.`);
+      await Promise.all([
+        utils.cms.missionReports.reports.invalidate(),
+        utils.mission.reports.invalidate(),
+      ]);
+    },
+    onError: (error) => toast.error(error.message || "선교보고 상태 변경에 실패했습니다."),
   });
   const reports = canManage ? (adminReportsQuery.data ?? []) : (publicReportsQuery.data ?? []);
   const isLoading = canManage ? adminReportsQuery.isLoading : publicReportsQuery.isLoading;
@@ -105,8 +114,25 @@ export default function MissionList() {
   const filtered = reports.filter((r) => {
     const continentOk = selectedContinent === "all" || r.missionary.continent === selectedContinent;
     const missionaryOk = selectedMissionary === "all" || r.missionaryId === selectedMissionary;
-    return continentOk && missionaryOk;
+    const statusOk = !canManage || selectedStatus === "all" || r.status === selectedStatus;
+    return continentOk && missionaryOk && statusOk;
   });
+
+  const reportStatusCounts = useMemo(() => ({
+    all: reports.length,
+    pending: reports.filter((report) => report.status === "pending").length,
+    published: reports.filter((report) => report.status === "published").length,
+    rejected: reports.filter((report) => report.status === "rejected").length,
+    draft: reports.filter((report) => report.status === "draft").length,
+  }), [reports]);
+
+  const statusFilters: Array<{ value: "all" | "pending" | "published" | "rejected" | "draft"; label: string }> = [
+    { value: "all", label: "전체" },
+    { value: "pending", label: "승인 대기" },
+    { value: "published", label: "공개" },
+    { value: "rejected", label: "반려" },
+    { value: "draft", label: "숨김" },
+  ];
 
   const activeMissionaries = useMemo(() => {
     const map = new Map<number, (typeof missionaries)[number]>();
@@ -152,16 +178,6 @@ export default function MissionList() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              {canManage && (
-                <button
-                  type="button"
-                  onClick={() => setIsMissionManagerOpen(true)}
-                  className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-[#1B5E20] bg-white px-4 text-sm font-medium text-[#1B5E20] transition-colors hover:bg-[#F1F8E9]"
-                >
-                  <i className="fas fa-gear text-[11px]"></i>
-                  선교보고 관리
-                </button>
-              )}
               {canWriteMissionReport && (
                 <Link href="/mission/write" className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-[#1B5E20] px-4 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32]">
                   <i className="fas fa-pen text-[10px]"></i>
@@ -171,6 +187,33 @@ export default function MissionList() {
             </div>
           </div>
         </section>
+
+        {canManage && (
+          <section className="rounded-2xl border border-[#C8E6C9] bg-[#F7FCF7] p-5 md:p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-sm font-bold text-[#1B5E20]">선교보고 검토함</p>
+                <p className="mt-1 text-sm text-gray-500">승인 대기 글을 먼저 확인하고, 각 카드에서 바로 공개하거나 반려할 수 있습니다.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {statusFilters.map((filter) => (
+                  <button
+                    key={filter.value}
+                    type="button"
+                    onClick={() => setSelectedStatus(filter.value)}
+                    className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                      selectedStatus === filter.value
+                        ? "border-[#1B5E20] bg-[#1B5E20] text-white"
+                        : "border-[#B7DDBA] bg-white text-[#1B5E20] hover:bg-[#E8F5E9]"
+                    }`}
+                  >
+                    {filter.label} {reportStatusCounts[filter.value]}건
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
 
         <section className="rounded-2xl border border-gray-200 bg-white p-5 md:p-6">
           <p className="text-xs text-gray-400 font-medium mb-4 uppercase tracking-wider">선교 협력</p>
@@ -263,7 +306,50 @@ export default function MissionList() {
                         </span>
                       )}
                       {canManage && (
-                        <div className="absolute bottom-3 right-3 flex gap-2 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                        <div className="absolute bottom-3 right-3 flex flex-wrap justify-end gap-2 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                          {report.status !== "published" && (
+                            <button
+                              type="button"
+                              disabled={reviewReport.isPending}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                reviewReport.mutate({ id: report.id, status: "published" });
+                              }}
+                              className="rounded-full bg-[#1B5E20] px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-[#2E7D32] disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              공개
+                            </button>
+                          )}
+                          {report.status === "pending" && (
+                            <button
+                              type="button"
+                              disabled={reviewReport.isPending}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (!window.confirm(`\"${report.title}\" 선교보고를 반려할까요?`)) return;
+                                reviewReport.mutate({ id: report.id, status: "rejected" });
+                              }}
+                              className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold text-red-600 shadow hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              반려
+                            </button>
+                          )}
+                          {report.status === "published" && (
+                            <button
+                              type="button"
+                              disabled={reviewReport.isPending}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                reviewReport.mutate({ id: report.id, status: "draft" });
+                              }}
+                              className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold text-gray-700 shadow hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              숨김
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={(event) => {
@@ -339,23 +425,6 @@ export default function MissionList() {
             </div>
           </div>
         </section>
-
-        <Sheet open={isMissionManagerOpen} onOpenChange={setIsMissionManagerOpen}>
-          <SheetContent
-            side="right"
-            draggableKey="mission-report-manager"
-            className="w-full overflow-y-auto bg-white sm:w-[620px]"
-            style={{ top: "144px", height: "calc(100vh - 144px)" }}
-          >
-            <SheetHeader className="mb-5">
-              <SheetTitle>선교보고 관리</SheetTitle>
-              <SheetDescription>
-                선교사/사역지, 작성 권한, 제출된 선교보고를 이 페이지에서 관리합니다.
-              </SheetDescription>
-            </SheetHeader>
-            <AdminMissionReportsTab />
-          </SheetContent>
-        </Sheet>
       </div>
     </SubPageLayout>
   );
