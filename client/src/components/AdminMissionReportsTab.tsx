@@ -63,7 +63,7 @@ export default function AdminMissionReportsTab() {
   const { data: grants = [] } =
     trpc.cms.missionReports.authorGrants.useQuery();
   const { data: reports = [] } = trpc.cms.missionReports.reports.useQuery();
-  const { data: members = [] } = trpc.members.adminList.useQuery();
+  const { data: members = [] } = trpc.cms.missionReports.members.useQuery();
 
   const approvedMembers = useMemo(
     () => members.filter((member) => member.status === "approved"),

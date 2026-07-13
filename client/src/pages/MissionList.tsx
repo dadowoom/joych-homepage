@@ -8,7 +8,9 @@
 import { useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
+import AdminMissionReportsTab from "@/components/AdminMissionReportsTab";
 import SubPageLayout from "@/components/SubPageLayout";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { canManageBoardContent } from "@/lib/contentPermissions";
 import { findMenuAccessMatchByHref } from "@/lib/menuAccess";
 import { trpc } from "@/lib/trpc";
@@ -50,6 +52,7 @@ function normalizeMenuHref(href: string | null | undefined) {
 export default function MissionList() {
   const [selectedContinent, setSelectedContinent] = useState<MissionContinent | "all">("all");
   const [selectedMissionary, setSelectedMissionary] = useState<number | "all">("all");
+  const [isMissionManagerOpen, setIsMissionManagerOpen] = useState(false);
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const canManage = canManageBoardContent(user, "content:missionReports");
@@ -148,12 +151,24 @@ export default function MissionList() {
                 </div>
               </div>
             </div>
-            {canWriteMissionReport && (
-              <Link href="/mission/write" className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-[#1B5E20] px-4 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32]">
-                <i className="fas fa-pen text-[10px]"></i>
-                {canManage ? "선교보고서 작성" : "선교보고 작성"}
-              </Link>
-            )}
+            <div className="flex flex-wrap gap-2">
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={() => setIsMissionManagerOpen(true)}
+                  className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-[#1B5E20] bg-white px-4 text-sm font-medium text-[#1B5E20] transition-colors hover:bg-[#F1F8E9]"
+                >
+                  <i className="fas fa-gear text-[11px]"></i>
+                  선교보고 관리
+                </button>
+              )}
+              {canWriteMissionReport && (
+                <Link href="/mission/write" className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-[#1B5E20] px-4 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32]">
+                  <i className="fas fa-pen text-[10px]"></i>
+                  {canManage ? "선교보고서 작성" : "선교보고 작성"}
+                </Link>
+              )}
+            </div>
           </div>
         </section>
 
@@ -324,6 +339,23 @@ export default function MissionList() {
             </div>
           </div>
         </section>
+
+        <Sheet open={isMissionManagerOpen} onOpenChange={setIsMissionManagerOpen}>
+          <SheetContent
+            side="right"
+            draggableKey="mission-report-manager"
+            className="w-full overflow-y-auto bg-white sm:w-[620px]"
+            style={{ top: "144px", height: "calc(100vh - 144px)" }}
+          >
+            <SheetHeader className="mb-5">
+              <SheetTitle>선교보고 관리</SheetTitle>
+              <SheetDescription>
+                선교사/사역지, 작성 권한, 제출된 선교보고를 이 페이지에서 관리합니다.
+              </SheetDescription>
+            </SheetHeader>
+            <AdminMissionReportsTab />
+          </SheetContent>
+        </Sheet>
       </div>
     </SubPageLayout>
   );

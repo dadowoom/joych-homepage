@@ -22,6 +22,7 @@ import {
   deleteMissionary,
   deleteMissionReport,
   getAllMissionaries,
+  getAllMembers,
   getMissionReportById,
   getAllMissionReports,
   getMissionAuthorGrants,
@@ -97,6 +98,19 @@ function normalizeFiles(files: z.infer<typeof fileSchema>[]) {
 
 export const missionReportsRouter = router({
   missionaries: missionReportProcedure.query(() => getAllMissionaries()),
+  members: missionReportProcedure.query(async () => {
+    const members = await getAllMembers();
+    return members.map((member) => ({
+      id: member.id,
+      name: member.name,
+      phone: member.phone,
+      email: member.email,
+      position: member.position,
+      department: member.department,
+      district: member.district,
+      status: member.status,
+    }));
+  }),
   report: missionReportProcedure
     .input(z.object({ id: idSchema }))
     .query(({ input }) => getMissionReportById(input.id)),
