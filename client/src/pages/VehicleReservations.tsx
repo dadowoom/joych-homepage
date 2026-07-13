@@ -433,6 +433,8 @@ function VehicleTimeSlotPanel({
           onSelect={onSelectTime}
           slotMinutes={vehicle.slotMinutes}
           maxSlots={vehicle.maxSlots}
+          showSelectAll
+          selectAllLabel="전체 선택"
           renderDisabledTooltip={renderDisabledTooltip}
         />
       )}
@@ -770,9 +772,12 @@ export function VehicleReservationApply() {
     endTime: initialSearchParams.get("endTime") ?? "",
     notes: "",
     agreePrivacy: false,
+    repeatMode: "none" as "none" | "daily" | "weekly" | "monthly",
+    repeatEndDate: "",
   });
   const [submitted, setSubmitted] = useState(false);
   const [reservedStatus, setReservedStatus] = useState<"pending" | "approved">("pending");
+  const [reservationCount, setReservationCount] = useState(1);
   const [reservationConflictMessage, setReservationConflictMessage] = useState<string | null>(null);
 
   const { data: memberMe } = trpc.members.me.useQuery(undefined, {
@@ -801,6 +806,7 @@ export function VehicleReservationApply() {
   const createReservation = trpc.home.createVehicleReservation.useMutation({
     onSuccess: (data) => {
       setReservedStatus(data.status);
+      setReservationCount(data.count ?? 1);
       setSubmitted(true);
     },
     onError: (err) => showReservationError(err.message || "차량 예약 신청 중 오류가 발생했습니다."),
@@ -873,6 +879,10 @@ export function VehicleReservationApply() {
     if (!form.purpose.trim()) return "사용 목적을 입력해 주세요.";
     if (!form.date) return "사용 날짜를 선택해주세요.";
     if (form.date < getKstDateKey()) return "지난 날짜는 예약할 수 없습니다.";
+    if (form.repeatMode !== "none") {
+      if (!form.repeatEndDate) return "반복 예약의 종료일을 선택해주세요.";
+      if (form.repeatEndDate < form.date) return "반복 종료일은 시작일 이후여야 합니다.";
+    }
     if (!form.startTime || !form.endTime) return "사용 시간을 선택해주세요.";
     if (form.startTime >= form.endTime) return "종료 시간은 시작 시간보다 늦어야 합니다.";
     if (!form.agreePrivacy) return "개인정보 수집·이용에 동의해주세요.";
@@ -905,6 +915,8 @@ export function VehicleReservationApply() {
       purpose: form.purpose.trim(),
       passengers: 1,
       notes: form.notes || undefined,
+      repeatMode: form.repeatMode,
+      repeatEndDate: form.repeatMode === "none" ? null : form.repeatEndDate,
     });
   }
 
@@ -940,9 +952,21 @@ export function VehicleReservationApply() {
                 <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
                   {reservedStatus === "approved" ? "차량 예약이 승인되었습니다" : "차량 예약 신청이 접수되었습니다"}
                 </h2>
-                <p className="mt-3 text-sm text-gray-500">담당자가 확인한 뒤 필요한 경우 연락드립니다.</p>
+                <p className="mt-3 text-sm text-gray-500">
+                  {reservationCount > 1 ? `${reservationCount}건의 반복 예약이 함께 접수되었습니다. ` : ""}
+                  {vehicleRow.name} 예약 신청이 정상적으로 접수되었습니다. 내 차량예약 현황에서 확인할 수 있습니다.
+                </p>
                 <div className="mt-7 flex justify-center gap-2">
-                  <Link href="/support/vehicle"><Button variant="outline">차량 목록</Button></Link>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSubmitted(false);
+                      setReservationCount(1);
+                      setForm(prev => ({ ...prev, date: "", startTime: "", endTime: "", purpose: "", notes: "", repeatMode: "none", repeatEndDate: "" }));
+                    }}
+                  >
+                    추가 신청
+                  </Button>
                   <Link href="/support/vehicle/my-reservations"><Button className="bg-[#1B5E20] text-white hover:bg-[#2E7D32]">내 예약 현황</Button></Link>
                 </div>
               </div>
@@ -1043,6 +1067,37 @@ export function VehicleReservationApply() {
                       />
                     )}
                   </label>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-medium text-gray-600">반복 일정</span>
+                      <select
+                        value={form.repeatMode}
+                        onChange={(e) => updateForm("repeatMode", e.target.value)}
+                        className={inputClass}
+                      >
+                        <option value="none">반복 안 함</option>
+                        <option value="daily">매일 반복</option>
+                        <option value="weekly">매주 반복</option>
+                        <option value="monthly">매월 반복</option>
+                      </select>
+                    </label>
+                    {form.repeatMode !== "none" && (
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-medium text-gray-600">반복 종료일 *</span>
+                        <input
+                          type="date"
+                          value={form.repeatEndDate}
+                          min={form.date || getKstDateKey()}
+                          onChange={(e) => updateForm("repeatEndDate", e.target.value)}
+                          className={inputClass}
+                        />
+                      </label>
+                    )}
+                  </div>
+                  {form.repeatMode !== "none" && (
+                    <p className="-mt-2 text-xs text-gray-400">같은 차량과 시간으로 {form.repeatMode === "daily" ? "매일" : form.repeatMode === "weekly" ? "매주" : "매월"} 반복 예약을 신청합니다. 이미 예약된 날짜가 있으면 전체 예약이 저장되지 않습니다.</p>
+                  )}
 
                   {form.date && (
                     <div>
@@ -1165,17 +1220,17 @@ export function MyVehicleReservations() {
                 const status = STATUS_LABELS[row.status];
                 const canCancel = row.status === "pending" || row.status === "approved";
                 return (
-                  <div key={row.id} className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                      <div>
+                    <div key={row.id} className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+                      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                        <div>
                         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${status.color}`}>
                           {status.icon} {status.label}
                         </span>
                         <h3 className="mt-2 font-bold text-gray-900">
-                          {row.vehicleName ?? "차량"} · {formatDate(row.reservationDate)}
+                          {row.vehicleName ?? "차량"}{row.plateNumber ? ` · ${formatPlateNumber(row.plateNumber)}` : ""}
                         </h3>
                         <p className="mt-1 text-sm text-gray-500">
-                          {row.startTime}~{row.endTime} · {row.purpose}
+                          {formatDate(row.reservationDate)} · {row.startTime}~{row.endTime} · {row.purpose}
                         </p>
                         {row.adminComment && <p className="mt-1 text-xs text-red-600">관리자 메모: {row.adminComment}</p>}
                       </div>
@@ -1192,13 +1247,6 @@ export function MyVehicleReservations() {
                           >
                             예약 취소
                           </Button>
-                        )}
-                        {row.status === "approved" && (
-                          <a href="tel:054-270-1000">
-                            <Button variant="outline" className="border-[#1B5E20] text-[#1B5E20] hover:bg-green-50">
-                              <Phone className="mr-1.5 h-4 w-4" /> 문의
-                            </Button>
-                          </a>
                         )}
                       </div>
                     </div>

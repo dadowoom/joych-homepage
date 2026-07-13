@@ -15,6 +15,7 @@ import {
   getCoursesForAdmin,
   hasCourseRoomManagementAccess,
   updateCourse,
+  updateCourseApplicationDetails,
   updateCourseApplicationStatus,
 } from "../db";
 
@@ -28,6 +29,15 @@ const pageHrefSchema = z.string().trim().min(1).max(255).refine(
   "강좌방 주소가 올바르지 않습니다.",
 );
 const optionalText = (max: number) => z.string().trim().max(max).nullable().optional();
+const applicationDetailsSchema = z.object({
+  applicantName: z.string().trim().min(1, "신청자 이름을 입력해주세요.").max(64),
+  applicantPhone: optionalText(32),
+  applicantEmail: optionalText(320).refine(
+    value => !value || z.string().email().safeParse(value).success,
+    "이메일 형식이 올바르지 않습니다.",
+  ),
+  memo: optionalText(2_000),
+});
 const courseInputShape = {
   title: z.string().trim().min(1, "강좌명을 입력해주세요.").max(128),
   summary: optionalText(500),
@@ -149,6 +159,16 @@ export const courseManagementRouter = router({
       if (!application) throw new TRPCError({ code: "NOT_FOUND", message: "신청 내역을 찾을 수 없습니다." });
       const { access } = await getOwnedCourseOrThrow(ctx, application.courseId);
       await updateCourseApplicationStatus(input.id, input.status, input.comment ?? undefined, access.processedBy);
+      return { success: true };
+    }),
+
+  updateApplicationDetails: publicProcedure
+    .input(z.object({ id: idSchema, application: applicationDetailsSchema }))
+    .mutation(async ({ input, ctx }) => {
+      const application = await getCourseApplicationById(input.id);
+      if (!application) throw new TRPCError({ code: "NOT_FOUND", message: "신청 내역을 찾을 수 없습니다." });
+      await getOwnedCourseOrThrow(ctx, application.courseId);
+      await updateCourseApplicationDetails(input.id, input.application);
       return { success: true };
     }),
 });

@@ -557,6 +557,20 @@ export async function updateCourseApplicationStatus(
   await db.update(courseApplications).set(values).where(eq(courseApplications.id, id));
 }
 
+export async function updateCourseApplicationDetails(
+  id: number,
+  data: Pick<InsertCourseApplication, "applicantName" | "applicantPhone" | "applicantEmail" | "memo">,
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(courseApplications).set({
+    applicantName: data.applicantName,
+    applicantPhone: data.applicantPhone ?? null,
+    applicantEmail: data.applicantEmail ?? null,
+    memo: data.memo ?? null,
+  }).where(eq(courseApplications.id, id));
+}
+
 export async function cancelMyCourseApplication(id: number, memberId: number) {
   const db = await getDb();
   if (!db) return false;

@@ -71,6 +71,7 @@ import {
   updateReservationGroupStatus,
   canMemberUseVehicleReservation,
   createVehicleReservationIfAvailable,
+  createVehicleReservationsIfAvailable,
   getAdminVehicleReservationDetailsByDate,
   getMyVehicleReservations,
   getVehicleById,
@@ -110,6 +111,7 @@ import { getStaticPageSeed } from "@shared/staticPageContent";
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^(([01]\d|2[0-3]):[0-5]\d|24:00)$/;
 const idSchema = z.number().int().positive();
+const vehicleRepeatSchema = z.enum(["none", "daily", "weekly", "monthly"]);
 const hrefLookupSchema = z.string().trim().min(1).max(256);
 const menuBoardCategorySchema = z.string().trim().regex(/^menu-board:[a-z0-9]{1,16}$/);
 const dynamicBoardSourceSchema = z.object({
@@ -119,6 +121,59 @@ const dynamicBoardSourceSchema = z.object({
   value => Boolean(value.menuItemId) !== Boolean(value.menuSubItemId),
   "2단 메뉴 또는 3단 메뉴 중 하나만 선택해주세요.",
 );
+
+function formatVehicleDateKey(year: number, month: number, day: number) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function getVehicleReservationDates(
+  startDate: string,
+  repeatMode: z.infer<typeof vehicleRepeatSchema>,
+  repeatEndDate?: string | null,
+) {
+  if (repeatMode === "none") return [startDate];
+  if (!repeatEndDate) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "반복 예약의 종료일을 선택해주세요." });
+  }
+  if (repeatEndDate < startDate) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "반복 종료일은 시작일 이후여야 합니다." });
+  }
+
+  const [startYear, startMonth, startDay] = startDate.split("-").map(Number);
+  const [endYear, endMonth, endDay] = repeatEndDate.split("-").map(Number);
+  const dates: string[] = [];
+  const pushDate = (year: number, month: number, day: number) => {
+    const key = formatVehicleDateKey(year, month, day);
+    if (key <= repeatEndDate) dates.push(key);
+  };
+
+  if (repeatMode === "monthly") {
+    let year = startYear;
+    let month = startMonth;
+    while (formatVehicleDateKey(year, month, 1) <= formatVehicleDateKey(endYear, endMonth, 1)) {
+      const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+      if (startDay <= lastDay) pushDate(year, month, startDay);
+      month += 1;
+      if (month === 13) {
+        month = 1;
+        year += 1;
+      }
+    }
+  } else {
+    const cursor = new Date(Date.UTC(startYear, startMonth - 1, startDay));
+    const end = new Date(Date.UTC(endYear, endMonth - 1, endDay));
+    const stepDays = repeatMode === "weekly" ? 7 : 1;
+    while (cursor <= end) {
+      pushDate(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, cursor.getUTCDate());
+      cursor.setUTCDate(cursor.getUTCDate() + stepDays);
+    }
+  }
+
+  if (dates.length > 100) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "반복 예약은 한 번에 최대 100회까지 신청할 수 있습니다." });
+  }
+  return dates;
+}
 
 function getMenuReadAccess(ctx: { user?: unknown; memberId?: number | null }) {
   return ctx.user || ctx.memberId ? "member" : "guest";
@@ -1367,6 +1422,8 @@ export const homeRouter = router({
       department: z.string().optional(),
       passengers: z.number().int().min(1, "탑승 인원은 1명 이상이어야 합니다.").default(1),
       notes: z.string().optional(),
+      repeatMode: vehicleRepeatSchema.default("none"),
+      repeatEndDate: z.string().regex(DATE_RE, "반복 종료일 형식이 올바르지 않습니다.").nullable().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const canManageVehicleReservations = hasAdminContentPermission(ctx.user, "content:vehicles");
@@ -1402,7 +1459,6 @@ export const homeRouter = router({
       if (input.reservationDate < todayKstDateKey()) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "지난 날짜는 예약할 수 없습니다." });
       }
-      assertReservationStartsInFuture(input.reservationDate, input.startTime);
       if (startMinutes >= endMinutes) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "시작 시간은 종료 시간보다 빨라야 합니다." });
       }
@@ -1432,24 +1488,38 @@ export const homeRouter = router({
       const status: "approved" | "pending" =
         vehicle.approvalType === "auto" || canManageVehicleReservations ? "approved" : "pending";
       try {
-        const id = await createVehicleReservationIfAvailable({
-          ...input,
+        const { repeatMode, repeatEndDate, ...reservationInput } = input;
+        const reservationDates = getVehicleReservationDates(input.reservationDate, repeatMode, repeatEndDate);
+        reservationDates.forEach((date) => assertReservationStartsInFuture(date, input.startTime));
+        const reservationData = reservationDates.map((reservationDate) => ({
+          ...reservationInput,
+          reservationDate,
           userId: ctx.memberId ?? null,
           status,
-        });
-        if (!id) {
+        }));
+        // Keep the established single-reservation path for ordinary bookings.
+        // Repeating bookings use the transactional bulk path so they succeed or fail together.
+        const ids = reservationData.length === 1
+          ? [await createVehicleReservationIfAvailable(reservationData[0])]
+          : await createVehicleReservationsIfAvailable(reservationData);
+        if (ids.length !== reservationDates.length || ids.some((id) => !id)) {
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "차량 예약 신청 저장에 실패했습니다." });
         }
-        void notifyVehicleReservation({
+        void Promise.all(ids.map((reservationId, index) => notifyVehicleReservation({
           reserverName: input.reserverName,
           vehicleName: vehicle.name,
-          date: input.reservationDate,
+          date: reservationDates[index],
           startTime: input.startTime,
           endTime: input.endTime,
-          reservationId: id,
+          reservationId,
           status,
-        });
-        return { id, status };
+        })));
+        return {
+          id: ids[0],
+          ids,
+          count: ids.length,
+          status,
+        };
       } catch (error) {
         if (error instanceof VehicleReservationOverlapError) {
           throw new TRPCError({ code: "CONFLICT", message: error.message });

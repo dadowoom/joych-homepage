@@ -39,6 +39,8 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
   const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingApplicationId, setEditingApplicationId] = useState<number | null>(null);
+  const [applicationForm, setApplicationForm] = useState({ applicantName: "", applicantPhone: "", applicantEmail: "", memo: "" });
   const [form, setForm] = useState<CourseRoomForm>(EMPTY_FORM);
   const { data: access, isLoading: checkingAccess } = trpc.courseManagement.access.useQuery({ pageHref });
   const enabled = Boolean(access?.canManage);
@@ -73,6 +75,14 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
   const updateApplication = trpc.courseManagement.updateApplicationStatus.useMutation({
     onSuccess: () => { refresh(); toast.success("신청 상태가 변경됐습니다."); },
     onError: error => toast.error(error.message || "신청 상태 변경에 실패했습니다."),
+  });
+  const updateApplicationDetails = trpc.courseManagement.updateApplicationDetails.useMutation({
+    onSuccess: () => {
+      refresh();
+      setEditingApplicationId(null);
+      toast.success("신청자 정보가 수정됐습니다.");
+    },
+    onError: error => toast.error(error.message || "신청자 정보 수정에 실패했습니다."),
   });
 
   if (checkingAccess || !enabled) return null;
@@ -128,6 +138,16 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
     });
   };
 
+  const startEditApplication = (application: typeof applications[number]) => {
+    setEditingApplicationId(application.id);
+    setApplicationForm({
+      applicantName: application.applicantName,
+      applicantPhone: application.applicantPhone ?? "",
+      applicantEmail: application.applicantEmail ?? "",
+      memo: application.memo ?? "",
+    });
+  };
+
   return (
     <section className="mb-6 rounded-xl border border-green-200 bg-green-50/40 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
@@ -172,8 +192,50 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
           </div>
 
           <div className="mt-5">
-            <p className="mb-2 text-sm font-bold text-gray-800">신청자 승인 대기</p>
-            {loadingApplications ? <div className="py-6 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-[#1B5E20]" /></div> : applications.filter(application => application.status === "pending").length === 0 ? <p className="rounded-lg bg-gray-50 px-3 py-5 text-center text-sm text-gray-400">승인 대기 신청이 없습니다.</p> : <div className="space-y-2">{applications.filter(application => application.status === "pending").map(application => <div key={application.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-100 bg-amber-50/50 px-3 py-3"><div><p className="text-sm font-bold text-gray-800">{application.courseTitle} · {application.applicantName}</p><p className="mt-0.5 text-xs text-gray-500">{application.applicantPhone || "연락처 미입력"}</p></div><div className="flex gap-1.5"><button type="button" onClick={() => updateApplication.mutate({ id: application.id, status: "approved" })} className="inline-flex items-center gap-1 rounded bg-green-700 px-2.5 py-1.5 text-xs font-bold text-white"><Check className="h-3.5 w-3.5" />승인</button><button type="button" onClick={() => updateApplication.mutate({ id: application.id, status: "rejected" })} className="inline-flex items-center gap-1 rounded border border-red-200 bg-white px-2.5 py-1.5 text-xs font-bold text-red-600"><X className="h-3.5 w-3.5" />거절</button></div></div>)}</div>}
+            <p className="mb-2 text-sm font-bold text-gray-800">신청자 관리</p>
+            {loadingApplications ? (
+              <div className="py-6 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-[#1B5E20]" /></div>
+            ) : applications.filter(application => application.status === "pending" || application.status === "approved").length === 0 ? (
+              <p className="rounded-lg bg-gray-50 px-3 py-5 text-center text-sm text-gray-400">관리할 신청 내역이 없습니다.</p>
+            ) : (
+              <div className="space-y-2">
+                {applications.filter(application => application.status === "pending" || application.status === "approved").map(application => {
+                  const isEditing = editingApplicationId === application.id;
+                  return (
+                    <div key={application.id} className={`rounded-lg border px-3 py-3 ${application.status === "pending" ? "border-amber-100 bg-amber-50/50" : "border-green-100 bg-green-50/40"}`}>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-bold text-gray-800">{application.courseTitle} · {application.applicantName}</p>
+                          <p className="mt-0.5 text-xs text-gray-500">{application.applicantPhone || "연락처 미입력"}{application.applicantEmail ? ` · ${application.applicantEmail}` : ""}</p>
+                          {application.memo && <p className="mt-1 text-xs text-gray-500">{application.memo}</p>}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {application.status === "pending" ? <>
+                            <button type="button" onClick={() => updateApplication.mutate({ id: application.id, status: "approved" })} disabled={updateApplication.isPending} className="inline-flex items-center gap-1 rounded bg-green-700 px-2.5 py-1.5 text-xs font-bold text-white disabled:opacity-50"><Check className="h-3.5 w-3.5" />승인</button>
+                            <button type="button" onClick={() => updateApplication.mutate({ id: application.id, status: "rejected" })} disabled={updateApplication.isPending} className="inline-flex items-center gap-1 rounded border border-red-200 bg-white px-2.5 py-1.5 text-xs font-bold text-red-600 disabled:opacity-50"><X className="h-3.5 w-3.5" />거절</button>
+                          </> : <>
+                            <button type="button" onClick={() => startEditApplication(application)} className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700"><Pencil className="h-3.5 w-3.5" />수정</button>
+                            <button type="button" onClick={() => { if (window.confirm("승인된 강좌 신청을 취소할까요?")) updateApplication.mutate({ id: application.id, status: "cancelled" }); }} disabled={updateApplication.isPending} className="inline-flex items-center gap-1 rounded border border-red-200 bg-white px-2.5 py-1.5 text-xs text-red-600 disabled:opacity-50"><X className="h-3.5 w-3.5" />신청 취소</button>
+                          </>}
+                        </div>
+                      </div>
+                      {isEditing && (
+                        <div className="mt-3 grid gap-2 border-t border-green-100 pt-3 sm:grid-cols-2">
+                          <input value={applicationForm.applicantName} onChange={e => setApplicationForm(prev => ({ ...prev, applicantName: e.target.value }))} placeholder="이름" className="rounded border border-gray-200 px-2.5 py-2 text-sm" />
+                          <input value={applicationForm.applicantPhone} onChange={e => setApplicationForm(prev => ({ ...prev, applicantPhone: e.target.value }))} placeholder="연락처" className="rounded border border-gray-200 px-2.5 py-2 text-sm" />
+                          <input value={applicationForm.applicantEmail} onChange={e => setApplicationForm(prev => ({ ...prev, applicantEmail: e.target.value }))} placeholder="이메일" className="rounded border border-gray-200 px-2.5 py-2 text-sm" />
+                          <input value={applicationForm.memo} onChange={e => setApplicationForm(prev => ({ ...prev, memo: e.target.value }))} placeholder="관리 메모" className="rounded border border-gray-200 px-2.5 py-2 text-sm" />
+                          <div className="flex gap-2 sm:col-span-2">
+                            <button type="button" onClick={() => updateApplicationDetails.mutate({ id: application.id, application: { applicantName: applicationForm.applicantName.trim(), applicantPhone: nullable(applicationForm.applicantPhone), applicantEmail: nullable(applicationForm.applicantEmail), memo: nullable(applicationForm.memo) } })} disabled={!applicationForm.applicantName.trim() || updateApplicationDetails.isPending} className="rounded bg-[#1B5E20] px-3 py-2 text-xs font-bold text-white disabled:opacity-50">저장</button>
+                            <button type="button" onClick={() => setEditingApplicationId(null)} className="rounded border border-gray-200 px-3 py-2 text-xs text-gray-600">취소</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}

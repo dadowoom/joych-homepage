@@ -355,43 +355,68 @@ export async function createVehicleReservation(data: InsertVehicleReservationDat
 export async function createVehicleReservationIfAvailable(
   data: InsertVehicleReservationData
 ) {
+  const ids = await createVehicleReservationsIfAvailable([data]);
+  return ids[0] ?? null;
+}
+
+/**
+ * Repeating vehicle reservations must be checked and stored together. This
+ * avoids leaving only part of a requested series behind when a later date is
+ * already occupied.
+ */
+export async function createVehicleReservationsIfAvailable(
+  dataList: InsertVehicleReservationData[],
+) {
   const db = await getDb();
-  if (!db) return null;
-  const lockKey = `vehicle-reservation:${data.vehicleId}:${data.reservationDate}`;
+  if (!db || dataList.length === 0) return [];
+  const lockKeys = Array.from(new Set(dataList
+    .map(data => `vehicle-reservation:${data.vehicleId}:${data.reservationDate}`)
+  )).sort();
 
   return db.transaction(async (tx) => {
-    const lockResult = await tx.execute(sql`SELECT GET_LOCK(${lockKey}, 5) AS locked`);
-    if (Number(extractMysqlScalar(lockResult)) !== 1) {
-      throw new VehicleReservationLockError();
-    }
-
+    const acquiredLocks: string[] = [];
     try {
-      const overlapping = await tx
-        .select({
-          startTime: vehicleReservations.startTime,
-          endTime: vehicleReservations.endTime,
-        })
-        .from(vehicleReservations)
-        .where(and(
-          eq(vehicleReservations.vehicleId, data.vehicleId),
-          eq(vehicleReservations.reservationDate, data.reservationDate),
-          or(
-            eq(vehicleReservations.status, "pending"),
-            eq(vehicleReservations.status, "approved"),
-          ),
-          lt(vehicleReservations.startTime, data.endTime),
-          gt(vehicleReservations.endTime, data.startTime),
-        ))
-        .limit(1);
-
-      if (overlapping[0]) {
-        throw new VehicleReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime);
+      for (const lockKey of lockKeys) {
+        const lockResult = await tx.execute(sql`SELECT GET_LOCK(${lockKey}, 5) AS locked`);
+        if (Number(extractMysqlScalar(lockResult)) !== 1) {
+          throw new VehicleReservationLockError();
+        }
+        acquiredLocks.push(lockKey);
       }
 
-      const [result] = await tx.insert(vehicleReservations).values(data as InsertVehicleReservation).$returningId();
-      return result?.id ?? null;
+      const ids: number[] = [];
+      for (const data of dataList) {
+        const overlapping = await tx
+          .select({
+            startTime: vehicleReservations.startTime,
+            endTime: vehicleReservations.endTime,
+          })
+          .from(vehicleReservations)
+          .where(and(
+            eq(vehicleReservations.vehicleId, data.vehicleId),
+            eq(vehicleReservations.reservationDate, data.reservationDate),
+            or(
+              eq(vehicleReservations.status, "pending"),
+              eq(vehicleReservations.status, "approved"),
+            ),
+            lt(vehicleReservations.startTime, data.endTime),
+            gt(vehicleReservations.endTime, data.startTime),
+          ))
+          .limit(1);
+
+        if (overlapping[0]) {
+          throw new VehicleReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime);
+        }
+
+        const [result] = await tx.insert(vehicleReservations).values(data as InsertVehicleReservation).$returningId();
+        if (!result?.id) throw new Error("차량 예약 신청 저장에 실패했습니다.");
+        ids.push(result.id);
+      }
+      return ids;
     } finally {
-      await tx.execute(sql`SELECT RELEASE_LOCK(${lockKey})`);
+      for (const lockKey of acquiredLocks.reverse()) {
+        await tx.execute(sql`SELECT RELEASE_LOCK(${lockKey})`);
+      }
     }
   });
 }

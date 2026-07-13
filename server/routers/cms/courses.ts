@@ -22,6 +22,7 @@ import {
   ReservationLockError,
   ReservationOverlapError,
   updateCourse,
+  updateCourseApplicationDetails,
   updateCourseApplicationStatus,
   updateCourseRoomManager,
 } from "../../db";
@@ -35,6 +36,15 @@ const nullableTimeSchema = z.string().regex(TIME_RE, "시간은 HH:MM 형식으�
 const courseStatusSchema = z.enum(["draft", "open", "closed", "cancelled", "archived"]);
 const courseAudienceSchema = z.enum(["all", "member"]);
 const applicationStatusSchema = z.enum(["pending", "approved", "rejected", "cancelled"]);
+const applicationDetailsSchema = z.object({
+  applicantName: requiredTextSchema(64, "신청자 이름을 입력해주세요."),
+  applicantPhone: optionalTextSchema(32),
+  applicantEmail: optionalTextSchema(320).refine(
+    value => !value || z.string().email().safeParse(value).success,
+    "이메일 형식이 올바르지 않습니다.",
+  ),
+  memo: optionalTextSchema(2_000),
+});
 const courseProcedure = adminPermissionProcedure("content:courses");
 const applicationFieldSchema = z.object({
   id: z.string().trim().min(1).max(64),
@@ -163,6 +173,10 @@ export const coursesRouter = router({
     .mutation(({ input, ctx }) =>
       updateCourseApplicationStatus(input.id, input.status, input.comment, ctx.user.id)
     ),
+
+  updateApplicationDetails: courseProcedure
+    .input(z.object({ id: idSchema, application: applicationDetailsSchema }))
+    .mutation(({ input }) => updateCourseApplicationDetails(input.id, input.application)),
 
   roomManagerMembers: courseProcedure.query(async () => {
     const members = await getAllMembers();

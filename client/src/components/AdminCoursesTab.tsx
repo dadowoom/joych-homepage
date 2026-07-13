@@ -304,6 +304,8 @@ export default function AdminCoursesTab() {
   const [applicationFilter, setApplicationFilter] = useState<"all" | ApplicationStatus>("all");
   const [reviewingId, setReviewingId] = useState<number | null>(null);
   const [reviewComment, setReviewComment] = useState("");
+  const [editingApplicationId, setEditingApplicationId] = useState<number | null>(null);
+  const [applicationEditForm, setApplicationEditForm] = useState({ applicantName: "", applicantPhone: "", applicantEmail: "", memo: "" });
   const [form, setForm] = useState(EMPTY_FORM);
   const [selectedCourseRoomHref, setSelectedCourseRoomHref] = useState("/education/courses");
   const [uploadingCourseImage, setUploadingCourseImage] = useState(false);
@@ -375,6 +377,25 @@ export default function AdminCoursesTab() {
     },
     onError: err => toast.error(err.message || "상태 변경에 실패했습니다."),
   });
+  const updateApplicationDetails = trpc.cms.courses.updateApplicationDetails.useMutation({
+    onSuccess: () => {
+      utils.cms.courses.applications.invalidate();
+      setEditingApplicationId(null);
+      toast.success("신청자 정보가 수정됐습니다.");
+    },
+    onError: err => toast.error(err.message || "신청자 정보 수정에 실패했습니다."),
+  });
+
+  const startEditApplication = (application: CourseApplication) => {
+    setReviewingId(null);
+    setEditingApplicationId(application.id);
+    setApplicationEditForm({
+      applicantName: application.applicantName,
+      applicantPhone: application.applicantPhone ?? "",
+      applicantEmail: application.applicantEmail ?? "",
+      memo: application.memo ?? "",
+    });
+  };
 
   const courseMenuOptions = useMemo(() => {
     const options: { label: string; href: string }[] = [];
@@ -1404,6 +1425,7 @@ export default function AdminCoursesTab() {
                         {filteredApplications.map(application => {
                           const appStatus = APPLICATION_STATUS[application.status];
                           const isReviewing = reviewingId === application.id;
+                          const isEditingApplication = editingApplicationId === application.id;
                           return (
                             <div key={application.id} className="bg-white border border-gray-100 rounded-lg p-3">
                               <div className="flex items-start gap-3">
@@ -1448,6 +1470,27 @@ export default function AdminCoursesTab() {
                                     </button>
                                   </div>
                                 )}
+                                {application.status === "approved" && (
+                                  <div className="flex gap-1 shrink-0">
+                                    <button
+                                      onClick={() => startEditApplication(application)}
+                                      className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 text-xs font-medium hover:bg-gray-50"
+                                    >
+                                      수정
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        if (window.confirm("승인된 강좌 신청을 취소할까요?")) {
+                                          updateApplication.mutate({ id: application.id, status: "cancelled" });
+                                        }
+                                      }}
+                                      disabled={updateApplication.isPending}
+                                      className="px-2.5 py-1.5 rounded-lg border border-red-200 text-red-600 text-xs font-medium hover:bg-red-50 disabled:opacity-50"
+                                    >
+                                      신청 취소
+                                    </button>
+                                  </div>
+                                )}
                               </div>
 
                               {isReviewing && (
@@ -1469,6 +1512,57 @@ export default function AdminCoursesTab() {
                                     </button>
                                     <button
                                       onClick={() => { setReviewingId(null); setReviewComment(""); }}
+                                      className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 text-xs font-medium hover:bg-gray-50"
+                                    >
+                                      취소
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                              {isEditingApplication && (
+                                <div className="mt-3 grid gap-2 border-t border-gray-100 pt-3 sm:grid-cols-2">
+                                  <input
+                                    value={applicationEditForm.applicantName}
+                                    onChange={e => setApplicationEditForm(prev => ({ ...prev, applicantName: e.target.value }))}
+                                    placeholder="신청자 이름"
+                                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-100"
+                                  />
+                                  <input
+                                    value={applicationEditForm.applicantPhone}
+                                    onChange={e => setApplicationEditForm(prev => ({ ...prev, applicantPhone: e.target.value }))}
+                                    placeholder="연락처"
+                                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-100"
+                                  />
+                                  <input
+                                    value={applicationEditForm.applicantEmail}
+                                    onChange={e => setApplicationEditForm(prev => ({ ...prev, applicantEmail: e.target.value }))}
+                                    placeholder="이메일"
+                                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-100"
+                                  />
+                                  <input
+                                    value={applicationEditForm.memo}
+                                    onChange={e => setApplicationEditForm(prev => ({ ...prev, memo: e.target.value }))}
+                                    placeholder="관리 메모"
+                                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-100"
+                                  />
+                                  <div className="flex gap-2 sm:col-span-2">
+                                    <button
+                                      onClick={() => updateApplicationDetails.mutate({
+                                        id: application.id,
+                                        application: {
+                                          applicantName: applicationEditForm.applicantName.trim(),
+                                          applicantPhone: applicationEditForm.applicantPhone.trim() || undefined,
+                                          applicantEmail: applicationEditForm.applicantEmail.trim() || undefined,
+                                          memo: applicationEditForm.memo.trim() || undefined,
+                                        },
+                                      })}
+                                      disabled={!applicationEditForm.applicantName.trim() || updateApplicationDetails.isPending}
+                                      className="px-3 py-1.5 rounded-lg bg-[#1B5E20] text-white text-xs font-medium hover:bg-green-800 disabled:opacity-50"
+                                    >
+                                      저장
+                                    </button>
+                                    <button
+                                      onClick={() => setEditingApplicationId(null)}
                                       className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 text-xs font-medium hover:bg-gray-50"
                                     >
                                       취소
