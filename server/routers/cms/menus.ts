@@ -49,6 +49,7 @@ import {
   ensureDynamicBoard,
 } from "../../db";
 import {
+  isLegacyKoreanCmsPageHref,
   makeUniqueMenuPageHref,
   type MenuHrefCandidate,
   type MenuHrefOwner,
@@ -144,7 +145,7 @@ export const menusRouter = router({
       }
 
       // href가 없으면 동적 페이지 URL 자동 설정
-      if (!input.href) {
+      if (!input.href || isLegacyKoreanCmsPageHref(input.href)) {
         const tree = await getAllMenus();
         updates.href = makeUniqueMenuPageHref(
           [findMenuLabel(tree, input.menuId), input.label],
@@ -193,6 +194,16 @@ export const menusRouter = router({
     }))
     .mutation(async ({ input }) => {
       const { id, ...data } = input;
+
+      if (data.href && isLegacyKoreanCmsPageHref(data.href)) {
+        const tree = await getAllMenus();
+        const existing = await getMenuItemById(id);
+        data.href = makeUniqueMenuPageHref(
+          [findMenuLabel(tree, existing?.menuId ?? 0), data.label ?? existing?.label],
+          collectMenuHrefs(tree),
+          { kind: "item", id },
+        );
+      }
 
       // youtube 타입으로 변경 시 플레이리스트가 없으면 자동 생성
       if (data.pageType === "youtube" && !data.playlistId) {
@@ -348,7 +359,7 @@ export const menusRouter = router({
       }
 
       // href가 없으면 동적 페이지 URL 자동 설정
-      if (newId && !input.href) {
+      if (newId && (!input.href || isLegacyKoreanCmsPageHref(input.href))) {
         const tree = await getAllMenus();
         const parent = findMenuItemPath(tree, input.menuItemId);
         const href = makeUniqueMenuPageHref(
@@ -379,6 +390,17 @@ export const menusRouter = router({
     }))
     .mutation(async ({ input }) => {
       const { id, ...data } = input;
+
+      if (data.href && isLegacyKoreanCmsPageHref(data.href)) {
+        const tree = await getAllMenus();
+        const existing = await getMenuSubItemById(id);
+        const parent = existing ? findMenuItemPath(tree, existing.menuItemId) : null;
+        data.href = makeUniqueMenuPageHref(
+          [parent?.menuLabel, parent?.itemLabel, data.label ?? existing?.label],
+          collectMenuHrefs(tree),
+          { kind: "sub", id },
+        );
+      }
 
       if (data.pageType === "youtube" && !data.playlistId) {
         const existing = await getMenuSubItemById(id);

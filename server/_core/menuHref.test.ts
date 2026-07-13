@@ -1,7 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { makeMenuPageHref, makeMenuPageSlug, makeUniqueMenuPageHref } from "./menuHref";
+import {
+  isLegacyKoreanCmsPageHref,
+  makeMenuPageHref,
+  makeMenuPageSlug,
+  makeUniqueMenuPageHref,
+} from "./menuHref";
 
 describe("menuHref", () => {
+  it("recognises a legacy Korean CMS path but leaves standard routes alone", () => {
+    expect(isLegacyKoreanCmsPageHref("/교회소개/3대-비전-9대-전략1")).toBe(true);
+    expect(isLegacyKoreanCmsPageHref("/page/교회소개-3대-비전-9대-전략1")).toBe(false);
+    expect(isLegacyKoreanCmsPageHref("/worship/schedule")).toBe(false);
+    expect(isLegacyKoreanCmsPageHref("https://example.com/교회소개")).toBe(false);
+  });
+
   it("builds readable CMS page paths from menu labels", () => {
     expect(makeMenuPageSlug(["교회소개", "담임목사 인사"])).toBe("교회소개-담임목사-인사");
     expect(makeMenuPageHref(["조이풀TV", "주일예배"])).toBe("/page/조이풀tv-주일예배");

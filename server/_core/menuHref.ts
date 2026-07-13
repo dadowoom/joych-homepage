@@ -20,6 +20,18 @@ export function normalizeMenuHref(href: string | null | undefined) {
   }
 }
 
+/**
+ * CMS page menus must use the dynamic `/page/...` route. This recognises the
+ * common legacy mistake where an editor enters a Korean menu path directly,
+ * such as `/교회소개/새 페이지`, which has no application route.
+ */
+export function isLegacyKoreanCmsPageHref(href: string | null | undefined) {
+  const value = normalizeMenuHref(href);
+  return value.startsWith("/") &&
+    !value.startsWith(PAGE_PREFIX) &&
+    /[\uac00-\ud7af]/.test(value);
+}
+
 function isReadableSlugChar(char: string) {
   if (/^[a-z0-9\s_-]$/.test(char)) return true;
   const code = char.codePointAt(0) ?? 0;

@@ -1,5 +1,6 @@
 import "dotenv/config";
 import {
+  isLegacyKoreanCmsPageHref,
   makeUniqueMenuPageHref,
   type MenuHrefCandidate,
   type MenuHrefOwner,
@@ -36,7 +37,7 @@ async function normalize() {
 
   for (const menu of tree) {
     for (const item of menu.items ?? []) {
-      if (item.href && !NUMERIC_ITEM_HREF_RE.test(item.href)) {
+      if (item.href && !NUMERIC_ITEM_HREF_RE.test(item.href) && !isLegacyKoreanCmsPageHref(item.href)) {
         continue;
       }
 
@@ -53,7 +54,7 @@ async function normalize() {
 
     for (const item of menu.items ?? []) {
       for (const sub of (item as { subItems?: Array<{ id: number; label: string; href?: string | null }> }).subItems ?? []) {
-        if (sub.href && !NUMERIC_SUB_HREF_RE.test(sub.href)) {
+        if (sub.href && !NUMERIC_SUB_HREF_RE.test(sub.href) && !isLegacyKoreanCmsPageHref(sub.href)) {
           continue;
         }
 
