@@ -41,6 +41,10 @@ function normalizeSideMenuHref(href: string | null | undefined) {
   }
 }
 
+function normalizeSideMenuLabel(label: string | null | undefined) {
+  return (label ?? "").replace(/\s+/g, "");
+}
+
 interface SubPageLayoutProps {
   /** 현재 페이지 제목 (브레드크럼 마지막 항목) */
   pageTitle: string;
@@ -83,31 +87,51 @@ export default function SubPageLayout({
   const activeSideMenuKey = activeSideMenuIds.join(",");
   const mobileSideMenuOptions = useMemo(
     () =>
-      sideMenuItems.flatMap((item) => [
-        ...(item.href
-          ? [
-              {
-                key: `item-${item.id}`,
-                label: item.label,
-                href: item.href,
-                isActive:
-                  item.isActive ||
-                  normalizeSideMenuHref(item.href) === normalizedLocation,
-              },
-            ]
-          : []),
-        ...(item.subItems ?? [])
-          .filter((subItem) => Boolean(subItem.href))
-          .map((subItem) => ({
-            key: `sub-${subItem.id}`,
-            label: `${item.label} · ${subItem.label}`,
-            href: subItem.href as string,
-            isActive:
-              subItem.isActive ||
-              normalizeSideMenuHref(subItem.href) === normalizedLocation,
-          })),
-      ]),
-    [normalizedLocation, sideMenuItems]
+      sideMenuItems.flatMap((item) => {
+        // 행정지원의 주보는 모바일 선택창에서 중간 묶음 항목을 숨기고,
+        // 주보 보기와 주보 광고신청을 각각 바로 선택하게 합니다.
+        if (
+          normalizeSideMenuLabel(parentLabel) === "행정지원" &&
+          normalizeSideMenuLabel(item.label) === "주보"
+        ) {
+          return (item.subItems ?? [])
+            .filter((subItem) => Boolean(subItem.href))
+            .map((subItem) => ({
+              key: `sub-${subItem.id}`,
+              label: subItem.label,
+              href: subItem.href as string,
+              isActive:
+                subItem.isActive ||
+                normalizeSideMenuHref(subItem.href) === normalizedLocation,
+            }));
+        }
+
+        return [
+          ...(item.href
+            ? [
+                {
+                  key: `item-${item.id}`,
+                  label: item.label,
+                  href: item.href,
+                  isActive:
+                    item.isActive ||
+                    normalizeSideMenuHref(item.href) === normalizedLocation,
+                },
+              ]
+            : []),
+          ...(item.subItems ?? [])
+            .filter((subItem) => Boolean(subItem.href))
+            .map((subItem) => ({
+              key: `sub-${subItem.id}`,
+              label: `${item.label} · ${subItem.label}`,
+              href: subItem.href as string,
+              isActive:
+                subItem.isActive ||
+                normalizeSideMenuHref(subItem.href) === normalizedLocation,
+            })),
+        ];
+      }),
+    [normalizedLocation, parentLabel, sideMenuItems]
   );
   const activeMobileSideMenuHref =
     mobileSideMenuOptions.find((option) => option.isActive)?.href ?? "";
