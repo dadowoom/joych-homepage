@@ -115,6 +115,26 @@ function getThirdLevelHref(item: {
   return getSpecialMenuHref(item.label, item.href) ?? getUsableHref(item.href);
 }
 
+type HeaderMenuChild = {
+  id: number;
+  label: string;
+  href?: string | null;
+  pageType?: string | null;
+  pageImageUrl?: string | null;
+  subItems?: HeaderMenuChild[];
+};
+
+function getMobileSecondLevelItems(menu: { items?: HeaderMenuChild[] }) {
+  return (menu.items ?? []).flatMap(item => {
+    // 주보는 데스크톱에서는 묶음 메뉴로 유지하되, 모바일에서는
+    // 주보 보기/광고신청을 바로 누를 수 있도록 2차 메뉴로 펼칩니다.
+    if (isRepresentativeLinkSecondLevelItem(item)) {
+      return item.subItems ?? [];
+    }
+    return [item];
+  });
+}
+
 const fallbackMenus = toFallbackMenuTree();
 
 async function invalidateMemberSessionBoundQueries(
@@ -661,7 +681,7 @@ export default function SiteHeader() {
                   {mobileExpandedId === menu.id &&
                     (menu.items ?? []).length > 0 && (
                       <div className="bg-gray-50">
-                        {(menu.items ?? []).map(item => {
+                        {getMobileSecondLevelItems(menu).map(item => {
                           const hasSubItems =
                             (item as { subItems?: unknown[] }).subItems &&
                             (item as { subItems?: unknown[] }).subItems!
