@@ -124,12 +124,6 @@ function SuccessScreen({ facilityName, status, count, recurrenceLabel, facilityL
           {recurrenceLabel ?? `반복 예약 총 ${count}건`}이 함께 접수되었습니다.
         </p>
       )}
-      {isPending && (
-        <p className="text-gray-500 text-sm mb-2">
-          담당자 확인 후 입력하신 연락처로 안내드리겠습니다. <br className="hidden sm:block" />
-          (평일 기준 1~2일 소요)
-        </p>
-      )}
       <p className="text-xs text-gray-400 mb-8">내 예약 현황에서 승인 상태를 확인하실 수 있습니다.</p>
       <div className="flex gap-3 justify-center flex-wrap">
         <Link href={facilityListHref}>
