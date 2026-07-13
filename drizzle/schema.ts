@@ -708,6 +708,8 @@ export const visitRequests = mysqlTable("visit_requests", {
   organizationName: varchar("organization_name", { length: 128 }).notNull(),
   applicantName: varchar("applicant_name", { length: 64 }).notNull(),
   phone: varchar("phone", { length: 32 }).notNull(),
+  region: varchar("region", { length: 128 }),
+  denomination: varchar("denomination", { length: 128 }),
   email: varchar("email", { length: 320 }),
   visitDate: varchar("visit_date", { length: 10 }).notNull(),
   visitTime: varchar("visit_time", { length: 5 }),

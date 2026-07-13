@@ -180,9 +180,29 @@ describe("공개 접수 라우터", () => {
       organizationName: "기쁨기관",
       applicantName: "홍길동",
       phone: "010-1234-5678",
+      region: "포항시",
+      email: "visitor@example.com",
       visitDate: "2026-07-10",
       headcount: 3,
       visitorType: "institution",
+      purpose: "교회 탐방",
+    })).rejects.toBeInstanceOf(TRPCError);
+
+    expect(dbMocks.createVisitRequest).not.toHaveBeenCalled();
+  });
+
+  it("교회 탐방 신청은 소속 교단 없이는 저장하지 않는다", async () => {
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(caller.support.submitVisit({
+      organizationName: "기쁨교회",
+      applicantName: "홍길동",
+      phone: "010-1234-5678",
+      region: "포항시",
+      email: "visitor@example.com",
+      visitDate: "2026-07-11",
+      headcount: 3,
+      visitorType: "church",
       purpose: "교회 탐방",
     })).rejects.toBeInstanceOf(TRPCError);
 
@@ -221,6 +241,8 @@ describe("공개 접수 라우터", () => {
       organizationName: "기쁨기관",
       applicantName: "홍길동",
       phone: "010-1234-5678",
+      region: "포항시",
+      email: "visitor@example.com",
       visitDate: "2026-07-11",
       headcount: 3,
       visitorType: "institution",

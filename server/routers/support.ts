@@ -220,19 +220,29 @@ export const supportRouter = router({
         organizationName: requiredText(128, "교회명 또는 단체명을 입력해 주세요."),
         applicantName: requiredText(64, "신청자 이름을 입력해 주세요."),
         phone: phoneSchema,
-        email: optionalEmailSchema,
+        region: requiredText(128, "지역을 입력해 주세요."),
+        denomination: z.string().trim().max(128).optional(),
+        email: z.string().trim().email("이메일 형식이 올바르지 않습니다.").max(320),
         visitDate: dateSchema,
         visitTime: timeSchema,
         headcount: z.number().int().min(1, "방문 인원을 입력해 주세요.").max(500, "방문 인원이 너무 많습니다."),
         visitorType: visitorTypeSchema,
         purpose: requiredText(128, "탐방 목적을 입력해 주세요."),
         message: z.string().trim().max(2000).optional(),
+      }).superRefine((value, ctx) => {
+        if (value.visitorType === "church" && !value.denomination) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["denomination"],
+            message: "교회 방문은 소속 교단을 입력해 주세요.",
+          });
+        }
       })
     )
     .mutation(async ({ input }) => {
       await createVisitRequest({
         ...input,
-        email: input.email || null,
+        denomination: input.denomination || null,
         visitTime: input.visitTime || null,
         message: input.message || null,
       });

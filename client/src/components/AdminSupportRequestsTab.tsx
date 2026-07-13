@@ -47,6 +47,8 @@ type AdminRequestItem = {
   memoMode: "public" | "internal";
   requestedDate?: string | null;
   phone?: string | null;
+  region?: string | null;
+  denomination?: string | null;
   email?: string | null;
   organizationName?: string | null;
   applicantName?: string | null;
@@ -67,6 +69,8 @@ type SupportRequestEditDraft = {
   organizationName: string;
   applicantName: string;
   phone: string;
+  region: string;
+  denomination: string;
   email: string;
   visitDate: string;
   visitTime: string;
@@ -213,6 +217,8 @@ function createEditDraft(item: AdminRequestItem): SupportRequestEditDraft {
     organizationName: item.organizationName ?? "",
     applicantName: item.applicantName ?? "",
     phone: item.phone ?? "",
+    region: item.region ?? "",
+    denomination: item.denomination ?? "",
     email: item.email ?? "",
     visitDate: item.visitDate ?? "",
     visitTime: item.visitTime ?? "",
@@ -468,6 +474,8 @@ export default function AdminSupportRequestsTab({
       content: request.message || request.purpose,
       detailRows: [
         { label: "연락처", value: request.phone },
+        { label: "지역", value: request.region },
+        { label: "소속 교단", value: request.denomination },
         { label: "이메일", value: request.email },
         { label: "방문희망", value: `${request.visitDate}${request.visitTime ? ` ${request.visitTime}` : ""}` },
         { label: "인원", value: `${request.headcount}명` },
@@ -477,6 +485,8 @@ export default function AdminSupportRequestsTab({
       adminMemo: request.adminMemo,
       memoMode: "internal",
       phone: request.phone,
+      region: request.region,
+      denomination: request.denomination,
       email: request.email,
       organizationName: request.organizationName,
       applicantName: request.applicantName,
@@ -688,6 +698,8 @@ export default function AdminSupportRequestsTab({
         organizationName: draft.organizationName,
         applicantName: draft.applicantName,
         phone: draft.phone,
+        region: draft.region || undefined,
+        denomination: draft.denomination || undefined,
         email: draft.email || undefined,
         visitDate: draft.visitDate,
         visitTime: draft.visitTime || undefined,
@@ -1020,6 +1032,22 @@ export default function AdminSupportRequestsTab({
                           />
                         </div>
                         <div>
+                          <label className="mb-1.5 block text-xs font-medium text-gray-500">지역</label>
+                          <input
+                            className={`${fieldClass} w-full`}
+                            value={selectedDraft.region}
+                            onChange={(event) => setEditValue(selectedItem, "region", event.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-xs font-medium text-gray-500">소속 교단</label>
+                          <input
+                            className={`${fieldClass} w-full`}
+                            value={selectedDraft.denomination}
+                            onChange={(event) => setEditValue(selectedItem, "denomination", event.target.value)}
+                          />
+                        </div>
+                        <div>
                           <label className="mb-1.5 block text-xs font-medium text-gray-500">방문일</label>
                           <input
                             type="date"
@@ -1053,10 +1081,10 @@ export default function AdminSupportRequestsTab({
                             value={selectedDraft.visitorType}
                             onChange={(event) => setEditValue(selectedItem, "visitorType", event.target.value)}
                           >
-                            <option value="newFamily">새가족</option>
-                            <option value="group">단체</option>
                             <option value="church">교회</option>
-                            <option value="personal">개인</option>
+                            <option value="institution">기관 / 단체</option>
+                            <option value="individual">개인</option>
+                            <option value="other">기타</option>
                           </select>
                         </div>
                         <div className="md:col-span-2">

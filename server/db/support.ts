@@ -102,14 +102,12 @@ export async function listPublicVisitRequests(limit = 100) {
       id: visitRequests.id,
       organizationName: visitRequests.organizationName,
       applicantName: visitRequests.applicantName,
+      region: visitRequests.region,
       visitDate: visitRequests.visitDate,
       visitTime: visitRequests.visitTime,
       headcount: visitRequests.headcount,
       visitorType: visitRequests.visitorType,
-      purpose: visitRequests.purpose,
-      message: visitRequests.message,
       status: visitRequests.status,
-      adminMemo: visitRequests.adminMemo,
       createdAt: visitRequests.createdAt,
     })
     .from(visitRequests)
@@ -135,6 +133,8 @@ export async function updateVisitRequest(
     organizationName: string;
     applicantName: string;
     phone: string;
+    region?: string | null;
+    denomination?: string | null;
     email?: string | null;
     visitDate: string;
     visitTime?: string | null;
@@ -153,6 +153,8 @@ export async function updateVisitRequest(
       organizationName: data.organizationName,
       applicantName: data.applicantName,
       phone: data.phone,
+      region: data.region ?? null,
+      denomination: data.denomination ?? null,
       email: data.email ?? null,
       visitDate: data.visitDate,
       visitTime: data.visitTime ?? null,

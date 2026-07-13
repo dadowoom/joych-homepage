@@ -85,6 +85,8 @@ export function getEmptyVisitForm() {
     organizationName: "",
     applicantName: "",
     phone: "",
+    region: "",
+    denomination: "",
     email: "",
     visitDate: "",
     visitTime: "",

@@ -1847,6 +1847,58 @@ try {
 NODE
 fi
 
+MIGRATION_0078="${APP_DIR}/drizzle/0078_visit_request_details.sql"
+if [[ -f "${MIGRATION_0078}" ]]; then
+  echo "[deploy] database migration: visit request details"
+  node --input-type=module <<'NODE'
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required for migration 0078.");
+}
+
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  const [rows] = await connection.execute(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    ["0078_visit_request_details"],
+  );
+  if (Array.isArray(rows) && rows.length > 0) {
+    console.log("[deploy] migration 0078 already applied");
+  } else {
+    const hasColumn = async (columnName) => {
+      const [columns] = await connection.execute(
+        "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'visit_requests' AND COLUMN_NAME = ? LIMIT 1",
+        [columnName],
+      );
+      return Array.isArray(columns) && columns.length > 0;
+    };
+
+    if (!(await hasColumn("region"))) {
+      await connection.query("ALTER TABLE `visit_requests` ADD COLUMN `region` varchar(128)");
+    }
+    if (!(await hasColumn("denomination"))) {
+      await connection.query("ALTER TABLE `visit_requests` ADD COLUMN `denomination` varchar(128)");
+    }
+    await connection.execute(
+      "INSERT INTO app_migrations (id) VALUES (?)",
+      ["0078_visit_request_details"],
+    );
+    console.log("[deploy] migration 0078 applied");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

@@ -63,7 +63,7 @@ function VisitRequestBoardPage() {
   const [submitted, setSubmitted] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [page, setPage] = useState(1);
-  const [searchField, setSearchField] = useState("purpose");
+  const [searchField, setSearchField] = useState("organization");
   const [searchInput, setSearchInput] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
   const [form, setForm] = useState(getEmptyVisitForm);
@@ -101,14 +101,11 @@ function VisitRequestBoardPage() {
   const normalizedKeyword = searchKeyword.trim().toLowerCase();
   const filteredRequests = normalizedKeyword
     ? requests.filter((request) => {
-        const purposeText = request.purpose.toLowerCase();
         const organizationText = request.organizationName.toLowerCase();
         const applicantText = request.applicantName.toLowerCase();
-        const messageText = (request.message ?? "").toLowerCase();
         if (searchField === "organization") return organizationText.includes(normalizedKeyword);
         if (searchField === "applicant") return applicantText.includes(normalizedKeyword);
-        if (searchField === "content") return messageText.includes(normalizedKeyword);
-        return purposeText.includes(normalizedKeyword);
+        return (request.region ?? "").toLowerCase().includes(normalizedKeyword);
       })
     : requests;
   const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize));
@@ -134,6 +131,8 @@ function VisitRequestBoardPage() {
       organizationName: form.organizationName,
       applicantName: form.applicantName,
       phone: form.phone,
+      region: form.region,
+      denomination: form.visitorType === "church" ? form.denomination : undefined,
       email: form.email,
       visitDate: form.visitDate,
       visitTime: form.visitTime || undefined,
@@ -189,7 +188,7 @@ function VisitRequestBoardPage() {
                 <h2 className="flex items-center gap-2 font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
                   <MapPin className="h-5 w-5 text-[#1B5E20]" /> 탐방신청서
                 </h2>
-                <p className="mt-1 text-xs text-gray-400">전화번호와 이메일은 관리자만 확인합니다.</p>
+                <p className="mt-1 text-xs text-gray-400">연락처, 이메일, 탐방 목적과 요청사항은 담당자와 관리자만 확인합니다.</p>
               </div>
               <button
                 type="button"
@@ -203,7 +202,7 @@ function VisitRequestBoardPage() {
             <form onSubmit={handleSubmit} className="space-y-5 p-6">
               <div className="grid gap-5 md:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">교회명 / 단체명</label>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">교회명 / 단체명 <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     required
@@ -214,7 +213,7 @@ function VisitRequestBoardPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">신청자 이름</label>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">신청자 이름 <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     required
@@ -225,7 +224,7 @@ function VisitRequestBoardPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">연락처</label>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">연락처 <span className="text-red-500">*</span></label>
                   <input
                     type="tel"
                     required
@@ -236,9 +235,47 @@ function VisitRequestBoardPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">이메일</label>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">지역 <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    value={form.region}
+                    onChange={(event) => setForm({ ...form, region: event.target.value })}
+                    placeholder="예: 포항시 북구, 서울특별시"
+                    className="w-full border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">신청 구분</label>
+                  <select
+                    value={form.visitorType}
+                    onChange={(event) => setForm({ ...form, visitorType: event.target.value })}
+                    className="w-full border border-gray-200 bg-white px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                  >
+                    <option value="church">교회</option>
+                    <option value="institution">기관 / 단체</option>
+                    <option value="individual">개인</option>
+                    <option value="other">기타</option>
+                  </select>
+                </div>
+                {form.visitorType === "church" && (
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">소속 교단 <span className="text-red-500">*</span></label>
+                    <input
+                      type="text"
+                      required
+                      value={form.denomination}
+                      onChange={(event) => setForm({ ...form, denomination: event.target.value })}
+                      placeholder="예: 대한예수교장로회"
+                      className="w-full border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">이메일 <span className="text-red-500">*</span></label>
                   <input
                     type="email"
+                    required
                     value={form.email}
                     onChange={(event) => setForm({ ...form, email: event.target.value })}
                     placeholder="name@example.com"
@@ -246,7 +283,7 @@ function VisitRequestBoardPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">방문 희망일</label>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">방문 희망일 <span className="text-red-500">*</span></label>
                   <input
                     type="date"
                     required
@@ -276,19 +313,6 @@ function VisitRequestBoardPage() {
                     onChange={(event) => setForm({ ...form, headcount: event.target.value })}
                     className="w-full border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
                   />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">신청 구분</label>
-                  <select
-                    value={form.visitorType}
-                    onChange={(event) => setForm({ ...form, visitorType: event.target.value })}
-                    className="w-full border border-gray-200 bg-white px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
-                  >
-                    <option value="church">교회</option>
-                    <option value="institution">기관 / 단체</option>
-                    <option value="individual">개인</option>
-                    <option value="other">기타</option>
-                  </select>
                 </div>
               </div>
 
@@ -363,10 +387,9 @@ function VisitRequestBoardPage() {
               className="h-8 rounded-none border border-gray-300 bg-white px-2 text-xs text-gray-700 outline-none focus:border-[#1B5E20]"
               aria-label="검색 조건"
             >
-              <option value="purpose">제목</option>
               <option value="organization">단체명</option>
               <option value="applicant">작성자</option>
-              <option value="content">내용</option>
+              <option value="region">지역</option>
             </select>
             <input
               value={searchInput}
@@ -401,7 +424,7 @@ function VisitRequestBoardPage() {
                 <thead className="border-t-2 border-[#62B5D1] bg-[#EAF8FC] text-[#0F607A]">
                   <tr>
                     <th scope="col" className="px-3 py-3 text-center font-semibold">번호</th>
-                    <th scope="col" className="px-3 py-3 text-center font-semibold">제목</th>
+                    <th scope="col" className="px-3 py-3 text-center font-semibold">교회 / 단체</th>
                     <th scope="col" className="px-3 py-3 text-center font-semibold">작성자</th>
                     <th scope="col" className="px-3 py-3 text-center font-semibold">방문일</th>
                     <th scope="col" className="px-3 py-3 text-center font-semibold">등록일</th>
@@ -417,7 +440,7 @@ function VisitRequestBoardPage() {
                           <td className="px-3 py-3 text-center text-gray-500">{requestNumber}</td>
                           <td className="px-3 py-3">
                             <button type="button" onClick={() => setExpandedId(isExpanded ? null : request.id)} className="block max-w-full truncate text-left text-gray-800 hover:text-[#1B5E20]" aria-expanded={isExpanded}>
-                              {request.purpose}
+                              {request.organizationName}
                             </button>
                           </td>
                           <td className="px-3 py-3 text-center text-gray-600">{request.applicantName}</td>
@@ -428,7 +451,7 @@ function VisitRequestBoardPage() {
                           <tr className="bg-gray-50/70">
                             <td colSpan={5} className="px-8 py-5">
                               <div className="mb-3 text-xs text-gray-400">
-                                {request.organizationName}
+                                {request.region || "지역 미입력"}
                                 <span className="mx-2 text-gray-300">|</span>
                                 {VISITOR_TYPE_LABELS[request.visitorType] ?? request.visitorType}
                                 <span className="mx-2 text-gray-300">|</span>
@@ -438,15 +461,6 @@ function VisitRequestBoardPage() {
                                 <span className="mx-2 text-gray-300">|</span>
                                 상태 {VISIT_STATUS_LABELS[request.status] ?? "접수"}
                               </div>
-                              <div className="whitespace-pre-line border-l-2 border-[#1B5E20]/30 pl-4 text-sm leading-7 text-gray-700">
-                                {request.message || "별도 요청사항이 없습니다."}
-                              </div>
-                              {request.adminMemo && (
-                                <div className="mt-4 border border-[#d8f3dc] bg-[#f8fcf8] px-4 py-3">
-                                  <p className="mb-1 text-xs font-semibold text-[#1B5E20]">관리자 답변</p>
-                                  <p className="whitespace-pre-line text-sm leading-6 text-gray-700">{request.adminMemo}</p>
-                                </div>
-                              )}
                             </td>
                           </tr>
                         )}
@@ -468,7 +482,7 @@ function VisitRequestBoardPage() {
                       <span>{formatSupportDate(request.createdAt)}</span>
                     </div>
                     <button type="button" onClick={() => setExpandedId(isExpanded ? null : request.id)} className="block w-full text-left text-base font-bold text-gray-900" aria-expanded={isExpanded}>
-                      {request.purpose}
+                      {request.organizationName}
                     </button>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                       <span className="font-medium text-[#1B5E20]">{request.applicantName}</span>
@@ -478,15 +492,8 @@ function VisitRequestBoardPage() {
                     {isExpanded && (
                       <div className="mt-4 border-l-2 border-[#1B5E20]/30 pl-3 text-sm leading-6 text-gray-700">
                         <p className="mb-2 text-xs text-gray-400">
-                          {request.organizationName} · {VISITOR_TYPE_LABELS[request.visitorType] ?? request.visitorType} · {request.headcount}명
+                          {request.region || "지역 미입력"} · {VISITOR_TYPE_LABELS[request.visitorType] ?? request.visitorType} · {request.headcount}명
                         </p>
-                        <p className="whitespace-pre-line">{request.message || "별도 요청사항이 없습니다."}</p>
-                        {request.adminMemo && (
-                          <div className="mt-4 border border-[#d8f3dc] bg-[#f8fcf8] px-3 py-3">
-                            <p className="mb-1 text-xs font-semibold text-[#1B5E20]">관리자 답변</p>
-                            <p className="whitespace-pre-line text-sm leading-6 text-gray-700">{request.adminMemo}</p>
-                          </div>
-                        )}
                       </div>
                     )}
                   </article>
