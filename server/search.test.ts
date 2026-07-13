@@ -15,6 +15,14 @@ function createDataset(overrides: Partial<SearchDataset> = {}): SearchDataset {
           { id: 11, label: "은혜 페이지", href: "/page/grace-page", pageType: "editor", subItems: [] },
           { id: 12, label: "선교 게시판", href: "/community/mission-board", pageType: "board", subItems: [] },
           { id: 13, label: "자유게시판", href: "/community/joytalk", pageType: "board", subItems: [] },
+          {
+            id: 14,
+            label: "최근 행사 사진",
+            href: "/page/커뮤니티-최근-행사-사진",
+            pageType: "gallery",
+            galleryScopeKey: "menu-item-14",
+            subItems: [],
+          },
         ],
       },
     ],
@@ -127,6 +135,7 @@ function createDataset(overrides: Partial<SearchDataset> = {}): SearchDataset {
         isVisible: true,
         isHomeGallery: false,
         albumSortOrder: 5,
+        galleryScopeKey: "menu-item-14",
       },
       {
         id: 402,
@@ -138,6 +147,7 @@ function createDataset(overrides: Partial<SearchDataset> = {}): SearchDataset {
         isVisible: false,
         isHomeGallery: false,
         albumSortOrder: 4,
+        galleryScopeKey: "menu-item-14",
       },
       {
         id: 403,
@@ -149,6 +159,7 @@ function createDataset(overrides: Partial<SearchDataset> = {}): SearchDataset {
         isVisible: true,
         isHomeGallery: true,
         albumSortOrder: 0,
+        galleryScopeKey: "menu-item-14",
       },
     ],
     pageBlocks: [

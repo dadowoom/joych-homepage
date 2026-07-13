@@ -263,7 +263,9 @@ export const contentRouter = router({
   // ─── 갤러리 관리 ────────────────────────────────────────────────────────────
   gallery: router({
     /** 갤러리 전체 목록 (관리자용, 숨김 포함) */
-    list: contentProcedure.query(() => getAllGalleryItems()),
+    list: contentProcedure
+      .input(z.object({ galleryScopeKey: z.string().trim().min(1).max(96) }).optional())
+      .query(({ input }) => getAllGalleryItems(input?.galleryScopeKey)),
     listHome: contentProcedure.query(() => getAllHomeGalleryItems()),
     /** 갤러리 사진 추가 */
     create: contentProcedure
@@ -278,6 +280,7 @@ export const contentRouter = router({
         sortOrder: sortOrderSchema.optional(),
         isHomeGallery: z.boolean().optional(),
         createdAt: z.coerce.date().optional(),
+        galleryScopeKey: z.string().trim().min(1).max(96).optional(),
       }))
       .mutation(({ input }) => createGalleryItem(input)),
     /** 갤러리 항목 수정 (캡션, 순서, 공개 여부, 그리드 크기) */
@@ -294,10 +297,11 @@ export const contentRouter = router({
         isVisible: z.boolean().optional(),
         gridSpan: gridSpanValueSchema.optional(),
         createdAt: z.coerce.date().optional(),
+        galleryScopeKey: z.string().trim().min(1).max(96).optional(),
       }))
       .mutation(({ input }) => {
-        const { id, ...data } = input;
-        return updateGalleryItem(id, data);
+        const { id, galleryScopeKey, ...data } = input;
+        return updateGalleryItem(id, data, galleryScopeKey);
       }),
     /** 갤러리 앨범 제목/설명 일괄 수정 */
     updateAlbum: contentProcedure
@@ -307,33 +311,65 @@ export const contentRouter = router({
         albumDescription: optionalTextSchema(20000),
         isVisible: z.boolean().optional(),
         createdAt: z.coerce.date().optional(),
+        galleryScopeKey: z.string().trim().min(1).max(96).optional(),
       }))
       .mutation(({ input }) => {
-        const { ids, ...data } = input;
-        return updateGalleryAlbumItems(ids, data);
+        const { ids, galleryScopeKey, ...data } = input;
+        return updateGalleryAlbumItems(ids, data, galleryScopeKey);
       }),
     /** 갤러리 항목 삭제 */
     delete: contentProcedure
-      .input(z.object({ id: z.number().int().positive() }))
-      .mutation(({ input }) => deleteGalleryItem(input.id)),
+      .input(z.object({
+        id: z.number().int().positive(),
+        galleryScopeKey: z.string().trim().min(1).max(96).optional(),
+      }))
+      .mutation(({ input }) => deleteGalleryItem(input.id, input.galleryScopeKey)),
     deleteAlbum: contentProcedure
-      .input(z.object({ ids: z.array(z.number().int().positive()).min(1).max(500) }))
-      .mutation(({ input }) => deleteGalleryItems(input.ids)),
+      .input(z.object({
+        ids: z.array(z.number().int().positive()).min(1).max(500),
+        galleryScopeKey: z.string().trim().min(1).max(96).optional(),
+      }))
+      .mutation(({ input }) => deleteGalleryItems(input.ids, input.galleryScopeKey)),
     /** 갤러리 순서 일괄 변경 */
     reorder: contentProcedure
-      .input(z.array(z.object({
-        id: z.number().int().positive(),
-        sortOrder: z.number().int().min(0).max(10000),
-      })).max(500))
-      .mutation(({ input }) => reorderGalleryItems(input)),
+      .input(z.union([
+        z.array(z.object({
+          id: z.number().int().positive(),
+          sortOrder: z.number().int().min(0).max(10000),
+        })).max(500),
+        z.object({
+          galleryScopeKey: z.string().trim().min(1).max(96),
+          items: z.array(z.object({
+            id: z.number().int().positive(),
+            sortOrder: z.number().int().min(0).max(10000),
+          })).max(500),
+        }),
+      ]))
+      .mutation(({ input }) =>
+        Array.isArray(input)
+          ? reorderGalleryItems(input)
+          : reorderGalleryItems(input.items, input.galleryScopeKey)),
     /** 갤러리 앨범 순서 일괄 변경 */
     reorderAlbums: contentProcedure
-      .input(z.array(z.object({
-        albumKey: optionalTextSchema(96),
-        albumTitle: optionalTextSchema(160),
-        albumSortOrder: z.number().int().min(0).max(2147483647),
-      })).max(200))
-      .mutation(({ input }) => reorderGalleryAlbums(input)),
+      .input(z.union([
+        z.array(z.object({
+          albumKey: optionalTextSchema(96),
+          albumTitle: optionalTextSchema(160),
+          albumSortOrder: z.number().int().min(0).max(2147483647),
+        })).max(200),
+        z.object({
+          galleryScopeKey: z.string().trim().min(1).max(96),
+          items: z.array(z.object({
+            albumKey: optionalTextSchema(96),
+            albumTitle: optionalTextSchema(160),
+            albumSortOrder: z.number().int().min(0).max(2147483647),
+          })).max(200),
+        }),
+      ]))
+      .mutation(({ input }) =>
+        Array.isArray(input)
+          ? reorderGalleryAlbums(input)
+          : reorderGalleryAlbums(input.items, input.galleryScopeKey)),
   }),
 
   // ─── 사이트 설정 관리 ───────────────────────────────────────────────────────

@@ -523,7 +523,9 @@ export const homeRouter = router({
   affiliates: publicProcedure.query(() => getVisibleAffiliates()),
 
   /** 갤러리 사진 목록 (공개된 것만) */
-  gallery: publicProcedure.query(() => getVisibleGalleryItems()),
+  gallery: publicProcedure
+    .input(z.object({ galleryScopeKey: z.string().trim().min(1).max(96) }))
+    .query(({ input }) => getVisibleGalleryItems(input.galleryScopeKey)),
 
   homeGallery: publicProcedure.query(() => getVisibleHomeGalleryItems()),
 

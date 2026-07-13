@@ -139,6 +139,10 @@ export const menusRouter = router({
 
       const updates: Partial<Parameters<typeof updateMenuItem>[1]> = {};
 
+      if (input.pageType === "gallery") {
+        updates.galleryScopeKey = `menu-item-${newId}`;
+      }
+
       // href가 없으면 동적 페이지 URL 자동 설정
       if (!input.href) {
         const tree = await getAllMenus();
@@ -206,7 +210,13 @@ export const menusRouter = router({
         await ensureDynamicBoard({ menuItemId: id, boardTitle: data.label ?? existing?.label });
       }
 
-      return updateMenuItem(id, data);
+      const galleryScopeMissing = data.pageType === "gallery"
+        && !(await getMenuItemById(id))?.galleryScopeKey;
+      const result = await updateMenuItem(id, data);
+      if (galleryScopeMissing) {
+        await updateMenuItem(id, { galleryScopeKey: `menu-item-${id}` });
+      }
+      return result;
     }),
 
   /** 2/3단 메뉴 읽기 권한 일괄 수정 */
@@ -329,6 +339,10 @@ export const menusRouter = router({
 
       const newId = await createMenuSubItem(subItemData);
 
+      if (newId && input.pageType === "gallery") {
+        await updateMenuSubItem(newId, { galleryScopeKey: `menu-sub-item-${newId}` });
+      }
+
       if (newId && input.pageType === "board") {
         await ensureDynamicBoard({ menuSubItemId: newId, boardTitle: input.label });
       }
@@ -383,7 +397,13 @@ export const menusRouter = router({
         await ensureDynamicBoard({ menuSubItemId: id, boardTitle: data.label ?? existing?.label });
       }
 
-      return updateMenuSubItem(id, data);
+      const galleryScopeMissing = data.pageType === "gallery"
+        && !(await getMenuSubItemById(id))?.galleryScopeKey;
+      const result = await updateMenuSubItem(id, data);
+      if (galleryScopeMissing) {
+        await updateMenuSubItem(id, { galleryScopeKey: `menu-sub-item-${id}` });
+      }
+      return result;
     }),
 
   /** 3단 메뉴 읽기 권한만 수정 */

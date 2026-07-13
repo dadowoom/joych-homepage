@@ -12,7 +12,7 @@
 import { createHash } from "node:crypto";
 import { and, eq, asc, desc, inArray, isNull, like, not } from "drizzle-orm";
 import {
-  heroSlides, galleryItems, affiliates, quickMenus, siteSettings,
+  heroSlides, galleryItems, menuItems, menuSubItems, affiliates, quickMenus, siteSettings,
   InsertAffiliate, InsertGalleryItem,
 } from "../../drizzle/schema";
 import { getDb } from "./connection";
@@ -87,24 +87,56 @@ export async function deleteHeroSlide(id: number) {
 // ─── 갤러리 ──────────────────────────────────────────────────────────────────
 
 /** 홈 화면에 표시할 갤러리 이미지 목록 (isVisible=true) */
-export async function getVisibleGalleryItems() {
+const EVENT_GALLERY_HREF = "/page/%EC%BB%A4%EB%AE%A4%EB%8B%88%ED%8B%B0-%EC%B5%9C%EA%B7%BC-%ED%96%89%EC%82%AC-%EC%82%AC%EC%A7%84";
+
+function galleryScopeCondition(galleryScopeKey?: string | null) {
+  const normalized = galleryScopeKey?.trim();
+  return normalized ? eq(galleryItems.galleryScopeKey, normalized) : undefined;
+}
+
+async function getEventGalleryScopeKey() {
   const db = await getDb();
-  if (!db) return [];
+  if (!db) return null;
+  const [items, subItems] = await Promise.all([
+    db
+      .select({ href: menuItems.href, galleryScopeKey: menuItems.galleryScopeKey })
+      .from(menuItems)
+      .where(eq(menuItems.pageType, "gallery"))
+      .orderBy(asc(menuItems.id)),
+    db
+      .select({ href: menuSubItems.href, galleryScopeKey: menuSubItems.galleryScopeKey })
+      .from(menuSubItems)
+      .where(eq(menuSubItems.pageType, "gallery"))
+      .orderBy(asc(menuSubItems.id)),
+  ]);
+  const candidates = [...items, ...subItems];
+  return candidates.find(row => row.href === EVENT_GALLERY_HREF)?.galleryScopeKey
+    ?? candidates[0]?.galleryScopeKey
+    ?? null;
+}
+
+export async function getVisibleGalleryItems(galleryScopeKey: string) {
+  const db = await getDb();
+  const scope = galleryScopeKey.trim();
+  if (!db || !scope) return [];
   return db.select().from(galleryItems)
     .where(and(
       eq(galleryItems.isVisible, true),
       eq(galleryItems.isHomeGallery, false),
+      eq(galleryItems.galleryScopeKey, scope),
     ))
     .orderBy(desc(galleryItems.albumSortOrder), asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
 }
 
 export async function getVisibleHomeGalleryItems() {
   const db = await getDb();
-  if (!db) return [];
+  const eventGalleryScopeKey = await getEventGalleryScopeKey();
+  if (!db || !eventGalleryScopeKey) return [];
   const items = await db.select().from(galleryItems)
     .where(and(
       eq(galleryItems.isVisible, true),
       eq(galleryItems.isHomeGallery, false),
+      eq(galleryItems.galleryScopeKey, eventGalleryScopeKey),
     ))
     .orderBy(desc(galleryItems.albumSortOrder), asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
 
@@ -121,17 +153,17 @@ export async function getVisibleHomeGalleryItems() {
 }
 
 /** 갤러리 이미지 수정 */
-export async function updateGalleryItem(id: number, data: Partial<InsertGalleryItem>) {
+export async function updateGalleryItem(id: number, data: Partial<InsertGalleryItem>, galleryScopeKey?: string | null) {
   const db = await getDb();
   if (!db) return;
-  await db.update(galleryItems).set(data).where(eq(galleryItems.id, id));
+  await db.update(galleryItems).set(data).where(and(eq(galleryItems.id, id), galleryScopeCondition(galleryScopeKey)));
 }
 
 /** 갤러리 앨범 공통 정보 수정 */
-export async function updateGalleryAlbumItems(ids: number[], data: Partial<InsertGalleryItem>) {
+export async function updateGalleryAlbumItems(ids: number[], data: Partial<InsertGalleryItem>, galleryScopeKey?: string | null) {
   const db = await getDb();
   if (!db || ids.length === 0) return;
-  await db.update(galleryItems).set(data).where(inArray(galleryItems.id, ids));
+  await db.update(galleryItems).set(data).where(and(inArray(galleryItems.id, ids), galleryScopeCondition(galleryScopeKey)));
 }
 
 // ─── 관련기관 (Affiliates) ────────────────────────────────────────────────────
@@ -195,17 +227,17 @@ export async function reorderQuickMenus(items: { id: number; sortOrder: number }
   );
 }
 
-export async function reorderGalleryItems(items: { id: number; sortOrder: number }[]) {
+export async function reorderGalleryItems(items: { id: number; sortOrder: number }[], galleryScopeKey?: string | null) {
   const db = await getDb();
   if (!db) return;
   await Promise.all(
     items.map(item =>
-      db.update(galleryItems).set({ sortOrder: item.sortOrder }).where(eq(galleryItems.id, item.id))
+      db.update(galleryItems).set({ sortOrder: item.sortOrder }).where(and(eq(galleryItems.id, item.id), galleryScopeCondition(galleryScopeKey)))
     )
   );
 }
 
-export async function reorderGalleryAlbums(items: { albumKey?: string | null; albumTitle?: string | null; albumSortOrder: number }[]) {
+export async function reorderGalleryAlbums(items: { albumKey?: string | null; albumTitle?: string | null; albumSortOrder: number }[], galleryScopeKey?: string | null) {
   const db = await getDb();
   if (!db) return;
   await Promise.all(
@@ -213,13 +245,13 @@ export async function reorderGalleryAlbums(items: { albumKey?: string | null; al
       if (item.albumKey) {
         return db.update(galleryItems)
           .set({ albumSortOrder: item.albumSortOrder })
-          .where(eq(galleryItems.albumKey, item.albumKey));
+          .where(and(eq(galleryItems.albumKey, item.albumKey), galleryScopeCondition(galleryScopeKey)));
       }
 
       if (item.albumTitle) {
         return db.update(galleryItems)
           .set({ albumSortOrder: item.albumSortOrder })
-          .where(and(isNull(galleryItems.albumKey), eq(galleryItems.albumTitle, item.albumTitle)));
+          .where(and(isNull(galleryItems.albumKey), eq(galleryItems.albumTitle, item.albumTitle), galleryScopeCondition(galleryScopeKey)));
       }
 
       return Promise.resolve();
@@ -390,11 +422,11 @@ export async function deleteAffiliate(id: number) {
 
 // ─── 갤러리 추가/삭제 ────────────────────────────────────────────────────────
 /** 갤러리 전체 목록 (관리자용, 숨김 포함) */
-export async function getAllGalleryItems() {
+export async function getAllGalleryItems(galleryScopeKey?: string | null) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(galleryItems)
-    .where(eq(galleryItems.isHomeGallery, false))
+    .where(and(eq(galleryItems.isHomeGallery, false), galleryScopeCondition(galleryScopeKey)))
     .orderBy(desc(galleryItems.albumSortOrder), asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
 }
 /** 갤러리 새 항목 추가 */
@@ -405,11 +437,12 @@ export async function getAllHomeGalleryItems() {
     .where(eq(galleryItems.isHomeGallery, true))
     .orderBy(asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
 }
-export async function createGalleryItem(data: { imageUrl: string; albumKey?: string; albumTitle?: string; albumDescription?: string; albumSortOrder?: number; caption?: string; gridSpan?: string; sortOrder?: number; isHomeGallery?: boolean; createdAt?: Date }) {
+export async function createGalleryItem(data: { imageUrl: string; galleryScopeKey?: string; albumKey?: string; albumTitle?: string; albumDescription?: string; albumSortOrder?: number; caption?: string; gridSpan?: string; sortOrder?: number; isHomeGallery?: boolean; createdAt?: Date }) {
   const db = await getDb();
   if (!db) return;
   await db.insert(galleryItems).values({
     imageUrl: data.imageUrl,
+    galleryScopeKey: data.galleryScopeKey?.trim() || null,
     albumKey: data.albumKey ?? null,
     albumTitle: data.albumTitle ?? null,
     albumDescription: data.albumDescription ?? null,
@@ -423,15 +456,15 @@ export async function createGalleryItem(data: { imageUrl: string; albumKey?: str
   });
 }
 /** 갤러리 항목 삭제 */
-export async function deleteGalleryItem(id: number) {
+export async function deleteGalleryItem(id: number, galleryScopeKey?: string | null) {
   const db = await getDb();
   if (!db) return;
-  await db.delete(galleryItems).where(eq(galleryItems.id, id));
+  await db.delete(galleryItems).where(and(eq(galleryItems.id, id), galleryScopeCondition(galleryScopeKey)));
 }
 
 /** Delete every photo that belongs to one gallery album/post. */
-export async function deleteGalleryItems(ids: number[]) {
+export async function deleteGalleryItems(ids: number[], galleryScopeKey?: string | null) {
   const db = await getDb();
   if (!db || ids.length === 0) return;
-  await db.delete(galleryItems).where(inArray(galleryItems.id, ids));
+  await db.delete(galleryItems).where(and(inArray(galleryItems.id, ids), galleryScopeCondition(galleryScopeKey)));
 }

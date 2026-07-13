@@ -84,6 +84,7 @@ type GuestVisibleMenuNode = {
   label: string;
   href?: string | null;
   pageType?: string | null;
+  galleryScopeKey?: string | null;
   allowGuest?: boolean;
   allowMember?: boolean;
   items?: GuestVisibleMenuNode[];
@@ -142,6 +143,7 @@ type SearchDataset = {
     isVisible: boolean;
     isHomeGallery: boolean;
     albumSortOrder: number;
+    galleryScopeKey: string | null;
   }>;
   pageBlocks: Array<{
     id: number;
@@ -541,6 +543,7 @@ type GuestTargetMeta = {
   label: string;
   href: string;
   pageType: string;
+  galleryScopeKey: string | null;
 };
 
 function indexGuestMenus(guestMenus: GuestVisibleMenuNode[]) {
@@ -556,6 +559,7 @@ function indexGuestMenus(guestMenus: GuestVisibleMenuNode[]) {
         label: item.label,
         href: itemHref,
         pageType: item.pageType ?? "image",
+        galleryScopeKey: item.galleryScopeKey ?? null,
       });
       if (!freeBoardHref && isFreeBoardMenuTarget(item.label, itemHref)) {
         freeBoardHref = itemHref;
@@ -568,6 +572,7 @@ function indexGuestMenus(guestMenus: GuestVisibleMenuNode[]) {
           label: subItem.label,
           href: subItemHref,
           pageType: subItem.pageType ?? "image",
+          galleryScopeKey: subItem.galleryScopeKey ?? null,
         });
         if (!freeBoardHref && isFreeBoardMenuTarget(subItem.label, subItemHref)) {
           freeBoardHref = subItemHref;
@@ -705,10 +710,18 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
       }),
     );
 
+  const galleryHrefByScopeKey = new Map(
+    Array.from(guestIndex.itemMap.values())
+      .concat(Array.from(guestIndex.subItemMap.values()))
+      .filter((target) => target.pageType === "gallery" && Boolean(target.galleryScopeKey) && Boolean(target.href))
+      .map((target) => [target.galleryScopeKey!, target.href]),
+  );
+
   const galleryMatches = dataset.galleryItems
     .filter((item) =>
       item.isVisible &&
       !item.isHomeGallery &&
+      Boolean(item.galleryScopeKey && galleryHrefByScopeKey.has(item.galleryScopeKey)) &&
       Boolean(item.albumKey?.trim() || item.albumTitle?.trim()) &&
       matchesKeyword(keyword, item.albumTitle, item.albumDescription, item.caption),
     )
@@ -721,7 +734,7 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
   const seenGalleryKeys = new Set<string>();
   const galleryItemsByAlbum = galleryMatches
     .filter((item) => {
-      const key = item.albumKey?.trim() || item.albumTitle?.trim() || `single:${item.id}`;
+      const key = `${item.galleryScopeKey}:${item.albumKey?.trim() || item.albumTitle?.trim() || `single:${item.id}`}`;
       if (seenGalleryKeys.has(key)) return false;
       seenGalleryKeys.add(key);
       return true;
@@ -734,8 +747,8 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
         summary: excerpt(item.albumDescription || item.caption),
         date: formatDate(item.createdAt),
         href: item.albumKey
-          ? appendQueryParam(GALLERY_PAGE_HREF, "gallery", item.albumKey)
-          : GALLERY_PAGE_HREF,
+          ? appendQueryParam(galleryHrefByScopeKey.get(item.galleryScopeKey!)!, "gallery", item.albumKey)
+          : galleryHrefByScopeKey.get(item.galleryScopeKey!)!,
       }),
     );
 
@@ -1010,7 +1023,7 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
     createGroup("resources", "자료실", "공개 자료실 검색 결과입니다.", RESOURCE_PAGE_HREF, resourceItems),
     createGroup("testimonies", "간증", "공개 간증 게시물 검색 결과입니다.", "/community/testimony", testimonyItems),
     createGroup("pastor-books", "담임목사 저서", "공개 저서 검색 결과입니다.", "/about/pastor/books", pastorBookItems),
-    createGroup("gallery", "갤러리", "공개 사진 앨범 검색 결과입니다.", GALLERY_PAGE_HREF, galleryItemsByAlbum),
+    createGroup("gallery", "갤러리", "공개 사진 앨범 검색 결과입니다.", galleryItemsByAlbum[0]?.href || GALLERY_PAGE_HREF, galleryItemsByAlbum),
     createGroup("pages", "페이지 콘텐츠", "게스트에게 공개된 에디터 페이지 검색 결과입니다.", editorPageItems[0]?.href || "/", editorPageItems),
     createGroup("board-posts", "게시판", "게스트에게 공개된 동적 게시판 검색 결과입니다.", dynamicBoardItems[0]?.href || "/", dynamicBoardItems),
     createGroup("free-board", "자유게시판", "게스트에게 공개된 자유게시판 검색 결과입니다.", guestIndex.freeBoardHref || "/", freeBoardItems),
@@ -1203,6 +1216,7 @@ async function loadSearchDataset(keyword: string): Promise<SearchDataset | null>
         isVisible: galleryItems.isVisible,
         isHomeGallery: galleryItems.isHomeGallery,
         albumSortOrder: galleryItems.albumSortOrder,
+        galleryScopeKey: galleryItems.galleryScopeKey,
       })
       .from(galleryItems)
       .where(

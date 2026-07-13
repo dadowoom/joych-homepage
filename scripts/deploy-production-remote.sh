@@ -1697,6 +1697,50 @@ try {
 NODE
 fi
 
+MIGRATION_0075="${APP_DIR}/drizzle/0075_gallery_menu_scopes.sql"
+if [[ -f "${MIGRATION_0075}" ]]; then
+  echo "[deploy] database migration: gallery menu scopes"
+  node --input-type=module <<'NODE'
+import fs from "node:fs/promises";
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required for migration 0075.");
+}
+
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  const [rows] = await connection.execute(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    ["0075_gallery_menu_scopes"],
+  );
+  if (Array.isArray(rows) && rows.length > 0) {
+    console.log("[deploy] migration 0075 already applied");
+  } else {
+    const sql = await fs.readFile("drizzle/0075_gallery_menu_scopes.sql", "utf8");
+    const statements = sql.split(/;\s*(?:\r?\n|$)/).map((statement) => statement.trim()).filter(Boolean);
+    for (const statement of statements) {
+      await connection.query(statement);
+    }
+    await connection.execute(
+      "INSERT INTO app_migrations (id) VALUES (?)",
+      ["0075_gallery_menu_scopes"],
+    );
+    console.log("[deploy] migration 0075 applied");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

@@ -52,6 +52,7 @@ type DynamicPageItem = {
   pageImageUrl?: string | null;
   playlistId?: number | null;
   defaultViewMode?: string | null;
+  galleryScopeKey?: string | null;
   allowGuest?: boolean;
   allowMember?: boolean;
 };
@@ -318,7 +319,8 @@ function renderContent(
   menuSubItemId?: number,
   playlistId?: number | null,
   href?: string | null,
-  defaultViewMode?: string | null
+  defaultViewMode?: string | null,
+  galleryScopeKey?: string | null
 ) {
   const shouldUseWideEditorLayout =
     label.replace(/\s+/g, "") === "차량시간표" ||
@@ -328,7 +330,12 @@ function renderContent(
     case "image":
       return <ImageContent label={label} imageUrl={imageUrl} />;
     case "gallery":
-      return <GalleryContent defaultViewMode={defaultViewMode === "list" ? "list" : "grid"} />;
+      return (
+        <GalleryContent
+          galleryScopeKey={galleryScopeKey}
+          defaultViewMode={defaultViewMode === "list" ? "list" : "grid"}
+        />
+      );
     case "board":
       return (
         <BoardContent
@@ -523,7 +530,8 @@ function MenuItemPageContent({
         undefined,
         item.playlistId,
         item.href ?? activeHref ?? null,
-        item.defaultViewMode ?? null
+        item.defaultViewMode ?? null,
+        item.galleryScopeKey ?? null
       )}
     </SubPageLayout>
   );
@@ -615,7 +623,8 @@ function MenuSubItemPageContent({
         item.id,
         item.playlistId,
         item.href ?? activeHref ?? null,
-        item.defaultViewMode ?? null
+        item.defaultViewMode ?? null,
+        item.galleryScopeKey ?? null
       )}
     </SubPageLayout>
   );

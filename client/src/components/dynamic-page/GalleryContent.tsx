@@ -431,16 +431,26 @@ function SortableGalleryAlbumOrderItem({
 }
 
 export function GalleryContent({
+  galleryScopeKey,
   defaultViewMode,
-}: { defaultViewMode?: ViewMode | null } = {}) {
+}: {
+  galleryScopeKey?: string | null;
+  defaultViewMode?: ViewMode | null;
+} = {}) {
   const { user } = useAuth();
   const canManage = canManageBoardContent(user);
   const utils = trpc.useUtils();
-  const publicGalleryQuery = trpc.home.gallery.useQuery(undefined, {
-    enabled: !canManage,
+  const normalizedScopeKey = galleryScopeKey?.trim() ?? "";
+  const canLoadGallery = normalizedScopeKey.length > 0;
+  const publicGalleryQuery = trpc.home.gallery.useQuery({
+    galleryScopeKey: normalizedScopeKey,
+  }, {
+    enabled: !canManage && canLoadGallery,
   });
-  const adminGalleryQuery = trpc.cms.content.gallery.list.useQuery(undefined, {
-    enabled: canManage,
+  const adminGalleryQuery = trpc.cms.content.gallery.list.useQuery({
+    galleryScopeKey: normalizedScopeKey,
+  }, {
+    enabled: canManage && canLoadGallery,
   });
   const [location, navigate] = useLocation();
   const searchString = useSearch();
@@ -638,6 +648,7 @@ export function GalleryContent({
           mimeType: file.type,
         });
         await createGalleryItem.mutateAsync({
+          galleryScopeKey: normalizedScopeKey,
           imageUrl: url,
           albumKey,
           albumTitle: title,
@@ -718,6 +729,7 @@ export function GalleryContent({
     setIsSavingDetail(true);
     try {
       await updateGalleryAlbum.mutateAsync({
+        galleryScopeKey: normalizedScopeKey,
         ids: detailGroup.images.map(image => image.id),
         albumTitle: title,
         albumDescription: description,
@@ -733,6 +745,7 @@ export function GalleryContent({
           ).trim();
           if ((image.caption ?? "") === caption) return Promise.resolve();
           return updateGalleryItem.mutateAsync({
+            galleryScopeKey: normalizedScopeKey,
             id: image.id,
             caption,
           });
@@ -778,6 +791,7 @@ export function GalleryContent({
           mimeType: file.type,
         });
         await createGalleryItem.mutateAsync({
+          galleryScopeKey: normalizedScopeKey,
           imageUrl: url,
           albumKey: firstImage?.albumKey ?? undefined,
           albumTitle: title,
@@ -819,6 +833,7 @@ export function GalleryContent({
         mimeType: file.type,
       });
       await updateGalleryItem.mutateAsync({
+        galleryScopeKey: normalizedScopeKey,
         id: item.id,
         imageUrl: url,
       });
@@ -844,7 +859,10 @@ export function GalleryContent({
 
     setEditingPhotoId(item.id);
     try {
-      await deleteGalleryItem.mutateAsync({ id: item.id });
+      await deleteGalleryItem.mutateAsync({
+        id: item.id,
+        galleryScopeKey: normalizedScopeKey,
+      });
       await refreshGallery();
       if (detailGroup.images.length <= 1) {
         navigate(buildGalleryHref(location, searchString));
@@ -872,6 +890,7 @@ export function GalleryContent({
     setDeletingAlbumKey(group.key);
     try {
       await deleteGalleryAlbum.mutateAsync({
+        galleryScopeKey: normalizedScopeKey,
         ids: group.images.map(image => image.id),
       });
       await refreshGallery();
@@ -898,6 +917,7 @@ export function GalleryContent({
 
     try {
       await updateGalleryAlbum.mutateAsync({
+        galleryScopeKey: normalizedScopeKey,
         ids: group.images.map(image => image.id),
         isVisible: nextVisible,
       });
@@ -933,9 +953,10 @@ export function GalleryContent({
     });
 
     setLocalOrder(reordered);
-    reorderGalleryItems.mutate(
-      reordered.map((item, index) => ({ id: item.id, sortOrder: index + 1 }))
-    );
+    reorderGalleryItems.mutate({
+      galleryScopeKey: normalizedScopeKey,
+      items: reordered.map((item, index) => ({ id: item.id, sortOrder: index + 1 })),
+    });
   };
 
   const handleAlbumDragEnd = (event: DragEndEvent) => {
@@ -971,7 +992,10 @@ export function GalleryContent({
         }))
       )
     );
-    reorderGalleryAlbums.mutate(updates);
+    reorderGalleryAlbums.mutate({
+      galleryScopeKey: normalizedScopeKey,
+      items: updates,
+    });
   };
 
   const renderLightbox = () => {

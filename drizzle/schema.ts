@@ -118,6 +118,7 @@ export const menuItems = mysqlTable("menu_items", {
   /** 페이지 표시 타입: image(이미지 전체화면) / gallery(갤러리) / board(게시판) / youtube(유튜브 목록) / editor(텍스트+이미지) / course(강좌 목록) */
   pageType: mysqlEnum("pageType", ["image", "gallery", "board", "youtube", "editor", "course"]).default("image").notNull(),
   /** 이미지 타입일 때 표시할 이미지 URL */
+  galleryScopeKey: varchar("galleryScopeKey", { length: 96 }),
   pageImageUrl: text("pageImageUrl"),
   /** youtube 타입일 때 연결된 플레이리스트 ID */
   playlistId: int("playlistId"),
@@ -145,6 +146,7 @@ export const menuSubItems = mysqlTable("menu_sub_items", {
   /** 페이지 표시 타입 */
   pageType: mysqlEnum("pageType", ["image", "gallery", "board", "youtube", "editor", "course"]).default("image").notNull(),
   /** 이미지 타입일 때 표시할 이미지 URL */
+  galleryScopeKey: varchar("galleryScopeKey", { length: 96 }),
   pageImageUrl: text("pageImageUrl"),
   /** youtube 타입일 때 연결된 플레이리스트 ID */
   playlistId: int("playlistId"),
@@ -389,6 +391,7 @@ export const galleryItems = mysqlTable("gallery_items", {
   id: int("id").autoincrement().primaryKey(),
   /** S3 CDN 이미지 URL */
   imageUrl: text("imageUrl").notNull(),
+  galleryScopeKey: varchar("galleryScopeKey", { length: 96 }),
   albumKey: varchar("albumKey", { length: 96 }),
   albumTitle: varchar("albumTitle", { length: 160 }),
   albumDescription: text("albumDescription"),
@@ -406,6 +409,7 @@ export const galleryItems = mysqlTable("gallery_items", {
   index("gallery_items_album_key_idx").on(table.albumKey),
   index("gallery_items_album_sort_order_idx").on(table.albumSortOrder),
   index("gallery_items_home_gallery_idx").on(table.isHomeGallery, table.isVisible),
+  index("gallery_items_scope_visible_idx").on(table.galleryScopeKey, table.isVisible, table.albumSortOrder),
 ]);
 
 export type GalleryItem = typeof galleryItems.$inferSelect;
