@@ -148,9 +148,26 @@ export default function AdminMissionReportsTab() {
     onError: (e) => toast.error(e.message),
   });
 
+  const deleteGrant = trpc.cms.missionReports.deleteAuthorGrant.useMutation({
+    onSuccess: () => {
+      toast.success("작성 권한이 삭제됐습니다.");
+      utils.cms.missionReports.authorGrants.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const reviewReport = trpc.cms.missionReports.reviewReport.useMutation({
     onSuccess: () => {
       toast.success("선교보고 상태가 변경됐습니다.");
+      utils.cms.missionReports.reports.invalidate();
+      utils.mission.reports.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const deleteReport = trpc.cms.missionReports.deleteReport.useMutation({
+    onSuccess: () => {
+      toast.success("선교보고가 삭제됐습니다.");
       utils.cms.missionReports.reports.invalidate();
       utils.mission.reports.invalidate();
     },
@@ -559,18 +576,39 @@ export default function AdminMissionReportsTab() {
                   {grant.memberEmail ?? "-"} · {grant.missionaryRegion ?? "-"}
                 </p>
               </div>
-              <button
-                onClick={() =>
-                  updateGrant.mutate({ id: grant.id, canWrite: !grant.canWrite })
-                }
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
-                  grant.canWrite
-                    ? "bg-green-50 text-green-700"
-                    : "bg-gray-100 text-gray-500"
-                }`}
-              >
-                {grant.canWrite ? "활성" : "비활성"}
-              </button>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <span
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
+                    grant.canWrite
+                      ? "bg-green-50 text-green-700"
+                      : "bg-gray-100 text-gray-500"
+                  }`}
+                >
+                  {grant.canWrite ? "활성" : "비활성"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateGrant.mutate({ id: grant.id, canWrite: !grant.canWrite })
+                  }
+                  disabled={updateGrant.isPending}
+                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {grant.canWrite ? "비활성" : "활성"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm(`${grant.memberName ?? "성도"}님의 작성 권한을 삭제할까요?`)) {
+                      deleteGrant.mutate({ id: grant.id });
+                    }
+                  }}
+                  disabled={deleteGrant.isPending}
+                  className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                >
+                  삭제
+                </button>
+              </div>
             </div>
           ))}
           {grants.length === 0 && (
@@ -616,6 +654,24 @@ export default function AdminMissionReportsTab() {
                   className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-500 hover:bg-red-50"
                 >
                   반려
+                </button>
+                <a
+                  href={`/mission/edit/${report.id}`}
+                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                >
+                  수정
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm(`\"${report.title}\" 선교보고를 삭제할까요?`)) {
+                      deleteReport.mutate({ id: report.id });
+                    }
+                  }}
+                  disabled={deleteReport.isPending}
+                  className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 disabled:opacity-50"
+                >
+                  삭제
                 </button>
               </div>
             </div>

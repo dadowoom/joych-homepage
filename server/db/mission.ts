@@ -276,6 +276,12 @@ export async function updateMissionAuthorGrant(id: number, data: Partial<InsertM
   await db.update(missionReportAuthors).set(data).where(eq(missionReportAuthors.id, id));
 }
 
+export async function deleteMissionAuthorGrant(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(missionReportAuthors).where(eq(missionReportAuthors.id, id));
+}
+
 export async function getMissionReportsByAuthor(memberId: number) {
   const db = await getDb();
   if (!db) return [];

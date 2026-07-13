@@ -19,6 +19,7 @@ import {
   createMissionAuthorGrant,
   createMissionReportWithDetails,
   createMissionary,
+  deleteMissionAuthorGrant,
   deleteMissionary,
   deleteMissionReport,
   getAllMissionaries,
@@ -177,6 +178,10 @@ export const missionReportsRouter = router({
       canWrite: z.boolean(),
     }))
     .mutation(({ input }) => updateMissionAuthorGrant(input.id, { canWrite: input.canWrite })),
+
+  deleteAuthorGrant: missionReportProcedure
+    .input(z.object({ id: idSchema }))
+    .mutation(({ input }) => deleteMissionAuthorGrant(input.id)),
 
   reports: missionReportProcedure.query(() => getAllMissionReports()),
 
