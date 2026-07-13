@@ -3,8 +3,8 @@
  * 이미지 클릭 시 화면 전체를 어둡게 하고 원본 크기로 보여주는 팝업입니다.
  * ESC 키 또는 배경 클릭으로 닫을 수 있습니다.
  */
-import { useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { useEffect, useCallback, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, RotateCcw, X, ZoomIn, ZoomOut } from "lucide-react";
 
 export function Lightbox({
   imageUrl,
@@ -23,6 +23,30 @@ export function Lightbox({
   onPrevious?: () => void;
   onNext?: () => void;
 }) {
+  const [scale, setScale] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const pinchStartDistanceRef = useRef<number | null>(null);
+  const pinchStartScaleRef = useRef(1);
+  const panStartRef = useRef<{ x: number; y: number; offsetX: number; offsetY: number } | null>(null);
+
+  const resetZoom = useCallback(() => {
+    setScale(1);
+    setPosition({ x: 0, y: 0 });
+  }, []);
+
+  const updateScale = useCallback((nextScale: number) => {
+    const clampedScale = Math.min(Math.max(nextScale, 1), 4);
+    setScale(clampedScale);
+    if (clampedScale === 1) setPosition({ x: 0, y: 0 });
+  }, []);
+
+  const getTouchDistance = (
+    first: { clientX: number; clientY: number },
+    second: { clientX: number; clientY: number }
+  ) => {
+    return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
+  };
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -31,6 +55,10 @@ export function Lightbox({
     },
     [onClose, onPrevious, onNext]
   );
+
+  useEffect(() => {
+    resetZoom();
+  }, [imageUrl, resetZoom]);
 
   useEffect(() => {
     document.addEventListener("keydown", handleKeyDown);
@@ -53,6 +81,44 @@ export function Lightbox({
       >
         <X className="w-6 h-6" />
       </button>
+      <div className="absolute left-4 top-4 z-10 flex items-center gap-2">
+        <button
+          type="button"
+          className="rounded-full bg-black/40 p-2 text-white/80 transition-colors hover:bg-black/60 hover:text-white disabled:opacity-40"
+          onClick={(event) => {
+            event.stopPropagation();
+            updateScale(scale - 0.5);
+          }}
+          disabled={scale <= 1}
+          aria-label="이미지 축소"
+        >
+          <ZoomOut className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
+          className="rounded-full bg-black/40 p-2 text-white/80 transition-colors hover:bg-black/60 hover:text-white"
+          onClick={(event) => {
+            event.stopPropagation();
+            updateScale(scale + 0.5);
+          }}
+          aria-label="이미지 확대"
+        >
+          <ZoomIn className="h-5 w-5" />
+        </button>
+        {scale > 1 && (
+          <button
+            type="button"
+            className="rounded-full bg-black/40 p-2 text-white/80 transition-colors hover:bg-black/60 hover:text-white"
+            onClick={(event) => {
+              event.stopPropagation();
+              resetZoom();
+            }}
+            aria-label="확대 초기화"
+          >
+            <RotateCcw className="h-5 w-5" />
+          </button>
+        )}
+      </div>
       {onPrevious && (
         <button
           className="absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-black/40 hover:bg-black/60 rounded-full p-3 transition-colors"
@@ -77,12 +143,57 @@ export function Lightbox({
           <ChevronRight className="w-7 h-7" />
         </button>
       )}
-      <img
-        src={imageUrl}
-        alt={alt}
-        className="max-w-full max-h-[86vh] object-contain rounded-lg shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      />
+      <div
+        className="flex max-h-[86vh] max-w-full touch-none items-center justify-center overflow-hidden"
+        onClick={(event) => event.stopPropagation()}
+        onTouchStart={(event) => {
+          if (event.touches.length === 2) {
+            pinchStartDistanceRef.current = getTouchDistance(event.touches[0], event.touches[1]);
+            pinchStartScaleRef.current = scale;
+            panStartRef.current = null;
+            return;
+          }
+
+          if (event.touches.length === 1 && scale > 1) {
+            const touch = event.touches[0];
+            panStartRef.current = {
+              x: touch.clientX,
+              y: touch.clientY,
+              offsetX: position.x,
+              offsetY: position.y,
+            };
+          }
+        }}
+        onTouchMove={(event) => {
+          if (event.touches.length === 2 && pinchStartDistanceRef.current) {
+            event.preventDefault();
+            const nextDistance = getTouchDistance(event.touches[0], event.touches[1]);
+            updateScale(pinchStartScaleRef.current * (nextDistance / pinchStartDistanceRef.current));
+            return;
+          }
+
+          if (event.touches.length === 1 && panStartRef.current && scale > 1) {
+            event.preventDefault();
+            const touch = event.touches[0];
+            setPosition({
+              x: panStartRef.current.offsetX + touch.clientX - panStartRef.current.x,
+              y: panStartRef.current.offsetY + touch.clientY - panStartRef.current.y,
+            });
+          }
+        }}
+        onTouchEnd={() => {
+          pinchStartDistanceRef.current = null;
+          panStartRef.current = null;
+        }}
+      >
+        <img
+          src={imageUrl}
+          alt={alt}
+          className="max-h-[86vh] max-w-full select-none rounded-lg object-contain shadow-2xl transition-transform duration-150"
+          style={{ transform: `translate(${position.x}px, ${position.y}px) scale(${scale})` }}
+          draggable={false}
+        />
+      </div>
       <div className="absolute bottom-4 left-4 right-4 text-center text-white">
         {caption && (
           <p className="mx-auto max-w-3xl text-sm sm:text-base font-medium drop-shadow">
@@ -90,7 +201,7 @@ export function Lightbox({
           </p>
         )}
         <p className="mt-1 text-white/70 text-xs">
-          {currentLabel ? `${currentLabel} · ` : ""}ESC 키 또는 배경 클릭으로 닫기
+          {currentLabel ? `${currentLabel} · ` : ""}두 손가락으로 확대하고, 확대 후 한 손가락으로 이동할 수 있습니다.
         </p>
       </div>
     </div>
