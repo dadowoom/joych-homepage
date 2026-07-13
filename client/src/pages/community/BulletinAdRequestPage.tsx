@@ -31,6 +31,12 @@ import {
   SupportBoardIntro,
 } from "./_shared";
 
+function getProcessingStatusLabel(status: string) {
+  if (status === "new") return "신규";
+  if (status === "completed") return "처리완료";
+  return "보류";
+}
+
 export default function BulletinAdRequestPage() {
   const utils = trpc.useUtils();
   const { user } = useAuth();
@@ -400,7 +406,7 @@ export default function BulletinAdRequestPage() {
                               <div className="mb-3 text-xs text-gray-400">
                                 게재 희망일 {request.requestedDate || "-"}
                                 <span className="mx-2 text-gray-300">|</span>
-                                처리상태 {request.status === "completed" ? "처리완료" : "접수"}
+                                처리상태 {getProcessingStatusLabel(request.status)}
                               </div>
                               <div className="whitespace-pre-line border-l-2 border-[#1B5E20]/30 pl-4 text-sm leading-7 text-gray-700">
                                 {request.content}

@@ -106,6 +106,19 @@ const requestStatusLabels: Record<string, string> = {
   archived: "보관",
 };
 
+// 신청 게시판은 운영자가 같은 세 단계로 처리합니다. 예전 상태값은 보류로
+// 보여 주되, 기존 접수 데이터는 그대로 보존합니다.
+const processingStatusLabels: Record<string, string> = {
+  new: "신규",
+  completed: "처리완료",
+  archived: "보류",
+};
+
+function normalizeProcessingStatus(status: string) {
+  if (status === "new" || status === "completed") return status;
+  return "archived";
+}
+
 const visitorTypeLabels: Record<string, string> = {
   church: "교회",
   institution: "기관 / 단체",
@@ -178,8 +191,9 @@ function formatValue(value: string | number | null | undefined) {
   return String(value);
 }
 
-function statusBadgeClass(status: string) {
+function statusBadgeClass(status: string, label?: string) {
   if (status === "new") return "bg-[#E8F5E9] text-[#1B5E20]";
+  if (label === "보류") return "bg-amber-50 text-amber-700";
   if (status === "archived") return "bg-gray-100 text-gray-500";
   if (status === "completed" || status === "scheduled") return "bg-blue-50 text-blue-700";
   return "bg-amber-50 text-amber-700";
@@ -390,8 +404,8 @@ export default function AdminSupportRequestsTab({
       title: request.title,
       requester: request.authorName,
       createdAt: request.createdAt,
-      status: request.status,
-      statusLabels: requestStatusLabels,
+      status: normalizeProcessingStatus(request.status),
+      statusLabels: processingStatusLabels,
       contentLabel: "신청 내용",
       content: request.content,
       detailRows: [
@@ -419,8 +433,8 @@ export default function AdminSupportRequestsTab({
       title: request.title,
       requester: request.authorName,
       createdAt: request.createdAt,
-      status: request.status,
-      statusLabels: requestStatusLabels,
+      status: normalizeProcessingStatus(request.status),
+      statusLabels: processingStatusLabels,
       contentLabel: "신청 내용",
       content: request.content,
       detailRows: [
@@ -448,8 +462,8 @@ export default function AdminSupportRequestsTab({
       title: request.organizationName,
       requester: request.applicantName,
       createdAt: request.createdAt,
-      status: request.status,
-      statusLabels: visitStatusLabels,
+      status: normalizeProcessingStatus(request.status),
+      statusLabels: processingStatusLabels,
       contentLabel: "요청사항",
       content: request.message || request.purpose,
       detailRows: [
@@ -837,7 +851,7 @@ export default function AdminSupportRequestsTab({
                           <td className="px-3 py-3 text-center text-gray-600">{item.requester}</td>
                           <td className="px-3 py-3 text-center text-gray-500">{formatShortDate(item.createdAt)}</td>
                           <td className="px-3 py-3 text-center">
-                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadgeClass(item.status)}`}>
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadgeClass(item.status, item.statusLabels[item.status])}`}>
                               {item.statusLabels[item.status] ?? item.status}
                             </span>
                           </td>
@@ -865,7 +879,7 @@ export default function AdminSupportRequestsTab({
                       {selectedItem.requester} · {formatDate(selectedItem.createdAt)}
                     </p>
                   </div>
-                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadgeClass(selectedItem.status)}`}>
+                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadgeClass(selectedItem.status, selectedItem.statusLabels[selectedItem.status])}`}>
                     {selectedItem.statusLabels[selectedItem.status] ?? selectedItem.status}
                   </span>
                 </div>

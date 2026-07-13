@@ -43,10 +43,11 @@ const VISITOR_TYPE_LABELS: Record<string, string> = {
 };
 
 const VISIT_STATUS_LABELS: Record<string, string> = {
-  new: "접수",
-  contacted: "연락 완료",
-  scheduled: "일정 확정",
-  completed: "탐방 완료",
+  new: "신규",
+  contacted: "보류",
+  scheduled: "보류",
+  completed: "처리완료",
+  archived: "보류",
 };
 
 
