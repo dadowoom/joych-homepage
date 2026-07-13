@@ -266,9 +266,7 @@ export const missionReportsRouter = router({
       comment: optionalTextSchema(20000),
     }))
     .mutation(({ input, ctx }) => {
-      if (ctx.user.role !== "admin") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "선교보고 공개/숨김 처리는 관리자만 할 수 있습니다." });
-      }
+      // missionReportProcedure has already verified the mission-report management permission.
       return updateMissionReportStatus(input.id, input.status, ctx.user.id, input.comment);
     }),
 

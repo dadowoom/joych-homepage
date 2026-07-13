@@ -7,7 +7,7 @@
 import { useParams, Link, useLocation } from "wouter";
 import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { canManageBoardContent, canManageFullAdmin } from "@/lib/contentPermissions";
+import { canManageBoardContent } from "@/lib/contentPermissions";
 import { trpc } from "@/lib/trpc";
 import { CONTINENT_LABELS } from "@/lib/missionData";
 import { toast } from "sonner";
@@ -30,7 +30,6 @@ export default function MissionDetail() {
   const reportId = Number(id);
   const { user } = useAuth();
   const canManage = canManageBoardContent(user, "content:missionReports");
-  const isFullAdmin = canManageFullAdmin(user);
 
   const publicQuery = trpc.mission.report.useQuery(
     { id: reportId },
@@ -102,8 +101,7 @@ export default function MissionDetail() {
               >
                 삭제
               </button>
-              {isFullAdmin && (
-                <button
+              <button
                 type="button"
                 onClick={() =>
                   reviewReport.mutate(
@@ -126,6 +124,24 @@ export default function MissionDetail() {
               >
                 {report.status === "published" ? "숨김" : "공개"}
               </button>
+              {report.status !== "published" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!window.confirm(`\"${report.title}\" 선교보고를 반려 처리할까요?`)) return;
+                    reviewReport.mutate(
+                      { id: report.id, status: "rejected" },
+                      {
+                        onSuccess: async () => {
+                          await Promise.all([adminQuery.refetch(), publicQuery.refetch()]);
+                        },
+                      },
+                    );
+                  }}
+                  className="inline-flex items-center rounded-full border border-red-100 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                >
+                  반려
+                </button>
               )}
             </div>
           ) : (
