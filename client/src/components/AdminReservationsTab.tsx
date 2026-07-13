@@ -134,7 +134,7 @@ function getReservationPhone(reservation: AdminReservationRow) {
 }
 
 function getReservationDepartment(reservation: AdminReservationRow) {
-  return reservation.department || reservation.notes || "-";
+  return reservation.department || "-";
 }
 
 function formatReservationTimeRange(reservation: Pick<AdminReservationRow, "startTime" | "endTime">) {
@@ -747,10 +747,10 @@ export default function AdminReservationsTab() {
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="break-keep text-sm font-medium leading-5 text-gray-800">
-                        {r.facilityName ?? "시설"} — {r.reserverName}
+                        {r.facilityName ?? "시설"} — {getReservationDepartment(r)}
                       </p>
                       <p className="mt-0.5 break-keep text-xs text-gray-500">
-                        {dateSummary} · {r.startTime}~{r.endTime} · {getReservationPosition(r)}
+                        {dateSummary} · {r.startTime}~{r.endTime} · {getReservationName(r)} ({getReservationPosition(r)})
                       </p>
                     </div>
                     <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap sm:shrink-0">
@@ -917,14 +917,14 @@ export default function AdminReservationsTab() {
                   {/* 상세 정보 펼치기 */}
                   {isExpanded && (
                     <div className="px-4 pb-4 bg-gray-50 border-t border-gray-100 text-sm">
-                      <div className="grid grid-cols-2 gap-x-6 gap-y-2 mt-3">
+                      <div className="grid gap-x-6 gap-y-3 mt-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <div><span className="text-gray-500 text-xs">신청자</span><p className="font-medium">{getReservationName(r)} <span className="text-gray-500">({getReservationPosition(r)})</span></p></div>
                         <div><span className="text-gray-500 text-xs">연락처</span><p className="font-medium">{getReservationPhone(r)}</p></div>
-                        <div><span className="text-gray-500 text-xs">직분/구분</span><p className="font-medium">{getReservationPosition(r)}</p></div>
+                        <div><span className="text-gray-500 text-xs">사용 목적</span><p className="font-medium">{r.purpose || "-"}</p></div>
                         <div><span className="text-gray-500 text-xs">예상 인원</span><p className="font-medium">{r.attendees}명</p></div>
-                        <div><span className="text-gray-500 text-xs">사용 목적</span><p className="font-medium">{r.purpose}</p></div>
                         <div><span className="text-gray-500 text-xs">신청 일시</span><p className="font-medium">{formatCreatedAt(r)}</p></div>
                         {group.isRecurring && (
-                          <div className="col-span-2">
+                          <div className="sm:col-span-2 lg:col-span-3">
                             <span className="text-gray-500 text-xs">반복 예약</span>
                             <p className="font-medium text-blue-700">{r.recurrenceLabel ?? `${group.count}회 반복 예약`}</p>
                             <div className="mt-2 max-h-32 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-1 pr-1">
@@ -937,10 +937,10 @@ export default function AdminReservationsTab() {
                           </div>
                         )}
                         {r.notes && (
-                          <div className="col-span-2"><span className="text-gray-500 text-xs">추가 요청사항</span><p className="font-medium">{r.notes}</p></div>
+                          <div className="sm:col-span-2 lg:col-span-3"><span className="text-gray-500 text-xs">추가 요청사항</span><p className="font-medium whitespace-pre-wrap">{r.notes}</p></div>
                         )}
                         {r.adminComment && (
-                          <div className="col-span-2">
+                          <div className="sm:col-span-2 lg:col-span-3">
                             <span className="text-gray-500 text-xs">관리자 코멘트</span>
                             <p className={"font-medium " + (r.status === "rejected" ? "text-red-600" : "text-green-700")}>{r.adminComment}</p>
                           </div>
@@ -1059,7 +1059,7 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
   return (
-    <div>
+    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
       {/* 달력 헤더 */}
       <div className="flex items-center justify-between mb-4">
         <button onClick={prevMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
@@ -1098,10 +1098,14 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
           const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
           const dayReservations = reservationsByDate[dateKey] ?? [];
           const dayBlockedDates = blockedDatesByDate[dateKey] ?? [];
-          const pendingCount = dayReservations.filter(r => r.status === "pending").length;
-          const approvedReservations = dayReservations.filter(r => r.status === "approved");
-          const externalCount = approvedReservations.filter(r => isExternalReservation(r)).length;
-          const memberCount = approvedReservations.length - externalCount;
+          const activeReservations = dayReservations.filter((reservation) => reservation.status !== "cancelled" && reservation.status !== "rejected");
+          const groupCounts = Array.from(
+            activeReservations.reduce((map, reservation) => {
+              const label = getReservationPosition(reservation);
+              map.set(label, (map.get(label) ?? 0) + 1);
+              return map;
+            }, new Map<string, number>()),
+          );
           const fullBlockedCount = dayBlockedDates.filter((blockedDate) => !blockedDate.isPartialBlock).length;
           const partialBlockedCount = dayBlockedDates.length - fullBlockedCount;
           const isToday = getLocalDateKey() === dateKey;
@@ -1114,7 +1118,7 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
               key={day}
               type="button"
               onClick={() => setSelectedDate(dateKey)}
-              className={"group relative min-h-[74px] rounded-lg border p-1.5 text-left transition-colors " + (
+              className={"relative min-h-[78px] rounded-lg border p-1.5 text-left transition-colors " + (
                 isSelected
                   ? "border-[#1B5E20] bg-[#F1F8E9] ring-1 ring-[#1B5E20]"
                   : isToday
@@ -1125,19 +1129,14 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
               <p className={"text-xs font-medium mb-1 " + (isToday ? "text-[#1B5E20]" : isSun ? "text-red-500" : isSat ? "text-blue-500" : "text-gray-700")}>
                 {day}
               </p>
-              {pendingCount > 0 && (
-                <div className="text-[10px] bg-amber-100 text-amber-700 rounded px-1 py-0.5 mb-0.5 truncate">
-                  대기 {pendingCount}
+              {groupCounts.slice(0, 3).map(([label, count]) => (
+                <div key={label} className="mb-0.5 truncate rounded bg-green-50 px-1 py-0.5 text-[10px] text-green-700">
+                  {label} {count}
                 </div>
-              )}
-              {memberCount > 0 && (
-                <div className="text-[10px] bg-green-100 text-green-700 rounded px-1 py-0.5 mb-0.5 truncate">
-                  성도 {memberCount}건
-                </div>
-              )}
-              {externalCount > 0 && (
-                <div className="text-[10px] bg-orange-100 text-orange-700 rounded px-1 py-0.5 truncate">
-                  외부인 {externalCount}건
+              ))}
+              {groupCounts.length > 3 && (
+                <div className="mb-0.5 truncate rounded bg-gray-100 px-1 py-0.5 text-[10px] text-gray-500">
+                  +{groupCounts.length - 3}
                 </div>
               )}
               {fullBlockedCount > 0 && (
@@ -1150,47 +1149,14 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
                   부분차단 {partialBlockedCount}건
                 </div>
               )}
-              {(dayReservations.length > 0 || dayBlockedDates.length > 0) && (
-                <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-72 -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-3 text-left shadow-lg group-hover:block">
-                  <p className="mb-2 text-xs font-bold text-gray-800">{formatDate(dateKey)} 예약</p>
-                  <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
-                    {dayBlockedDates.map((blockedDate) => (
-                      <div key={`blocked-${blockedDate.id}`} className="rounded-md border border-red-100 bg-red-50 px-2 py-1.5">
-                        <p className="truncate text-xs font-semibold text-red-700">
-                          <span className="mr-1 inline-block rounded bg-red-100 px-1 py-0.5 text-[10px] font-medium text-red-700">불가</span>
-                          {formatBlockedTimeLabel(blockedDate)} · {blockedDate.facilityName ?? "시설"}
-                        </p>
-                        <p className="mt-0.5 truncate text-[11px] text-red-500">
-                          {blockedDate.reason?.trim() || "예약 불가 날짜"}{blockedDate.isPartialBlock ? " (부분 차단)" : ""}
-                        </p>
-                      </div>
-                    ))}
-                    {dayReservations.map(reservation => (
-                      <div key={reservation.id} className="rounded-md border border-gray-100 bg-gray-50 px-2 py-1.5">
-                        <p className="truncate text-xs font-semibold text-gray-800">
-                          {isExternalReservation(reservation) && (
-                            <span className="mr-1 inline-block rounded bg-orange-100 px-1 py-0.5 text-[10px] font-medium text-orange-700">외부</span>
-                          )}
-                          {formatReservationTimeRange(reservation)} · {getReservationName(reservation)}
-                        </p>
-                        <p className="mt-0.5 truncate text-[11px] text-gray-500">
-                          {reservation.facilityName ?? "시설"} · {getReservationPosition(reservation)} · {getReservationPhone(reservation)}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </button>
           );
         })}
       </div>
 
       {/* 범례 */}
-      <div className="flex gap-4 mt-4 text-xs text-gray-500">
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-100 border border-amber-200 inline-block"></span>대기</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-100 border border-green-300 inline-block"></span>성도</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-100 border border-orange-300 inline-block"></span>외부인</span>
+      <div className="flex flex-wrap gap-4 mt-4 text-xs text-gray-500">
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-50 border border-green-200 inline-block"></span>달력 칸은 직분/구분별 예약 수로 표시됩니다.</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 border border-red-300 inline-block"></span>예약불가</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-rose-50 border border-rose-200 inline-block"></span>부분차단</span>
       </div>
