@@ -196,6 +196,23 @@ function formatBlockedTimeLabel(blockedDate: Pick<CalendarBlockedDateRow, "isPar
   return `${blockedDate.blockStart ?? "--:--"}~${blockedDate.blockEnd ?? "--:--"}`;
 }
 
+function getBlockedDateCreatedAtKey(value: FacilityBlockedDate["createdAt"]) {
+  if (value instanceof Date) return value.toISOString().slice(0, 19);
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 19);
+}
+
+function getBlockedDateBatchKey(blockedDate: FacilityBlockedDate) {
+  return [
+    blockedDate.facilityId ?? "all",
+    blockedDate.reason?.trim() ?? "",
+    blockedDate.isPartialBlock ? "partial" : "full",
+    blockedDate.blockStart ?? "",
+    blockedDate.blockEnd ?? "",
+    getBlockedDateCreatedAtKey(blockedDate.createdAt),
+  ].join("|");
+}
+
 function getGroupStatus(items: AdminReservationRow[]): ReservationStatus {
   if (items.some(r => r.status === "pending")) return "pending";
   if (items.some(r => r.status === "checking")) return "checking";
@@ -399,6 +416,15 @@ export default function AdminReservationsTab() {
     onError: (error) => toast.error(error.message || "예약불가 일정 삭제에 실패했습니다."),
   });
 
+  const deleteBlockedDatesMutation = trpc.cms.facilities.blockedDates.deleteMany.useMutation({
+    onSuccess: (_, variables) => {
+      utils.cms.facilities.blockedDates.list.invalidate();
+      setEditingBlockedDateId(null);
+      toast.success(`${variables.ids.length}일 예약불가 일정 묶음을 삭제했습니다.`);
+    },
+    onError: (error) => toast.error(error.message || "예약불가 일정 묶음 삭제에 실패했습니다."),
+  });
+
   const facilityById = new Map((facilities ?? []).map(f => [f.id, f]));
   const searchFilteredBlockedDates = useMemo(() => {
     return (blockedDates as FacilityBlockedDate[])
@@ -412,6 +438,19 @@ export default function AdminReservationsTab() {
     reservationMatchesFacilitySearch(reservation, facilitySearch, facilityById)
   );
   const groupedReservations = buildReservationGroups(searchFilteredReservations);
+  const blockedDateBatchIdsById = useMemo(() => {
+    const grouped = new Map<string, number[]>();
+    (blockedDates as FacilityBlockedDate[]).forEach((blockedDate) => {
+      const key = getBlockedDateBatchKey(blockedDate);
+      const ids = grouped.get(key) ?? [];
+      ids.push(blockedDate.id);
+      grouped.set(key, ids);
+    });
+
+    const byId = new Map<number, number[]>();
+    grouped.forEach((ids) => ids.forEach((id) => byId.set(id, ids)));
+    return byId;
+  }, [blockedDates]);
 
   // 필터 적용
   const filtered = groupedReservations.filter(group =>
@@ -442,7 +481,8 @@ export default function AdminReservationsTab() {
     deleteMutation.isPending ||
     deleteGroupMutation.isPending ||
     updateBlockedDateMutation.isPending ||
-    deleteBlockedDateMutation.isPending;
+    deleteBlockedDateMutation.isPending ||
+    deleteBlockedDatesMutation.isPending;
 
   const startBlockedDateEdit = (blockedDate: CalendarBlockedDateRow) => {
     setEditingBlockedDateId(blockedDate.id);
@@ -465,7 +505,15 @@ export default function AdminReservationsTab() {
   };
 
   const removeBlockedDate = (blockedDate: CalendarBlockedDateRow) => {
-    if (!confirm("이 예약불가 일정을 삭제하시겠습니까?")) return;
+    const ids = blockedDateBatchIdsById.get(blockedDate.id) ?? [blockedDate.id];
+    const message = ids.length > 1
+      ? `같이 설정한 예약불가 일정 ${ids.length}일을 모두 삭제하시겠습니까?`
+      : "이 예약불가 일정을 삭제하시겠습니까?";
+    if (!confirm(message)) return;
+    if (ids.length > 1) {
+      deleteBlockedDatesMutation.mutate({ ids });
+      return;
+    }
     deleteBlockedDateMutation.mutate({ id: blockedDate.id });
   };
 
@@ -977,6 +1025,7 @@ export default function AdminReservationsTab() {
           onStartBlockedDateEdit={startBlockedDateEdit}
           onSaveBlockedDateEdit={saveBlockedDateEdit}
           onDeleteBlockedDate={removeBlockedDate}
+          getBlockedDateBatchSize={(blockedDate) => (blockedDateBatchIdsById.get(blockedDate.id) ?? [blockedDate.id]).length}
           onCancelReservation={cancelSingleReservation}
           onDeleteReservation={deleteSingleReservation}
         />
@@ -985,7 +1034,7 @@ export default function AdminReservationsTab() {
   );
 }
 
-function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, facilityFilter, facilitySearch, facilities, editingKey, timeEditForm, setEditingKey, setTimeEditForm, isMutating, editingBlockedDateId, blockedDateEditForm, setEditingBlockedDateId, setBlockedDateEditForm, onStartEditTime, onSaveTime, onStartBlockedDateEdit, onSaveBlockedDateEdit, onDeleteBlockedDate, onCancelReservation, onDeleteReservation }: {
+function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, facilityFilter, facilitySearch, facilities, editingKey, timeEditForm, setEditingKey, setTimeEditForm, isMutating, editingBlockedDateId, blockedDateEditForm, setEditingBlockedDateId, setBlockedDateEditForm, onStartEditTime, onSaveTime, onStartBlockedDateEdit, onSaveBlockedDateEdit, onDeleteBlockedDate, getBlockedDateBatchSize, onCancelReservation, onDeleteReservation }: {
   searchFilteredReservations: AdminReservationRow[];
   searchFilteredBlockedDates: CalendarBlockedDateRow[];
   facilityFilter: number | undefined;
@@ -1005,6 +1054,7 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
   onStartBlockedDateEdit: (blockedDate: CalendarBlockedDateRow) => void;
   onSaveBlockedDateEdit: (blockedDate: CalendarBlockedDateRow) => void;
   onDeleteBlockedDate: (blockedDate: CalendarBlockedDateRow) => void;
+  getBlockedDateBatchSize: (blockedDate: CalendarBlockedDateRow) => number;
   onCancelReservation: (reservation: AdminReservationRow) => void;
   onDeleteReservation: (reservation: AdminReservationRow) => void;
 }) {
@@ -1207,7 +1257,7 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
                             onClick={() => onDeleteBlockedDate(blockedDate)}
                             disabled={isMutating}
                           >
-                            삭제
+                            {getBlockedDateBatchSize(blockedDate) > 1 ? `일괄 삭제 (${getBlockedDateBatchSize(blockedDate)}일)` : "삭제"}
                           </Button>
                         </div>
                       </div>
