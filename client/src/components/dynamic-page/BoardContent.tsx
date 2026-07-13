@@ -334,10 +334,6 @@ function NoticeBoardContent({
     setViewMode(normalizeViewMode(defaultViewMode));
   }, [defaultViewMode]);
 
-  const { data: siteSettings } = trpc.home.settings.useQuery(undefined, {
-    enabled: !isAdminResource && !isCustomBoard,
-  });
-
   const getBlankForm = (): NoticeFormState => ({
     category: isAdminResource
       ? ADMIN_RESOURCE_CATEGORY
@@ -411,7 +407,7 @@ function NoticeBoardContent({
       ? "이 메뉴에 등록된 게시글만 표시됩니다."
       : "공지와 안내를 게시판 형태로 확인할 수 있습니다.";
   const boardDescription = !isAdminResource && !isCustomBoard
-    ? siteSettings?.[NOTICE_BOARD_DESCRIPTION_KEY]?.trim() || defaultBoardDescription
+    ? settings?.[NOTICE_BOARD_DESCRIPTION_KEY]?.trim() || defaultBoardDescription
     : defaultBoardDescription;
   const createButtonLabel = isAdminResource
     ? "행정자료 작성"
@@ -657,10 +653,15 @@ function NoticeBoardContent({
       formState.category,
       options[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL
     );
-    if (current && !options.includes(current)) options.unshift(current);
+    // 새 글에는 분류 관리에 남아 있는 항목만 보이고, 기존 글 수정 때만
+    // 삭제된 과거 분류를 보존해 수정할 수 있게 합니다.
+    if (formMode === "edit" && current && !options.includes(current)) {
+      options.unshift(current);
+    }
     return options;
   }, [
     formState.category,
+    formMode,
     isAdminResource,
     isCustomBoard,
     writeNoticeCategories,
@@ -742,7 +743,12 @@ function NoticeBoardContent({
     setFormMode("create");
     setEditingNoticeId(null);
     setExpandedId(null);
-    setFormState(getBlankForm());
+    const blankForm = getBlankForm();
+    if (!isAdminResource && !isCustomBoard) {
+      blankForm.category =
+        writeNoticeCategories[0] ?? DEFAULT_NOTICE_CATEGORY_LABEL;
+    }
+    setFormState(blankForm);
   };
 
   const openEditForm = (notice: NonNullable<typeof notices>[number]) => {
@@ -997,6 +1003,24 @@ function NoticeBoardContent({
     );
   };
 
+  const moveNoticeCategory = (label: string, direction: -1 | 1) => {
+    const currentIndex = noticeCategorySettings.findIndex(
+      category => category.label === label
+    );
+    const targetIndex = currentIndex + direction;
+    // '전체'는 항상 맨 앞에 유지합니다.
+    if (currentIndex <= 0 || targetIndex <= 0 || targetIndex >= noticeCategorySettings.length) {
+      return;
+    }
+
+    const nextCategories = [...noticeCategorySettings];
+    [nextCategories[currentIndex], nextCategories[targetIndex]] = [
+      nextCategories[targetIndex],
+      nextCategories[currentIndex],
+    ];
+    saveNoticeCategories(nextCategories);
+  };
+
   const renderCategoryManager = () => {
     if (!canManageNotices || isAdminResource || isCustomBoard) return null;
 
@@ -1022,7 +1046,7 @@ function NoticeBoardContent({
         {categoryManagerOpen && (
           <div className="mt-4 space-y-3">
             <div className="flex flex-wrap gap-2">
-              {noticeCategorySettings.map(category => (
+              {noticeCategorySettings.map((category, index) => (
                 <div
                   key={category.label}
                   className="flex items-center gap-2 border border-gray-200 bg-white px-3 py-2 text-sm"
@@ -1045,6 +1069,28 @@ function NoticeBoardContent({
                   >
                     {category.label}
                   </span>
+                  {category.label !== NOTICE_ALL_CATEGORY_LABEL && (
+                    <span className="flex items-center gap-1 border-l border-gray-100 pl-2">
+                      <button
+                        type="button"
+                        onClick={() => moveNoticeCategory(category.label, -1)}
+                        disabled={index <= 1 || updateCategoriesMutation.isPending}
+                        className="text-xs text-gray-500 hover:text-[#1B5E20] disabled:cursor-not-allowed disabled:text-gray-300"
+                        aria-label={`${category.label} 위로 이동`}
+                      >
+                        위
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveNoticeCategory(category.label, 1)}
+                        disabled={index >= noticeCategorySettings.length - 1 || updateCategoriesMutation.isPending}
+                        className="text-xs text-gray-500 hover:text-[#1B5E20] disabled:cursor-not-allowed disabled:text-gray-300"
+                        aria-label={`${category.label} 아래로 이동`}
+                      >
+                        아래
+                      </button>
+                    </span>
+                  )}
                   <button
                     type="button"
                     onClick={() => deleteNoticeCategory(category.label)}
