@@ -1,8 +1,14 @@
-import type { ReactNode } from "react";
-import { ArrowLeft, ChevronRight, Phone } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { ArrowLeft, Check, ChevronRight, Pencil, Phone } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
 import { getSupportSideMenuItems } from "@/lib/supportSideMenu";
+import {
+  SUPPORT_BOARD_INTRO_DEFAULTS,
+  SUPPORT_BOARD_INTRO_SETTING_KEYS,
+  type SupportBoardIntroKind,
+} from "@shared/supportBoardIntro";
+import { toast } from "sonner";
 
 export function notifyOfficeContact(serviceName: string) {
   window.alert(`${serviceName} 온라인 접수 기능은 준비 중입니다. 교회 행정실(054-270-1000)로 문의해 주세요.`);
@@ -88,6 +94,87 @@ export function getEmptyVisitForm() {
     message: "",
     agreePrivacy: false,
   };
+}
+
+export function SupportBoardIntro({
+  kind,
+  canManage,
+}: {
+  kind: SupportBoardIntroKind;
+  canManage: boolean;
+}) {
+  const utils = trpc.useUtils();
+  const { data: settings } = trpc.home.settings.useQuery();
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const description = settings?.[SUPPORT_BOARD_INTRO_SETTING_KEYS[kind]]?.trim()
+    || SUPPORT_BOARD_INTRO_DEFAULTS[kind];
+  const updateIntro = trpc.cms.supportRequests.updateBoardIntro.useMutation({
+    onSuccess: async () => {
+      await utils.home.settings.invalidate();
+      setIsEditing(false);
+      toast.success("신청 게시판 안내 문구가 저장됐습니다.");
+    },
+    onError: (error) => toast.error(error.message || "안내 문구 저장에 실패했습니다."),
+  });
+
+  return (
+    <div className="mt-1">
+      <p className="text-xs leading-5 text-gray-400">
+        {description}
+        {canManage && !isEditing && (
+          <button
+            type="button"
+            onClick={() => {
+              setDraft(description);
+              setIsEditing(true);
+            }}
+            className="ml-2 inline-flex items-center gap-1 font-medium text-[#1B5E20] hover:underline"
+          >
+            <Pencil className="h-3 w-3" />
+            안내 수정
+          </button>
+        )}
+      </p>
+      {canManage && isEditing && (
+        <form
+          className="mt-3 max-w-2xl border border-emerald-100 bg-emerald-50/60 p-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            updateIntro.mutate({ kind, description: draft });
+          }}
+        >
+          <label className="block text-xs font-semibold text-gray-700">
+            상단 안내 문구
+            <textarea
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              maxLength={500}
+              rows={3}
+              className="mt-2 w-full resize-y border border-gray-300 bg-white px-3 py-2 text-sm leading-5 outline-none focus:border-[#1B5E20]"
+            />
+          </label>
+          <div className="mt-2 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setIsEditing(false)}
+              className="h-8 border border-gray-300 bg-white px-3 text-xs text-gray-600 hover:bg-gray-50"
+            >
+              취소
+            </button>
+            <button
+              type="submit"
+              disabled={updateIntro.isPending}
+              className="inline-flex h-8 items-center gap-1 bg-[#1B5E20] px-3 text-xs font-medium text-white hover:bg-[#2E7D32] disabled:opacity-50"
+            >
+              <Check className="h-3.5 w-3.5" />
+              {updateIntro.isPending ? "저장 중" : "저장"}
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
 }
 
 export function getTodayKstDateKey() {

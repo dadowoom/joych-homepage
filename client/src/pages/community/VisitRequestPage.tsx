@@ -28,6 +28,7 @@ import {
   fileToBase64,
   getEmptyVisitForm,
   getTodayKstDateKey,
+  SupportBoardIntro,
 } from "./_shared";
 
 export default function VisitRequestPage() {
@@ -152,9 +153,7 @@ function VisitRequestBoardPage() {
                 총 <span className="font-semibold text-[#1B5E20]">{requests.length}</span>개의 신청
                 {searchKeyword && <span className="ml-2 text-gray-400">검색 결과 {filteredRequests.length}개</span>}
               </p>
-              <p className="mt-1 text-xs text-gray-400">
-                교회 방문, 기관 탐방, 사역 운영 사례 견학 요청을 접수합니다. 연락처와 이메일은 관리자만 확인합니다.
-              </p>
+              <SupportBoardIntro kind="visits" canManage={canManageVisits} />
             </div>
             <button
               type="button"

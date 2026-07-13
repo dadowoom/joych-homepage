@@ -28,6 +28,7 @@ import {
   fileToBase64,
   getEmptyVisitForm,
   getTodayKstDateKey,
+  SupportBoardIntro,
 } from "./_shared";
 
 export default function SubtitleRequestPage() {
@@ -168,9 +169,7 @@ export default function SubtitleRequestPage() {
                   <span className="ml-2 text-gray-400">검색 결과 {filteredRequests.length}개</span>
                 )}
               </p>
-              <p className="mt-1 text-xs text-gray-400">
-                예배 자막, 광고, 찬양 가사 요청을 접수합니다. 첨부파일은 관리자만 확인합니다.
-              </p>
+              <SupportBoardIntro kind="subtitles" canManage={canManageSubtitles} />
             </div>
             <button
               type="button"

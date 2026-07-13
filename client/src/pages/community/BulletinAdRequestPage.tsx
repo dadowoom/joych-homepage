@@ -28,6 +28,7 @@ import {
   fileToBase64,
   getEmptyVisitForm,
   getTodayKstDateKey,
+  SupportBoardIntro,
 } from "./_shared";
 
 export default function BulletinAdRequestPage() {
@@ -161,9 +162,7 @@ export default function BulletinAdRequestPage() {
                   <span className="ml-2 text-gray-400">검색 결과 {filteredRequests.length}개</span>
                 )}
               </p>
-              <p className="mt-1 text-xs text-gray-400">
-                주보에 실릴 광고, 부서 안내, 행사 안내 요청을 접수합니다. 연락처와 첨부파일은 관리자만 확인합니다.
-              </p>
+              <SupportBoardIntro kind="bulletinAds" canManage={canManageBulletinAds} />
             </div>
             <button
               type="button"
