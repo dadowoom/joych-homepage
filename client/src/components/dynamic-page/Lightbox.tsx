@@ -75,7 +75,7 @@ export function Lightbox({
       onClick={onClose}
     >
       <button
-        className="absolute top-4 right-4 text-white/80 hover:text-white bg-black/40 hover:bg-black/60 rounded-full p-2 transition-colors"
+        className="absolute right-4 top-4 z-10 rounded-full bg-black/40 p-2 text-white/80 transition-colors hover:bg-black/60 hover:text-white"
         onClick={onClose}
         aria-label="닫기"
       >
@@ -121,7 +121,7 @@ export function Lightbox({
       </div>
       {onPrevious && (
         <button
-          className="absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-black/40 hover:bg-black/60 rounded-full p-3 transition-colors"
+          className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/40 p-3 text-white/80 transition-colors hover:bg-black/60 hover:text-white"
           onClick={(e) => {
             e.stopPropagation();
             onPrevious();
@@ -133,7 +133,7 @@ export function Lightbox({
       )}
       {onNext && (
         <button
-          className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-black/40 hover:bg-black/60 rounded-full p-3 transition-colors"
+          className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/40 p-3 text-white/80 transition-colors hover:bg-black/60 hover:text-white"
           onClick={(e) => {
             e.stopPropagation();
             onNext();
@@ -144,7 +144,7 @@ export function Lightbox({
         </button>
       )}
       <div
-        className="flex max-h-[86vh] max-w-full touch-none items-center justify-center overflow-hidden"
+        className="absolute inset-0 z-0 flex touch-none items-center justify-center overflow-hidden"
         onClick={(event) => event.stopPropagation()}
         onTouchStart={(event) => {
           if (event.touches.length === 2) {
@@ -189,12 +189,12 @@ export function Lightbox({
         <img
           src={imageUrl}
           alt={alt}
-          className="max-h-[86vh] max-w-full select-none rounded-lg object-contain shadow-2xl transition-transform duration-150"
+          className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] select-none rounded-lg object-contain shadow-2xl transition-transform duration-150"
           style={{ transform: `translate(${position.x}px, ${position.y}px) scale(${scale})` }}
           draggable={false}
         />
       </div>
-      <div className="absolute bottom-4 left-4 right-4 text-center text-white">
+      <div className="absolute bottom-4 left-4 right-4 z-10 text-center text-white">
         {caption && (
           <p className="mx-auto max-w-3xl text-sm sm:text-base font-medium drop-shadow">
             {caption}
