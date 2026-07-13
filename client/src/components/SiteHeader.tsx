@@ -115,6 +115,59 @@ function getThirdLevelHref(item: {
   return getSpecialMenuHref(item.label, item.href) ?? getUsableHref(item.href);
 }
 
+type HeaderSubMenuItem = {
+  id: number;
+  label: string;
+  href?: string | null;
+};
+
+type HeaderSecondLevelItem = HeaderSubMenuItem & {
+  subItems?: HeaderSubMenuItem[];
+};
+
+type HeaderTopMenu = {
+  id: number;
+  label: string;
+  href?: string | null;
+  items?: HeaderSecondLevelItem[];
+};
+
+function normalizeComparablePath(href?: string | null) {
+  const usableHref = getUsableHref(href);
+  if (!usableHref || isExternalSiteHref(usableHref)) return "";
+  const path = usableHref.split(/[?#]/)[0];
+  return normalizeMenuHref(path).replace(/\/+$/, "");
+}
+
+function isCurrentMenuPath(href: string | null | undefined, location: string) {
+  const targetPath = normalizeComparablePath(href);
+  const currentPath = normalizeComparablePath(location);
+  return Boolean(targetPath) && targetPath === currentPath;
+}
+
+function getMobileMenuActiveState(menu: HeaderTopMenu, location: string) {
+  const items = menu.items ?? [];
+  for (const item of items) {
+    const subItems = item.subItems ?? [];
+    const secondLevelHref = getSecondLevelHref(item, subItems.length > 0);
+    if (isCurrentMenuPath(secondLevelHref, location)) {
+      return { isActive: true, subMenuId: item.id };
+    }
+
+    const activeSubItem = subItems.find((subItem) =>
+      isCurrentMenuPath(getThirdLevelHref(subItem), location)
+    );
+    if (activeSubItem) {
+      return { isActive: true, subMenuId: item.id };
+    }
+  }
+
+  return {
+    isActive: isCurrentMenuPath(getUsableHref(menu.href), location),
+    subMenuId: null,
+  };
+}
+
 const fallbackMenus = toFallbackMenuTree();
 
 async function invalidateMemberSessionBoundQueries(
@@ -202,6 +255,22 @@ export default function SiteHeader() {
     setMobileOpen(false);
     setMobileSearchOpen(false);
   }, [location]);
+
+  useEffect(() => {
+    const activeMenu = (displayMenus as HeaderTopMenu[]).find((menu) =>
+      getMobileMenuActiveState(menu, location).isActive
+    );
+
+    if (!activeMenu) {
+      setMobileExpandedId(null);
+      setMobileExpandedSubId(null);
+      return;
+    }
+
+    const { subMenuId } = getMobileMenuActiveState(activeMenu, location);
+    setMobileExpandedId(activeMenu.id);
+    setMobileExpandedSubId(subMenuId);
+  }, [displayMenus, location]);
 
   useEffect(() => {
     if (location !== "/search") return;
@@ -613,6 +682,12 @@ export default function SiteHeader() {
             {displayMenus.map(menu => {
               const parentHref = getUsableHref(menu.href);
               const hasChildren = (menu.items ?? []).length > 0;
+              const menuActiveState = getMobileMenuActiveState(menu as HeaderTopMenu, location);
+              const menuClassName = `flex w-full items-center justify-between px-5 py-3 text-left text-sm font-medium transition-colors ${
+                menuActiveState.isActive
+                  ? "bg-[#F1F8E9] text-[#1B5E20]"
+                  : "text-gray-700 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
+              }`;
 
               return (
                 <div key={menu.id} className="border-b border-gray-100">
@@ -623,7 +698,7 @@ export default function SiteHeader() {
                         href={parentHref}
                         target="_blank"
                         rel="noreferrer noopener"
-                        className="flex w-full items-center justify-between px-5 py-3 text-left text-sm font-medium text-gray-700 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
+                        className={menuClassName}
                         onClick={() => setMobileOpen(false)}
                       >
                         <span>{translateSiteText(menu.label, language)}</span>
@@ -632,7 +707,7 @@ export default function SiteHeader() {
                     ) : (
                       <Link
                         href={parentHref}
-                        className="flex w-full items-center justify-between px-5 py-3 text-left text-sm font-medium text-gray-700 hover:bg-[#F1F8E9] hover:text-[#1B5E20]"
+                        className={menuClassName}
                         onClick={() => setMobileOpen(false)}
                       >
                         <span>{translateSiteText(menu.label, language)}</span>
@@ -641,7 +716,7 @@ export default function SiteHeader() {
                     )
                   ) : (
                     <button
-                      className="w-full flex items-center justify-between px-5 py-3 text-sm font-medium text-gray-700 hover:bg-[#F1F8E9] hover:text-[#1B5E20] text-left"
+                      className={menuClassName}
                       onClick={() => {
                         setMobileExpandedId(
                           mobileExpandedId === menu.id ? null : menu.id
@@ -680,13 +755,23 @@ export default function SiteHeader() {
                             item,
                             Boolean(hasSubItems)
                           );
+                          const itemIsActive =
+                            isCurrentMenuPath(secondLevelHref, location) ||
+                            subItems.some((subItem) =>
+                              isCurrentMenuPath(getThirdLevelHref(subItem), location)
+                            );
+                          const secondLevelClassName = `text-left text-sm transition-colors ${
+                            itemIsActive
+                              ? "bg-[#E8F5E9] font-semibold text-[#1B5E20]"
+                              : "text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                          }`;
                           return (
                             <div key={item.id}>
                               {hasSubItems ? (
                                 <div className="flex items-center">
                                   <button
                                     type="button"
-                                    className="w-full flex items-center justify-between flex-1 pl-8 pr-3 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9] text-left"
+                                    className={`w-full flex items-center justify-between flex-1 pl-8 pr-3 py-2.5 ${secondLevelClassName}`}
                                     onClick={() =>
                                       setMobileExpandedSubId(
                                         mobileExpandedSubId === item.id
@@ -709,7 +794,7 @@ export default function SiteHeader() {
                                         href={secondLevelHref}
                                         target="_blank"
                                         rel="noreferrer noopener"
-                                        className="px-3 py-2.5 text-gray-400 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                        className={`px-3 py-2.5 text-gray-400 hover:text-[#1B5E20] ${itemIsActive ? "bg-[#E8F5E9]" : "hover:bg-[#F1F8E9]"}`}
                                         onClick={() => setMobileOpen(false)}
                                         aria-label={`${translateSiteText(item.label, language)} 이동`}
                                       >
@@ -718,7 +803,7 @@ export default function SiteHeader() {
                                     ) : (
                                       <Link
                                         href={secondLevelHref}
-                                        className="px-3 py-2.5 text-gray-400 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                        className={`px-3 py-2.5 text-gray-400 hover:text-[#1B5E20] ${itemIsActive ? "bg-[#E8F5E9]" : "hover:bg-[#F1F8E9]"}`}
                                         onClick={() => setMobileOpen(false)}
                                         aria-label={`${translateSiteText(item.label, language)} 이동`}
                                       >
@@ -733,7 +818,7 @@ export default function SiteHeader() {
                                     href={secondLevelHref}
                                     target="_blank"
                                     rel="noreferrer noopener"
-                                    className="block pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                    className={`block pl-8 pr-5 py-2.5 ${secondLevelClassName}`}
                                     onClick={() => setMobileOpen(false)}
                                   >
                                     {translateSiteText(item.label, language)}
@@ -741,7 +826,7 @@ export default function SiteHeader() {
                                 ) : (
                                   <Link
                                     href={secondLevelHref}
-                                    className="block pl-8 pr-5 py-2.5 text-sm text-gray-600 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                    className={`block pl-8 pr-5 py-2.5 ${secondLevelClassName}`}
                                     onClick={() => setMobileOpen(false)}
                                   >
                                     {translateSiteText(item.label, language)}
@@ -759,6 +844,12 @@ export default function SiteHeader() {
                                     {subItems.map(sub => {
                                       const thirdLevelHref =
                                         getThirdLevelHref(sub);
+                                      const subItemIsActive = isCurrentMenuPath(thirdLevelHref, location);
+                                      const thirdLevelClassName = `block pl-12 pr-5 py-2 text-sm transition-colors ${
+                                        subItemIsActive
+                                          ? "bg-[#E8F5E9] font-semibold text-[#1B5E20]"
+                                          : "text-gray-500 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                      }`;
                                       return thirdLevelHref ? (
                                         isExternalSiteHref(thirdLevelHref) ? (
                                           <a
@@ -766,7 +857,7 @@ export default function SiteHeader() {
                                             href={thirdLevelHref}
                                             target="_blank"
                                             rel="noreferrer noopener"
-                                            className="block pl-12 pr-5 py-2 text-sm text-gray-500 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                            className={thirdLevelClassName}
                                             onClick={() => setMobileOpen(false)}
                                           >
                                             {translateSiteText(
@@ -778,7 +869,7 @@ export default function SiteHeader() {
                                           <Link
                                             key={sub.id}
                                             href={thirdLevelHref}
-                                            className="block pl-12 pr-5 py-2 text-sm text-gray-500 hover:text-[#1B5E20] hover:bg-[#F1F8E9]"
+                                            className={thirdLevelClassName}
                                             onClick={() => setMobileOpen(false)}
                                           >
                                             {translateSiteText(
