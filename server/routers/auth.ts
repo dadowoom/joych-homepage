@@ -101,9 +101,13 @@ export const authRouter = router({
           loginMethod: "password",
           lastSignedIn: new Date(),
         });
-        await db.setUserRole(ADMIN_OPEN_ID, "admin");
-        user = await db.getUserByOpenId(ADMIN_OPEN_ID);
       }
+
+      // 비밀번호 관리자 로그인에 사용하는 고정 계정은 항상 최고 관리자여야 한다.
+      // 기존 계정의 role 값이 user로 변경된 경우에도, 인증 성공 후 관리자 화면과
+      // 홈페이지 편집 도구가 일관되게 노출되도록 역할을 복구한다.
+      await db.setUserRole(ADMIN_OPEN_ID, "admin");
+      user = await db.getUserByOpenId(ADMIN_OPEN_ID);
 
       // ── 마지막 로그인 시간 갱신 ──────────────────────────────────────────
       await db.upsertUser({ openId: ADMIN_OPEN_ID, lastSignedIn: new Date() });
