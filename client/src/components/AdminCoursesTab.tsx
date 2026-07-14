@@ -1370,7 +1370,6 @@ export default function AdminCoursesTab() {
                       <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{formatDateRange(course)}</span>
                       {course.location && <span>{course.location}</span>}
                       {course.instructor && <span>{course.instructor}</span>}
-                      {course.pageHref && <span>{course.pageHref}</span>}
                       <span className="flex items-center gap-1"><Users className="w-3 h-3" />{course.capacity > 0 ? `${course.activeCount}/${course.capacity}명` : `${course.activeCount}명`}</span>
                       {linkedFacility && <span className="text-[#1B5E20]">시설예약: {linkedFacility.name}</span>}
                       {course.facilityReservationId && <span className="text-blue-600">예약 연결됨</span>}
