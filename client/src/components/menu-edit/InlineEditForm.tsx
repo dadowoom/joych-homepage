@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
@@ -8,8 +8,6 @@ import {
   type DefaultViewMode,
   type PageType,
   PAGE_TYPE_OPTIONS,
-  INTERNAL_PAGES,
-  detectLinkType,
 } from "./types.tsx";
 
 function getDefaultViewModeForPageType(pageType?: PageType): DefaultViewMode {
@@ -56,24 +54,9 @@ export function InlineEditForm({
   onCancel: () => void;
 }) {
   const utils = trpc.useUtils();
+  const urlInputId = useId();
   const [label, setLabel] = useState(initialLabel);
-  const [linkType, setLinkType] = useState<"internal" | "external" | "custom">(
-    () => detectLinkType(initialHref)
-  );
-  const [internalPath, setInternalPath] = useState(() => {
-    const allPaths = INTERNAL_PAGES.flatMap((group) => group.pages.map((page) => page.path));
-    return allPaths.includes(initialHref) ? initialHref : "";
-  });
-  const [externalUrl, setExternalUrl] = useState(() =>
-    initialHref.startsWith("http://") || initialHref.startsWith("https://")
-      ? initialHref
-      : "https://"
-  );
-  const [customHref, setCustomHref] = useState(() => {
-    const allPaths = INTERNAL_PAGES.flatMap((group) => group.pages.map((page) => page.path));
-    if (allPaths.includes(initialHref) || initialHref.startsWith("http")) return initialHref;
-    return initialHref;
-  });
+  const [href, setHref] = useState(initialHref);
   const [pageType, setPageType] = useState<PageType>(initialPageType ?? "image");
   const [pageImageUrl, setPageImageUrl] = useState<string | null>(initialPageImageUrl ?? null);
   const [defaultViewMode, setDefaultViewMode] = useState<DefaultViewMode>(
@@ -93,13 +76,6 @@ export function InlineEditForm({
       utils.home.gallery.invalidate();
     },
   });
-
-  const href =
-    linkType === "internal"
-      ? internalPath
-      : linkType === "external"
-        ? externalUrl
-        : customHref;
 
   const handlePageImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -174,65 +150,20 @@ export function InlineEditForm({
         autoFocus
       />
 
-      <div className="border border-gray-200 rounded-lg overflow-hidden">
-        <div className="flex border-b border-gray-200 bg-gray-50">
-          {(["internal", "external", "custom"] as const).map((type) => (
-            <button
-              key={type}
-              type="button"
-              onClick={() => setLinkType(type)}
-              className={`flex-1 text-[10px] py-1 font-medium transition-colors ${
-                linkType === type
-                  ? "bg-white text-green-700 border-b-2 border-green-600"
-                  : "text-gray-400 hover:text-gray-600"
-              }`}
-            >
-              {type === "internal" ? "기존 페이지" : type === "external" ? "외부 URL" : "직접 입력"}
-            </button>
-          ))}
-        </div>
-        <div className="p-2">
-          {linkType === "internal" && (
-            <select
-              value={internalPath}
-              onChange={(e) => setInternalPath(e.target.value)}
-              className="w-full h-7 text-xs border border-gray-200 rounded px-1 bg-white"
-            >
-              <option value="">페이지 선택</option>
-              {INTERNAL_PAGES.map((group) => (
-                <optgroup key={group.group} label={group.group}>
-                  {group.pages.map((page) => (
-                    <option key={page.path} value={page.path}>
-                      {page.label}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          )}
-          {linkType === "external" && (
-            <div className="space-y-1">
-              <Input
-                value={externalUrl}
-                onChange={(e) => setExternalUrl(e.target.value)}
-                className="h-7 text-xs"
-                placeholder="https://example.com"
-              />
-              <p className="text-[9px] text-blue-500">새 창으로 열립니다.</p>
-            </div>
-          )}
-          {linkType === "custom" && (
-            <div className="space-y-1">
-              <Input
-                value={customHref}
-                onChange={(e) => setCustomHref(e.target.value)}
-                className="h-7 text-xs"
-                placeholder="/page/custom-path"
-              />
-              <p className="text-[9px] text-gray-400">예: /page/community-gallery</p>
-            </div>
-          )}
-        </div>
+      <div className="space-y-1 rounded-lg border border-gray-200 bg-white p-2">
+        <label htmlFor={urlInputId} className="block text-[10px] font-semibold text-gray-600">
+          URL 연결
+        </label>
+        <Input
+          id={urlInputId}
+          value={href}
+          onChange={(e) => setHref(e.target.value)}
+          className="h-7 text-xs"
+          placeholder="https://example.com 또는 /page/custom-path"
+        />
+        <p className="text-[9px] text-gray-400">
+          교회 내부 주소는 현재 창, 다른 사이트 URL은 새 창으로 열립니다.
+        </p>
       </div>
 
       {showPageType && (

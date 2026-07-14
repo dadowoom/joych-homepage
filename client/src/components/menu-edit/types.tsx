@@ -6,7 +6,6 @@
 
 import React from "react";
 import { BookOpen, Image, LayoutGrid, FileText, Youtube, Type } from "lucide-react";
-import { INTERNAL_PAGES, getInternalPagePaths } from "@shared/siteNavigation";
 
 // ─── 타입 정의 ────────────────────────────────────────────────────────────────
 
@@ -65,20 +64,3 @@ export const PAGE_TYPE_OPTIONS: {
   { value: "editor", label: "HTML 편집기", icon: <Type size={12} /> },
   { value: "course", label: "강좌 신청", icon: <BookOpen size={12} /> },
 ];
-
-// ─── 내부 페이지 경로 목록 ────────────────────────────────────────────────────
-
-export { INTERNAL_PAGES };
-
-// ─── 유틸리티 함수 ────────────────────────────────────────────────────────────
-
-export function detectLinkType(
-  href: string
-): "internal" | "external" | "custom" {
-  if (!href) return "internal";
-  if (href.startsWith("http://") || href.startsWith("https://"))
-    return "external";
-  const allPaths = getInternalPagePaths();
-  if (allPaths.includes(href)) return "internal";
-  return "custom";
-}
