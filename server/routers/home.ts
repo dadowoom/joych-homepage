@@ -312,6 +312,19 @@ function parseCourseApplicationFields(value: string | null | undefined) {
   }
 }
 
+function serializeCourseApplicationAnswers(
+  answers: Record<string, string>,
+  fields: ReturnType<typeof parseCourseApplicationFields>,
+) {
+  const labels = new Map(fields.map((field) => [field.id, field.label]));
+  return Object.fromEntries(
+    Object.entries(answers).map(([fieldId, answer]) => [
+      fieldId,
+      { label: labels.get(fieldId) || "추가 답변", value: answer },
+    ]),
+  );
+}
+
 const reservationRepeatSchema = z.object({
   type: z.enum(["none", "daily", "weekly", "monthly-weekday"]).default("none"),
   count: z.number().int().min(1).max(52).optional(),
@@ -692,7 +705,8 @@ export const homeRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "신청 기간이 마감되었습니다." });
       }
       const customAnswers = input.customAnswers ?? {};
-      const missingRequiredField = parseCourseApplicationFields(course.applicationFields).find((field) =>
+      const applicationFields = parseCourseApplicationFields(course.applicationFields);
+      const missingRequiredField = applicationFields.find((field) =>
         field.required && !String(customAnswers[field.id] ?? "").trim()
       );
       if (missingRequiredField) {
@@ -725,7 +739,8 @@ export const homeRouter = router({
           applicantPhone,
           applicantEmail,
           memo: input.memo || null,
-          customAnswers: JSON.stringify(customAnswers),
+          // Preserve the question shown at submission time so later field edits do not break past exports.
+          customAnswers: JSON.stringify(serializeCourseApplicationAnswers(customAnswers, applicationFields)),
         });
         if (!id) {
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "강좌 신청 저장에 실패했습니다." });

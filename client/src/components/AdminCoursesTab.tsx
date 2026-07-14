@@ -154,7 +154,15 @@ function parseCustomAnswers(value: string | null | undefined) {
   try {
     const parsed = JSON.parse(value);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return [];
-    return Object.entries(parsed).filter(([, answer]) => String(answer ?? "").trim());
+    return Object.entries(parsed)
+      .map(([fieldId, answer]) => {
+        if (answer && typeof answer === "object" && !Array.isArray(answer)) {
+          const snapshot = answer as { label?: unknown; value?: unknown };
+          return [fieldId, String(snapshot.value ?? ""), typeof snapshot.label === "string" ? snapshot.label : ""] as const;
+        }
+        return [fieldId, String(answer ?? ""), ""] as const;
+      })
+      .filter(([, answer]) => answer.trim());
   } catch {
     return [];
   }
@@ -162,9 +170,9 @@ function parseCustomAnswers(value: string | null | undefined) {
 
 function getCustomAnswerRows(value: string | null | undefined, fields: ApplicationField[]) {
   const labels = new Map(fields.map(field => [field.id, field.label]));
-  return parseCustomAnswers(value).map(([fieldId, answer]) => [
-    labels.get(fieldId) || "추가 답변",
-    String(answer),
+  return parseCustomAnswers(value).map(([fieldId, answer, savedLabel]) => [
+    savedLabel || labels.get(fieldId) || "추가 답변",
+    answer,
   ] as const);
 }
 

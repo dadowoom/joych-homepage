@@ -129,4 +129,48 @@ describe("course applications", () => {
 
     expect(dbMocks.createOrReopenCourseApplication).not.toHaveBeenCalled();
   });
+
+  it("preserves custom question labels with an application for future exports", async () => {
+    dbMocks.getVisibleCourseById.mockResolvedValue({
+      ...publicCourse,
+      applicationFields: JSON.stringify([{ id: "field-favorite", label: "좋아하는 과일", required: true }]),
+    });
+    const caller = appRouter.createCaller(createContext());
+
+    await caller.home.applyCourse({
+      courseId: 7,
+      applicantName: "Guest Applicant",
+      applicantPhone: "01012345678",
+      applicantEmail: "guest@example.com",
+      privacyAgreed: true,
+      customAnswers: { "field-favorite": "사과" },
+    });
+
+    expect(dbMocks.createOrReopenCourseApplication).toHaveBeenCalledWith(expect.objectContaining({
+      customAnswers: JSON.stringify({
+        "field-favorite": { label: "좋아하는 과일", value: "사과" },
+      }),
+    }));
+  });
+
+  it("rejects applications before the application window opens or after it closes", async () => {
+    const caller = appRouter.createCaller(createContext());
+    const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const [year, month, day] = today.split("-").map(Number);
+    const tomorrow = new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
+    const yesterday = new Date(Date.UTC(year, month - 1, day - 1)).toISOString().slice(0, 10);
+    const application = {
+      courseId: 7,
+      applicantName: "Guest Applicant",
+      applicantPhone: "01012345678",
+      applicantEmail: "guest@example.com",
+      privacyAgreed: true,
+    };
+
+    dbMocks.getVisibleCourseById.mockResolvedValue({ ...publicCourse, applyStartDate: tomorrow });
+    await expect(caller.home.applyCourse(application)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    dbMocks.getVisibleCourseById.mockResolvedValue({ ...publicCourse, applyEndDate: yesterday });
+    await expect(caller.home.applyCourse(application)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
 });
