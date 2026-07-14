@@ -18,6 +18,7 @@ import {
   Ban,
   BookOpen,
   Calendar,
+  CalendarCheck,
   CheckCircle2,
   ChevronRight,
   Clock,
@@ -183,7 +184,7 @@ export default function CourseList({ pageHref, title, embedded = false, showHero
     [allMenus, currentPageHref, title],
   );
   const { data: courses = [], isLoading } = trpc.home.courses.useQuery({ pageHref: currentPageHref });
-  const { data: myApplications = [], isLoading: loadingApplications } = trpc.home.myCourseApplications.useQuery(
+  const { data: myApplications = [] } = trpc.home.myCourseApplications.useQuery(
     undefined,
     { enabled: isAuthenticated },
   );
@@ -288,6 +289,14 @@ export default function CourseList({ pageHref, title, embedded = false, showHero
 
       <section className={embedded ? "py-2" : "py-10"}>
         <div className="container max-w-5xl mx-auto">
+          <div className="mb-5 flex justify-end">
+            <Link
+              href="/education/my-courses"
+              className="inline-flex items-center gap-2 rounded-lg border border-[#1B5E20] bg-white px-4 py-2.5 text-sm font-bold text-[#1B5E20] shadow-sm transition-colors hover:bg-green-50"
+            >
+              <CalendarCheck className="h-4 w-4" /> 내 강좌 현황
+            </Link>
+          </div>
           <CourseRoomManagerPanel pageHref={currentPageHref} roomLabel={title ?? "교육/강좌 신청"} />
 
           {embedded && title && (
@@ -296,43 +305,6 @@ export default function CourseList({ pageHref, title, embedded = false, showHero
               <p className="mt-1 text-sm text-gray-500">강좌를 확인하고 성도 계정으로 신청할 수 있습니다.</p>
             </div>
           )}
-          {isAuthenticated && !loadingApplications && myApplications.length > 0 && (
-            <div className="mb-6 bg-white border border-gray-100 rounded-xl p-5">
-              <div className="flex items-center justify-between gap-3 mb-3">
-                <div>
-                  <p className="font-bold text-gray-800">내 강좌 신청 현황</p>
-                  <p className="text-sm text-gray-500">{memberMe?.name}님의 신청 내역입니다.</p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                {myApplications.slice(0, 4).map(application => (
-                  <div key={application.id} className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{application.courseTitle}</p>
-                      <p className="text-xs text-gray-400">{application.courseStartDate ?? "일정 추후 안내"}</p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <ApplicationBadge application={application} />
-                      {application.status === "pending" && (
-                        <button
-                          onClick={() => {
-                            if (confirm("강좌 신청을 취소하시겠습니까?")) {
-                              cancelApplication.mutate({ id: application.id });
-                            }
-                          }}
-                          disabled={cancelApplication.isPending}
-                          className="text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-50"
-                        >
-                          취소
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {courses.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-100 py-20 text-center">
               <BookOpen className="w-14 h-14 text-gray-200 mx-auto mb-4" />

@@ -65,6 +65,7 @@ const MyVehicleReservations = lazy(() =>
   }))
 );
 const CourseList = lazy(() => import("./pages/CourseList"));
+const MyCourseApplications = lazy(() => import("./pages/MyCourseApplications"));
 const MissionList = lazy(() => import("./pages/MissionList"));
 const MissionDetail = lazy(() => import("./pages/MissionDetail"));
 const MissionReportEditor = lazy(() => import("./pages/MissionReportEditor"));
@@ -394,6 +395,7 @@ function Router() {
       <Route path="/education/new-member" component={NewMember} />
       <Route path="/education/disciple" component={DiscipleTraining} />
       <Route path="/education/bible" component={BibleStudy} />
+      <Route path="/education/my-courses" component={MyCourseApplications} />
       <Route path="/education/courses/:slug" component={CourseRoomPage} />
       <Route path="/education/courses"><MenuAccessGate href="/education/courses"><CourseList showHero={false} /></MenuAccessGate></Route>
       <Route path="/education/hesed" component={HesedAsiaPage} />
