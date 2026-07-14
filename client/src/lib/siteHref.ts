@@ -1,4 +1,6 @@
-const INTERNAL_HOSTS = new Set(["newjoych.co.kr", "www.newjoych.co.kr"]);
+import { isSiteHostname } from "@shared/siteHosts";
+
+const SITE_URL_BASE = "https://joych.org";
 
 function isHttpProtocol(protocol: string) {
   return protocol === "http:" || protocol === "https:";
@@ -13,8 +15,8 @@ export function normalizeSiteHref(href?: string | null) {
   }
 
   try {
-    const url = new URL(value, "https://newjoych.co.kr");
-    if (INTERNAL_HOSTS.has(url.hostname)) {
+    const url = new URL(value, SITE_URL_BASE);
+    if (isSiteHostname(url.hostname)) {
       return `${url.pathname}${url.search}${url.hash}`;
     }
     return value;
@@ -28,8 +30,8 @@ export function isExternalSiteHref(href?: string | null) {
   if (!value) return false;
 
   try {
-    const url = new URL(value, "https://newjoych.co.kr");
-    return isHttpProtocol(url.protocol) && !INTERNAL_HOSTS.has(url.hostname);
+    const url = new URL(value, SITE_URL_BASE);
+    return isHttpProtocol(url.protocol) && !isSiteHostname(url.hostname);
   } catch {
     return false;
   }
@@ -39,4 +41,3 @@ export function isInternalSiteHref(href?: string | null) {
   const normalized = normalizeSiteHref(href);
   return Boolean(normalized && normalized.startsWith("/") && !normalized.startsWith("//"));
 }
-

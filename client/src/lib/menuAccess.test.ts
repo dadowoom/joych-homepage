@@ -57,6 +57,21 @@ describe("menuAccess", () => {
     expect(subItemMatch?.node.label).toBe("간증");
   });
 
+  it("treats both production domains as internal menu hrefs", () => {
+    expect(
+      findMenuAccessMatchByHref(
+        sampleMenus,
+        "https://joych.org/worship/bulletin"
+      )?.node.label
+    ).toBe("주보");
+    expect(
+      findMenuAccessMatchByHref(
+        sampleMenus,
+        "https://www.newjoych.co.kr/worship/bulletin"
+      )?.node.label
+    ).toBe("주보");
+  });
+
   it("finds visible menu access matches by id", () => {
     const itemMatch = findMenuAccessMatchById(sampleMenus, "item", 10);
     const subItemMatch = findMenuAccessMatchById(sampleMenus, "subItem", 111);

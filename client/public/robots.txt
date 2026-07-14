@@ -5,4 +5,4 @@ Disallow: /admin_joych_2026
 Disallow: /member/
 Disallow: /facility/my-reservations
 
-Sitemap: https://newjoych.co.kr/sitemap.xml
+Sitemap: https://joych.org/sitemap.xml

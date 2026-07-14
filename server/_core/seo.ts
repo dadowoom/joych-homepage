@@ -4,12 +4,12 @@ import { isSafeHref } from "./contentValidation";
 
 type RequestWithCspNonce = Request & { cspNonce?: string };
 
-const DEFAULT_ORIGIN = "https://newjoych.co.kr";
+const DEFAULT_ORIGIN = "https://joych.org";
 const SITE_NAME = "기쁨의교회";
 const SITE_TITLE = "기쁨의교회 | The Joyful Church";
 const DEFAULT_DESCRIPTION =
   "경상북도 포항시 북구 삼흥로 411에 위치한 기쁨의교회 공식 홈페이지입니다.";
-const DEFAULT_IMAGE = "https://newjoych.co.kr/og-image-main1.jpg";
+const DEFAULT_IMAGE_PATH = "/og-image-main1.jpg";
 const SITE_KEYWORDS =
   "기쁨의교회, 포항기쁨의교회, 포항 교회, 삼흥로 411, The Joyful Church";
 const CHURCH_TELEPHONE = "054-270-1000";
@@ -556,7 +556,8 @@ function escapeXml(value: string) {
 }
 
 function buildStructuredData(canonicalUrl: string) {
-  const publicOrigin = getConfiguredOrigin() || DEFAULT_ORIGIN;
+  const publicOrigin = new URL(canonicalUrl).origin;
+  const defaultImage = buildUrl(DEFAULT_IMAGE_PATH, publicOrigin);
   const churchId = `${publicOrigin}/#church`;
   return JSON.stringify([
     {
@@ -566,7 +567,7 @@ function buildStructuredData(canonicalUrl: string) {
       name: SITE_NAME,
       alternateName: "The Joyful Church",
       url: publicOrigin,
-      image: DEFAULT_IMAGE,
+      image: defaultImage,
       telephone: CHURCH_TELEPHONE,
       description: DEFAULT_DESCRIPTION,
       address: {
@@ -633,6 +634,7 @@ export function injectSeoMeta(html: string, req: Request) {
   const seo = getSeoRoute(path);
   const origin = getPublicOrigin(req);
   const canonicalUrl = buildUrl(path, origin);
+  const defaultImage = buildUrl(DEFAULT_IMAGE_PATH, origin);
   const robots = isPrivatePath(path) ? "noindex, nofollow" : "index, follow";
 
   let output = html;
@@ -674,7 +676,7 @@ export function injectSeoMeta(html: string, req: Request) {
   output = upsertTag(
     output,
     /<meta\s+property="og:image"[^>]*>/i,
-    `<meta property="og:image" content="${DEFAULT_IMAGE}" />`
+    `<meta property="og:image" content="${escapeHtml(defaultImage)}" />`
   );
   output = upsertTag(
     output,
@@ -704,7 +706,7 @@ export function injectSeoMeta(html: string, req: Request) {
   output = upsertTag(
     output,
     /<meta\s+name="twitter:image"[^>]*>/i,
-    `<meta name="twitter:image" content="${DEFAULT_IMAGE}" />`
+    `<meta name="twitter:image" content="${escapeHtml(defaultImage)}" />`
   );
   output = upsertTag(
     output,

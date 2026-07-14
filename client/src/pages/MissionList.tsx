@@ -18,6 +18,7 @@ import {
   MISSION_REPORT_BOARD_DESCRIPTION_DEFAULT,
   MISSION_REPORT_BOARD_DESCRIPTION_SETTING_KEY,
 } from "@shared/boardIntroductions";
+import { isSiteHostname } from "@shared/siteHosts";
 
 // 날짜 포맷 헬퍼 (YYYY-MM-DD → YYYY년 MM월 DD일)
 function formatDate(dateStr: string): string {
@@ -41,7 +42,7 @@ function normalizeMenuHref(href: string | null | undefined) {
     if (!/^https?:\/\//i.test(decoded)) return decoded;
 
     const url = new URL(decoded);
-    if (url.hostname === "newjoych.co.kr" || url.hostname === "www.newjoych.co.kr") {
+    if (isSiteHostname(url.hostname)) {
       return `${url.pathname}${url.search}${url.hash}`;
     }
 

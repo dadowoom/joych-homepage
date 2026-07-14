@@ -1,3 +1,5 @@
+import { isSiteHostname } from "@shared/siteHosts";
+
 type MenuLeafNode = {
   id: number;
   label: string;
@@ -57,7 +59,7 @@ function normalizeSameOriginHref(path: string) {
 
   try {
     const url = new URL(trimmed);
-    if (url.hostname === "newjoych.co.kr" || url.hostname === "www.newjoych.co.kr") {
+    if (isSiteHostname(url.hostname)) {
       return `${url.pathname}${url.search}${url.hash}`;
     }
   } catch {

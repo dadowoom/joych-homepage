@@ -1,19 +1,15 @@
 import { Link } from "wouter";
+import { isSiteHostname } from "@shared/siteHosts";
 import { getUsableHref } from "./_helpers";
-
-const QUICK_MENU_INTERNAL_HOSTS = new Set([
-  "newjoych.co.kr",
-  "www.newjoych.co.kr",
-]);
 
 function normalizeQuickMenuHref(href: string) {
   if (!href.startsWith("http://") && !href.startsWith("https://")) return href;
 
   try {
     const url = new URL(href);
-    const currentHost =
-      typeof window !== "undefined" ? window.location.host : "";
-    if (url.host === currentHost || QUICK_MENU_INTERNAL_HOSTS.has(url.host)) {
+    const currentHostname =
+      typeof window !== "undefined" ? window.location.hostname : "";
+    if (url.hostname === currentHostname || isSiteHostname(url.hostname)) {
       return `${url.pathname}${url.search}${url.hash}` || "/";
     }
   } catch {

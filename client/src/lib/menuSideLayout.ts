@@ -1,4 +1,5 @@
 import { findMenuAccessMatchByHref, type MenuTreeForAccess } from "@/lib/menuAccess";
+import { isSiteHostname } from "@shared/siteHosts";
 
 type MenuSideSubItem = {
   id: number;
@@ -115,7 +116,7 @@ function normalizeSameOriginHref(path: string) {
 
   try {
     const url = new URL(trimmed);
-    if (url.hostname === "newjoych.co.kr" || url.hostname === "www.newjoych.co.kr") {
+    if (isSiteHostname(url.hostname)) {
       return `${url.pathname}${url.search}${url.hash}`;
     }
   } catch {

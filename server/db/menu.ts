@@ -13,6 +13,7 @@
  */
 
 import { eq, asc, and } from "drizzle-orm";
+import { SITE_HOSTNAMES, isSiteHostname } from "@shared/siteHosts";
 import { menus, menuItems, menuSubItems } from "../../drizzle/schema";
 import { getDb } from "./connection";
 
@@ -111,7 +112,7 @@ function normalizeSameOriginHref(href: string) {
   if (!/^https?:\/\//i.test(trimmed)) return trimmed;
   try {
     const url = new URL(trimmed);
-    if (url.hostname === "newjoych.co.kr" || url.hostname === "www.newjoych.co.kr") {
+    if (isSiteHostname(url.hostname)) {
       return `${url.pathname}${url.search}${url.hash}`;
     }
   } catch {
@@ -148,8 +149,7 @@ function getMenuHrefCandidates(href: string) {
   const decodedHref = normalizeSameOriginHref(decodeHrefCandidate(href.trim()));
   const candidates = [
     decodedHref,
-    `https://newjoych.co.kr${decodedHref}`,
-    `https://www.newjoych.co.kr${decodedHref}`,
+    ...SITE_HOSTNAMES.map(hostname => `https://${hostname}${decodedHref}`),
     ...(MENU_HREF_ALIASES[decodedHref] ?? []),
   ];
   for (const [canonicalHref, aliasHrefs] of Object.entries(MENU_HREF_ALIASES)) {

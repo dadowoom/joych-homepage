@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { and, desc, eq, inArray, like, or } from "drizzle-orm";
+import { isSiteHostname } from "@shared/siteHosts";
 import { publicProcedure, router } from "../_core/trpc";
 import { getDb } from "../db/connection";
 import { getVisibleMenus } from "../db/menu";
@@ -324,7 +325,7 @@ function normalizeSameOriginHref(href: string) {
   if (!/^https?:\/\//i.test(trimmed)) return trimmed;
   try {
     const url = new URL(trimmed);
-    if (url.hostname === "newjoych.co.kr" || url.hostname === "www.newjoych.co.kr") {
+    if (isSiteHostname(url.hostname)) {
       return `${url.pathname}${url.search}${url.hash}`;
     }
   } catch {

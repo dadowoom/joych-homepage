@@ -27,6 +27,17 @@ function mockRequest(path: string): Request {
   } as unknown as Request;
 }
 
+function withPublicUrlBase(value: string, callback: () => void) {
+  const previous = process.env.PUBLIC_URL_BASE;
+  process.env.PUBLIC_URL_BASE = value;
+  try {
+    callback();
+  } finally {
+    if (previous === undefined) delete process.env.PUBLIC_URL_BASE;
+    else process.env.PUBLIC_URL_BASE = previous;
+  }
+}
+
 describe("SEO meta injection", () => {
   it("주요 공개 페이지에 경로별 메타태그를 주입한다", () => {
     const html = injectSeoMeta(baseHtml, mockRequest("/about/directions"));
@@ -51,21 +62,44 @@ describe("SEO meta injection", () => {
   });
 
   it("www 공개 도메인은 대표 도메인으로 301 정리한다", () => {
-    const req = {
-      originalUrl: "/about/directions?from=www",
-      url: "/about/directions?from=www",
-      headers: { host: "www.newjoych.co.kr" },
-    } as unknown as Request;
-    const redirect = vi.fn();
-    const res = { redirect } as unknown as Response;
-    const next = vi.fn() as unknown as NextFunction;
+    withPublicUrlBase("https://newjoych.co.kr", () => {
+      const req = {
+        originalUrl: "/about/directions?from=www",
+        url: "/about/directions?from=www",
+        headers: { host: "www.newjoych.co.kr" },
+      } as unknown as Request;
+      const redirect = vi.fn();
+      const res = { redirect } as unknown as Response;
+      const next = vi.fn() as unknown as NextFunction;
 
-    canonicalHostRedirect(req, res, next);
+      canonicalHostRedirect(req, res, next);
 
-    expect(redirect).toHaveBeenCalledWith(
-      301,
-      "https://newjoych.co.kr/about/directions?from=www"
-    );
-    expect(next).not.toHaveBeenCalled();
+      expect(redirect).toHaveBeenCalledWith(
+        301,
+        "https://newjoych.co.kr/about/directions?from=www"
+      );
+      expect(next).not.toHaveBeenCalled();
+    });
+  });
+
+  it("joych.org 전환 시 www 주소를 대표 주소로 301 정리한다", () => {
+    withPublicUrlBase("https://joych.org", () => {
+      const req = {
+        originalUrl: "/worship/tv?from=www",
+        url: "/worship/tv?from=www",
+        headers: { host: "www.joych.org" },
+      } as unknown as Request;
+      const redirect = vi.fn();
+      const res = { redirect } as unknown as Response;
+      const next = vi.fn() as unknown as NextFunction;
+
+      canonicalHostRedirect(req, res, next);
+
+      expect(redirect).toHaveBeenCalledWith(
+        301,
+        "https://joych.org/worship/tv?from=www"
+      );
+      expect(next).not.toHaveBeenCalled();
+    });
   });
 });

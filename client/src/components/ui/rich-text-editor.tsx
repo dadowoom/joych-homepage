@@ -162,7 +162,7 @@ function isAllowedIframeSrc(src: string) {
   if (!src) return false;
 
   try {
-    const url = new URL(src, "https://newjoych.co.kr");
+    const url = new URL(src, "https://joych.org");
     const hostname = url.hostname.toLowerCase();
     const pathname = url.pathname.toLowerCase();
 
