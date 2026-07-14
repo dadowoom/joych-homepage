@@ -108,7 +108,7 @@ type VehicleReservationTimeEditForm = {
 };
 
 const VEHICLE_RESERVATION_GRID =
-  "minmax(120px, 0.9fr) minmax(130px, 0.95fr) minmax(110px, 0.85fr) minmax(185px, 1.25fr) 100px 132px";
+  "minmax(92px, 0.8fr) minmax(105px, 0.9fr) minmax(140px, 1.35fr) minmax(140px, 1.2fr) minmax(78px, 0.6fr) minmax(104px, 0.8fr)";
 
 type AccessRuleDraft = {
   fieldType: FieldType;
@@ -228,10 +228,6 @@ function getRuleKey(rule: Pick<AccessRuleDraft, "fieldType" | "fieldValue">) {
 
 function getReservationName(row: VehicleReservationRow) {
   return row.reserverName || row.userName || "이름 없음";
-}
-
-function getReservationPhone(row: VehicleReservationRow) {
-  return row.reserverPhone || row.memberPhone || "-";
 }
 
 function getReservationPosition(row: VehicleReservationRow) {
@@ -1125,7 +1121,7 @@ export default function AdminVehiclesTab() {
               <div className="py-12 text-center text-sm text-gray-400">해당 조건의 차량 예약이 없습니다.</div>
             ) : (
               <div className="overflow-x-auto">
-                <div className="min-w-[780px]">
+                <div className="min-w-[735px]">
                 <div
                   className="grid gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500"
                   style={{ gridTemplateColumns: VEHICLE_RESERVATION_GRID }}
@@ -1133,7 +1129,7 @@ export default function AdminVehiclesTab() {
                   <div>시간</div>
                   <div>차량</div>
                   <div>목적</div>
-                  <div>신청자 / 연락처</div>
+                  <div>신청자</div>
                   <div>상태</div>
                   <div>관리</div>
                 </div>
@@ -1154,14 +1150,14 @@ export default function AdminVehiclesTab() {
                           <p className="truncate text-xs text-gray-600">{getReservationVehicleName(row)}</p>
                         </div>
                         <div className="min-w-0">
-                          <p className="truncate font-semibold text-gray-900">{row.purpose || "-"}</p>
+                          <p className="break-words font-semibold leading-5 text-gray-900">{row.purpose || "-"}</p>
                           {row.notes && <p className="mt-0.5 truncate text-xs text-gray-500">요청: {row.notes}</p>}
                         </div>
                         <div>
                           <p className="font-semibold text-gray-900">
                             {getReservationName(row)} <span className="font-normal text-gray-500">({getReservationPosition(row)})</span>
                           </p>
-                          <p className="text-[11px] text-gray-500">{getReservationPhone(row)} · 신청 {formatCreatedAt(row.createdAt)}</p>
+                          <p className="text-[11px] text-gray-500">신청 {formatCreatedAt(row.createdAt)}</p>
                         </div>
                         <div>
                           <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${status.color}`}>
@@ -1510,7 +1506,7 @@ function VehicleReservationCalendarView({
           <div className="px-4 py-8 text-center text-sm text-gray-400">이 날짜에는 차량 예약이 없습니다.</div>
         ) : (
           <div className="overflow-x-auto">
-            <div className="min-w-[780px]">
+            <div className="min-w-[735px]">
             <div
               className="grid gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500"
               style={{ gridTemplateColumns: VEHICLE_RESERVATION_GRID }}
@@ -1518,7 +1514,7 @@ function VehicleReservationCalendarView({
               <div>시간</div>
               <div>차량</div>
               <div>목적</div>
-              <div>신청자 / 연락처</div>
+              <div>신청자</div>
               <div>상태</div>
               <div>관리</div>
             </div>
@@ -1538,14 +1534,14 @@ function VehicleReservationCalendarView({
                     <p className="truncate text-xs text-gray-600">{getReservationVehicleName(reservation)}</p>
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate font-semibold text-gray-900">{reservation.purpose || "-"}</p>
+                    <p className="break-words font-semibold leading-5 text-gray-900">{reservation.purpose || "-"}</p>
                     {reservation.notes && <p className="mt-0.5 truncate text-xs text-gray-500">요청: {reservation.notes}</p>}
                   </div>
                   <div>
                     <p className="font-semibold text-gray-900">
                       {getReservationName(reservation)} <span className="font-normal text-gray-500">({getReservationPosition(reservation)})</span>
                     </p>
-                    <p className="text-[11px] text-gray-500">{getReservationPhone(reservation)} · 신청 {formatCreatedAt(reservation.createdAt)}</p>
+                    <p className="text-[11px] text-gray-500">신청 {formatCreatedAt(reservation.createdAt)}</p>
                   </div>
                   <div>
                     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${status.color}`}>
