@@ -160,6 +160,20 @@ function parseCustomAnswers(value: string | null | undefined) {
   }
 }
 
+function getCustomAnswerRows(value: string | null | undefined, fields: ApplicationField[]) {
+  const labels = new Map(fields.map(field => [field.id, field.label]));
+  return parseCustomAnswers(value).map(([fieldId, answer]) => [
+    labels.get(fieldId) || "추가 답변",
+    String(answer),
+  ] as const);
+}
+
+function formatCustomAnswers(value: string | null | undefined, fields: ApplicationField[]) {
+  return getCustomAnswerRows(value, fields)
+    .map(([label, answer]) => `${label}: ${answer}`)
+    .join(" / ");
+}
+
 function readFileAsBase64(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -466,6 +480,7 @@ export default function AdminCoursesTab() {
       return;
     }
 
+    const applicationFields = parseApplicationFields(exportCourse.applicationFields);
     const rows = [
       ["강좌명", "강좌 일정", "상태", "신청자명", "연락처", "이메일", "부서", "직분", "신청 메모", "추가 답변", "관리자 메모", "신청일", "처리일"],
       ...filteredApplications.map(application => [
@@ -478,7 +493,7 @@ export default function AdminCoursesTab() {
         application.memberDepartment ?? "",
         application.memberPosition ?? "",
         application.memo ?? "",
-        parseCustomAnswers(application.customAnswers).map(([key, answer]) => `${key}: ${answer}`).join(" / "),
+        formatCustomAnswers(application.customAnswers, applicationFields),
         application.adminComment ?? "",
         formatCsvDateTime(application.createdAt),
         formatCsvDateTime(application.processedAt),
@@ -1426,6 +1441,10 @@ export default function AdminCoursesTab() {
                           const appStatus = APPLICATION_STATUS[application.status];
                           const isReviewing = reviewingId === application.id;
                           const isEditingApplication = editingApplicationId === application.id;
+                          const customAnswerRows = getCustomAnswerRows(
+                            application.customAnswers,
+                            parseApplicationFields(course.applicationFields),
+                          );
                           return (
                             <div key={application.id} className="bg-white border border-gray-100 rounded-lg p-3">
                               <div className="flex items-start gap-3">
@@ -1444,10 +1463,10 @@ export default function AdminCoursesTab() {
                                     <span>신청 {formatCreatedAt(application.createdAt)}</span>
                                   </div>
                                   {application.memo && <p className="mt-2 text-xs text-gray-500 bg-gray-50 rounded px-2 py-1.5">{application.memo}</p>}
-                                  {parseCustomAnswers(application.customAnswers).length > 0 && (
+                                  {customAnswerRows.length > 0 && (
                                     <div className="mt-2 rounded bg-blue-50 px-2 py-1.5 text-xs text-blue-700">
-                                      {parseCustomAnswers(application.customAnswers).map(([key, answer]) => (
-                                        <p key={key}>{key}: {String(answer)}</p>
+                                      {customAnswerRows.map(([label, answer]) => (
+                                        <p key={label}>{label}: {answer}</p>
                                       ))}
                                     </div>
                                   )}
