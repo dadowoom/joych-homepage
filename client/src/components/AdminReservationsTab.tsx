@@ -1151,7 +1151,7 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
           const activeReservations = dayReservations.filter((reservation) => reservation.status !== "cancelled" && reservation.status !== "rejected");
           const groupCounts = Array.from(
             activeReservations.reduce((map, reservation) => {
-              const label = getReservationPosition(reservation);
+              const label = getReservationAudienceLabel(reservation);
               map.set(label, (map.get(label) ?? 0) + 1);
               return map;
             }, new Map<string, number>()),
@@ -1206,7 +1206,7 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
 
       {/* 범례 */}
       <div className="flex flex-wrap gap-4 mt-4 text-xs text-gray-500">
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-50 border border-green-200 inline-block"></span>달력 칸은 직분/구분별 예약 수로 표시됩니다.</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-50 border border-green-200 inline-block"></span>달력 칸은 성도/외부인별 예약 수로 표시됩니다.</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 border border-red-300 inline-block"></span>예약불가</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-rose-50 border border-rose-200 inline-block"></span>부분차단</span>
       </div>
