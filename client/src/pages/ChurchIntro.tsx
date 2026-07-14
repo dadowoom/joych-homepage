@@ -246,13 +246,27 @@ function isPastorIntroMenuItem(item: { label: string; href?: string | null }) {
     href === PASTOR_GREETING_HREF ||
     label === "담임목사소개" ||
     label === "담임목사인사" ||
-    label === "담임목사인사말"
+    label === "담임목사인사말" ||
+    label === "위임목사소개" ||
+    label === "위임목사인사" ||
+    label === "위임목사인사말"
   );
 }
 
 function isPastorBooksMenuItem(item: { label: string; href?: string | null }) {
   const label = item.label.replace(/\s+/g, "");
-  return item.href?.trim() === PASTOR_BOOKS_HREF || label === "담임목사저서";
+  return (
+    item.href?.trim() === PASTOR_BOOKS_HREF ||
+    label === "담임목사저서" ||
+    label === "위임목사저서"
+  );
+}
+
+function isCurrentStaffMenuItem(item: { label: string; href?: string | null }, pageTitle: string) {
+  return (
+    item.label === pageTitle ||
+    (pageTitle === "담임목사 저서" && isPastorBooksMenuItem(item))
+  );
 }
 
 function ensurePastorBooksSideMenuItems(items: StaffSideMenuItem[], pageTitle: string): StaffSideMenuItem[] {
@@ -317,17 +331,18 @@ function getStaffSideMenuItems(menuTree: StaffMenuTree | undefined, pageTitle: s
     .map((item) => {
       const subItems = item.subItems?.filter((subItem) => subItem.isVisible !== false) ?? [];
       const hasSubItems = subItems.length > 0;
+      const mappedSubItems = subItems.map((subItem) => ({
+        id: subItem.id,
+        label: subItem.label,
+        href: subItem.href ?? null,
+        isActive: isCurrentStaffMenuItem(subItem, pageTitle),
+      }));
       return {
         id: item.id,
         label: item.label,
         href: hasSubItems && !hasOwnStaffMenuContent(item) ? null : item.href ?? null,
-        isActive: item.label === pageTitle,
-        subItems: subItems.map((subItem) => ({
-          id: subItem.id,
-          label: subItem.label,
-          href: subItem.href ?? null,
-          isActive: subItem.label === pageTitle,
-        })),
+        isActive: isCurrentStaffMenuItem(item, pageTitle) || mappedSubItems.some((subItem) => subItem.isActive),
+        subItems: mappedSubItems,
       };
     });
 
