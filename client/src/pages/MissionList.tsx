@@ -14,6 +14,10 @@ import { findMenuAccessMatchByHref } from "@/lib/menuAccess";
 import { trpc } from "@/lib/trpc";
 import { CONTINENT_LABELS, type MissionContinent } from "@/lib/missionData";
 import { toast } from "sonner";
+import {
+  MISSION_REPORT_BOARD_DESCRIPTION_DEFAULT,
+  MISSION_REPORT_BOARD_DESCRIPTION_SETTING_KEY,
+} from "@shared/boardIntroductions";
 
 // 날짜 포맷 헬퍼 (YYYY-MM-DD → YYYY년 MM월 DD일)
 function formatDate(dateStr: string): string {
@@ -54,6 +58,11 @@ export default function MissionList() {
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const canManage = canManageBoardContent(user, "content:missionReports");
+  const { data: settings } = trpc.home.settings.useQuery();
+  const [isIntroEditing, setIsIntroEditing] = useState(false);
+  const [introDraft, setIntroDraft] = useState("");
+  const missionDescription = settings?.[MISSION_REPORT_BOARD_DESCRIPTION_SETTING_KEY]?.trim()
+    || MISSION_REPORT_BOARD_DESCRIPTION_DEFAULT;
   const { data: allMenus } = trpc.home.menus.useQuery();
 
   const publicReportsQuery = trpc.mission.reports.useQuery(undefined, { enabled: !canManage });
@@ -79,6 +88,14 @@ export default function MissionList() {
       ]);
     },
     onError: (error) => toast.error(error.message || "선교보고 상태 변경에 실패했습니다."),
+  });
+  const updateIntro = trpc.cms.boardIntroductions.update.useMutation({
+    onSuccess: async () => {
+      await utils.home.settings.invalidate();
+      setIsIntroEditing(false);
+      toast.success("선교보고 안내 문구가 저장되었습니다.");
+    },
+    onError: (error) => toast.error(`안내 문구 저장 실패: ${error.message}`),
   });
   const reports = canManage ? (adminReportsQuery.data ?? []) : (publicReportsQuery.data ?? []);
   const isLoading = canManage ? adminReportsQuery.isLoading : publicReportsQuery.isLoading;
@@ -159,8 +176,46 @@ export default function MissionList() {
               <div>
                 <p className="text-sm font-medium text-[#1B5E20]">선교 현장 소식</p>
                 <p className="mt-2 text-sm leading-6 text-gray-500">
-                  기쁨의교회가 파송하고 후원하는 선교사님들의 현장 이야기와 기도 제목을 함께 나눕니다.
+                  {missionDescription}
                 </p>
+                {canManage && (
+                  <div className="mt-4">
+                    {!isIntroEditing ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIntroDraft(missionDescription);
+                          setIsIntroEditing(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-[#1B5E20] hover:underline"
+                      >
+                        <i className="fas fa-pen text-xs"></i>
+                        안내 수정
+                      </button>
+                    ) : (
+                      <div className="space-y-2 rounded-xl border border-[#C8E6C9] bg-[#F7FCF7] p-3">
+                        <textarea
+                          value={introDraft}
+                          onChange={(event) => setIntroDraft(event.target.value)}
+                          maxLength={500}
+                          rows={3}
+                          className="w-full resize-y rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button type="button" onClick={() => setIsIntroEditing(false)} className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-600">취소</button>
+                          <button
+                            type="button"
+                            disabled={updateIntro.isPending || !introDraft.trim()}
+                            onClick={() => updateIntro.mutate({ kind: "missionReport", description: introDraft.trim() })}
+                            className="rounded-lg bg-[#1B5E20] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                          >
+                            저장
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="rounded-xl bg-[#F7F7F5] px-4 py-3">

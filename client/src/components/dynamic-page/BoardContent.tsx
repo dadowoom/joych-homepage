@@ -59,6 +59,7 @@ import {
   sanitizeNoticePostCategory,
   type NoticeCategoryConfig,
 } from "@shared/noticeCategories";
+import { getDynamicBoardDescriptionSettingKey } from "@shared/boardIntroductions";
 
 type BoardContentProps = {
   label?: string;
@@ -453,7 +454,7 @@ function NoticeBoardContent({
     { enabled: isCustomBoard && Boolean(customBoardSource) }
   );
   const { data: settings } = trpc.home.settings.useQuery(undefined, {
-    enabled: !isAdminResource && !isCustomBoard,
+    enabled: !isAdminResource,
   });
   const noticeCategorySettings = useMemo(
     () => parseNoticeCategorySettings(settings?.[NOTICE_CATEGORY_SETTINGS_KEY]),
@@ -495,9 +496,11 @@ function NoticeBoardContent({
     : isCustomBoard
       ? "이 메뉴에 등록된 게시글만 표시됩니다."
       : "공지와 안내를 게시판 형태로 확인할 수 있습니다.";
-  const boardDescription = !isAdminResource && !isCustomBoard
-    ? settings?.[NOTICE_BOARD_DESCRIPTION_KEY]?.trim() || defaultBoardDescription
-    : defaultBoardDescription;
+  const boardDescription = isAdminResource
+    ? defaultBoardDescription
+    : isCustomBoard && customBoardSource
+      ? settings?.[getDynamicBoardDescriptionSettingKey(customBoardSource)]?.trim() || defaultBoardDescription
+      : settings?.[NOTICE_BOARD_DESCRIPTION_KEY]?.trim() || defaultBoardDescription;
   const createButtonLabel = isAdminResource
     ? "행정자료 작성"
     : isCustomBoard
@@ -631,6 +634,14 @@ function NoticeBoardContent({
       toast.success("게시판 소개 문구가 저장됐습니다.");
     },
     onError: error => toast.error(`소개 문구 저장 실패: ${error.message}`),
+  });
+  const updateCustomBoardIntroMutation = trpc.cms.boardIntroductions.update.useMutation({
+    onSuccess: () => {
+      void utils.home.settings.invalidate();
+      setIntroEditorOpen(false);
+      toast.success("게시판 안내 문구가 저장되었습니다.");
+    },
+    onError: error => toast.error(`안내 문구 저장 실패: ${error.message}`),
   });
 
   useEffect(() => {
@@ -1460,7 +1471,7 @@ function NoticeBoardContent({
               />
               게시
             </label>
-            {!isAdminResource && !isCustomBoard && (
+            {!isAdminResource && (
               <label className="inline-flex items-center gap-2 text-sm text-gray-700">
                 <input
                   type="checkbox"
@@ -1561,7 +1572,7 @@ function NoticeBoardContent({
         </div>
         {canManageNotices && (
           <div className="flex flex-wrap items-center gap-2">
-            {!isAdminResource && !isCustomBoard && (
+            {!isAdminResource && (
               <button
                 type="button"
                 onClick={() => setIntroEditorOpen(open => !open)}
@@ -1582,11 +1593,19 @@ function NoticeBoardContent({
         )}
       </div>
 
-      {introEditorOpen && !isAdminResource && !isCustomBoard && (
+      {introEditorOpen && !isAdminResource && (
         <form
           className="border border-emerald-100 bg-emerald-50/60 p-4"
           onSubmit={event => {
             event.preventDefault();
+            if (isCustomBoard && customBoardSource) {
+              updateCustomBoardIntroMutation.mutate({
+                kind: "dynamic",
+                description: introDescription,
+                ...customBoardSource,
+              });
+              return;
+            }
             updateIntroMutation.mutate({ description: introDescription });
           }}
         >
@@ -1611,11 +1630,11 @@ function NoticeBoardContent({
             </button>
             <button
               type="submit"
-              disabled={updateIntroMutation.isPending}
+              disabled={updateIntroMutation.isPending || updateCustomBoardIntroMutation.isPending}
               className="inline-flex h-9 items-center gap-1.5 bg-[#1B5E20] px-3 text-sm font-medium text-white hover:bg-[#2E7D32] disabled:opacity-50"
             >
               <Check className="h-4 w-4" />
-              {updateIntroMutation.isPending ? "저장 중" : "저장"}
+              {updateIntroMutation.isPending || updateCustomBoardIntroMutation.isPending ? "저장 중" : "저장"}
             </button>
           </div>
         </form>

@@ -5,12 +5,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
-import { Lock } from "lucide-react";
+import { Check, Lock, Pencil } from "lucide-react";
 import SubPageLayout from "@/components/SubPageLayout";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { canManageBoardContent } from "@/lib/contentPermissions";
 import { toast } from "sonner";
+import {
+  TESTIMONY_BOARD_DESCRIPTION_DEFAULT,
+  TESTIMONY_BOARD_DESCRIPTION_SETTING_KEY,
+} from "@shared/boardIntroductions";
 
 type ImageRow = { imageUrl: string; caption?: string };
 
@@ -98,6 +102,11 @@ export default function TestimonyList() {
   );
   const pageTitle = sideMenuItems.find((item) => item.isActive)?.label ?? "은혜의 간증";
   const canManage = canManageBoardContent(user, "content:testimonies");
+  const { data: settings } = trpc.home.settings.useQuery();
+  const [isIntroEditing, setIsIntroEditing] = useState(false);
+  const [introDraft, setIntroDraft] = useState("");
+  const testimonyDescription = settings?.[TESTIMONY_BOARD_DESCRIPTION_SETTING_KEY]?.trim()
+    || TESTIMONY_BOARD_DESCRIPTION_DEFAULT;
   const {
     data: posts,
     isLoading,
@@ -126,6 +135,14 @@ export default function TestimonyList() {
     },
     onError: (error) => toast.error(error.message),
   });
+  const updateIntro = trpc.cms.boardIntroductions.update.useMutation({
+    onSuccess: async () => {
+      await utils.home.settings.invalidate();
+      setIsIntroEditing(false);
+      toast.success("간증 게시판 안내 문구가 저장되었습니다.");
+    },
+    onError: (error) => toast.error(`안내 문구 저장 실패: ${error.message}`),
+  });
   const visiblePosts = posts ?? [];
   const loadingState = isLoading;
   const errorState = error;
@@ -143,7 +160,7 @@ export default function TestimonyList() {
             <div>
               <p className="text-sm font-medium text-[#1B5E20]">생선수료자 간증 나눔</p>
               <p className="mt-2 text-sm leading-6 text-gray-500">
-                생선제자훈련 수료자들이 받은 은혜와 공동체 안에서의 변화를 함께 나누는 공간입니다.
+                {testimonyDescription}
               </p>
               <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-gray-500">
                 <span>
@@ -160,6 +177,44 @@ export default function TestimonyList() {
                   <span className="text-xs font-medium text-[#1B5E20]">게시판에서는 등록/수정/삭제만 가능하며 숨김/노출은 관리자 대시보드에서 처리합니다.</span>
                 )}
               </div>
+              {canManage && (
+                <div className="mt-4">
+                  {!isIntroEditing ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIntroDraft(testimonyDescription);
+                        setIsIntroEditing(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-[#1B5E20] hover:underline"
+                    >
+                      <Pencil className="h-4 w-4" />
+                      안내 수정
+                    </button>
+                  ) : (
+                    <div className="space-y-2 rounded-xl border border-[#C8E6C9] bg-[#F7FCF7] p-3">
+                      <textarea
+                        value={introDraft}
+                        onChange={(event) => setIntroDraft(event.target.value)}
+                        maxLength={500}
+                        rows={3}
+                        className="w-full resize-y rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <button type="button" onClick={() => setIsIntroEditing(false)} className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-600">취소</button>
+                        <button
+                          type="button"
+                          disabled={updateIntro.isPending || !introDraft.trim()}
+                          onClick={() => updateIntro.mutate({ kind: "testimony", description: introDraft.trim() })}
+                          className="inline-flex items-center gap-1 rounded-lg bg-[#1B5E20] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                        >
+                          <Check className="h-4 w-4" /> 저장
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             {canWrite ? (
               <Link href="/community/testimony/write" className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-[#1B5E20] px-4 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32]">
