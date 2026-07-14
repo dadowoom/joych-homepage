@@ -66,14 +66,16 @@ function getStoredDockPosition(): DockPosition | null {
     const rawValue = window.localStorage.getItem(DOCK_POSITION_STORAGE_KEY);
     if (!rawValue) return null;
     const parsed = JSON.parse(rawValue) as Partial<DockPosition>;
-    if (typeof parsed.x !== "number" || typeof parsed.y !== "number") return null;
-    return parsed as DockPosition;
+    if (!Number.isFinite(parsed.x) || !Number.isFinite(parsed.y)) return null;
+    const position = clampDockPosition(parsed as DockPosition);
+    window.localStorage.setItem(DOCK_POSITION_STORAGE_KEY, JSON.stringify(position));
+    return position;
   } catch {
     return null;
   }
 }
 
-function clampDockPosition(position: DockPosition, element?: HTMLElement | null): DockPosition {
+export function clampDockPosition(position: DockPosition, element?: HTMLElement | null): DockPosition {
   if (typeof window === "undefined") return position;
   const width = element?.offsetWidth ?? 180;
   const height = element?.offsetHeight ?? 72;
@@ -229,11 +231,13 @@ export default function HomeAdminDock({
       setCustomPosition((current) => {
         if (!current) return current;
         const next = clampDockPosition(current, rootRef.current);
+        if (next.x === current.x && next.y === current.y) return current;
         window.localStorage.setItem(DOCK_POSITION_STORAGE_KEY, JSON.stringify(next));
         return next;
       });
     };
 
+    handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, [customPosition]);
