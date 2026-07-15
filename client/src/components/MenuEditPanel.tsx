@@ -55,6 +55,21 @@ function SubItemMoveTarget({ menuLabel, item }: { menuLabel: string; item: MenuI
   );
 }
 
+function ItemMoveTarget({ menu }: { menu: MenuRow }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `menu-target:${menu.id}` });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`rounded border px-2 py-1.5 text-[11px] transition-colors ${
+        isOver ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-200 bg-white text-gray-600"
+      }`}
+    >
+      {menu.label} 아래
+    </div>
+  );
+}
+
 // ─── 메인 패널 ────────────────────────────────────────────────────────────────
 export default function MenuEditPanel({
   open,
@@ -183,7 +198,11 @@ export default function MenuEditPanel({
     const parseDragId = (value: string | number) => {
       const [rawKind, id] = String(value).split(":");
       const numericId = Number(id);
-      const kind = rawKind === "item-target" ? "item" : rawKind;
+      const kind = rawKind === "item-target"
+        ? "item"
+        : rawKind === "menu-target"
+          ? "menu"
+          : rawKind;
       return Number.isInteger(numericId) ? { kind, id: numericId } : null;
     };
     const source = parseDragId(active.id);
@@ -377,7 +396,7 @@ export default function MenuEditPanel({
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#1B5E20] inline-block" /> 1단 상위 메뉴 클릭 → 2단 표시</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /> 2단 하위 메뉴 클릭 → 3단 표시</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400 inline-block" /> 3단 세부 메뉴</span>
-            <span className="basis-full text-[#1B5E20]">2단은 왼쪽 1단 위로, 3단은 가운데 2단 위로 드래그하면 같은 단계로 이동합니다.</span>
+            <span className="basis-full text-[#1B5E20]">2단은 다른 1단 아래로, 3단은 다른 2단 아래로 드래그해 부모 메뉴를 바꿀 수 있습니다.</span>
           </div>
         </SheetHeader>
 
@@ -475,6 +494,16 @@ export default function MenuEditPanel({
                 </div>
               ) : (
                 <>
+                  <details open className="shrink-0 border-b bg-[#F4F8FF] px-2 py-2">
+                    <summary className="cursor-pointer text-[11px] font-semibold text-blue-700">
+                      2단 이동 대상: 다른 1단 위에 놓으면 하위 2단 상태로 이동
+                    </summary>
+                    <div className="mt-2 grid max-h-28 grid-cols-2 gap-1 overflow-y-auto pr-1">
+                      {localMenus
+                        .filter((menu) => menu.id !== selectedMenu.id)
+                        .map((menu) => <ItemMoveTarget key={menu.id} menu={menu} />)}
+                    </div>
+                  </details>
                   <div className="flex-1 overflow-y-auto p-2 space-y-1">
                     {selectedMenu.items.length === 0 && (
                       <p className="text-xs text-gray-400 text-center py-4">하위 메뉴가 없습니다</p>
