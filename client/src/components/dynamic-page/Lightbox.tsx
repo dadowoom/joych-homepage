@@ -24,21 +24,39 @@ export function Lightbox({
   onNext?: () => void;
 }) {
   const [scale, setScale] = useState(1);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const imageRef = useRef<HTMLImageElement>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const scaleRef = useRef(1);
+  const positionRef = useRef({ x: 0, y: 0 });
   const pinchStartDistanceRef = useRef<number | null>(null);
   const pinchStartScaleRef = useRef(1);
   const panStartRef = useRef<{ x: number; y: number; offsetX: number; offsetY: number } | null>(null);
 
-  const resetZoom = useCallback(() => {
-    setScale(1);
-    setPosition({ x: 0, y: 0 });
+  const applyTransform = useCallback((nextScale: number, nextPosition: { x: number; y: number }) => {
+    scaleRef.current = nextScale;
+    positionRef.current = nextPosition;
+
+    if (animationFrameRef.current !== null) return;
+
+    animationFrameRef.current = requestAnimationFrame(() => {
+      const image = imageRef.current;
+      if (image) {
+        image.style.transform = `translate3d(${positionRef.current.x}px, ${positionRef.current.y}px, 0) scale3d(${scaleRef.current}, ${scaleRef.current}, 1)`;
+      }
+      animationFrameRef.current = null;
+    });
   }, []);
 
-  const updateScale = useCallback((nextScale: number) => {
+  const resetZoom = useCallback(() => {
+    setScale(1);
+    applyTransform(1, { x: 0, y: 0 });
+  }, [applyTransform]);
+
+  const updateScale = useCallback((nextScale: number, syncState = true) => {
     const clampedScale = Math.min(Math.max(nextScale, 1), 4);
-    setScale(clampedScale);
-    if (clampedScale === 1) setPosition({ x: 0, y: 0 });
-  }, []);
+    if (syncState) setScale(clampedScale);
+    applyTransform(clampedScale, clampedScale === 1 ? { x: 0, y: 0 } : positionRef.current);
+  }, [applyTransform]);
 
   const getTouchDistance = (
     first: { clientX: number; clientY: number },
@@ -66,6 +84,7 @@ export function Lightbox({
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = "";
+      if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
     };
   }, [handleKeyDown]);
 
@@ -87,7 +106,7 @@ export function Lightbox({
           className="rounded-full bg-black/40 p-2 text-white/80 transition-colors hover:bg-black/60 hover:text-white disabled:opacity-40"
           onClick={(event) => {
             event.stopPropagation();
-            updateScale(scale - 0.5);
+            updateScale(scaleRef.current - 0.5);
           }}
           disabled={scale <= 1}
           aria-label="이미지 축소"
@@ -99,7 +118,7 @@ export function Lightbox({
           className="rounded-full bg-black/40 p-2 text-white/80 transition-colors hover:bg-black/60 hover:text-white"
           onClick={(event) => {
             event.stopPropagation();
-            updateScale(scale + 0.5);
+            updateScale(scaleRef.current + 0.5);
           }}
           aria-label="이미지 확대"
         >
@@ -149,18 +168,18 @@ export function Lightbox({
         onTouchStart={(event) => {
           if (event.touches.length === 2) {
             pinchStartDistanceRef.current = getTouchDistance(event.touches[0], event.touches[1]);
-            pinchStartScaleRef.current = scale;
+            pinchStartScaleRef.current = scaleRef.current;
             panStartRef.current = null;
             return;
           }
 
-          if (event.touches.length === 1 && scale > 1) {
+          if (event.touches.length === 1 && scaleRef.current > 1) {
             const touch = event.touches[0];
             panStartRef.current = {
               x: touch.clientX,
               y: touch.clientY,
-              offsetX: position.x,
-              offsetY: position.y,
+              offsetX: positionRef.current.x,
+              offsetY: positionRef.current.y,
             };
           }
         }}
@@ -168,14 +187,14 @@ export function Lightbox({
           if (event.touches.length === 2 && pinchStartDistanceRef.current) {
             event.preventDefault();
             const nextDistance = getTouchDistance(event.touches[0], event.touches[1]);
-            updateScale(pinchStartScaleRef.current * (nextDistance / pinchStartDistanceRef.current));
+            updateScale(pinchStartScaleRef.current * (nextDistance / pinchStartDistanceRef.current), false);
             return;
           }
 
-          if (event.touches.length === 1 && panStartRef.current && scale > 1) {
+          if (event.touches.length === 1 && panStartRef.current && scaleRef.current > 1) {
             event.preventDefault();
             const touch = event.touches[0];
-            setPosition({
+            applyTransform(scaleRef.current, {
               x: panStartRef.current.offsetX + touch.clientX - panStartRef.current.x,
               y: panStartRef.current.offsetY + touch.clientY - panStartRef.current.y,
             });
@@ -184,13 +203,19 @@ export function Lightbox({
         onTouchEnd={() => {
           pinchStartDistanceRef.current = null;
           panStartRef.current = null;
+          setScale(scaleRef.current);
+        }}
+        onTouchCancel={() => {
+          pinchStartDistanceRef.current = null;
+          panStartRef.current = null;
+          setScale(scaleRef.current);
         }}
       >
         <img
+          ref={imageRef}
           src={imageUrl}
           alt={alt}
-          className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] select-none rounded-lg object-contain shadow-2xl transition-transform duration-150"
-          style={{ transform: `translate(${position.x}px, ${position.y}px) scale(${scale})` }}
+          className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] select-none rounded-lg object-contain shadow-2xl will-change-transform"
           draggable={false}
         />
       </div>
