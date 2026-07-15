@@ -1,6 +1,8 @@
 const LARGE_PAGE_IMAGE_MENU_ITEM_IDS = new Set([
   180015, // 예배 안내
   180009, // 3대 비전 9대 전략
+  180002, // 셔틀버스
+  120006, // 시설물 안내
 ]);
 
 const LARGE_PAGE_IMAGE_MENU_SUB_ITEM_IDS = new Set([
