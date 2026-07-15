@@ -1299,7 +1299,7 @@ export default function AdminVehiclesTab() {
                       className="overflow-hidden rounded-xl border border-gray-200 bg-white"
                     >
                       <div
-                        className="flex cursor-pointer flex-col gap-3 p-4 transition-colors hover:bg-gray-50 sm:flex-row sm:flex-wrap sm:items-center lg:flex-nowrap"
+                        className="flex cursor-pointer flex-col gap-3 p-4 transition-colors hover:bg-gray-50 sm:min-h-[88px] sm:flex-row sm:flex-wrap sm:items-center lg:flex-nowrap"
                         onClick={() => setExpandedReservationGroupKey(isExpanded ? null : group.key)}
                       >
                         <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
