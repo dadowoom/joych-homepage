@@ -20,18 +20,30 @@ export default function AdminPermissionsTab() {
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
-  const hasSubmittedSearch = submittedSearchTerm.length > 0;
-
-  const permissionsQuery = trpc.cms.adminPermissions.list.useQuery(
-    { searchTerm: submittedSearchTerm },
-    { enabled: hasSubmittedSearch },
-  );
+  const [assignedSubjectsCollapsed, setAssignedSubjectsCollapsed] = useState(false);
+  const permissionsQuery = trpc.cms.adminPermissions.list.useQuery({
+    searchTerm: submittedSearchTerm,
+  });
   const permissions = permissionsQuery.data?.permissions ?? [];
   const subjects = permissionsQuery.data?.subjects ?? [];
+  const assignedSubjects = permissionsQuery.data?.assignedSubjects ?? [];
+
+  const allSubjects = useMemo(() => {
+    const subjectByMemberId = new Map<number, PermissionSubject>();
+    for (const subject of [...assignedSubjects, ...subjects]) {
+      subjectByMemberId.set(subject.memberId, subject);
+    }
+    return Array.from(subjectByMemberId.values());
+  }, [assignedSubjects, subjects]);
 
   const selectedSubject = useMemo(
-    () => subjects.find((subject) => subject.memberId === selectedMemberId) ?? null,
-    [subjects, selectedMemberId],
+    () => allSubjects.find((subject) => subject.memberId === selectedMemberId) ?? null,
+    [allSubjects, selectedMemberId],
+  );
+
+  const permissionLabelByKey = useMemo(
+    () => new Map(permissions.map((permission) => [permission.key, permission.label])),
+    [permissions],
   );
 
   const groupedPermissions = useMemo(() => {
@@ -46,9 +58,9 @@ export default function AdminPermissionsTab() {
 
   useEffect(() => {
     if (!selectedMemberId) return;
-    if (subjects.some((subject) => subject.memberId === selectedMemberId)) return;
+    if (allSubjects.some((subject) => subject.memberId === selectedMemberId)) return;
     setSelectedMemberId(null);
-  }, [selectedMemberId, subjects]);
+  }, [allSubjects, selectedMemberId]);
 
   useEffect(() => {
     setSelectedKeys(selectedSubject?.permissionKeys ?? []);
@@ -116,6 +128,83 @@ export default function AdminPermissionsTab() {
 
   return (
     <div className="space-y-6">
+      <section className="rounded-xl border border-[#D8E8DA] bg-[#F8FCF8] p-4">
+        <button
+          type="button"
+          onClick={() => setAssignedSubjectsCollapsed((current) => !current)}
+          aria-expanded={!assignedSubjectsCollapsed}
+          aria-controls="assigned-admin-permission-subjects"
+          className="flex w-full items-center justify-between gap-3 text-left"
+        >
+          <span>
+            <span className="block text-base font-bold text-gray-900">관리권한 보유 계정</span>
+            <span className="mt-1 block text-xs text-gray-500">
+              현재 관리권한을 부여받은 계정을 선택하면 바로 권한을 수정할 수 있습니다.
+            </span>
+          </span>
+          <span className="inline-flex shrink-0 items-center gap-2">
+            <span className="rounded-full bg-[#E8F5E9] px-2.5 py-1 text-xs font-semibold text-[#1B5E20]">
+              {assignedSubjects.length}명
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-[#1B5E20] shadow-sm">
+              {assignedSubjectsCollapsed ? "펼치기" : "접기"}
+              <i
+                className={`fas fa-chevron-${assignedSubjectsCollapsed ? "down" : "up"} text-[10px]`}
+              ></i>
+            </span>
+          </span>
+        </button>
+
+        {!assignedSubjectsCollapsed && (
+          <div
+            id="assigned-admin-permission-subjects"
+            className="mt-3 grid max-h-80 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3"
+          >
+            {permissionsQuery.isLoading ? (
+              <p className="rounded-lg border border-dashed border-[#C8E6C9] bg-white py-6 text-center text-sm text-gray-400 sm:col-span-2 xl:col-span-3">
+                권한 보유 계정을 불러오는 중입니다.
+              </p>
+            ) : assignedSubjects.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-[#C8E6C9] bg-white py-6 text-center text-sm text-gray-400 sm:col-span-2 xl:col-span-3">
+                권한이 부여된 계정이 없습니다.
+              </p>
+            ) : (
+              assignedSubjects.map((subject: PermissionSubject) => {
+                const isSelected = selectedMemberId === subject.memberId;
+                const permissionLabels = subject.permissionKeys.map(
+                  (key) => permissionLabelByKey.get(key) ?? key,
+                );
+
+                return (
+                  <button
+                    key={subject.memberId}
+                    type="button"
+                    onClick={() => setSelectedMemberId(subject.memberId)}
+                    className={`rounded-lg border bg-white px-3 py-3 text-left transition-colors ${
+                      isSelected
+                        ? "border-[#1B5E20] ring-1 ring-[#A5D6A7]"
+                        : "border-gray-200 hover:border-[#A5D6A7] hover:bg-[#FCFFFC]"
+                    }`}
+                  >
+                    <span className="flex items-start justify-between gap-2">
+                      <span className="min-w-0 break-words text-sm font-semibold text-gray-900">
+                        {subject.name} ({subject.position || "직분 미등록"})
+                      </span>
+                      <span className="shrink-0 rounded-full bg-[#E8F5E9] px-2 py-0.5 text-xs font-semibold text-[#1B5E20]">
+                        {subject.permissionKeys.length}개
+                      </span>
+                    </span>
+                    <span className="mt-1.5 block whitespace-normal break-words text-xs leading-5 text-gray-500">
+                      {permissionLabels.join(" · ")}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        )}
+      </section>
+
       <div>
         <h3
           className="text-lg font-bold text-gray-900"
