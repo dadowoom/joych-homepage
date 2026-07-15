@@ -4,7 +4,7 @@
  * 차량별 운영 시간 안에서 기존 예약 시간만 중복 방지합니다.
  */
 
-import { and, asc, desc, eq, gt, inArray, lt, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lt, ne, notInArray, or, sql } from "drizzle-orm";
 import type { ResultSetHeader } from "mysql2";
 import {
   churchMembers,
@@ -29,6 +29,12 @@ export class VehicleReservationOverlapError extends Error {
 export class VehicleReservationLockError extends Error {
   constructor() {
     super("차량 예약 처리 중입니다. 잠시 후 다시 시도해주세요.");
+  }
+}
+
+export class VehicleReservationGroupValidationError extends Error {
+  constructor(message: string) {
+    super(message);
   }
 }
 
@@ -827,6 +833,274 @@ export async function updateVehicleReservationDetails(id: number, data: VehicleR
 
   await db.update(vehicleReservations).set(data).where(eq(vehicleReservations.id, id));
   return true;
+}
+
+export async function getVehicleReservationsByGroupId(recurrenceGroupId: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: vehicleReservations.id,
+      vehicleId: vehicleReservations.vehicleId,
+      userId: vehicleReservations.userId,
+      reserverName: vehicleReservations.reserverName,
+      reserverPhone: vehicleReservations.reserverPhone,
+      reservationDate: vehicleReservations.reservationDate,
+      startTime: vehicleReservations.startTime,
+      endTime: vehicleReservations.endTime,
+      status: vehicleReservations.status,
+      purpose: vehicleReservations.purpose,
+      department: vehicleReservations.department,
+      passengers: vehicleReservations.passengers,
+      notes: vehicleReservations.notes,
+      recurrenceGroupId: vehicleReservations.recurrenceGroupId,
+      recurrenceLabel: vehicleReservations.recurrenceLabel,
+      recurrenceSequence: vehicleReservations.recurrenceSequence,
+      adminComment: vehicleReservations.adminComment,
+      createdAt: vehicleReservations.createdAt,
+      vehicleName: vehicles.name,
+      plateNumber: vehicles.plateNumber,
+      userName: churchMembers.name,
+      userEmail: churchMembers.email,
+      memberPosition: churchMembers.position,
+      memberPhone: churchMembers.phone,
+    })
+    .from(vehicleReservations)
+    .leftJoin(vehicles, eq(vehicleReservations.vehicleId, vehicles.id))
+    .leftJoin(churchMembers, eq(vehicleReservations.userId, churchMembers.id))
+    .where(eq(vehicleReservations.recurrenceGroupId, recurrenceGroupId))
+    .orderBy(
+      asc(vehicleReservations.reservationDate),
+      asc(vehicleReservations.recurrenceSequence),
+      asc(vehicleReservations.startTime),
+      asc(vehicleReservations.id),
+    );
+}
+
+export type VehicleReservationGroupDetailsUpdate = {
+  startTime: string;
+  endTime: string;
+};
+
+/** 반복 차량예약의 모든 회차 시간을 사전 검증 후 한 트랜잭션으로 변경합니다. */
+export async function updateVehicleReservationGroupDetails(
+  recurrenceGroupId: string,
+  data: VehicleReservationGroupDetailsUpdate,
+) {
+  const db = await getDb();
+  if (!db) return 0;
+  if (data.startTime >= data.endTime) {
+    throw new VehicleReservationGroupValidationError("시작 시간은 종료 시간보다 빨라야 합니다.");
+  }
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`
+      SELECT ${vehicleReservations.id}
+      FROM ${vehicleReservations}
+      WHERE ${vehicleReservations.recurrenceGroupId} = ${recurrenceGroupId}
+      FOR UPDATE
+    `);
+
+    const rows = await tx
+      .select({
+        id: vehicleReservations.id,
+        vehicleId: vehicleReservations.vehicleId,
+        reservationDate: vehicleReservations.reservationDate,
+        vehicleName: vehicles.name,
+        openTime: vehicles.openTime,
+        closeTime: vehicles.closeTime,
+      })
+      .from(vehicleReservations)
+      .leftJoin(vehicles, eq(vehicleReservations.vehicleId, vehicles.id))
+      .where(eq(vehicleReservations.recurrenceGroupId, recurrenceGroupId))
+      .orderBy(asc(vehicleReservations.reservationDate), asc(vehicleReservations.id));
+
+    if (rows.length === 0) return 0;
+
+    const groupIds = rows.map((row) => row.id);
+    const lockKeys = Array.from(new Set(rows.map((row) =>
+      `vehicle-reservation:${row.vehicleId}:${row.reservationDate}`
+    ))).sort();
+    const acquiredLocks: string[] = [];
+
+    try {
+      for (const lockKey of lockKeys) {
+        const lockResult = await tx.execute(sql`SELECT GET_LOCK(${lockKey}, 5) AS locked`);
+        if (Number(extractMysqlScalar(lockResult)) !== 1) {
+          throw new VehicleReservationLockError();
+        }
+        acquiredLocks.push(lockKey);
+      }
+
+      for (const row of rows) {
+        if (!row.openTime || !row.closeTime) {
+          throw new VehicleReservationGroupValidationError(
+            `${row.reservationDate} 회차에 연결된 차량 정보를 찾을 수 없습니다.`,
+          );
+        }
+        if (data.startTime < row.openTime || data.endTime > row.closeTime) {
+          throw new VehicleReservationGroupValidationError(
+            `${row.reservationDate} ${row.vehicleName ?? "차량"} 운영 시간(${row.openTime}~${row.closeTime}) 안에서만 수정할 수 있습니다.`,
+          );
+        }
+
+        const overlapping = await tx
+          .select({
+            startTime: vehicleReservations.startTime,
+            endTime: vehicleReservations.endTime,
+          })
+          .from(vehicleReservations)
+          .where(and(
+            eq(vehicleReservations.vehicleId, row.vehicleId),
+            eq(vehicleReservations.reservationDate, row.reservationDate),
+            notInArray(vehicleReservations.id, groupIds),
+            inArray(vehicleReservations.status, ["pending", "approved"]),
+            lt(vehicleReservations.startTime, data.endTime),
+            gt(vehicleReservations.endTime, data.startTime),
+          ))
+          .limit(1);
+
+        if (overlapping[0]) {
+          throw new VehicleReservationOverlapError(
+            overlapping[0].startTime,
+            overlapping[0].endTime,
+          );
+        }
+      }
+
+      await tx
+        .update(vehicleReservations)
+        .set({ startTime: data.startTime, endTime: data.endTime })
+        .where(eq(vehicleReservations.recurrenceGroupId, recurrenceGroupId));
+      return rows.length;
+    } finally {
+      for (const lockKey of acquiredLocks.reverse()) {
+        await tx.execute(sql`SELECT RELEASE_LOCK(${lockKey})`);
+      }
+    }
+  });
+}
+
+export type UpdateVehicleReservationGroupStatusResult =
+  | { status: "not_found"; count: 0; representative: null }
+  | { status: "not_pending"; count: 0; representative: null }
+  | {
+      status: "updated";
+      count: number;
+      representative: {
+        id: number;
+        userId: number | null;
+        reservationDate: string;
+        startTime: string;
+        endTime: string;
+        vehicleName: string | null;
+      };
+    };
+
+/** 반복 차량예약의 대기 회차만 한 트랜잭션으로 승인 또는 거절합니다. */
+export async function updateVehicleReservationGroupStatus(
+  recurrenceGroupId: string,
+  status: "approved" | "rejected",
+  adminComment?: string,
+  adminUserId?: number,
+): Promise<UpdateVehicleReservationGroupStatusResult> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`
+      SELECT ${vehicleReservations.id}
+      FROM ${vehicleReservations}
+      WHERE ${vehicleReservations.recurrenceGroupId} = ${recurrenceGroupId}
+      FOR UPDATE
+    `);
+
+    const rows = await tx
+      .select({
+        id: vehicleReservations.id,
+        userId: vehicleReservations.userId,
+        reservationDate: vehicleReservations.reservationDate,
+        startTime: vehicleReservations.startTime,
+        endTime: vehicleReservations.endTime,
+        status: vehicleReservations.status,
+        vehicleName: vehicles.name,
+      })
+      .from(vehicleReservations)
+      .leftJoin(vehicles, eq(vehicleReservations.vehicleId, vehicles.id))
+      .where(eq(vehicleReservations.recurrenceGroupId, recurrenceGroupId))
+      .orderBy(asc(vehicleReservations.reservationDate), asc(vehicleReservations.startTime), asc(vehicleReservations.id));
+
+    if (rows.length === 0) {
+      return { status: "not_found", count: 0, representative: null };
+    }
+
+    const pendingRows = rows.filter((row) => row.status === "pending");
+    if (pendingRows.length === 0) {
+      return { status: "not_pending", count: 0, representative: null };
+    }
+
+    const values: Partial<InsertVehicleReservation> = {
+      status,
+      adminComment: adminComment ?? null,
+    };
+    if (adminUserId !== undefined) {
+      values.processedBy = adminUserId;
+      values.processedAt = new Date();
+    }
+
+    const [result] = await tx
+      .update(vehicleReservations)
+      .set(values)
+      .where(and(
+        eq(vehicleReservations.recurrenceGroupId, recurrenceGroupId),
+        eq(vehicleReservations.status, "pending"),
+        inArray(vehicleReservations.id, pendingRows.map((row) => row.id)),
+      ));
+
+    const affectedRows = Number((result as ResultSetHeader | undefined)?.affectedRows ?? 0);
+    if (affectedRows !== pendingRows.length) {
+      throw new Error("반복 차량예약 상태가 변경되어 일괄 처리하지 못했습니다.");
+    }
+
+    const first = pendingRows[0]!;
+    return {
+      status: "updated",
+      count: affectedRows,
+      representative: {
+        id: first.id,
+        userId: first.userId,
+        reservationDate: first.reservationDate,
+        startTime: first.startTime,
+        endTime: first.endTime,
+        vehicleName: first.vehicleName,
+      },
+    };
+  });
+}
+
+/** 반복 차량예약 묶음을 한 번에 영구 삭제합니다. */
+export async function deleteVehicleReservationGroup(recurrenceGroupId: string) {
+  const db = await getDb();
+  if (!db) return 0;
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`
+      SELECT ${vehicleReservations.id}
+      FROM ${vehicleReservations}
+      WHERE ${vehicleReservations.recurrenceGroupId} = ${recurrenceGroupId}
+      FOR UPDATE
+    `);
+    const rows = await tx
+      .select({ id: vehicleReservations.id })
+      .from(vehicleReservations)
+      .where(eq(vehicleReservations.recurrenceGroupId, recurrenceGroupId));
+    if (rows.length === 0) return 0;
+
+    await tx
+      .delete(vehicleReservations)
+      .where(eq(vehicleReservations.recurrenceGroupId, recurrenceGroupId));
+    return rows.length;
+  });
 }
 
 export async function updateVehicleReservationStatus(

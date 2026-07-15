@@ -6,6 +6,7 @@ const dbMocks = vi.hoisted(() => ({
   canMemberUseVehicleReservation: vi.fn(),
   createVehicleReservationIfAvailable: vi.fn(),
   createVehicleReservationsIfAvailable: vi.fn(),
+  deleteVehicleReservationGroup: vi.fn(),
   getAvailableVehiclesForSchedule: vi.fn(),
   getVehicleAvailabilityTimeline: vi.fn(),
   getAdminVehicleReservationDetailsByDate: vi.fn(),
@@ -14,6 +15,8 @@ const dbMocks = vi.hoisted(() => ({
   getVehicleReservationById: vi.fn(),
   getVehicles: vi.fn(),
   updateVehicleReservationDetails: vi.fn(),
+  updateVehicleReservationGroupDetails: vi.fn(),
+  updateVehicleReservationGroupStatus: vi.fn(),
 }));
 
 const joseMocks = vi.hoisted(() => ({
@@ -54,6 +57,7 @@ vi.mock("./db", async (importOriginal) => {
     canMemberUseVehicleReservation: dbMocks.canMemberUseVehicleReservation,
     createVehicleReservationIfAvailable: dbMocks.createVehicleReservationIfAvailable,
     createVehicleReservationsIfAvailable: dbMocks.createVehicleReservationsIfAvailable,
+    deleteVehicleReservationGroup: dbMocks.deleteVehicleReservationGroup,
     getAvailableVehiclesForSchedule: dbMocks.getAvailableVehiclesForSchedule,
     getVehicleAvailabilityTimeline: dbMocks.getVehicleAvailabilityTimeline,
     getAdminVehicleReservationDetailsByDate: dbMocks.getAdminVehicleReservationDetailsByDate,
@@ -62,6 +66,8 @@ vi.mock("./db", async (importOriginal) => {
     getVehicleReservationById: dbMocks.getVehicleReservationById,
     getVehicles: dbMocks.getVehicles,
     updateVehicleReservationDetails: dbMocks.updateVehicleReservationDetails,
+    updateVehicleReservationGroupDetails: dbMocks.updateVehicleReservationGroupDetails,
+    updateVehicleReservationGroupStatus: dbMocks.updateVehicleReservationGroupStatus,
   };
 });
 
@@ -177,6 +183,7 @@ describe("vehicle reservations", () => {
         vehicleName: "스타리아",
       },
     });
+    dbMocks.deleteVehicleReservationGroup.mockResolvedValue(3);
     dbMocks.getVehicleReservationById.mockResolvedValue({
       id: 10,
       vehicleId: 1,
@@ -214,6 +221,19 @@ describe("vehicle reservations", () => {
     dbMocks.createVehicleReservationIfAvailable.mockResolvedValue(200);
     dbMocks.createVehicleReservationsIfAvailable.mockResolvedValue([200, 201, 202]);
     dbMocks.updateVehicleReservationDetails.mockResolvedValue(true);
+    dbMocks.updateVehicleReservationGroupDetails.mockResolvedValue(3);
+    dbMocks.updateVehicleReservationGroupStatus.mockResolvedValue({
+      status: "updated",
+      count: 3,
+      representative: {
+        id: 10,
+        userId: 1,
+        reservationDate: "2026-07-30",
+        startTime: "16:00",
+        endTime: "21:00",
+        vehicleName: "스타리아",
+      },
+    });
     pushMocks.notifyVehicleReservation.mockReset();
     pushMocks.notifyVehicleReservationResult.mockReset();
   });
@@ -777,6 +797,89 @@ describe("vehicle reservations", () => {
       startTime: "12:00",
       endTime: "13:00",
     });
+  });
+
+  it("lets vehicle managers update every occurrence time in a recurring batch", async () => {
+    const caller = appRouter.createCaller(createContext(createAdminUser(), false));
+
+    await expect(caller.cms.vehicleReservations.updateGroupTime({
+      groupId: "vehicle-repeat-1",
+      startTime: "17:00",
+      endTime: "20:00",
+    })).resolves.toEqual({ success: true, count: 3 });
+
+    expect(dbMocks.updateVehicleReservationGroupDetails).toHaveBeenCalledTimes(1);
+    expect(dbMocks.updateVehicleReservationGroupDetails).toHaveBeenCalledWith(
+      "vehicle-repeat-1",
+      { startTime: "17:00", endTime: "20:00" },
+    );
+  });
+
+  it("approves one recurring batch and sends one result push for the batch", async () => {
+    const caller = appRouter.createCaller(createContext(createAdminUser(), false));
+
+    await expect(caller.cms.vehicleReservations.approveGroup({
+      groupId: "vehicle-repeat-1",
+    })).resolves.toEqual({ success: true, count: 3 });
+
+    expect(dbMocks.updateVehicleReservationGroupStatus).toHaveBeenCalledTimes(1);
+    expect(dbMocks.updateVehicleReservationGroupStatus).toHaveBeenCalledWith(
+      "vehicle-repeat-1",
+      "approved",
+      undefined,
+      10,
+    );
+    expect(pushMocks.notifyVehicleReservationResult).toHaveBeenCalledTimes(1);
+    expect(pushMocks.notifyVehicleReservationResult).toHaveBeenCalledWith({
+      memberId: 1,
+      status: "approved",
+      vehicleName: "스타리아",
+      date: "2026-07-30",
+      startTime: "16:00",
+      endTime: "21:00",
+      reservationId: 10,
+      extraCount: 2,
+    });
+  });
+
+  it("rejects one recurring batch and sends one result push for the batch", async () => {
+    const caller = appRouter.createCaller(createContext(createAdminUser(), false));
+
+    await expect(caller.cms.vehicleReservations.rejectGroup({
+      groupId: "vehicle-repeat-1",
+      comment: "차량 점검 일정과 겹칩니다.",
+    })).resolves.toEqual({ success: true, count: 3 });
+
+    expect(dbMocks.updateVehicleReservationGroupStatus).toHaveBeenCalledTimes(1);
+    expect(dbMocks.updateVehicleReservationGroupStatus).toHaveBeenCalledWith(
+      "vehicle-repeat-1",
+      "rejected",
+      "차량 점검 일정과 겹칩니다.",
+      10,
+    );
+    expect(pushMocks.notifyVehicleReservationResult).toHaveBeenCalledTimes(1);
+    expect(pushMocks.notifyVehicleReservationResult).toHaveBeenCalledWith({
+      memberId: 1,
+      status: "rejected",
+      vehicleName: "스타리아",
+      date: "2026-07-30",
+      startTime: "16:00",
+      endTime: "21:00",
+      reservationId: 10,
+      extraCount: 2,
+    });
+  });
+
+  it("lets vehicle managers delete one recurring batch", async () => {
+    const caller = appRouter.createCaller(createContext(createAdminUser(), false));
+
+    await expect(caller.cms.vehicleReservations.deleteGroup({
+      groupId: "vehicle-repeat-1",
+    })).resolves.toEqual({ success: true, count: 3 });
+
+    expect(dbMocks.deleteVehicleReservationGroup).toHaveBeenCalledTimes(1);
+    expect(dbMocks.deleteVehicleReservationGroup).toHaveBeenCalledWith("vehicle-repeat-1");
+    expect(pushMocks.notifyVehicleReservationResult).not.toHaveBeenCalled();
   });
 
   it("lets vehicle managers cancel one recurring batch and sends one result push", async () => {

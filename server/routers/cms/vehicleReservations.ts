@@ -8,12 +8,17 @@ import { adminPermissionProcedure, router } from "../../_core/trpc";
 import { optionalTextSchema, requiredTextSchema } from "../../_core/contentValidation";
 import {
   cancelVehicleReservationGroup,
+  deleteVehicleReservationGroup,
   deleteVehicleReservationById,
   getAllVehicleReservations,
   getVehicleById,
   getVehicleReservationById,
+  updateVehicleReservationGroupDetails,
+  updateVehicleReservationGroupStatus,
   updateVehicleReservationDetails,
   updateVehicleReservationStatus,
+  VehicleReservationGroupValidationError,
+  VehicleReservationLockError,
   VehicleReservationOverlapError,
 } from "../../db";
 import { notifyVehicleReservationResult } from "../../_core/pushNotifications";
@@ -49,6 +54,30 @@ async function notifyVehicleResultById(id: number, status: VehicleResultStatus) 
     startTime: reservation.startTime,
     endTime: reservation.endTime,
     reservationId: reservation.id,
+  });
+}
+
+function notifyVehicleGroupResult(
+  representative: {
+    id: number;
+    userId: number | null;
+    reservationDate: string;
+    startTime: string;
+    endTime: string;
+    vehicleName: string | null;
+  },
+  count: number,
+  status: VehicleResultStatus,
+) {
+  void notifyVehicleReservationResult({
+    memberId: representative.userId,
+    status,
+    vehicleName: representative.vehicleName,
+    date: representative.reservationDate,
+    startTime: representative.startTime,
+    endTime: representative.endTime,
+    reservationId: representative.id,
+    extraCount: Math.max(0, count - 1),
   });
 }
 
@@ -104,6 +133,38 @@ export const vehicleReservationsRouter = router({
       }
     }),
 
+  updateGroupTime: vehicleReservationProcedure
+    .input(z.object({
+      groupId: groupIdSchema,
+      startTime: timeSchema,
+      endTime: timeSchema,
+    }))
+    .mutation(async ({ input }) => {
+      assertTimeOrder(input.startTime, input.endTime);
+
+      try {
+        const count = await updateVehicleReservationGroupDetails(input.groupId, {
+          startTime: input.startTime,
+          endTime: input.endTime,
+        });
+        if (count === 0) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "반복 차량예약 묶음을 찾을 수 없습니다." });
+        }
+        return { success: true, count };
+      } catch (error) {
+        if (error instanceof VehicleReservationOverlapError) {
+          throw new TRPCError({ code: "CONFLICT", message: error.message });
+        }
+        if (error instanceof VehicleReservationLockError) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: error.message });
+        }
+        if (error instanceof VehicleReservationGroupValidationError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+        }
+        throw error;
+      }
+    }),
+
   approve: vehicleReservationProcedure
     .input(z.object({
       id: idSchema,
@@ -115,6 +176,29 @@ export const vehicleReservationsRouter = router({
       return { success: true };
     }),
 
+  approveGroup: vehicleReservationProcedure
+    .input(z.object({
+      groupId: groupIdSchema,
+      comment: optionalTextSchema(20000),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await updateVehicleReservationGroupStatus(
+        input.groupId,
+        "approved",
+        input.comment,
+        ctx.user.id,
+      );
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "반복 차량예약 묶음을 찾을 수 없습니다." });
+      }
+      if (result.status === "not_pending") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "일괄 승인할 대기 회차가 없습니다." });
+      }
+
+      notifyVehicleGroupResult(result.representative, result.count, "approved");
+      return { success: true, count: result.count };
+    }),
+
   reject: vehicleReservationProcedure
     .input(z.object({
       id: idSchema,
@@ -124,6 +208,29 @@ export const vehicleReservationsRouter = router({
       await updateVehicleReservationStatus(input.id, "rejected", input.comment, ctx.user.id);
       await notifyVehicleResultById(input.id, "rejected");
       return { success: true };
+    }),
+
+  rejectGroup: vehicleReservationProcedure
+    .input(z.object({
+      groupId: groupIdSchema,
+      comment: requiredTextSchema(20000, "거절 사유를 입력해주세요."),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await updateVehicleReservationGroupStatus(
+        input.groupId,
+        "rejected",
+        input.comment,
+        ctx.user.id,
+      );
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "반복 차량예약 묶음을 찾을 수 없습니다." });
+      }
+      if (result.status === "not_pending") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "일괄 거절할 대기 회차가 없습니다." });
+      }
+
+      notifyVehicleGroupResult(result.representative, result.count, "rejected");
+      return { success: true, count: result.count };
     }),
 
   cancel: vehicleReservationProcedure
@@ -173,5 +280,15 @@ export const vehicleReservationsRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "차량 예약을 찾을 수 없습니다." });
       }
       return { success: true };
+    }),
+
+  deleteGroup: vehicleReservationProcedure
+    .input(z.object({ groupId: groupIdSchema }))
+    .mutation(async ({ input }) => {
+      const count = await deleteVehicleReservationGroup(input.groupId);
+      if (count === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "반복 차량예약 묶음을 찾을 수 없습니다." });
+      }
+      return { success: true, count };
     }),
 });
