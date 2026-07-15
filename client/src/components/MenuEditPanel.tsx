@@ -537,6 +537,7 @@ export default function MenuEditPanel({
                               <InlineEditForm
                                 initialLabel={item.label}
                                 initialHref={item.href ?? ""}
+                                menuItemId={item.id}
                                 initialPageType={item.pageType}
                                 initialPageImageUrl={item.pageImageUrl}
                                 initialDefaultViewMode={item.defaultViewMode === "grid" ? "grid" : "list"}
@@ -679,6 +680,7 @@ export default function MenuEditPanel({
                               <InlineEditForm
                                 initialLabel={sub.label}
                                 initialHref={sub.href ?? ""}
+                                menuSubItemId={sub.id}
                                 initialPageType={sub.pageType}
                                 initialPageImageUrl={sub.pageImageUrl}
                                 initialDefaultViewMode={sub.defaultViewMode === "grid" ? "grid" : "list"}

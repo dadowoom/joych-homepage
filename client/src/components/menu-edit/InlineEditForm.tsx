@@ -9,6 +9,10 @@ import {
   type PageType,
   PAGE_TYPE_OPTIONS,
 } from "./types.tsx";
+import { isLargePageImageTarget } from "@shared/pageImageUploadPolicy";
+
+const MAX_PAGE_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_STANDARD_IMAGE_BYTES = 1 * 1024 * 1024;
 
 function getDefaultViewModeForPageType(pageType?: PageType): DefaultViewMode {
   return pageType === "gallery" ? "grid" : "list";
@@ -33,6 +37,8 @@ export function InlineEditForm({
   initialPageImageUrl,
   initialDefaultViewMode,
   showPageType,
+  menuItemId,
+  menuSubItemId,
   colorClass,
   onSave,
   onCancel,
@@ -43,6 +49,8 @@ export function InlineEditForm({
   initialPageImageUrl?: string | null;
   initialDefaultViewMode?: DefaultViewMode | null;
   showPageType?: boolean;
+  menuItemId?: number;
+  menuSubItemId?: number;
   colorClass: string;
   onSave: (
     label: string,
@@ -67,6 +75,7 @@ export function InlineEditForm({
   const [galleryCaption, setGalleryCaption] = useState(initialLabel);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryFileInputRef = useRef<HTMLInputElement>(null);
+  const allowsLargePageImage = isLargePageImageTarget({ menuItemId, menuSubItemId });
 
   const uploadPageImage = trpc.cms.upload.pageImage.useMutation();
   const uploadGalleryImage = trpc.cms.upload.galleryImage.useMutation();
@@ -80,8 +89,13 @@ export function InlineEditForm({
   const handlePageImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 1 * 1024 * 1024) {
-      toast.error("파일 크기는 1MB 이하만 가능합니다.");
+    const maxBytes = allowsLargePageImage ? MAX_PAGE_IMAGE_BYTES : MAX_STANDARD_IMAGE_BYTES;
+    if (file.size > maxBytes) {
+      toast.error(
+        allowsLargePageImage
+          ? "페이지 이미지는 최대 10MB까지 업로드할 수 있습니다."
+          : "페이지 이미지는 최대 1MB까지 업로드할 수 있습니다."
+      );
       return;
     }
 
@@ -93,6 +107,8 @@ export function InlineEditForm({
         fileName: file.name,
         mimeType: file.type || "image/jpeg",
         context: "menu-page",
+        menuItemId,
+        menuSubItemId,
       });
       setPageImageUrl(result.url);
       toast.success("이미지가 업로드됐습니다.");
@@ -224,7 +240,9 @@ export function InlineEditForm({
             <ImageIcon size={10} />
             {uploading ? "업로드 중..." : pageImageUrl ? "이미지 변경" : "이미지 업로드"}
           </button>
-          <p className="text-[9px] text-gray-400">권장: 1920 x 1080px, 최대 1MB, JPG/PNG/WEBP</p>
+          <p className="text-[9px] text-gray-400">
+            권장: 1920 x 1080px, 최대 {allowsLargePageImage ? "10MB" : "1MB"}, JPG/PNG/WEBP/GIF
+          </p>
           <input
             ref={fileInputRef}
             type="file"

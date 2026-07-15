@@ -29,7 +29,7 @@ import {
   normalizeBlockContent,
   normalizeRichTextHtmlContent,
 } from "./_core/contentValidation";
-import { validateImage, validateVideo } from "./routers/cms/upload";
+import { validateImage, validatePageImage, validateVideo } from "./routers/cms/upload";
 
 // ── 1. 환경변수 검증 테스트 ────────────────────────────────────────────────────
 describe("[보안 1번] 환경변수 검증", () => {
@@ -297,6 +297,22 @@ describe("[보안 7번] 파일 업로드 — MIME 화이트리스트 및 크기 
     const oversizedBase64 = oversizedBuffer.toString("base64");
     expect(() => validateImage(oversizedBase64, "image/png")).toThrow(
       "이미지는 최대 1MB까지 업로드할 수 있습니다."
+    );
+  });
+
+  it("메뉴 페이지 이미지는 10MB까지 업로드 가능", () => {
+    const pageImageBuffer = Buffer.alloc(2 * 1024 * 1024, 0);
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(pageImageBuffer);
+
+    expect(() => validatePageImage(pageImageBuffer.toString("base64"), "image/png")).not.toThrow();
+  });
+
+  it("메뉴 페이지 이미지 크기 10MB 초과 시 업로드 실패", () => {
+    const oversizedPageImageBuffer = Buffer.alloc(10 * 1024 * 1024 + 1, 0);
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(oversizedPageImageBuffer);
+
+    expect(() => validatePageImage(oversizedPageImageBuffer.toString("base64"), "image/png")).toThrow(
+      "이미지는 최대 10MB까지 업로드할 수 있습니다."
     );
   });
 

@@ -23,7 +23,8 @@ import { TRPCError } from "@trpc/server";
 import { adminProcedure, router } from "../../_core/trpc";
 import { normalizeBlockContent, validateBlockType } from "../../_core/contentValidation";
 import { storagePut } from "../../storage";
-import { validateImage } from "./upload";
+import { validateImage, validatePageImage } from "./upload";
+import { isLargePageImageUploadTarget } from "../../_core/pageImageUploadPolicy";
 import {
   getAllPageBlocks,
   getPageBlockById,
@@ -150,9 +151,16 @@ export const blocksRouter = router({
       base64: z.string(),
       mimeType: z.string(),
       fileName: z.string().optional(),
+      blockType: z.literal("image-single").optional(),
+      menuItemId: z.number().int().positive().optional(),
+      menuSubItemId: z.number().int().positive().optional(),
     }))
     .mutation(async ({ input }) => {
-      const { buffer, ext } = validateImage(input.base64, input.mimeType);
+      const allowsLargeImage = input.blockType === "image-single"
+        && await isLargePageImageUploadTarget(input);
+      const { buffer, ext } = allowsLargeImage
+        ? validatePageImage(input.base64, input.mimeType)
+        : validateImage(input.base64, input.mimeType);
       const mimeType = input.mimeType.toLowerCase().trim();
       const key = `page-blocks/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { url } = await storagePut(key, buffer, mimeType);

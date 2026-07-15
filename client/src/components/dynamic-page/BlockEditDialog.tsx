@@ -16,6 +16,7 @@ import { RichTextEditor, RichTextViewer, sanitizeRichTextHtml } from "@/componen
 import { trpc } from "@/lib/trpc";
 import { BLOCK_TYPES, HTML_EDITOR_BLOCK_TYPE } from "./BlockRenderer";
 import { normalizeHtmlBlockValue } from "./htmlBlockUtils";
+import { isLargePageImageTarget } from "@shared/pageImageUploadPolicy";
 
 type DialogSize = {
   width: number;
@@ -281,30 +282,47 @@ export function BlockEditDialog({
 
   const uploadMutation = trpc.cms.blocks.uploadImage.useMutation();
   const visualEditorSafeHtml = useMemo(() => isVisualEditorSafeHtml(html), [html]);
+  const allowsLargeSingleImage = isLargePageImageTarget({ menuItemId, menuSubItemId });
 
   const imgCount =
     blockType === "image-single" ? 1 : blockType === "image-double" ? 2 : 3;
 
   const handleImageUpload = async (idx: number, file: File) => {
+    const usesLargeLimit = blockType === "image-single" && allowsLargeSingleImage;
+    const maxBytes = usesLargeLimit ? 10 * 1024 * 1024 : 1 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      window.alert(
+        usesLargeLimit
+          ? "이미지 1장 블록은 최대 10MB까지 업로드할 수 있습니다."
+          : "이미지는 장당 최대 1MB까지 업로드할 수 있습니다."
+      );
+      return;
+    }
+
     setUploading(true);
     try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = (e.target?.result as string).split(",")[1];
-        const result = await uploadMutation.mutateAsync({
-          base64,
-          mimeType: file.type,
-          fileName: file.name,
-        });
-        setUrls((prev) => {
-          const next = [...prev];
-          next[idx] = result.url;
-          return next;
-        });
-        setUploading(false);
-      };
-      reader.readAsDataURL(file);
-    } catch {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result ?? "").split(",")[1] ?? "");
+        reader.onerror = () => reject(reader.error ?? new Error("이미지를 읽지 못했습니다."));
+        reader.readAsDataURL(file);
+      });
+      const result = await uploadMutation.mutateAsync({
+        base64,
+        mimeType: file.type,
+        fileName: file.name,
+        blockType: blockType === "image-single" ? "image-single" : undefined,
+        menuItemId,
+        menuSubItemId,
+      });
+      setUrls((prev) => {
+        const next = [...prev];
+        next[idx] = result.url;
+        return next;
+      });
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "이미지 업로드에 실패했습니다.");
+    } finally {
       setUploading(false);
     }
   };
@@ -675,6 +693,11 @@ export function BlockEditDialog({
                   e.target.value = "";
                 }}
               />
+              <p className="text-xs text-gray-400">
+                {blockType === "image-single" && allowsLargeSingleImage
+                  ? "이미지 1장 블록은 최대 10MB까지 업로드할 수 있습니다."
+                  : "이미지는 장당 최대 1MB까지 업로드할 수 있습니다."}
+              </p>
             </div>
           )}
 

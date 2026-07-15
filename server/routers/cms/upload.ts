@@ -18,6 +18,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { adminAnyPermissionProcedure, adminProcedure, contentProcedure, router } from "../../_core/trpc";
 import { storagePut } from "../../storage";
+import { isLargePageImageUploadTarget } from "../../_core/pageImageUploadPolicy";
 
 // ── 허용 MIME 타입 및 확장자 화이트리스트 ────────────────────────────────────────────
 const ALLOWED_IMAGE_MIMES: Record<string, string> = {
@@ -53,6 +54,7 @@ const ALLOWED_ATTACHMENT_EXTENSIONS: Record<string, string> = {
 };
 
 const MAX_IMAGE_BYTES = 1 * 1024 * 1024;  // 1MB
+const MAX_PAGE_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100MB
 const MAX_ATTACHMENT_BYTES = 1 * 1024 * 1024; // 1MB
 
@@ -105,19 +107,36 @@ function assertVideoSignature(buffer: Buffer, mime: string) {
   }
 }
 
-/** 이미지 업로드 검증: MIME 기준으로 확장자 결정, 크기 제한 */
-export function validateImage(base64: string, mimeType: string): { buffer: Buffer; ext: string } {
+function validateImageWithLimit(
+  base64: string,
+  mimeType: string,
+  maxBytes: number,
+  maxSizeLabel: string
+): { buffer: Buffer; ext: string } {
   const mime = mimeType.toLowerCase().trim();
   const ext = ALLOWED_IMAGE_MIMES[mime];
   if (!ext) {
     throw new TRPCError({ code: "BAD_REQUEST", message: `허용되지 않는 이미지 형식입니다. 허용 형식: jpg, png, webp, gif` });
   }
   const buffer = decodeBase64File(base64);
-  if (buffer.length > MAX_IMAGE_BYTES) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "이미지는 최대 1MB까지 업로드할 수 있습니다." });
+  if (buffer.length > maxBytes) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `이미지는 최대 ${maxSizeLabel}까지 업로드할 수 있습니다.`,
+    });
   }
   assertImageSignature(buffer, mime);
   return { buffer, ext };
+}
+
+/** 일반 이미지 업로드 검증: 공지, 갤러리 등은 기존 1MB 제한을 유지합니다. */
+export function validateImage(base64: string, mimeType: string): { buffer: Buffer; ext: string } {
+  return validateImageWithLimit(base64, mimeType, MAX_IMAGE_BYTES, "1MB");
+}
+
+/** 메뉴의 단일 페이지 이미지 업로드는 최대 10MB까지 허용합니다. */
+export function validatePageImage(base64: string, mimeType: string): { buffer: Buffer; ext: string } {
+  return validateImageWithLimit(base64, mimeType, MAX_PAGE_IMAGE_BYTES, "10MB");
 }
 
 /** 영상 업로드 검증: MIME 기준으로 확장자 결정, 크기 제한 */
@@ -253,9 +272,14 @@ export const uploadRouter = router({
       fileName: z.string(),
       mimeType: z.string(),
       context: z.string().optional(), // 업로드 맥락 (예: 'menu-page', 'block-editor')
+      menuItemId: z.number().int().positive().optional(),
+      menuSubItemId: z.number().int().positive().optional(),
     }))
     .mutation(async ({ input }) => {
-      const { buffer, ext } = validateImage(input.base64, input.mimeType);
+      const allowsLargeImage = await isLargePageImageUploadTarget(input);
+      const { buffer, ext } = allowsLargeImage
+        ? validatePageImage(input.base64, input.mimeType)
+        : validateImage(input.base64, input.mimeType);
       sanitizeFileName(input.fileName);
       const context = (input.context ?? "page").replace(/[^a-zA-Z0-9\-_]/g, "_");
       const key = `page-images/${context}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
