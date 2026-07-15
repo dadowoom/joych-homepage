@@ -365,6 +365,13 @@ export default function AdminVehiclesTab() {
     },
     onError: (error) => toast.error(error.message),
   });
+  const cancelReservationGroup = trpc.cms.vehicleReservations.cancelGroup.useMutation({
+    onSuccess: (result) => {
+      utils.cms.vehicleReservations.list.invalidate();
+      toast.success(`반복 차량 예약 ${result.count}건을 일괄 취소했습니다.`);
+    },
+    onError: (error) => toast.error(error.message),
+  });
   const updateReservationTime = trpc.cms.vehicleReservations.updateTime.useMutation({
     onSuccess: () => {
       utils.cms.vehicleReservations.list.invalidate();
@@ -554,6 +561,13 @@ export default function AdminVehiclesTab() {
     cancelReservation.mutate({ id: row.id });
   }
 
+  function cancelVehicleReservationGroup(groupId: string, cancellableCount: number) {
+    if (!confirm(
+      `반복 차량 예약의 승인·대기 회차 ${cancellableCount}건을 모두 취소하시겠습니까?\n이미 취소되거나 거절된 회차는 변경하지 않습니다.`,
+    )) return;
+    cancelReservationGroup.mutate({ groupId });
+  }
+
   function startReservationTimeEdit(row: VehicleReservationRow) {
     setRejectingId(null);
     setEditingReservationId(row.id);
@@ -677,7 +691,7 @@ export default function AdminVehiclesTab() {
 
   const isSavingVehicle = createVehicle.isPending || updateVehicle.isPending;
   const isMutatingReservation =
-    approveReservation.isPending || rejectReservation.isPending || cancelReservation.isPending || updateReservationTime.isPending || deleteReservation.isPending;
+    approveReservation.isPending || rejectReservation.isPending || cancelReservation.isPending || cancelReservationGroup.isPending || updateReservationTime.isPending || deleteReservation.isPending;
 
   function renderReservationOccurrence(
     row: VehicleReservationRow,
@@ -1306,11 +1320,12 @@ export default function AdminVehiclesTab() {
                 {filteredReservationGroups.map(group => {
                   if (group.isRecurring) {
                     const isExpanded = expandedReservationGroupKey === group.key;
-                    const vehicleLabels = Array.from(new Set(group.reservations.map(row => {
-                      const plateNumber = getReservationPlateNumber(row);
-                      const vehicleName = getReservationVehicleName(row);
-                      return plateNumber === "-" ? vehicleName : `${plateNumber} ${vehicleName}`;
-                    })));
+                    const groupVehicles = Array.from(
+                      new Map(group.reservations.map(row => [row.vehicleId, row])).values(),
+                    );
+                    const primaryVehicle = groupVehicles[0] ?? group.first;
+                    const primaryPlateNumber = getReservationPlateNumber(primaryVehicle);
+                    const primaryVehicleName = getReservationVehicleName(primaryVehicle);
                     const purposes = Array.from(new Set(group.reservations.map(row => row.purpose || "-")));
                     const reserverLabels = Array.from(new Set(group.reservations.map(row =>
                       `${getReservationName(row)} (${getReservationPosition(row)})`
@@ -1319,6 +1334,7 @@ export default function AdminVehiclesTab() {
                       counts[row.status] += 1;
                       return counts;
                     }, { pending: 0, approved: 0, rejected: 0, cancelled: 0 });
+                    const cancellableCount = statusCounts.pending + statusCounts.approved;
 
                     return (
                       <div key={group.key} className="border-b border-blue-100 bg-blue-50/30 last:border-b-0">
@@ -1336,22 +1352,23 @@ export default function AdminVehiclesTab() {
                             <p className="text-xs text-gray-500">~ {formatDate(group.endDate)}</p>
                           </div>
                           <div className="min-w-0">
-                            <p className="font-extrabold text-gray-950">차량 {vehicleLabels.length}대</p>
-                            <p className="line-clamp-2 text-xs text-gray-600">{vehicleLabels.join(" · ")}</p>
+                            <p className="truncate font-extrabold text-gray-950">
+                              {primaryPlateNumber === "-" ? primaryVehicleName : primaryPlateNumber}
+                              {groupVehicles.length > 1 && ` 외 ${groupVehicles.length - 1}대`}
+                            </p>
+                            {primaryPlateNumber !== "-" && (
+                              <p className="truncate text-xs text-gray-600">{primaryVehicleName}</p>
+                            )}
                           </div>
                           <div className="min-w-0">
                             <p className="break-words font-semibold leading-5 text-gray-900">
                               {purposes.length === 1 ? purposes[0] : "회차별 목적 상이"}
-                            </p>
-                            <p className="mt-0.5 text-xs text-blue-700">
-                              {group.recurrenceLabel ?? "반복 예약 묶음"}
                             </p>
                           </div>
                           <div>
                             <p className="font-semibold text-gray-900">
                               {reserverLabels.length === 1 ? reserverLabels[0] : `신청자 ${reserverLabels.length}명`}
                             </p>
-                            <p className="text-[11px] text-gray-500">각 회차의 차량과 상태는 펼쳐서 확인</p>
                           </div>
                           <div className="flex flex-wrap gap-1">
                             {(Object.keys(statusCounts) as VehicleReservationStatus[]).map(statusKey => {
@@ -1368,16 +1385,30 @@ export default function AdminVehiclesTab() {
                               );
                             })}
                           </div>
-                          <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {group.groupId && cancellableCount > 0 && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="min-h-10 border-red-200 bg-white px-2.5 text-red-600 hover:bg-red-50 sm:min-h-0"
+                                disabled={isMutatingReservation}
+                                onClick={() => cancelVehicleReservationGroup(group.groupId!, cancellableCount)}
+                                aria-label={`반복 차량 예약 ${cancellableCount}회 일괄 취소`}
+                              >
+                                취소
+                              </Button>
+                            )}
                             <Button
                               type="button"
                               size="sm"
                               variant="outline"
-                              className="min-h-10 border-blue-200 bg-white text-blue-700 hover:bg-blue-50 sm:min-h-0"
+                              className="min-h-10 border-blue-200 bg-white px-2.5 text-blue-700 hover:bg-blue-50 sm:min-h-0"
                               aria-expanded={isExpanded}
+                              aria-label={isExpanded ? "반복 차량 예약 일정 접기" : "반복 차량 예약 전체 일정 보기"}
                               onClick={() => setExpandedReservationGroupKey(isExpanded ? null : group.key)}
                             >
-                              {isExpanded ? "접기" : "전체 회차"}
+                              일정
                               <ChevronDown className={`ml-1 h-3.5 w-3.5 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                             </Button>
                           </div>
@@ -1385,9 +1416,6 @@ export default function AdminVehiclesTab() {
 
                         {isExpanded && (
                           <div className="border-t border-blue-100 bg-blue-50 p-3">
-                            <p className="mb-2 text-xs font-medium text-blue-800">
-                              총 {group.count}회 전체 일정입니다. 승인과 취소는 각 회차에서 처리됩니다.
-                            </p>
                             <div className="overflow-hidden rounded-lg border border-blue-100">
                               {group.reservations.map((row, index) => renderReservationOccurrence(row, {
                                 nested: true,

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext, TrpcUser } from "./_core/context";
 
 const dbMocks = vi.hoisted(() => ({
+  cancelVehicleReservationGroup: vi.fn(),
   canMemberUseVehicleReservation: vi.fn(),
   createVehicleReservationIfAvailable: vi.fn(),
   createVehicleReservationsIfAvailable: vi.fn(),
@@ -23,6 +24,7 @@ const pushMocks = vi.hoisted(() => ({
   notifyCourseApplicationToDistrictManager: vi.fn(),
   notifyFacilityReservation: vi.fn(),
   notifyVehicleReservation: vi.fn(),
+  notifyVehicleReservationResult: vi.fn(),
 }));
 
 vi.mock("jose", () => ({
@@ -33,6 +35,7 @@ vi.mock("./_core/pushNotifications", () => ({
   notifyCourseApplicationToDistrictManager: pushMocks.notifyCourseApplicationToDistrictManager,
   notifyFacilityReservation: pushMocks.notifyFacilityReservation,
   notifyVehicleReservation: pushMocks.notifyVehicleReservation,
+  notifyVehicleReservationResult: pushMocks.notifyVehicleReservationResult,
 }));
 
 vi.mock("./db/member", async (importOriginal) => {
@@ -47,6 +50,7 @@ vi.mock("./db", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./db")>();
   return {
     ...actual,
+    cancelVehicleReservationGroup: dbMocks.cancelVehicleReservationGroup,
     canMemberUseVehicleReservation: dbMocks.canMemberUseVehicleReservation,
     createVehicleReservationIfAvailable: dbMocks.createVehicleReservationIfAvailable,
     createVehicleReservationsIfAvailable: dbMocks.createVehicleReservationsIfAvailable,
@@ -161,6 +165,18 @@ describe("vehicle reservations", () => {
     dbMocks.getMemberById.mockResolvedValue(approvedVehicleMember);
     dbMocks.canMemberUseVehicleReservation.mockResolvedValue(true);
     dbMocks.getVehicleById.mockResolvedValue(reservableVehicle);
+    dbMocks.cancelVehicleReservationGroup.mockResolvedValue({
+      status: "cancelled",
+      count: 2,
+      representative: {
+        id: 10,
+        userId: 1,
+        reservationDate: "2026-07-30",
+        startTime: "16:00",
+        endTime: "21:00",
+        vehicleName: "스타리아",
+      },
+    });
     dbMocks.getVehicleReservationById.mockResolvedValue({
       id: 10,
       vehicleId: 1,
@@ -198,6 +214,7 @@ describe("vehicle reservations", () => {
     dbMocks.createVehicleReservationsIfAvailable.mockResolvedValue([200, 201, 202]);
     dbMocks.updateVehicleReservationDetails.mockResolvedValue(true);
     pushMocks.notifyVehicleReservation.mockReset();
+    pushMocks.notifyVehicleReservationResult.mockReset();
   });
 
   it("blocks vehicle reservation pages for members outside the selected position group", async () => {
@@ -717,6 +734,61 @@ describe("vehicle reservations", () => {
       startTime: "12:00",
       endTime: "13:00",
     });
+  });
+
+  it("lets vehicle managers cancel one recurring batch and sends one result push", async () => {
+    const caller = appRouter.createCaller(createContext(createAdminUser(), false));
+
+    await expect(caller.cms.vehicleReservations.cancelGroup({
+      groupId: "vehicle-repeat-1",
+    })).resolves.toEqual({ success: true, count: 2 });
+
+    expect(dbMocks.cancelVehicleReservationGroup).toHaveBeenCalledWith(
+      "vehicle-repeat-1",
+      10,
+      undefined,
+    );
+    expect(pushMocks.notifyVehicleReservationResult).toHaveBeenCalledTimes(1);
+    expect(pushMocks.notifyVehicleReservationResult).toHaveBeenCalledWith({
+      memberId: 1,
+      status: "cancelled",
+      vehicleName: "스타리아",
+      date: "2026-07-30",
+      startTime: "16:00",
+      endTime: "21:00",
+      reservationId: 10,
+      extraCount: 1,
+    });
+  });
+
+  it("does not send a push when a recurring batch has no cancellable occurrence", async () => {
+    dbMocks.cancelVehicleReservationGroup.mockResolvedValueOnce({
+      status: "not_cancellable",
+      count: 0,
+      representative: null,
+    });
+    const caller = appRouter.createCaller(createContext(createAdminUser(), false));
+
+    await expect(caller.cms.vehicleReservations.cancelGroup({
+      groupId: "vehicle-repeat-finished",
+    })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    expect(pushMocks.notifyVehicleReservationResult).not.toHaveBeenCalled();
+  });
+
+  it("does not send a push when a recurring batch does not exist", async () => {
+    dbMocks.cancelVehicleReservationGroup.mockResolvedValueOnce({
+      status: "not_found",
+      count: 0,
+      representative: null,
+    });
+    const caller = appRouter.createCaller(createContext(createAdminUser(), false));
+
+    await expect(caller.cms.vehicleReservations.cancelGroup({
+      groupId: "vehicle-repeat-missing",
+    })).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    expect(pushMocks.notifyVehicleReservationResult).not.toHaveBeenCalled();
   });
 
   it("rejects overlapping vehicle reservations with a conflict error", async () => {

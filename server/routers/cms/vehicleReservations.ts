@@ -7,6 +7,7 @@ import { z } from "zod";
 import { adminPermissionProcedure, router } from "../../_core/trpc";
 import { optionalTextSchema, requiredTextSchema } from "../../_core/contentValidation";
 import {
+  cancelVehicleReservationGroup,
   deleteVehicleReservationById,
   getAllVehicleReservations,
   getVehicleById,
@@ -18,6 +19,7 @@ import {
 import { notifyVehicleReservationResult } from "../../_core/pushNotifications";
 
 const idSchema = z.number().int().positive();
+const groupIdSchema = z.string().trim().min(1).max(64);
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "날짜 형식이 올바르지 않습니다.");
 const timeSchema = z.string().regex(/^(([01]\d|2[0-3]):[0-5]\d|24:00)$/, "시간은 HH:MM 형식으로 입력해주세요.");
 const vehicleReservationProcedure = adminPermissionProcedure("content:vehicles");
@@ -133,6 +135,34 @@ export const vehicleReservationsRouter = router({
       await updateVehicleReservationStatus(input.id, "cancelled", input.comment, ctx.user.id);
       await notifyVehicleResultById(input.id, "cancelled");
       return { success: true };
+    }),
+
+  /** 반복 차량예약의 승인/대기 회차 일괄 취소 (관리자) */
+  cancelGroup: vehicleReservationProcedure
+    .input(z.object({
+      groupId: groupIdSchema,
+      comment: optionalTextSchema(20000),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await cancelVehicleReservationGroup(input.groupId, ctx.user.id, input.comment);
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "반복 차량예약 묶음을 찾을 수 없습니다." });
+      }
+      if (result.status === "not_cancellable") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "일괄 취소할 수 있는 승인 또는 대기 회차가 없습니다." });
+      }
+
+      void notifyVehicleReservationResult({
+        memberId: result.representative.userId,
+        status: "cancelled",
+        vehicleName: result.representative.vehicleName,
+        date: result.representative.reservationDate,
+        startTime: result.representative.startTime,
+        endTime: result.representative.endTime,
+        reservationId: result.representative.id,
+        extraCount: Math.max(0, result.count - 1),
+      });
+      return { success: true, count: result.count };
     }),
 
   delete: vehicleReservationProcedure

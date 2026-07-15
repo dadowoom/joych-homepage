@@ -5,6 +5,7 @@
  */
 
 import { and, asc, desc, eq, gt, inArray, lt, ne, or, sql } from "drizzle-orm";
+import type { ResultSetHeader } from "mysql2";
 import {
   churchMembers,
   InsertVehicle,
@@ -816,6 +817,98 @@ export async function updateVehicleReservationStatus(
     values.processedAt = new Date();
   }
   await db.update(vehicleReservations).set(values).where(eq(vehicleReservations.id, id));
+}
+
+export type CancelVehicleReservationGroupResult =
+  | { status: "not_found"; count: 0; representative: null }
+  | { status: "not_cancellable"; count: 0; representative: null }
+  | {
+      status: "cancelled";
+      count: number;
+      representative: {
+        id: number;
+        userId: number | null;
+        reservationDate: string;
+        startTime: string;
+        endTime: string;
+        vehicleName: string | null;
+      };
+    };
+
+/** 관리자: 반복 차량예약의 승인/대기 회차만 한 트랜잭션으로 일괄 취소합니다. */
+export async function cancelVehicleReservationGroup(
+  recurrenceGroupId: string,
+  adminUserId: number,
+  adminComment?: string,
+): Promise<CancelVehicleReservationGroupResult> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`
+      SELECT ${vehicleReservations.id}
+      FROM ${vehicleReservations}
+      WHERE ${vehicleReservations.recurrenceGroupId} = ${recurrenceGroupId}
+      FOR UPDATE
+    `);
+
+    const rows = await tx
+      .select({
+        id: vehicleReservations.id,
+        userId: vehicleReservations.userId,
+        reservationDate: vehicleReservations.reservationDate,
+        startTime: vehicleReservations.startTime,
+        endTime: vehicleReservations.endTime,
+        status: vehicleReservations.status,
+        vehicleName: vehicles.name,
+      })
+      .from(vehicleReservations)
+      .leftJoin(vehicles, eq(vehicleReservations.vehicleId, vehicles.id))
+      .where(eq(vehicleReservations.recurrenceGroupId, recurrenceGroupId))
+      .orderBy(asc(vehicleReservations.reservationDate), asc(vehicleReservations.startTime), asc(vehicleReservations.id));
+
+    if (rows.length === 0) {
+      return { status: "not_found", count: 0, representative: null };
+    }
+
+    const cancellableRows = rows.filter((row) => row.status === "pending" || row.status === "approved");
+    if (cancellableRows.length === 0) {
+      return { status: "not_cancellable", count: 0, representative: null };
+    }
+
+    const [result] = await tx
+      .update(vehicleReservations)
+      .set({
+        status: "cancelled",
+        adminComment: adminComment ?? null,
+        processedBy: adminUserId,
+        processedAt: new Date(),
+      })
+      .where(and(
+        eq(vehicleReservations.recurrenceGroupId, recurrenceGroupId),
+        inArray(vehicleReservations.id, cancellableRows.map((row) => row.id)),
+        inArray(vehicleReservations.status, ["pending", "approved"]),
+      ));
+
+    const affectedRows = Number((result as ResultSetHeader | undefined)?.affectedRows ?? 0);
+    if (affectedRows !== cancellableRows.length) {
+      throw new Error("반복 차량예약 상태가 변경되어 일괄 취소하지 못했습니다.");
+    }
+
+    const first = cancellableRows[0]!;
+    return {
+      status: "cancelled",
+      count: affectedRows,
+      representative: {
+        id: first.id,
+        userId: first.userId,
+        reservationDate: first.reservationDate,
+        startTime: first.startTime,
+        endTime: first.endTime,
+        vehicleName: first.vehicleName,
+      },
+    };
+  });
 }
 
 export async function getVehicleReservationById(id: number) {

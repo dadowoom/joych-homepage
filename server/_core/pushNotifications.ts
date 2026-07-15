@@ -404,15 +404,17 @@ export function notifyVehicleReservationResult(params: {
   startTime: string;
   endTime: string;
   reservationId: number;
+  extraCount?: number;
 }) {
   const statusLabel = params.status === "approved"
     ? "승인"
     : params.status === "rejected"
       ? "거절"
       : "취소";
+  const extraLabel = params.extraCount && params.extraCount > 0 ? ` 외 ${params.extraCount}건` : "";
   return sendPushToMember(params.memberId, {
     title: `차량 예약이 ${statusLabel}되었습니다`,
-    body: `${params.vehicleName ?? "차량"}\n${params.date} ${params.startTime}~${params.endTime}`,
+    body: `${params.vehicleName ?? "차량"}${extraLabel}\n${params.date} ${params.startTime}~${params.endTime}`,
     url: "/support/vehicle/my-reservations",
     tag: `vehicle-reservation-result-${params.reservationId}-${params.status}`,
   }, `vehicle-reservation-result id=${params.reservationId} status=${params.status}`);
