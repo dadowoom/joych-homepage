@@ -1620,15 +1620,18 @@ export const homeRouter = router({
         if (ids.length !== reservationDates.length || ids.some((id) => !id)) {
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "차량 예약 신청 저장에 실패했습니다." });
         }
-        void Promise.all(ids.map((reservationId, index) => notifyVehicleReservation({
+        // 반복예약도 하나의 신청이므로 관리자 푸시는 묶음당 한 번만 보냅니다.
+        // 첫 예약 ID를 대표값으로 사용하고 나머지 회차 수는 알림 본문에 표시합니다.
+        void notifyVehicleReservation({
           reserverName: input.reserverName,
           vehicleName: vehicle.name,
-          date: reservationDates[index],
+          date: input.reservationDate,
           startTime: input.startTime,
           endTime: input.endTime,
-          reservationId,
+          reservationId: ids[0],
           status,
-        })));
+          extraCount: Math.max(0, ids.length - 1),
+        });
         return {
           id: ids[0],
           ids,

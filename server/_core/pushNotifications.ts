@@ -344,11 +344,14 @@ export function notifyVehicleReservation(params: {
   endTime: string;
   reservationId: number;
   status?: "pending" | "approved";
+  extraCount?: number;
 }) {
+  const recurrenceCount = Math.max(1, (params.extraCount ?? 0) + 1);
+  const isRecurring = recurrenceCount > 1;
   const statusLabel = params.status === "approved" ? "자동 승인" : "승인 대기";
   return sendPushToPermissionHolders("content:vehicles", {
-    title: `새 차량 예약 ${statusLabel}`,
-    body: `[${params.reserverName}] ${params.vehicleName ?? "차량"}\n${params.date} ${params.startTime}~${params.endTime}`,
+    title: `새 차량 ${isRecurring ? "반복 예약" : "예약"} ${statusLabel}`,
+    body: `[${params.reserverName}] ${params.vehicleName ?? "차량"}${isRecurring ? ` · 반복 총 ${recurrenceCount}회` : ""}\n${params.date} ${params.startTime}~${params.endTime}`,
     url: "/admin_joych_2026?tab=vehicles",
     tag: `vehicle-reservation-${params.reservationId}`,
   });

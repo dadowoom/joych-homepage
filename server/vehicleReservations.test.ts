@@ -4,6 +4,7 @@ import type { TrpcContext, TrpcUser } from "./_core/context";
 const dbMocks = vi.hoisted(() => ({
   canMemberUseVehicleReservation: vi.fn(),
   createVehicleReservationIfAvailable: vi.fn(),
+  createVehicleReservationsIfAvailable: vi.fn(),
   getAvailableVehiclesForSchedule: vi.fn(),
   getVehicleAvailabilityTimeline: vi.fn(),
   getAdminVehicleReservationDetailsByDate: vi.fn(),
@@ -48,6 +49,7 @@ vi.mock("./db", async (importOriginal) => {
     ...actual,
     canMemberUseVehicleReservation: dbMocks.canMemberUseVehicleReservation,
     createVehicleReservationIfAvailable: dbMocks.createVehicleReservationIfAvailable,
+    createVehicleReservationsIfAvailable: dbMocks.createVehicleReservationsIfAvailable,
     getAvailableVehiclesForSchedule: dbMocks.getAvailableVehiclesForSchedule,
     getVehicleAvailabilityTimeline: dbMocks.getVehicleAvailabilityTimeline,
     getAdminVehicleReservationDetailsByDate: dbMocks.getAdminVehicleReservationDetailsByDate,
@@ -180,6 +182,7 @@ describe("vehicle reservations", () => {
     });
     dbMocks.getAdminVehicleReservationDetailsByDate.mockResolvedValue([]);
     dbMocks.createVehicleReservationIfAvailable.mockResolvedValue(200);
+    dbMocks.createVehicleReservationsIfAvailable.mockResolvedValue([200, 201, 202]);
     dbMocks.updateVehicleReservationDetails.mockResolvedValue(true);
     pushMocks.notifyVehicleReservation.mockReset();
   });
@@ -296,8 +299,90 @@ describe("vehicle reservations", () => {
         endTime: "11:00",
         reservationId: 200,
         status: "pending",
+        extraCount: 0,
       }),
     );
+    expect(pushMocks.notifyVehicleReservation).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends one administrator push for an entire recurring vehicle reservation batch", async () => {
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(caller.home.createVehicleReservation(vehicleReservationInput({
+      repeatMode: "weekly",
+      repeatEndDate: "2026-07-01",
+    }))).resolves.toMatchObject({
+      id: 200,
+      ids: [200, 201, 202],
+      count: 3,
+      status: "pending",
+    });
+
+    expect(dbMocks.createVehicleReservationIfAvailable).not.toHaveBeenCalled();
+    expect(dbMocks.createVehicleReservationsIfAvailable).toHaveBeenCalledWith([
+      expect.objectContaining({ reservationDate: "2026-06-17", status: "pending" }),
+      expect.objectContaining({ reservationDate: "2026-06-24", status: "pending" }),
+      expect.objectContaining({ reservationDate: "2026-07-01", status: "pending" }),
+    ]);
+    expect(pushMocks.notifyVehicleReservation).toHaveBeenCalledTimes(1);
+    expect(pushMocks.notifyVehicleReservation).toHaveBeenCalledWith({
+      reserverName: "Vehicle Member",
+      vehicleName: reservableVehicle.name,
+      date: "2026-06-17",
+      startTime: "10:00",
+      endTime: "11:00",
+      reservationId: 200,
+      status: "pending",
+      extraCount: 2,
+    });
+  });
+
+  it("sends one approved push for an auto-approved recurring vehicle reservation batch", async () => {
+    dbMocks.getVehicleById.mockResolvedValue({
+      ...reservableVehicle,
+      approvalType: "auto",
+    });
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(caller.home.createVehicleReservation(vehicleReservationInput({
+      repeatMode: "weekly",
+      repeatEndDate: "2026-07-01",
+    }))).resolves.toMatchObject({ count: 3, status: "approved" });
+
+    expect(pushMocks.notifyVehicleReservation).toHaveBeenCalledTimes(1);
+    expect(pushMocks.notifyVehicleReservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reservationId: 200,
+        status: "approved",
+        extraCount: 2,
+      }),
+    );
+  });
+
+  it("does not send a push when a recurring vehicle reservation batch conflicts", async () => {
+    dbMocks.createVehicleReservationsIfAvailable.mockRejectedValue(
+      new VehicleReservationOverlapError("10:00", "11:00"),
+    );
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(caller.home.createVehicleReservation(vehicleReservationInput({
+      repeatMode: "weekly",
+      repeatEndDate: "2026-07-01",
+    }))).rejects.toMatchObject({ code: "CONFLICT" });
+
+    expect(pushMocks.notifyVehicleReservation).not.toHaveBeenCalled();
+  });
+
+  it("does not send a push when a recurring vehicle reservation batch is incomplete", async () => {
+    dbMocks.createVehicleReservationsIfAvailable.mockResolvedValue([200, 201]);
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(caller.home.createVehicleReservation(vehicleReservationInput({
+      repeatMode: "weekly",
+      repeatEndDate: "2026-07-01",
+    }))).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+
+    expect(pushMocks.notifyVehicleReservation).not.toHaveBeenCalled();
   });
 
   it("returns only vehicles available for the selected schedule", async () => {
