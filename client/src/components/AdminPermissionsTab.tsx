@@ -20,30 +20,18 @@ export default function AdminPermissionsTab() {
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const hasSubmittedSearch = submittedSearchTerm.length > 0;
 
-  const permissionsQuery = trpc.cms.adminPermissions.list.useQuery({
-    searchTerm: submittedSearchTerm,
-  });
+  const permissionsQuery = trpc.cms.adminPermissions.list.useQuery(
+    { searchTerm: submittedSearchTerm },
+    { enabled: hasSubmittedSearch },
+  );
   const permissions = permissionsQuery.data?.permissions ?? [];
   const subjects = permissionsQuery.data?.subjects ?? [];
-  const assignedSubjects = permissionsQuery.data?.assignedSubjects ?? [];
-
-  const allSubjects = useMemo(() => {
-    const subjectByMemberId = new Map<number, PermissionSubject>();
-    for (const subject of [...assignedSubjects, ...subjects]) {
-      subjectByMemberId.set(subject.memberId, subject);
-    }
-    return Array.from(subjectByMemberId.values());
-  }, [assignedSubjects, subjects]);
 
   const selectedSubject = useMemo(
-    () => allSubjects.find((subject) => subject.memberId === selectedMemberId) ?? null,
-    [allSubjects, selectedMemberId],
-  );
-
-  const permissionLabelByKey = useMemo(
-    () => new Map(permissions.map((permission) => [permission.key, permission.label])),
-    [permissions],
+    () => subjects.find((subject) => subject.memberId === selectedMemberId) ?? null,
+    [subjects, selectedMemberId],
   );
 
   const groupedPermissions = useMemo(() => {
@@ -58,9 +46,9 @@ export default function AdminPermissionsTab() {
 
   useEffect(() => {
     if (!selectedMemberId) return;
-    if (allSubjects.some((subject) => subject.memberId === selectedMemberId)) return;
+    if (subjects.some((subject) => subject.memberId === selectedMemberId)) return;
     setSelectedMemberId(null);
-  }, [allSubjects, selectedMemberId]);
+  }, [selectedMemberId, subjects]);
 
   useEffect(() => {
     setSelectedKeys(selectedSubject?.permissionKeys ?? []);
@@ -112,20 +100,19 @@ export default function AdminPermissionsTab() {
   const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextSearchTerm = searchInput.trim();
+    setSelectedMemberId(null);
+
+    if (!nextSearchTerm) {
+      setSubmittedSearchTerm("");
+      return;
+    }
+
     if (nextSearchTerm === submittedSearchTerm) {
       void permissionsQuery.refetch();
       return;
     }
     setSubmittedSearchTerm(nextSearchTerm);
   };
-
-  if (permissionsQuery.isLoading) {
-    return (
-      <div className="py-12 text-center text-sm text-gray-500">
-        관리 권한 정보를 불러오는 중입니다.
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -164,54 +151,6 @@ export default function AdminPermissionsTab() {
               </button>
             </div>
           </form>
-          <div className="mb-4 rounded-lg border border-[#D8E8DA] bg-[#F8FCF8] p-3">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="text-sm font-bold text-gray-800">권한 보유 성도</p>
-              <span className="rounded-full bg-[#E8F5E9] px-2 py-0.5 text-xs font-semibold text-[#1B5E20]">
-                {assignedSubjects.length}명
-              </span>
-            </div>
-            <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-              {assignedSubjects.length === 0 ? (
-                <p className="rounded-lg border border-dashed border-[#C8E6C9] bg-white py-5 text-center text-sm text-gray-400">
-                  권한이 부여된 성도가 없습니다.
-                </p>
-              ) : (
-                assignedSubjects.map((subject: PermissionSubject) => {
-                  const isSelected = selectedMemberId === subject.memberId;
-                  const permissionCount = subject.permissionKeys.length;
-                  const permissionLabels = subject.permissionKeys
-                    .map((key) => permissionLabelByKey.get(key) ?? key)
-                    .join(" · ");
-
-                  return (
-                    <button
-                      key={subject.memberId}
-                      type="button"
-                      onClick={() => setSelectedMemberId(subject.memberId)}
-                      className={`w-full rounded-lg border bg-white px-3 py-2.5 text-left transition-colors ${
-                        isSelected
-                          ? "border-[#1B5E20] ring-1 ring-[#A5D6A7]"
-                          : "border-gray-200 hover:border-[#A5D6A7]"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="min-w-0 truncate text-sm font-semibold text-gray-900">
-                          {subject.name} ({subject.position || "직분 미등록"})
-                        </p>
-                        <span className="shrink-0 text-xs font-semibold text-[#1B5E20]">
-                          권한 {permissionCount}개
-                        </span>
-                      </div>
-                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500">
-                        {permissionLabels}
-                      </p>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
           <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
             {!submittedSearchTerm ? (
               <p className="rounded-lg border border-dashed border-gray-200 py-8 text-center text-sm text-gray-400">
