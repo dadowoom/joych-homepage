@@ -485,18 +485,18 @@ export default function AdminMembersTab() {
         </div>
       ) : viewMode === "list" ? (
         <div className="space-y-2">
-          <div className="hidden md:block overflow-x-auto border border-gray-200 rounded-xl bg-white">
-            <table className="w-full min-w-[1080px] text-sm">
+          <div className="hidden overflow-x-auto rounded-xl border border-gray-200 bg-white xl:block">
+            <table className="w-full table-fixed text-sm">
               <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500">
                 <tr>
-                  <th className="px-4 py-2 text-left font-semibold w-16">번호</th>
-                  <th className="px-4 py-2 text-left font-semibold w-24">승인여부</th>
-                  <th className="px-4 py-2 text-left font-semibold">이름</th>
-                  <th className="px-4 py-2 text-left font-semibold w-16">성별</th>
-                  <th className="px-4 py-2 text-left font-semibold">직분</th>
-                  <th className="px-4 py-2 text-left font-semibold">연락처</th>
-                  <th className="px-4 py-2 text-left font-semibold">생년월일</th>
-                  <th className="px-4 py-2 text-right font-semibold w-56">관리</th>
+                  <th className="w-12 px-2 py-2 text-left font-semibold">번호</th>
+                  <th className="w-[72px] px-2 py-2 text-left font-semibold">승인여부</th>
+                  <th className="w-24 px-2 py-2 text-left font-semibold">이름</th>
+                  <th className="w-12 px-2 py-2 text-left font-semibold">성별</th>
+                  <th className="w-28 px-2 py-2 text-left font-semibold">직분</th>
+                  <th className="w-36 px-2 py-2 text-left font-semibold">연락처</th>
+                  <th className="w-28 px-2 py-2 text-left font-semibold">생년월일</th>
+                  <th className="w-[180px] px-2 py-2 text-right font-semibold">관리</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -504,24 +504,24 @@ export default function AdminMembersTab() {
                   const status = STATUS_LABELS[member.status ?? "pending"] ?? STATUS_LABELS.pending;
                   return (
                     <tr key={member.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-2 text-xs text-gray-400">
+                      <td className="whitespace-nowrap px-2 py-2 text-xs text-gray-400">
                         {(safePage - 1) * pageSize + index + 1}
                       </td>
-                      <td className="px-4 py-2">
+                      <td className="whitespace-nowrap px-2 py-2">
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}>
                           {status.text}
                         </span>
                       </td>
-                      <td className="px-4 py-2 font-semibold text-gray-800">{member.name}</td>
-                      <td className="px-4 py-2 text-gray-600">{member.gender || "-"}</td>
-                      <td className="px-4 py-2 text-gray-600">{member.position || "-"}</td>
-                      <td className="px-4 py-2 text-gray-600">
+                      <td className="break-keep px-2 py-2 font-semibold text-gray-800">{member.name}</td>
+                      <td className="whitespace-nowrap px-2 py-2 text-gray-600">{member.gender || "-"}</td>
+                      <td className="break-words px-2 py-2 text-gray-600">{member.position || "-"}</td>
+                      <td className="whitespace-nowrap px-2 py-2 text-gray-600">
                         {formatPhoneNumber(member.phone) || <span className="text-xs text-red-500 font-medium">미입력</span>}
                       </td>
-                      <td className="px-4 py-2 text-gray-600">
+                      <td className="whitespace-nowrap px-2 py-2 text-gray-600">
                         {member.birthDate || <span className="text-xs text-red-500 font-medium">미입력</span>}
                       </td>
-                      <td className="px-4 py-2">
+                      <td className="px-2 py-2">
                         {renderMemberActions(member)}
                       </td>
                     </tr>
@@ -531,7 +531,7 @@ export default function AdminMembersTab() {
             </table>
           </div>
 
-          <div className="md:hidden space-y-2">
+          <div className="space-y-2 xl:hidden">
             {paginated.map((member, index) => {
               return (
                 <div key={member.id} className="border border-gray-200 rounded-xl overflow-hidden">
