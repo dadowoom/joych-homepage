@@ -20,6 +20,7 @@ import {
   type VehicleAvailabilityConflict,
 } from "@/lib/vehicleAvailabilityConflicts";
 import { groupVehicleReservations } from "@/lib/vehicleReservationGroups";
+import { shouldResetVehicleReservationTime } from "@/lib/vehicleReservationTimeSelection";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -875,12 +876,26 @@ export function VehicleReservationList() {
   const availableVehicles = (availabilityQuery.data?.vehicles ?? []) as VehicleRow[];
 
   useEffect(() => {
-    if (!startTime || !endTime || !timelineData || timelineQuery.isFetching) return;
-    if (timelineData.selectedStartTime !== startTime) return;
-    if (timelineData.endOptions.some((option) => option.endTime === endTime)) return;
+    if (!shouldResetVehicleReservationTime({
+      startTime,
+      endTime,
+      timeline: timelineData,
+      repeatScheduleReady,
+      isFetching: timelineQuery.isFetching,
+      hasError: timelineQuery.isError,
+    })) return;
+
     setStartTime("");
     setEndTime("");
-  }, [endTime, startTime, timelineData, timelineQuery.isFetching]);
+    toast.error("변경한 일정 전체에서 기존 선택 시간을 사용할 수 없어 시간을 초기화했습니다.");
+  }, [
+    endTime,
+    repeatScheduleReady,
+    startTime,
+    timelineData,
+    timelineQuery.isError,
+    timelineQuery.isFetching,
+  ]);
 
   function handleSelectDate(date: string) {
     setSelectedDate(date);
@@ -951,8 +966,6 @@ export function VehicleReservationList() {
                           onChange={(event) => {
                             const nextMode = event.target.value as typeof repeatMode;
                             setRepeatMode(nextMode);
-                            setStartTime("");
-                            setEndTime("");
                             if (nextMode === "none") setRepeatEndDate("");
                           }}
                           className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-3 text-sm focus:border-[#1B5E20] focus:outline-none"
@@ -972,8 +985,6 @@ export function VehicleReservationList() {
                             min={selectedDate || getKstDateKey()}
                             onChange={(event) => {
                               setRepeatEndDate(event.target.value);
-                              setStartTime("");
-                              setEndTime("");
                             }}
                             className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-3 text-sm focus:border-[#1B5E20] focus:outline-none"
                           />
@@ -999,6 +1010,11 @@ export function VehicleReservationList() {
                       </p>
                     ) : timelineData ? (
                       <>
+                        {startTime && endTime && timelineQuery.isFetching && (
+                          <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700" role="status">
+                            변경한 일정 전체에서 {startTime}~{endTime} 사용 가능 여부를 확인하고 있습니다.
+                          </p>
+                        )}
                         {(timelineData.occurrenceCount ?? 1) > 1 && (
                           <p className="text-xs text-gray-500">
                             반복 {timelineData.occurrenceCount}회 모두 가능한 시간만 선택할 수 있습니다.

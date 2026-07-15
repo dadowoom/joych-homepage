@@ -14,6 +14,7 @@ import {
   groupVehicleReservations,
   type VehicleReservationGroup,
 } from "@/lib/vehicleReservationGroups";
+import { sortVehiclePlateRows } from "@/lib/vehiclePlateSort";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -320,6 +321,7 @@ export default function AdminVehiclesTab() {
   );
 
   const vehicleRows = vehicles as VehicleRow[];
+  const reservationVehicleRows = useMemo(() => sortVehiclePlateRows(vehicleRows), [vehicleRows]);
   const reservationRows = reservations as VehicleReservationRow[];
   const accessRuleRows = accessRules as AccessRuleDraft[];
   const vehicleImageRows = vehicleImages as VehicleImageRow[];
@@ -1211,7 +1213,7 @@ export default function AdminVehiclesTab() {
               className="min-h-11 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none sm:min-h-0"
             >
               <option value="">전체 차량</option>
-              {vehicleRows.map(vehicle => <option key={vehicle.id} value={vehicle.id}>{getVehicleDisplayName(vehicle)}</option>)}
+              {reservationVehicleRows.map(vehicle => <option key={vehicle.id} value={vehicle.id}>{getVehicleDisplayName(vehicle)}</option>)}
             </select>
             {([
               { value: "all", label: "전체" },
@@ -1239,7 +1241,7 @@ export default function AdminVehiclesTab() {
             <VehicleReservationCalendarView
               reservations={filteredReservations}
               vehicleFilter={reservationVehicleFilter}
-              vehicles={vehicleRows}
+              vehicles={reservationVehicleRows}
               isMutatingReservation={isMutatingReservation}
               onApprove={(row) => approveReservation.mutate({ id: row.id })}
               onCancel={cancelVehicleReservation}
@@ -1695,12 +1697,8 @@ function VehicleReservationCalendarView({
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push(reservation);
     });
-    Object.values(grouped).forEach((items) => {
-      items.sort((a, b) =>
-        a.startTime.localeCompare(b.startTime) ||
-        (a.vehicleName ?? "").localeCompare(b.vehicleName ?? "") ||
-        getReservationName(a).localeCompare(getReservationName(b))
-      );
+    Object.entries(grouped).forEach(([date, items]) => {
+      grouped[date] = sortVehiclePlateRows(items);
     });
     return grouped;
   }, [reservations]);
