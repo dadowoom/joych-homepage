@@ -473,6 +473,7 @@ export function extractPageBlockText(blockType: string, rawContent: string) {
   const content = parsed as Record<string, unknown>;
 
   if (typeof content.text === "string") values.push(content.text);
+  if (typeof content.html === "string") values.push(content.html);
   if (typeof content.title === "string") values.push(content.title);
   if (typeof content.label === "string") values.push(content.label);
   if (typeof content.href === "string") values.push(content.href);

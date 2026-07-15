@@ -460,6 +460,27 @@ describe("grouped backend search", () => {
     expect(serialized).not.toContain("010-1234-5678");
   });
 
+  it("finds text inside HTML editor tables", () => {
+    const dataset = createDataset({
+      pageBlocks: [
+        {
+          id: 503,
+          menuItemId: 11,
+          menuSubItemId: null,
+          blockType: "html-rich",
+          content: JSON.stringify({ html: "<table><tbody><tr><td>연일복지회관</td></tr></tbody></table>" }),
+          createdAt: "2026-07-15",
+          isVisible: true,
+        },
+      ],
+    });
+
+    const result = buildGroupedSearchResult(dataset, "연일");
+    expect(groupMap(result).get("pages")?.items).toEqual([
+      expect.objectContaining({ href: "/page/grace-page", summary: "연일복지회관" }),
+    ]);
+  });
+
   it("excludes free-board results when the guest menu is not visible", () => {
     const dataset = createDataset({
       guestMenus: [
