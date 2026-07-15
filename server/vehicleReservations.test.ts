@@ -179,6 +179,19 @@ describe("vehicle reservations", () => {
       pastStartTimes: [],
       endOptions: [],
       blockedEndTimes: [],
+      conflicts: [
+        {
+          reservationDate: "2026-06-17",
+          startTime: "10:00",
+          endTime: "11:00",
+          vehicleId: 1,
+          vehicleName: "스타리아",
+          reserverName: "Vehicle Member",
+          memberPosition: "장로",
+          purpose: "교회 행사",
+          status: "approved",
+        },
+      ],
     });
     dbMocks.getAdminVehicleReservationDetailsByDate.mockResolvedValue([]);
     dbMocks.createVehicleReservationIfAvailable.mockResolvedValue(200);
@@ -208,6 +221,7 @@ describe("vehicle reservations", () => {
       code: "FORBIDDEN",
     });
     expect(dbMocks.getVehicles).not.toHaveBeenCalled();
+    expect(dbMocks.getVehicleAvailabilityTimeline).not.toHaveBeenCalled();
     expect(dbMocks.createVehicleReservationIfAvailable).not.toHaveBeenCalled();
   });
 
@@ -259,6 +273,20 @@ describe("vehicle reservations", () => {
 
     await expect(caller.home.vehicleReservationAccess()).resolves.toEqual({ canUse: true });
     await expect(caller.home.vehicles()).resolves.toEqual([reservableVehicle]);
+    await expect(caller.home.vehicleAvailabilityTimeline({
+      reservationDate: "2026-06-17",
+      passengers: 1,
+      repeatMode: "none",
+    })).resolves.toMatchObject({
+      conflicts: [
+        {
+          vehicleId: 1,
+          vehicleName: "스타리아",
+          reserverName: "Vehicle Member",
+          purpose: "교회 행사",
+        },
+      ],
+    });
     await expect(
       caller.home.vehicleReservationsByDate({ vehicleId: 1, date: "2026-06-17" })
     ).resolves.toMatchObject([
@@ -406,7 +434,7 @@ describe("vehicle reservations", () => {
     );
   });
 
-  it("returns a privacy-safe time timeline before a vehicle is selected", async () => {
+  it("returns privacy-minimized conflict details to an allowed vehicle reservation member", async () => {
     const caller = appRouter.createCaller(createContext());
 
     await expect(caller.home.vehicleAvailabilityTimeline({
@@ -414,14 +442,75 @@ describe("vehicle reservations", () => {
       passengers: 1,
       repeatMode: "none",
       startTime: "09:00",
-    })).resolves.toMatchObject({
+    })).resolves.toEqual({
+      selectedStartTime: null,
       occurrenceCount: 1,
       timePoints: ["09:00", "10:00", "11:00"],
+      startOptions: [{ startTime: "09:00", defaultEndTime: "10:00", availableVehicleCount: 1 }],
+      blockedStartTimes: ["10:00"],
+      pastStartTimes: [],
+      endOptions: [],
+      blockedEndTimes: [],
+      conflicts: [
+        {
+          reservationDate: "2026-06-17",
+          startTime: "10:00",
+          endTime: "11:00",
+          vehicleId: 1,
+          vehicleName: "스타리아",
+          reserverName: "Vehicle Member",
+          memberPosition: "장로",
+          purpose: "교회 행사",
+          status: "approved",
+        },
+      ],
     });
     expect(dbMocks.getVehicleAvailabilityTimeline).toHaveBeenCalledWith(
       ["2026-06-17"],
       1,
       "09:00",
+      null,
+    );
+  });
+
+  it("returns conflict details for every date in a repeating timeline", async () => {
+    dbMocks.getVehicleAvailabilityTimeline.mockResolvedValueOnce({
+      selectedStartTime: null,
+      timePoints: ["09:00", "10:00", "11:00"],
+      startOptions: [],
+      blockedStartTimes: ["10:00"],
+      pastStartTimes: [],
+      endOptions: [],
+      blockedEndTimes: [],
+      conflicts: [
+        {
+          reservationDate: "2026-06-24",
+          startTime: "10:00",
+          endTime: "11:00",
+          vehicleId: 1,
+          vehicleName: "스타리아",
+          reserverName: "반복 예약자",
+          memberPosition: "집사",
+          purpose: "주간 행사",
+          status: "pending",
+        },
+      ],
+    });
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(caller.home.vehicleAvailabilityTimeline({
+      reservationDate: "2026-06-17",
+      passengers: 1,
+      repeatMode: "weekly",
+      repeatEndDate: "2026-07-01",
+    })).resolves.toMatchObject({
+      occurrenceCount: 3,
+      conflicts: [{ reservationDate: "2026-06-24", status: "pending" }],
+    });
+    expect(dbMocks.getVehicleAvailabilityTimeline).toHaveBeenCalledWith(
+      ["2026-06-17", "2026-06-24", "2026-07-01"],
+      1,
+      undefined,
       null,
     );
   });

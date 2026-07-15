@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildVehicleAvailabilityConflictDetails,
   buildVehicleAvailabilityTimeline,
   isVehicleCompatibleWithSchedule,
 } from "./db/vehicle";
@@ -155,5 +156,72 @@ describe("vehicle availability timeline", () => {
       defaultEndTime: "12:00",
       availableVehicleCount: 1,
     });
+  });
+});
+
+describe("vehicle availability conflict details", () => {
+  it("returns only pending or approved conflicts with the privacy-minimized fields", () => {
+    const busyRanges = [
+      {
+        vehicleId: 1,
+        reservationDate: "2026-07-16",
+        startTime: "10:00",
+        endTime: "12:00",
+        status: "pending",
+        reserverName: "홍길동",
+        memberPosition: "집사",
+        purpose: "교회 행사",
+        reserverPhone: "010-1234-5678",
+        notes: "응답에 포함되면 안 되는 메모",
+      },
+      {
+        vehicleId: 1,
+        reservationDate: "2026-07-23",
+        startTime: "10:00",
+        endTime: "12:00",
+        status: "approved",
+        reserverName: "김기쁨",
+        memberPosition: null,
+        purpose: "부서 이동",
+      },
+      {
+        vehicleId: 1,
+        reservationDate: "2026-07-30",
+        startTime: "10:00",
+        endTime: "12:00",
+        status: "cancelled",
+        reserverName: "취소 예약자",
+        memberPosition: "권사",
+        purpose: "취소된 일정",
+      },
+    ] as const;
+
+    expect(buildVehicleAvailabilityConflictDetails(
+      [{ id: 1, name: "스타리아" }],
+      [...busyRanges],
+    )).toEqual([
+      {
+        reservationDate: "2026-07-16",
+        startTime: "10:00",
+        endTime: "12:00",
+        vehicleId: 1,
+        vehicleName: "스타리아",
+        reserverName: "홍길동",
+        memberPosition: "집사",
+        purpose: "교회 행사",
+        status: "pending",
+      },
+      {
+        reservationDate: "2026-07-23",
+        startTime: "10:00",
+        endTime: "12:00",
+        vehicleId: 1,
+        vehicleName: "스타리아",
+        reserverName: "김기쁨",
+        memberPosition: null,
+        purpose: "부서 이동",
+        status: "approved",
+      },
+    ]);
   });
 });

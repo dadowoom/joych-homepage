@@ -379,6 +379,52 @@ export type VehicleAvailabilityBusyRange = {
   endTime: string;
 };
 
+export type VehicleAvailabilityConflictSource = VehicleAvailabilityBusyRange & {
+  status: string;
+  reserverName: string;
+  memberPosition: string | null;
+  purpose: string;
+};
+
+export type VehicleAvailabilityConflictDetail = {
+  reservationDate: string;
+  startTime: string;
+  endTime: string;
+  vehicleId: number;
+  vehicleName: string;
+  reserverName: string;
+  memberPosition: string | null;
+  purpose: string;
+  status: "pending" | "approved";
+};
+
+/**
+ * 차량예약 가능 권한자에게 보여줄 충돌 정보만 명시적으로 추립니다.
+ * 전화번호, 메모, 사용자 ID 같은 개인정보/관리정보는 응답에 포함하지 않습니다.
+ */
+export function buildVehicleAvailabilityConflictDetails(
+  vehiclesForTimeline: Array<{ id: number; name: string }>,
+  busyRanges: VehicleAvailabilityConflictSource[],
+): VehicleAvailabilityConflictDetail[] {
+  const vehicleNameById = new Map(vehiclesForTimeline.map((vehicle) => [vehicle.id, vehicle.name]));
+
+  return busyRanges
+    .filter((busyRange): busyRange is VehicleAvailabilityConflictSource & { status: "pending" | "approved" } =>
+      busyRange.status === "pending" || busyRange.status === "approved"
+    )
+    .map((busyRange) => ({
+      reservationDate: busyRange.reservationDate,
+      startTime: busyRange.startTime,
+      endTime: busyRange.endTime,
+      vehicleId: busyRange.vehicleId,
+      vehicleName: vehicleNameById.get(busyRange.vehicleId) ?? "차량",
+      reserverName: busyRange.reserverName,
+      memberPosition: busyRange.memberPosition,
+      purpose: busyRange.purpose,
+      status: busyRange.status,
+    }));
+}
+
 function parseVehicleTimeMinutes(time: string) {
   const match = /^(?:([01]\d|2[0-3]):([0-5]\d)|24:00)$/.exec(time);
   if (!match) return null;
@@ -559,13 +605,19 @@ export async function getVehicleAvailabilityTimeline(
     vehicle.isVisible && vehicle.isReservable && passengers >= 1 && passengers <= vehicle.capacity
   );
   if (candidates.length === 0 || reservationDates.length === 0) {
-    return buildVehicleAvailabilityTimeline(candidates, [], reservationDates, passengers, selectedStartTime, minimumStartTime);
+    return {
+      ...buildVehicleAvailabilityTimeline(candidates, [], reservationDates, passengers, selectedStartTime, minimumStartTime),
+      conflicts: [] as VehicleAvailabilityConflictDetail[],
+    };
   }
 
   const db = await getDb();
   if (!db) {
     // 예약 현황을 확인할 수 없을 때 가능 상태로 열지 않습니다.
-    return buildVehicleAvailabilityTimeline([], [], reservationDates, passengers, selectedStartTime, minimumStartTime);
+    return {
+      ...buildVehicleAvailabilityTimeline([], [], reservationDates, passengers, selectedStartTime, minimumStartTime),
+      conflicts: [] as VehicleAvailabilityConflictDetail[],
+    };
   }
   const busyRanges = await db
     .select({
@@ -573,8 +625,13 @@ export async function getVehicleAvailabilityTimeline(
       reservationDate: vehicleReservations.reservationDate,
       startTime: vehicleReservations.startTime,
       endTime: vehicleReservations.endTime,
+      status: vehicleReservations.status,
+      reserverName: vehicleReservations.reserverName,
+      memberPosition: churchMembers.position,
+      purpose: vehicleReservations.purpose,
     })
     .from(vehicleReservations)
+    .leftJoin(churchMembers, eq(vehicleReservations.userId, churchMembers.id))
     .where(and(
       inArray(vehicleReservations.vehicleId, candidates.map((vehicle) => vehicle.id)),
       inArray(vehicleReservations.reservationDate, reservationDates),
@@ -584,14 +641,17 @@ export async function getVehicleAvailabilityTimeline(
       ),
     ));
 
-  return buildVehicleAvailabilityTimeline(
-    candidates,
-    busyRanges,
-    reservationDates,
-    passengers,
-    selectedStartTime,
-    minimumStartTime,
-  );
+  return {
+    ...buildVehicleAvailabilityTimeline(
+      candidates,
+      busyRanges,
+      reservationDates,
+      passengers,
+      selectedStartTime,
+      minimumStartTime,
+    ),
+    conflicts: buildVehicleAvailabilityConflictDetails(candidates, busyRanges),
+  };
 }
 
 /** 선택한 모든 날짜와 시간에 실제로 비어 있는 차량만 반환합니다. */

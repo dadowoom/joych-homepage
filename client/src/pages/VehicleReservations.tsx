@@ -14,6 +14,10 @@ import ReservationConflictDialog, {
 } from "@/components/facility/ReservationConflictDialog";
 import { generateReservationTimePoints } from "@/lib/facilitySlotSelection";
 import { hasContentPermission } from "@/lib/contentPermissions";
+import {
+  getBlockingVehicleConflicts,
+  type VehicleAvailabilityConflict,
+} from "@/lib/vehicleAvailabilityConflicts";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -81,6 +85,7 @@ type VehicleAvailabilityTimelineData = {
   }>;
   blockedEndTimes: string[];
   occurrenceCount: number;
+  conflicts?: VehicleAvailabilityConflict[];
 };
 
 type MyVehicleReservationRow = {
@@ -387,18 +392,25 @@ function VehicleReservationCalendar({
 
 function VehicleAvailabilityTimeline({
   data,
+  vehicles,
   startTime,
   endTime,
   isRefreshing,
   onSelect,
 }: {
   data: VehicleAvailabilityTimelineData;
+  vehicles: VehicleRow[];
   startTime: string;
   endTime: string;
   isRefreshing: boolean;
   onSelect: (start: string, end: string) => void;
 }) {
   const [unavailableMessage, setUnavailableMessage] = useState("");
+  const [inspectedUnavailableRange, setInspectedUnavailableRange] = useState<{
+    start: string;
+    end: string;
+    kind: "booked" | "rules";
+  } | null>(null);
   const segments = data.timePoints.slice(0, -1).map((start, index) => ({
     start,
     end: data.timePoints[index + 1],
@@ -416,13 +428,25 @@ function VehicleAvailabilityTimeline({
   const pastStartTimes = useMemo(() => new Set(data.pastStartTimes), [data.pastStartTimes]);
   const selectedStartMinutes = startTime ? toMinutes(startTime) : null;
   const selectedEndMinutes = endTime ? toMinutes(endTime) : null;
+  const inspectedConflicts = useMemo(() => {
+    if (!inspectedUnavailableRange || inspectedUnavailableRange.kind !== "booked") return [];
+    return getBlockingVehicleConflicts({
+      conflicts: data.conflicts ?? [],
+      vehicles,
+      segmentStart: inspectedUnavailableRange.start,
+      segmentEnd: inspectedUnavailableRange.end,
+      selectedStartTime: startTime,
+    });
+  }, [data.conflicts, inspectedUnavailableRange, startTime, vehicles]);
 
   useEffect(() => {
     setUnavailableMessage("");
+    setInspectedUnavailableRange(null);
   }, [data, endTime, startTime]);
 
   function handleSegmentClick(start: string, end: string) {
     if (isRefreshing) {
+      setInspectedUnavailableRange(null);
       setUnavailableMessage("최신 예약 가능 시간을 확인하고 있습니다. 잠시만 기다려 주세요.");
       return;
     }
@@ -434,6 +458,7 @@ function VehicleAvailabilityTimeline({
       endOptionByTime.has(end)
     );
     if (canExtend) {
+      setInspectedUnavailableRange(null);
       setUnavailableMessage("");
       onSelect(startTime, end);
       return;
@@ -441,23 +466,28 @@ function VehicleAvailabilityTimeline({
 
     const startOption = startOptionByTime.get(start);
     if (startOption) {
+      setInspectedUnavailableRange(null);
       setUnavailableMessage("");
       onSelect(start, startOption.defaultEndTime);
       return;
     }
 
     if (pastStartTimes.has(start)) {
+      setInspectedUnavailableRange(null);
       setUnavailableMessage("이미 지난 시간은 선택할 수 없습니다.");
       return;
     }
     if (blockedStartTimes.has(start) || blockedEndTimes.has(end)) {
-      setUnavailableMessage("해당 시간에는 모든 차량이 이미 예약되어 있습니다.");
+      setInspectedUnavailableRange({ start, end, kind: "booked" });
+      setUnavailableMessage("차량별 최소 사용 시간, 운영 시간 또는 예약 규칙 때문에 선택할 수 없습니다.");
       return;
     }
     if (startTime && selectedStartMinutes !== null && startMinutes >= selectedStartMinutes) {
+      setInspectedUnavailableRange({ start, end, kind: "rules" });
       setUnavailableMessage("선택한 시작 시간부터 이 구간까지 이용 가능한 같은 차량이 없습니다.");
       return;
     }
+    setInspectedUnavailableRange({ start, end, kind: "rules" });
     setUnavailableMessage("이 시간부터 예약 가능한 차량이 없습니다.");
   }
 
@@ -480,7 +510,11 @@ function VehicleAvailabilityTimeline({
         {(startTime || endTime) && (
           <button
             type="button"
-            onClick={() => onSelect("", "")}
+            onClick={() => {
+              setInspectedUnavailableRange(null);
+              setUnavailableMessage("");
+              onSelect("", "");
+            }}
             className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-500 transition-colors hover:border-[#1B5E20] hover:text-[#1B5E20]"
           >
             다시 선택
@@ -512,6 +546,11 @@ function VehicleAvailabilityTimeline({
               );
               const isAvailable = Boolean(startOption || canExtend);
               const isBooked = !isAvailable && (blockedStartTimes.has(start) || blockedEndTimes.has(end));
+              const isInspected = Boolean(
+                !isAvailable &&
+                inspectedUnavailableRange?.start === start &&
+                inspectedUnavailableRange.end === end
+              );
               const availableVehicleCount = canExtend
                 ? endOption?.availableVehicleCount ?? 0
                 : startOption?.availableVehicleCount ?? 0;
@@ -520,17 +559,18 @@ function VehicleAvailabilityTimeline({
                 <button
                   key={`${start}-${end}`}
                   type="button"
-                  aria-disabled={!isAvailable || isRefreshing}
-                  title={isAvailable ? `가능 차량 ${availableVehicleCount}대` : isBooked ? "예약됨" : "예약 불가"}
+                  aria-disabled={isRefreshing}
+                  aria-pressed={isInspected || isSelected}
+                  title={isAvailable ? `가능 차량 ${availableVehicleCount}대` : isBooked ? "예약 내역 확인" : "예약 불가 사유 확인"}
                   onClick={() => handleSegmentClick(start, end)}
-                  className={`flex h-14 min-w-[68px] flex-col items-center justify-center border-r border-gray-300 px-2 text-[11px] font-bold transition-colors last:border-r-0 ${
+                  className={`flex h-14 min-w-[68px] flex-col items-center justify-center border-r border-gray-300 px-2 text-[11px] font-bold transition-colors last:border-r-0 ${isInspected ? "relative z-10 ring-2 ring-inset ring-amber-400" : ""} ${
                     isSelected
                       ? "bg-[#1B5E20] text-white"
                       : isAvailable
                         ? "bg-green-50 text-green-700 hover:bg-green-100"
                         : isBooked
-                          ? "cursor-not-allowed bg-red-100 text-red-500 line-through"
-                          : "cursor-not-allowed bg-gray-100 text-gray-400"
+                          ? "cursor-pointer bg-red-100 text-red-500 line-through hover:bg-red-200"
+                          : "cursor-pointer bg-gray-100 text-gray-400 hover:bg-gray-200"
                   }`}
                 >
                   <span>{start}~{end}</span>
@@ -553,8 +593,51 @@ function VehicleAvailabilityTimeline({
 
       {unavailableMessage && (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700" role="status">
-          {unavailableMessage}
+          {inspectedUnavailableRange?.kind === "booked" && inspectedConflicts.length > 0
+            ? "선택한 시간의 불가 판정에 아래 예약과 차량별 운영·최소 이용시간이 함께 반영되었습니다."
+            : unavailableMessage}
         </p>
+      )}
+
+      {inspectedUnavailableRange?.kind === "booked" && inspectedConflicts.length > 0 && (
+        <section
+          className="rounded-xl border border-amber-200 bg-amber-50/60 p-3"
+          aria-label="차량 예약 충돌 상세"
+          aria-live="polite"
+        >
+          <p className="text-xs font-bold text-amber-900">불가 판정에 영향을 준 예약</p>
+          <div className="mt-2 grid gap-2">
+            {inspectedConflicts.map((conflict, index) => (
+              <article
+                key={`${conflict.reservationDate}-${conflict.startTime}-${conflict.endTime}-${conflict.vehicleId}-${index}`}
+                className="rounded-lg border border-amber-100 bg-white p-3 text-xs text-gray-700 shadow-sm"
+              >
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="font-bold text-gray-900">
+                    {formatDateLabel(conflict.reservationDate)} · {conflict.startTime}~{conflict.endTime}
+                  </p>
+                  <span className={`w-fit rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                    conflict.status === "approved"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-amber-100 text-amber-700"
+                  }`}>
+                    {conflict.status === "approved" ? "승인 완료" : "승인 대기"}
+                  </span>
+                </div>
+                <dl className="mt-2 grid grid-cols-[48px_minmax(0,1fr)] gap-x-2 gap-y-1.5">
+                  <dt className="text-gray-400">차량</dt>
+                  <dd className="min-w-0 break-words font-medium text-gray-900">{conflict.vehicleName}</dd>
+                  <dt className="text-gray-400">예약자</dt>
+                  <dd className="min-w-0 break-words">
+                    {conflict.reserverName}{conflict.memberPosition ? ` (${conflict.memberPosition})` : ""}
+                  </dd>
+                  <dt className="text-gray-400">목적</dt>
+                  <dd className="min-w-0 whitespace-pre-wrap break-words">{conflict.purpose}</dd>
+                </dl>
+              </article>
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );
@@ -889,6 +972,7 @@ export function VehicleReservationList() {
                         )}
                         <VehicleAvailabilityTimeline
                           data={timelineData}
+                          vehicles={vehicleRows}
                           startTime={startTime}
                           endTime={endTime}
                           isRefreshing={timelineQuery.isFetching}
