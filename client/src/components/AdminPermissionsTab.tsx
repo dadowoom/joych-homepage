@@ -168,6 +168,9 @@ export default function AdminPermissionsTab() {
               subjects.map((subject: PermissionSubject) => {
                 const isSelected = selectedMemberId === subject.memberId;
                 const permissionCount = subject.permissionKeys.length;
+                const permissionLabels = permissions
+                  .filter((permission) => subject.permissionKeys.includes(permission.key))
+                  .map((permission) => permission.label);
 
                 return (
                   <button
@@ -196,6 +199,11 @@ export default function AdminPermissionsTab() {
                         승인 완료 후 권한 로그인이 가능합니다.
                       </div>
                     )}
+                    <div className="mt-2 line-clamp-2 text-xs leading-5 text-gray-500">
+                      {permissionLabels.length > 0
+                        ? permissionLabels.join(" · ")
+                        : "부여된 권한 없음"}
+                    </div>
                   </button>
                 );
               })
