@@ -14,7 +14,6 @@ import {
 import { cn } from "@/lib/utils";
 
 const LABEL_EDIT_TOOLS = "\uD3B8\uC9D1 \uB3C4\uAD6C";
-const LABEL_ADMIN = "\uC5B4\uB4DC\uBBFC";
 const LABEL_HOME_SECTIONS = "\uD648\uC139\uC158 \uD3B8\uC9D1";
 const LABEL_MENU = "\uBA54\uB274 \uD3B8\uC9D1";
 const LABEL_HERO = "\uC2AC\uB77C\uC774\uB4DC \uD3B8\uC9D1";
@@ -432,7 +431,7 @@ export default function HomeAdminDock({
         aria-label={LABEL_OPEN}
         title="드래그해서 위치 이동, 더블클릭하면 기본 위치"
         className={cn(
-          "relative flex cursor-move items-center gap-3 rounded-full border border-[#184D1D]/10 px-4 py-3 text-white shadow-[0_18px_45px_rgba(27,94,32,0.28)] transition-all",
+          "relative flex size-16 cursor-move items-center justify-center rounded-full border border-[#184D1D]/10 text-white shadow-[0_18px_45px_rgba(27,94,32,0.28)] transition-all",
           open
             ? "bg-[#174D1A] hover:bg-[#174D1A]"
             : "bg-[#1B5E20] hover:-translate-y-0.5 hover:bg-[#174D1A]"
@@ -446,7 +445,6 @@ export default function HomeAdminDock({
         <span className="flex size-10 items-center justify-center rounded-full bg-white/12">
           <PencilLine className="size-4" />
         </span>
-        <span className="text-sm font-semibold">{LABEL_ADMIN}</span>
       </button>
     </div>
   );
