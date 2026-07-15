@@ -14,12 +14,62 @@ type ReviewedLegacyVehicleReservationGroup = {
   mode: "daily" | "weekly" | "monthly";
 };
 
+function buildReviewedIdRange(firstId: number, count: number) {
+  return Array.from({ length: count }, (_, index) => firstId + index);
+}
+
+function buildReviewedDateRange(startDate: string, count: number, intervalDays: number) {
+  const [year, month, day] = startDate.split("-").map(Number);
+  const start = new Date(Date.UTC(year!, month! - 1, day!));
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date(start);
+    date.setUTCDate(start.getUTCDate() + index * intervalDays);
+    return date.toISOString().slice(0, 10);
+  });
+}
+
 /**
- * This list intentionally starts empty. The first production run is read-only
- * and prints only opaque fingerprints, IDs, dates, and creation times. After
- * that output is reviewed, a second commit may add only the confirmed groups.
+ * Confirmed from the read-only production run for commit dd34c0d. Each entry
+ * matched one opaque fingerprint, one creation burst, and an exact legacy
+ * repeat schedule. Rows outside these exact ID/date sets are never updated.
  */
-const REVIEWED_GROUPS: ReviewedLegacyVehicleReservationGroup[] = [];
+const REVIEWED_GROUPS: ReviewedLegacyVehicleReservationGroup[] = [
+  {
+    ids: buildReviewedIdRange(20, 74),
+    dates: buildReviewedDateRange("2026-08-02", 74, 7),
+    mode: "weekly",
+  },
+  {
+    ids: buildReviewedIdRange(96, 4),
+    dates: buildReviewedDateRange("2026-07-20", 4, 1),
+    mode: "daily",
+  },
+  {
+    ids: buildReviewedIdRange(100, 2),
+    dates: buildReviewedDateRange("2026-07-19", 2, 7),
+    mode: "weekly",
+  },
+  {
+    ids: buildReviewedIdRange(105, 4),
+    dates: buildReviewedDateRange("2026-07-29", 4, 1),
+    mode: "daily",
+  },
+  {
+    ids: buildReviewedIdRange(109, 13),
+    dates: buildReviewedDateRange("2026-09-03", 13, 7),
+    mode: "weekly",
+  },
+  {
+    ids: buildReviewedIdRange(123, 76),
+    dates: buildReviewedDateRange("2026-07-19", 76, 7),
+    mode: "weekly",
+  },
+  {
+    ids: buildReviewedIdRange(200, 2),
+    dates: buildReviewedDateRange("2026-07-30", 2, 1),
+    mode: "daily",
+  },
+];
 
 function getOpaqueFingerprint(row: LegacyVehicleReservationRow) {
   return createHash("sha256").update(JSON.stringify([
