@@ -51,6 +51,12 @@ const FACILITY_PAGE_HREF = "/facility";
 const COURSE_PAGE_HREF = "/education/courses";
 const MISSION_PAGE_HREF = "/mission";
 
+function getStaffSearchHref(category: string) {
+  if (category === "associate") return STAFF_ASSOCIATE_PAGE_HREF;
+  if (category === "senior") return STAFF_PAGE_HREF;
+  return `${STAFF_PAGE_HREF}?category=${encodeURIComponent(category)}`;
+}
+
 type SearchLinkType = "internal" | "external" | "none";
 
 export type GroupedSearchItem = {
@@ -871,7 +877,7 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
         category: categoryLabel,
         summary: excerpt([item.title, item.department, item.description, item.profile].filter(Boolean).join(" · ")),
         date: null,
-        href: item.category === "associate" ? STAFF_ASSOCIATE_PAGE_HREF : STAFF_PAGE_HREF,
+        href: getStaffSearchHref(item.category),
       });
     });
 

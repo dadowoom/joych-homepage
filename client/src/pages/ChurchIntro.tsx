@@ -141,6 +141,8 @@ const STAFF_SIDE_MENU_ITEMS: StaffSideMenuItem[] = [
 ];
 
 function getInitialStaffCategory(location: string, fallback: StaffCategoryFilter = "senior"): StaffCategoryFilter {
+  const category = new URLSearchParams(location.split("?")[1]).get("category")?.trim();
+  if (category) return category;
   if (location.includes("/associate") || location.includes("부교역자")) return "associate";
   return fallback;
 }

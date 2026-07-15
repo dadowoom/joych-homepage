@@ -239,6 +239,7 @@ function createDataset(overrides: Partial<SearchDataset> = {}): SearchDataset {
     ],
     staffCategories: [
       { categoryKey: "associate", label: "부교역자", isVisible: true },
+      { categoryKey: "education", label: "교회학교 교역자", isVisible: true },
       { categoryKey: "office", label: "교회직원", isVisible: false },
     ],
     staffMembers: [
@@ -252,6 +253,18 @@ function createDataset(overrides: Partial<SearchDataset> = {}): SearchDataset {
         phone: "010-1234-5678",
         description: "Grace shepherd",
         profile: "Serves the youth with care.",
+        isVisible: true,
+      },
+      {
+        id: 903,
+        category: "education",
+        name: "Grace Park",
+        title: "Education Pastor",
+        department: "Children",
+        email: null,
+        phone: null,
+        description: "Grace education ministry",
+        profile: null,
         isVisible: true,
       },
       {
@@ -403,6 +416,10 @@ describe("grouped backend search", () => {
     expect(groups.get("gallery")?.items[0]?.href).toBe("/page/커뮤니티-최근-행사-사진?gallery=grace-album");
     expect(groups.get("courses")?.items[0]?.href).toBe("/education/courses/새가족반");
     expect(groups.get("staff")?.items[0]?.href).toBe("/about/staff/associate");
+    expect(groups.get("staff")?.items).toContainEqual(expect.objectContaining({
+      title: "Grace Park",
+      href: "/about/staff?category=education",
+    }));
     expect(groups.get("pastor-books")?.items[0]).toMatchObject({
       href: "/about/pastor/books/301",
       linkType: "internal",
