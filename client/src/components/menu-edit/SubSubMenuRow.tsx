@@ -8,15 +8,17 @@ export function SubSubMenuRow({
   onEdit,
   onDelete,
   onToggleVisible,
+  sortableId,
 }: {
   item: MenuSubItemRow;
   onEdit: (item: MenuSubItemRow) => void;
   onDelete: (id: number) => void;
   onToggleVisible: (id: number, visible: boolean) => void;
+  sortableId: string;
 }) {
   const typeOpt = PAGE_TYPE_OPTIONS.find((o) => o.value === item.pageType);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: item.id });
+    useSortable({ id: sortableId });
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,

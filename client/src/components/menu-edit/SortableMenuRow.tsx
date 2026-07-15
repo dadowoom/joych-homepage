@@ -14,6 +14,7 @@ export function SortableMenuRow({
   onEdit,
   onDelete,
   onToggleVisible,
+  sortableId,
 }: {
   menu: MenuRow;
   isSelected: boolean;
@@ -21,9 +22,10 @@ export function SortableMenuRow({
   onEdit: (menu: MenuRow) => void;
   onDelete: (id: number) => void;
   onToggleVisible: (id: number, visible: boolean) => void;
+  sortableId: string;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: menu.id });
+    useSortable({ id: sortableId });
 
   const style = {
     transform: CSS.Transform.toString(transform),

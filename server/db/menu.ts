@@ -482,6 +482,35 @@ export async function updateMenuItem(id: number, data: Partial<typeof menuItems.
   await db.update(menuItems).set(data).where(eq(menuItems.id, id));
 }
 
+/** 2단 메뉴를 다른 1단 메뉴 아래로 이동하고 양쪽 순서를 정리합니다. */
+export async function moveMenuItemToMenu(id: number, targetMenuId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  return db.transaction(async (tx) => {
+    const source = (await tx.select().from(menuItems).where(eq(menuItems.id, id)).limit(1))[0];
+    const target = (await tx.select().from(menus).where(eq(menus.id, targetMenuId)).limit(1))[0];
+    if (!source || !target) return null;
+    if (source.menuId === targetMenuId) return { moved: false, fromMenuId: source.menuId, toMenuId: targetMenuId };
+
+    const [sourceSiblings, targetSiblings] = await Promise.all([
+      tx.select().from(menuItems).where(eq(menuItems.menuId, source.menuId)).orderBy(asc(menuItems.sortOrder)),
+      tx.select().from(menuItems).where(eq(menuItems.menuId, targetMenuId)).orderBy(asc(menuItems.sortOrder)),
+    ]);
+
+    await Promise.all(
+      sourceSiblings
+        .filter((item) => item.id !== id)
+        .map((item, index) => tx.update(menuItems).set({ sortOrder: index + 1 }).where(eq(menuItems.id, item.id)))
+    );
+    await tx.update(menuItems)
+      .set({ menuId: targetMenuId, sortOrder: targetSiblings.length + 1 })
+      .where(eq(menuItems.id, id));
+
+    return { moved: true, fromMenuId: source.menuId, toMenuId: targetMenuId };
+  });
+}
+
 /** 2단 메뉴 읽기 권한 수정 가능 여부 확인 (메뉴편집 숨김 메뉴 방어) */
 export async function canUpdateTopMenuReadAccess(id: number) {
   const db = await getDb();
@@ -569,6 +598,37 @@ export async function updateMenuSubItem(id: number, data: Partial<typeof menuSub
   const db = await getDb();
   if (!db) return;
   await db.update(menuSubItems).set(data).where(eq(menuSubItems.id, id));
+}
+
+/** 3단 메뉴를 다른 2단 메뉴 아래로 이동하고 양쪽 순서를 정리합니다. */
+export async function moveMenuSubItemToItem(id: number, targetMenuItemId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  return db.transaction(async (tx) => {
+    const source = (await tx.select().from(menuSubItems).where(eq(menuSubItems.id, id)).limit(1))[0];
+    const target = (await tx.select().from(menuItems).where(eq(menuItems.id, targetMenuItemId)).limit(1))[0];
+    if (!source || !target) return null;
+    if (source.menuItemId === targetMenuItemId) {
+      return { moved: false, fromMenuItemId: source.menuItemId, toMenuItemId: targetMenuItemId };
+    }
+
+    const [sourceSiblings, targetSiblings] = await Promise.all([
+      tx.select().from(menuSubItems).where(eq(menuSubItems.menuItemId, source.menuItemId)).orderBy(asc(menuSubItems.sortOrder)),
+      tx.select().from(menuSubItems).where(eq(menuSubItems.menuItemId, targetMenuItemId)).orderBy(asc(menuSubItems.sortOrder)),
+    ]);
+
+    await Promise.all(
+      sourceSiblings
+        .filter((item) => item.id !== id)
+        .map((item, index) => tx.update(menuSubItems).set({ sortOrder: index + 1 }).where(eq(menuSubItems.id, item.id)))
+    );
+    await tx.update(menuSubItems)
+      .set({ menuItemId: targetMenuItemId, sortOrder: targetSiblings.length + 1 })
+      .where(eq(menuSubItems.id, id));
+
+    return { moved: true, fromMenuItemId: source.menuItemId, toMenuItemId: targetMenuItemId };
+  });
 }
 
 /** 3단 메뉴 읽기 권한 수정 가능 여부 확인 (부모 숨김 포함 방어) */

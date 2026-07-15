@@ -123,6 +123,12 @@ export default function MenuEditPanel({
   const reorderSubItems = trpc.cms.menus.reorderSubItems.useMutation({
     onError: (e) => toast.error("3단 순서 저장 실패: " + e.message),
   });
+  const moveItem = trpc.cms.menus.moveItem.useMutation({
+    onError: (e) => toast.error("2단 메뉴 이동 실패: " + e.message),
+  });
+  const moveSubItem = trpc.cms.menus.moveSubItem.useMutation({
+    onError: (e) => toast.error("3단 메뉴 이동 실패: " + e.message),
+  });
   const createItem = trpc.cms.menus.createItem.useMutation({
     onSuccess: () => { invalidate(); setShowAddItem(false); toast.success("하위 메뉴가 추가됐습니다."); },
     onError: (e) => toast.error("추가 실패: " + e.message),
@@ -156,52 +162,176 @@ export default function MenuEditPanel({
   // ─── 드래그 핸들러 ──────────────────────────────────────────────────────────
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = localMenus.findIndex((m) => m.id === active.id);
-    const newIndex = localMenus.findIndex((m) => m.id === over.id);
-    const reordered = arrayMove(localMenus, oldIndex, newIndex).map((m, i) => ({ ...m, sortOrder: i + 1 }));
-    setLocalMenus(reordered);
-    setIsSavingOrder(true);
-    try {
-      await reorderMenus.mutateAsync(reordered.map((m) => ({ id: m.id, sortOrder: m.sortOrder })));
-      toast.success("순서가 저장됐습니다.");
-    } finally {
-      setIsSavingOrder(false);
+    if (!over) return;
+
+    const parseDragId = (value: string | number) => {
+      const [kind, id] = String(value).split(":");
+      const numericId = Number(id);
+      return Number.isInteger(numericId) ? { kind, id: numericId } : null;
+    };
+    const source = parseDragId(active.id);
+    const target = parseDragId(over.id);
+    if (!source || !target || (source.kind === target.kind && source.id === target.id)) return;
+
+    if (source.kind === "menu") {
+      if (target.kind !== "menu") {
+        toast.error("1단 메뉴는 2단 또는 3단으로 이동할 수 없습니다.");
+        return;
+      }
+      const oldIndex = localMenus.findIndex((menu) => menu.id === source.id);
+      const newIndex = localMenus.findIndex((menu) => menu.id === target.id);
+      if (oldIndex < 0 || newIndex < 0) return;
+      const reordered = arrayMove(localMenus, oldIndex, newIndex).map((menu, index) => ({ ...menu, sortOrder: index + 1 }));
+      setIsSavingOrder(true);
+      try {
+        await reorderMenus.mutateAsync(reordered.map((menu) => ({ id: menu.id, sortOrder: menu.sortOrder })));
+        setLocalMenus(reordered);
+        toast.success("1단 메뉴 순서가 저장됐습니다.");
+      } finally {
+        setIsSavingOrder(false);
+      }
+      return;
     }
-  };
 
-  const handleItemDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id || !selectedMenuId) return;
-    setLocalMenus(prev => prev.map(m => {
-      if (m.id !== selectedMenuId) return m;
-      const oldIndex = m.items.findIndex(i => i.id === active.id);
-      const newIndex = m.items.findIndex(i => i.id === over.id);
-      const reordered = arrayMove(m.items, oldIndex, newIndex).map((item, idx) => ({ ...item, sortOrder: idx + 1 }));
-      reorderItems.mutate(reordered.map(i => ({ id: i.id, sortOrder: i.sortOrder })));
-      toast.success("2단 메뉴 순서가 저장됐습니다.");
-      return { ...m, items: reordered };
-    }));
-  };
+    if (source.kind === "item") {
+      const sourceMenu = localMenus.find((menu) => menu.items.some((item) => item.id === source.id));
+      const sourceItem = sourceMenu?.items.find((item) => item.id === source.id);
+      if (!sourceMenu || !sourceItem) return;
 
-  const handleSubItemDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id || !selectedMenuId || !selectedItemId) return;
-    setLocalMenus(prev => prev.map(m => {
-      if (m.id !== selectedMenuId) return m;
-      return {
-        ...m,
-        items: m.items.map(item => {
-          if (item.id !== selectedItemId) return item;
-          const oldIndex = item.subItems.findIndex(s => s.id === active.id);
-          const newIndex = item.subItems.findIndex(s => s.id === over.id);
-          const reordered = arrayMove(item.subItems, oldIndex, newIndex).map((s, idx) => ({ ...s, sortOrder: idx + 1 }));
-          reorderSubItems.mutate(reordered.map(s => ({ id: s.id, sortOrder: s.sortOrder })));
-          toast.success("3단 메뉴 순서가 저장됐습니다.");
-          return { ...item, subItems: reordered };
-        }),
-      };
-    }));
+      if (target.kind === "menu") {
+        if (sourceMenu.id === target.id) {
+          toast.info("이미 이 1단 메뉴 아래에 있는 2단 메뉴입니다.");
+          return;
+        }
+        const targetMenu = localMenus.find((menu) => menu.id === target.id);
+        if (!targetMenu) return;
+        setIsSavingOrder(true);
+        try {
+          await moveItem.mutateAsync({ id: source.id, targetMenuId: target.id });
+          setLocalMenus((current) => current.map((menu) => {
+            if (menu.id === sourceMenu.id) {
+              return {
+                ...menu,
+                items: menu.items.filter((item) => item.id !== source.id).map((item, index) => ({ ...item, sortOrder: index + 1 })),
+              };
+            }
+            if (menu.id === target.id) {
+              return {
+                ...menu,
+                items: [...menu.items, { ...sourceItem, menuId: target.id }]
+                  .map((item, index) => ({ ...item, sortOrder: index + 1 })),
+              };
+            }
+            return menu;
+          }));
+          setSelectedMenuId(target.id);
+          setSelectedItemId(source.id);
+          invalidate();
+          toast.success(`2단 메뉴를 '${targetMenu.label}' 아래로 이동했습니다.`);
+        } finally {
+          setIsSavingOrder(false);
+        }
+        return;
+      }
+
+      if (target.kind !== "item") {
+        toast.error("2단 메뉴는 3단으로 이동할 수 없습니다. 1단 메뉴 위에 놓아 이동하세요.");
+        return;
+      }
+      const targetMenu = localMenus.find((menu) => menu.items.some((item) => item.id === target.id));
+      if (!targetMenu || targetMenu.id !== sourceMenu.id) {
+        toast.error("2단 메뉴는 다른 1단 메뉴 위에 놓아 이동하세요.");
+        return;
+      }
+      const oldIndex = sourceMenu.items.findIndex((item) => item.id === source.id);
+      const newIndex = sourceMenu.items.findIndex((item) => item.id === target.id);
+      if (oldIndex < 0 || newIndex < 0) return;
+      const reordered = arrayMove(sourceMenu.items, oldIndex, newIndex).map((item, index) => ({ ...item, sortOrder: index + 1 }));
+      setIsSavingOrder(true);
+      try {
+        await reorderItems.mutateAsync(reordered.map((item) => ({ id: item.id, sortOrder: item.sortOrder })));
+        setLocalMenus((current) => current.map((menu) => menu.id === sourceMenu.id ? { ...menu, items: reordered } : menu));
+        toast.success("2단 메뉴 순서가 저장됐습니다.");
+      } finally {
+        setIsSavingOrder(false);
+      }
+      return;
+    }
+
+    if (source.kind === "sub") {
+      const sourceMenu = localMenus.find((menu) => menu.items.some((item) => item.subItems.some((sub) => sub.id === source.id)));
+      const sourceItem = sourceMenu?.items.find((item) => item.subItems.some((sub) => sub.id === source.id));
+      const sourceSub = sourceItem?.subItems.find((sub) => sub.id === source.id);
+      if (!sourceMenu || !sourceItem || !sourceSub) return;
+
+      if (target.kind === "item") {
+        const targetMenu = localMenus.find((menu) => menu.items.some((item) => item.id === target.id));
+        const targetItem = targetMenu?.items.find((item) => item.id === target.id);
+        if (!targetMenu || !targetItem) return;
+        if (sourceItem.id === target.id) {
+          toast.info("이미 이 2단 메뉴 아래에 있는 3단 메뉴입니다.");
+          return;
+        }
+        setIsSavingOrder(true);
+        try {
+          await moveSubItem.mutateAsync({ id: source.id, targetMenuItemId: target.id });
+          setLocalMenus((current) => current.map((menu) => ({
+            ...menu,
+            items: menu.items.map((item) => {
+              if (item.id === sourceItem.id) {
+                return {
+                  ...item,
+                  subItems: item.subItems.filter((sub) => sub.id !== source.id).map((sub, index) => ({ ...sub, sortOrder: index + 1 })),
+                };
+              }
+              if (item.id === target.id) {
+                return {
+                  ...item,
+                  subItems: [...item.subItems, { ...sourceSub, menuItemId: target.id }]
+                    .map((sub, index) => ({ ...sub, sortOrder: index + 1 })),
+                };
+              }
+              return item;
+            }),
+          })));
+          setSelectedMenuId(targetMenu.id);
+          setSelectedItemId(target.id);
+          invalidate();
+          toast.success(`3단 메뉴를 '${targetItem.label}' 아래로 이동했습니다.`);
+        } finally {
+          setIsSavingOrder(false);
+        }
+        return;
+      }
+
+      if (target.kind !== "sub") {
+        toast.error("3단 메뉴는 1단 또는 2단으로 변경할 수 없습니다. 다른 2단 메뉴 위에 놓으면 3단으로 이동합니다.");
+        return;
+      }
+      const targetItem = localMenus.flatMap((menu) => menu.items).find((item) => item.subItems.some((sub) => sub.id === target.id));
+      if (!targetItem || targetItem.id !== sourceItem.id) {
+        toast.error("3단 메뉴는 다른 2단 메뉴 위에 놓아 이동하세요.");
+        return;
+      }
+      const oldIndex = sourceItem.subItems.findIndex((sub) => sub.id === source.id);
+      const newIndex = sourceItem.subItems.findIndex((sub) => sub.id === target.id);
+      if (oldIndex < 0 || newIndex < 0) return;
+      const reordered = arrayMove(sourceItem.subItems, oldIndex, newIndex).map((sub, index) => ({ ...sub, sortOrder: index + 1 }));
+      setIsSavingOrder(true);
+      try {
+        await reorderSubItems.mutateAsync(reordered.map((sub) => ({ id: sub.id, sortOrder: sub.sortOrder })));
+        setLocalMenus((current) => current.map((menu) => ({
+          ...menu,
+          items: menu.items.map((item) => item.id === sourceItem.id ? { ...item, subItems: reordered } : item),
+        })));
+        toast.success("3단 메뉴 순서가 저장됐습니다.");
+      } finally {
+        setIsSavingOrder(false);
+      }
+      return;
+    }
+
+    toast.error("지원하지 않는 메뉴 이동입니다.");
   };
 
   // ─── 선택된 데이터 ──────────────────────────────────────────────────────────
@@ -230,13 +360,15 @@ export default function MenuEditPanel({
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#1B5E20] inline-block" /> 1단 상위 메뉴 클릭 → 2단 표시</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /> 2단 하위 메뉴 클릭 → 3단 표시</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400 inline-block" /> 3단 세부 메뉴</span>
+            <span className="basis-full text-[#1B5E20]">2단은 왼쪽 1단 위로, 3단은 가운데 2단 위로 드래그하면 같은 단계로 이동합니다.</span>
           </div>
         </SheetHeader>
 
         {isLoading ? (
           <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">불러오는 중...</div>
         ) : (
-          <div className="flex flex-1 overflow-hidden">
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <div className="flex flex-1 overflow-hidden">
 
             {/* ── 컬럼 1: 1단 상위 메뉴 ── */}
             <div className="w-[240px] shrink-0 border-r flex flex-col bg-gray-50">
@@ -244,8 +376,7 @@ export default function MenuEditPanel({
                 <p className="text-[11px] font-semibold text-[#1B5E20]">1단 메뉴</p>
               </div>
               <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                  <SortableContext items={localMenus.map((m) => m.id)} strategy={verticalListSortingStrategy}>
+                  <SortableContext items={localMenus.map((menu) => `menu:${menu.id}`)} strategy={verticalListSortingStrategy}>
                     {localMenus.map((menu) => (
                       <div key={menu.id}>
                         {editingMenuId === menu.id ? (
@@ -263,6 +394,7 @@ export default function MenuEditPanel({
                         ) : (
                           <SortableMenuRow
                             menu={menu}
+                            sortableId={`menu:${menu.id}`}
                             isSelected={selectedMenuId === menu.id}
                             onSelect={(id) => {
                               setSelectedMenuId(id);
@@ -289,7 +421,6 @@ export default function MenuEditPanel({
                       </div>
                     ))}
                   </SortableContext>
-                </DndContext>
               </div>
               {/* 상위 메뉴 추가 */}
               <div className="p-2 border-t bg-white shrink-0">
@@ -331,8 +462,7 @@ export default function MenuEditPanel({
                     {selectedMenu.items.length === 0 && (
                       <p className="text-xs text-gray-400 text-center py-4">하위 메뉴가 없습니다</p>
                     )}
-                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleItemDragEnd}>
-                      <SortableContext items={selectedMenu.items.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                      <SortableContext items={selectedMenu.items.map((item) => `item:${item.id}`)} strategy={verticalListSortingStrategy}>
                         {selectedMenu.items.map((item) => (
                           <div key={item.id}>
                             {editingItemId === item.id ? (
@@ -373,6 +503,7 @@ export default function MenuEditPanel({
                             ) : (
                               <SubMenuRow
                                 item={item}
+                                sortableId={`item:${item.id}`}
                                 isSelected={selectedItemId === item.id}
                                 onSelect={(id) => { setSelectedItemId(id); setEditingSubId(null); setShowAddSub(false); }}
                                 onEdit={(i) => setEditingItemId(i.id)}
@@ -398,7 +529,6 @@ export default function MenuEditPanel({
                           </div>
                         ))}
                       </SortableContext>
-                    </DndContext>
                   </div>
                   <div className="p-2 border-t bg-white shrink-0">
                     {showAddItem ? (
@@ -464,8 +594,7 @@ export default function MenuEditPanel({
                     {selectedItem.subItems.length === 0 && (
                       <p className="text-xs text-gray-400 text-center py-4">3단 메뉴가 없습니다</p>
                     )}
-                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleSubItemDragEnd}>
-                      <SortableContext items={selectedItem.subItems.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                      <SortableContext items={selectedItem.subItems.map((sub) => `sub:${sub.id}`)} strategy={verticalListSortingStrategy}>
                         {selectedItem.subItems.map((sub) => (
                           <div key={sub.id}>
                             {editingSubId === sub.id ? (
@@ -509,6 +638,7 @@ export default function MenuEditPanel({
                             ) : (
                               <SubSubMenuRow
                                 item={sub}
+                                sortableId={`sub:${sub.id}`}
                                 onEdit={(s) => setEditingSubId(s.id)}
                                 onDelete={(id) => {
                                   if (confirm(`"${sub.label}" 3단 메뉴를 삭제하시겠습니까?`)) {
@@ -537,7 +667,6 @@ export default function MenuEditPanel({
                           </div>
                         ))}
                       </SortableContext>
-                    </DndContext>
                   </div>
                   <div className="p-2 border-t bg-white shrink-0">
                     {showAddSub ? (
@@ -574,7 +703,8 @@ export default function MenuEditPanel({
               )}
             </div>
 
-          </div>
+            </div>
+          </DndContext>
         )}
       </SheetContent>
     </Sheet>

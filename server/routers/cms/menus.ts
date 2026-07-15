@@ -28,6 +28,7 @@ import {
   getAllMenus,
   getMenusForReadAccessSettings,
   getMenuItemById,
+  moveMenuItemToMenu,
   canUpdateTopMenuReadAccess,
   canUpdateMenuItemReadAccess,
   createMenuItem,
@@ -42,6 +43,7 @@ import {
   reorderMenuSubItems,
   createMenuSubItem,
   getMenuSubItemById,
+  moveMenuSubItemToItem,
   canUpdateMenuSubItemReadAccess,
   updateMenuSubItem,
   deleteMenuSubItem,
@@ -226,6 +228,17 @@ export const menusRouter = router({
       const result = await updateMenuItem(id, data);
       if (galleryScopeMissing) {
         await updateMenuItem(id, { galleryScopeKey: `menu-item-${id}` });
+      }
+      return result;
+    }),
+
+  /** 2단 메뉴의 1단 부모만 변경합니다. 메뉴 자체와 연결 콘텐츠 ID는 유지됩니다. */
+  moveItem: adminProcedure
+    .input(z.object({ id: idSchema, targetMenuId: idSchema }))
+    .mutation(async ({ input }) => {
+      const result = await moveMenuItemToMenu(input.id, input.targetMenuId);
+      if (!result) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "이동할 메뉴 또는 대상 1단 메뉴를 찾을 수 없습니다." });
       }
       return result;
     }),
@@ -424,6 +437,17 @@ export const menusRouter = router({
       const result = await updateMenuSubItem(id, data);
       if (galleryScopeMissing) {
         await updateMenuSubItem(id, { galleryScopeKey: `menu-sub-item-${id}` });
+      }
+      return result;
+    }),
+
+  /** 3단 메뉴의 2단 부모만 변경합니다. 메뉴 자체와 연결 콘텐츠 ID는 유지됩니다. */
+  moveSubItem: adminProcedure
+    .input(z.object({ id: idSchema, targetMenuItemId: idSchema }))
+    .mutation(async ({ input }) => {
+      const result = await moveMenuSubItemToItem(input.id, input.targetMenuItemId);
+      if (!result) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "이동할 메뉴 또는 대상 2단 메뉴를 찾을 수 없습니다." });
       }
       return result;
     }),
