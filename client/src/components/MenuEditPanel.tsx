@@ -13,6 +13,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
   DragEndEvent,
 } from "@dnd-kit/core";
 import {
@@ -38,6 +39,21 @@ import { SortableMenuRow } from "./menu-edit/SortableMenuRow.tsx";
 import { SubMenuRow } from "./menu-edit/SubMenuRow.tsx";
 import { SubSubMenuRow } from "./menu-edit/SubSubMenuRow.tsx";
 import { YoutubeVideoManager } from "./menu-edit/YoutubeVideoManager.tsx";
+
+function SubItemMoveTarget({ menuLabel, item }: { menuLabel: string; item: MenuItemRow }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `item-target:${item.id}` });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`rounded border px-2 py-1.5 text-[11px] transition-colors ${
+        isOver ? "border-[#1B5E20] bg-[#F1F8E9] text-[#1B5E20]" : "border-gray-200 bg-white text-gray-600"
+      }`}
+    >
+      {menuLabel} › {item.label}
+    </div>
+  );
+}
 
 // ─── 메인 패널 ────────────────────────────────────────────────────────────────
 export default function MenuEditPanel({
@@ -165,8 +181,9 @@ export default function MenuEditPanel({
     if (!over) return;
 
     const parseDragId = (value: string | number) => {
-      const [kind, id] = String(value).split(":");
+      const [rawKind, id] = String(value).split(":");
       const numericId = Number(id);
+      const kind = rawKind === "item-target" ? "item" : rawKind;
       return Number.isInteger(numericId) ? { kind, id: numericId } : null;
     };
     const source = parseDragId(active.id);
@@ -590,6 +607,16 @@ export default function MenuEditPanel({
                       <YoutubeVideoManager menuItemId={selectedItem.id} label={selectedItem.label} compact />
                     </div>
                   )}
+                  <details open className="shrink-0 border-b bg-[#F7FBF5] px-2 py-2">
+                    <summary className="cursor-pointer text-[11px] font-semibold text-[#1B5E20]">
+                      3단 이동 대상: 다른 2단 위에 놓으면 3단 상태로 이동
+                    </summary>
+                    <div className="mt-2 grid max-h-28 grid-cols-2 gap-1 overflow-y-auto pr-1">
+                      {localMenus.flatMap((menu) => menu.items.map((item) => (
+                        <SubItemMoveTarget key={item.id} menuLabel={menu.label} item={item} />
+                      )))}
+                    </div>
+                  </details>
                   <div className="flex-1 overflow-y-auto p-2 space-y-1">
                     {selectedItem.subItems.length === 0 && (
                       <p className="text-xs text-gray-400 text-center py-4">3단 메뉴가 없습니다</p>
