@@ -124,6 +124,62 @@ export async function getMemberAdminPermissionAssignments(searchTerm = "") {
   });
 }
 
+export async function getAssignedMemberAdminPermissionAssignments() {
+  const db = await getDb();
+  if (!db) return [];
+
+  const activePermissionKeys = getActiveAdminPermissionKeySet();
+  const permissionRows = await db
+    .select({
+      userId: adminContentPermissions.userId,
+      permissionKey: adminContentPermissions.permissionKey,
+    })
+    .from(adminContentPermissions);
+  const permissionKeysByUserId = new Map<number, string[]>();
+  for (const permission of permissionRows) {
+    if (permission.userId === null || !activePermissionKeys.has(permission.permissionKey)) continue;
+    const list = permissionKeysByUserId.get(permission.userId) ?? [];
+    list.push(permission.permissionKey);
+    permissionKeysByUserId.set(permission.userId, list);
+  }
+
+  const userIds = Array.from(permissionKeysByUserId.keys());
+  if (userIds.length === 0) return [];
+
+  const linkedUsers = await db.select().from(users).where(inArray(users.id, userIds));
+  const memberIdByUserId = new Map<number, number>();
+  for (const user of linkedUsers) {
+    if (!user.openId.startsWith(MEMBER_ADMIN_OPEN_ID_PREFIX)) continue;
+    const memberId = Number.parseInt(user.openId.slice(MEMBER_ADMIN_OPEN_ID_PREFIX.length), 10);
+    if (Number.isSafeInteger(memberId) && memberId > 0) memberIdByUserId.set(user.id, memberId);
+  }
+
+  const memberIds = Array.from(new Set(memberIdByUserId.values()));
+  if (memberIds.length === 0) return [];
+
+  const members = await db.select().from(churchMembers).where(inArray(churchMembers.id, memberIds));
+  const memberById = new Map(members.map((member) => [member.id, member]));
+
+  return Array.from(memberIdByUserId.entries())
+    .map(([userId, memberId]) => {
+      const member = memberById.get(memberId);
+      if (!member) return null;
+      return {
+        memberId: member.id,
+        userId,
+        name: member.name,
+        email: member.email,
+        phone: member.phone,
+        status: member.status,
+        position: member.position,
+        department: member.department,
+        permissionKeys: permissionKeysByUserId.get(userId) ?? [],
+      };
+    })
+    .filter((member): member is NonNullable<typeof member> => member !== null)
+    .sort((left, right) => left.name.localeCompare(right.name, "ko") || left.memberId - right.memberId);
+}
+
 async function getMemberForPermissionAssignment(memberId: number): Promise<ChurchMember | null> {
   const db = await getDb();
   if (!db) return null;

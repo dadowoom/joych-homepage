@@ -2,6 +2,7 @@ import { z } from "zod";
 import { adminProcedure, router } from "../../_core/trpc";
 import {
   getAllAdminPermissionDefinitions,
+  getAssignedMemberAdminPermissionAssignments,
   getMemberAdminPermissionAssignments,
   setMemberAdminPermissions,
 } from "../../db";
@@ -14,11 +15,12 @@ export const adminPermissionsRouter = router({
       }).optional(),
     )
     .query(async ({ input }) => {
-      const [permissions, subjects] = await Promise.all([
+      const [permissions, subjects, assignedSubjects] = await Promise.all([
         getAllAdminPermissionDefinitions(),
         getMemberAdminPermissionAssignments(input?.searchTerm ?? ""),
+        getAssignedMemberAdminPermissionAssignments(),
       ]);
-      return { permissions, subjects };
+      return { permissions, subjects, assignedSubjects };
     }),
 
   set: adminProcedure
