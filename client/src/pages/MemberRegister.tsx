@@ -42,6 +42,7 @@ export default function MemberRegister() {
     address: "",
     emergencyPhone: "",
     joinPath: "",
+    position: "",
     department: "",
     district: "",
     faithPlusUserId: "",
@@ -52,6 +53,7 @@ export default function MemberRegister() {
   const utils = trpc.useUtils();
 
   // 선택지 불러오기
+  const { data: positionOptions = [] } = trpc.members.fieldOptions.useQuery({ fieldType: "position" });
   const { data: deptOptions = [] } = trpc.members.fieldOptions.useQuery({ fieldType: "department" });
   const { data: districtOptions = [] } = trpc.members.fieldOptions.useQuery({ fieldType: "district" });
   const { data: settings } = trpc.home.settings.useQuery();
@@ -108,6 +110,7 @@ export default function MemberRegister() {
 
   const validateStep2 = () => {
     const newErrors: Record<string, string> = {};
+    if (isFieldRequired("position") && !form.position.trim()) newErrors.position = "직분을 선택해주세요.";
     if (isFieldRequired("department") && !form.department.trim()) newErrors.department = "소속 부서를 선택해주세요.";
     if (isFieldRequired("district") && !form.district.trim()) newErrors.district = "구역/순을 선택해주세요.";
     if (isFieldRequired("faithPlusUserId") && !form.faithPlusUserId.trim()) newErrors.faithPlusUserId = "믿음PLUS 사용자 ID를 입력해주세요.";
@@ -136,6 +139,7 @@ export default function MemberRegister() {
       address: isFieldVisible("address") ? form.address || undefined : undefined,
       emergencyPhone: isFieldVisible("emergencyPhone") ? form.emergencyPhone || undefined : undefined,
       joinPath: isFieldVisible("joinPath") ? form.joinPath || undefined : undefined,
+      position: isFieldVisible("position") ? form.position || undefined : undefined,
       department: isFieldVisible("department") ? form.department || undefined : undefined,
       district: isFieldVisible("district") ? form.district || undefined : undefined,
       faithPlusUserId: isFieldVisible("faithPlusUserId") ? form.faithPlusUserId || undefined : undefined,
@@ -401,8 +405,34 @@ export default function MemberRegister() {
             <div className="space-y-4">
               <h2 className="text-base font-bold text-gray-800 mb-1">교회 정보 입력</h2>
               <p className="text-xs text-gray-500 mb-4">
-                선택 사항입니다. 모르시면 비워두셔도 됩니다. 관리자가 나중에 입력해드립니다.
+                별표(*) 항목은 필수이며, 나머지는 모르시면 비워두셔도 됩니다.
               </p>
+
+              {/* 직분 */}
+              {isFieldVisible("position") && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  직분 {isFieldRequired("position") && <span className="text-red-500">*</span>}
+                </label>
+                {positionOptions.length > 0 ? (
+                  <select
+                    value={form.position}
+                    onChange={(e) => update("position", e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
+                  >
+                    <option value="">선택 안 함</option>
+                    {positionOptions.map((opt) => (
+                      <option key={opt.id} value={opt.label}>{opt.label}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <p className={`py-2 text-sm ${isFieldRequired("position") ? "font-medium text-red-500" : "text-gray-400"}`}>
+                    등록된 직분이 없습니다. 관리자에게 문의하세요.
+                  </p>
+                )}
+                {errors.position && <p className="text-xs text-red-500 mt-1">{errors.position}</p>}
+              </div>
+              )}
 
               {/* 소속 부서 */}
               {isFieldVisible("department") && (
@@ -499,7 +529,7 @@ export default function MemberRegister() {
               <div className="bg-gray-50 rounded-lg p-4 mt-2">
                 <p className="text-xs text-gray-600 mb-3 leading-relaxed">
                   <strong>개인정보 수집 및 이용 동의</strong><br />
-                  수집 항목: 이름, 이메일, 연락처, 생년월일, 성별, 주소<br />
+                  수집 항목: 이름, 이메일 및 가입 양식에 표시된 기본·교회 정보<br />
                   수집 목적: 교회 회원 관리 및 온라인 서비스 제공<br />
                   보유 기간: 회원 탈퇴 시까지<br />
                   귀하는 개인정보 수집에 동의를 거부할 권리가 있으나, 거부 시 서비스 이용이 제한됩니다.

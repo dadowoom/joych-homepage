@@ -300,6 +300,7 @@ export async function createMember(data: {
   address?: string;
   emergencyPhone?: string;
   joinPath?: string;
+  position?: string;
   department?: string;
   district?: string;
   faithPlusUserId?: string;
@@ -343,6 +344,7 @@ export async function createMemberWithSocialAccount(memberData: {
   name: string;
   phone?: string;
   birthDate?: string;
+  position?: string;
   joinPath?: string;
 }, socialData: {
   provider: MemberSocialProvider;
@@ -407,6 +409,20 @@ export async function updateMemberChurchInfo(id: number, data: Partial<{
   const db = await getDb();
   if (!db) throw new Error('DB not available');
   await db.update(churchMembers).set({ ...data, updatedAt: new Date() }).where(eq(churchMembers.id, id));
+}
+
+/** 회원가입 승인 담당자: 아직 대기 중인 신청만 승인 또는 거절합니다. */
+export async function decidePendingMemberRegistration(
+  id: number,
+  status: "approved" | "rejected",
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [result] = await db
+    .update(churchMembers)
+    .set({ status, updatedAt: new Date() })
+    .where(and(eq(churchMembers.id, id), eq(churchMembers.status, "pending")));
+  return (result as ResultSetHeader).affectedRows > 0;
 }
 
 /** 성도 본인 탈퇴: 개인정보 삭제/익명화 및 소셜 연결 해제 */

@@ -62,6 +62,8 @@ const FIELD_TYPE_COLORS: Record<FieldType, string> = {
   baptism: "bg-purple-100 text-purple-800",
 };
 
+const OPTION_BACKED_REGISTER_FIELDS = ["position", "department", "district"] as const;
+
 const MEMBER_REGISTER_GUIDE_TITLE_KEY = "member_register_guide_title";
 const MEMBER_REGISTER_GUIDE_TEXT_KEY = "member_register_guide_text";
 const DEFAULT_MEMBER_REGISTER_GUIDE_TITLE = "기쁨의교회 등록 성도 전용 가입 안내";
@@ -266,6 +268,16 @@ export default function AdminMemberOptionsTab() {
   };
 
   const handleSaveFieldConfig = () => {
+    const missingRequiredOptions = OPTION_BACKED_REGISTER_FIELDS.find((fieldType) =>
+      fieldConfig[fieldType].required &&
+      !options.some((option) => option.fieldType === fieldType && option.isActive)
+    );
+    if (missingRequiredOptions) {
+      setActiveType(missingRequiredOptions);
+      toast.error(`${FIELD_TYPE_LABELS[missingRequiredOptions]}을(를) 필수로 지정하려면 활성 선택지를 먼저 추가해주세요.`);
+      return;
+    }
+
     updateSettingMutation.mutate({
       key: MEMBER_REGISTER_FIELD_CONFIG_KEY,
       value: JSON.stringify(fieldConfig),

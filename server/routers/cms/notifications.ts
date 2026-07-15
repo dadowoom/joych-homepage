@@ -1,6 +1,7 @@
 import { and, desc, eq, gt, inArray, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
+  MEMBER_APPROVAL_PERMISSION_KEY,
   STATIC_ADMIN_PERMISSIONS,
   SUPPORT_REQUEST_PERMISSION_KEYS,
   SUPPORT_REQUEST_ROOT_PERMISSION_KEY,
@@ -840,7 +841,7 @@ export const notificationsRouter = router({
       );
     }
 
-    if (ctx.user.role === "admin") {
+    if (hasPermission(ctx.user, MEMBER_APPROVAL_PERMISSION_KEY)) {
       const groupKey = "memberPending";
       const where = and(
         eq(churchMembers.status, "pending"),

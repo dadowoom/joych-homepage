@@ -380,7 +380,7 @@ function AdminMobileBlocked() {
         <p className="mt-3 text-sm leading-6 text-gray-500">
           관리자 페이지는 PC 화면에서 사용할 수 있습니다.
           <br />
-          시설 예약 승인 권한이 있는 분은 모바일에서도 예약 관리가 가능합니다.
+          예약 또는 회원가입 승인 권한이 있는 분은 모바일에서도 담당 업무를 관리할 수 있습니다.
         </p>
         <Link
           href="/"
@@ -680,7 +680,7 @@ export default function AdminPage() {
 
   const canAccessTab = (tab: Tab): boolean =>
     tab === "memberDashboard"
-      ? MEMBER_DASHBOARD_SOURCE_TABS.some(sourceTab => canAccessTab(sourceTab))
+      ? canManageFullAdmin(user) && MEMBER_DASHBOARD_SOURCE_TABS.some(sourceTab => canAccessTab(sourceTab))
       : tab === "viewModes"
         ? canManageAdminTab(user, "menuAccess")
         : tab === "facilitySchedule" || tab === "externalFacilities"
@@ -689,11 +689,23 @@ export default function AdminPage() {
 
   const permittedTabs = VALID_TABS.filter(tab => canAccessTab(tab));
 
-  const mobileReservationTabs = permittedTabs.filter(tab =>
-    tab === "reservations" || tab === "vehicles"
+  const mobileAdminTabs = permittedTabs.filter(tab =>
+    tab === "reservations" || tab === "vehicles" || tab === "members"
   );
-  const canUseMobileAdmin = mobileReservationTabs.length > 0;
-  const canUsePushNotifications = mobileReservationTabs.length > 0;
+  const canUseMobileAdmin = mobileAdminTabs.length > 0;
+  const canUsePushNotifications = mobileAdminTabs.length > 0;
+  const hasReservationNotifications = mobileAdminTabs.includes("reservations") || mobileAdminTabs.includes("vehicles");
+  const hasMemberApprovalNotifications = mobileAdminTabs.includes("members");
+  const pushEnabledDescription = hasReservationNotifications && hasMemberApprovalNotifications
+    ? "이 기기에서 새 예약과 회원가입 승인 알림을 받을 준비가 되어 있습니다."
+    : hasMemberApprovalNotifications
+      ? "이 기기에서 새 회원가입 승인 알림을 받을 준비가 되어 있습니다."
+      : "이 기기에서 새 예약 알림을 받을 준비가 되어 있습니다.";
+  const pushDisabledDescription = hasReservationNotifications && hasMemberApprovalNotifications
+    ? "새 예약과 회원가입 신청 알림을 이 기기에서 받을 수 있습니다."
+    : hasMemberApprovalNotifications
+      ? "새 회원가입 신청 알림을 이 기기에서 받을 수 있습니다."
+      : "새 예약 신청 알림을 이 기기에서 받을 수 있습니다.";
 
   if (isMobile && !canUseMobileAdmin) {
     return <AdminMobileBlocked />;
@@ -722,7 +734,7 @@ export default function AdminPage() {
     );
   }
 
-  const effectivePermittedTabs = isMobile ? mobileReservationTabs : permittedTabs;
+  const effectivePermittedTabs = isMobile ? mobileAdminTabs : permittedTabs;
   const defaultTabs = effectivePermittedTabs.filter(
     tab => tab !== "memberDashboard"
   );
@@ -734,7 +746,14 @@ export default function AdminPage() {
     ...group,
     tabs: group.tabs.filter(tab => effectivePermittedTabs.includes(tab)),
   })).filter(group => group.tabs.length > 0);
-  const activeTabInfo = TABS_BY_ID[activeTab];
+  const activeTabInfo = activeTab === "members" && !canManageFullAdmin(user)
+    ? {
+        ...TABS_BY_ID[activeTab],
+        label: "회원가입 승인 관리",
+        description: "승인 대기 중인 가입 신청을 확인하고 승인 또는 거절합니다.",
+        status: "가입 승인",
+      }
+    : TABS_BY_ID[activeTab];
   const activeGroup = TAB_GROUPS.find(group => group.tabs.includes(activeTab));
   const notificationTotalCount = notificationSummary?.totalCount ?? 0;
   const hasNewAdminNotifications = notificationTotalCount > 0;
@@ -1029,11 +1048,17 @@ export default function AdminPage() {
           )}
 
           <main className="min-w-0 space-y-5">
-            {canUsePushNotifications && <PushNotificationToggle />}
+            {canUsePushNotifications && (
+              <PushNotificationToggle
+                title="관리 알림 받기"
+                enabledDescription={pushEnabledDescription}
+                disabledDescription={pushDisabledDescription}
+              />
+            )}
 
             {isMobile && canUseMobileAdmin && (
               <div className="flex gap-2">
-                {mobileReservationTabs.includes("reservations") && (
+                {mobileAdminTabs.includes("reservations") && (
                   <button
                     type="button"
                     onClick={() => setActiveTab("reservations")}
@@ -1046,7 +1071,7 @@ export default function AdminPage() {
                     예약 관리
                   </button>
                 )}
-                {mobileReservationTabs.includes("vehicles") && (
+                {mobileAdminTabs.includes("vehicles") && (
                   <button
                     type="button"
                     onClick={() => setActiveTab("vehicles")}
@@ -1057,6 +1082,19 @@ export default function AdminPage() {
                     }`}
                   >
                     차량 예약
+                  </button>
+                )}
+                {mobileAdminTabs.includes("members") && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("members")}
+                    className={`flex min-h-11 flex-1 items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                      activeTab === "members"
+                        ? "bg-[#1B5E20] text-white"
+                        : "bg-white text-gray-600 ring-1 ring-gray-200"
+                    }`}
+                  >
+                    가입 승인
                   </button>
                 )}
               </div>

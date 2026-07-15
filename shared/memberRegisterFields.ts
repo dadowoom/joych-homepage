@@ -6,6 +6,7 @@ export type MemberRegisterFieldKey =
   | "gender"
   | "address"
   | "emergencyPhone"
+  | "position"
   | "department"
   | "district"
   | "faithPlusUserId"
@@ -31,6 +32,7 @@ export const MEMBER_REGISTER_FIELD_DEFINITIONS: MemberRegisterFieldDefinition[] 
   { key: "gender", label: "성별", description: "남/여 선택 항목", section: "basic" },
   { key: "address", label: "주소", description: "성도 주소 입력 항목", section: "basic" },
   { key: "emergencyPhone", label: "비상연락처", description: "긴급 연락처 입력 항목", section: "basic" },
+  { key: "position", label: "직분", description: "관리자가 등록한 직분 선택 목록", section: "church" },
   { key: "department", label: "소속 부서", description: "관리자가 등록한 부서 선택 목록", section: "church" },
   { key: "district", label: "구역 / 순", description: "관리자가 등록한 구역 선택 목록", section: "church" },
   { key: "faithPlusUserId", label: "믿음PLUS 사용자 ID", description: "믿음PLUS 연동 확인용 사용자 ID", section: "church" },
@@ -43,6 +45,7 @@ export const DEFAULT_MEMBER_REGISTER_FIELD_CONFIG: MemberRegisterFieldConfig = {
   gender: { visible: true, required: false },
   address: { visible: false, required: false },
   emergencyPhone: { visible: false, required: false },
+  position: { visible: true, required: false },
   department: { visible: true, required: false },
   district: { visible: true, required: false },
   faithPlusUserId: { visible: true, required: false },

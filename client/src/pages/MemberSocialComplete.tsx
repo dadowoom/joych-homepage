@@ -2,6 +2,11 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import BirthDateInput, { isCompleteBirthDate } from "@/components/BirthDateInput";
+import { trpc } from "@/lib/trpc";
+import {
+  MEMBER_REGISTER_FIELD_CONFIG_KEY,
+  parseMemberRegisterFieldConfig,
+} from "@shared/memberRegisterFields";
 
 type SignupContext = {
   provider: "google" | "kakao";
@@ -22,9 +27,13 @@ export default function MemberSocialComplete() {
     name: "",
     phone: "",
     birthDate: "",
+    position: "",
     email: "",
     agreePrivacy: false,
   });
+  const { data: positionOptions = [] } = trpc.members.fieldOptions.useQuery({ fieldType: "position" });
+  const { data: settings } = trpc.home.settings.useQuery();
+  const fieldConfig = parseMemberRegisterFieldConfig(settings?.[MEMBER_REGISTER_FIELD_CONFIG_KEY]);
 
   useEffect(() => {
     let active = true;
@@ -69,6 +78,9 @@ export default function MemberSocialComplete() {
     } else if (!isCompleteBirthDate(form.birthDate)) {
       nextErrors.birthDate = "YYYY-MM-DD 형식으로 입력해주세요.";
     }
+    if (fieldConfig.position.visible && fieldConfig.position.required && !form.position.trim()) {
+      nextErrors.position = "직분을 선택해주세요.";
+    }
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
       nextErrors.email = "올바른 이메일 형식이 아닙니다.";
     } else if (form.email.trim().length > EMAIL_MAX_LENGTH) {
@@ -93,6 +105,7 @@ export default function MemberSocialComplete() {
           name: form.name,
           phone: form.phone,
           birthDate: form.birthDate,
+          position: fieldConfig.position.visible ? form.position || undefined : undefined,
           email: form.email || undefined,
         }),
       });
@@ -202,6 +215,31 @@ export default function MemberSocialComplete() {
             />
             {errors.birthDate && <p className="text-xs text-red-500 mt-1">{errors.birthDate}</p>}
           </div>
+
+          {fieldConfig.position.visible && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                직분 {fieldConfig.position.required && <span className="text-red-500">*</span>}
+              </label>
+              {positionOptions.length > 0 ? (
+                <select
+                  value={form.position}
+                  onChange={(e) => update("position", e.target.value)}
+                  className={inputClass("position")}
+                >
+                  <option value="">선택 안 함</option>
+                  {positionOptions.map((option) => (
+                    <option key={option.id} value={option.label}>{option.label}</option>
+                  ))}
+                </select>
+              ) : (
+                <p className={`py-2 text-sm ${fieldConfig.position.required ? "font-medium text-red-500" : "text-gray-400"}`}>
+                  등록된 직분이 없습니다. 관리자에게 문의하세요.
+                </p>
+              )}
+              {errors.position && <p className="text-xs text-red-500 mt-1">{errors.position}</p>}
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">이메일</label>

@@ -24,6 +24,25 @@ describe("member registration validation", () => {
     expect(memberRegisterInputSchema.safeParse(withoutPhone).success).toBe(true);
   });
 
+  it("직분은 선택 입력으로 받고 공백을 정리한다", () => {
+    const result = memberRegisterInputSchema.safeParse({
+      ...validSignupInput,
+      position: "  집사  ",
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.position).toBe("집사");
+    }
+  });
+
+  it("직분은 DB 컬럼 길이인 64자를 넘길 수 없다", () => {
+    expect(memberRegisterInputSchema.safeParse({
+      ...validSignupInput,
+      position: "직".repeat(65),
+    }).success).toBe(false);
+  });
+
   it("비밀번호는 영문과 숫자를 모두 포함해야 한다", () => {
     expect(memberRegisterInputSchema.safeParse({
       ...validSignupInput,

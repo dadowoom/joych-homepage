@@ -34,6 +34,7 @@ export const memberRegisterInputSchema = z.object({
   address: optionalText(255),
   emergencyPhone: optionalText(32),
   joinPath: optionalText(64),
+  position: optionalText(64),
   department: optionalText(64),
   district: optionalText(64),
   faithPlusUserId: optionalText(128),

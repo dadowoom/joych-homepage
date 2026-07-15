@@ -27,7 +27,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { adminProcedure, publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
+import { adminPermissionProcedure, adminProcedure, publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
 import { checkRateLimit, recordFailure, resetFailures, getClientIp, checkSearchRateLimit, checkRegisterRateLimit } from "../_core/rateLimiter";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { getJwtSecretKey } from "../_core/jwtSecret";
@@ -39,6 +39,9 @@ import {
   optionalText,
   requiredText,
 } from "../_core/memberValidation";
+import {
+  MEMBER_APPROVAL_PERMISSION_KEY,
+} from "@shared/adminPermissions";
 import {
   MEMBER_REGISTER_FIELD_CONFIG_KEY,
   MEMBER_REGISTER_FIELD_DEFINITIONS,
@@ -55,6 +58,7 @@ import {
   getMemberByEmail,
   getMemberById,
   createMember,
+  decidePendingMemberRegistration,
   updateMemberBasicInfo,
   updateMemberChurchInfo,
   adminHardDeleteMember,
@@ -67,9 +71,11 @@ import {
   withdrawMemberAndErasePersonalData,
   getSiteSetting,
 } from "../db";
+import { notifyMemberRegistration } from "../_core/pushNotifications";
 
 const idSchema = z.number().int().positive();
 const fieldTypeSchema = z.enum(["position", "department", "district", "baptism"]);
+const registerOptionFieldKeys = ["position", "department", "district"] as const;
 const editableChurchDate = z.string()
   .trim()
   .refine((value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value), "날짜 형식은 YYYY-MM-DD여야 합니다.")
@@ -84,6 +90,32 @@ function getRegisterFieldValue(input: RegisterInputWithConfigurableFields, key: 
 async function getRegisterFieldConfig() {
   const row = await getSiteSetting(MEMBER_REGISTER_FIELD_CONFIG_KEY);
   return parseMemberRegisterFieldConfig(row?.settingValue);
+}
+
+async function assertConfiguredRegisterOptions(
+  input: RegisterInputWithConfigurableFields,
+  config: Awaited<ReturnType<typeof getRegisterFieldConfig>>,
+) {
+  const submitted = registerOptionFieldKeys
+    .map((fieldType) => ({
+      fieldType,
+      value: visibleRegisterValue(input, config, fieldType),
+    }))
+    .filter((item): item is { fieldType: typeof registerOptionFieldKeys[number]; value: string } =>
+      typeof item.value === "string" && Boolean(item.value)
+    );
+  if (submitted.length === 0) return;
+
+  const activeOptions = await getMemberFieldOptions();
+  for (const item of submitted) {
+    if (!activeOptions.some((option) => option.fieldType === item.fieldType && option.label === item.value)) {
+      const label = MEMBER_REGISTER_FIELD_DEFINITIONS.find((field) => field.key === item.fieldType)?.label ?? "선택 항목";
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `현재 사용할 수 없는 ${label}입니다. 목록에서 다시 선택해주세요.`,
+      });
+    }
+  }
 }
 
 function assertRequiredRegisterFields(
@@ -120,6 +152,24 @@ function sanitizeMemberForAdmin<T extends Record<string, unknown>>(member: T) {
   const { passwordHash: _passwordHash, ...safeData } = member;
   return safeData;
 }
+
+function sanitizeMemberForApproval<T extends Record<string, unknown>>(member: T) {
+  return {
+    id: member.id as number,
+    name: member.name as string,
+    email: (member.email as string | null | undefined) ?? null,
+    phone: (member.phone as string | null | undefined) ?? null,
+    birthDate: (member.birthDate as string | null | undefined) ?? null,
+    gender: (member.gender as string | null | undefined) ?? null,
+    position: (member.position as string | null | undefined) ?? null,
+    department: (member.department as string | null | undefined) ?? null,
+    district: (member.district as string | null | undefined) ?? null,
+    status: member.status as string,
+    createdAt: member.createdAt as Date,
+  };
+}
+
+const memberApprovalProcedure = adminPermissionProcedure(MEMBER_APPROVAL_PERMISSION_KEY);
 
 export const membersRouter = router({
   // ─── 공개 API ────────────────────────────────────────────────────────────────
@@ -182,6 +232,7 @@ export const membersRouter = router({
 
       const fieldConfig = await getRegisterFieldConfig();
       assertRequiredRegisterFields(input, fieldConfig);
+      await assertConfiguredRegisterOptions(input, fieldConfig);
 
       const bcrypt = await import("bcryptjs");
 
@@ -204,6 +255,7 @@ export const membersRouter = router({
         address: visibleRegisterValue(input, fieldConfig, "address"),
         emergencyPhone: visibleRegisterValue(input, fieldConfig, "emergencyPhone"),
         joinPath: visibleRegisterValue(input, fieldConfig, "joinPath"),
+        position: visibleRegisterValue(input, fieldConfig, "position"),
         department: visibleRegisterValue(input, fieldConfig, "department"),
         district: visibleRegisterValue(input, fieldConfig, "district"),
         faithPlusUserId: visibleRegisterValue(input, fieldConfig, "faithPlusUserId"),
@@ -211,6 +263,12 @@ export const membersRouter = router({
 
       ctx.res.clearCookie(MEMBER_SESSION_COOKIE, {
         ...getSessionCookieOptions(ctx.req),
+      });
+
+      void notifyMemberRegistration({
+        memberId: id,
+        name: input.name,
+        position: visibleRegisterValue(input, fieldConfig, "position"),
       });
 
       return { success: true, id, autoLoggedIn: false };
@@ -386,6 +444,28 @@ export const membersRouter = router({
 
   /** 승인 대기 성도 목록 (관리자) */
   pendingList: adminProcedure.query(async () => (await getPendingMembers()).map(sanitizeMemberForAdmin)),
+
+  /** 회원가입 승인 권한 담당자용 승인 대기 목록 */
+  approvalList: memberApprovalProcedure.query(async () =>
+    (await getPendingMembers()).map(sanitizeMemberForApproval)
+  ),
+
+  /** 회원가입 승인 권한 담당자용 승인/거절 처리 */
+  updateApprovalStatus: memberApprovalProcedure
+    .input(z.object({
+      id: idSchema,
+      status: z.enum(["approved", "rejected"]),
+    }))
+    .mutation(async ({ input }) => {
+      const updated = await decidePendingMemberRegistration(input.id, input.status);
+      if (!updated) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "이미 처리됐거나 승인 대기 상태가 아닌 회원가입 신청입니다.",
+        });
+      }
+      return { success: true };
+    }),
 
   /**
    * 성도 교회 정보 수정 (관리자)

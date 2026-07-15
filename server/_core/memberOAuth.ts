@@ -5,8 +5,15 @@ import { getSessionCookieOptions } from "./cookies";
 import { getJwtSecretKey } from "./jwtSecret";
 import { MEMBER_SESSION_COOKIE, setMemberSessionCookie } from "./memberSession";
 import {
+  MEMBER_REGISTER_FIELD_CONFIG_KEY,
+  parseMemberRegisterFieldConfig,
+} from "@shared/memberRegisterFields";
+import { getSiteSetting } from "../db/content";
+import { notifyMemberRegistration } from "./pushNotifications";
+import {
   createMemberSocialAccount,
   createMemberWithSocialAccount,
+  getMemberFieldOptions,
   getMemberByEmail,
   getMemberById,
   getMemberSocialAccount,
@@ -512,12 +519,13 @@ async function resolveExistingMemberForProfile(
   return { member: null, created: false, status: "needs_signup_details" as const };
 }
 
-async function createMemberFromSocialSignup(
+export async function createMemberFromSocialSignup(
   profile: SocialSignupPayload,
   input: {
     name: string;
     phone: string;
     birthDate: string;
+    position: string;
     email: string | null;
   }
 ) {
@@ -544,6 +552,7 @@ async function createMemberFromSocialSignup(
     name: input.name,
     phone: input.phone,
     birthDate: input.birthDate,
+    position: input.position || undefined,
     joinPath: `${providers[profile.provider].label} 간편가입`,
   }, {
     provider: profile.provider as MemberSocialProvider,
@@ -551,6 +560,12 @@ async function createMemberFromSocialSignup(
     email,
     displayName: profile.displayName,
     profileImageUrl: profile.profileImageUrl,
+  });
+
+  void notifyMemberRegistration({
+    memberId,
+    name: input.name,
+    position: input.position || null,
   });
 
   const member = await getMemberById(memberId);
@@ -582,15 +597,30 @@ export function registerMemberOAuthRoutes(app: Express) {
       const phone = sanitizeText(req.body?.phone, 32);
       const birthDate = sanitizeBirthDate(req.body?.birthDate);
       const email = signup.email || sanitizeOptionalEmail(req.body?.email);
+      const fieldConfigRow = await getSiteSetting(MEMBER_REGISTER_FIELD_CONFIG_KEY);
+      const fieldConfig = parseMemberRegisterFieldConfig(fieldConfigRow?.settingValue);
+      const position = fieldConfig.position.visible
+        ? sanitizeText(req.body?.position, 64)
+        : "";
 
       if (!name || !phone) {
         return res.status(400).json({ message: "이름, 연락처, 생년월일을 모두 입력해주세요." });
+      }
+      if (fieldConfig.position.visible && fieldConfig.position.required && !position) {
+        return res.status(400).json({ message: "직분 항목을 입력해주세요." });
+      }
+      if (position) {
+        const positionOptions = await getMemberFieldOptions("position");
+        if (!positionOptions.some((option) => option.label === position)) {
+          return res.status(400).json({ message: "현재 사용할 수 없는 직분입니다. 목록에서 다시 선택해주세요." });
+        }
       }
 
       const result = await createMemberFromSocialSignup(signup, {
         name,
         phone,
         birthDate,
+        position,
         email,
       });
 

@@ -14,6 +14,7 @@ import { useState, useMemo } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { formatPhoneNumber } from "@/lib/phoneNumber";
 import { toast } from "sonner";
 import MemberEditModal from "./MemberEditModal";
@@ -38,7 +39,9 @@ const VIEW_LABELS: { key: ViewMode; label: string }[] = [
 const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 type PageSize = typeof PAGE_SIZE_OPTIONS[number];
 
-type Member = inferRouterOutputs<AppRouter>["members"]["adminList"][number];
+type AdminMember = inferRouterOutputs<AppRouter>["members"]["adminList"][number];
+type ApprovalMember = inferRouterOutputs<AppRouter>["members"]["approvalList"][number];
+type Member = AdminMember | ApprovalMember;
 
 function MemberSummary({ member, number }: { member: Member; number: number }) {
   const status = STATUS_LABELS[member.status ?? "pending"] ?? STATUS_LABELS.pending;
@@ -72,6 +75,8 @@ function MemberSummary({ member, number }: { member: Member; number: number }) {
 
 export default function AdminMembersTab() {
   const utils = trpc.useUtils();
+  const { user } = useAuth();
+  const isFullAdmin = user?.role === "admin";
 
   // 필터 상태
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -87,11 +92,18 @@ export default function AdminMembersTab() {
   const [pageSize, setPageSize] = useState<PageSize>(50);
 
   // 모달 상태
-  const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [editingMember, setEditingMember] = useState<AdminMember | null>(null);
 
   // 데이터 조회
-  const { data: members = [], isLoading } = trpc.members.adminList.useQuery();
-  const { data: fieldOptions = [] } = trpc.members.adminFieldOptions.useQuery();
+  const adminListQuery = trpc.members.adminList.useQuery(undefined, { enabled: isFullAdmin });
+  const approvalListQuery = trpc.members.approvalList.useQuery(undefined, {
+    enabled: Boolean(user) && !isFullAdmin,
+  });
+  const members: Member[] = isFullAdmin
+    ? (adminListQuery.data ?? [])
+    : (approvalListQuery.data ?? []);
+  const isLoading = isFullAdmin ? adminListQuery.isLoading : approvalListQuery.isLoading;
+  const { data: fieldOptions = [] } = trpc.members.fieldOptions.useQuery({});
 
   // 필터 선택지 (활성화된 것만)
   const districtOptions = useMemo(() => fieldOptions.filter(o => o.fieldType === "district" && o.isActive), [fieldOptions]);
@@ -99,7 +111,18 @@ export default function AdminMembersTab() {
   const departmentOptions = useMemo(() => fieldOptions.filter(o => o.fieldType === "department" && o.isActive), [fieldOptions]);
 
   // 빠른 승인/거절 뮤테이션
-  const quickMutation = trpc.members.updateChurchInfo.useMutation({
+  const approvalMutation = trpc.members.updateApprovalStatus.useMutation({
+    onSuccess: () => {
+      utils.members.adminList.invalidate();
+      utils.members.pendingList.invalidate();
+      utils.members.approvalList.invalidate();
+      utils.cms.notifications.summary.invalidate();
+      toast.success("상태가 변경됐습니다.");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const adminStatusMutation = trpc.members.updateChurchInfo.useMutation({
     onSuccess: () => {
       utils.members.adminList.invalidate();
       utils.members.pendingList.invalidate();
@@ -187,14 +210,14 @@ export default function AdminMembersTab() {
     }, []);
   }, [paginated, viewMode]);
 
-  const quickApprove = (id: number) => quickMutation.mutate({ id, status: "approved" });
-  const quickReject  = (id: number) => quickMutation.mutate({ id, status: "rejected" });
+  const quickApprove = (id: number) => approvalMutation.mutate({ id, status: "approved" });
+  const quickReject  = (id: number) => approvalMutation.mutate({ id, status: "rejected" });
   const restoreMember = (member: Member) => {
     const confirmed = window.confirm(
       `${member.name} 성도를 대기 상태로 복구할까요?\n\n복구 후 다시 승인하거나 정보를 수정할 수 있습니다.`
     );
     if (!confirmed) return;
-    quickMutation.mutate({ id: member.id, status: "pending" });
+    adminStatusMutation.mutate({ id: member.id, status: "pending" });
   };
   const deleteMember = (member: Member) => {
     const confirmed = window.confirm(
@@ -217,7 +240,7 @@ export default function AdminMembersTab() {
     hardDeleteMutation.mutate({ id: member.id });
   };
 
-  const isMutating = quickMutation.isPending || deleteMutation.isPending || hardDeleteMutation.isPending;
+  const isMutating = approvalMutation.isPending || adminStatusMutation.isPending || deleteMutation.isPending || hardDeleteMutation.isPending;
 
   const renderMemberActions = (member: Member) => (
     <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -239,14 +262,16 @@ export default function AdminMembersTab() {
           </button>
         </>
       )}
-      <button
-        onClick={() => setEditingMember(member as Member)}
-        disabled={isMutating}
-        className="text-xs px-3 py-1 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
-      >
-        수정
-      </button>
-      {member.status !== "withdrawn" && (
+      {isFullAdmin && (
+        <button
+          onClick={() => setEditingMember(member as AdminMember)}
+          disabled={isMutating}
+          className="text-xs px-3 py-1 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+        >
+          수정
+        </button>
+      )}
+      {isFullAdmin && member.status !== "withdrawn" && (
         <button
           onClick={() => deleteMember(member)}
           disabled={isMutating}
@@ -255,7 +280,7 @@ export default function AdminMembersTab() {
           삭제
         </button>
       )}
-      {member.status === "withdrawn" && (
+      {isFullAdmin && member.status === "withdrawn" && (
         <>
           <button
             onClick={() => restoreMember(member)}
@@ -288,18 +313,18 @@ export default function AdminMembersTab() {
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-lg font-bold text-gray-800">
-              교적부/성도 관리
+              {isFullAdmin ? "교적부/성도 관리" : "회원가입 승인 관리"}
             </h3>
             <span className="rounded-full bg-[#E8F5E9] px-2.5 py-1 text-xs font-semibold text-[#1B5E20]">
-              관리자 전용
+              {isFullAdmin ? "관리자 전용" : "승인 권한"}
             </span>
           </div>
           <p className="text-sm text-gray-500 mt-0.5">
-            전체 {members.length}명
+            {isFullAdmin ? `전체 ${members.length}명` : `승인 대기 ${members.length}명`}
             {filtered.length !== members.length && (
               <span className="ml-1 text-[#1B5E20] font-medium">· 검색결과 {filtered.length}명</span>
             )}
-            {pendingCount > 0 && (
+            {isFullAdmin && pendingCount > 0 && (
               <span className="ml-2 text-yellow-600 font-medium">· 승인 대기 {pendingCount}명</span>
             )}
             {basicMissingCount > 0 && (
@@ -307,7 +332,9 @@ export default function AdminMembersTab() {
             )}
           </p>
           <p className="mt-1 text-xs text-gray-400">
-            공개 홈페이지가 아니라 관리자 화면에서만 확인하는 교적부입니다.
+            {isFullAdmin
+              ? "공개 홈페이지가 아니라 관리자 화면에서만 확인하는 교적부입니다."
+              : "승인 대기 중인 가입 신청만 확인하고 승인 또는 거절할 수 있습니다."}
           </p>
         </div>
       </div>
@@ -315,7 +342,7 @@ export default function AdminMembersTab() {
       {/* ── 필터 영역 ── */}
       <div className="bg-gray-50 rounded-xl p-3 mb-4 space-y-3">
         {/* 상태 필터 */}
-        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+        {isFullAdmin && <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
           <span className="w-20 shrink-0 text-xs font-semibold text-gray-500">전체상태</span>
           <div className="flex flex-wrap gap-1">
             {(["all", "pending", "approved", "rejected", "withdrawn"] as StatusFilter[]).map((s) => (
@@ -332,7 +359,7 @@ export default function AdminMembersTab() {
               </button>
             ))}
           </div>
-        </div>
+        </div>}
 
         <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
           <span className="w-20 shrink-0 text-xs font-semibold text-gray-500">전체보기</span>
@@ -596,16 +623,19 @@ export default function AdminMembersTab() {
       )}
 
       {/* 성도 수정 모달 */}
-      <MemberEditModal
-        member={editingMember}
-        fieldOptions={fieldOptions}
-        open={!!editingMember}
-        onClose={() => setEditingMember(null)}
-        onSaved={() => {
-          utils.members.adminList.invalidate();
-          utils.members.pendingList.invalidate();
-        }}
-      />
+      {isFullAdmin && (
+        <MemberEditModal
+          member={editingMember}
+          fieldOptions={fieldOptions}
+          open={!!editingMember}
+          onClose={() => setEditingMember(null)}
+          onSaved={() => {
+            utils.members.adminList.invalidate();
+            utils.members.pendingList.invalidate();
+            utils.members.approvalList.invalidate();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { and, eq, or, type SQL } from "drizzle-orm";
 import { z } from "zod";
+import { MEMBER_APPROVAL_PERMISSION_KEY } from "@shared/adminPermissions";
 import { pushSubscriptions } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { publicProcedure, router } from "../_core/trpc";
@@ -39,6 +40,7 @@ function ensurePushNotificationUser(ctx: {
     ctx.user?.role === "admin" ||
     ctx.user?.contentPermissions?.includes("content:reservations") ||
     ctx.user?.contentPermissions?.includes("content:vehicles") ||
+    ctx.user?.contentPermissions?.includes(MEMBER_APPROVAL_PERMISSION_KEY) ||
     ctx.user?.contentPermissions?.includes("content:pushBroadcast");
 
   if (

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import webpush from "web-push";
 import { and, eq, inArray, or, type SQL } from "drizzle-orm";
+import { MEMBER_APPROVAL_PERMISSION_KEY } from "@shared/adminPermissions";
 import { adminContentPermissions, churchMembers, memberDistricts, pushSubscriptions, users } from "../../drizzle/schema";
 import { getDb, getMembersAssignedToDistrict } from "../db";
 
@@ -196,6 +197,20 @@ export async function sendPushToMember(
   } catch (error) {
     console.error(`[push] Member notification failed context=${context}`, error);
   }
+}
+
+export function notifyMemberRegistration(params: {
+  memberId: number;
+  name: string;
+  position?: string | null;
+}) {
+  const positionLabel = params.position ? ` (${params.position})` : "";
+  return sendPushToPermissionHolders(MEMBER_APPROVAL_PERMISSION_KEY, {
+    title: "새 회원가입 승인 대기",
+    body: `${params.name}${positionLabel}님이 회원가입을 신청했습니다.`,
+    url: "/admin_joych_2026?tab=members",
+    tag: `member-registration-${params.memberId}`,
+  });
 }
 
 export function notifyFacilityReservation(params: {
