@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const LABEL_EDIT_TOOLS = "\uD3B8\uC9D1 \uB3C4\uAD6C";
+const LABEL_ADMIN = "\uC5B4\uB4DC\uBBFC";
 const LABEL_HOME_SECTIONS = "\uD648\uC139\uC158 \uD3B8\uC9D1";
 const LABEL_MENU = "\uBA54\uB274 \uD3B8\uC9D1";
 const LABEL_HERO = "\uC2AC\uB77C\uC774\uB4DC \uD3B8\uC9D1";
@@ -22,8 +23,8 @@ const LABEL_AFFILIATES = "\uAD00\uB828\uAE30\uAD00 \uD3B8\uC9D1";
 const LABEL_DASHBOARD = "\uAD00\uB9AC\uC790 \uB300\uC2DC\uBCF4\uB4DC";
 const LABEL_LOGOUT = "\uB85C\uADF8\uC544\uC6C3";
 const LABEL_LOGGING_OUT = "\uB85C\uADF8\uC544\uC6C3 \uC911";
-const LABEL_CLOSE = "\uD3B8\uC9D1 \uB3C4\uAD6C \uB2EB\uAE30";
-const LABEL_OPEN = "\uD3B8\uC9D1 \uB3C4\uAD6C \uC5F4\uAE30";
+const LABEL_CLOSE = "\uC5B4\uB4DC\uBBFC \uBA54\uB274 \uB2EB\uAE30";
+const LABEL_OPEN = "\uC5B4\uB4DC\uBBFC \uBA54\uB274 \uC5F4\uAE30";
 const LABEL_NEW_NOTIFICATION = "\uC0C8 \uC54C\uB9BC";
 const LABEL_COUNT_UNIT = "\uAC74";
 const DOCK_POSITION_STORAGE_KEY = "joych-admin-dock-position";
@@ -445,12 +446,7 @@ export default function HomeAdminDock({
         <span className="flex size-10 items-center justify-center rounded-full bg-white/12">
           <PencilLine className="size-4" />
         </span>
-        <span className="flex flex-col items-start leading-none">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/70">
-            Admin
-          </span>
-          <span className="mt-1 text-sm font-semibold">{LABEL_EDIT_TOOLS}</span>
-        </span>
+        <span className="text-sm font-semibold">{LABEL_ADMIN}</span>
       </button>
     </div>
   );

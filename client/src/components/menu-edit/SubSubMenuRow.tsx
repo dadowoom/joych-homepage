@@ -28,17 +28,15 @@ export function SubSubMenuRow({
   return (
     <div ref={setNodeRef} style={style}>
       <div
-        {...attributes}
-        {...listeners}
-        className={`flex items-center gap-1 px-2 py-2 rounded-lg border bg-white border-gray-200 transition-colors hover:border-gray-400 hover:bg-gray-50 cursor-grab active:cursor-grabbing touch-none ${
+        className={`flex items-center gap-1 px-2 py-2 rounded-lg border bg-white border-gray-200 transition-colors hover:border-gray-400 hover:bg-gray-50 ${
           !item.isVisible ? "opacity-50" : ""
         }`}
-        title="Drag to change order"
       >
         <button
-          className="p-0.5 text-gray-300 hover:text-gray-500"
-          onPointerDown={(e) => e.stopPropagation()}
-          title="Drag to change order"
+          {...attributes}
+          {...listeners}
+          className="p-0.5 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing touch-none"
+          title="드래그해서 순서 변경"
         >
           <GripVertical size={12} />
         </button>

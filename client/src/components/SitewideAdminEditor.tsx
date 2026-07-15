@@ -19,8 +19,8 @@ const HomeSectionsEditPanel = lazy(() =>
   import("@/components/HomeSectionsEditPanel")
 );
 
-const LABEL_COMPACT_ADMIN_BUTTON = "\uAD00\uB9AC";
-const LABEL_OPEN_ADMIN_TOOLS = "\uD604\uC7AC \uD3B8\uC9D1 \uD328\uB110\uC744 \uB2EB\uACE0 \uAD00\uB9AC\uC790 \uD3B8\uC9D1 \uB3C4\uAD6C \uC5F4\uAE30";
+const LABEL_COMPACT_ADMIN_BUTTON = "\uC5B4\uB4DC\uBBFC";
+const LABEL_OPEN_ADMIN_TOOLS = "\uD604\uC7AC \uD3B8\uC9D1 \uD328\uB110\uC744 \uB2EB\uACE0 \uC5B4\uB4DC\uBBFC \uBA54\uB274 \uC5F4\uAE30";
 
 function formatNotificationCount(count: number) {
   return count > 99 ? "99+" : String(count);

@@ -5,16 +5,18 @@
  *
  * 서브 컴포넌트는 components/menu-edit/ 폴더에 분리되어 있습니다.
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   DndContext,
   closestCenter,
+  pointerWithin,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
   useDroppable,
   DragEndEvent,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -39,6 +41,11 @@ import { SortableMenuRow } from "./menu-edit/SortableMenuRow.tsx";
 import { SubMenuRow } from "./menu-edit/SubMenuRow.tsx";
 import { SubSubMenuRow } from "./menu-edit/SubSubMenuRow.tsx";
 import { YoutubeVideoManager } from "./menu-edit/YoutubeVideoManager.tsx";
+
+export const pointerThenClosestCenter: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args);
+  return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(args);
+};
 
 function SubItemMoveTarget({ menuLabel, item }: { menuLabel: string; item: MenuItemRow }) {
   const { setNodeRef, isOver } = useDroppable({ id: `item-target:${item.id}` });
@@ -96,6 +103,17 @@ export default function MenuEditPanel({
   const [showAddItem, setShowAddItem] = useState(false);
   const [showAddSub, setShowAddSub] = useState(false);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
+  const isSavingOrderRef = useRef(false);
+
+  const beginSavingOrder = () => {
+    isSavingOrderRef.current = true;
+    setIsSavingOrder(true);
+  };
+
+  const finishSavingOrder = () => {
+    isSavingOrderRef.current = false;
+    setIsSavingOrder(false);
+  };
 
   useEffect(() => {
     if (serverMenus) {
@@ -194,6 +212,10 @@ export default function MenuEditPanel({
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over) return;
+    if (isSavingOrderRef.current) {
+      toast.info("이전 메뉴 이동을 저장하고 있습니다. 잠시 후 다시 이동해 주세요.");
+      return;
+    }
 
     const parseDragId = (value: string | number) => {
       const [rawKind, id] = String(value).split(":");
@@ -218,13 +240,13 @@ export default function MenuEditPanel({
       const newIndex = localMenus.findIndex((menu) => menu.id === target.id);
       if (oldIndex < 0 || newIndex < 0) return;
       const reordered = arrayMove(localMenus, oldIndex, newIndex).map((menu, index) => ({ ...menu, sortOrder: index + 1 }));
-      setIsSavingOrder(true);
+      beginSavingOrder();
       try {
         await reorderMenus.mutateAsync(reordered.map((menu) => ({ id: menu.id, sortOrder: menu.sortOrder })));
         setLocalMenus(reordered);
         toast.success("1단 메뉴 순서가 저장됐습니다.");
       } finally {
-        setIsSavingOrder(false);
+        finishSavingOrder();
       }
       return;
     }
@@ -241,7 +263,7 @@ export default function MenuEditPanel({
         }
         const targetMenu = localMenus.find((menu) => menu.id === target.id);
         if (!targetMenu) return;
-        setIsSavingOrder(true);
+        beginSavingOrder();
         try {
           await moveItem.mutateAsync({ id: source.id, targetMenuId: target.id });
           setLocalMenus((current) => current.map((menu) => {
@@ -265,7 +287,7 @@ export default function MenuEditPanel({
           invalidate();
           toast.success(`2단 메뉴를 '${targetMenu.label}' 아래로 이동했습니다.`);
         } finally {
-          setIsSavingOrder(false);
+          finishSavingOrder();
         }
         return;
       }
@@ -283,13 +305,13 @@ export default function MenuEditPanel({
       const newIndex = sourceMenu.items.findIndex((item) => item.id === target.id);
       if (oldIndex < 0 || newIndex < 0) return;
       const reordered = arrayMove(sourceMenu.items, oldIndex, newIndex).map((item, index) => ({ ...item, sortOrder: index + 1 }));
-      setIsSavingOrder(true);
+      beginSavingOrder();
       try {
         await reorderItems.mutateAsync(reordered.map((item) => ({ id: item.id, sortOrder: item.sortOrder })));
         setLocalMenus((current) => current.map((menu) => menu.id === sourceMenu.id ? { ...menu, items: reordered } : menu));
         toast.success("2단 메뉴 순서가 저장됐습니다.");
       } finally {
-        setIsSavingOrder(false);
+        finishSavingOrder();
       }
       return;
     }
@@ -308,7 +330,7 @@ export default function MenuEditPanel({
           toast.info("이미 이 2단 메뉴 아래에 있는 3단 메뉴입니다.");
           return;
         }
-        setIsSavingOrder(true);
+        beginSavingOrder();
         try {
           await moveSubItem.mutateAsync({ id: source.id, targetMenuItemId: target.id });
           setLocalMenus((current) => current.map((menu) => ({
@@ -335,7 +357,7 @@ export default function MenuEditPanel({
           invalidate();
           toast.success(`3단 메뉴를 '${targetItem.label}' 아래로 이동했습니다.`);
         } finally {
-          setIsSavingOrder(false);
+          finishSavingOrder();
         }
         return;
       }
@@ -353,7 +375,7 @@ export default function MenuEditPanel({
       const newIndex = sourceItem.subItems.findIndex((sub) => sub.id === target.id);
       if (oldIndex < 0 || newIndex < 0) return;
       const reordered = arrayMove(sourceItem.subItems, oldIndex, newIndex).map((sub, index) => ({ ...sub, sortOrder: index + 1 }));
-      setIsSavingOrder(true);
+      beginSavingOrder();
       try {
         await reorderSubItems.mutateAsync(reordered.map((sub) => ({ id: sub.id, sortOrder: sub.sortOrder })));
         setLocalMenus((current) => current.map((menu) => ({
@@ -362,7 +384,7 @@ export default function MenuEditPanel({
         })));
         toast.success("3단 메뉴 순서가 저장됐습니다.");
       } finally {
-        setIsSavingOrder(false);
+        finishSavingOrder();
       }
       return;
     }
@@ -403,7 +425,7 @@ export default function MenuEditPanel({
         {isLoading ? (
           <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">불러오는 중...</div>
         ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <DndContext sensors={sensors} collisionDetection={pointerThenClosestCenter} onDragEnd={handleDragEnd}>
             <div className="flex flex-1 overflow-hidden">
 
             {/* ── 컬럼 1: 1단 상위 메뉴 ── */}

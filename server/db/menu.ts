@@ -12,12 +12,49 @@
  *   - getMenuItemByHref / getMenuSubItemByHref: href로 메뉴 조회 (페이지 연결용)
  */
 
-import { eq, asc, and } from "drizzle-orm";
+import { eq, asc, and, sql } from "drizzle-orm";
 import { SITE_HOSTNAMES, isSiteHostname } from "@shared/siteHosts";
 import { menus, menuItems, menuSubItems } from "../../drizzle/schema";
 import { getDb } from "./connection";
 
 export type MenuReadAccess = "guest" | "member";
+
+export type MenuParentMoveOrderRow = {
+  id: number;
+  sortOrder: number;
+};
+
+/**
+ * 부모가 바뀌는 메뉴 이동의 저장 순서를 계산합니다.
+ *
+ * 기존 sortOrder가 비연속이거나 중복이어도 sortOrder, id 순으로 안정적으로
+ * 정렬한 뒤 원본/대상 양쪽을 1..N으로 다시 매깁니다. 이동 항목은 대상의
+ * 마지막에 배치하며, 호출자가 전달한 배열은 변경하지 않습니다.
+ */
+export function buildMenuParentMoveOrder(
+  sourceRows: readonly MenuParentMoveOrderRow[],
+  targetRows: readonly MenuParentMoveOrderRow[],
+  movedId: number,
+) {
+  const moved = sourceRows.find((row) => row.id === movedId);
+  if (!moved) return null;
+
+  const byStoredOrderThenId = (a: MenuParentMoveOrderRow, b: MenuParentMoveOrderRow) =>
+    a.sortOrder - b.sortOrder || a.id - b.id;
+  const normalize = (rows: readonly MenuParentMoveOrderRow[]) =>
+    [...rows]
+      .sort(byStoredOrderThenId)
+      .map((row, index) => ({ id: row.id, sortOrder: index + 1 }));
+
+  const source = normalize(sourceRows.filter((row) => row.id !== movedId));
+  const normalizedTarget = normalize(targetRows.filter((row) => row.id !== movedId));
+  const target = [
+    ...normalizedTarget,
+    { id: moved.id, sortOrder: normalizedTarget.length + 1 },
+  ];
+
+  return { source, target };
+}
 
 type ReadableMenuLeaf = {
   allowGuest: boolean;
@@ -488,6 +525,8 @@ export async function moveMenuItemToMenu(id: number, targetMenuId: number) {
   if (!db) return null;
 
   return db.transaction(async (tx) => {
+    // 메뉴 순서/부모 변경은 하나씩 처리해 동시 이동의 중복 순서를 막습니다.
+    await tx.execute(sql`SELECT id FROM menus ORDER BY id LIMIT 1 FOR UPDATE`);
     const source = (await tx.select().from(menuItems).where(eq(menuItems.id, id)).limit(1))[0];
     const target = (await tx.select().from(menus).where(eq(menus.id, targetMenuId)).limit(1))[0];
     if (!source || !target) return null;
@@ -498,14 +537,23 @@ export async function moveMenuItemToMenu(id: number, targetMenuId: number) {
       tx.select().from(menuItems).where(eq(menuItems.menuId, targetMenuId)).orderBy(asc(menuItems.sortOrder)),
     ]);
 
+    const moveOrder = buildMenuParentMoveOrder(sourceSiblings, targetSiblings, id);
+    if (!moveOrder) return null;
+
     await Promise.all(
-      sourceSiblings
-        .filter((item) => item.id !== id)
-        .map((item, index) => tx.update(menuItems).set({ sortOrder: index + 1 }).where(eq(menuItems.id, item.id)))
+      [
+        ...moveOrder.source.map((item) =>
+          tx.update(menuItems).set({ sortOrder: item.sortOrder }).where(eq(menuItems.id, item.id))
+        ),
+        ...moveOrder.target.map((item) =>
+          item.id === id
+            ? tx.update(menuItems)
+              .set({ menuId: targetMenuId, sortOrder: item.sortOrder })
+              .where(eq(menuItems.id, item.id))
+            : tx.update(menuItems).set({ sortOrder: item.sortOrder }).where(eq(menuItems.id, item.id))
+        ),
+      ]
     );
-    await tx.update(menuItems)
-      .set({ menuId: targetMenuId, sortOrder: targetSiblings.length + 1 })
-      .where(eq(menuItems.id, id));
 
     return { moved: true, fromMenuId: source.menuId, toMenuId: targetMenuId };
   });
@@ -606,6 +654,7 @@ export async function moveMenuSubItemToItem(id: number, targetMenuItemId: number
   if (!db) return null;
 
   return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT id FROM menus ORDER BY id LIMIT 1 FOR UPDATE`);
     const source = (await tx.select().from(menuSubItems).where(eq(menuSubItems.id, id)).limit(1))[0];
     const target = (await tx.select().from(menuItems).where(eq(menuItems.id, targetMenuItemId)).limit(1))[0];
     if (!source || !target) return null;
@@ -618,14 +667,23 @@ export async function moveMenuSubItemToItem(id: number, targetMenuItemId: number
       tx.select().from(menuSubItems).where(eq(menuSubItems.menuItemId, targetMenuItemId)).orderBy(asc(menuSubItems.sortOrder)),
     ]);
 
+    const moveOrder = buildMenuParentMoveOrder(sourceSiblings, targetSiblings, id);
+    if (!moveOrder) return null;
+
     await Promise.all(
-      sourceSiblings
-        .filter((item) => item.id !== id)
-        .map((item, index) => tx.update(menuSubItems).set({ sortOrder: index + 1 }).where(eq(menuSubItems.id, item.id)))
+      [
+        ...moveOrder.source.map((item) =>
+          tx.update(menuSubItems).set({ sortOrder: item.sortOrder }).where(eq(menuSubItems.id, item.id))
+        ),
+        ...moveOrder.target.map((item) =>
+          item.id === id
+            ? tx.update(menuSubItems)
+              .set({ menuItemId: targetMenuItemId, sortOrder: item.sortOrder })
+              .where(eq(menuSubItems.id, item.id))
+            : tx.update(menuSubItems).set({ sortOrder: item.sortOrder }).where(eq(menuSubItems.id, item.id))
+        ),
+      ]
     );
-    await tx.update(menuSubItems)
-      .set({ menuItemId: targetMenuItemId, sortOrder: targetSiblings.length + 1 })
-      .where(eq(menuSubItems.id, id));
 
     return { moved: true, fromMenuItemId: source.menuItemId, toMenuItemId: targetMenuItemId };
   });
@@ -666,27 +724,36 @@ export async function deleteMenuSubItem(id: number) {
 export async function reorderMenus(items: { id: number; sortOrder: number }[]) {
   const db = await getDb();
   if (!db) return;
-  await Promise.all(
-    items.map(item => db.update(menus).set({ sortOrder: item.sortOrder }).where(eq(menus.id, item.id)))
-  );
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT id FROM menus ORDER BY id LIMIT 1 FOR UPDATE`);
+    await Promise.all(
+      items.map(item => tx.update(menus).set({ sortOrder: item.sortOrder }).where(eq(menus.id, item.id)))
+    );
+  });
 }
 
 /** 2단 메뉴 순서 일괄 변경 */
 export async function reorderMenuItems(items: { id: number; sortOrder: number }[]) {
   const db = await getDb();
   if (!db) return;
-  await Promise.all(
-    items.map(item => db.update(menuItems).set({ sortOrder: item.sortOrder }).where(eq(menuItems.id, item.id)))
-  );
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT id FROM menus ORDER BY id LIMIT 1 FOR UPDATE`);
+    await Promise.all(
+      items.map(item => tx.update(menuItems).set({ sortOrder: item.sortOrder }).where(eq(menuItems.id, item.id)))
+    );
+  });
 }
 
 /** 3단 메뉴 순서 일괄 변경 */
 export async function reorderMenuSubItems(items: { id: number; sortOrder: number }[]) {
   const db = await getDb();
   if (!db) return;
-  await Promise.all(
-    items.map(item => db.update(menuSubItems).set({ sortOrder: item.sortOrder }).where(eq(menuSubItems.id, item.id)))
-  );
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT id FROM menus ORDER BY id LIMIT 1 FOR UPDATE`);
+    await Promise.all(
+      items.map(item => tx.update(menuSubItems).set({ sortOrder: item.sortOrder }).where(eq(menuSubItems.id, item.id)))
+    );
+  });
 }
 
 // ─── href 기반 메뉴 조회 (페이지 연결용) ─────────────────────────────────────
