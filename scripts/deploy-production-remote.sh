@@ -1967,6 +1967,15 @@ try {
 NODE
 fi
 
+MIGRATION_0080="${APP_DIR}/dist/scripts/backfillLegacyVehicleReservations.js"
+if [[ -f "${MIGRATION_0080}" ]]; then
+  echo "[deploy] database migration: backfill legacy vehicle reservation recurrence"
+  node "${MIGRATION_0080}"
+else
+  echo "[deploy] missing migration runner: ${MIGRATION_0080}" >&2
+  exit 1
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4
