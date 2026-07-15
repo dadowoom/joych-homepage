@@ -62,6 +62,17 @@ function compareNullableTime(start?: string | null, end?: string | null) {
   return !start || !end || start < end;
 }
 
+function getKstTodayDateKey() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
 const courseShape = {
   title: requiredTextSchema(128, "강좌명을 입력해주세요."),
   summary: optionalTextSchema(500),
@@ -110,7 +121,38 @@ function validateCourseDatesAndTimes(
   }
 }
 
-const courseBaseSchema = z.object(courseShape).superRefine(validateCourseDatesAndTimes);
+function validateNewCourseDates(
+  value: {
+    startDate?: string | null;
+    endDate?: string | null;
+    applyStartDate?: string | null;
+    applyEndDate?: string | null;
+  },
+  ctx: z.RefinementCtx,
+) {
+  const today = getKstTodayDateKey();
+  const dateFields = [
+    ["startDate", value.startDate, "강좌 시작일"],
+    ["endDate", value.endDate, "강좌 종료일"],
+    ["applyStartDate", value.applyStartDate, "신청 시작일"],
+    ["applyEndDate", value.applyEndDate, "신청 마감일"],
+  ] as const;
+
+  for (const [path, date, label] of dateFields) {
+    if (date && date < today) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [path],
+        message: `${label}은 오늘 또는 이후 날짜로 선택해주세요.`,
+      });
+    }
+  }
+}
+
+export const courseBaseSchema = z.object(courseShape).superRefine((value, ctx) => {
+  validateCourseDatesAndTimes(value, ctx);
+  validateNewCourseDates(value, ctx);
+});
 
 const courseUpdateSchema = z.object(courseShape).partial().extend({
   id: idSchema,

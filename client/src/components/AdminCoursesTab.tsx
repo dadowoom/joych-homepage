@@ -329,7 +329,11 @@ export default function AdminCoursesTab() {
   const [editingApplicationId, setEditingApplicationId] = useState<number | null>(null);
   const [applicationEditForm, setApplicationEditForm] = useState({ applicantName: "", applicantPhone: "", applicantEmail: "", memo: "" });
   const [form, setForm] = useState(EMPTY_FORM);
-  const applicationStartMin = getKstDateKey();
+  const courseStartMin = getKstDateKey();
+  const courseEndMin = form.startDate > courseStartMin
+    ? form.startDate
+    : courseStartMin;
+  const applicationStartMin = courseStartMin;
   const applicationEndMin = form.applyStartDate > applicationStartMin
     ? form.applyStartDate
     : applicationStartMin;
@@ -671,7 +675,7 @@ export default function AdminCoursesTab() {
   }
 
   function openFacilityPicker() {
-    const initialDate = form.startDate || getLocalDateKey();
+    const initialDate = form.startDate || courseStartMin;
     const parsedDate = parseDateKey(initialDate) ?? new Date();
     setFacilityPickerDate(initialDate);
     setFacilityPickerStartTime(form.startTime);
@@ -803,6 +807,12 @@ export default function AdminCoursesTab() {
   function handleSave() {
     if (!form.title.trim()) {
       toast.error("강좌명을 입력해주세요.");
+      return;
+    }
+    const hasPastDate = [form.startDate, form.endDate, form.applyStartDate, form.applyEndDate]
+      .some((date) => Boolean(date) && date < courseStartMin);
+    if (hasPastDate) {
+      toast.error("강좌 및 신청 일정은 오늘 또는 이후 날짜로 선택해주세요.");
       return;
     }
     const payload = buildPayload();
@@ -1113,11 +1123,11 @@ export default function AdminCoursesTab() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">강좌 시작일</label>
-                <input type="date" value={form.startDate} onChange={e => setForm(prev => ({ ...prev, startDate: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]" />
+                <input type="date" min={courseStartMin} value={form.startDate} onChange={e => setForm(prev => ({ ...prev, startDate: e.target.value, endDate: prev.endDate && prev.endDate < e.target.value ? e.target.value : prev.endDate }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">강좌 종료일</label>
-                <input type="date" value={form.endDate} onChange={e => setForm(prev => ({ ...prev, endDate: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]" />
+                <input type="date" min={courseEndMin} value={form.endDate} onChange={e => setForm(prev => ({ ...prev, endDate: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">시작 시간</label>
@@ -1696,7 +1706,7 @@ export default function AdminCoursesTab() {
                       const dateKey = `${facilityPickerMonth.getFullYear()}-${String(facilityPickerMonth.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
                       const date = parseDateKey(dateKey);
                       const dayHour = date ? facilityPickerHours.find(hour => hour.dayOfWeek === date.getDay()) : null;
-                      const isPast = dateKey < getLocalDateKey();
+                      const isPast = dateKey < courseStartMin;
                       const fullBlocked = facilityPickerBlockedDates.some(blocked => blocked.blockedDate === dateKey && !blocked.isPartialBlock);
                       const isClosed = Boolean(dayHour && !dayHour.isOpen);
                       const isSelected = facilityPickerDate === dateKey;

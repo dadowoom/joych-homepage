@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Check, ChevronDown, Loader2, Pencil, Plus, Trash2, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { getKstDateKey } from "@/lib/facilityReservationTime";
 
 type Props = {
   pageHref: string;
@@ -42,6 +43,8 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
   const [editingApplicationId, setEditingApplicationId] = useState<number | null>(null);
   const [applicationForm, setApplicationForm] = useState({ applicantName: "", applicantPhone: "", applicantEmail: "", memo: "" });
   const [form, setForm] = useState<CourseRoomForm>(EMPTY_FORM);
+  const courseStartMin = getKstDateKey();
+  const courseEndMin = form.startDate > courseStartMin ? form.startDate : courseStartMin;
   const { data: access, isLoading: checkingAccess } = trpc.courseManagement.access.useQuery({ pageHref });
   const enabled = Boolean(access?.canManage);
   const { data: courses = [], isLoading: loadingCourses } = trpc.courseManagement.courses.useQuery(
@@ -91,6 +94,12 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
     event.preventDefault();
     if (!form.title.trim()) {
       toast.error("강좌명을 입력해주세요.");
+      return;
+    }
+    const hasPastDate = [form.startDate, form.endDate, form.applyStartDate, form.applyEndDate]
+      .some((date) => Boolean(date) && date < courseStartMin);
+    if (hasPastDate) {
+      toast.error("강좌 및 신청 일정은 오늘 또는 이후 날짜로 선택해주세요.");
       return;
     }
     const course = {
@@ -176,8 +185,8 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
               <label className="text-xs font-medium text-gray-600">한 줄 소개<input value={form.summary} onChange={e => setForm(prev => ({ ...prev, summary: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
               <label className="text-xs font-medium text-gray-600">강사/담당<input value={form.instructor} onChange={e => setForm(prev => ({ ...prev, instructor: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
               <label className="text-xs font-medium text-gray-600">장소<input value={form.location} onChange={e => setForm(prev => ({ ...prev, location: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
-              <label className="text-xs font-medium text-gray-600">시작일<input type="date" value={form.startDate} onChange={e => setForm(prev => ({ ...prev, startDate: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
-              <label className="text-xs font-medium text-gray-600">종료일<input type="date" value={form.endDate} onChange={e => setForm(prev => ({ ...prev, endDate: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
+              <label className="text-xs font-medium text-gray-600">시작일<input type="date" min={courseStartMin} value={form.startDate} onChange={e => setForm(prev => ({ ...prev, startDate: e.target.value, endDate: prev.endDate && prev.endDate < e.target.value ? e.target.value : prev.endDate }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
+              <label className="text-xs font-medium text-gray-600">종료일<input type="date" min={courseEndMin} value={form.endDate} onChange={e => setForm(prev => ({ ...prev, endDate: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
               <label className="text-xs font-medium text-gray-600">시작 시간<input type="time" value={form.startTime} onChange={e => setForm(prev => ({ ...prev, startTime: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
               <label className="text-xs font-medium text-gray-600">종료 시간<input type="time" value={form.endTime} onChange={e => setForm(prev => ({ ...prev, endTime: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
               <label className="text-xs font-medium text-gray-600">정원<input type="number" min="0" value={form.capacity} onChange={e => setForm(prev => ({ ...prev, capacity: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>

@@ -29,6 +29,45 @@ const pageHrefSchema = z.string().trim().min(1).max(255).refine(
   "강좌방 주소가 올바르지 않습니다.",
 );
 const optionalText = (max: number) => z.string().trim().max(max).nullable().optional();
+function getKstTodayDateKey() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function validateNewCourseDates(
+  value: {
+    startDate?: string | null;
+    endDate?: string | null;
+    applyStartDate?: string | null;
+    applyEndDate?: string | null;
+  },
+  ctx: z.RefinementCtx,
+) {
+  const today = getKstTodayDateKey();
+  const dateFields = [
+    ["startDate", value.startDate, "강좌 시작일"],
+    ["endDate", value.endDate, "강좌 종료일"],
+    ["applyStartDate", value.applyStartDate, "신청 시작일"],
+    ["applyEndDate", value.applyEndDate, "신청 마감일"],
+  ] as const;
+
+  for (const [path, date, label] of dateFields) {
+    if (date && date < today) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [path],
+        message: `${label}은 오늘 또는 이후 날짜로 선택해주세요.`,
+      });
+    }
+  }
+}
+
 const applicationDetailsSchema = z.object({
   applicantName: z.string().trim().min(1, "신청자 이름을 입력해주세요.").max(64),
   applicantPhone: optionalText(32),
@@ -59,13 +98,14 @@ const courseInputShape = {
   applicationNotice: optionalText(10_000),
   sortOrder: z.number().int().min(0).max(10_000).default(0),
 };
-const courseCreateSchema = z.object(courseInputShape).superRefine((value, ctx) => {
+export const courseCreateSchema = z.object(courseInputShape).superRefine((value, ctx) => {
   if (value.startDate && value.endDate && value.startDate > value.endDate) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endDate"], message: "종료일은 시작일 이후여야 합니다." });
   }
   if (value.applyStartDate && value.applyEndDate && value.applyStartDate > value.applyEndDate) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["applyEndDate"], message: "신청 마감일은 신청 시작일 이후여야 합니다." });
   }
+  validateNewCourseDates(value, ctx);
 });
 const courseUpdateSchema = z.object(courseInputShape).partial();
 
