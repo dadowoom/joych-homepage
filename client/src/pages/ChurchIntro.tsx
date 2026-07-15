@@ -19,7 +19,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import type { RouteComponentProps } from "wouter";
 import { ArrowLeft, CalendarDays, ChevronRight, Bus, BookOpen, Eye, EyeOff, GripVertical, Heart, Image as ImageIcon, Mail, Palette, Pencil, Phone, Plus, UserRound } from "lucide-react";
 import { toast } from "sonner";
@@ -140,8 +140,12 @@ const STAFF_SIDE_MENU_ITEMS: StaffSideMenuItem[] = [
   { id: 6, label: "오시는 길", href: "/about/directions" },
 ];
 
-function getInitialStaffCategory(location: string, fallback: StaffCategoryFilter = "senior"): StaffCategoryFilter {
-  const category = new URLSearchParams(location.split("?")[1]).get("category")?.trim();
+export function getInitialStaffCategory(
+  location: string,
+  searchString: string,
+  fallback: StaffCategoryFilter = "senior",
+): StaffCategoryFilter {
+  const category = new URLSearchParams(searchString).get("category")?.trim();
   if (category) return category;
   if (location.includes("/associate") || location.includes("부교역자")) return "associate";
   return fallback;
@@ -364,11 +368,14 @@ export function StaffPage({
   initialCategory = "senior",
 }: StaffPageProps = {}) {
   const [location] = useLocation();
-  const [activeCategory, setActiveCategory] = useState<StaffCategoryFilter>(() => getInitialStaffCategory(location, initialCategory));
+  const searchString = useSearch();
+  const [activeCategory, setActiveCategory] = useState<StaffCategoryFilter>(() =>
+    getInitialStaffCategory(location, searchString, initialCategory),
+  );
 
   useEffect(() => {
-    setActiveCategory(getInitialStaffCategory(location, initialCategory));
-  }, [initialCategory, location]);
+    setActiveCategory(getInitialStaffCategory(location, searchString, initialCategory));
+  }, [initialCategory, location, searchString]);
 
   const queryInput = useMemo(
     () => ({ category: activeCategory as StaffCategory }),
