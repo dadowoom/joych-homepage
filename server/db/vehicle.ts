@@ -909,6 +909,9 @@ export async function updateVehicleReservationGroupDetails(
         vehicleName: vehicles.name,
         openTime: vehicles.openTime,
         closeTime: vehicles.closeTime,
+        slotMinutes: vehicles.slotMinutes,
+        minSlots: vehicles.minSlots,
+        maxSlots: vehicles.maxSlots,
       })
       .from(vehicleReservations)
       .leftJoin(vehicles, eq(vehicleReservations.vehicleId, vehicles.id))
@@ -933,14 +936,48 @@ export async function updateVehicleReservationGroupDetails(
       }
 
       for (const row of rows) {
-        if (!row.openTime || !row.closeTime) {
+        if (
+          !row.openTime ||
+          !row.closeTime ||
+          row.slotMinutes === null ||
+          row.minSlots === null ||
+          row.maxSlots === null
+        ) {
           throw new VehicleReservationGroupValidationError(
             `${row.reservationDate} 회차에 연결된 차량 정보를 찾을 수 없습니다.`,
           );
         }
-        if (data.startTime < row.openTime || data.endTime > row.closeTime) {
+
+        const startMinutes = parseVehicleTimeMinutes(data.startTime);
+        const endMinutes = parseVehicleTimeMinutes(data.endTime);
+        const openMinutes = parseVehicleTimeMinutes(row.openTime);
+        const closeMinutes = parseVehicleTimeMinutes(row.closeTime);
+        if (
+          startMinutes === null ||
+          endMinutes === null ||
+          openMinutes === null ||
+          closeMinutes === null ||
+          startMinutes < openMinutes ||
+          endMinutes > closeMinutes
+        ) {
           throw new VehicleReservationGroupValidationError(
             `${row.reservationDate} ${row.vehicleName ?? "차량"} 운영 시간(${row.openTime}~${row.closeTime}) 안에서만 수정할 수 있습니다.`,
+          );
+        }
+
+        const slotMinutes = row.slotMinutes > 0 ? row.slotMinutes : 60;
+        if (
+          (startMinutes - openMinutes) % slotMinutes !== 0 ||
+          (endMinutes - openMinutes) % slotMinutes !== 0
+        ) {
+          throw new VehicleReservationGroupValidationError(
+            `${row.reservationDate} ${row.vehicleName ?? "차량"}은 ${slotMinutes}분 단위로만 수정할 수 있습니다.`,
+          );
+        }
+        const selectedSlots = (endMinutes - startMinutes) / slotMinutes;
+        if (selectedSlots < row.minSlots || selectedSlots > row.maxSlots) {
+          throw new VehicleReservationGroupValidationError(
+            `${row.reservationDate} ${row.vehicleName ?? "차량"}은 최소 ${row.minSlots}개, 최대 ${row.maxSlots}개 시간 단위로만 수정할 수 있습니다.`,
           );
         }
 

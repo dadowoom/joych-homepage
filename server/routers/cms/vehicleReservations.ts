@@ -40,6 +40,42 @@ function assertTimeOrder(startTime: string, endTime: string) {
   }
 }
 
+function assertVehicleTimeRules(
+  vehicle: {
+    openTime: string;
+    closeTime: string;
+    slotMinutes: number;
+    minSlots: number;
+    maxSlots: number;
+  },
+  startTime: string,
+  endTime: string,
+) {
+  const startMinutes = toMinutes(startTime);
+  const endMinutes = toMinutes(endTime);
+  const openMinutes = toMinutes(vehicle.openTime);
+  const closeMinutes = toMinutes(vehicle.closeTime);
+  if (startMinutes < openMinutes || endMinutes > closeMinutes) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `차량 예약은 운영 시간(${vehicle.openTime}~${vehicle.closeTime}) 내에서만 가능합니다.`,
+    });
+  }
+
+  const slotMinutes = vehicle.slotMinutes > 0 ? vehicle.slotMinutes : 60;
+  if ((startMinutes - openMinutes) % slotMinutes !== 0 || (endMinutes - openMinutes) % slotMinutes !== 0) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: `${slotMinutes}분 단위로만 수정할 수 있습니다.` });
+  }
+
+  const selectedSlots = (endMinutes - startMinutes) / slotMinutes;
+  if (selectedSlots < vehicle.minSlots || selectedSlots > vehicle.maxSlots) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `차량 예약은 최소 ${vehicle.minSlots}개, 최대 ${vehicle.maxSlots}개 시간 단위로만 수정할 수 있습니다.`,
+    });
+  }
+}
+
 type VehicleResultStatus = "approved" | "rejected" | "cancelled";
 
 async function notifyVehicleResultById(id: number, status: VehicleResultStatus) {
@@ -108,12 +144,7 @@ export const vehicleReservationsRouter = router({
       if (!vehicle) {
         throw new TRPCError({ code: "NOT_FOUND", message: "차량을 찾을 수 없습니다." });
       }
-      if (toMinutes(input.startTime) < toMinutes(vehicle.openTime) || toMinutes(input.endTime) > toMinutes(vehicle.closeTime)) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `차량 예약은 운영 시간(${vehicle.openTime}~${vehicle.closeTime}) 내에서만 가능합니다.`,
-        });
-      }
+      assertVehicleTimeRules(vehicle, input.startTime, input.endTime);
 
       try {
         const updated = await updateVehicleReservationDetails(input.id, {

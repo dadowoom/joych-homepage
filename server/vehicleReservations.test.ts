@@ -799,6 +799,19 @@ describe("vehicle reservations", () => {
     });
   });
 
+  it("keeps administrator time edits aligned to the vehicle slot rules", async () => {
+    const caller = appRouter.createCaller(createContext(createAdminUser(), false));
+
+    await expect(caller.cms.vehicleReservations.updateTime({
+      id: 10,
+      reservationDate: "2026-06-17",
+      startTime: "12:15",
+      endTime: "13:15",
+    })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    expect(dbMocks.updateVehicleReservationDetails).not.toHaveBeenCalled();
+  });
+
   it("lets vehicle managers update every occurrence time in a recurring batch", async () => {
     const caller = appRouter.createCaller(createContext(createAdminUser(), false));
 

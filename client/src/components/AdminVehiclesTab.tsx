@@ -39,7 +39,7 @@ import {
 
 type AdminVehicleTabMode = "vehicles" | "reservations" | "access";
 type VehicleReservationViewMode = "list" | "calendar";
-type VehicleStatusFilter = "approval" | "cancelled";
+type VehicleStatusFilter = "all" | VehicleReservationStatus;
 type VehicleReservationStatus = "pending" | "approved" | "rejected" | "cancelled";
 type FieldType = "position" | "department" | "district" | "baptism";
 
@@ -287,7 +287,7 @@ export default function AdminVehiclesTab() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<VehicleForm>(EMPTY_FORM);
   const [reservationVehicleFilter, setReservationVehicleFilter] = useState<number | undefined>();
-  const [reservationStatusFilter, setReservationStatusFilter] = useState<VehicleStatusFilter>("approval");
+  const [reservationStatusFilter, setReservationStatusFilter] = useState<VehicleStatusFilter>("all");
   const [reservationViewMode, setReservationViewMode] = useState<VehicleReservationViewMode>("list");
   const [expandedReservationGroupKey, setExpandedReservationGroupKey] = useState<string | null>(null);
   const [rejectingReservationGroupKey, setRejectingReservationGroupKey] = useState<string | null>(null);
@@ -456,13 +456,10 @@ export default function AdminVehiclesTab() {
     approved: vehicleFilteredReservationRows.filter(row => row.status === "approved").length,
     rejected: vehicleFilteredReservationRows.filter(row => row.status === "rejected").length,
     cancelled: vehicleFilteredReservationRows.filter(row => row.status === "cancelled").length,
-    approval: vehicleFilteredReservationRows.filter(row => row.status === "pending" || row.status === "approved").length,
   }), [vehicleFilteredReservationRows]);
 
   const filteredReservations = vehicleFilteredReservationRows.filter(row =>
-    reservationStatusFilter === "approval"
-      ? row.status === "pending" || row.status === "approved"
-      : row.status === "cancelled"
+    reservationStatusFilter === "all" || row.status === reservationStatusFilter
   );
 
   const groupedReservations = useMemo(
@@ -472,11 +469,8 @@ export default function AdminVehiclesTab() {
   const filteredReservationGroups = groupedReservations.filter(group => {
     const matchesVehicle = reservationVehicleFilter === undefined
       || group.reservations.some(row => row.vehicleId === reservationVehicleFilter);
-    const matchesStatus = group.reservations.some(row =>
-      reservationStatusFilter === "approval"
-        ? row.status === "pending" || row.status === "approved"
-        : row.status === "cancelled"
-    );
+    const matchesStatus = reservationStatusFilter === "all"
+      || group.reservations.some(row => row.status === reservationStatusFilter);
     return matchesVehicle && matchesStatus;
   });
 
@@ -1195,9 +1189,12 @@ export default function AdminVehiclesTab() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             {[
-              { label: "승인", value: stats.approval, color: "bg-green-50 text-green-700" },
+              { label: "전체", value: stats.total, color: "bg-gray-50 text-gray-700" },
+              { label: "승인 대기", value: stats.pending, color: "bg-amber-50 text-amber-700" },
+              { label: "승인 완료", value: stats.approved, color: "bg-green-50 text-green-700" },
+              { label: "거절", value: stats.rejected, color: "bg-red-50 text-red-700" },
               { label: "취소", value: stats.cancelled, color: "bg-gray-50 text-gray-600" },
             ].map(item => (
               <div key={item.label} className={`rounded-xl border border-gray-100 p-4 text-center ${item.color}`}>
@@ -1217,7 +1214,10 @@ export default function AdminVehiclesTab() {
               {vehicleRows.map(vehicle => <option key={vehicle.id} value={vehicle.id}>{getVehicleDisplayName(vehicle)}</option>)}
             </select>
             {([
-              { value: "approval", label: "승인" },
+              { value: "all", label: "전체" },
+              { value: "pending", label: "승인 대기" },
+              { value: "approved", label: "승인 완료" },
+              { value: "rejected", label: "거절" },
               { value: "cancelled", label: "취소" },
             ] as const).map(status => (
               <button
@@ -1299,10 +1299,10 @@ export default function AdminVehiclesTab() {
                       className="overflow-hidden rounded-xl border border-gray-200 bg-white"
                     >
                       <div
-                        className="flex cursor-pointer flex-col gap-3 p-4 transition-colors hover:bg-gray-50 sm:flex-row sm:items-center"
+                        className="flex cursor-pointer flex-col gap-3 p-4 transition-colors hover:bg-gray-50 sm:flex-row sm:flex-wrap sm:items-center lg:flex-nowrap"
                         onClick={() => setExpandedReservationGroupKey(isExpanded ? null : group.key)}
                       >
-                        <div className="flex flex-wrap items-center gap-1.5 sm:contents">
+                        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
                           {visibleStatuses.map(statusKey => {
                             const status = STATUS_LABELS[statusKey];
                             return (
@@ -1325,7 +1325,7 @@ export default function AdminVehiclesTab() {
                           )}
                         </div>
 
-                        <div className="min-w-0 flex-1">
+                        <div className="min-w-0 flex-1 sm:basis-[260px]">
                           <p className="break-keep text-sm font-medium leading-5 text-gray-800">
                             {vehicleSummary} — {purposeSummary}
                           </p>
@@ -1334,7 +1334,7 @@ export default function AdminVehiclesTab() {
                           </p>
                         </div>
 
-                        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap sm:shrink-0">
+                        <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap lg:shrink-0">
                           {statusCounts.pending > 0 ? (
                             <>
                               <Button
