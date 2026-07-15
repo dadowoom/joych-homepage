@@ -14,6 +14,7 @@ import { useState, useMemo } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
+import { formatPhoneNumber } from "@/lib/phoneNumber";
 import { toast } from "sonner";
 import MemberEditModal from "./MemberEditModal";
 
@@ -38,6 +39,36 @@ const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 type PageSize = typeof PAGE_SIZE_OPTIONS[number];
 
 type Member = inferRouterOutputs<AppRouter>["members"]["adminList"][number];
+
+function MemberSummary({ member, number }: { member: Member; number: number }) {
+  const status = STATUS_LABELS[member.status ?? "pending"] ?? STATUS_LABELS.pending;
+  const phone = formatPhoneNumber(member.phone);
+
+  return (
+    <dl className="grid min-w-0 flex-1 grid-cols-[72px_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-xs">
+      <dt className="text-gray-400">번호</dt>
+      <dd className="text-gray-600">{number}</dd>
+      <dt className="text-gray-400">승인여부</dt>
+      <dd>
+        <span className={`inline-flex rounded-full px-2 py-0.5 font-medium ${status.color}`}>{status.text}</span>
+      </dd>
+      <dt className="text-gray-400">이름</dt>
+      <dd className="font-semibold text-gray-800">{member.name}</dd>
+      <dt className="text-gray-400">성별</dt>
+      <dd className="text-gray-600">{member.gender || "-"}</dd>
+      <dt className="text-gray-400">직분</dt>
+      <dd className="text-gray-600">{member.position || "-"}</dd>
+      <dt className="text-gray-400">연락처</dt>
+      <dd className="break-all text-gray-600">
+        {phone || <span className="font-medium text-red-500">미입력</span>}
+      </dd>
+      <dt className="text-gray-400">생년월일</dt>
+      <dd className="text-gray-600">
+        {member.birthDate || <span className="font-medium text-red-500">미입력</span>}
+      </dd>
+    </dl>
+  );
+}
 
 export default function AdminMembersTab() {
   const utils = trpc.useUtils();
@@ -428,13 +459,15 @@ export default function AdminMembersTab() {
       ) : viewMode === "list" ? (
         <div className="space-y-2">
           <div className="hidden md:block overflow-x-auto border border-gray-200 rounded-xl bg-white">
-            <table className="w-full min-w-[900px] text-sm">
+            <table className="w-full min-w-[1080px] text-sm">
               <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500">
                 <tr>
                   <th className="px-4 py-2 text-left font-semibold w-16">번호</th>
+                  <th className="px-4 py-2 text-left font-semibold w-24">승인여부</th>
                   <th className="px-4 py-2 text-left font-semibold">이름</th>
+                  <th className="px-4 py-2 text-left font-semibold w-16">성별</th>
+                  <th className="px-4 py-2 text-left font-semibold">직분</th>
                   <th className="px-4 py-2 text-left font-semibold">연락처</th>
-                  <th className="px-4 py-2 text-left font-semibold">소속</th>
                   <th className="px-4 py-2 text-left font-semibold">생년월일</th>
                   <th className="px-4 py-2 text-right font-semibold w-56">관리</th>
                 </tr>
@@ -448,24 +481,18 @@ export default function AdminMembersTab() {
                         {(safePage - 1) * pageSize + index + 1}
                       </td>
                       <td className="px-4 py-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-gray-800">{member.name}</span>
-                          {member.position && <span className="text-xs text-[#1B5E20] font-medium">{member.position}</span>}
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>
-                            {status.text}
-                          </span>
-                        </div>
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}>
+                          {status.text}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 font-semibold text-gray-800">{member.name}</td>
+                      <td className="px-4 py-2 text-gray-600">{member.gender || "-"}</td>
+                      <td className="px-4 py-2 text-gray-600">{member.position || "-"}</td>
+                      <td className="px-4 py-2 text-gray-600">
+                        {formatPhoneNumber(member.phone) || <span className="text-xs text-red-500 font-medium">미입력</span>}
                       </td>
                       <td className="px-4 py-2 text-gray-600">
-                        {member.phone ?? member.email ?? "-"}
-                        {!member.phone && <span className="ml-2 text-xs text-red-500 font-medium">연락처 미입력</span>}
-                      </td>
-                      <td className="px-4 py-2 text-gray-600">
-                        <div>{member.department || "-"}</div>
-                        <div className="text-xs text-gray-400">{member.district || "-"}</div>
-                      </td>
-                      <td className="px-4 py-2 text-gray-600">
-                        {member.birthDate ?? <span className="text-xs text-red-500 font-medium">미입력</span>}
+                        {member.birthDate || <span className="text-xs text-red-500 font-medium">미입력</span>}
                       </td>
                       <td className="px-4 py-2">
                         {renderMemberActions(member)}
@@ -478,27 +505,11 @@ export default function AdminMembersTab() {
           </div>
 
           <div className="md:hidden space-y-2">
-            {paginated.map((member) => {
-              const status = STATUS_LABELS[member.status ?? "pending"] ?? STATUS_LABELS.pending;
+            {paginated.map((member, index) => {
               return (
                 <div key={member.id} className="border border-gray-200 rounded-xl overflow-hidden">
                   <div className="px-4 py-3 bg-gray-50 space-y-3">
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-gray-800 text-sm">{member.name}</span>
-                        {member.position && <span className="text-xs text-[#1B5E20] font-medium">{member.position}</span>}
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>
-                          {status.text}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-0.5 break-all">
-                        {member.phone ?? member.email ?? "-"}
-                        {member.department && ` · ${member.department}`}
-                        {member.district && ` · ${member.district}`}
-                        {!member.phone && <span className="ml-2 text-red-500 font-medium">연락처 미입력</span>}
-                        {!member.birthDate && <span className="ml-2 text-red-500 font-medium">생년월일 미입력</span>}
-                      </p>
-                    </div>
+                    <MemberSummary member={member} number={(safePage - 1) * pageSize + index + 1} />
                     {renderMemberActions(member)}
                   </div>
                 </div>
@@ -516,39 +527,14 @@ export default function AdminMembersTab() {
                 <div className="h-px bg-gray-200 flex-1" />
               </div>
               {group.members.map((member) => {
-                const status = STATUS_LABELS[member.status ?? "pending"] ?? STATUS_LABELS.pending;
+                const memberIndex = paginated.findIndex((item) => item.id === member.id);
                 return (
                   <div key={member.id} className="border border-gray-200 rounded-xl overflow-hidden">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 bg-gray-50">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 bg-[#E8F5E9] rounded-full flex items-center justify-center flex-shrink-0">
-                          <i className="fas fa-user text-[#1B5E20] text-sm"></i>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold text-gray-800 text-sm">{member.name}</span>
-                            {member.position && (
-                              <span className="text-xs text-[#1B5E20] font-medium">{member.position}</span>
-                            )}
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>
-                              {status.text}
-                            </span>
-                            {member.district && (
-                              <span className="text-xs text-gray-400">{member.district}</span>
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-500 mt-0.5 break-all">
-                            {member.phone ?? member.email ?? "-"}
-                            {member.department && ` · ${member.department}`}
-                            {!member.phone && (
-                              <span className="ml-2 text-red-500 font-medium">연락처 미입력</span>
-                            )}
-                            {!member.birthDate && (
-                              <span className="ml-2 text-red-500 font-medium">생년월일 미입력</span>
-                            )}
-                          </p>
-                        </div>
-                      </div>
+                      <MemberSummary
+                        member={member}
+                        number={(safePage - 1) * pageSize + memberIndex + 1}
+                      />
                       {renderMemberActions(member)}
                     </div>
                   </div>

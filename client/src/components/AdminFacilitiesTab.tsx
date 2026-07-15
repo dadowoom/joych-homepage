@@ -32,6 +32,11 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { trpc } from "@/lib/trpc";
+import {
+  buildFacilityBlockedDateKeys,
+  getKoreaTodayDateKey,
+  type FacilityBlockedDateRepeatMode,
+} from "@/lib/facilityBlockedDateRecurrence";
 import { toast } from "sonner";
 import type { Facility, FacilityBlockedDate, FacilityImage } from "../../../drizzle/schema";
 import {
@@ -91,6 +96,13 @@ type FacilityPageSettingKey =
   | typeof EXTERNAL_RESERVATION_ADVANCE_DAYS_DEFAULT_SETTING_KEY;
 type FacilitySubTab = "list" | "pageSettings" | "externalSchedule";
 const MONDAY_FIRST_DAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
+const MAX_BLOCKED_DATE_ITEMS_PER_REQUEST = 730;
+const BLOCKED_DATE_REPEAT_OPTIONS: { value: FacilityBlockedDateRepeatMode; label: string }[] = [
+  { value: "once", label: "1일" },
+  { value: "daily", label: "매일" },
+  { value: "weekly", label: "매주" },
+  { value: "monthly-weekday", label: "매달 같은 주" },
+];
 
 const DEFAULT_HOURS = DAY_LABELS.map((_, i) => ({
   dayOfWeek: i,
@@ -215,20 +227,11 @@ function addDaysToDateKey(dateKey: string, daysToAdd: number) {
   ].join("-");
 }
 
-function buildBlockedDateKeys(startDate: string, endDate?: string) {
-  const normalizedEndDate = endDate && endDate >= startDate ? endDate : startDate;
-  const dates: string[] = [];
-  let current = startDate;
-  while (current <= normalizedEndDate) {
-    dates.push(current);
-    current = addDaysToDateKey(current, 1);
-  }
-  return dates;
-}
-
 type BlockedDateGroup = {
   key: string;
   ids: number[];
+  dateKeys: string[];
+  createdAtKey: string;
   facilityId: number | null;
   startDate: string;
   endDate: string;
@@ -241,6 +244,32 @@ type BlockedDateGroup = {
 
 function areConsecutiveDateKeys(prevDate: string, nextDate: string) {
   return addDaysToDateKey(prevDate, 1) === nextDate;
+}
+
+function getBlockedDateGroupPattern(group: BlockedDateGroup) {
+  if (group.dateKeys.length <= 1) return "once" as const;
+  if (group.dateKeys.every((dateKey, index) => index === 0 || areConsecutiveDateKeys(group.dateKeys[index - 1], dateKey))) {
+    return "daily" as const;
+  }
+
+  const parsedDates = group.dateKeys.map((dateKey) => {
+    const [year, month, day] = dateKey.split("-").map(Number);
+    return new Date(Date.UTC(year, month - 1, day));
+  });
+  const dayMs = 24 * 60 * 60 * 1000;
+  if (parsedDates.every((date, index) => index === 0 || (date.getTime() - parsedDates[index - 1].getTime()) / dayMs === 7)) {
+    return "weekly" as const;
+  }
+
+  const first = parsedDates[0];
+  const firstNth = Math.floor((first.getUTCDate() - 1) / 7) + 1;
+  if (parsedDates.every((date) => (
+    date.getUTCDay() === first.getUTCDay() &&
+    Math.floor((date.getUTCDate() - 1) / 7) + 1 === firstNth
+  ))) {
+    return "monthly-weekday" as const;
+  }
+  return "multiple" as const;
 }
 
 function getBlockedDateCreatedAtKey(value: FacilityBlockedDate["createdAt"]) {
@@ -280,12 +309,13 @@ function groupBlockedDates(blockedDates: FacilityBlockedDate[]) {
       prev.reason === reason &&
       prev.blockStart === (blockedDate.blockStart ?? null) &&
       prev.blockEnd === (blockedDate.blockEnd ?? null) &&
-      prev.key.startsWith(createdAtKey) &&
-      areConsecutiveDateKeys(prev.endDate, blockedDate.blockedDate)
+      Boolean(createdAtKey) &&
+      prev.createdAtKey === createdAtKey
     );
 
     if (canMerge && prev) {
       prev.ids.push(blockedDate.id);
+      prev.dateKeys.push(blockedDate.blockedDate);
       prev.endDate = blockedDate.blockedDate;
       prev.count += 1;
       continue;
@@ -294,6 +324,8 @@ function groupBlockedDates(blockedDates: FacilityBlockedDate[]) {
     groups.push({
       key: `${createdAtKey}|${blockedDate.facilityId ?? "all"}|${reason}|${blockedDate.isPartialBlock ? "partial" : "full"}|${blockedDate.blockStart ?? ""}|${blockedDate.blockEnd ?? ""}|${blockedDate.id}`,
       ids: [blockedDate.id],
+      dateKeys: [blockedDate.blockedDate],
+      createdAtKey,
       facilityId: blockedDate.facilityId ?? null,
       startDate: blockedDate.blockedDate,
       endDate: blockedDate.blockedDate,
@@ -314,7 +346,19 @@ function formatBlockedDateGroupLabel(group: BlockedDateGroup) {
     return `${group.startDate}${timeLabel}`;
   }
   if (group.count <= 1) return group.startDate;
-  return `${group.startDate} ~ ${group.endDate}`;
+  const pattern = getBlockedDateGroupPattern(group);
+  const repeatLabel = pattern === "weekly"
+    ? " · 매주"
+    : pattern === "monthly-weekday"
+      ? " · 매달 같은 주"
+      : pattern === "multiple"
+        ? " · 반복"
+        : "";
+  return `${group.startDate} ~ ${group.endDate}${repeatLabel}`;
+}
+
+function formatBlockedDateGroupCount(group: BlockedDateGroup) {
+  return `${group.count}${getBlockedDateGroupPattern(group) === "daily" ? "일" : "회"}`;
 }
 
 function SortableFacilityRow({
@@ -323,6 +367,7 @@ function SortableFacilityRow({
   blockedDates,
   newBlockDate,
   newBlockEndDate,
+  newBlockRepeatMode,
   newBlockReason,
   activeBuildingLabel,
   isAddingBlockedDate,
@@ -333,6 +378,7 @@ function SortableFacilityRow({
   onDelete,
   onNewBlockDateChange,
   onNewBlockEndDateChange,
+  onNewBlockRepeatModeChange,
   onNewBlockReasonChange,
   onAddBlockedDate,
   onAddBuildingBlockedDates,
@@ -343,6 +389,7 @@ function SortableFacilityRow({
   blockedDates: FacilityBlockedDate[];
   newBlockDate: string;
   newBlockEndDate: string;
+  newBlockRepeatMode: FacilityBlockedDateRepeatMode;
   newBlockReason: string;
   activeBuildingLabel: string;
   isAddingBlockedDate: boolean;
@@ -353,6 +400,7 @@ function SortableFacilityRow({
   onDelete: () => void;
   onNewBlockDateChange: (value: string) => void;
   onNewBlockEndDateChange: (value: string) => void;
+  onNewBlockRepeatModeChange: (value: FacilityBlockedDateRepeatMode) => void;
   onNewBlockReasonChange: (value: string) => void;
   onAddBlockedDate: () => void;
   onAddBuildingBlockedDates: () => void;
@@ -366,6 +414,7 @@ function SortableFacilityRow({
     transition,
     isDragging,
   } = useSortable({ id: facility.id });
+  const todayDateKey = getKoreaTodayDateKey();
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -444,16 +493,29 @@ function SortableFacilityRow({
           <h5 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-1.5">
             <Ban className="w-4 h-4 text-red-400" /> 예약 불가 날짜 설정
           </h5>
-          <div className="grid gap-2 mb-3 md:grid-cols-[150px_150px_minmax(0,1fr)_auto_auto]">
+          <div className="grid gap-2 mb-3 md:grid-cols-[140px_140px_150px_minmax(0,1fr)_auto_auto]">
             <input type="date" value={newBlockDate}
               onChange={e => onNewBlockDateChange(e.target.value)}
-              min={new Date().toISOString().split("T")[0]}
+              min={todayDateKey}
+              aria-label="예약불가 시작일"
               className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#1B5E20]" />
+            <select
+              value={newBlockRepeatMode}
+              onChange={e => onNewBlockRepeatModeChange(e.target.value as FacilityBlockedDateRepeatMode)}
+              aria-label="예약불가 반복 방식"
+              className="border border-gray-200 rounded-lg bg-white px-3 py-1.5 text-sm focus:outline-none focus:border-[#1B5E20]"
+            >
+              {BLOCKED_DATE_REPEAT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
             <input type="date" value={newBlockEndDate}
               onChange={e => onNewBlockEndDateChange(e.target.value)}
-              min={newBlockDate || new Date().toISOString().split("T")[0]}
-              title="종료일을 비워두면 시작일 하루만 예약불가로 설정됩니다."
-              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#1B5E20]" />
+              min={newBlockDate || todayDateKey}
+              disabled={newBlockRepeatMode === "once"}
+              aria-label="예약불가 반복 종료일"
+              title={newBlockRepeatMode === "once" ? "1일 설정에는 종료일이 필요하지 않습니다." : "반복 종료일"}
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#1B5E20] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400" />
             <input type="text" value={newBlockReason}
               onChange={e => onNewBlockReasonChange(e.target.value)}
               placeholder="차단 사유 (예: 전교인 수련회)"
@@ -472,7 +534,9 @@ function SortableFacilityRow({
               {activeBuildingLabel} 전체
             </button>
           </div>
-          <p className="mb-3 text-xs text-gray-400">시작일과 종료일을 선택하면 해당 기간 전체가 예약불가로 등록됩니다. 종료일을 비워두면 1일만 적용되며, 기존 예약이 있는 날짜와 겹쳐도 함께 표시됩니다.</p>
+          <p className="mb-3 text-xs text-gray-400">
+            1일은 선택한 날짜만 적용됩니다. 매일·매주·매달 같은 주는 종료일이 필요하며 종료일까지 반복됩니다. 매달 같은 주는 시작일과 같은 순번의 요일이 없는 달은 건너뜁니다.
+          </p>
           {blockedDates.length === 0 ? (
             <p className="text-xs text-gray-400 py-2">설정된 예약 불가 날짜가 없습니다.</p>
           ) : (
@@ -484,7 +548,7 @@ function SortableFacilityRow({
                     <span className="font-medium text-gray-700">{formatBlockedDateGroupLabel(group)}</span>
                     {group.count > 1 && (
                       <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-600">
-                        {group.count}일
+                        {formatBlockedDateGroupCount(group)}
                       </span>
                     )}
                     {group.reason && <span className="text-gray-400 text-xs">— {group.reason}</span>}
@@ -660,6 +724,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [newBlockDate, setNewBlockDate] = useState("");
   const [newBlockEndDate, setNewBlockEndDate] = useState("");
+  const [newBlockRepeatMode, setNewBlockRepeatMode] = useState<FacilityBlockedDateRepeatMode>("once");
   const [newBlockReason, setNewBlockReason] = useState("");
   const [activeBuilding, setActiveBuilding] = useState<FacilityBuilding>("welfare");
   const [buildingScheduleDrafts, setBuildingScheduleDrafts] = useState<Record<FacilityBuilding, FacilityHoursForm>>({
@@ -1035,6 +1100,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
       utils.cms.facilities.blockedDates.list.invalidate();
       setNewBlockDate("");
       setNewBlockEndDate("");
+      setNewBlockRepeatMode("once");
       setNewBlockReason("");
       const skippedText = result?.skipped ? `, 중복 ${result.skipped}건 제외` : "";
       toast.success(`예약 불가 날짜 ${result?.inserted ?? 0}건이 추가되었습니다${skippedText}.`);
@@ -1059,13 +1125,38 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
       toast.error("날짜를 선택해 주세요.");
       return null;
     }
-    const normalizedEndDate = !newBlockEndDate || newBlockEndDate < newBlockDate ? newBlockDate : newBlockEndDate;
-    const dates = buildBlockedDateKeys(newBlockDate, normalizedEndDate);
-    return targetFacilityIds.flatMap((facilityId) =>
+    if (newBlockRepeatMode !== "once" && !newBlockEndDate) {
+      toast.error("반복 종료일을 선택해 주세요.");
+      return null;
+    }
+    if (newBlockRepeatMode !== "once" && newBlockEndDate < newBlockDate) {
+      toast.error("반복 종료일은 시작일 이후로 선택해 주세요.");
+      return null;
+    }
+
+    const uniqueFacilityIds = Array.from(new Set(targetFacilityIds));
+    if (uniqueFacilityIds.length === 0) return null;
+    const maxOccurrences = Math.floor(MAX_BLOCKED_DATE_ITEMS_PER_REQUEST / uniqueFacilityIds.length);
+    const dates = buildFacilityBlockedDateKeys({
+      startDate: newBlockDate,
+      endDate: newBlockEndDate,
+      repeatMode: newBlockRepeatMode,
+      maxOccurrences: maxOccurrences + 1,
+    });
+    if (dates.length === 0) {
+      toast.error("예약불가 날짜 범위를 확인해 주세요.");
+      return null;
+    }
+    if (dates.length > maxOccurrences) {
+      toast.error(`한 번에 최대 ${MAX_BLOCKED_DATE_ITEMS_PER_REQUEST}건까지 설정할 수 있습니다. 반복 종료일을 앞당겨 주세요.`);
+      return null;
+    }
+
+    return uniqueFacilityIds.flatMap((facilityId) =>
       dates.map((blockedDate) => ({
         facilityId,
         blockedDate,
-        reason: newBlockReason || undefined,
+        reason: newBlockReason.trim() || undefined,
         isPartialBlock: false,
         blockStart: null,
         blockEnd: null,
@@ -2139,6 +2230,7 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
                         blockedDates={blockedDates ?? []}
                         newBlockDate={newBlockDate}
                         newBlockEndDate={newBlockEndDate}
+                        newBlockRepeatMode={newBlockRepeatMode}
                         newBlockReason={newBlockReason}
                         activeBuildingLabel={activeBuildingOption.label}
                         isAddingBlockedDate={addBlockedDate.isPending || addBlockedDates.isPending}
@@ -2153,6 +2245,10 @@ export default function AdminFacilitiesTab({ mode = "facilities" }: AdminFacilit
                         }}
                         onNewBlockDateChange={setNewBlockDate}
                         onNewBlockEndDateChange={setNewBlockEndDate}
+                        onNewBlockRepeatModeChange={(value) => {
+                          setNewBlockRepeatMode(value);
+                          if (value === "once") setNewBlockEndDate("");
+                        }}
                         onNewBlockReasonChange={setNewBlockReason}
                         onAddBlockedDate={() => addBlockedDatesForFacilities([f.id])}
                         onAddBuildingBlockedDates={() => {
