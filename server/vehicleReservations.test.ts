@@ -190,6 +190,7 @@ describe("vehicle reservations", () => {
     dbMocks.getVehicleAvailabilityTimeline.mockResolvedValue({
       selectedStartTime: null,
       timePoints: ["09:00", "10:00", "11:00"],
+      selectAllOption: null,
       startOptions: [{ startTime: "09:00", defaultEndTime: "10:00", availableVehicleCount: 1 }],
       blockedStartTimes: ["10:00"],
       pastStartTimes: [],
@@ -508,6 +509,7 @@ describe("vehicle reservations", () => {
       selectedStartTime: null,
       occurrenceCount: 1,
       timePoints: ["09:00", "10:00", "11:00"],
+      selectAllOption: null,
       startOptions: [{ startTime: "09:00", defaultEndTime: "10:00", availableVehicleCount: 1 }],
       blockedStartTimes: ["10:00"],
       pastStartTimes: [],
@@ -539,6 +541,7 @@ describe("vehicle reservations", () => {
     dbMocks.getVehicleAvailabilityTimeline.mockResolvedValueOnce({
       selectedStartTime: null,
       timePoints: ["09:00", "10:00", "11:00"],
+      selectAllOption: null,
       startOptions: [],
       blockedStartTimes: ["10:00"],
       pastStartTimes: [],
@@ -673,6 +676,46 @@ describe("vehicle reservations", () => {
         endTime: "24:00",
       }),
     );
+  });
+
+  it("allows a full-day vehicle reservation when the configured maximum covers every slot", async () => {
+    dbMocks.getVehicleById.mockResolvedValue({
+      ...reservableVehicle,
+      openTime: "00:00",
+      closeTime: "24:00",
+      maxSlots: 24,
+    });
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(
+      caller.home.createVehicleReservation(vehicleReservationInput({
+        startTime: "00:00",
+        endTime: "24:00",
+      })),
+    ).resolves.toMatchObject({ id: 200, status: "pending" });
+
+    expect(dbMocks.createVehicleReservationIfAvailable).toHaveBeenCalledWith(
+      expect.objectContaining({ startTime: "00:00", endTime: "24:00" }),
+    );
+  });
+
+  it("rejects a full-day vehicle reservation when it exceeds the configured maximum", async () => {
+    dbMocks.getVehicleById.mockResolvedValue({
+      ...reservableVehicle,
+      openTime: "00:00",
+      closeTime: "24:00",
+      maxSlots: 8,
+    });
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(
+      caller.home.createVehicleReservation(vehicleReservationInput({
+        startTime: "00:00",
+        endTime: "24:00",
+      })),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    expect(dbMocks.createVehicleReservationIfAvailable).not.toHaveBeenCalled();
   });
 
   it("auto-approves individually permitted vehicle managers outside the group rule", async () => {

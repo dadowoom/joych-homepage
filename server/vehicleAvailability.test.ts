@@ -66,6 +66,7 @@ describe("vehicle availability timeline", () => {
       { endTime: "11:00", availableVehicleCount: 1 },
     ]);
     expect(result.blockedEndTimes).toContain("12:00");
+    expect(result.selectAllOption).toBeNull();
   });
 
   it("keeps a longer range when the same vehicle is free throughout", () => {
@@ -81,6 +82,23 @@ describe("vehicle availability timeline", () => {
       { endTime: "11:00", availableVehicleCount: 2 },
       { endTime: "12:00", availableVehicleCount: 1 },
     ]);
+    expect(result.selectAllOption).toEqual({
+      startTime: "10:00",
+      endTime: "12:00",
+      availableVehicleCount: 1,
+    });
+  });
+
+  it("keeps select all disabled when the whole range exceeds the vehicle maximum duration", () => {
+    const result = buildVehicleAvailabilityTimeline(
+      [{ ...timelineVehicle, maxSlots: 1 }],
+      [],
+      [reservationDate],
+      1,
+    );
+
+    expect(result.startOptions).toHaveLength(2);
+    expect(result.selectAllOption).toBeNull();
   });
 
   it("uses the vehicle minimum duration for the first bar selection", () => {
@@ -138,6 +156,7 @@ describe("vehicle availability timeline", () => {
     expect(result.startOptions).toEqual([]);
     expect(result.blockedStartTimes).toContain("10:00");
     expect(result.blockedEndTimes).toContain("12:00");
+    expect(result.selectAllOption).toBeNull();
   });
 
   it("marks same-day past starts while keeping future starts available", () => {

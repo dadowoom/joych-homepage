@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 import { Link, useLocation, useParams, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -74,6 +75,11 @@ type ReservationByDateRow = {
 type VehicleAvailabilityTimelineData = {
   selectedStartTime: string | null;
   timePoints: string[];
+  selectAllOption: {
+    startTime: string;
+    endTime: string;
+    availableVehicleCount: number;
+  } | null;
   startOptions: Array<{
     startTime: string;
     defaultEndTime: string;
@@ -512,19 +518,37 @@ function VehicleAvailabilityTimeline({
             ? `${startTime} ~ ${endTime} 선택됨 · 뒤쪽 막대로 연장하거나 안쪽 막대로 줄일 수 있습니다.`
             : "초록색 시간 막대를 누르면 가능한 최소 사용 시간이 바로 선택됩니다."}
         </p>
-        {(startTime || endTime) && (
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
+            disabled={!data.selectAllOption || isRefreshing}
+            title={data.selectAllOption
+              ? `전체 시간 이용 가능 차량 ${data.selectAllOption.availableVehicleCount}대`
+              : "전체 시간에 이용 가능한 동일 차량이 없거나 차량의 최대 사용시간을 초과합니다."}
             onClick={() => {
+              if (!data.selectAllOption || isRefreshing) return;
               setInspectedUnavailableRange(null);
               setUnavailableMessage("");
-              onSelect("", "");
+              onSelect(data.selectAllOption.startTime, data.selectAllOption.endTime);
             }}
-            className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-500 transition-colors hover:border-[#1B5E20] hover:text-[#1B5E20]"
+            className="rounded-full border border-[#1B5E20] bg-white px-2.5 py-1 text-[11px] font-bold text-[#1B5E20] transition-colors hover:bg-green-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-300"
           >
-            다시 선택
+            전체 선택
           </button>
-        )}
+          {(startTime || endTime) && (
+            <button
+              type="button"
+              onClick={() => {
+                setInspectedUnavailableRange(null);
+                setUnavailableMessage("");
+                onSelect("", "");
+              }}
+              className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-500 transition-colors hover:border-[#1B5E20] hover:text-[#1B5E20]"
+            >
+              다시 선택
+            </button>
+          )}
+        </div>
       </div>
 
       <div
@@ -815,7 +839,12 @@ export function VehicleReservationList() {
       repeatEndDate: repeatMode === "none" ? null : repeatEndDate || null,
       startTime: startTime || null,
     },
-    { enabled: Boolean(selectedDate && repeatScheduleReady), retry: false },
+    {
+      enabled: Boolean(selectedDate && repeatScheduleReady),
+      retry: false,
+      // 시작시간 선택으로 조회 키가 바뀌어도 시간표 DOM을 유지해 가로 스크롤이 00시로 돌아가지 않게 합니다.
+      placeholderData: startTime ? keepPreviousData : undefined,
+    },
   );
   const timelineData = timelineQuery.data as VehicleAvailabilityTimelineData | undefined;
   const selectedStartIsFuture = Boolean(

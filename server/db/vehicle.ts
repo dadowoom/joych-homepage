@@ -574,9 +574,38 @@ export function buildVehicleAvailabilityTimeline(
   }
 
   const sortedTimePoints = Array.from(timePointMinutes).sort((left, right) => left - right);
+  const selectAllStartMinutes = sortedTimePoints[0];
+  const selectAllEndMinutes = sortedTimePoints[sortedTimePoints.length - 1];
+  const selectAllStartTime = selectAllStartMinutes === undefined
+    ? null
+    : formatVehicleTimeMinutes(selectAllStartMinutes);
+  const selectAllEndTime = selectAllEndMinutes === undefined
+    ? null
+    : formatVehicleTimeMinutes(selectAllEndMinutes);
+  const selectAllVehicleCount =
+    reservationDates.length > 0 &&
+    selectAllStartMinutes !== undefined &&
+    selectAllEndMinutes !== undefined &&
+    selectAllStartMinutes < selectAllEndMinutes &&
+    (minimumStartMinutes === null || selectAllStartMinutes > minimumStartMinutes) &&
+    selectAllStartTime &&
+    selectAllEndTime
+      ? candidates.filter((vehicle) =>
+          isVehicleCompatibleWithSchedule(vehicle, selectAllStartTime, selectAllEndTime, passengers) &&
+          isRangeFreeForEveryDate(vehicle.id, selectAllStartMinutes, selectAllEndMinutes)
+        ).length
+      : 0;
+
   return {
     selectedStartTime: selectedStartTime ?? null,
     timePoints: sortedTimePoints.map(formatVehicleTimeMinutes),
+    selectAllOption: selectAllVehicleCount > 0 && selectAllStartTime && selectAllEndTime
+      ? {
+          startTime: selectAllStartTime,
+          endTime: selectAllEndTime,
+          availableVehicleCount: selectAllVehicleCount,
+        }
+      : null,
     startOptions: Array.from(startOptions.entries())
       .sort(([left], [right]) => left - right)
       .map(([startMinutes, option]) => ({
