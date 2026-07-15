@@ -1090,6 +1090,12 @@ export const vehicleReservations = mysqlTable("vehicle_reservations", {
   passengers: int("passengers").notNull().default(1),
   notes: text("notes"),
   status: mysqlEnum("status", ["pending", "approved", "rejected", "cancelled"]).notNull().default("pending"),
+  /** 반복 예약 묶음 ID */
+  recurrenceGroupId: varchar("recurrence_group_id", { length: 64 }),
+  /** 반복 예약 설명 */
+  recurrenceLabel: varchar("recurrence_label", { length: 160 }),
+  /** 반복 예약 내 순서 */
+  recurrenceSequence: int("recurrence_sequence").notNull().default(0),
   adminComment: text("admin_comment"),
   processedBy: int("processed_by"),
   processedAt: timestamp("processed_at"),
@@ -1099,6 +1105,7 @@ export const vehicleReservations = mysqlTable("vehicle_reservations", {
   index("vehicle_reservations_vehicle_date_idx").on(table.vehicleId, table.reservationDate),
   index("vehicle_reservations_status_created_idx").on(table.status, table.createdAt),
   index("vehicle_reservations_user_created_idx").on(table.userId, table.createdAt),
+  index("vehicle_reservations_recurrence_group_idx").on(table.recurrenceGroupId),
 ]);
 
 export type VehicleReservation = typeof vehicleReservations.$inferSelect;

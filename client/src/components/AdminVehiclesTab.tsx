@@ -10,6 +10,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useIsMobile } from "@/hooks/useMobile";
+import { groupVehicleReservations } from "@/lib/vehicleReservationGroups";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -92,6 +93,9 @@ type VehicleReservationRow = {
   department?: string | null;
   passengers: number;
   notes?: string | null;
+  recurrenceGroupId?: string | null;
+  recurrenceLabel?: string | null;
+  recurrenceSequence?: number | null;
   adminComment?: string | null;
   createdAt: Date | string;
   vehicleName?: string | null;
@@ -276,6 +280,7 @@ export default function AdminVehiclesTab() {
   const [reservationVehicleFilter, setReservationVehicleFilter] = useState<number | undefined>();
   const [reservationStatusFilter, setReservationStatusFilter] = useState<VehicleStatusFilter>("approval");
   const [reservationViewMode, setReservationViewMode] = useState<VehicleReservationViewMode>("list");
+  const [expandedReservationGroupKey, setExpandedReservationGroupKey] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [rejectComment, setRejectComment] = useState("");
   const [editingReservationId, setEditingReservationId] = useState<number | null>(null);
@@ -295,7 +300,7 @@ export default function AdminVehiclesTab() {
   });
   const { data: reservations = [], isLoading: reservationsLoading } =
     trpc.cms.vehicleReservations.list.useQuery(
-      { vehicleId: reservationVehicleFilter },
+      {},
       { refetchInterval: 30000 }
     );
   const { data: memberOptions = [] } = trpc.members.adminFieldOptions.useQuery();
@@ -389,20 +394,42 @@ export default function AdminVehiclesTab() {
   const deleteVehicleImage = trpc.cms.vehicles.images.delete.useMutation();
   const setVehicleThumbnailMutation = trpc.cms.vehicles.images.setThumbnail.useMutation();
 
-  const stats = useMemo(() => ({
-    total: reservationRows.length,
-    pending: reservationRows.filter(row => row.status === "pending").length,
-    approved: reservationRows.filter(row => row.status === "approved").length,
-    rejected: reservationRows.filter(row => row.status === "rejected").length,
-    cancelled: reservationRows.filter(row => row.status === "cancelled").length,
-    approval: reservationRows.filter(row => row.status === "pending" || row.status === "approved").length,
-  }), [reservationRows]);
+  const vehicleFilteredReservationRows = useMemo(
+    () => reservationRows.filter(row =>
+      reservationVehicleFilter === undefined || row.vehicleId === reservationVehicleFilter
+    ),
+    [reservationRows, reservationVehicleFilter]
+  );
 
-  const filteredReservations = reservationRows.filter(row =>
+  const stats = useMemo(() => ({
+    total: vehicleFilteredReservationRows.length,
+    pending: vehicleFilteredReservationRows.filter(row => row.status === "pending").length,
+    approved: vehicleFilteredReservationRows.filter(row => row.status === "approved").length,
+    rejected: vehicleFilteredReservationRows.filter(row => row.status === "rejected").length,
+    cancelled: vehicleFilteredReservationRows.filter(row => row.status === "cancelled").length,
+    approval: vehicleFilteredReservationRows.filter(row => row.status === "pending" || row.status === "approved").length,
+  }), [vehicleFilteredReservationRows]);
+
+  const filteredReservations = vehicleFilteredReservationRows.filter(row =>
     reservationStatusFilter === "approval"
       ? row.status === "pending" || row.status === "approved"
       : row.status === "cancelled"
   );
+
+  const groupedReservations = useMemo(
+    () => groupVehicleReservations(reservationRows),
+    [reservationRows]
+  );
+  const filteredReservationGroups = groupedReservations.filter(group => {
+    const matchesVehicle = reservationVehicleFilter === undefined
+      || group.reservations.some(row => row.vehicleId === reservationVehicleFilter);
+    const matchesStatus = group.reservations.some(row =>
+      reservationStatusFilter === "approval"
+        ? row.status === "pending" || row.status === "approved"
+        : row.status === "cancelled"
+    );
+    return matchesVehicle && matchesStatus;
+  });
 
   const optionGroups = useMemo(() => {
     const groups: Record<FieldType, string[]> = {
@@ -651,6 +678,149 @@ export default function AdminVehiclesTab() {
   const isSavingVehicle = createVehicle.isPending || updateVehicle.isPending;
   const isMutatingReservation =
     approveReservation.isPending || rejectReservation.isPending || cancelReservation.isPending || updateReservationTime.isPending || deleteReservation.isPending;
+
+  function renderReservationOccurrence(
+    row: VehicleReservationRow,
+    options: { occurrenceLabel?: string; nested?: boolean } = {},
+  ) {
+    const status = STATUS_LABELS[row.status] ?? STATUS_LABELS.pending;
+    return (
+      <div
+        key={row.id}
+        className={options.nested
+          ? "border-b border-blue-100 bg-white p-4 last:border-b-0"
+          : "border-b border-gray-100 p-4 last:border-b-0"}
+      >
+        {options.occurrenceLabel && (
+          <p className="mb-2 text-xs font-bold text-blue-700">{options.occurrenceLabel}</p>
+        )}
+        <div
+          className="grid items-center gap-3 text-sm"
+          style={{ gridTemplateColumns: VEHICLE_RESERVATION_GRID }}
+        >
+          <div>
+            <p className="font-semibold text-gray-900">{formatDate(row.reservationDate)}</p>
+            <p className="text-xs text-gray-600">{formatTimeRange(row.startTime, row.endTime)}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="truncate font-extrabold text-gray-950">{getReservationPlateNumber(row)}</p>
+            <p className="truncate text-xs text-gray-600">{getReservationVehicleName(row)}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="break-words font-semibold leading-5 text-gray-900">{row.purpose || "-"}</p>
+            {row.notes && <p className="mt-0.5 truncate text-xs text-gray-500">요청: {row.notes}</p>}
+          </div>
+          <div>
+            <p className="font-semibold text-gray-900">
+              {getReservationName(row)} <span className="font-normal text-gray-500">({getReservationPosition(row)})</span>
+            </p>
+            <p className="text-[11px] text-gray-500">신청 {formatCreatedAt(row.createdAt)}</p>
+          </div>
+          <div>
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${status.color}`}>
+              {status.icon} {status.label}
+            </span>
+            {row.adminComment && <p className="mt-1 text-xs text-red-600">{row.adminComment}</p>}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {row.status !== "approved" && (
+              <Button
+                size="sm"
+                className="min-h-10 bg-green-600 text-white hover:bg-green-700 sm:min-h-0"
+                disabled={isMutatingReservation}
+                onClick={() => approveReservation.mutate({ id: row.id })}
+              >
+                승인
+              </Button>
+            )}
+            {row.status !== "cancelled" && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="min-h-10 border-red-200 text-red-600 hover:bg-red-50 sm:min-h-0"
+                disabled={isMutatingReservation}
+                onClick={() => cancelVehicleReservation(row)}
+              >
+                취소
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {rejectingId === row.id && (
+          <div className="mt-3 rounded-lg border border-red-100 bg-red-50 p-3">
+            <p className="mb-1 text-xs font-medium text-red-700">거절 사유</p>
+            <textarea
+              value={rejectComment}
+              onChange={(e) => setRejectComment(e.target.value)}
+              rows={2}
+              className="w-full rounded-lg border border-red-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-200"
+              placeholder="예: 해당 시간에는 차량 사용이 어렵습니다."
+            />
+            <div className="mt-2 flex gap-2">
+              <Button
+                size="sm"
+                className="min-h-11 bg-red-600 text-white hover:bg-red-700 sm:min-h-0"
+                disabled={!rejectComment.trim() || isMutatingReservation}
+                onClick={() => rejectReservation.mutate({ id: row.id, comment: rejectComment })}
+              >
+                거절 확정
+              </Button>
+              <Button size="sm" variant="outline" className="min-h-11 sm:min-h-0" onClick={() => setRejectingId(null)}>취소</Button>
+            </div>
+          </div>
+        )}
+
+        {editingReservationId === row.id && (
+          <div className="mt-3 rounded-lg border border-green-100 bg-green-50 p-3">
+            <p className="mb-2 text-xs font-medium text-green-800">예약 날짜/시간 수정</p>
+            <div className="grid gap-3 md:grid-cols-4">
+              <label className="block">
+                <span className="mb-1 block text-xs text-green-800">예약 날짜</span>
+                <input
+                  type="date"
+                  value={reservationTimeForm.reservationDate}
+                  onChange={(e) => setReservationTimeForm(prev => ({ ...prev, reservationDate: e.target.value }))}
+                  className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs text-green-800">시작 시간</span>
+                <input
+                  type="time"
+                  value={reservationTimeForm.startTime}
+                  onChange={(e) => setReservationTimeForm(prev => ({ ...prev, startTime: e.target.value }))}
+                  className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs text-green-800">종료 시간</span>
+                <input
+                  type="time"
+                  value={reservationTimeForm.endTime}
+                  onChange={(e) => setReservationTimeForm(prev => ({ ...prev, endTime: e.target.value }))}
+                  className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"
+                />
+              </label>
+              <div className="flex items-end gap-2">
+                <Button
+                  size="sm"
+                  className="min-h-11 bg-[#1B5E20] text-white hover:bg-[#2E7D32] sm:min-h-0"
+                  disabled={isMutatingReservation}
+                  onClick={() => saveReservationTime(row)}
+                >
+                  저장
+                </Button>
+                <Button size="sm" variant="outline" className="min-h-11 sm:min-h-0" onClick={() => setEditingReservationId(null)}>
+                  취소
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (vehiclesLoading) {
     return <div className="flex justify-center py-16"><Loader2 className="h-7 w-7 animate-spin text-[#1B5E20]" /></div>;
@@ -1117,7 +1287,7 @@ export default function AdminVehiclesTab() {
           <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             {reservationsLoading ? (
               <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[#1B5E20]" /></div>
-            ) : filteredReservations.length === 0 ? (
+            ) : filteredReservationGroups.length === 0 ? (
               <div className="py-12 text-center text-sm text-gray-400">해당 조건의 차량 예약이 없습니다.</div>
             ) : (
               <div className="overflow-x-auto">
@@ -1133,136 +1303,104 @@ export default function AdminVehiclesTab() {
                   <div>상태</div>
                   <div>관리</div>
                 </div>
-                {filteredReservations.map(row => {
-                  const status = STATUS_LABELS[row.status] ?? STATUS_LABELS.pending;
-                  return (
-                    <div key={row.id} className="border-b border-gray-100 p-4 last:border-b-0">
-                      <div
-                        className="grid items-center gap-3 text-sm"
-                        style={{ gridTemplateColumns: VEHICLE_RESERVATION_GRID }}
-                      >
-                        <div>
-                          <p className="font-semibold text-gray-900">{formatDate(row.reservationDate)}</p>
-                          <p className="text-xs text-gray-600">{formatTimeRange(row.startTime, row.endTime)}</p>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate font-extrabold text-gray-950">{getReservationPlateNumber(row)}</p>
-                          <p className="truncate text-xs text-gray-600">{getReservationVehicleName(row)}</p>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="break-words font-semibold leading-5 text-gray-900">{row.purpose || "-"}</p>
-                          {row.notes && <p className="mt-0.5 truncate text-xs text-gray-500">요청: {row.notes}</p>}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-900">
-                            {getReservationName(row)} <span className="font-normal text-gray-500">({getReservationPosition(row)})</span>
-                          </p>
-                          <p className="text-[11px] text-gray-500">신청 {formatCreatedAt(row.createdAt)}</p>
-                        </div>
-                        <div>
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${status.color}`}>
-                            {status.icon} {status.label}
-                          </span>
-                          {row.adminComment && <p className="mt-1 text-xs text-red-600">{row.adminComment}</p>}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {row.status !== "approved" && (
+                {filteredReservationGroups.map(group => {
+                  if (group.isRecurring) {
+                    const isExpanded = expandedReservationGroupKey === group.key;
+                    const vehicleLabels = Array.from(new Set(group.reservations.map(row => {
+                      const plateNumber = getReservationPlateNumber(row);
+                      const vehicleName = getReservationVehicleName(row);
+                      return plateNumber === "-" ? vehicleName : `${plateNumber} ${vehicleName}`;
+                    })));
+                    const purposes = Array.from(new Set(group.reservations.map(row => row.purpose || "-")));
+                    const reserverLabels = Array.from(new Set(group.reservations.map(row =>
+                      `${getReservationName(row)} (${getReservationPosition(row)})`
+                    )));
+                    const statusCounts = group.reservations.reduce<Record<VehicleReservationStatus, number>>((counts, row) => {
+                      counts[row.status] += 1;
+                      return counts;
+                    }, { pending: 0, approved: 0, rejected: 0, cancelled: 0 });
+
+                    return (
+                      <div key={group.key} className="border-b border-blue-100 bg-blue-50/30 last:border-b-0">
+                        <div
+                          className="grid items-center gap-3 p-4 text-sm"
+                          style={{ gridTemplateColumns: VEHICLE_RESERVATION_GRID }}
+                        >
+                          <div>
+                            <span className="inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-bold text-blue-700">
+                              반복 {group.count}회
+                            </span>
+                            <p className="mt-1 text-xs font-semibold text-gray-800">
+                              {formatDate(group.startDate)}
+                            </p>
+                            <p className="text-xs text-gray-500">~ {formatDate(group.endDate)}</p>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-extrabold text-gray-950">차량 {vehicleLabels.length}대</p>
+                            <p className="line-clamp-2 text-xs text-gray-600">{vehicleLabels.join(" · ")}</p>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="break-words font-semibold leading-5 text-gray-900">
+                              {purposes.length === 1 ? purposes[0] : "회차별 목적 상이"}
+                            </p>
+                            <p className="mt-0.5 text-xs text-blue-700">
+                              {group.recurrenceLabel ?? "반복 예약 묶음"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-900">
+                              {reserverLabels.length === 1 ? reserverLabels[0] : `신청자 ${reserverLabels.length}명`}
+                            </p>
+                            <p className="text-[11px] text-gray-500">각 회차의 차량과 상태는 펼쳐서 확인</p>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {(Object.keys(statusCounts) as VehicleReservationStatus[]).map(statusKey => {
+                              const count = statusCounts[statusKey];
+                              if (count === 0) return null;
+                              const statusInfo = STATUS_LABELS[statusKey];
+                              return (
+                                <span
+                                  key={statusKey}
+                                  className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium ${statusInfo.color}`}
+                                >
+                                  {statusInfo.label} {count}
+                                </span>
+                              );
+                            })}
+                          </div>
+                          <div>
                             <Button
-                              size="sm"
-                              className="min-h-10 bg-green-600 text-white hover:bg-green-700 sm:min-h-0"
-                              disabled={isMutatingReservation}
-                              onClick={() => approveReservation.mutate({ id: row.id })}
-                            >
-                              승인
-                            </Button>
-                          )}
-                          {row.status !== "cancelled" && (
-                            <Button
+                              type="button"
                               size="sm"
                               variant="outline"
-                              className="min-h-10 border-red-200 text-red-600 hover:bg-red-50 sm:min-h-0"
-                              disabled={isMutatingReservation}
-                              onClick={() => cancelVehicleReservation(row)}
+                              className="min-h-10 border-blue-200 bg-white text-blue-700 hover:bg-blue-50 sm:min-h-0"
+                              aria-expanded={isExpanded}
+                              onClick={() => setExpandedReservationGroupKey(isExpanded ? null : group.key)}
                             >
-                              취소
+                              {isExpanded ? "접기" : "전체 회차"}
+                              <ChevronDown className={`ml-1 h-3.5 w-3.5 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                             </Button>
-                          )}
-                        </div>
-                      </div>
-
-                      {rejectingId === row.id && (
-                        <div className="mt-3 rounded-lg border border-red-100 bg-red-50 p-3">
-                          <p className="mb-1 text-xs font-medium text-red-700">거절 사유</p>
-                          <textarea
-                            value={rejectComment}
-                            onChange={(e) => setRejectComment(e.target.value)}
-                            rows={2}
-                            className="w-full rounded-lg border border-red-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-200"
-                            placeholder="예: 해당 시간에는 차량 사용이 어렵습니다."
-                          />
-                          <div className="mt-2 flex gap-2">
-                            <Button
-                              size="sm"
-                              className="min-h-11 bg-red-600 text-white hover:bg-red-700 sm:min-h-0"
-                              disabled={!rejectComment.trim() || isMutatingReservation}
-                              onClick={() => rejectReservation.mutate({ id: row.id, comment: rejectComment })}
-                            >
-                              거절 확정
-                            </Button>
-                            <Button size="sm" variant="outline" className="min-h-11 sm:min-h-0" onClick={() => setRejectingId(null)}>취소</Button>
                           </div>
                         </div>
-                      )}
 
-                      {editingReservationId === row.id && (
-                        <div className="mt-3 rounded-lg border border-green-100 bg-green-50 p-3">
-                          <p className="mb-2 text-xs font-medium text-green-800">예약 날짜/시간 수정</p>
-                          <div className="grid gap-3 md:grid-cols-4">
-                            <label className="block">
-                              <span className="mb-1 block text-xs text-green-800">예약 날짜</span>
-                              <input
-                                type="date"
-                                value={reservationTimeForm.reservationDate}
-                                onChange={(e) => setReservationTimeForm(prev => ({ ...prev, reservationDate: e.target.value }))}
-                                className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"
-                              />
-                            </label>
-                            <label className="block">
-                              <span className="mb-1 block text-xs text-green-800">시작 시간</span>
-                              <input
-                                type="time"
-                                value={reservationTimeForm.startTime}
-                                onChange={(e) => setReservationTimeForm(prev => ({ ...prev, startTime: e.target.value }))}
-                                className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"
-                              />
-                            </label>
-                            <label className="block">
-                              <span className="mb-1 block text-xs text-green-800">종료 시간</span>
-                              <input
-                                type="time"
-                                value={reservationTimeForm.endTime}
-                                onChange={(e) => setReservationTimeForm(prev => ({ ...prev, endTime: e.target.value }))}
-                                className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"
-                              />
-                            </label>
-                            <div className="flex items-end gap-2">
-                              <Button
-                                size="sm"
-                                className="min-h-11 bg-[#1B5E20] text-white hover:bg-[#2E7D32] sm:min-h-0"
-                                disabled={isMutatingReservation}
-                                onClick={() => saveReservationTime(row)}
-                              >
-                                저장
-                              </Button>
-                              <Button size="sm" variant="outline" className="min-h-11 sm:min-h-0" onClick={() => setEditingReservationId(null)}>
-                                취소
-                              </Button>
+                        {isExpanded && (
+                          <div className="border-t border-blue-100 bg-blue-50 p-3">
+                            <p className="mb-2 text-xs font-medium text-blue-800">
+                              총 {group.count}회 전체 일정입니다. 승인과 취소는 각 회차에서 처리됩니다.
+                            </p>
+                            <div className="overflow-hidden rounded-lg border border-blue-100">
+                              {group.reservations.map((row, index) => renderReservationOccurrence(row, {
+                                nested: true,
+                                occurrenceLabel: `${index + 1}회차 · ${group.count}회 중`,
+                              }))}
                             </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  );
+                        )}
+                      </div>
+                    );
+                  }
+
+                  return renderReservationOccurrence(group.first);
                 })}
                 </div>
               </div>

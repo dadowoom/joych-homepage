@@ -195,6 +195,19 @@ function getVehicleReservationDates(
   return dates;
 }
 
+function describeVehicleReservationRepeat(
+  repeatMode: Exclude<z.infer<typeof vehicleRepeatSchema>, "none">,
+  repeatEndDate: string,
+  count: number,
+) {
+  const labelByMode = {
+    daily: "매일",
+    weekly: "매주",
+    monthly: "매월",
+  } satisfies Record<Exclude<z.infer<typeof vehicleRepeatSchema>, "none">, string>;
+  return `${labelByMode[repeatMode]} 반복 · ${repeatEndDate}까지 · 총 ${count}회`;
+}
+
 function getMenuReadAccess(ctx: { user?: unknown; memberId?: number | null }) {
   return ctx.user || ctx.memberId ? "member" : "guest";
 }
@@ -1606,11 +1619,20 @@ export const homeRouter = router({
         const { repeatMode, repeatEndDate, ...reservationInput } = input;
         const reservationDates = getVehicleReservationDates(input.reservationDate, repeatMode, repeatEndDate);
         reservationDates.forEach((date) => assertReservationStartsInFuture(date, input.startTime));
-        const reservationData = reservationDates.map((reservationDate) => ({
+        const recurrenceGroupId = reservationDates.length > 1
+          ? `vehicle_${crypto.randomUUID()}`
+          : null;
+        const recurrenceLabel = recurrenceGroupId && repeatMode !== "none" && repeatEndDate
+          ? describeVehicleReservationRepeat(repeatMode, repeatEndDate, reservationDates.length)
+          : null;
+        const reservationData = reservationDates.map((reservationDate, index) => ({
           ...reservationInput,
           reservationDate,
           userId: ctx.memberId ?? null,
           status,
+          recurrenceGroupId,
+          recurrenceLabel,
+          recurrenceSequence: recurrenceGroupId ? index + 1 : 0,
         }));
         // Keep the established single-reservation path for ordinary bookings.
         // Repeating bookings use the transactional bulk path so they succeed or fail together.
@@ -1637,6 +1659,7 @@ export const homeRouter = router({
           ids,
           count: ids.length,
           status,
+          recurrenceLabel,
         };
       } catch (error) {
         if (error instanceof VehicleReservationOverlapError) {

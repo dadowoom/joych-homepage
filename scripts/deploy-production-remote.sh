@@ -1899,6 +1899,74 @@ try {
 NODE
 fi
 
+MIGRATION_0079="${APP_DIR}/drizzle/0079_vehicle_reservation_recurrence.sql"
+if [[ -f "${MIGRATION_0079}" ]]; then
+  echo "[deploy] database migration: vehicle reservation recurrence"
+  node --input-type=module <<'NODE'
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required for migration 0079.");
+}
+
+const migrationId = "0079_vehicle_reservation_recurrence";
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  const [rows] = await connection.execute(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    [migrationId],
+  );
+  const alreadyRecorded = Array.isArray(rows) && rows.length > 0;
+  const hasColumn = async (columnName) => {
+    const [columns] = await connection.execute(
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'vehicle_reservations' AND COLUMN_NAME = ? LIMIT 1",
+      [columnName],
+    );
+    return Array.isArray(columns) && columns.length > 0;
+  };
+
+  if (!(await hasColumn("recurrence_group_id"))) {
+    await connection.query("ALTER TABLE `vehicle_reservations` ADD COLUMN `recurrence_group_id` varchar(64)");
+  }
+  if (!(await hasColumn("recurrence_label"))) {
+    await connection.query("ALTER TABLE `vehicle_reservations` ADD COLUMN `recurrence_label` varchar(160)");
+  }
+  if (!(await hasColumn("recurrence_sequence"))) {
+    await connection.query("ALTER TABLE `vehicle_reservations` ADD COLUMN `recurrence_sequence` int NOT NULL DEFAULT 0");
+  }
+
+  const [indexes] = await connection.query(
+    "SHOW INDEX FROM `vehicle_reservations` WHERE Key_name = ?",
+    ["vehicle_reservations_recurrence_group_idx"],
+  );
+  if (!Array.isArray(indexes) || indexes.length === 0) {
+    await connection.query(
+      "CREATE INDEX `vehicle_reservations_recurrence_group_idx` ON `vehicle_reservations` (`recurrence_group_id`)",
+    );
+  }
+
+  if (!alreadyRecorded) {
+    await connection.execute(
+      "INSERT INTO app_migrations (id) VALUES (?)",
+      [migrationId],
+    );
+    console.log("[deploy] migration 0079 applied");
+  } else {
+    console.log("[deploy] migration 0079 already applied and schema verified");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

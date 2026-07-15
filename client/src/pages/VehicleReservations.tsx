@@ -18,11 +18,13 @@ import {
   getBlockingVehicleConflicts,
   type VehicleAvailabilityConflict,
 } from "@/lib/vehicleAvailabilityConflicts";
+import { groupVehicleReservations } from "@/lib/vehicleReservationGroups";
 import { toast } from "sonner";
 import {
   AlertCircle,
   CalendarCheck,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -102,6 +104,9 @@ type MyVehicleReservationRow = {
   department?: string | null;
   passengers: number;
   status: "pending" | "approved" | "rejected" | "cancelled";
+  recurrenceGroupId?: string | null;
+  recurrenceLabel?: string | null;
+  recurrenceSequence?: number | null;
   adminComment?: string | null;
   createdAt: Date | string;
 };
@@ -1691,6 +1696,7 @@ export function VehicleReservationApply() {
 
 export function MyVehicleReservations() {
   const utils = trpc.useUtils();
+  const [expandedReservationGroupKey, setExpandedReservationGroupKey] = useState<string | null>(null);
   const { data: rows, isLoading, error } = trpc.home.myVehicleReservations.useQuery(undefined, {
     retry: false,
   });
@@ -1701,6 +1707,10 @@ export function MyVehicleReservations() {
     },
     onError: (err) => toast.error(err.message),
   });
+  const reservationGroups = useMemo(
+    () => groupVehicleReservations((rows ?? []) as MyVehicleReservationRow[]),
+    [rows]
+  );
 
   if (error) {
     return <AccessBlocked message={error.message} next="/support/vehicle/my-reservations" />;
@@ -1721,13 +1731,120 @@ export function MyVehicleReservations() {
 
           {isLoading ? (
             <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-[#1B5E20]" /></div>
-          ) : !(rows as MyVehicleReservationRow[] | undefined)?.length ? (
+          ) : reservationGroups.length === 0 ? (
             <div className="rounded-xl border border-dashed border-gray-200 bg-white py-14 text-center text-sm text-gray-400">
               신청한 차량예약이 없습니다.
             </div>
           ) : (
             <div className="space-y-3">
-              {(rows as MyVehicleReservationRow[]).map(row => {
+              {reservationGroups.map(group => {
+                if (group.isRecurring) {
+                  const isExpanded = expandedReservationGroupKey === group.key;
+                  const statusCounts = group.reservations.reduce<Record<MyVehicleReservationRow["status"], number>>((counts, row) => {
+                    counts[row.status] += 1;
+                    return counts;
+                  }, { pending: 0, approved: 0, rejected: 0, cancelled: 0 });
+                  const vehicleLabels = Array.from(new Set(group.reservations.map(row =>
+                    `${row.vehicleName ?? "차량"}${row.plateNumber ? ` · ${formatPlateNumber(row.plateNumber)}` : ""}`
+                  )));
+                  const purposes = Array.from(new Set(group.reservations.map(row => row.purpose)));
+
+                  return (
+                    <div key={group.key} className="overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm">
+                      <button
+                        type="button"
+                        className="flex w-full flex-col gap-3 p-4 text-left transition-colors hover:bg-blue-50/40 md:flex-row md:items-center md:justify-between"
+                        aria-expanded={isExpanded}
+                        onClick={() => setExpandedReservationGroupKey(isExpanded ? null : group.key)}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-bold text-blue-700">
+                              반복 {group.count}회
+                            </span>
+                            {(Object.keys(statusCounts) as MyVehicleReservationRow["status"][]).map(statusKey => {
+                              const count = statusCounts[statusKey];
+                              if (count === 0) return null;
+                              const statusInfo = STATUS_LABELS[statusKey];
+                              return (
+                                <span key={statusKey} className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium ${statusInfo.color}`}>
+                                  {statusInfo.label} {count}
+                                </span>
+                              );
+                            })}
+                          </div>
+                          <h3 className="mt-2 font-bold text-gray-900">
+                            차량 반복예약 · 차량 {vehicleLabels.length}대
+                          </h3>
+                          <p className="mt-1 text-sm text-gray-600">
+                            {formatDate(group.startDate)} ~ {formatDate(group.endDate)}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {purposes.length === 1 ? purposes[0] : "회차별 목적이 다릅니다."}
+                          </p>
+                          {group.recurrenceLabel && (
+                            <p className="mt-1 text-xs font-medium text-blue-700">{group.recurrenceLabel}</p>
+                          )}
+                        </div>
+                        <span className="inline-flex shrink-0 items-center text-xs font-bold text-blue-700">
+                          {isExpanded ? "회차 접기" : "전체 회차 보기"}
+                          <ChevronDown className={`ml-1 h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                        </span>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="border-t border-blue-100 bg-blue-50/40 p-3">
+                          <p className="mb-2 text-xs text-blue-800">
+                            각 회차의 날짜·시간·차량·상태입니다. 취소는 해당 회차에만 적용됩니다.
+                          </p>
+                          <div className="space-y-2">
+                            {group.reservations.map((row, index) => {
+                              const status = STATUS_LABELS[row.status];
+                              const canCancel = row.status === "pending" || row.status === "approved";
+                              return (
+                                <div key={row.id} className="rounded-lg border border-blue-100 bg-white p-3">
+                                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="min-w-0">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span className="text-xs font-bold text-blue-700">{index + 1}회차</span>
+                                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium ${status.color}`}>
+                                          {status.icon} {status.label}
+                                        </span>
+                                      </div>
+                                      <p className="mt-1 font-bold text-gray-900">
+                                        {row.vehicleName ?? "차량"}{row.plateNumber ? ` · ${formatPlateNumber(row.plateNumber)}` : ""}
+                                      </p>
+                                      <p className="mt-0.5 text-sm text-gray-600">
+                                        {formatDate(row.reservationDate)} · {row.startTime}~{row.endTime}
+                                      </p>
+                                      <p className="mt-0.5 text-xs text-gray-500">{row.purpose}</p>
+                                      {row.adminComment && <p className="mt-1 text-xs text-red-600">관리자 메모: {row.adminComment}</p>}
+                                    </div>
+                                    {canCancel && (
+                                      <Button
+                                        variant="outline"
+                                        className="shrink-0 border-red-200 text-red-600 hover:bg-red-50"
+                                        disabled={cancelReservation.isPending}
+                                        onClick={() => {
+                                          if (!confirm(`${index + 1}회차 차량 예약만 취소하시겠습니까?`)) return;
+                                          cancelReservation.mutate({ id: row.id });
+                                        }}
+                                      >
+                                        이 회차 취소
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                const row = group.first;
                 const status = STATUS_LABELS[row.status];
                 const canCancel = row.status === "pending" || row.status === "approved";
                 return (

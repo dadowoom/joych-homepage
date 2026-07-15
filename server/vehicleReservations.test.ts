@@ -316,6 +316,9 @@ describe("vehicle reservations", () => {
         endTime: "11:00",
         userId: 1,
         status: "pending",
+        recurrenceGroupId: null,
+        recurrenceLabel: null,
+        recurrenceSequence: 0,
       }),
     );
     expect(pushMocks.notifyVehicleReservation).toHaveBeenCalledWith(
@@ -333,6 +336,30 @@ describe("vehicle reservations", () => {
     expect(pushMocks.notifyVehicleReservation).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps recurrence metadata empty when a repeat range produces only one occurrence", async () => {
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(caller.home.createVehicleReservation(vehicleReservationInput({
+      repeatMode: "weekly",
+      repeatEndDate: "2026-06-17",
+    }))).resolves.toMatchObject({
+      id: 200,
+      ids: [200],
+      count: 1,
+      recurrenceLabel: null,
+    });
+
+    expect(dbMocks.createVehicleReservationsIfAvailable).not.toHaveBeenCalled();
+    expect(dbMocks.createVehicleReservationIfAvailable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reservationDate: "2026-06-17",
+        recurrenceGroupId: null,
+        recurrenceLabel: null,
+        recurrenceSequence: 0,
+      }),
+    );
+  });
+
   it("sends one administrator push for an entire recurring vehicle reservation batch", async () => {
     const caller = appRouter.createCaller(createContext());
 
@@ -344,14 +371,32 @@ describe("vehicle reservations", () => {
       ids: [200, 201, 202],
       count: 3,
       status: "pending",
+      recurrenceLabel: "매주 반복 · 2026-07-01까지 · 총 3회",
     });
 
     expect(dbMocks.createVehicleReservationIfAvailable).not.toHaveBeenCalled();
-    expect(dbMocks.createVehicleReservationsIfAvailable).toHaveBeenCalledWith([
-      expect.objectContaining({ reservationDate: "2026-06-17", status: "pending" }),
-      expect.objectContaining({ reservationDate: "2026-06-24", status: "pending" }),
-      expect.objectContaining({ reservationDate: "2026-07-01", status: "pending" }),
+    type CreatedVehicleReservation = {
+      reservationDate: string;
+      status: string;
+      recurrenceGroupId: string | null;
+      recurrenceLabel: string | null;
+      recurrenceSequence: number;
+    };
+    const createdBatch = dbMocks.createVehicleReservationsIfAvailable.mock.calls[0]?.[0] as CreatedVehicleReservation[];
+    expect(createdBatch).toHaveLength(3);
+    expect(createdBatch.map(({ reservationDate, status, recurrenceSequence }) => ({
+      reservationDate,
+      status,
+      recurrenceSequence,
+    }))).toEqual([
+      { reservationDate: "2026-06-17", status: "pending", recurrenceSequence: 1 },
+      { reservationDate: "2026-06-24", status: "pending", recurrenceSequence: 2 },
+      { reservationDate: "2026-07-01", status: "pending", recurrenceSequence: 3 },
     ]);
+    const recurrenceGroupId = createdBatch[0]?.recurrenceGroupId;
+    expect(recurrenceGroupId).toMatch(/^vehicle_[0-9a-f-]{36}$/);
+    expect(createdBatch.every((row) => row.recurrenceGroupId === recurrenceGroupId)).toBe(true);
+    expect(createdBatch.every((row) => row.recurrenceLabel === "매주 반복 · 2026-07-01까지 · 총 3회")).toBe(true);
     expect(pushMocks.notifyVehicleReservation).toHaveBeenCalledTimes(1);
     expect(pushMocks.notifyVehicleReservation).toHaveBeenCalledWith({
       reserverName: "Vehicle Member",
