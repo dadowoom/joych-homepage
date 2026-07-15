@@ -151,7 +151,7 @@ export default function AdminPermissionsTab() {
               </button>
             </div>
           </form>
-          <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+          <div className="space-y-2 pr-1">
             {!submittedSearchTerm ? (
               <p className="rounded-lg border border-dashed border-gray-200 py-8 text-center text-sm text-gray-400">
                 이름, 직분, 부서, 이메일, 연락처를 입력한 뒤 검색하세요.
@@ -199,7 +199,7 @@ export default function AdminPermissionsTab() {
                         승인 완료 후 권한 로그인이 가능합니다.
                       </div>
                     )}
-                    <div className="mt-2 line-clamp-2 text-xs leading-5 text-gray-500">
+                    <div className="mt-2 whitespace-normal break-words text-xs leading-5 text-gray-500">
                       {permissionLabels.length > 0
                         ? permissionLabels.join(" · ")
                         : "부여된 권한 없음"}
