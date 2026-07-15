@@ -267,13 +267,14 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     }));
   }, [urlDate, urlStartTime, urlEndTime]);
 
-  // 로그인한 성도 정보가 늦게 도착해도 신청자 이름/연락처를 자동으로 채웁니다.
+  // 로그인한 성도 정보가 늦게 도착해도 신청자 이름/연락처/소속부서를 자동으로 채웁니다.
   useEffect(() => {
     if (!memberMe) return;
     setForm(prev => ({
       ...prev,
       reserverName: prev.reserverName || memberMe.name || "",
       reserverPhone: prev.reserverPhone || memberMe.phone || "",
+      department: prev.department || memberMe.department || "",
     }));
   }, [memberMe]);
 
@@ -752,8 +753,8 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {facility.slotMinutes}분 단위</span>
                   </div>
                 </div>
-                <Link href={facilityDetailHref} className="ml-auto text-xs text-gray-400 hover:text-[#1B5E20] transition-colors shrink-0">
-                  ← 변경
+                <Link href={facilityListHref} className="ml-auto text-xs text-gray-400 hover:text-[#1B5E20] transition-colors shrink-0">
+                  ← 장소 변경
                 </Link>
               </div>
 
@@ -815,6 +816,12 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                     name="department"
                     value={form.department}
                     onChange={handleChange}
+                    lang="ko"
+                    inputMode="text"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     placeholder={isExternal ? "단체명을 입력해 주세요." : "예: 청년부, 찬양팀, 외부단체명"}
                     className={inputClass}
                   />
