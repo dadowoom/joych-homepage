@@ -19,6 +19,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  formatMemberPhoneInput,
+  MEMBER_PHONE_ERROR_MESSAGE,
+  normalizeLegacyMemberPhone,
+  normalizeMemberPhone,
+} from "@shared/memberPhone";
 
 type Member = {
   id: number;
@@ -114,7 +120,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
       setForm({
         name: member.name ?? "",
         email: member.email ?? "",
-        phone: member.phone ?? "",
+        phone: normalizeLegacyMemberPhone(member.phone) ?? member.phone ?? "",
         birthDate: member.birthDate ?? "",
         gender: member.gender ?? "",
         address: member.address ?? "",
@@ -162,11 +168,17 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
 
   const handleSave = () => {
     if (!member) return;
+    const phone = normalizeMemberPhone(form.phone);
+    if (form.phone.trim() && !phone) {
+      setActiveTab("basic");
+      toast.error(MEMBER_PHONE_ERROR_MESSAGE);
+      return;
+    }
     updateMutation.mutate({
       id: member.id,
       name: form.name || undefined,
       email: form.email || undefined,
-      phone: form.phone || undefined,
+      phone: phone ?? "",
       birthDate: form.birthDate || undefined,
       gender: (form.gender as "남" | "여") || undefined,
       address: form.address || undefined,
@@ -253,7 +265,22 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
             </div>
             <div>
               <Label className="text-xs text-gray-500 mb-1 block">연락처</Label>
-              <Input value={form.phone} onChange={set("phone")} className={inputCls} placeholder="010-0000-0000" />
+              <Input
+                value={form.phone}
+                onChange={(event) => setForm((prev) => ({
+                  ...prev,
+                  phone: formatMemberPhoneInput(event.target.value),
+                }))}
+                onBlur={() => {
+                  const phone = normalizeMemberPhone(form.phone);
+                  if (phone) setForm((prev) => ({ ...prev, phone }));
+                }}
+                className={inputCls}
+                placeholder="010-0000-0000"
+                inputMode="numeric"
+                maxLength={32}
+              />
+              <p className="text-xs text-gray-400 mt-1">010 휴대전화번호만 입력할 수 있습니다.</p>
             </div>
             <div>
               <Label className="text-xs text-gray-500 mb-1 block">생년월일</Label>

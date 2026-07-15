@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import type { Express, Request, Response } from "express";
+import { MEMBER_PHONE_ERROR_MESSAGE, normalizeMemberPhone } from "@shared/memberPhone";
 import { SignJWT, jwtVerify } from "jose";
 import { getSessionCookieOptions } from "./cookies";
 import { getJwtSecretKey } from "./jwtSecret";
@@ -529,6 +530,11 @@ export async function createMemberFromSocialSignup(
     email: string | null;
   }
 ) {
+  const phone = normalizeMemberPhone(input.phone);
+  if (!phone) {
+    return { member: null, status: "invalid_phone" as const };
+  }
+
   const email = profile.email || input.email;
   if (email) {
     const existingMember = await getMemberByEmail(email);
@@ -550,7 +556,7 @@ export async function createMemberFromSocialSignup(
     email,
     passwordHash: null,
     name: input.name,
-    phone: input.phone,
+    phone,
     birthDate: input.birthDate,
     position: input.position || undefined,
     joinPath: `${providers[profile.provider].label} 간편가입`,
@@ -594,7 +600,8 @@ export function registerMemberOAuthRoutes(app: Express) {
         ...getSessionCookieOptions(req),
       });
       const name = sanitizeText(req.body?.name, 64);
-      const phone = sanitizeText(req.body?.phone, 32);
+      const rawPhone = sanitizeText(req.body?.phone, 32);
+      const phone = normalizeMemberPhone(rawPhone);
       const birthDate = sanitizeBirthDate(req.body?.birthDate);
       const email = signup.email || sanitizeOptionalEmail(req.body?.email);
       const fieldConfigRow = await getSiteSetting(MEMBER_REGISTER_FIELD_CONFIG_KEY);
@@ -603,8 +610,11 @@ export function registerMemberOAuthRoutes(app: Express) {
         ? sanitizeText(req.body?.position, 64)
         : "";
 
-      if (!name || !phone) {
+      if (!name || !rawPhone) {
         return res.status(400).json({ message: "이름, 연락처, 생년월일을 모두 입력해주세요." });
+      }
+      if (!phone) {
+        return res.status(400).json({ message: MEMBER_PHONE_ERROR_MESSAGE });
       }
       if (fieldConfig.position.visible && fieldConfig.position.required && !position) {
         return res.status(400).json({ message: "직분 항목을 입력해주세요." });
@@ -626,6 +636,9 @@ export function registerMemberOAuthRoutes(app: Express) {
 
       if (result.status === "email_conflict") {
         return res.status(409).json({ message: "이미 사용 중인 이메일입니다." });
+      }
+      if (result.status === "invalid_phone") {
+        return res.status(400).json({ message: MEMBER_PHONE_ERROR_MESSAGE });
       }
       if (!result.member || result.status === "error") {
         return res.status(500).json({ message: "간편가입 처리 중 문제가 발생했습니다." });

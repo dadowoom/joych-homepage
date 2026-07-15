@@ -156,13 +156,14 @@ describe("member registration approval delegation", () => {
       email: "new-member@example.com",
       password: "joyful2026",
       name: "새성도",
-      phone: "010-1234-5678",
+      phone: "01012345678",
       position: "집사",
     })).resolves.toEqual({ success: true, id: 31, autoLoggedIn: false });
 
     expect(dbMocks.createMember).toHaveBeenCalledWith(expect.objectContaining({
       email: "new-member@example.com",
       name: "새성도",
+      phone: "010-1234-5678",
       position: "집사",
     }));
     expect(pushMocks.notifyMemberRegistration).toHaveBeenCalledTimes(1);

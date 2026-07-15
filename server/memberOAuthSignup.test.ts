@@ -78,6 +78,7 @@ describe("social member registration notification", () => {
     expect(memberDbMocks.createMemberWithSocialAccount).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "소셜성도",
+        phone: "010-1234-5678",
         position: "권사",
       }),
       expect.objectContaining({
@@ -91,6 +92,19 @@ describe("social member registration notification", () => {
       name: "소셜성도",
       position: "권사",
     });
+  });
+
+  it("010이 아닌 연락처는 생성과 알림 전에 차단한다", async () => {
+    await expect(createMemberFromSocialSignup(profile, {
+      ...input,
+      phone: "+82 10-1234-5678",
+    })).resolves.toEqual({
+      member: null,
+      status: "invalid_phone",
+    });
+
+    expect(memberDbMocks.createMemberWithSocialAccount).not.toHaveBeenCalled();
+    expect(pushMocks.notifyMemberRegistration).not.toHaveBeenCalled();
   });
 
   it("이미 연결된 간편가입 계정에는 중복 알림을 보내지 않는다", async () => {

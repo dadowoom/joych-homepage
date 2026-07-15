@@ -35,6 +35,7 @@ import { MEMBER_SESSION_COOKIE, setMemberSessionCookie } from "../_core/memberSe
 import {
   memberEmailSchema,
   memberRegisterInputSchema,
+  optionalMemberPhone,
   optionalDate,
   optionalText,
   requiredText,
@@ -388,7 +389,7 @@ export const membersRouter = router({
   updateMyInfo: memberProtectedProcedure
     .input(z.object({
       name: requiredText(64, "이름을 입력해주세요.").optional(),
-      phone: optionalText(32),
+      phone: optionalMemberPhone,
       birthDate: optionalDate,
       gender: z.enum(["남", "여"]).optional(),
       address: optionalText(255),
@@ -561,7 +562,7 @@ export const membersRouter = router({
     .input(z.object({
       id: idSchema,
       name: requiredText(64, "이름을 입력해주세요.").optional(),
-      phone: optionalText(32),
+      phone: optionalMemberPhone,
       birthDate: optionalDate,
       gender: z.enum(["남", "여"]).optional(),
       address: optionalText(255),

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MEMBER_PHONE_ERROR_MESSAGE, normalizeMemberPhone } from "@shared/memberPhone";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -7,6 +8,16 @@ export const requiredText = (max: number, message: string) =>
 
 export const optionalText = (max: number) =>
   z.string().trim().max(max, `${max}자 이하로 입력해주세요.`).optional();
+
+export const optionalMemberPhone = z.string()
+  .trim()
+  .max(32, "연락처는 32자 이하로 입력해주세요.")
+  .refine(
+    (value) => value === "" || normalizeMemberPhone(value) !== null,
+    MEMBER_PHONE_ERROR_MESSAGE,
+  )
+  .transform((value) => value === "" ? value : normalizeMemberPhone(value)!)
+  .optional();
 
 export const optionalDate = z.string().regex(DATE_RE, "날짜 형식은 YYYY-MM-DD여야 합니다.").optional();
 
@@ -28,7 +39,7 @@ export const memberRegisterInputSchema = z.object({
   email: memberEmailSchema,
   password: memberPasswordSchema,
   name: requiredText(64, "이름을 입력해주세요."),
-  phone: optionalText(32),
+  phone: optionalMemberPhone,
   birthDate: optionalDate,
   gender: z.enum(["남", "여"]).optional(),
   address: optionalText(255),

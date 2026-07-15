@@ -2,6 +2,11 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import BirthDateInput, { isCompleteBirthDate } from "@/components/BirthDateInput";
+import {
+  formatMemberPhoneInput,
+  MEMBER_PHONE_ERROR_MESSAGE,
+  normalizeMemberPhone,
+} from "@shared/memberPhone";
 import { trpc } from "@/lib/trpc";
 import {
   MEMBER_REGISTER_FIELD_CONFIG_KEY,
@@ -72,7 +77,11 @@ export default function MemberSocialComplete() {
   const validate = () => {
     const nextErrors: Record<string, string> = {};
     if (!form.name.trim()) nextErrors.name = "이름을 입력해주세요.";
-    if (!form.phone.trim()) nextErrors.phone = "연락처를 입력해주세요.";
+    if (!form.phone.trim()) {
+      nextErrors.phone = "연락처를 입력해주세요.";
+    } else if (!normalizeMemberPhone(form.phone)) {
+      nextErrors.phone = MEMBER_PHONE_ERROR_MESSAGE;
+    }
     if (!form.birthDate.trim()) {
       nextErrors.birthDate = "생년월일을 입력해주세요.";
     } else if (!isCompleteBirthDate(form.birthDate)) {
@@ -95,6 +104,8 @@ export default function MemberSocialComplete() {
 
   const handleSubmit = async () => {
     if (!validate()) return;
+    const phone = normalizeMemberPhone(form.phone);
+    if (!phone) return;
     setIsSubmitting(true);
     try {
       const response = await fetch("/api/member-oauth/complete-signup", {
@@ -103,7 +114,7 @@ export default function MemberSocialComplete() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: form.name,
-          phone: form.phone,
+          phone,
           birthDate: form.birthDate,
           position: fieldConfig.position.visible ? form.position || undefined : undefined,
           email: form.email || undefined,
@@ -192,14 +203,19 @@ export default function MemberSocialComplete() {
             <input
               type="tel"
               autoComplete="tel"
-              inputMode="tel"
+              inputMode="numeric"
               maxLength={32}
               value={form.phone}
-              onChange={(e) => update("phone", e.target.value)}
+              onChange={(e) => update("phone", formatMemberPhoneInput(e.target.value))}
+              onBlur={() => {
+                const phone = normalizeMemberPhone(form.phone);
+                if (phone) update("phone", phone);
+              }}
               placeholder="010-0000-0000"
               className={inputClass("phone")}
             />
             {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
+            {!errors.phone && <p className="text-xs text-gray-400 mt-1">010 휴대전화번호만 입력할 수 있습니다.</p>}
           </div>
 
           <div>

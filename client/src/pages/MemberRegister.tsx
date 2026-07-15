@@ -16,6 +16,11 @@ import {
   parseMemberRegisterFieldConfig,
   type MemberRegisterFieldKey,
 } from "@shared/memberRegisterFields";
+import {
+  formatMemberPhoneInput,
+  MEMBER_PHONE_ERROR_MESSAGE,
+  normalizeMemberPhone,
+} from "@shared/memberPhone";
 
 const PASSWORD_HAS_LETTER = /[A-Za-z]/;
 const PASSWORD_HAS_NUMBER = /\d/;
@@ -96,7 +101,11 @@ export default function MemberRegister() {
       newErrors.password = "비밀번호는 영문과 숫자를 모두 포함해야 합니다.";
     }
     if (form.password !== form.passwordConfirm) newErrors.passwordConfirm = "비밀번호가 일치하지 않습니다.";
-    if (isFieldRequired("phone") && !form.phone.trim()) newErrors.phone = "연락처를 입력해주세요.";
+    if (isFieldRequired("phone") && !form.phone.trim()) {
+      newErrors.phone = "연락처를 입력해주세요.";
+    } else if (form.phone.trim() && !normalizeMemberPhone(form.phone)) {
+      newErrors.phone = MEMBER_PHONE_ERROR_MESSAGE;
+    }
     if (form.birthDate && !isCompleteBirthDate(form.birthDate)) {
       newErrors.birthDate = "생년월일은 YYYY-MM-DD 형식으로 입력해주세요.";
     }
@@ -120,7 +129,10 @@ export default function MemberRegister() {
   };
 
   const handleNext = () => {
-    if (validateStep1()) setStep(2);
+    if (!validateStep1()) return;
+    const phone = normalizeMemberPhone(form.phone);
+    if (phone) setForm((prev) => ({ ...prev, phone }));
+    setStep(2);
   };
 
   const handleSubmit = () => {
@@ -133,7 +145,7 @@ export default function MemberRegister() {
       name: form.name,
       email: form.email,
       password: form.password,
-      phone: isFieldVisible("phone") ? form.phone : undefined,
+      phone: isFieldVisible("phone") ? normalizeMemberPhone(form.phone) ?? undefined : undefined,
       birthDate: isFieldVisible("birthDate") ? form.birthDate || undefined : undefined,
       gender: isFieldVisible("gender") ? (form.gender as "남" | "여") || undefined : undefined,
       address: isFieldVisible("address") ? form.address || undefined : undefined,
@@ -294,16 +306,21 @@ export default function MemberRegister() {
                 <input
                   type="tel"
                   autoComplete="tel"
-                  inputMode="tel"
+                  inputMode="numeric"
                   maxLength={32}
                   value={form.phone}
-                  onChange={(e) => update("phone", e.target.value)}
+                  onChange={(e) => update("phone", formatMemberPhoneInput(e.target.value))}
+                  onBlur={() => {
+                    const phone = normalizeMemberPhone(form.phone);
+                    if (phone) update("phone", phone);
+                  }}
                   placeholder="010-0000-0000"
                   className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30 ${
                     errors.phone ? "border-red-400" : "border-gray-300"
                   }`}
                 />
                 {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
+                {!errors.phone && <p className="text-xs text-gray-400 mt-1">010 휴대전화번호만 입력할 수 있습니다.</p>}
               </div>
               )}
 

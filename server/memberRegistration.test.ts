@@ -15,7 +15,34 @@ describe("member registration validation", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.email).toBe("member@example.com");
+      expect(result.data.phone).toBe("010-1234-5678");
     }
+  });
+
+  it("하이픈이 없는 010 연락처도 저장 표준으로 정규화한다", () => {
+    const result = memberRegisterInputSchema.safeParse({
+      ...validSignupInput,
+      phone: "01012345678",
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.phone).toBe("010-1234-5678");
+    }
+  });
+
+  it.each([
+    "+82 10-1234-5678",
+    "02-1234-5678",
+    "011-1234-5678",
+    "010-123-5678",
+    "010123456789",
+    "010-1234-5678 내선 1",
+  ])("010이 아닌 연락처를 회원가입에서 차단한다: %s", (phone) => {
+    expect(memberRegisterInputSchema.safeParse({
+      ...validSignupInput,
+      phone,
+    }).success).toBe(false);
   });
 
   it("연락처 필수 여부는 회원가입 양식 설정 검증에서 처리한다", () => {

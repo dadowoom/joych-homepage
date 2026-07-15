@@ -1976,6 +1976,15 @@ else
   exit 1
 fi
 
+MIGRATION_0081="${APP_DIR}/dist/scripts/normalizeMemberPhones.js"
+if [[ -f "${MIGRATION_0081}" ]]; then
+  echo "[deploy] database migration: normalize member phone numbers"
+  node "${MIGRATION_0081}"
+else
+  echo "[deploy] missing migration runner: ${MIGRATION_0081}" >&2
+  exit 1
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

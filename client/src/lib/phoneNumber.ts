@@ -1,7 +1,13 @@
-/** 전화번호 원문을 저장값 변경 없이 화면 표시용 하이픈 형식으로 정리합니다. */
+import { normalizeLegacyMemberPhone } from "@shared/memberPhone";
+
+/** 전화번호 원문을 화면 표시용 하이픈 형식으로 정리합니다. */
 export function formatPhoneNumber(value: string | null | undefined) {
   const original = value?.trim() ?? "";
   if (!original) return "";
+
+  const memberPhone = normalizeLegacyMemberPhone(original);
+  if (memberPhone) return memberPhone;
+
   if (original.startsWith("+") || /[A-Za-z가-힣#]/.test(original)) return original;
 
   const digits = original.replace(/\D/g, "");
