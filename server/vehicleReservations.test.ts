@@ -5,6 +5,7 @@ const dbMocks = vi.hoisted(() => ({
   canMemberUseVehicleReservation: vi.fn(),
   createVehicleReservationIfAvailable: vi.fn(),
   getAvailableVehiclesForSchedule: vi.fn(),
+  getVehicleAvailabilityTimeline: vi.fn(),
   getAdminVehicleReservationDetailsByDate: vi.fn(),
   getMemberById: vi.fn(),
   getVehicleById: vi.fn(),
@@ -48,6 +49,7 @@ vi.mock("./db", async (importOriginal) => {
     canMemberUseVehicleReservation: dbMocks.canMemberUseVehicleReservation,
     createVehicleReservationIfAvailable: dbMocks.createVehicleReservationIfAvailable,
     getAvailableVehiclesForSchedule: dbMocks.getAvailableVehiclesForSchedule,
+    getVehicleAvailabilityTimeline: dbMocks.getVehicleAvailabilityTimeline,
     getAdminVehicleReservationDetailsByDate: dbMocks.getAdminVehicleReservationDetailsByDate,
     getMemberById: dbMocks.getMemberById,
     getVehicleById: dbMocks.getVehicleById,
@@ -167,6 +169,15 @@ describe("vehicle reservations", () => {
     });
     dbMocks.getVehicles.mockResolvedValue([reservableVehicle]);
     dbMocks.getAvailableVehiclesForSchedule.mockResolvedValue([reservableVehicle]);
+    dbMocks.getVehicleAvailabilityTimeline.mockResolvedValue({
+      selectedStartTime: null,
+      timePoints: ["09:00", "10:00", "11:00"],
+      startOptions: [{ startTime: "09:00", defaultEndTime: "10:00", availableVehicleCount: 1 }],
+      blockedStartTimes: ["10:00"],
+      pastStartTimes: [],
+      endOptions: [],
+      blockedEndTimes: [],
+    });
     dbMocks.getAdminVehicleReservationDetailsByDate.mockResolvedValue([]);
     dbMocks.createVehicleReservationIfAvailable.mockResolvedValue(200);
     dbMocks.updateVehicleReservationDetails.mockResolvedValue(true);
@@ -178,6 +189,11 @@ describe("vehicle reservations", () => {
     const caller = appRouter.createCaller(createContext());
 
     await expect(caller.home.vehicles()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.home.vehicleAvailabilityTimeline({
+      reservationDate: "2026-06-17",
+      passengers: 1,
+      repeatMode: "none",
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.home.availableVehicles({
       reservationDate: "2026-06-17",
       startTime: "10:00",
@@ -302,6 +318,26 @@ describe("vehicle reservations", () => {
       "10:00",
       "11:00",
       1,
+    );
+  });
+
+  it("returns a privacy-safe time timeline before a vehicle is selected", async () => {
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(caller.home.vehicleAvailabilityTimeline({
+      reservationDate: "2026-06-17",
+      passengers: 1,
+      repeatMode: "none",
+      startTime: "09:00",
+    })).resolves.toMatchObject({
+      occurrenceCount: 1,
+      timePoints: ["09:00", "10:00", "11:00"],
+    });
+    expect(dbMocks.getVehicleAvailabilityTimeline).toHaveBeenCalledWith(
+      ["2026-06-17"],
+      1,
+      "09:00",
+      null,
     );
   });
 

@@ -372,11 +372,23 @@ type VehicleScheduleRules = Pick<
   | "capacity"
 >;
 
+export type VehicleAvailabilityBusyRange = {
+  vehicleId: number;
+  reservationDate: string;
+  startTime: string;
+  endTime: string;
+};
+
 function parseVehicleTimeMinutes(time: string) {
   const match = /^(?:([01]\d|2[0-3]):([0-5]\d)|24:00)$/.exec(time);
   if (!match) return null;
   if (time === "24:00") return 24 * 60;
   return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function formatVehicleTimeMinutes(minutes: number) {
+  if (minutes === 24 * 60) return "24:00";
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 }
 
 export function isVehicleCompatibleWithSchedule(
@@ -406,6 +418,180 @@ export function isVehicleCompatibleWithSchedule(
   }
   const selectedSlots = (endMinutes - startMinutes) / slotMinutes;
   return selectedSlots >= vehicle.minSlots && selectedSlots <= vehicle.maxSlots;
+}
+
+/**
+ * 차량을 고르기 전 공통 시간 막대에 사용할 가용 시작/종료 시각을 계산합니다.
+ * 각 범위는 반드시 동일 차량 한 대가 모든 반복 날짜에 비어 있을 때만 가능 처리합니다.
+ */
+export function buildVehicleAvailabilityTimeline(
+  vehiclesForTimeline: Array<VehicleScheduleRules & { id: number }>,
+  busyRanges: VehicleAvailabilityBusyRange[],
+  reservationDates: string[],
+  passengers = 1,
+  selectedStartTime?: string | null,
+  minimumStartTime?: string | null,
+) {
+  const candidates = vehiclesForTimeline.filter((vehicle) =>
+    vehicle.isVisible && vehicle.isReservable && passengers >= 1 && passengers <= vehicle.capacity
+  );
+  const busyByVehicleDate = new Map<string, Array<{ startMinutes: number; endMinutes: number }>>();
+  for (const busyRange of busyRanges) {
+    const startMinutes = parseVehicleTimeMinutes(busyRange.startTime);
+    const endMinutes = parseVehicleTimeMinutes(busyRange.endTime);
+    if (startMinutes === null || endMinutes === null || startMinutes >= endMinutes) continue;
+    const key = `${busyRange.vehicleId}:${busyRange.reservationDate}`;
+    const list = busyByVehicleDate.get(key) ?? [];
+    list.push({ startMinutes, endMinutes });
+    busyByVehicleDate.set(key, list);
+  }
+
+  const minimumStartMinutes = minimumStartTime ? parseVehicleTimeMinutes(minimumStartTime) : null;
+  const selectedStartMinutes = selectedStartTime ? parseVehicleTimeMinutes(selectedStartTime) : null;
+  const timePointMinutes = new Set<number>();
+  const theoreticalStartMinutes = new Set<number>();
+  const pastStartMinutes = new Set<number>();
+  const startOptions = new Map<number, { defaultEndMinutes: number; vehicleIds: Set<number> }>();
+  const theoreticalEndMinutes = new Set<number>();
+  const endOptions = new Map<number, Set<number>>();
+
+  const isRangeFreeForEveryDate = (vehicleId: number, startMinutes: number, endMinutes: number) =>
+    reservationDates.every((reservationDate) =>
+      !(busyByVehicleDate.get(`${vehicleId}:${reservationDate}`) ?? []).some((busyRange) =>
+        busyRange.startMinutes < endMinutes && busyRange.endMinutes > startMinutes
+      )
+    );
+
+  for (const vehicle of candidates) {
+    const openMinutes = parseVehicleTimeMinutes(vehicle.openTime);
+    const closeMinutes = parseVehicleTimeMinutes(vehicle.closeTime);
+    const slotMinutes = vehicle.slotMinutes > 0 ? vehicle.slotMinutes : 60;
+    if (openMinutes === null || closeMinutes === null || openMinutes >= closeMinutes) continue;
+
+    for (let point = openMinutes; point <= closeMinutes; point += slotMinutes) {
+      timePointMinutes.add(point);
+    }
+
+    for (let startMinutes = openMinutes; startMinutes < closeMinutes; startMinutes += slotMinutes) {
+      if (minimumStartMinutes !== null && startMinutes <= minimumStartMinutes) {
+        pastStartMinutes.add(startMinutes);
+        continue;
+      }
+
+      const theoreticalEnds: number[] = [];
+      for (let selectedSlots = vehicle.minSlots; selectedSlots <= vehicle.maxSlots; selectedSlots += 1) {
+        const endMinutes = startMinutes + selectedSlots * slotMinutes;
+        if (endMinutes > closeMinutes) break;
+        theoreticalEnds.push(endMinutes);
+      }
+      if (theoreticalEnds.length === 0) continue;
+
+      theoreticalStartMinutes.add(startMinutes);
+      if (selectedStartMinutes === startMinutes) {
+        theoreticalEnds.forEach((endMinutes) => theoreticalEndMinutes.add(endMinutes));
+      }
+
+      for (const endMinutes of theoreticalEnds) {
+        // 짧은 범위가 충돌하면 그 범위를 포함하는 더 긴 종료 시각도 모두 충돌합니다.
+        if (!isRangeFreeForEveryDate(vehicle.id, startMinutes, endMinutes)) break;
+
+        const currentStartOption = startOptions.get(startMinutes);
+        if (!currentStartOption || endMinutes < currentStartOption.defaultEndMinutes) {
+          startOptions.set(startMinutes, {
+            defaultEndMinutes: endMinutes,
+            vehicleIds: new Set([vehicle.id]),
+          });
+        } else if (endMinutes === currentStartOption.defaultEndMinutes) {
+          currentStartOption.vehicleIds.add(vehicle.id);
+        }
+
+        if (selectedStartMinutes === startMinutes) {
+          const vehicleIds = endOptions.get(endMinutes) ?? new Set<number>();
+          vehicleIds.add(vehicle.id);
+          endOptions.set(endMinutes, vehicleIds);
+        } else {
+          // 시작 막대에는 이 차량의 가장 짧은 가능 범위만 필요합니다.
+          break;
+        }
+      }
+    }
+  }
+
+  const sortedTimePoints = Array.from(timePointMinutes).sort((left, right) => left - right);
+  return {
+    selectedStartTime: selectedStartTime ?? null,
+    timePoints: sortedTimePoints.map(formatVehicleTimeMinutes),
+    startOptions: Array.from(startOptions.entries())
+      .sort(([left], [right]) => left - right)
+      .map(([startMinutes, option]) => ({
+        startTime: formatVehicleTimeMinutes(startMinutes),
+        defaultEndTime: formatVehicleTimeMinutes(option.defaultEndMinutes),
+        availableVehicleCount: option.vehicleIds.size,
+      })),
+    blockedStartTimes: Array.from(theoreticalStartMinutes)
+      .filter((startMinutes) => !startOptions.has(startMinutes))
+      .sort((left, right) => left - right)
+      .map(formatVehicleTimeMinutes),
+    pastStartTimes: Array.from(pastStartMinutes)
+      .sort((left, right) => left - right)
+      .map(formatVehicleTimeMinutes),
+    endOptions: Array.from(endOptions.entries())
+      .sort(([left], [right]) => left - right)
+      .map(([endMinutes, vehicleIds]) => ({
+        endTime: formatVehicleTimeMinutes(endMinutes),
+        availableVehicleCount: vehicleIds.size,
+      })),
+    blockedEndTimes: Array.from(theoreticalEndMinutes)
+      .filter((endMinutes) => !endOptions.has(endMinutes))
+      .sort((left, right) => left - right)
+      .map(formatVehicleTimeMinutes),
+  };
+}
+
+export async function getVehicleAvailabilityTimeline(
+  reservationDates: string[],
+  passengers = 1,
+  selectedStartTime?: string | null,
+  minimumStartTime?: string | null,
+) {
+  const allVehicles = await getVehicles(true);
+  const candidates = allVehicles.filter((vehicle) =>
+    vehicle.isVisible && vehicle.isReservable && passengers >= 1 && passengers <= vehicle.capacity
+  );
+  if (candidates.length === 0 || reservationDates.length === 0) {
+    return buildVehicleAvailabilityTimeline(candidates, [], reservationDates, passengers, selectedStartTime, minimumStartTime);
+  }
+
+  const db = await getDb();
+  if (!db) {
+    // 예약 현황을 확인할 수 없을 때 가능 상태로 열지 않습니다.
+    return buildVehicleAvailabilityTimeline([], [], reservationDates, passengers, selectedStartTime, minimumStartTime);
+  }
+  const busyRanges = await db
+    .select({
+      vehicleId: vehicleReservations.vehicleId,
+      reservationDate: vehicleReservations.reservationDate,
+      startTime: vehicleReservations.startTime,
+      endTime: vehicleReservations.endTime,
+    })
+    .from(vehicleReservations)
+    .where(and(
+      inArray(vehicleReservations.vehicleId, candidates.map((vehicle) => vehicle.id)),
+      inArray(vehicleReservations.reservationDate, reservationDates),
+      or(
+        eq(vehicleReservations.status, "pending"),
+        eq(vehicleReservations.status, "approved"),
+      ),
+    ));
+
+  return buildVehicleAvailabilityTimeline(
+    candidates,
+    busyRanges,
+    reservationDates,
+    passengers,
+    selectedStartTime,
+    minimumStartTime,
+  );
 }
 
 /** 선택한 모든 날짜와 시간에 실제로 비어 있는 차량만 반환합니다. */

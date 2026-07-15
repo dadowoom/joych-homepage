@@ -65,6 +65,24 @@ type ReservationByDateRow = {
   memberPhone?: string | null;
 };
 
+type VehicleAvailabilityTimelineData = {
+  selectedStartTime: string | null;
+  timePoints: string[];
+  startOptions: Array<{
+    startTime: string;
+    defaultEndTime: string;
+    availableVehicleCount: number;
+  }>;
+  blockedStartTimes: string[];
+  pastStartTimes: string[];
+  endOptions: Array<{
+    endTime: string;
+    availableVehicleCount: number;
+  }>;
+  blockedEndTimes: string[];
+  occurrenceCount: number;
+};
+
 type MyVehicleReservationRow = {
   id: number;
   vehicleId: number;
@@ -367,6 +385,181 @@ function VehicleReservationCalendar({
   );
 }
 
+function VehicleAvailabilityTimeline({
+  data,
+  startTime,
+  endTime,
+  isRefreshing,
+  onSelect,
+}: {
+  data: VehicleAvailabilityTimelineData;
+  startTime: string;
+  endTime: string;
+  isRefreshing: boolean;
+  onSelect: (start: string, end: string) => void;
+}) {
+  const [unavailableMessage, setUnavailableMessage] = useState("");
+  const segments = data.timePoints.slice(0, -1).map((start, index) => ({
+    start,
+    end: data.timePoints[index + 1],
+  }));
+  const startOptionByTime = useMemo(
+    () => new Map(data.startOptions.map((option) => [option.startTime, option])),
+    [data.startOptions],
+  );
+  const endOptionByTime = useMemo(
+    () => new Map(data.endOptions.map((option) => [option.endTime, option])),
+    [data.endOptions],
+  );
+  const blockedStartTimes = useMemo(() => new Set(data.blockedStartTimes), [data.blockedStartTimes]);
+  const blockedEndTimes = useMemo(() => new Set(data.blockedEndTimes), [data.blockedEndTimes]);
+  const pastStartTimes = useMemo(() => new Set(data.pastStartTimes), [data.pastStartTimes]);
+  const selectedStartMinutes = startTime ? toMinutes(startTime) : null;
+  const selectedEndMinutes = endTime ? toMinutes(endTime) : null;
+
+  useEffect(() => {
+    setUnavailableMessage("");
+  }, [data, endTime, startTime]);
+
+  function handleSegmentClick(start: string, end: string) {
+    if (isRefreshing) {
+      setUnavailableMessage("최신 예약 가능 시간을 확인하고 있습니다. 잠시만 기다려 주세요.");
+      return;
+    }
+    const startMinutes = toMinutes(start);
+    const canExtend = Boolean(
+      startTime &&
+      selectedStartMinutes !== null &&
+      startMinutes >= selectedStartMinutes &&
+      endOptionByTime.has(end)
+    );
+    if (canExtend) {
+      setUnavailableMessage("");
+      onSelect(startTime, end);
+      return;
+    }
+
+    const startOption = startOptionByTime.get(start);
+    if (startOption) {
+      setUnavailableMessage("");
+      onSelect(start, startOption.defaultEndTime);
+      return;
+    }
+
+    if (pastStartTimes.has(start)) {
+      setUnavailableMessage("이미 지난 시간은 선택할 수 없습니다.");
+      return;
+    }
+    if (blockedStartTimes.has(start) || blockedEndTimes.has(end)) {
+      setUnavailableMessage("해당 시간에는 모든 차량이 이미 예약되어 있습니다.");
+      return;
+    }
+    if (startTime && selectedStartMinutes !== null && startMinutes >= selectedStartMinutes) {
+      setUnavailableMessage("선택한 시작 시간부터 이 구간까지 이용 가능한 같은 차량이 없습니다.");
+      return;
+    }
+    setUnavailableMessage("이 시간부터 예약 가능한 차량이 없습니다.");
+  }
+
+  if (segments.length === 0) {
+    return (
+      <p className="rounded-lg bg-gray-50 px-3 py-4 text-center text-sm text-gray-500">
+        선택 가능한 운영 시간이 없습니다.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-medium text-[#1B5E20]">
+          {startTime && endTime
+            ? `${startTime} ~ ${endTime} 선택됨 · 뒤쪽 막대로 연장하거나 안쪽 막대로 줄일 수 있습니다.`
+            : "초록색 시간 막대를 누르면 가능한 최소 사용 시간이 바로 선택됩니다."}
+        </p>
+        {(startTime || endTime) && (
+          <button
+            type="button"
+            onClick={() => onSelect("", "")}
+            className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-500 transition-colors hover:border-[#1B5E20] hover:text-[#1B5E20]"
+          >
+            다시 선택
+          </button>
+        )}
+      </div>
+
+      <div
+        className={`overflow-x-auto overscroll-x-contain pb-2 transition-opacity ${isRefreshing ? "opacity-60" : ""}`}
+        aria-busy={isRefreshing}
+      >
+        <div className="min-w-max">
+          <div className="flex overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            {segments.map(({ start, end }) => {
+              const startMinutes = toMinutes(start);
+              const endMinutes = toMinutes(end);
+              const isSelected =
+                selectedStartMinutes !== null &&
+                selectedEndMinutes !== null &&
+                startMinutes >= selectedStartMinutes &&
+                endMinutes <= selectedEndMinutes;
+              const startOption = startOptionByTime.get(start);
+              const endOption = endOptionByTime.get(end);
+              const canExtend = Boolean(
+                startTime &&
+                selectedStartMinutes !== null &&
+                startMinutes >= selectedStartMinutes &&
+                endOption
+              );
+              const isAvailable = Boolean(startOption || canExtend);
+              const isBooked = !isAvailable && (blockedStartTimes.has(start) || blockedEndTimes.has(end));
+              const availableVehicleCount = canExtend
+                ? endOption?.availableVehicleCount ?? 0
+                : startOption?.availableVehicleCount ?? 0;
+
+              return (
+                <button
+                  key={`${start}-${end}`}
+                  type="button"
+                  aria-disabled={!isAvailable || isRefreshing}
+                  title={isAvailable ? `가능 차량 ${availableVehicleCount}대` : isBooked ? "예약됨" : "예약 불가"}
+                  onClick={() => handleSegmentClick(start, end)}
+                  className={`flex h-14 min-w-[68px] flex-col items-center justify-center border-r border-gray-300 px-2 text-[11px] font-bold transition-colors last:border-r-0 ${
+                    isSelected
+                      ? "bg-[#1B5E20] text-white"
+                      : isAvailable
+                        ? "bg-green-50 text-green-700 hover:bg-green-100"
+                        : isBooked
+                          ? "cursor-not-allowed bg-red-100 text-red-500 line-through"
+                          : "cursor-not-allowed bg-gray-100 text-gray-400"
+                  }`}
+                >
+                  <span>{start}~{end}</span>
+                  <span className={`mt-1 text-[10px] font-medium ${isSelected ? "text-white/80" : "text-gray-400"}`}>
+                    {isSelected ? "선택" : isAvailable ? `가능 ${availableVehicleCount}대` : isBooked ? "예약됨" : "불가"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-3 text-xs text-gray-400">
+        <span className="flex items-center gap-1"><span className="inline-block h-3 w-5 rounded bg-green-50 ring-1 ring-green-200" />예약 가능</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-3 w-5 rounded bg-red-100" />예약됨</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-3 w-5 rounded bg-gray-100 ring-1 ring-gray-200" />예약 불가</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-3 w-5 rounded bg-[#1B5E20]" />선택됨</span>
+      </div>
+
+      {unavailableMessage && (
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700" role="status">
+          {unavailableMessage}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function VehicleTimeSlotPanel({
   vehicle,
   selectedDate,
@@ -520,18 +713,23 @@ export function VehicleReservationList() {
     retry: false,
   });
   const vehicleRows = useMemo(() => (vehicles ?? []) as VehicleRow[], [vehicles]);
-  const timeOptions = useMemo(() => {
-    const values = new Set<string>();
-    vehicleRows.forEach((vehicle) => {
-      if (!vehicle.isReservable) return;
-      generateReservationTimePoints(vehicle.openTime, vehicle.closeTime, vehicle.slotMinutes)
-        .forEach((time) => values.add(time));
-    });
-    return Array.from(values).sort((left, right) => toMinutes(left) - toMinutes(right));
-  }, [vehicleRows]);
   const todayKey = getKstDateKey();
   const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000);
   const currentKstMinutes = nowKst.getUTCHours() * 60 + nowKst.getUTCMinutes();
+  const repeatScheduleReady = Boolean(
+    repeatMode === "none" || (repeatEndDate && selectedDate && repeatEndDate >= selectedDate)
+  );
+  const timelineQuery = trpc.home.vehicleAvailabilityTimeline.useQuery(
+    {
+      reservationDate: selectedDate || todayKey,
+      passengers: 1,
+      repeatMode,
+      repeatEndDate: repeatMode === "none" ? null : repeatEndDate || null,
+      startTime: startTime || null,
+    },
+    { enabled: Boolean(selectedDate && repeatScheduleReady), retry: false },
+  );
+  const timelineData = timelineQuery.data as VehicleAvailabilityTimelineData | undefined;
   const selectedStartIsFuture = Boolean(
     selectedDate && startTime && (
       selectedDate > todayKey ||
@@ -558,6 +756,14 @@ export function VehicleReservationList() {
     { enabled: scheduleComplete, retry: false },
   );
   const availableVehicles = (availabilityQuery.data?.vehicles ?? []) as VehicleRow[];
+
+  useEffect(() => {
+    if (!startTime || !endTime || !timelineData || timelineQuery.isFetching) return;
+    if (timelineData.selectedStartTime !== startTime) return;
+    if (timelineData.endOptions.some((option) => option.endTime === endTime)) return;
+    setStartTime("");
+    setEndTime("");
+  }, [endTime, startTime, timelineData, timelineQuery.isFetching]);
 
   function handleSelectDate(date: string) {
     setSelectedDate(date);
@@ -622,49 +828,14 @@ export function VehicleReservationList() {
                   <div className="space-y-5 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
                     <div className="grid gap-4 sm:grid-cols-2">
                       <label className="block">
-                        <span className="mb-1.5 block text-xs font-medium text-gray-600">시작 시간</span>
-                        <select
-                          value={startTime}
-                          disabled={!selectedDate}
-                          onChange={(event) => {
-                            setStartTime(event.target.value);
-                            setEndTime("");
-                          }}
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-3 text-sm focus:border-[#1B5E20] focus:outline-none disabled:bg-gray-50 disabled:text-gray-400"
-                        >
-                          <option value="">시작 시간 선택</option>
-                          {timeOptions.filter((time) => (
-                            time !== "24:00" &&
-                            (selectedDate > todayKey || toMinutes(time) > currentKstMinutes)
-                          )).map((time) => (
-                            <option key={time} value={time}>{time}</option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="block">
-                        <span className="mb-1.5 block text-xs font-medium text-gray-600">종료 시간</span>
-                        <select
-                          value={endTime}
-                          disabled={!startTime}
-                          onChange={(event) => setEndTime(event.target.value)}
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-3 text-sm focus:border-[#1B5E20] focus:outline-none disabled:bg-gray-50 disabled:text-gray-400"
-                        >
-                          <option value="">종료 시간 선택</option>
-                          {timeOptions.filter((time) => startTime && toMinutes(time) > toMinutes(startTime)).map((time) => (
-                            <option key={time} value={time}>{time}</option>
-                          ))}
-                        </select>
-                      </label>
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <label className="block">
                         <span className="mb-1.5 block text-xs font-medium text-gray-600">반복 일정</span>
                         <select
                           value={repeatMode}
                           onChange={(event) => {
                             const nextMode = event.target.value as typeof repeatMode;
                             setRepeatMode(nextMode);
+                            setStartTime("");
+                            setEndTime("");
                             if (nextMode === "none") setRepeatEndDate("");
                           }}
                           className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-3 text-sm focus:border-[#1B5E20] focus:outline-none"
@@ -682,12 +853,52 @@ export function VehicleReservationList() {
                             type="date"
                             value={repeatEndDate}
                             min={selectedDate || getKstDateKey()}
-                            onChange={(event) => setRepeatEndDate(event.target.value)}
+                            onChange={(event) => {
+                              setRepeatEndDate(event.target.value);
+                              setStartTime("");
+                              setEndTime("");
+                            }}
                             className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-3 text-sm focus:border-[#1B5E20] focus:outline-none"
                           />
                         </label>
                       )}
                     </div>
+
+                    {!selectedDate ? (
+                      <p className="rounded-lg bg-gray-50 px-3 py-5 text-center text-sm text-gray-500">
+                        날짜를 먼저 선택하면 시간별 차량 예약 가능 여부가 표시됩니다.
+                      </p>
+                    ) : !repeatScheduleReady ? (
+                      <p className="rounded-lg bg-amber-50 px-3 py-4 text-center text-sm text-amber-700">
+                        반복 종료일을 선택하면 모든 반복 날짜를 확인한 시간표가 표시됩니다.
+                      </p>
+                    ) : timelineQuery.isFetching && !timelineData ? (
+                      <div className="flex justify-center rounded-lg bg-gray-50 py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-[#1B5E20]" />
+                      </div>
+                    ) : timelineQuery.error ? (
+                      <p className="rounded-lg bg-red-50 px-3 py-4 text-center text-sm text-red-600">
+                        {timelineQuery.error.message}
+                      </p>
+                    ) : timelineData ? (
+                      <>
+                        {(timelineData.occurrenceCount ?? 1) > 1 && (
+                          <p className="text-xs text-gray-500">
+                            반복 {timelineData.occurrenceCount}회 모두 가능한 시간만 선택할 수 있습니다.
+                          </p>
+                        )}
+                        <VehicleAvailabilityTimeline
+                          data={timelineData}
+                          startTime={startTime}
+                          endTime={endTime}
+                          isRefreshing={timelineQuery.isFetching}
+                          onSelect={(start, end) => {
+                            setStartTime(start);
+                            setEndTime(end);
+                          }}
+                        />
+                      </>
+                    ) : null}
 
                     <div className="rounded-lg bg-[#F1F8E9] px-4 py-3 text-sm text-[#1B5E20]">
                       {!selectedDate

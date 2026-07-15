@@ -73,6 +73,7 @@ import {
   createVehicleReservationIfAvailable,
   createVehicleReservationsIfAvailable,
   getAvailableVehiclesForSchedule,
+  getVehicleAvailabilityTimeline,
   getAdminVehicleReservationDetailsByDate,
   getMyVehicleReservations,
   getVehicleById,
@@ -1403,6 +1404,46 @@ export const homeRouter = router({
         });
       }
       return getVehicles(true);
+    }),
+
+  vehicleAvailabilityTimeline: publicProcedure
+    .input(z.object({
+      reservationDate: z.string().regex(DATE_RE, "예약 날짜 형식이 올바르지 않습니다."),
+      passengers: z.number().int().min(1).default(1),
+      repeatMode: vehicleRepeatSchema.default("none"),
+      repeatEndDate: z.string().regex(DATE_RE, "반복 종료일 형식이 올바르지 않습니다.").nullable().optional(),
+      startTime: z.string().regex(TIME_RE, "시작 시간 형식이 올바르지 않습니다.").nullable().optional(),
+    }))
+    .query(async ({ input, ctx }) => {
+      if (!(await canContextUseVehicleReservation(ctx))) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "차량예약은 지정된 성도 그룹만 이용할 수 있습니다. 관리자에게 문의해 주세요.",
+        });
+      }
+      const reservationDates = getVehicleReservationDates(
+        input.reservationDate,
+        input.repeatMode,
+        input.repeatEndDate,
+      );
+      const today = todayKstDateKey();
+      if (input.reservationDate < today) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "지난 날짜는 예약할 수 없습니다." });
+      }
+      const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const minimumStartTime = input.reservationDate === today
+        ? `${String(nowKst.getUTCHours()).padStart(2, "0")}:${String(nowKst.getUTCMinutes()).padStart(2, "0")}`
+        : null;
+      const timeline = await getVehicleAvailabilityTimeline(
+        reservationDates,
+        input.passengers,
+        input.startTime,
+        minimumStartTime,
+      );
+      return {
+        ...timeline,
+        occurrenceCount: reservationDates.length,
+      };
     }),
 
   availableVehicles: publicProcedure
