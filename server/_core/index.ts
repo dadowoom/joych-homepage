@@ -13,6 +13,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { canonicalHostRedirect, registerSeoUtilityRoutes } from "./seo";
 import { registerLegacyVodRoutes } from "./legacyVod";
+import { registerLegacyPageRedirects } from "./legacyPageRedirects";
 
 const MB = 1024 * 1024;
 const STANDARD_BODY_LIMIT_BYTES = 5 * MB;
@@ -256,6 +257,7 @@ async function startServer() {
       kakaoJavaScriptKey: process.env.VITE_KAKAO_JAVASCRIPT_KEY ?? "",
     });
   });
+  registerLegacyPageRedirects(app);
   registerSeoUtilityRoutes(app);
   registerLegacyVodRoutes(app);
 
