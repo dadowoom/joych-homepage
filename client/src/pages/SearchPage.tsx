@@ -13,6 +13,7 @@ import {
   Video,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { splitSearchHighlightParts } from "@/lib/searchHighlight";
 import { isExternalSiteHref, normalizeSiteHref } from "@/lib/siteHref";
 
 const GROUP_DISPLAY_LIMIT = 3;
@@ -298,25 +299,44 @@ function getGroupIcon(group: SearchResultGroup): ReactNode {
   return <FileText className="h-4 w-4" />;
 }
 
-function ResultRow({ item }: { item: SearchResultItem }) {
+function HighlightedText({ text, keyword }: { text: string; keyword: string }) {
+  return (
+    <>
+      {splitSearchHighlightParts(text, keyword).map((part, index) =>
+        part.isMatch ? (
+          <mark
+            key={`${index}-${part.text}`}
+            className="rounded-sm bg-yellow-200 px-0.5 text-inherit decoration-clone"
+          >
+            {part.text}
+          </mark>
+        ) : (
+          <span key={`${index}-${part.text}`}>{part.text}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+function ResultRow({ item, keyword }: { item: SearchResultItem; keyword: string }) {
   const isClickable = item.linkType !== "none" && Boolean(item.href);
   const content = (
     <>
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex flex-wrap items-center gap-2">
           <span className="rounded-full bg-[#F1F8E9] px-2 py-0.5 text-[11px] font-semibold text-[#1B5E20]">
-            {item.category}
+            <HighlightedText text={item.category} keyword={keyword} />
           </span>
           {item.date && (
             <span className="text-[11px] text-gray-400">{item.date}</span>
           )}
         </div>
         <p className="break-words text-sm font-semibold leading-5 text-gray-950">
-          {item.title}
+          <HighlightedText text={item.title} keyword={keyword} />
         </p>
         {item.summary && (
           <p className="mt-1 line-clamp-2 break-words text-xs leading-5 text-gray-500">
-            {item.summary}
+            <HighlightedText text={item.summary} keyword={keyword} />
           </p>
         )}
       </div>
@@ -386,10 +406,12 @@ function GroupLink({ href }: { href: string }) {
 
 function SearchGroupCard({
   group,
+  keyword,
   isExpanded,
   onToggle,
 }: {
   group: SearchResultGroup;
+  keyword: string;
   isExpanded: boolean;
   onToggle: () => void;
 }) {
@@ -423,7 +445,7 @@ function SearchGroupCard({
 
       <div className="divide-y divide-gray-100 p-2">
         {visibleItems.map(item => (
-          <ResultRow key={`${group.key}-${item.id}`} item={item} />
+          <ResultRow key={`${group.key}-${item.id}`} item={item} keyword={keyword} />
         ))}
       </div>
 
@@ -515,6 +537,7 @@ export default function SearchPage() {
                   <SearchGroupCard
                     key={group.key}
                     group={group}
+                    keyword={keyword}
                     isExpanded={Boolean(expandedGroups[group.key])}
                     onToggle={() =>
                       setExpandedGroups(current => ({

@@ -481,6 +481,39 @@ describe("grouped backend search", () => {
     ]);
   });
 
+  it("shows the matching context even when the word is late or in a secondary field", () => {
+    const dataset = createDataset({
+      notices: [
+        {
+          id: 104,
+          title: "차량운행 안내",
+          category: "공지사항",
+          content: `${"앞부분 안내 문장 ".repeat(20)}연일복지관${" 뒷부분 안내 문장".repeat(20)}`,
+          attachmentName: null,
+          createdAt: "2026-07-15",
+          isPublished: true,
+          isSecret: false,
+        },
+        {
+          id: 105,
+          title: "첨부파일 안내",
+          category: "공지사항",
+          content: "첨부 문서를 확인해 주세요.",
+          attachmentName: "연일복지관-시간표.pdf",
+          createdAt: "2026-07-14",
+          isPublished: true,
+          isSecret: false,
+        },
+      ],
+    });
+
+    const items = groupMap(buildGroupedSearchResult(dataset, "연일복지관")).get("notices")?.items ?? [];
+    expect(items).toHaveLength(2);
+    expect(items[0]?.summary).toContain("연일복지관");
+    expect(items[0]?.summary).toMatch(/^\.\.\./);
+    expect(items[1]?.summary).toBe("연일복지관-시간표.pdf");
+  });
+
   it("excludes free-board results when the guest menu is not visible", () => {
     const dataset = createDataset({
       guestMenus: [

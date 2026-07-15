@@ -304,6 +304,46 @@ function excerpt(value: string | null | undefined, max = 120) {
   return clean.length > max ? `${clean.slice(0, max).trimEnd()}...` : clean;
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** 검색어가 긴 본문 뒤쪽에 있어도 일치 지점 주변 문장이 결과에 보이게 합니다. */
+function excerptAroundKeyword(
+  value: string | null | undefined,
+  keyword: string,
+  max = 120,
+) {
+  const clean = stripHtml(value);
+  if (!clean) return null;
+
+  const normalizedKeyword = normalizeText(keyword);
+  if (!normalizedKeyword) return excerpt(clean, max);
+
+  const match = new RegExp(escapeRegExp(normalizedKeyword), "iu").exec(clean);
+  if (!match || clean.length <= max) return excerpt(clean, max);
+
+  const windowSize = Math.max(max, match[0].length);
+  let start = Math.max(0, match.index - Math.floor((windowSize - match[0].length) / 2));
+  let end = Math.min(clean.length, start + windowSize);
+  if (end === clean.length) start = Math.max(0, end - windowSize);
+
+  const segment = clean.slice(start, end).trim();
+  return `${start > 0 ? "..." : ""}${segment}${end < clean.length ? "..." : ""}`;
+}
+
+function searchExcerpt(
+  keyword: string,
+  values: Array<string | null | undefined>,
+  max = 120,
+) {
+  const cleanValues = values.map(stripHtml).filter(Boolean);
+  if (cleanValues.length === 0) return null;
+
+  const matchingValue = cleanValues.find((value) => matchesKeyword(keyword, value));
+  return excerptAroundKeyword(matchingValue ?? cleanValues.join(" · "), keyword, max);
+}
+
 function formatDate(value: string | Date | null | undefined) {
   if (!value) return null;
   if (value instanceof Date) return value.toISOString().slice(0, 10);
@@ -630,9 +670,7 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
         id: `youtube-${item.id}`,
         title: item.title,
         category: item.playlistTitle || "유튜브",
-        summary:
-          [item.preacher, item.scripture].filter(Boolean).join(" · ") ||
-          excerpt(item.description),
+        summary: searchExcerpt(keyword, [item.preacher, item.scripture, item.description]),
         date: item.sermonDate,
         href: appendQueryParam(videoHref(item.playlistTitle, item.menuItemHref, item.menuSubItemHref), "video", item.id),
       }),
@@ -652,7 +690,7 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
         id: `notice-${item.id}`,
         title: item.title,
         category: "공지사항",
-        summary: excerpt(item.content) || excerpt(item.attachmentName),
+        summary: searchExcerpt(keyword, [item.content, item.attachmentName, item.category]),
         date: formatDate(item.createdAt),
         href: appendQueryParam(NOTICE_PAGE_HREF, "post", item.id),
       }),
@@ -671,7 +709,7 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
         id: `resource-${item.id}`,
         title: item.title,
         category: "자료실",
-        summary: excerpt(item.content) || excerpt(item.attachmentName),
+        summary: searchExcerpt(keyword, [item.content, item.attachmentName, item.category]),
         date: formatDate(item.createdAt),
         href: appendQueryParam(RESOURCE_PAGE_HREF, "post", item.id),
       }),
@@ -689,7 +727,7 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
         id: `testimony-${item.id}`,
         title: item.title,
         category: "간증",
-        summary: excerpt(item.content),
+        summary: searchExcerpt(keyword, [item.content]),
         date: formatDate(item.createdAt),
         href: `/community/testimony/${item.id}`,
       }),
@@ -710,7 +748,7 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
         id: `pastor-book-${item.id}`,
         title: item.title,
         category: "담임목사 저서",
-        summary: excerpt(item.summary || item.contentHtml),
+        summary: searchExcerpt(keyword, [item.summary, item.contentHtml]),
         date: item.publishedAt,
         // 외부 참고 URL은 저서 관리 데이터에 남아 있을 수 있지만, 검색 결과는
         // 현재 홈페이지의 저서 상세 페이지로만 이동해야 한다.
@@ -752,7 +790,7 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
         id: `gallery-${item.albumKey || item.id}`,
         title: item.albumTitle || item.caption || "갤러리",
         category: "갤러리",
-        summary: excerpt(item.albumDescription || item.caption),
+        summary: searchExcerpt(keyword, [item.albumDescription, item.caption]),
         date: formatDate(item.createdAt),
         href: item.albumKey
           ? appendQueryParam(galleryHrefByScopeKey.get(item.galleryScopeKey!)!, "gallery", item.albumKey)
@@ -784,9 +822,9 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
       const text = extractPageBlockText(block.blockType, block.content).join(" ");
       return buildSearchItem({
         id: `page-block-${block.id}`,
-        title: excerpt(text, 64) || target.label,
+        title: searchExcerpt(keyword, [text], 64) || target.label,
         category: target.label,
-        summary: excerpt(text),
+        summary: searchExcerpt(keyword, [text]),
         date: formatDate(block.createdAt),
         href: target.href,
       });
@@ -816,7 +854,7 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
         id: `dynamic-board-${item.id}`,
         title: item.title,
         category: target.label,
-        summary: excerpt(item.content),
+        summary: searchExcerpt(keyword, [item.content, item.boardTitle]),
         date: formatDate(item.createdAt),
         href: appendQueryParam(target.href, "post", item.id),
       });
@@ -835,7 +873,7 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
           id: `free-board-${item.id}`,
           title: item.title,
           category: "자유게시판",
-          summary: excerpt(item.content),
+          summary: searchExcerpt(keyword, [item.content]),
           date: formatDate(item.createdAt),
           href: appendQueryParam(guestIndex.freeBoardHref, "post", item.id),
         }),
@@ -856,9 +894,9 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
     .map((item) =>
       buildSearchItem({
         id: `history-${item.id}`,
-        title: excerpt(item.content, 64) || `${item.year}.${String(item.month).padStart(2, "0")}`,
+        title: searchExcerpt(keyword, [item.content], 64) || `${item.year}.${String(item.month).padStart(2, "0")}`,
         category: `교회 역사 · ${item.year}.${String(item.month).padStart(2, "0")}`,
-        summary: excerpt(item.decadeTitle),
+        summary: searchExcerpt(keyword, [item.decadeTitle]),
         date: formatYearMonth(item.year, item.month),
         href: HISTORY_PAGE_HREF,
       }),
@@ -876,7 +914,7 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
         id: `staff-${item.id}`,
         title: item.name,
         category: categoryLabel,
-        summary: excerpt([item.title, item.department, item.description, item.profile].filter(Boolean).join(" · ")),
+        summary: searchExcerpt(keyword, [item.title, item.department, item.description, item.profile]),
         date: null,
         href: getStaffSearchHref(item.category),
       });
@@ -892,7 +930,7 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
         id: `facility-${item.id}`,
         title: item.name,
         category: item.location || "시설",
-        summary: excerpt([item.description, item.notice, item.caution].filter(Boolean).join(" · ")),
+        summary: searchExcerpt(keyword, [item.description, item.notice, item.caution]),
         date: null,
         href: `${FACILITY_PAGE_HREF}/${item.id}`,
       }),
@@ -920,11 +958,14 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
         id: `course-${item.id}`,
         title: item.title,
         category: "공개 강좌",
-        summary: excerpt(
-          [item.summary, item.instructor, item.location, item.target]
-            .filter(Boolean)
-            .join(" · "),
-        ),
+        summary: searchExcerpt(keyword, [
+          item.summary,
+          item.description,
+          item.instructor,
+          item.location,
+          item.target,
+          item.fee,
+        ]),
         date: item.startDate || item.applyEndDate,
         href: getCourseHref(item.pageHref),
       }),
@@ -941,7 +982,7 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
           id: `missionary-${item.id}`,
           title: item.name,
           category: "선교사",
-          summary: excerpt([item.region, item.organization, item.description].filter(Boolean).join(" · ")),
+          summary: searchExcerpt(keyword, [item.region, item.organization, item.description]),
           date: item.sentYear > 0 ? String(item.sentYear) : null,
           href: MISSION_PAGE_HREF,
         }),
@@ -956,7 +997,7 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
           id: `mission-report-${item.id}`,
           title: item.title,
           category: item.missionaryName,
-          summary: excerpt(item.summary || item.content),
+          summary: searchExcerpt(keyword, [item.missionaryRegion, item.summary, item.content]),
           date: item.reportDate,
           href: `${MISSION_PAGE_HREF}/${item.id}`,
         }),
@@ -990,11 +1031,14 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
           id: `hero-${item.id}`,
           title: item.mainTitle || item.yearLabel || "홈페이지 메인",
           category: "메인 비주얼",
-          summary: excerpt(
-            [item.subTitle, item.bibleRef, item.btn1Text, item.btn2Text, buttonLabels]
-              .filter(Boolean)
-              .join(" · "),
-          ),
+          summary: searchExcerpt(keyword, [
+            item.yearLabel,
+            item.subTitle,
+            item.bibleRef,
+            item.btn1Text,
+            item.btn2Text,
+            buttonLabels,
+          ]),
           date: null,
           href: primaryHref,
         });
@@ -1006,7 +1050,7 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
           id: `quick-menu-${item.id}`,
           title: item.label,
           category: "빠른 메뉴",
-          summary: excerpt(item.href),
+          summary: searchExcerpt(keyword, [item.href]),
           date: null,
           href: item.href,
         }),
@@ -1018,7 +1062,7 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
           id: `affiliate-${item.id}`,
           title: item.label,
           category: "관련 기관",
-          summary: excerpt(item.href),
+          summary: searchExcerpt(keyword, [item.href]),
           date: null,
           href: item.href,
         }),
