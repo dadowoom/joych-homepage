@@ -213,7 +213,7 @@ function VehicleHero() {
   );
 }
 
-function VehicleCard({ vehicle }: { vehicle: VehicleRow }) {
+function VehicleCard({ vehicle, applyHref }: { vehicle: VehicleRow; applyHref: string }) {
   return (
     <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
       {vehicle.thumbnailUrl ? (
@@ -239,9 +239,9 @@ function VehicleCard({ vehicle }: { vehicle: VehicleRow }) {
           <p className="flex items-center gap-2"><Users className="h-4 w-4 text-[#1B5E20]" /> 최대 {vehicle.capacity}명</p>
           <p className="flex items-center gap-2"><Clock className="h-4 w-4 text-[#1B5E20]" /> {vehicle.openTime}~{vehicle.closeTime} · {vehicle.slotMinutes}분 단위</p>
         </div>
-        <Link href={`/support/vehicle/${vehicle.id}`}>
-          <Button className="w-full bg-[#1B5E20] text-white hover:bg-[#2E7D32]" disabled={!vehicle.isReservable}>
-            {vehicle.isReservable ? "예약 신청" : "예약 중단"}
+        <Link href={applyHref}>
+          <Button className="w-full bg-[#1B5E20] text-white hover:bg-[#2E7D32]">
+            이 차량 선택
           </Button>
         </Link>
       </div>
@@ -269,8 +269,11 @@ function VehicleReservationCalendar({
   selectedDate: string;
   onSelectDate: (date: string) => void;
 }) {
-  const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
-  const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
+  const initialSelectedDate = /^\d{4}-\d{2}-\d{2}$/.test(selectedDate)
+    ? selectedDate.split("-").map(Number)
+    : null;
+  const [viewYear, setViewYear] = useState(() => initialSelectedDate?.[0] ?? new Date().getFullYear());
+  const [viewMonth, setViewMonth] = useState(() => (initialSelectedDate?.[1] ?? new Date().getMonth() + 1) - 1);
   const firstDay = new Date(viewYear, viewMonth, 1).getDay();
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const days: (number | null)[] = [
@@ -279,6 +282,13 @@ function VehicleReservationCalendar({
   ];
   const todayKey = getKstDateKey();
   const dayLabels = ["일", "월", "화", "수", "목", "금", "토"];
+
+  useEffect(() => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) return;
+    const [year, month] = selectedDate.split("-").map(Number);
+    setViewYear(year);
+    setViewMonth(month - 1);
+  }, [selectedDate]);
 
   function toDateKey(day: number) {
     return `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -315,8 +325,8 @@ function VehicleReservationCalendar({
       </div>
 
       <div className="mb-3 flex justify-center gap-3 text-xs text-gray-500">
-        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-full border border-green-300 bg-green-100" />예약가능</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-full border border-red-300 bg-red-100" />예약불가</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-full border border-green-300 bg-green-100" />선택 가능</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-full bg-gray-200" />지난 날짜</span>
         <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-full bg-[#1B5E20]" />선택됨</span>
       </div>
 
@@ -479,9 +489,93 @@ function VehicleTimeSlotPanel({
 }
 
 export function VehicleReservationList() {
+  const [, navigate] = useLocation();
+  const searchString = useSearch();
+  const initialParams = useMemo(() => new URLSearchParams(searchString), [searchString]);
+  const initialRepeatMode = initialParams.get("repeatMode");
+  const [selectedDate, setSelectedDate] = useState(initialParams.get("date") ?? "");
+  const [startTime, setStartTime] = useState(initialParams.get("startTime") ?? "");
+  const [endTime, setEndTime] = useState(initialParams.get("endTime") ?? "");
+  const [repeatMode, setRepeatMode] = useState<"none" | "daily" | "weekly" | "monthly">(
+    initialRepeatMode === "daily" || initialRepeatMode === "weekly" || initialRepeatMode === "monthly"
+      ? initialRepeatMode
+      : "none",
+  );
+  const [repeatEndDate, setRepeatEndDate] = useState(initialParams.get("repeatEndDate") ?? "");
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (selectedDate) params.set("date", selectedDate);
+    if (startTime) params.set("startTime", startTime);
+    if (endTime) params.set("endTime", endTime);
+    if (repeatMode !== "none") {
+      params.set("repeatMode", repeatMode);
+      if (repeatEndDate) params.set("repeatEndDate", repeatEndDate);
+    }
+    const nextSearch = params.toString();
+    if (nextSearch === searchString) return;
+    navigate(`/support/vehicle${nextSearch ? `?${nextSearch}` : ""}`, { replace: true });
+  }, [endTime, navigate, repeatEndDate, repeatMode, searchString, selectedDate, startTime]);
   const { data: vehicles, isLoading, error } = trpc.home.vehicles.useQuery(undefined, {
     retry: false,
   });
+  const vehicleRows = useMemo(() => (vehicles ?? []) as VehicleRow[], [vehicles]);
+  const timeOptions = useMemo(() => {
+    const values = new Set<string>();
+    vehicleRows.forEach((vehicle) => {
+      if (!vehicle.isReservable) return;
+      generateReservationTimePoints(vehicle.openTime, vehicle.closeTime, vehicle.slotMinutes)
+        .forEach((time) => values.add(time));
+    });
+    return Array.from(values).sort((left, right) => toMinutes(left) - toMinutes(right));
+  }, [vehicleRows]);
+  const todayKey = getKstDateKey();
+  const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const currentKstMinutes = nowKst.getUTCHours() * 60 + nowKst.getUTCMinutes();
+  const selectedStartIsFuture = Boolean(
+    selectedDate && startTime && (
+      selectedDate > todayKey ||
+      (selectedDate === todayKey && toMinutes(startTime) > currentKstMinutes)
+    )
+  );
+  const scheduleComplete = Boolean(
+    selectedDate &&
+    startTime &&
+    endTime &&
+    startTime < endTime &&
+    selectedStartIsFuture &&
+    (repeatMode === "none" || (repeatEndDate && repeatEndDate >= selectedDate))
+  );
+  const availabilityQuery = trpc.home.availableVehicles.useQuery(
+    {
+      reservationDate: selectedDate || getKstDateKey(),
+      startTime: startTime || "00:00",
+      endTime: endTime || "00:00",
+      passengers: 1,
+      repeatMode,
+      repeatEndDate: repeatMode === "none" ? null : repeatEndDate || null,
+    },
+    { enabled: scheduleComplete, retry: false },
+  );
+  const availableVehicles = (availabilityQuery.data?.vehicles ?? []) as VehicleRow[];
+
+  function handleSelectDate(date: string) {
+    setSelectedDate(date);
+    setStartTime("");
+    setEndTime("");
+    if (repeatEndDate && repeatEndDate < date) setRepeatEndDate("");
+  }
+
+  function getApplyHref(vehicleId: number) {
+    const params = new URLSearchParams({
+      date: selectedDate,
+      startTime,
+      endTime,
+      repeatMode,
+    });
+    if (repeatMode !== "none" && repeatEndDate) params.set("repeatEndDate", repeatEndDate);
+    return `/support/vehicle/${vehicleId}/apply?${params.toString()}`;
+  }
 
   if (error) {
     return <AccessBlocked message={error.message} next="/support/vehicle" />;
@@ -491,8 +585,12 @@ export function VehicleReservationList() {
     <div className="min-h-screen bg-[#F7F7F5]">
       <VehicleHero />
       <section className="py-12">
-        <div className="container">
-          <div className="mb-6 flex justify-end">
+        <div className="container max-w-5xl">
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>시간을 먼저 선택하세요</h2>
+              <p className="mt-1 text-sm text-gray-500">선택한 시간 전체에 이용 가능한 차량만 보여드립니다.</p>
+            </div>
             <Link href="/support/vehicle/my-reservations">
               <Button variant="outline" className="border-[#1B5E20] text-[#1B5E20] hover:bg-green-50">
                 <CalendarCheck className="mr-2 h-4 w-4" /> 내 차량예약 현황
@@ -501,14 +599,148 @@ export function VehicleReservationList() {
           </div>
           {isLoading ? (
             <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-[#1B5E20]" /></div>
-          ) : !vehicles?.length ? (
+          ) : !vehicleRows.some((vehicle) => vehicle.isReservable) ? (
             <div className="rounded-xl border border-dashed border-gray-200 bg-white py-14 text-center text-sm text-gray-400">
               현재 예약 가능한 차량이 없습니다.
             </div>
           ) : (
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {(vehicles as VehicleRow[]).map(vehicle => <VehicleCard key={vehicle.id} vehicle={vehicle} />)}
-            </div>
+            <>
+              <div className="grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
+                <div>
+                  <div className="mb-2 flex items-center gap-2 text-sm font-bold text-gray-800">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#1B5E20] text-xs text-white">1</span>
+                    날짜 선택
+                  </div>
+                  <VehicleReservationCalendar selectedDate={selectedDate} onSelectDate={handleSelectDate} />
+                </div>
+
+                <div>
+                  <div className="mb-2 flex items-center gap-2 text-sm font-bold text-gray-800">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#1B5E20] text-xs text-white">2</span>
+                    시간 선택
+                  </div>
+                  <div className="space-y-5 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-medium text-gray-600">시작 시간</span>
+                        <select
+                          value={startTime}
+                          disabled={!selectedDate}
+                          onChange={(event) => {
+                            setStartTime(event.target.value);
+                            setEndTime("");
+                          }}
+                          className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-3 text-sm focus:border-[#1B5E20] focus:outline-none disabled:bg-gray-50 disabled:text-gray-400"
+                        >
+                          <option value="">시작 시간 선택</option>
+                          {timeOptions.filter((time) => (
+                            time !== "24:00" &&
+                            (selectedDate > todayKey || toMinutes(time) > currentKstMinutes)
+                          )).map((time) => (
+                            <option key={time} value={time}>{time}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-medium text-gray-600">종료 시간</span>
+                        <select
+                          value={endTime}
+                          disabled={!startTime}
+                          onChange={(event) => setEndTime(event.target.value)}
+                          className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-3 text-sm focus:border-[#1B5E20] focus:outline-none disabled:bg-gray-50 disabled:text-gray-400"
+                        >
+                          <option value="">종료 시간 선택</option>
+                          {timeOptions.filter((time) => startTime && toMinutes(time) > toMinutes(startTime)).map((time) => (
+                            <option key={time} value={time}>{time}</option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-medium text-gray-600">반복 일정</span>
+                        <select
+                          value={repeatMode}
+                          onChange={(event) => {
+                            const nextMode = event.target.value as typeof repeatMode;
+                            setRepeatMode(nextMode);
+                            if (nextMode === "none") setRepeatEndDate("");
+                          }}
+                          className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-3 text-sm focus:border-[#1B5E20] focus:outline-none"
+                        >
+                          <option value="none">반복 안 함</option>
+                          <option value="daily">매일 반복</option>
+                          <option value="weekly">매주 반복</option>
+                          <option value="monthly">매월 반복</option>
+                        </select>
+                      </label>
+                      {repeatMode !== "none" && (
+                        <label className="block">
+                          <span className="mb-1.5 block text-xs font-medium text-gray-600">반복 종료일</span>
+                          <input
+                            type="date"
+                            value={repeatEndDate}
+                            min={selectedDate || getKstDateKey()}
+                            onChange={(event) => setRepeatEndDate(event.target.value)}
+                            className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-3 text-sm focus:border-[#1B5E20] focus:outline-none"
+                          />
+                        </label>
+                      )}
+                    </div>
+
+                    <div className="rounded-lg bg-[#F1F8E9] px-4 py-3 text-sm text-[#1B5E20]">
+                      {!selectedDate
+                        ? "날짜를 먼저 선택해 주세요."
+                        : !startTime || !endTime
+                          ? `${formatDateLabel(selectedDate)} · 시작과 종료 시간을 선택해 주세요.`
+                          : repeatMode !== "none" && !repeatEndDate
+                            ? "반복 종료일을 선택해 주세요."
+                            : `${formatDateLabel(selectedDate)} · ${startTime}~${endTime}${repeatMode === "none" ? "" : " · 반복 일정"}`}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8">
+                <div className="mb-3 flex items-center gap-2 text-sm font-bold text-gray-800">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#1B5E20] text-xs text-white">3</span>
+                  가능한 차량 선택
+                </div>
+                {!scheduleComplete ? (
+                  <div className="rounded-xl border border-dashed border-gray-200 bg-white px-5 py-12 text-center text-sm text-gray-400">
+                    날짜와 시간을 모두 선택하면 가능한 차량이 표시됩니다.
+                  </div>
+                ) : availabilityQuery.isFetching ? (
+                  <div className="flex justify-center rounded-xl border border-gray-100 bg-white py-14">
+                    <Loader2 className="h-7 w-7 animate-spin text-[#1B5E20]" />
+                  </div>
+                ) : availabilityQuery.error ? (
+                  <div className="rounded-xl border border-red-100 bg-red-50 px-5 py-8 text-center text-sm text-red-600">
+                    {availabilityQuery.error.message}
+                  </div>
+                ) : availableVehicles.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-gray-200 bg-white px-5 py-12 text-center">
+                    <Car className="mx-auto mb-3 h-10 w-10 text-gray-300" />
+                    <p className="font-medium text-gray-600">선택한 시간에 가능한 차량이 없습니다.</p>
+                    <p className="mt-1 text-xs text-gray-400">다른 시간으로 다시 선택해 주세요.</p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="mb-4 text-sm text-gray-500">
+                      가능한 차량 <strong className="text-[#1B5E20]">{availableVehicles.length}대</strong>
+                      {(availabilityQuery.data?.occurrenceCount ?? 1) > 1 && ` · 반복 ${availabilityQuery.data?.occurrenceCount}회 모두 가능`}
+                    </p>
+                    <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                      {availableVehicles.map((vehicle) => (
+                        <VehicleCard key={vehicle.id} vehicle={vehicle} applyHref={getApplyHref(vehicle.id)} />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="mt-6"><VehicleInquiryCard /></div>
+            </>
           )}
         </div>
       </section>
@@ -517,6 +749,20 @@ export function VehicleReservationList() {
 }
 
 export function VehicleReservationDetail() {
+  const [, navigate] = useLocation();
+
+  useEffect(() => {
+    navigate("/support/vehicle", { replace: true });
+  }, [navigate]);
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#F7F7F5]">
+      <Loader2 className="h-8 w-8 animate-spin text-[#1B5E20]" />
+    </div>
+  );
+}
+
+function LegacyVehicleReservationDetail() {
   const params = useParams<{ id: string }>();
   const vehicleId = Number(params.id);
   const [, navigate] = useLocation();
@@ -762,7 +1008,13 @@ export function VehicleReservationApply() {
   const { user: adminUser } = useAuth();
   const canManageVehicleReservations = hasContentPermission(adminUser, "content:vehicles");
   const initialSearchParams = useMemo(() => new URLSearchParams(searchString), [searchString]);
-  const vehicleDetailHref = `/support/vehicle/${vehicleId}`;
+  const initialRepeatMode = initialSearchParams.get("repeatMode");
+  const selectedRepeatMode: "none" | "daily" | "weekly" | "monthly" =
+    initialRepeatMode === "daily" || initialRepeatMode === "weekly" || initialRepeatMode === "monthly"
+      ? initialRepeatMode
+      : "none";
+  const scheduleSearchHref = `/support/vehicle${searchString ? `?${searchString}` : ""}`;
+  const applyReturnHref = `/support/vehicle/${vehicleId}/apply${searchString ? `?${searchString}` : ""}`;
   const [form, setForm] = useState({
     reserverName: "",
     reserverPhone: "",
@@ -772,9 +1024,15 @@ export function VehicleReservationApply() {
     endTime: initialSearchParams.get("endTime") ?? "",
     notes: "",
     agreePrivacy: false,
-    repeatMode: "none" as "none" | "daily" | "weekly" | "monthly",
-    repeatEndDate: "",
+    repeatMode: selectedRepeatMode,
+    repeatEndDate: initialSearchParams.get("repeatEndDate") ?? "",
   });
+  const hasSelectedSchedule = Boolean(
+    form.date &&
+    form.startTime &&
+    form.endTime &&
+    (form.repeatMode === "none" || form.repeatEndDate),
+  );
   const [submitted, setSubmitted] = useState(false);
   const [reservedStatus, setReservedStatus] = useState<"pending" | "approved">("pending");
   const [reservationCount, setReservationCount] = useState(1);
@@ -902,7 +1160,7 @@ export function VehicleReservationApply() {
     const errorMessage = validate();
     if (errorMessage) {
       showReservationError(errorMessage);
-      if (errorMessage.includes("로그인")) navigate(getLoginHref(`/support/vehicle/${vehicleId}/apply${searchString ? `?${searchString}` : ""}`));
+      if (errorMessage.includes("로그인")) navigate(getLoginHref(applyReturnHref));
       return;
     }
     createReservation.mutate({
@@ -934,8 +1192,25 @@ export function VehicleReservationApply() {
     />
   );
 
+  if (!hasSelectedSchedule) {
+    return (
+      <div className="min-h-screen bg-[#F7F7F5]">
+        <VehicleHero />
+        <section className="py-14">
+          <div className="container max-w-xl">
+            <div className="rounded-xl border border-gray-100 bg-white p-8 text-center shadow-sm">
+              <Clock className="mx-auto mb-4 h-12 w-12 text-[#1B5E20]" />
+              <h2 className="text-xl font-bold text-gray-900">시간을 먼저 선택해 주세요</h2>
+              <p className="mt-2 text-sm text-gray-500">선택한 시간에 가능한 차량을 확인한 뒤 신청할 수 있습니다.</p>
+              <Link href="/support/vehicle"><Button className="mt-6 bg-[#1B5E20] text-white hover:bg-[#2E7D32]">시간 선택으로 이동</Button></Link>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   if (vehicleRow && !error && !isLoading) {
-    const hasQueryDate = Boolean(initialSearchParams.get("date"));
     const inputClass = "w-full rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-800 transition-colors focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:bg-gray-50 disabled:text-gray-400";
 
     return (
@@ -959,11 +1234,7 @@ export function VehicleReservationApply() {
                 <div className="mt-7 flex justify-center gap-2">
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      setSubmitted(false);
-                      setReservationCount(1);
-                      setForm(prev => ({ ...prev, date: "", startTime: "", endTime: "", purpose: "", notes: "", repeatMode: "none", repeatEndDate: "" }));
-                    }}
+                    onClick={() => navigate("/support/vehicle")}
                   >
                     추가 신청
                   </Button>
@@ -991,8 +1262,8 @@ export function VehicleReservationApply() {
                       <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {vehicleRow.slotMinutes}분 단위</span>
                     </div>
                   </div>
-                  <Link href={vehicleDetailHref} className="shrink-0 text-xs text-gray-400 transition-colors hover:text-[#1B5E20]">
-                    ← 변경
+                  <Link href={scheduleSearchHref} className="shrink-0 text-xs text-gray-400 transition-colors hover:text-[#1B5E20]">
+                    차량 변경
                   </Link>
                 </div>
 
@@ -1007,7 +1278,7 @@ export function VehicleReservationApply() {
                       type="button"
                       size="sm"
                       className="shrink-0 bg-amber-500 text-white hover:bg-amber-600"
-                      onClick={() => navigate(getLoginHref(`/support/vehicle/${vehicleId}/apply${searchString ? `?${searchString}` : ""}`))}
+                      onClick={() => navigate(getLoginHref(applyReturnHref))}
                     >
                       로그인
                     </Button>
@@ -1045,77 +1316,22 @@ export function VehicleReservationApply() {
                     사용 일정
                   </h2>
 
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-medium text-gray-600">사용 날짜 *</span>
-                    {hasQueryDate ? (
-                      <div className="flex items-center gap-2">
-                        <div className={`${inputClass} flex cursor-default items-center gap-2 bg-gray-50`}>
-                          <CalendarCheck className="h-4 w-4 shrink-0 text-[#1B5E20]" />
-                          <span className="font-medium text-gray-800">{form.date}</span>
-                        </div>
-                        <Link href={vehicleDetailHref} className="shrink-0 whitespace-nowrap text-xs text-[#1B5E20] hover:underline">
-                          날짜 변경
-                        </Link>
+                  <div className="rounded-xl border border-[#C8E6C9] bg-[#F1F8E9] p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-xs font-medium text-[#2E7D32]">선택한 사용 일정</p>
+                        <p className="mt-1 font-bold text-gray-900">{formatDateLabel(form.date)} · {form.startTime}~{form.endTime}</p>
+                        {form.repeatMode !== "none" && (
+                          <p className="mt-1 text-xs text-gray-500">
+                            {form.repeatMode === "daily" ? "매일" : form.repeatMode === "weekly" ? "매주" : "매월"} 반복 · {form.repeatEndDate}까지
+                          </p>
+                        )}
                       </div>
-                    ) : (
-                      <input
-                        type="date"
-                        value={form.date}
-                        onChange={(e) => updateForm("date", e.target.value)}
-                        min={getKstDateKey()}
-                        className={inputClass}
-                      />
-                    )}
-                  </label>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="block">
-                      <span className="mb-1 block text-xs font-medium text-gray-600">반복 일정</span>
-                      <select
-                        value={form.repeatMode}
-                        onChange={(e) => updateForm("repeatMode", e.target.value)}
-                        className={inputClass}
-                      >
-                        <option value="none">반복 안 함</option>
-                        <option value="daily">매일 반복</option>
-                        <option value="weekly">매주 반복</option>
-                        <option value="monthly">매월 반복</option>
-                      </select>
-                    </label>
-                    {form.repeatMode !== "none" && (
-                      <label className="block">
-                        <span className="mb-1 block text-xs font-medium text-gray-600">반복 종료일 *</span>
-                        <input
-                          type="date"
-                          value={form.repeatEndDate}
-                          min={form.date || getKstDateKey()}
-                          onChange={(e) => updateForm("repeatEndDate", e.target.value)}
-                          className={inputClass}
-                        />
-                      </label>
-                    )}
-                  </div>
-                  {form.repeatMode !== "none" && (
-                    <p className="-mt-2 text-xs text-gray-400">같은 차량과 시간으로 {form.repeatMode === "daily" ? "매일" : form.repeatMode === "weekly" ? "매주" : "매월"} 반복 예약을 신청합니다. 이미 예약된 날짜가 있으면 전체 예약이 저장되지 않습니다.</p>
-                  )}
-
-                  {form.date && (
-                    <div>
-                      <span className="mb-1 block text-xs font-medium text-gray-600">사용 시간 *</span>
-                      <VehicleTimeSlotPanel
-                        vehicle={vehicleRow}
-                        selectedDate={form.date}
-                        allSlots={allTimeSlots}
-                        bookedSlots={bookedSlots}
-                        disabledSlots={disabledSlots}
-                        reservationRows={reservationRows}
-                        startTime={form.startTime}
-                        endTime={form.endTime}
-                        onSelectTime={(start, end) => setForm(prev => ({ ...prev, startTime: start, endTime: end }))}
-                      />
-                      <p className="mt-2 text-xs text-gray-400">{vehicleRow.slotMinutes}분 단위 - 시작 시간을 클릭한 뒤 종료 시간을 클릭하세요.</p>
+                      <Link href={scheduleSearchHref} className="shrink-0 text-xs font-semibold text-[#1B5E20] hover:underline">
+                        시간·차량 다시 선택
+                      </Link>
                     </div>
-                  )}
+                  </div>
 
                   <label className="block">
                     <span className="mb-1 block text-xs font-medium text-gray-600">추가 요청사항</span>
@@ -1152,7 +1368,7 @@ export function VehicleReservationApply() {
   }
 
   if (error) {
-    return <AccessBlocked message={error.message} next={`/support/vehicle/${vehicleId}/apply`} />;
+    return <AccessBlocked message={error.message} next={applyReturnHref} />;
   }
 
   if (isLoading) {

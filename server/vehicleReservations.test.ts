@@ -4,6 +4,7 @@ import type { TrpcContext, TrpcUser } from "./_core/context";
 const dbMocks = vi.hoisted(() => ({
   canMemberUseVehicleReservation: vi.fn(),
   createVehicleReservationIfAvailable: vi.fn(),
+  getAvailableVehiclesForSchedule: vi.fn(),
   getAdminVehicleReservationDetailsByDate: vi.fn(),
   getMemberById: vi.fn(),
   getVehicleById: vi.fn(),
@@ -46,6 +47,7 @@ vi.mock("./db", async (importOriginal) => {
     ...actual,
     canMemberUseVehicleReservation: dbMocks.canMemberUseVehicleReservation,
     createVehicleReservationIfAvailable: dbMocks.createVehicleReservationIfAvailable,
+    getAvailableVehiclesForSchedule: dbMocks.getAvailableVehiclesForSchedule,
     getAdminVehicleReservationDetailsByDate: dbMocks.getAdminVehicleReservationDetailsByDate,
     getMemberById: dbMocks.getMemberById,
     getVehicleById: dbMocks.getVehicleById,
@@ -164,6 +166,7 @@ describe("vehicle reservations", () => {
       status: "pending",
     });
     dbMocks.getVehicles.mockResolvedValue([reservableVehicle]);
+    dbMocks.getAvailableVehiclesForSchedule.mockResolvedValue([reservableVehicle]);
     dbMocks.getAdminVehicleReservationDetailsByDate.mockResolvedValue([]);
     dbMocks.createVehicleReservationIfAvailable.mockResolvedValue(200);
     dbMocks.updateVehicleReservationDetails.mockResolvedValue(true);
@@ -175,6 +178,13 @@ describe("vehicle reservations", () => {
     const caller = appRouter.createCaller(createContext());
 
     await expect(caller.home.vehicles()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.home.availableVehicles({
+      reservationDate: "2026-06-17",
+      startTime: "10:00",
+      endTime: "11:00",
+      passengers: 1,
+      repeatMode: "none",
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.home.createVehicleReservation(vehicleReservationInput())).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
@@ -272,6 +282,77 @@ describe("vehicle reservations", () => {
         status: "pending",
       }),
     );
+  });
+
+  it("returns only vehicles available for the selected schedule", async () => {
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(caller.home.availableVehicles({
+      reservationDate: "2026-06-17",
+      startTime: "10:00",
+      endTime: "11:00",
+      passengers: 1,
+      repeatMode: "none",
+    })).resolves.toEqual({
+      vehicles: [reservableVehicle],
+      occurrenceCount: 1,
+    });
+    expect(dbMocks.getAvailableVehiclesForSchedule).toHaveBeenCalledWith(
+      ["2026-06-17"],
+      "10:00",
+      "11:00",
+      1,
+    );
+  });
+
+  it("checks every occurrence before offering a vehicle for a repeating schedule", async () => {
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(caller.home.availableVehicles({
+      reservationDate: "2026-06-17",
+      startTime: "10:00",
+      endTime: "11:00",
+      passengers: 1,
+      repeatMode: "weekly",
+      repeatEndDate: "2026-07-01",
+    })).resolves.toMatchObject({ occurrenceCount: 3 });
+    expect(dbMocks.getAvailableVehiclesForSchedule).toHaveBeenCalledWith(
+      ["2026-06-17", "2026-06-24", "2026-07-01"],
+      "10:00",
+      "11:00",
+      1,
+    );
+  });
+
+  it("rejects nonexistent calendar dates before checking or saving availability", async () => {
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(caller.home.availableVehicles({
+      reservationDate: "2026-06-31",
+      startTime: "10:00",
+      endTime: "11:00",
+      passengers: 1,
+      repeatMode: "none",
+    })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(caller.home.createVehicleReservation(vehicleReservationInput({
+      reservationDate: "2026-06-31",
+    }))).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(dbMocks.getAvailableVehiclesForSchedule).not.toHaveBeenCalled();
+    expect(dbMocks.createVehicleReservationIfAvailable).not.toHaveBeenCalled();
+  });
+
+  it("rejects repeating schedules as soon as they exceed 100 occurrences", async () => {
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(caller.home.availableVehicles({
+      reservationDate: "2026-06-17",
+      startTime: "10:00",
+      endTime: "11:00",
+      passengers: 1,
+      repeatMode: "daily",
+      repeatEndDate: "9999-12-31",
+    })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(dbMocks.getAvailableVehiclesForSchedule).not.toHaveBeenCalled();
   });
 
   it("allows same-day future vehicle reservations without the facility 24-hour lead guard", async () => {

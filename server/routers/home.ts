@@ -72,6 +72,7 @@ import {
   canMemberUseVehicleReservation,
   createVehicleReservationIfAvailable,
   createVehicleReservationsIfAvailable,
+  getAvailableVehiclesForSchedule,
   getAdminVehicleReservationDetailsByDate,
   getMyVehicleReservations,
   getVehicleById,
@@ -126,14 +127,31 @@ function formatVehicleDateKey(year: number, month: number, day: number) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+function isValidVehicleDateKey(dateKey: string) {
+  if (!DATE_RE.test(dateKey)) return false;
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
+}
+
 function getVehicleReservationDates(
   startDate: string,
   repeatMode: z.infer<typeof vehicleRepeatSchema>,
   repeatEndDate?: string | null,
 ) {
+  if (!isValidVehicleDateKey(startDate)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "예약 날짜가 올바르지 않습니다." });
+  }
   if (repeatMode === "none") return [startDate];
   if (!repeatEndDate) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "반복 예약의 종료일을 선택해주세요." });
+  }
+  if (!isValidVehicleDateKey(repeatEndDate)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "반복 종료일이 올바르지 않습니다." });
   }
   if (repeatEndDate < startDate) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "반복 종료일은 시작일 이후여야 합니다." });
@@ -144,7 +162,11 @@ function getVehicleReservationDates(
   const dates: string[] = [];
   const pushDate = (year: number, month: number, day: number) => {
     const key = formatVehicleDateKey(year, month, day);
-    if (key <= repeatEndDate) dates.push(key);
+    if (key > repeatEndDate) return;
+    if (dates.length >= 100) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "반복 예약은 한 번에 최대 100회까지 신청할 수 있습니다." });
+    }
+    dates.push(key);
   };
 
   if (repeatMode === "monthly") {
@@ -169,9 +191,6 @@ function getVehicleReservationDates(
     }
   }
 
-  if (dates.length > 100) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "반복 예약은 한 번에 최대 100회까지 신청할 수 있습니다." });
-  }
   return dates;
 }
 
@@ -1384,6 +1403,46 @@ export const homeRouter = router({
         });
       }
       return getVehicles(true);
+    }),
+
+  availableVehicles: publicProcedure
+    .input(z.object({
+      reservationDate: z.string().regex(DATE_RE, "예약 날짜 형식이 올바르지 않습니다."),
+      startTime: z.string().regex(TIME_RE, "시작 시간 형식이 올바르지 않습니다."),
+      endTime: z.string().regex(TIME_RE, "종료 시간 형식이 올바르지 않습니다."),
+      passengers: z.number().int().min(1).default(1),
+      repeatMode: vehicleRepeatSchema.default("none"),
+      repeatEndDate: z.string().regex(DATE_RE, "반복 종료일 형식이 올바르지 않습니다.").nullable().optional(),
+    }))
+    .query(async ({ input, ctx }) => {
+      if (!(await canContextUseVehicleReservation(ctx))) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "차량예약은 지정된 성도 그룹만 이용할 수 있습니다. 관리자에게 문의해 주세요.",
+        });
+      }
+      const startMinutes = toMinutes(input.startTime);
+      const endMinutes = toMinutes(input.endTime);
+      if (startMinutes === null || endMinutes === null || startMinutes >= endMinutes) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "종료 시간은 시작 시간보다 늦어야 합니다." });
+      }
+
+      const reservationDates = getVehicleReservationDates(
+        input.reservationDate,
+        input.repeatMode,
+        input.repeatEndDate,
+      );
+      reservationDates.forEach((date) => assertReservationStartsInFuture(date, input.startTime));
+      const availableVehicles = await getAvailableVehiclesForSchedule(
+        reservationDates,
+        input.startTime,
+        input.endTime,
+        input.passengers,
+      );
+      return {
+        vehicles: availableVehicles,
+        occurrenceCount: reservationDates.length,
+      };
     }),
 
   vehicle: publicProcedure

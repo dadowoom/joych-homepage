@@ -11,6 +11,7 @@ import {
   InsertVehicleImage,
   InsertVehicleReservation,
   InsertVehicleReservationAccessRule,
+  type Vehicle,
   vehicleImages,
   vehicleReservationAccessRules,
   vehicleReservations,
@@ -357,6 +358,87 @@ export async function createVehicleReservationIfAvailable(
 ) {
   const ids = await createVehicleReservationsIfAvailable([data]);
   return ids[0] ?? null;
+}
+
+type VehicleScheduleRules = Pick<
+  Vehicle,
+  | "isVisible"
+  | "isReservable"
+  | "openTime"
+  | "closeTime"
+  | "slotMinutes"
+  | "minSlots"
+  | "maxSlots"
+  | "capacity"
+>;
+
+function parseVehicleTimeMinutes(time: string) {
+  const match = /^(?:([01]\d|2[0-3]):([0-5]\d)|24:00)$/.exec(time);
+  if (!match) return null;
+  if (time === "24:00") return 24 * 60;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+export function isVehicleCompatibleWithSchedule(
+  vehicle: VehicleScheduleRules,
+  startTime: string,
+  endTime: string,
+  passengers = 1,
+) {
+  if (!vehicle.isVisible || !vehicle.isReservable || passengers < 1 || passengers > vehicle.capacity) {
+    return false;
+  }
+
+  const startMinutes = parseVehicleTimeMinutes(startTime);
+  const endMinutes = parseVehicleTimeMinutes(endTime);
+  const openMinutes = parseVehicleTimeMinutes(vehicle.openTime);
+  const closeMinutes = parseVehicleTimeMinutes(vehicle.closeTime);
+  if (startMinutes === null || endMinutes === null || openMinutes === null || closeMinutes === null) {
+    return false;
+  }
+  if (startMinutes >= endMinutes || startMinutes < openMinutes || endMinutes > closeMinutes) {
+    return false;
+  }
+
+  const slotMinutes = vehicle.slotMinutes > 0 ? vehicle.slotMinutes : 60;
+  if ((startMinutes - openMinutes) % slotMinutes !== 0 || (endMinutes - openMinutes) % slotMinutes !== 0) {
+    return false;
+  }
+  const selectedSlots = (endMinutes - startMinutes) / slotMinutes;
+  return selectedSlots >= vehicle.minSlots && selectedSlots <= vehicle.maxSlots;
+}
+
+/** 선택한 모든 날짜와 시간에 실제로 비어 있는 차량만 반환합니다. */
+export async function getAvailableVehiclesForSchedule(
+  reservationDates: string[],
+  startTime: string,
+  endTime: string,
+  passengers = 1,
+) {
+  const allVehicles = await getVehicles(true);
+  const candidates = allVehicles.filter((vehicle) =>
+    isVehicleCompatibleWithSchedule(vehicle, startTime, endTime, passengers)
+  );
+  if (candidates.length === 0 || reservationDates.length === 0) return [];
+
+  const db = await getDb();
+  if (!db) return [];
+  const candidateIds = candidates.map((vehicle) => vehicle.id);
+  const conflicts = await db
+    .select({ vehicleId: vehicleReservations.vehicleId })
+    .from(vehicleReservations)
+    .where(and(
+      inArray(vehicleReservations.vehicleId, candidateIds),
+      inArray(vehicleReservations.reservationDate, reservationDates),
+      or(
+        eq(vehicleReservations.status, "pending"),
+        eq(vehicleReservations.status, "approved"),
+      ),
+      lt(vehicleReservations.startTime, endTime),
+      gt(vehicleReservations.endTime, startTime),
+    ));
+  const unavailableVehicleIds = new Set(conflicts.map((row) => row.vehicleId));
+  return candidates.filter((vehicle) => !unavailableVehicleIds.has(vehicle.id));
 }
 
 /**
