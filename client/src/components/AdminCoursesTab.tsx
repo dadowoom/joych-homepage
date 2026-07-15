@@ -13,7 +13,7 @@ import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
 import ReservationTimelinePicker from "@/components/facility/ReservationTimelinePicker";
 import CourseRoomPermissionManager from "@/components/CourseRoomPermissionManager";
-import { getReservationTimeRestriction } from "@/lib/facilityReservationTime";
+import { getKstDateKey, getReservationTimeRestriction } from "@/lib/facilityReservationTime";
 import { generateReservationTimePoints } from "@/lib/facilitySlotSelection";
 import { toast } from "sonner";
 import {
@@ -329,6 +329,10 @@ export default function AdminCoursesTab() {
   const [editingApplicationId, setEditingApplicationId] = useState<number | null>(null);
   const [applicationEditForm, setApplicationEditForm] = useState({ applicantName: "", applicantPhone: "", applicantEmail: "", memo: "" });
   const [form, setForm] = useState(EMPTY_FORM);
+  const applicationStartMin = getKstDateKey();
+  const applicationEndMin = form.applyStartDate > applicationStartMin
+    ? form.applyStartDate
+    : applicationStartMin;
   const [selectedCourseRoomHref, setSelectedCourseRoomHref] = useState("/education/courses");
   const [uploadingCourseImage, setUploadingCourseImage] = useState(false);
   const [facilityPickerOpen, setFacilityPickerOpen] = useState(false);
@@ -1175,11 +1179,11 @@ export default function AdminCoursesTab() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">신청 시작일</label>
-                <input type="date" value={form.applyStartDate} onChange={e => setForm(prev => ({ ...prev, applyStartDate: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]" />
+                <input type="date" min={applicationStartMin} value={form.applyStartDate} onChange={e => setForm(prev => ({ ...prev, applyStartDate: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">신청 마감일</label>
-                <input type="date" value={form.applyEndDate} onChange={e => setForm(prev => ({ ...prev, applyEndDate: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]" />
+                <input type="date" min={applicationEndMin} value={form.applyEndDate} onChange={e => setForm(prev => ({ ...prev, applyEndDate: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1B5E20]" />
               </div>
               <label className="flex items-center gap-2 pt-6 text-sm text-gray-600">
                 <input
