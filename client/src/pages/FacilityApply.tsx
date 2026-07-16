@@ -37,8 +37,12 @@ import {
 import {
   hasFacilityReservationBlockedMemberMarker,
 } from "@shared/facilityReservationEligibility";
+import {
+  RESERVATION_REPEAT_OPTIONS,
+  type ReservationRepeatType,
+} from "@shared/reservationRecurrence";
 
-type RepeatType = "none" | "daily" | "weekly" | "monthly-weekday";
+type RepeatType = ReservationRepeatType;
 type FacilityBuilding = "hayoungin" | "welfare";
 type FacilityAudience = "member" | "external";
 const FACILITY_CONTACT_DEFAULT_TEXT_KEY = "facility_contact_default_text";
@@ -64,13 +68,6 @@ function getFacilityDetailHref(facilityId: number, building: FacilityBuilding, a
     ? `/facility/external/${facilityId}?building=${building}`
     : `/facility/${facilityId}?building=${building}`;
 }
-
-const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
-  { value: "none", label: "반복 없음" },
-  { value: "daily", label: "매일" },
-  { value: "weekly", label: "매주" },
-  { value: "monthly-weekday", label: "매월 같은 주" },
-];
 
 // 요일 숫자 (0=일, 1=월 ... 6=토)
 function getDayOfWeek(dateStr: string): number {
@@ -994,7 +991,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                         onChange={handleChange}
                         className={inputClass}
                       >
-                        {REPEAT_OPTIONS.map(option => (
+                        {RESERVATION_REPEAT_OPTIONS.map(option => (
                           <option key={option.value} value={option.value}>{option.label}</option>
                         ))}
                       </select>

@@ -454,7 +454,7 @@ describe("vehicle reservations", () => {
 
     await expect(caller.home.createVehicleReservation(vehicleReservationInput({
       reservationDate: "2026-06-17",
-      repeatMode: "monthly",
+      repeatMode: "monthly-weekday",
       repeatEndDate: "2026-09-30",
     }))).resolves.toMatchObject({
       id: 200,
@@ -547,7 +547,7 @@ describe("vehicle reservations", () => {
     );
   });
 
-  it("skips months without the same fifth weekday for monthly vehicle schedules", async () => {
+  it("keeps legacy monthly links on the same fifth-weekday facility rule", async () => {
     const caller = appRouter.createCaller(createContext());
 
     await expect(caller.home.availableVehicles({

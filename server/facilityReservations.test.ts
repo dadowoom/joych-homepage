@@ -520,6 +520,33 @@ describe("facility reservation lead-time guard", () => {
     );
   });
 
+  it("creates monthly facility reservations on the shared ordinal-weekday rule", async () => {
+    dbMocks.getSiteSettings.mockResolvedValue({ facility_reservation_max_months: "4" });
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(
+      caller.home.createReservation(reservationInput({
+        reservationDate: "2026-06-17",
+        startTime: "15:00",
+        endTime: "16:00",
+        repeat: {
+          type: "monthly-weekday",
+          untilDate: "2026-09-30",
+        },
+      })),
+    ).resolves.toMatchObject({
+      count: 4,
+      recurrenceLabel: "매월 같은 주 반복 · 2026-09-30까지 · 총 4회",
+    });
+
+    expect(dbMocks.createReservationIfAvailable.mock.calls.map(([input]) => input.reservationDate)).toEqual([
+      "2026-06-17",
+      "2026-07-15",
+      "2026-08-19",
+      "2026-09-16",
+    ]);
+  });
+
   it("sends push notifications for auto-approved facility reservations", async () => {
     dbMocks.getFacilityById.mockResolvedValue({
       ...reservableFacility,

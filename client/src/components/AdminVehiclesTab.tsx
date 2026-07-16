@@ -1295,9 +1295,6 @@ export default function AdminVehiclesTab() {
                     .filter(statusKey => statusCounts[statusKey] > 0);
                   const cancellableCount = statusCounts.pending + statusCounts.approved;
                   const recurrenceDisplayLabel = formatVehicleRecurrenceLabel(group.recurrenceLabel);
-                  const recurrenceModeLabel = recurrenceDisplayLabel
-                    ?.split(" · ", 1)[0]
-                    ?.replace("(기존 예약)", "") ?? "반복";
 
                   return (
                     <div
@@ -1327,7 +1324,7 @@ export default function AdminVehiclesTab() {
                           </div>
                           {group.isRecurring && (
                             <div className="shrink-0 rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
-                              {recurrenceModeLabel} {group.count}회
+                              반복 {group.count}회
                             </div>
                           )}
                         </div>

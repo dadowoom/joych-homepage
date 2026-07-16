@@ -52,11 +52,7 @@ export function formatVehicleRecurrenceLabel(label: string | null | undefined) {
     );
   }
 
-  return normalized
-    .replace(/^기존\s+(?=매(?:일|주|월)\s)/, "")
-    .replace(/^매월\s+같은\s+주\s+반복(?=\s*·|$)/, "매월 같은 주")
-    .replace(/^매일\s+반복(?=\s*·|$)/, "매일")
-    .replace(/^매주\s+반복(?=\s*·|$)/, "매주");
+  return normalized;
 }
 
 /**

@@ -22,6 +22,11 @@ import {
 import { groupVehicleReservations } from "@/lib/vehicleReservationGroups";
 import { sortVehiclePlateRows } from "@/lib/vehiclePlateSort";
 import { shouldResetVehicleReservationTime } from "@/lib/vehicleReservationTimeSelection";
+import {
+  normalizeReservationRepeatType,
+  RESERVATION_REPEAT_OPTIONS,
+  type ReservationRepeatType,
+} from "@shared/reservationRecurrence";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -799,15 +804,11 @@ export function VehicleReservationList() {
   const [, navigate] = useLocation();
   const searchString = useSearch();
   const initialParams = useMemo(() => new URLSearchParams(searchString), [searchString]);
-  const initialRepeatMode = initialParams.get("repeatMode");
+  const initialRepeatMode = normalizeReservationRepeatType(initialParams.get("repeatMode"));
   const [selectedDate, setSelectedDate] = useState(initialParams.get("date") ?? "");
   const [startTime, setStartTime] = useState(initialParams.get("startTime") ?? "");
   const [endTime, setEndTime] = useState(initialParams.get("endTime") ?? "");
-  const [repeatMode, setRepeatMode] = useState<"none" | "daily" | "weekly" | "monthly">(
-    initialRepeatMode === "daily" || initialRepeatMode === "weekly" || initialRepeatMode === "monthly"
-      ? initialRepeatMode
-      : "none",
-  );
+  const [repeatMode, setRepeatMode] = useState<ReservationRepeatType>(initialRepeatMode);
   const [repeatEndDate, setRepeatEndDate] = useState(initialParams.get("repeatEndDate") ?? "");
 
   useEffect(() => {
@@ -967,7 +968,7 @@ export function VehicleReservationList() {
                   <div className="space-y-5 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
                     <div className="grid gap-4 sm:grid-cols-2">
                       <label className="block">
-                        <span className="mb-1.5 block text-xs font-medium text-gray-600">반복 일정</span>
+                        <span className="mb-1.5 block text-xs font-medium text-gray-600">반복 예약</span>
                         <select
                           value={repeatMode}
                           onChange={(event) => {
@@ -977,10 +978,9 @@ export function VehicleReservationList() {
                           }}
                           className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-3 text-sm focus:border-[#1B5E20] focus:outline-none"
                         >
-                          <option value="none">반복 없음</option>
-                          <option value="daily">매일</option>
-                          <option value="weekly">매주</option>
-                          <option value="monthly">매월 같은 주</option>
+                          {RESERVATION_REPEAT_OPTIONS.map(option => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
                         </select>
                       </label>
                       {repeatMode !== "none" && (
@@ -998,6 +998,10 @@ export function VehicleReservationList() {
                         </label>
                       )}
                     </div>
+
+                    <p className="text-xs text-gray-400">
+                      선택한 날짜와 시간 기준으로 여러 날짜의 예약을 한 번에 신청합니다.
+                    </p>
 
                     {!selectedDate ? (
                       <p className="rounded-lg bg-gray-50 px-3 py-5 text-center text-sm text-gray-500">
@@ -1360,11 +1364,7 @@ export function VehicleReservationApply() {
   const { user: adminUser } = useAuth();
   const canManageVehicleReservations = hasContentPermission(adminUser, "content:vehicles");
   const initialSearchParams = useMemo(() => new URLSearchParams(searchString), [searchString]);
-  const initialRepeatMode = initialSearchParams.get("repeatMode");
-  const selectedRepeatMode: "none" | "daily" | "weekly" | "monthly" =
-    initialRepeatMode === "daily" || initialRepeatMode === "weekly" || initialRepeatMode === "monthly"
-      ? initialRepeatMode
-      : "none";
+  const selectedRepeatMode = normalizeReservationRepeatType(initialSearchParams.get("repeatMode"));
   const scheduleSearchHref = `/support/vehicle${searchString ? `?${searchString}` : ""}`;
   const applyReturnHref = `/support/vehicle/${vehicleId}/apply${searchString ? `?${searchString}` : ""}`;
   const [form, setForm] = useState({

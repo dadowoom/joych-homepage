@@ -28,6 +28,10 @@ import {
   isReservationDateAfterMax,
 } from "@shared/facilityReservationPolicy";
 import {
+  normalizeReservationRepeatType,
+  type ReservationRepeatType,
+} from "@shared/reservationRecurrence";
+import {
   getVisibleHeroSlides,
   getVisibleQuickMenus,
   getNoticeById,
@@ -113,7 +117,9 @@ import { getStaticPageSeed } from "@shared/staticPageContent";
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^(([01]\d|2[0-3]):[0-5]\d|24:00)$/;
 const idSchema = z.number().int().positive();
-const vehicleRepeatSchema = z.enum(["none", "daily", "weekly", "monthly"]);
+// `monthly`는 배포 전 화면이나 기존 링크가 보내는 구형 호환 값입니다.
+const vehicleRepeatSchema = z.enum(["none", "daily", "weekly", "monthly-weekday", "monthly"]);
+const MAX_VEHICLE_REPEAT_OCCURRENCES = 100;
 const hrefLookupSchema = z.string().trim().min(1).max(256);
 const menuBoardCategorySchema = z.string().trim().regex(/^menu-board:[a-z0-9]{1,16}$/);
 const dynamicBoardSourceSchema = z.object({
@@ -124,89 +130,19 @@ const dynamicBoardSourceSchema = z.object({
   "2단 메뉴 또는 3단 메뉴 중 하나만 선택해주세요.",
 );
 
-function formatVehicleDateKey(year: number, month: number, day: number) {
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
-function isValidVehicleDateKey(dateKey: string) {
-  if (!DATE_RE.test(dateKey)) return false;
-  const [year, month, day] = dateKey.split("-").map(Number);
-  const parsed = new Date(Date.UTC(year, month - 1, day));
-  return (
-    parsed.getUTCFullYear() === year &&
-    parsed.getUTCMonth() === month - 1 &&
-    parsed.getUTCDate() === day
-  );
-}
-
 function getVehicleReservationDates(
   startDate: string,
   repeatMode: z.infer<typeof vehicleRepeatSchema>,
   repeatEndDate?: string | null,
 ) {
-  if (!isValidVehicleDateKey(startDate)) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "예약 날짜가 올바르지 않습니다." });
-  }
-  if (repeatMode === "none") return [startDate];
-  if (!repeatEndDate) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "반복 예약의 종료일을 선택해주세요." });
-  }
-  if (!isValidVehicleDateKey(repeatEndDate)) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "반복 종료일이 올바르지 않습니다." });
-  }
-  if (repeatEndDate < startDate) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "반복 종료일은 시작일 이후여야 합니다." });
-  }
-
-  const [startYear, startMonth, startDay] = startDate.split("-").map(Number);
-  const [endYear, endMonth, endDay] = repeatEndDate.split("-").map(Number);
-  const dates: string[] = [];
-  const pushDate = (year: number, month: number, day: number) => {
-    const key = formatVehicleDateKey(year, month, day);
-    if (key > repeatEndDate) return;
-    if (dates.length >= 100) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "반복 예약은 한 번에 최대 100회까지 신청할 수 있습니다." });
-    }
-    dates.push(key);
-  };
-
-  if (repeatMode === "monthly") {
-    const monthlyWeekday = getMonthlyWeekdayInfo(
-      new Date(Date.UTC(startYear, startMonth - 1, startDay)),
-    );
-    let year = startYear;
-    let month = startMonth;
-    while (formatVehicleDateKey(year, month, 1) <= formatVehicleDateKey(endYear, endMonth, 1)) {
-      const candidate = nthWeekdayDate(
-        year,
-        month - 1,
-        monthlyWeekday.nth,
-        monthlyWeekday.weekday,
-      );
-      if (candidate) {
-        pushDate(
-          candidate.getUTCFullYear(),
-          candidate.getUTCMonth() + 1,
-          candidate.getUTCDate(),
-        );
-      }
-      month += 1;
-      if (month === 13) {
-        month = 1;
-        year += 1;
-      }
-    }
-  } else {
-    const cursor = new Date(Date.UTC(startYear, startMonth - 1, startDay));
-    const end = new Date(Date.UTC(endYear, endMonth - 1, endDay));
-    const stepDays = repeatMode === "weekly" ? 7 : 1;
-    while (cursor <= end) {
-      pushDate(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, cursor.getUTCDate());
-      cursor.setUTCDate(cursor.getUTCDate() + stepDays);
-    }
-  }
-
-  return dates;
+  const normalizedRepeatMode = normalizeReservationRepeatType(repeatMode);
+  return buildReservationDates(
+    startDate,
+    normalizedRepeatMode === "none"
+      ? undefined
+      : { type: normalizedRepeatMode, untilDate: repeatEndDate ?? undefined },
+    MAX_VEHICLE_REPEAT_OCCURRENCES,
+  );
 }
 
 function describeVehicleReservationRepeat(
@@ -214,12 +150,11 @@ function describeVehicleReservationRepeat(
   repeatEndDate: string,
   count: number,
 ) {
-  const labelByMode = {
-    daily: "매일",
-    weekly: "매주",
-    monthly: "매월 같은 주",
-  } satisfies Record<Exclude<z.infer<typeof vehicleRepeatSchema>, "none">, string>;
-  return `${labelByMode[repeatMode]} 반복 · ${repeatEndDate}까지 · 총 ${count}회`;
+  const normalizedRepeatMode = normalizeReservationRepeatType(repeatMode);
+  return describeReservationRepeat(
+    { type: normalizedRepeatMode as Exclude<ReservationRepeatType, "none">, untilDate: repeatEndDate },
+    count,
+  );
 }
 
 function getMenuReadAccess(ctx: { user?: unknown; memberId?: number | null }) {
@@ -480,7 +415,8 @@ function getMonthlyWeekdayInfo(date: Date) {
 
 function buildReservationDates(
   startDateKey: string,
-  repeat?: z.infer<typeof reservationRepeatSchema>
+  repeat?: z.infer<typeof reservationRepeatSchema>,
+  maxOccurrences = MAX_REPEAT_OCCURRENCES,
 ) {
   const startDate = parseDateKey(startDateKey);
   if (!startDate) {
@@ -529,19 +465,19 @@ function buildReservationDates(
       stoppedByEndDate = true;
       break;
     }
-    if (dates.length >= MAX_REPEAT_OCCURRENCES) {
+    if (dates.length >= maxOccurrences) {
       throw new TRPCError({
         code: "BAD_REQUEST",
-        message: `반복 예약은 한 번에 최대 ${MAX_REPEAT_OCCURRENCES}건까지 신청할 수 있습니다.`,
+        message: `반복 예약은 한 번에 최대 ${maxOccurrences}건까지 신청할 수 있습니다.`,
       });
     }
     dates.push(formatDateKey(candidate));
   }
 
-  if (!stoppedByEndDate && dates.length >= MAX_REPEAT_OCCURRENCES) {
+  if (!stoppedByEndDate && dates.length >= maxOccurrences) {
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: `반복 예약은 한 번에 최대 ${MAX_REPEAT_OCCURRENCES}건까지 신청할 수 있습니다.`,
+      message: `반복 예약은 한 번에 최대 ${maxOccurrences}건까지 신청할 수 있습니다.`,
     });
   }
   if (!stoppedByEndDate && dates.length > 0) {
