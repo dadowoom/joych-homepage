@@ -154,6 +154,16 @@ function sanitizeMemberForAdmin<T extends Record<string, unknown>>(member: T) {
   return safeData;
 }
 
+function sanitizeMemberForDirectoryManager<T extends Record<string, unknown>>(member: T) {
+  const {
+    passwordHash: _passwordHash,
+    adminMemo: _adminMemo,
+    assignedDistricts: _assignedDistricts,
+    ...safeData
+  } = member;
+  return safeData;
+}
+
 function sanitizeMemberForApproval<T extends Record<string, unknown>>(member: T) {
   return {
     id: member.id as number,
@@ -440,8 +450,13 @@ export const membersRouter = router({
 
   // ─── 관리자 전용 API ─────────────────────────────────────────────────────────
 
-  /** 전체 성도 목록 (관리자) */
-  adminList: adminProcedure.query(async () => (await getAllMembers()).map(sanitizeMemberForAdmin)),
+  /** 전체 성도 목록 (최고관리자 또는 회원가입 승인/교적부 권한자) */
+  adminList: memberApprovalProcedure.query(async ({ ctx }) => {
+    const members = await getAllMembers();
+    return ctx.user.role === "admin"
+      ? members.map(sanitizeMemberForAdmin)
+      : members.map(sanitizeMemberForDirectoryManager);
+  }),
 
   /** 승인 대기 성도 목록 (관리자) */
   pendingList: adminProcedure.query(async () => (await getPendingMembers()).map(sanitizeMemberForAdmin)),
@@ -465,6 +480,40 @@ export const membersRouter = router({
           message: "이미 처리됐거나 승인 대기 상태가 아닌 회원가입 신청입니다.",
         });
       }
+      return { success: true };
+    }),
+
+  /** 회원가입 승인/교적부 권한자용 성도 정보 수정 (민감한 관리자 항목 제외) */
+  directoryUpdate: memberApprovalProcedure
+    .input(z.object({
+      id: idSchema,
+      name: requiredText(64, "이름을 입력해주세요.").optional(),
+      phone: optionalMemberPhone,
+      birthDate: optionalDate,
+      gender: z.enum(["남", "여"]).optional(),
+      address: optionalText(255),
+      emergencyPhone: optionalText(32),
+      email: memberEmailSchema.optional(),
+      position: optionalText(64),
+      department: optionalText(64),
+      district: optionalText(64),
+      baptismType: optionalText(32),
+      baptismDate: optionalDate,
+      registeredAt: optionalDate,
+      pastor: optionalText(64),
+      faithPlusUserId: optionalText(128),
+    }))
+    .mutation(async ({ input }) => {
+      const { id, ...data } = input;
+      await adminUpdateMember(id, data);
+      return { success: true };
+    }),
+
+  /** 회원가입 승인/교적부 권한자용 일반 삭제 (복구 가능한 탈퇴 보관) */
+  archiveMember: memberApprovalProcedure
+    .input(z.object({ id: idSchema }))
+    .mutation(async ({ input }) => {
+      await updateMemberChurchInfo(input.id, { status: "withdrawn" });
       return { success: true };
     }),
 

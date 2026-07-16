@@ -59,6 +59,7 @@ type Props = {
   member: Member | null;
   fieldOptions: FieldOption[];
   open: boolean;
+  isFullAdmin: boolean;
   onClose: () => void;
   onSaved: () => void;
 };
@@ -90,7 +91,7 @@ const TAB_LABELS: { key: TabType; label: string }[] = [
   { key: "account", label: "계정 관리" },
 ];
 
-export default function MemberEditModal({ member, fieldOptions, open, onClose, onSaved }: Props) {
+export default function MemberEditModal({ member, fieldOptions, open, isFullAdmin, onClose, onSaved }: Props) {
   const utils = trpc.useUtils();
   const [activeTab, setActiveTab] = useState<TabType>("basic");
   const [tempPassword, setTempPassword] = useState("");
@@ -147,13 +148,23 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
   const districtOptions = sortDistrictOptions(fieldOptions.filter(o => o.fieldType === "district" && o.isActive));
   const baptismOptions = fieldOptions.filter(o => o.fieldType === "baptism" && o.isActive);
 
-  const updateMutation = trpc.members.adminUpdate.useMutation({
+  const handleUpdateSuccess = () => {
+    utils.members.adminList.invalidate();
+    utils.members.pendingList.invalidate();
+    utils.members.approvalList.invalidate();
+    toast.success("성도 정보가 수정됐습니다.");
+    onSaved();
+    onClose();
+  };
+
+  const adminUpdateMutation = trpc.members.adminUpdate.useMutation({
+    onSuccess: handleUpdateSuccess,
+    onError: (e) => toast.error(e.message),
+  });
+
+  const directoryUpdateMutation = trpc.members.directoryUpdate.useMutation({
     onSuccess: () => {
-      utils.members.adminList.invalidate();
-      utils.members.pendingList.invalidate();
-      toast.success("성도 정보가 수정됐습니다.");
-      onSaved();
-      onClose();
+      handleUpdateSuccess();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -174,7 +185,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
       toast.error(MEMBER_PHONE_ERROR_MESSAGE);
       return;
     }
-    updateMutation.mutate({
+    const directoryData = {
       id: member.id,
       name: form.name || undefined,
       email: form.email || undefined,
@@ -190,11 +201,18 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
       baptismDate: form.baptismDate || undefined,
       registeredAt: form.registeredAt || undefined,
       pastor: form.pastor || undefined,
-      adminMemo: form.adminMemo || undefined,
-      status: form.status as "pending" | "approved" | "rejected" | "withdrawn",
       faithPlusUserId: form.faithPlusUserId || undefined,
-      assignedDistricts: form.assignedDistricts,
-    });
+    };
+    if (isFullAdmin) {
+      adminUpdateMutation.mutate({
+        ...directoryData,
+        adminMemo: form.adminMemo || undefined,
+        status: form.status as "pending" | "approved" | "rejected" | "withdrawn",
+        assignedDistricts: form.assignedDistricts,
+      });
+      return;
+    }
+    directoryUpdateMutation.mutate(directoryData);
   };
 
   const handleResetPassword = () => {
@@ -237,7 +255,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
 
         {/* 탭 */}
         <div className="flex gap-1 border-b border-gray-200 mb-4">
-          {TAB_LABELS.map(({ key, label }) => (
+          {TAB_LABELS.filter(({ key }) => isFullAdmin || key !== "account").map(({ key, label }) => (
             <button
               key={key}
               onClick={() => setActiveTab(key)}
@@ -308,7 +326,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
         {/* 교회 정보 탭 */}
         {activeTab === "church" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
+            {isFullAdmin && <div>
               <Label className="text-xs text-gray-500 mb-1 block">승인 상태</Label>
               <select value={form.status} onChange={set("status")} className={selectCls}>
                 <option value="pending">대기</option>
@@ -316,7 +334,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
                 <option value="rejected">거절</option>
                 <option value="withdrawn">탈퇴</option>
               </select>
-            </div>
+            </div>}
             <div>
               <Label className="text-xs text-gray-500 mb-1 block">직분</Label>
               <select value={form.position} onChange={set("position")} className={selectCls}>
@@ -361,7 +379,7 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
               <Label className="text-xs text-gray-500 mb-1 block">믿음PLUS 앱 ID</Label>
               <Input value={form.faithPlusUserId} onChange={set("faithPlusUserId")} className={inputCls} placeholder="앱 연동 ID" />
             </div>
-            <div className="sm:col-span-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+            {isFullAdmin && <div className="sm:col-span-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
                   <Label className="text-sm font-semibold text-gray-800 block">담당 구역</Label>
@@ -404,8 +422,8 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
                   구역/순 선택지를 먼저 등록하면 담당 구역을 지정할 수 있습니다.
                 </p>
               )}
-            </div>
-            <div className="sm:col-span-2">
+            </div>}
+            {isFullAdmin && <div className="sm:col-span-2">
               <Label className="text-xs text-gray-500 mb-1 block">관리자 메모</Label>
               <Textarea
                 value={form.adminMemo}
@@ -414,12 +432,12 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
                 placeholder="관리자만 볼 수 있는 메모"
                 rows={3}
               />
-            </div>
+            </div>}
           </div>
         )}
 
         {/* 계정 관리 탭 */}
-        {activeTab === "account" && (
+        {isFullAdmin && activeTab === "account" && (
           <div className="space-y-6">
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
               <p className="text-sm font-semibold text-amber-800 mb-1">⚠️ 비밀번호 초기화</p>
@@ -469,10 +487,10 @@ export default function MemberEditModal({ member, fieldOptions, open, onClose, o
             <Button variant="outline" onClick={onClose} className="text-sm">취소</Button>
             <Button
               onClick={handleSave}
-              disabled={updateMutation.isPending}
+              disabled={adminUpdateMutation.isPending || directoryUpdateMutation.isPending}
               className="bg-[#1B5E20] hover:bg-[#2E7D32] text-white text-sm"
             >
-              {updateMutation.isPending ? "저장 중..." : "저장"}
+              {adminUpdateMutation.isPending || directoryUpdateMutation.isPending ? "저장 중..." : "저장"}
             </Button>
           </div>
         )}

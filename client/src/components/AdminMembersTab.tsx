@@ -15,6 +15,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { canManageAdminTab } from "@/lib/contentPermissions";
 import { formatPhoneNumber } from "@/lib/phoneNumber";
 import { toast } from "sonner";
 import MemberEditModal from "./MemberEditModal";
@@ -40,8 +41,7 @@ const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 type PageSize = typeof PAGE_SIZE_OPTIONS[number];
 
 type AdminMember = inferRouterOutputs<AppRouter>["members"]["adminList"][number];
-type ApprovalMember = inferRouterOutputs<AppRouter>["members"]["approvalList"][number];
-type Member = AdminMember | ApprovalMember;
+type Member = AdminMember;
 
 function MemberSummary({ member, number }: { member: Member; number: number }) {
   const status = STATUS_LABELS[member.status ?? "pending"] ?? STATUS_LABELS.pending;
@@ -77,6 +77,7 @@ export default function AdminMembersTab() {
   const utils = trpc.useUtils();
   const { user } = useAuth();
   const isFullAdmin = user?.role === "admin";
+  const canManageMemberRegistry = canManageAdminTab(user, "members");
 
   // 필터 상태
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -95,14 +96,9 @@ export default function AdminMembersTab() {
   const [editingMember, setEditingMember] = useState<AdminMember | null>(null);
 
   // 데이터 조회
-  const adminListQuery = trpc.members.adminList.useQuery(undefined, { enabled: isFullAdmin });
-  const approvalListQuery = trpc.members.approvalList.useQuery(undefined, {
-    enabled: Boolean(user) && !isFullAdmin,
-  });
-  const members: Member[] = isFullAdmin
-    ? (adminListQuery.data ?? [])
-    : (approvalListQuery.data ?? []);
-  const isLoading = isFullAdmin ? adminListQuery.isLoading : approvalListQuery.isLoading;
+  const adminListQuery = trpc.members.adminList.useQuery(undefined, { enabled: canManageMemberRegistry });
+  const members: Member[] = adminListQuery.data ?? [];
+  const isLoading = adminListQuery.isLoading;
   const { data: fieldOptions = [] } = trpc.members.fieldOptions.useQuery({});
 
   // 필터 선택지 (활성화된 것만)
@@ -131,10 +127,12 @@ export default function AdminMembersTab() {
     onError: (e) => toast.error(e.message),
   });
 
-  const deleteMutation = trpc.members.updateChurchInfo.useMutation({
+  const deleteMutation = trpc.members.archiveMember.useMutation({
     onSuccess: () => {
       utils.members.adminList.invalidate();
       utils.members.pendingList.invalidate();
+      utils.members.approvalList.invalidate();
+      utils.cms.notifications.summary.invalidate();
       toast.success("성도를 삭제 처리했습니다. 탈퇴 상태에서 다시 확인할 수 있습니다.");
     },
     onError: (e) => toast.error(e.message),
@@ -224,7 +222,7 @@ export default function AdminMembersTab() {
       `${member.name} 성도를 삭제 처리할까요?\n\n실제 데이터는 탈퇴 상태로 보관되며, 탈퇴 탭에서 다시 확인할 수 있습니다.`
     );
     if (!confirmed) return;
-    deleteMutation.mutate({ id: member.id, status: "withdrawn" });
+    deleteMutation.mutate({ id: member.id });
   };
 
   const hardDeleteMember = (member: Member) => {
@@ -262,7 +260,7 @@ export default function AdminMembersTab() {
           </button>
         </>
       )}
-      {isFullAdmin && (
+      {canManageMemberRegistry && (
         <button
           onClick={() => setEditingMember(member as AdminMember)}
           disabled={isMutating}
@@ -271,7 +269,7 @@ export default function AdminMembersTab() {
           수정
         </button>
       )}
-      {isFullAdmin && member.status !== "withdrawn" && (
+      {canManageMemberRegistry && member.status !== "withdrawn" && (
         <button
           onClick={() => deleteMember(member)}
           disabled={isMutating}
@@ -313,18 +311,18 @@ export default function AdminMembersTab() {
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-lg font-bold text-gray-800">
-              {isFullAdmin ? "교적부/성도 관리" : "회원가입 승인 관리"}
+              교적부/성도 관리
             </h3>
             <span className="rounded-full bg-[#E8F5E9] px-2.5 py-1 text-xs font-semibold text-[#1B5E20]">
-              {isFullAdmin ? "관리자 전용" : "승인 권한"}
+              {isFullAdmin ? "관리자 전용" : "가입 승인/교적부 권한"}
             </span>
           </div>
           <p className="text-sm text-gray-500 mt-0.5">
-            {isFullAdmin ? `전체 ${members.length}명` : `승인 대기 ${members.length}명`}
+            전체 {members.length}명
             {filtered.length !== members.length && (
               <span className="ml-1 text-[#1B5E20] font-medium">· 검색결과 {filtered.length}명</span>
             )}
-            {isFullAdmin && pendingCount > 0 && (
+            {pendingCount > 0 && (
               <span className="ml-2 text-yellow-600 font-medium">· 승인 대기 {pendingCount}명</span>
             )}
             {basicMissingCount > 0 && (
@@ -334,7 +332,7 @@ export default function AdminMembersTab() {
           <p className="mt-1 text-xs text-gray-400">
             {isFullAdmin
               ? "공개 홈페이지가 아니라 관리자 화면에서만 확인하는 교적부입니다."
-              : "승인 대기 중인 가입 신청만 확인하고 승인 또는 거절할 수 있습니다."}
+              : "가입 승인 권한으로 전체 교적부를 조회·수정하고 신규 가입 승인 또는 탈퇴 보관을 처리합니다."}
           </p>
         </div>
       </div>
@@ -342,7 +340,7 @@ export default function AdminMembersTab() {
       {/* ── 필터 영역 ── */}
       <div className="bg-gray-50 rounded-xl p-3 mb-4 space-y-3">
         {/* 상태 필터 */}
-        {isFullAdmin && <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+        {canManageMemberRegistry && <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
           <span className="w-20 shrink-0 text-xs font-semibold text-gray-500">전체상태</span>
           <div className="flex flex-wrap gap-1">
             {(["all", "pending", "approved", "rejected", "withdrawn"] as StatusFilter[]).map((s) => (
@@ -623,10 +621,11 @@ export default function AdminMembersTab() {
       )}
 
       {/* 성도 수정 모달 */}
-      {isFullAdmin && (
+      {canManageMemberRegistry && (
         <MemberEditModal
           member={editingMember}
           fieldOptions={fieldOptions}
+          isFullAdmin={isFullAdmin}
           open={!!editingMember}
           onClose={() => setEditingMember(null)}
           onSaved={() => {

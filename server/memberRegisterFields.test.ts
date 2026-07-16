@@ -48,7 +48,7 @@ describe("member approval permission", () => {
       label: "회원가입 승인 관리",
       group: "성도/사역 관리",
       tab: "members",
-      description: "신규 성도 가입 신청을 확인하고 승인/거절합니다.",
+      description: "전체 성도 교적부 조회·수정, 신규 가입 승인/거절, 탈퇴 보관을 관리합니다.",
     });
   });
 });

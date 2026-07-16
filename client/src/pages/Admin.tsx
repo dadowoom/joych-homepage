@@ -746,14 +746,7 @@ export default function AdminPage() {
     ...group,
     tabs: group.tabs.filter(tab => effectivePermittedTabs.includes(tab)),
   })).filter(group => group.tabs.length > 0);
-  const activeTabInfo = activeTab === "members" && !canManageFullAdmin(user)
-    ? {
-        ...TABS_BY_ID[activeTab],
-        label: "회원가입 승인 관리",
-        description: "승인 대기 중인 가입 신청을 확인하고 승인 또는 거절합니다.",
-        status: "가입 승인",
-      }
-    : TABS_BY_ID[activeTab];
+  const activeTabInfo = TABS_BY_ID[activeTab];
   const activeGroup = TAB_GROUPS.find(group => group.tabs.includes(activeTab));
   const notificationTotalCount = notificationSummary?.totalCount ?? 0;
   const hasNewAdminNotifications = notificationTotalCount > 0;
