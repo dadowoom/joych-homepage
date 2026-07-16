@@ -448,6 +448,36 @@ describe("vehicle reservations", () => {
     });
   });
 
+  it("creates monthly vehicle reservations on the same ordinal weekday as facility reservations", async () => {
+    dbMocks.createVehicleReservationsIfAvailable.mockResolvedValueOnce([200, 201, 202, 203]);
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(caller.home.createVehicleReservation(vehicleReservationInput({
+      reservationDate: "2026-06-17",
+      repeatMode: "monthly",
+      repeatEndDate: "2026-09-30",
+    }))).resolves.toMatchObject({
+      id: 200,
+      ids: [200, 201, 202, 203],
+      count: 4,
+      recurrenceLabel: "매월 같은 주 반복 · 2026-09-30까지 · 총 4회",
+    });
+
+    const createdBatch = dbMocks.createVehicleReservationsIfAvailable.mock.calls[0]?.[0] as Array<{
+      reservationDate: string;
+      recurrenceLabel: string | null;
+    }>;
+    expect(createdBatch.map((row) => row.reservationDate)).toEqual([
+      "2026-06-17",
+      "2026-07-15",
+      "2026-08-19",
+      "2026-09-16",
+    ]);
+    expect(createdBatch.every((row) => (
+      row.recurrenceLabel === "매월 같은 주 반복 · 2026-09-30까지 · 총 4회"
+    ))).toBe(true);
+  });
+
   it("sends one approved push for an auto-approved recurring vehicle reservation batch", async () => {
     dbMocks.getVehicleById.mockResolvedValue({
       ...reservableVehicle,
@@ -511,6 +541,28 @@ describe("vehicle reservations", () => {
     });
     expect(dbMocks.getAvailableVehiclesForSchedule).toHaveBeenCalledWith(
       ["2026-06-17"],
+      "10:00",
+      "11:00",
+      1,
+    );
+  });
+
+  it("skips months without the same fifth weekday for monthly vehicle schedules", async () => {
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(caller.home.availableVehicles({
+      reservationDate: "2026-06-29",
+      startTime: "10:00",
+      endTime: "11:00",
+      passengers: 1,
+      repeatMode: "monthly",
+      repeatEndDate: "2026-08-31",
+    })).resolves.toEqual({
+      vehicles: [reservableVehicle],
+      occurrenceCount: 2,
+    });
+    expect(dbMocks.getAvailableVehiclesForSchedule).toHaveBeenCalledWith(
+      ["2026-06-29", "2026-08-31"],
       "10:00",
       "11:00",
       1,

@@ -977,10 +977,10 @@ export function VehicleReservationList() {
                           }}
                           className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-3 text-sm focus:border-[#1B5E20] focus:outline-none"
                         >
-                          <option value="none">반복 안 함</option>
-                          <option value="daily">매일 반복</option>
-                          <option value="weekly">매주 반복</option>
-                          <option value="monthly">매월 반복</option>
+                          <option value="none">반복 없음</option>
+                          <option value="daily">매일</option>
+                          <option value="weekly">매주</option>
+                          <option value="monthly">매월 같은 주</option>
                         </select>
                       </label>
                       {repeatMode !== "none" && (
@@ -1675,7 +1675,7 @@ export function VehicleReservationApply() {
                         <p className="mt-1 font-bold text-gray-900">{formatDateLabel(form.date)} · {form.startTime}~{form.endTime}</p>
                         {form.repeatMode !== "none" && (
                           <p className="mt-1 text-xs text-gray-500">
-                            {form.repeatMode === "daily" ? "매일" : form.repeatMode === "weekly" ? "매주" : "매월"} 반복 · {form.repeatEndDate}까지
+                            {form.repeatMode === "daily" ? "매일" : form.repeatMode === "weekly" ? "매주" : "매월 같은 주"} 반복 · {form.repeatEndDate}까지
                           </p>
                         )}
                       </div>

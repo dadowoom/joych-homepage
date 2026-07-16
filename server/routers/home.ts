@@ -171,11 +171,25 @@ function getVehicleReservationDates(
   };
 
   if (repeatMode === "monthly") {
+    const monthlyWeekday = getMonthlyWeekdayInfo(
+      new Date(Date.UTC(startYear, startMonth - 1, startDay)),
+    );
     let year = startYear;
     let month = startMonth;
     while (formatVehicleDateKey(year, month, 1) <= formatVehicleDateKey(endYear, endMonth, 1)) {
-      const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-      if (startDay <= lastDay) pushDate(year, month, startDay);
+      const candidate = nthWeekdayDate(
+        year,
+        month - 1,
+        monthlyWeekday.nth,
+        monthlyWeekday.weekday,
+      );
+      if (candidate) {
+        pushDate(
+          candidate.getUTCFullYear(),
+          candidate.getUTCMonth() + 1,
+          candidate.getUTCDate(),
+        );
+      }
       month += 1;
       if (month === 13) {
         month = 1;
@@ -203,7 +217,7 @@ function describeVehicleReservationRepeat(
   const labelByMode = {
     daily: "매일",
     weekly: "매주",
-    monthly: "매월",
+    monthly: "매월 같은 주",
   } satisfies Record<Exclude<z.infer<typeof vehicleRepeatSchema>, "none">, string>;
   return `${labelByMode[repeatMode]} 반복 · ${repeatEndDate}까지 · 총 ${count}회`;
 }
