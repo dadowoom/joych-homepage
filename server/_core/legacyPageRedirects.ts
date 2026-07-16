@@ -2,9 +2,11 @@ import type { Express, NextFunction, Request, Response } from "express";
 
 export const WORSHIP_GUIDE_PATH = "/page/교회소개-예배-안내";
 export const SUNDAY_WORSHIP_PATH = "/page/조이풀tv-주일예배";
+export const BULLETIN_PATH = "/worship/bulletin";
 
 const LEGACY_PAGE_CODE_REDIRECTS: Readonly<Record<string, string>> = {
   "29": WORSHIP_GUIDE_PATH,
+  "137": BULLETIN_PATH,
   "425": SUNDAY_WORSHIP_PATH,
 };
 

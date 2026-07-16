@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { NextFunction, Request, Response } from "express";
 import {
+  BULLETIN_PATH,
   SUNDAY_WORSHIP_PATH,
   WORSHIP_GUIDE_PATH,
   legacyPageRedirectHandler,
@@ -16,6 +17,11 @@ describe("legacy page redirects", () => {
   it("maps the old pageCode=425 Sunday worship URL to the current page", () => {
     expect(resolveLegacyPageRedirect("425")).toBe(SUNDAY_WORSHIP_PATH);
     expect(resolveLegacyPageRedirect(" 425 ")).toBe(SUNDAY_WORSHIP_PATH);
+  });
+
+  it("maps the old pageCode=137 bulletin URL to the current page", () => {
+    expect(resolveLegacyPageRedirect("137")).toBe(BULLETIN_PATH);
+    expect(resolveLegacyPageRedirect(" 137 ")).toBe(BULLETIN_PATH);
   });
 
   it("does not intercept unrelated or ambiguous legacy page URLs", () => {
@@ -45,6 +51,18 @@ describe("legacy page redirects", () => {
     legacyPageRedirectHandler(req, res, next);
 
     expect(redirect).toHaveBeenCalledWith(301, SUNDAY_WORSHIP_PATH);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("returns a permanent redirect for pageCode=137", () => {
+    const req = { query: { pageCode: "137" } } as unknown as Request;
+    const redirect = vi.fn();
+    const res = { redirect } as unknown as Response;
+    const next = vi.fn() as unknown as NextFunction;
+
+    legacyPageRedirectHandler(req, res, next);
+
+    expect(redirect).toHaveBeenCalledWith(301, BULLETIN_PATH);
     expect(next).not.toHaveBeenCalled();
   });
 
