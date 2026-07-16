@@ -580,7 +580,7 @@ function VehicleAvailabilityTimeline({
       </div>
 
       <div
-        className={`overflow-x-auto overscroll-x-contain pb-2 transition-opacity ${isRefreshing ? "opacity-60" : ""}`}
+        className={`w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain pb-2 transition-opacity ${isRefreshing ? "opacity-60" : ""}`}
         aria-busy={isRefreshing}
       >
         <div className="min-w-max">
@@ -974,8 +974,8 @@ export function VehicleReservationList() {
             </div>
           ) : (
             <>
-              <div className="grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
-                <div>
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
+                <div className="min-w-0">
                   <div className="mb-2 flex items-center gap-2 text-sm font-bold text-gray-800">
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#1B5E20] text-xs text-white">1</span>
                     날짜 선택
@@ -983,12 +983,12 @@ export function VehicleReservationList() {
                   <VehicleReservationCalendar selectedDate={selectedDate} onSelectDate={handleSelectDate} />
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <div className="mb-2 flex items-center gap-2 text-sm font-bold text-gray-800">
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#1B5E20] text-xs text-white">2</span>
                     시간 선택
                   </div>
-                  <div className="space-y-5 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+                  <div className="min-w-0 space-y-5 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
                     <div className="grid gap-4 sm:grid-cols-2">
                       <label className="block">
                         <span className="mb-1.5 block text-xs font-medium text-gray-600">반복 예약</span>
