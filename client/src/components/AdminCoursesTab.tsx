@@ -11,6 +11,9 @@ import { useSearch } from "wouter";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
+import CourseApplicationChecklist from "@/components/CourseApplicationChecklist";
+import { applyCourseApplicationChecklistChange } from "@/lib/courseApplicationChecklist";
+import { getCourseApplicationChecklistLabel } from "@shared/courseApplicationChecklist";
 import ReservationTimelinePicker from "@/components/facility/ReservationTimelinePicker";
 import CourseRoomPermissionManager from "@/components/CourseRoomPermissionManager";
 import { getKstDateKey, getReservationTimeRestriction } from "@/lib/facilityReservationTime";
@@ -415,6 +418,43 @@ export default function AdminCoursesTab() {
     },
     onError: err => toast.error(err.message || "신청자 정보 수정에 실패했습니다."),
   });
+  const updateApplicationChecklist = trpc.cms.courses.updateApplicationChecklist.useMutation({
+    onMutate: async (variables) => {
+      const queryInput = { courseId: expandedCourseId ?? undefined };
+      await utils.cms.courses.applications.cancel(queryInput);
+      const previousChecked = utils.cms.courses.applications
+        .getData(queryInput)
+        ?.find(application => application.id === variables.id)?.[variables.field] ?? !variables.checked;
+      utils.cms.courses.applications.setData(queryInput, current =>
+        applyCourseApplicationChecklistChange(
+          current,
+          variables.id,
+          variables.field,
+          variables.checked,
+        ),
+      );
+      return { queryInput, previousChecked };
+    },
+    onSuccess: (_result, variables) => {
+      toast.success(`${getCourseApplicationChecklistLabel(variables.field, variables.checked)}로 표시했습니다.`);
+    },
+    onError: (error, variables, context) => {
+      if (context) {
+        utils.cms.courses.applications.setData(context.queryInput, current =>
+          applyCourseApplicationChecklistChange(
+            current,
+            variables.id,
+            variables.field,
+            context.previousChecked,
+          ),
+        );
+      }
+      toast.error(error.message || "확인 상태 변경에 실패했습니다.");
+    },
+    onSettled: () => {
+      void utils.cms.courses.applications.invalidate();
+    },
+  });
 
   const startEditApplication = (application: CourseApplication) => {
     setReviewingId(null);
@@ -498,11 +538,13 @@ export default function AdminCoursesTab() {
 
     const applicationFields = parseApplicationFields(exportCourse.applicationFields);
     const rows = [
-      ["강좌명", "강좌 일정", "상태", "신청자명", "연락처", "이메일", "부서", "직분", "신청 메모", "추가 답변", "관리자 메모", "신청일", "처리일"],
+      ["강좌명", "강좌 일정", "상태", "회비 납부 여부", "서류 제출 여부", "신청자명", "연락처", "이메일", "부서", "직분", "신청 메모", "추가 답변", "관리자 메모", "신청일", "처리일"],
       ...filteredApplications.map(application => [
         application.courseTitle ?? exportCourse.title,
         formatDateRange(exportCourse),
         APPLICATION_STATUS[application.status]?.label ?? application.status,
+        application.feePaid ? "납부" : "미확인",
+        application.documentsSubmitted ? "제출" : "미확인",
         application.applicantName,
         application.applicantPhone || application.memberPhone || "",
         application.applicantEmail || application.memberEmail || "",
@@ -1483,6 +1525,14 @@ export default function AdminCoursesTab() {
                                     {application.applicantEmail && <span>{application.applicantEmail}</span>}
                                     <span>신청 {formatCreatedAt(application.createdAt)}</span>
                                   </div>
+                                  <CourseApplicationChecklist
+                                    feePaid={application.feePaid}
+                                    documentsSubmitted={application.documentsSubmitted}
+                                    disabled={updateApplicationChecklist.isPending}
+                                    onToggle={(field, checked) =>
+                                      updateApplicationChecklist.mutate({ id: application.id, field, checked })
+                                    }
+                                  />
                                   {application.memo && <p className="mt-2 text-xs text-gray-500 bg-gray-50 rounded px-2 py-1.5">{application.memo}</p>}
                                   {customAnswerRows.length > 0 && (
                                     <div className="mt-2 rounded bg-blue-50 px-2 py-1.5 text-xs text-blue-700">

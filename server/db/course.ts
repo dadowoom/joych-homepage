@@ -10,6 +10,10 @@
 import { and, asc, desc, eq, or, sql } from "drizzle-orm";
 import type { ResultSetHeader } from "mysql2";
 import {
+  COURSE_APPLICATION_CHECKLIST_DEFAULTS,
+  type CourseApplicationChecklistField,
+} from "@shared/courseApplicationChecklist";
+import {
   churchMembers,
   Course,
   courseApplications,
@@ -315,6 +319,8 @@ export async function getCourseApplications(courseId?: number) {
       applicantEmail: courseApplications.applicantEmail,
       memo: courseApplications.memo,
       customAnswers: courseApplications.customAnswers,
+      feePaid: courseApplications.feePaid,
+      documentsSubmitted: courseApplications.documentsSubmitted,
       status: courseApplications.status,
       adminComment: courseApplications.adminComment,
       processedBy: courseApplications.processedBy,
@@ -518,6 +524,7 @@ export async function createOrReopenCourseApplication(
             adminComment: null,
             processedBy: null,
             processedAt: null,
+            ...COURSE_APPLICATION_CHECKLIST_DEFAULTS,
           })
           .where(eq(courseApplications.id, existing.id));
         return existing.id;
@@ -555,6 +562,31 @@ export async function updateCourseApplicationStatus(
     values.processedAt = new Date();
   }
   await db.update(courseApplications).set(values).where(eq(courseApplications.id, id));
+}
+
+export async function updateCourseApplicationChecklist(
+  id: number,
+  field: CourseApplicationChecklistField,
+  checked: boolean,
+) {
+  const db = await getDb();
+  if (!db) return false;
+
+  const values = field === "feePaid"
+    ? { feePaid: checked }
+    : { documentsSubmitted: checked };
+  const [result] = await db
+    .update(courseApplications)
+    .set(values)
+    .where(eq(courseApplications.id, id));
+  if (((result as ResultSetHeader | undefined)?.affectedRows ?? 0) > 0) return true;
+
+  const [existing] = await db
+    .select({ id: courseApplications.id })
+    .from(courseApplications)
+    .where(eq(courseApplications.id, id))
+    .limit(1);
+  return Boolean(existing);
 }
 
 export async function updateCourseApplicationDetails(

@@ -9,6 +9,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { COURSE_APPLICATION_CHECKLIST_FIELDS } from "@shared/courseApplicationChecklist";
 import { adminPermissionProcedure, router } from "../../_core/trpc";
 import { optionalTextSchema, requiredTextSchema, safeAssetUrlSchema } from "../../_core/contentValidation";
 import {
@@ -22,6 +23,7 @@ import {
   ReservationLockError,
   ReservationOverlapError,
   updateCourse,
+  updateCourseApplicationChecklist,
   updateCourseApplicationDetails,
   updateCourseApplicationStatus,
   updateCourseRoomManager,
@@ -36,6 +38,7 @@ const nullableTimeSchema = z.string().regex(TIME_RE, "시간은 HH:MM 형식으�
 const courseStatusSchema = z.enum(["draft", "open", "closed", "cancelled", "archived"]);
 const courseAudienceSchema = z.enum(["all", "member"]);
 const applicationStatusSchema = z.enum(["pending", "approved", "rejected", "cancelled"]);
+const applicationChecklistFieldSchema = z.enum(COURSE_APPLICATION_CHECKLIST_FIELDS);
 const applicationDetailsSchema = z.object({
   applicantName: requiredTextSchema(64, "신청자 이름을 입력해주세요."),
   applicantPhone: optionalTextSchema(32),
@@ -215,6 +218,20 @@ export const coursesRouter = router({
     .mutation(({ input, ctx }) =>
       updateCourseApplicationStatus(input.id, input.status, input.comment, ctx.user.id)
     ),
+
+  updateApplicationChecklist: courseProcedure
+    .input(z.object({
+      id: idSchema,
+      field: applicationChecklistFieldSchema,
+      checked: z.boolean(),
+    }))
+    .mutation(async ({ input }) => {
+      const updated = await updateCourseApplicationChecklist(input.id, input.field, input.checked);
+      if (!updated) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "신청 내역을 찾을 수 없습니다." });
+      }
+      return { success: true };
+    }),
 
   updateApplicationDetails: courseProcedure
     .input(z.object({ id: idSchema, application: applicationDetailsSchema }))

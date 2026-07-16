@@ -2,6 +2,9 @@ import { useState } from "react";
 import { Check, ChevronDown, Loader2, Pencil, Plus, Trash2, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { applyCourseApplicationChecklistChange } from "@/lib/courseApplicationChecklist";
+import CourseApplicationChecklist from "@/components/CourseApplicationChecklist";
+import { getCourseApplicationChecklistLabel } from "@shared/courseApplicationChecklist";
 import { getKstDateKey } from "@/lib/facilityReservationTime";
 
 type Props = {
@@ -86,6 +89,43 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
       toast.success("신청자 정보가 수정됐습니다.");
     },
     onError: error => toast.error(error.message || "신청자 정보 수정에 실패했습니다."),
+  });
+  const updateApplicationChecklist = trpc.courseManagement.updateApplicationChecklist.useMutation({
+    onMutate: async (variables) => {
+      const queryInput = { pageHref };
+      await utils.courseManagement.applications.cancel(queryInput);
+      const previousChecked = utils.courseManagement.applications
+        .getData(queryInput)
+        ?.find(application => application.id === variables.id)?.[variables.field] ?? !variables.checked;
+      utils.courseManagement.applications.setData(queryInput, current =>
+        applyCourseApplicationChecklistChange(
+          current,
+          variables.id,
+          variables.field,
+          variables.checked,
+        ),
+      );
+      return { queryInput, previousChecked };
+    },
+    onSuccess: (_result, variables) => {
+      toast.success(`${getCourseApplicationChecklistLabel(variables.field, variables.checked)}로 표시했습니다.`);
+    },
+    onError: (error, variables, context) => {
+      if (context) {
+        utils.courseManagement.applications.setData(context.queryInput, current =>
+          applyCourseApplicationChecklistChange(
+            current,
+            variables.id,
+            variables.field,
+            context.previousChecked,
+          ),
+        );
+      }
+      toast.error(error.message || "확인 상태 변경에 실패했습니다.");
+    },
+    onSettled: () => {
+      void utils.courseManagement.applications.invalidate({ pageHref });
+    },
   });
 
   if (checkingAccess || !enabled) return null;
@@ -216,6 +256,14 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
                         <div>
                           <p className="text-sm font-bold text-gray-800">{application.courseTitle} · {application.applicantName}</p>
                           <p className="mt-0.5 text-xs text-gray-500">{application.applicantPhone || "연락처 미입력"}{application.applicantEmail ? ` · ${application.applicantEmail}` : ""}</p>
+                          <CourseApplicationChecklist
+                            feePaid={application.feePaid}
+                            documentsSubmitted={application.documentsSubmitted}
+                            disabled={updateApplicationChecklist.isPending}
+                            onToggle={(field, checked) =>
+                              updateApplicationChecklist.mutate({ id: application.id, field, checked })
+                            }
+                          />
                           {application.memo && <p className="mt-1 text-xs text-gray-500">{application.memo}</p>}
                         </div>
                         <div className="flex flex-wrap gap-1.5">

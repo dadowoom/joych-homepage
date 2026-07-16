@@ -4,6 +4,7 @@
  */
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { COURSE_APPLICATION_CHECKLIST_FIELDS } from "@shared/courseApplicationChecklist";
 import { publicProcedure, router } from "../_core/trpc";
 import { hasAdminContentPermission } from "../db/adminPermissions";
 import {
@@ -15,6 +16,7 @@ import {
   getCoursesForAdmin,
   hasCourseRoomManagementAccess,
   updateCourse,
+  updateCourseApplicationChecklist,
   updateCourseApplicationDetails,
   updateCourseApplicationStatus,
 } from "../db";
@@ -22,6 +24,7 @@ import {
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const idSchema = z.number().int().positive();
+const applicationChecklistFieldSchema = z.enum(COURSE_APPLICATION_CHECKLIST_FIELDS);
 const nullableDate = z.string().regex(DATE_RE, "날짜 형식이 올바르지 않습니다.").nullable().optional();
 const nullableTime = z.string().regex(TIME_RE, "시간 형식이 올바르지 않습니다.").nullable().optional();
 const pageHrefSchema = z.string().trim().min(1).max(255).refine(
@@ -199,6 +202,21 @@ export const courseManagementRouter = router({
       if (!application) throw new TRPCError({ code: "NOT_FOUND", message: "신청 내역을 찾을 수 없습니다." });
       const { access } = await getOwnedCourseOrThrow(ctx, application.courseId);
       await updateCourseApplicationStatus(input.id, input.status, input.comment ?? undefined, access.processedBy);
+      return { success: true };
+    }),
+
+  updateApplicationChecklist: publicProcedure
+    .input(z.object({
+      id: idSchema,
+      field: applicationChecklistFieldSchema,
+      checked: z.boolean(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const application = await getCourseApplicationById(input.id);
+      if (!application) throw new TRPCError({ code: "NOT_FOUND", message: "신청 내역을 찾을 수 없습니다." });
+      await getOwnedCourseOrThrow(ctx, application.courseId);
+      const updated = await updateCourseApplicationChecklist(input.id, input.field, input.checked);
+      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "신청 내역을 찾을 수 없습니다." });
       return { success: true };
     }),
 

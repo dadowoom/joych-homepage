@@ -1255,6 +1255,10 @@ export const courseApplications = mysqlTable("course_applications", {
   memo: text("memo"),
   /** 강좌별 추가 입력 답변 JSON */
   customAnswers: text("customAnswers"),
+  /** 관리자 확인용 회비 납부 여부 */
+  feePaid: boolean("feePaid").notNull().default(false),
+  /** 관리자 확인용 서류 제출 여부 */
+  documentsSubmitted: boolean("documentsSubmitted").notNull().default(false),
   /** 상태: pending(대기) / approved(승인) / rejected(거절) / cancelled(취소) */
   status: mysqlEnum("status", ["pending", "approved", "rejected", "cancelled"]).notNull().default("pending"),
   /** 관리자 메모 또는 거절 사유 */
