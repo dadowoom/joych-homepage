@@ -20,6 +20,7 @@ import {
   type VehicleAvailabilityConflict,
 } from "@/lib/vehicleAvailabilityConflicts";
 import { groupVehicleReservations } from "@/lib/vehicleReservationGroups";
+import { sortVehiclePlateRows } from "@/lib/vehiclePlateSort";
 import { shouldResetVehicleReservationTime } from "@/lib/vehicleReservationTimeSelection";
 import { toast } from "sonner";
 import {
@@ -825,7 +826,10 @@ export function VehicleReservationList() {
   const { data: vehicles, isLoading, error } = trpc.home.vehicles.useQuery(undefined, {
     retry: false,
   });
-  const vehicleRows = useMemo(() => (vehicles ?? []) as VehicleRow[], [vehicles]);
+  const vehicleRows = useMemo(
+    () => sortVehiclePlateRows((vehicles ?? []) as VehicleRow[]),
+    [vehicles],
+  );
   const todayKey = getKstDateKey();
   const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000);
   const currentKstMinutes = nowKst.getUTCHours() * 60 + nowKst.getUTCMinutes();
@@ -873,7 +877,10 @@ export function VehicleReservationList() {
     },
     { enabled: scheduleComplete, retry: false },
   );
-  const availableVehicles = (availabilityQuery.data?.vehicles ?? []) as VehicleRow[];
+  const availableVehicles = useMemo(
+    () => sortVehiclePlateRows((availabilityQuery.data?.vehicles ?? []) as VehicleRow[]),
+    [availabilityQuery.data?.vehicles],
+  );
 
   useEffect(() => {
     if (!shouldResetVehicleReservationTime({
