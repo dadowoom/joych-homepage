@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { groupVehicleReservations } from "./vehicleReservationGroups";
+import {
+  formatVehicleRecurrenceLabel,
+  groupVehicleReservations,
+} from "./vehicleReservationGroups";
 
 const base = {
   startTime: "09:00",
@@ -53,5 +56,21 @@ describe("groupVehicleReservations", () => {
       count: 1,
       recurrenceLabel: "매주 반복",
     });
+  });
+});
+
+describe("formatVehicleRecurrenceLabel", () => {
+  it.each([
+    ["기존 매일 반복 · 마지막 일정 2026-07-31 · 총 2회", "매일 · 마지막 일정 2026-07-31 · 총 2회"],
+    ["매주 반복 · 2026-08-31까지 · 총 8회", "매주 · 2026-08-31까지 · 총 8회"],
+    ["기존 매월 반복 · 마지막 일정 2026-09-15 · 총 3회", "매월 같은 날짜(기존 예약) · 마지막 일정 2026-09-15 · 총 3회"],
+    ["매월 반복 · 2026-09-30까지 · 총 3회", "매월 같은 날짜(기존 예약) · 2026-09-30까지 · 총 3회"],
+    ["매월 같은 주 반복 · 2026-10-31까지 · 총 4회", "매월 같은 주 · 2026-10-31까지 · 총 4회"],
+  ])("normalizes %s", (label, expected) => {
+    expect(formatVehicleRecurrenceLabel(label)).toBe(expected);
+  });
+
+  it("keeps an unknown label unchanged", () => {
+    expect(formatVehicleRecurrenceLabel("수동 반복 일정")).toBe("수동 반복 일정");
   });
 });

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
+  formatVehicleRecurrenceLabel,
   groupVehicleReservations,
   type VehicleReservationGroup,
 } from "@/lib/vehicleReservationGroups";
@@ -1293,6 +1294,10 @@ export default function AdminVehiclesTab() {
                   const visibleStatuses = (Object.keys(statusCounts) as VehicleReservationStatus[])
                     .filter(statusKey => statusCounts[statusKey] > 0);
                   const cancellableCount = statusCounts.pending + statusCounts.approved;
+                  const recurrenceDisplayLabel = formatVehicleRecurrenceLabel(group.recurrenceLabel);
+                  const recurrenceModeLabel = recurrenceDisplayLabel
+                    ?.split(" · ", 1)[0]
+                    ?.replace("(기존 예약)", "") ?? "반복";
 
                   return (
                     <div
@@ -1322,7 +1327,7 @@ export default function AdminVehiclesTab() {
                           </div>
                           {group.isRecurring && (
                             <div className="shrink-0 rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
-                              반복 {group.count}회
+                              {recurrenceModeLabel} {group.count}회
                             </div>
                           )}
                         </div>
@@ -1539,7 +1544,7 @@ export default function AdminVehiclesTab() {
                               <div className="sm:col-span-2 lg:col-span-3">
                                 <span className="text-xs text-gray-500">반복 예약</span>
                                 <p className="font-medium text-blue-700">
-                                  {group.recurrenceLabel ?? `${group.count}회 반복 예약`}
+                                  {recurrenceDisplayLabel ?? `${group.count}회 반복 예약`}
                                 </p>
                                 <div className="mt-2 grid max-h-40 grid-cols-1 gap-1 overflow-y-auto pr-1 sm:grid-cols-2">
                                   {group.reservations.map((row, index) => {

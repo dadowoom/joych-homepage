@@ -41,6 +41,24 @@ function compareOccurrences<T extends VehicleReservationGroupable>(a: T, b: T) {
   return a.id - b.id;
 }
 
+export function formatVehicleRecurrenceLabel(label: string | null | undefined) {
+  const normalized = label?.trim();
+  if (!normalized) return null;
+
+  if (/^(?:기존\s+)?매월\s+반복(?=\s*·|$)/.test(normalized)) {
+    return normalized.replace(
+      /^(?:기존\s+)?매월\s+반복(?=\s*·|$)/,
+      "매월 같은 날짜(기존 예약)",
+    );
+  }
+
+  return normalized
+    .replace(/^기존\s+(?=매(?:일|주|월)\s)/, "")
+    .replace(/^매월\s+같은\s+주\s+반복(?=\s*·|$)/, "매월 같은 주")
+    .replace(/^매일\s+반복(?=\s*·|$)/, "매일")
+    .replace(/^매주\s+반복(?=\s*·|$)/, "매주");
+}
+
 /**
  * 반복 차량예약은 신청 당시 생성된 recurrenceGroupId로만 묶습니다.
  * 비슷한 날짜나 신청자 정보를 추측해서 단건 예약을 합치지 않습니다.
