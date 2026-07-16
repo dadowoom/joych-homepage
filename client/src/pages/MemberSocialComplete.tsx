@@ -32,6 +32,7 @@ export default function MemberSocialComplete() {
     name: "",
     phone: "",
     birthDate: "",
+    gender: "" as "남" | "여" | "",
     position: "",
     email: "",
     agreePrivacy: false,
@@ -87,6 +88,9 @@ export default function MemberSocialComplete() {
     } else if (!isCompleteBirthDate(form.birthDate)) {
       nextErrors.birthDate = "YYYY-MM-DD 형식으로 입력해주세요.";
     }
+    if (!form.gender) {
+      nextErrors.gender = "성별을 선택해주세요.";
+    }
     if (fieldConfig.position.visible && fieldConfig.position.required && !form.position.trim()) {
       nextErrors.position = "직분을 선택해주세요.";
     }
@@ -116,6 +120,7 @@ export default function MemberSocialComplete() {
           name: form.name,
           phone,
           birthDate: form.birthDate,
+          gender: form.gender,
           position: fieldConfig.position.visible ? form.position || undefined : undefined,
           email: form.email || undefined,
         }),
@@ -230,6 +235,29 @@ export default function MemberSocialComplete() {
               aria-invalid={Boolean(errors.birthDate)}
             />
             {errors.birthDate && <p className="text-xs text-red-500 mt-1">{errors.birthDate}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              성별 <span className="text-red-500">*</span>
+            </label>
+            <div className="flex gap-2">
+              {(["남", "여"] as const).map((gender) => (
+                <button
+                  key={gender}
+                  type="button"
+                  onClick={() => update("gender", gender)}
+                  className={`flex-1 rounded-lg border py-2.5 text-sm font-medium transition-colors ${
+                    form.gender === gender
+                      ? "border-[#1B5E20] bg-[#1B5E20] text-white"
+                      : "border-gray-300 bg-white text-gray-600 hover:border-[#1B5E20]"
+                  }`}
+                >
+                  {gender}
+                </button>
+              ))}
+            </div>
+            {errors.gender && <p className="text-xs text-red-500 mt-1">{errors.gender}</p>}
           </div>
 
           {fieldConfig.position.visible && (

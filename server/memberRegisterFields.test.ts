@@ -27,6 +27,18 @@ describe("member registration field configuration", () => {
 
     expect(config.position).toEqual({ visible: false, required: false });
   });
+
+  it("연락처·생년월일·성별은 저장 설정과 무관하게 표시와 필수를 고정한다", () => {
+    const config = parseMemberRegisterFieldConfig(JSON.stringify({
+      phone: { visible: false, required: false },
+      birthDate: { visible: false, required: false },
+      gender: { visible: false, required: false },
+    }));
+
+    expect(config.phone).toEqual({ visible: true, required: true });
+    expect(config.birthDate).toEqual({ visible: true, required: true });
+    expect(config.gender).toEqual({ visible: true, required: true });
+  });
 });
 
 describe("member approval permission", () => {

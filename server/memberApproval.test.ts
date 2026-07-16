@@ -157,6 +157,8 @@ describe("member registration approval delegation", () => {
       password: "joyful2026",
       name: "새성도",
       phone: "01012345678",
+      birthDate: "1990-01-02",
+      gender: "남",
       position: "집사",
     })).resolves.toEqual({ success: true, id: 31, autoLoggedIn: false });
 
@@ -164,6 +166,8 @@ describe("member registration approval delegation", () => {
       email: "new-member@example.com",
       name: "새성도",
       phone: "010-1234-5678",
+      birthDate: "1990-01-02",
+      gender: "남",
       position: "집사",
     }));
     expect(pushMocks.notifyMemberRegistration).toHaveBeenCalledTimes(1);
@@ -183,6 +187,8 @@ describe("member registration approval delegation", () => {
       password: "joyful2026",
       name: "새성도",
       phone: "010-1234-5678",
+      birthDate: "1990-01-02",
+      gender: "남",
       position: "집사",
     })).rejects.toMatchObject({ code: "CONFLICT" });
 
@@ -198,6 +204,8 @@ describe("member registration approval delegation", () => {
       password: "joyful2026",
       name: "임의직분",
       phone: "010-1234-5678",
+      birthDate: "1990-01-02",
+      gender: "남",
       position: "임의 관리자",
     })).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
@@ -218,6 +226,8 @@ describe("member registration approval delegation", () => {
       password: "joyful2026",
       name: "직분없음",
       phone: "010-1234-5678",
+      birthDate: "1990-01-02",
+      gender: "남",
     })).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
     expect(dbMocks.createMember).not.toHaveBeenCalled();

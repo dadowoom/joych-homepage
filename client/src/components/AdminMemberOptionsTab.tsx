@@ -33,6 +33,7 @@ import {
   FIXED_MEMBER_REGISTER_FIELDS,
   MEMBER_REGISTER_FIELD_CONFIG_KEY,
   MEMBER_REGISTER_FIELD_DEFINITIONS,
+  isRequiredMemberRegisterField,
   parseMemberRegisterFieldConfig,
   type MemberRegisterFieldConfig,
   type MemberRegisterFieldKey,
@@ -259,6 +260,7 @@ export default function AdminMemberOptionsTab() {
     key: MemberRegisterFieldKey,
     patch: Partial<{ visible: boolean; required: boolean }>,
   ) => {
+    if (isRequiredMemberRegisterField(key)) return;
     setFieldConfig((previous) => {
       const next = { ...previous, [key]: { ...previous[key], ...patch } };
       if (patch.visible === false) next[key] = { ...next[key], required: false };
@@ -409,6 +411,7 @@ export default function AdminMemberOptionsTab() {
             </div>
             {MEMBER_REGISTER_FIELD_DEFINITIONS.map((field) => {
               const setting = fieldConfig[field.key];
+              const isFixedRequired = isRequiredMemberRegisterField(field.key);
               return (
                 <div key={field.key} className="grid grid-cols-[1fr_88px_88px] items-center border-t border-gray-100 px-3 py-3">
                   <div className="min-w-0">
@@ -424,17 +427,20 @@ export default function AdminMemberOptionsTab() {
                     <input
                       type="checkbox"
                       checked={setting.visible}
+                      disabled={isFixedRequired}
                       onChange={(event) => updateRegisterField(field.key, { visible: event.target.checked })}
-                      className="h-4 w-4 accent-[#1B5E20]"
+                      title={isFixedRequired ? "모든 가입 방식에서 표시되는 필수 항목입니다." : undefined}
+                      className="h-4 w-4 accent-[#1B5E20] disabled:cursor-not-allowed disabled:opacity-70"
                     />
                   </label>
                   <label className="flex justify-center">
                     <input
                       type="checkbox"
                       checked={setting.required}
-                      disabled={!setting.visible}
+                      disabled={isFixedRequired || !setting.visible}
                       onChange={(event) => updateRegisterField(field.key, { required: event.target.checked })}
-                      className="h-4 w-4 accent-[#1B5E20] disabled:opacity-40"
+                      title={isFixedRequired ? "일반가입과 간편가입 모두 필수입니다." : undefined}
+                      className="h-4 w-4 accent-[#1B5E20] disabled:cursor-not-allowed disabled:opacity-70"
                     />
                   </label>
                 </div>

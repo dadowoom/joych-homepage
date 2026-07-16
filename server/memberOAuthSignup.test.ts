@@ -48,6 +48,7 @@ const input = {
   name: "소셜성도",
   phone: "01012345678",
   birthDate: "1990-01-02",
+  gender: "남" as const,
   position: "권사",
   email: null,
 };
@@ -79,6 +80,8 @@ describe("social member registration notification", () => {
       expect.objectContaining({
         name: "소셜성도",
         phone: "010-1234-5678",
+        birthDate: "1990-01-02",
+        gender: "남",
         position: "권사",
       }),
       expect.objectContaining({
@@ -101,6 +104,27 @@ describe("social member registration notification", () => {
     })).resolves.toEqual({
       member: null,
       status: "invalid_phone",
+    });
+
+    expect(memberDbMocks.createMemberWithSocialAccount).not.toHaveBeenCalled();
+    expect(pushMocks.notifyMemberRegistration).not.toHaveBeenCalled();
+  });
+
+  it("생년월일 또는 성별이 없으면 생성과 알림 전에 차단한다", async () => {
+    await expect(createMemberFromSocialSignup(profile, {
+      ...input,
+      birthDate: "",
+    })).resolves.toEqual({
+      member: null,
+      status: "invalid_birth_date",
+    });
+
+    await expect(createMemberFromSocialSignup(profile, {
+      ...input,
+      gender: "" as "남",
+    })).resolves.toEqual({
+      member: null,
+      status: "invalid_gender",
     });
 
     expect(memberDbMocks.createMemberWithSocialAccount).not.toHaveBeenCalled();

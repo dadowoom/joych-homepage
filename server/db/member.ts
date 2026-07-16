@@ -294,9 +294,9 @@ export async function createMember(data: {
   email?: string | null;
   passwordHash?: string | null;
   name: string;
-  phone?: string;
-  birthDate?: string;
-  gender?: string;
+  phone: string;
+  birthDate: string;
+  gender: string;
   address?: string;
   emergencyPhone?: string;
   joinPath?: string;
@@ -342,8 +342,9 @@ export async function createMemberWithSocialAccount(memberData: {
   email?: string | null;
   passwordHash?: string | null;
   name: string;
-  phone?: string;
-  birthDate?: string;
+  phone: string;
+  birthDate: string;
+  gender: string;
   position?: string;
   joinPath?: string;
 }, socialData: {

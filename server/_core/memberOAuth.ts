@@ -305,6 +305,10 @@ function sanitizeBirthDate(value: unknown) {
   return birthDate;
 }
 
+function isMemberGender(value: unknown): value is "남" | "여" {
+  return value === "남" || value === "여";
+}
+
 async function postForm<T>(url: string, params: URLSearchParams): Promise<T> {
   const response = await fetch(url, {
     method: "POST",
@@ -526,6 +530,7 @@ export async function createMemberFromSocialSignup(
     name: string;
     phone: string;
     birthDate: string;
+    gender: "남" | "여";
     position: string;
     email: string | null;
   }
@@ -533,6 +538,13 @@ export async function createMemberFromSocialSignup(
   const phone = normalizeMemberPhone(input.phone);
   if (!phone) {
     return { member: null, status: "invalid_phone" as const };
+  }
+  const birthDate = sanitizeText(input.birthDate, 16);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
+    return { member: null, status: "invalid_birth_date" as const };
+  }
+  if (!isMemberGender(input.gender)) {
+    return { member: null, status: "invalid_gender" as const };
   }
 
   const email = profile.email || input.email;
@@ -557,7 +569,8 @@ export async function createMemberFromSocialSignup(
     passwordHash: null,
     name: input.name,
     phone,
-    birthDate: input.birthDate,
+    birthDate,
+    gender: input.gender,
     position: input.position || undefined,
     joinPath: `${providers[profile.provider].label} 간편가입`,
   }, {
@@ -601,8 +614,16 @@ export function registerMemberOAuthRoutes(app: Express) {
       });
       const name = sanitizeText(req.body?.name, 64);
       const rawPhone = sanitizeText(req.body?.phone, 32);
+      const rawBirthDate = sanitizeText(req.body?.birthDate, 16);
+      const rawGender = sanitizeText(req.body?.gender, 8);
+      if (!name || !rawPhone || !rawBirthDate || !rawGender) {
+        return res.status(400).json({ message: "이름, 연락처, 생년월일, 성별을 모두 입력해주세요." });
+      }
       const phone = normalizeMemberPhone(rawPhone);
-      const birthDate = sanitizeBirthDate(req.body?.birthDate);
+      const birthDate = sanitizeBirthDate(rawBirthDate);
+      if (!isMemberGender(rawGender)) {
+        return res.status(400).json({ message: "성별을 선택해주세요." });
+      }
       const email = signup.email || sanitizeOptionalEmail(req.body?.email);
       const fieldConfigRow = await getSiteSetting(MEMBER_REGISTER_FIELD_CONFIG_KEY);
       const fieldConfig = parseMemberRegisterFieldConfig(fieldConfigRow?.settingValue);
@@ -610,9 +631,6 @@ export function registerMemberOAuthRoutes(app: Express) {
         ? sanitizeText(req.body?.position, 64)
         : "";
 
-      if (!name || !rawPhone) {
-        return res.status(400).json({ message: "이름, 연락처, 생년월일을 모두 입력해주세요." });
-      }
       if (!phone) {
         return res.status(400).json({ message: MEMBER_PHONE_ERROR_MESSAGE });
       }
@@ -630,6 +648,7 @@ export function registerMemberOAuthRoutes(app: Express) {
         name,
         phone,
         birthDate,
+        gender: rawGender,
         position,
         email,
       });
@@ -639,6 +658,12 @@ export function registerMemberOAuthRoutes(app: Express) {
       }
       if (result.status === "invalid_phone") {
         return res.status(400).json({ message: MEMBER_PHONE_ERROR_MESSAGE });
+      }
+      if (result.status === "invalid_birth_date") {
+        return res.status(400).json({ message: "생년월일을 YYYY-MM-DD 형식으로 입력해주세요." });
+      }
+      if (result.status === "invalid_gender") {
+        return res.status(400).json({ message: "성별을 선택해주세요." });
       }
       if (!result.member || result.status === "error") {
         return res.status(500).json({ message: "간편가입 처리 중 문제가 발생했습니다." });

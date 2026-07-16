@@ -136,18 +136,27 @@ export default function MemberRegister() {
   };
 
   const handleSubmit = () => {
+    if (!validateStep1()) {
+      setStep(1);
+      return;
+    }
     if (!validateStep2()) return;
     if (!form.agreePrivacy) {
       toast.error("개인정보 수집 및 이용에 동의해주세요.");
+      return;
+    }
+    const phone = normalizeMemberPhone(form.phone);
+    if (!phone || !form.birthDate || !form.gender) {
+      setStep(1);
       return;
     }
     registerMutation.mutate({
       name: form.name,
       email: form.email,
       password: form.password,
-      phone: isFieldVisible("phone") ? normalizeMemberPhone(form.phone) ?? undefined : undefined,
-      birthDate: isFieldVisible("birthDate") ? form.birthDate || undefined : undefined,
-      gender: isFieldVisible("gender") ? (form.gender as "남" | "여") || undefined : undefined,
+      phone,
+      birthDate: form.birthDate,
+      gender: form.gender,
       address: isFieldVisible("address") ? form.address || undefined : undefined,
       emergencyPhone: isFieldVisible("emergencyPhone") ? form.emergencyPhone || undefined : undefined,
       joinPath: isFieldVisible("joinPath") ? form.joinPath || undefined : undefined,

@@ -26,6 +26,20 @@ export type MemberRegisterFieldDefinition = {
   section: "basic" | "church";
 };
 
+export const REQUIRED_MEMBER_REGISTER_FIELD_KEYS = [
+  "phone",
+  "birthDate",
+  "gender",
+] as const satisfies readonly MemberRegisterFieldKey[];
+
+const REQUIRED_MEMBER_REGISTER_FIELD_KEY_SET = new Set<MemberRegisterFieldKey>(
+  REQUIRED_MEMBER_REGISTER_FIELD_KEYS,
+);
+
+export function isRequiredMemberRegisterField(key: MemberRegisterFieldKey) {
+  return REQUIRED_MEMBER_REGISTER_FIELD_KEY_SET.has(key);
+}
+
 export const MEMBER_REGISTER_FIELD_DEFINITIONS: MemberRegisterFieldDefinition[] = [
   { key: "phone", label: "연락처", description: "회원 연락 및 승인 확인에 사용하는 전화번호", section: "basic" },
   { key: "birthDate", label: "생년월일", description: "성도 기본 정보에 저장되는 생년월일", section: "basic" },
@@ -41,8 +55,8 @@ export const MEMBER_REGISTER_FIELD_DEFINITIONS: MemberRegisterFieldDefinition[] 
 
 export const DEFAULT_MEMBER_REGISTER_FIELD_CONFIG: MemberRegisterFieldConfig = {
   phone: { visible: true, required: true },
-  birthDate: { visible: true, required: false },
-  gender: { visible: true, required: false },
+  birthDate: { visible: true, required: true },
+  gender: { visible: true, required: true },
   address: { visible: false, required: false },
   emergencyPhone: { visible: false, required: false },
   position: { visible: true, required: false },
@@ -51,6 +65,13 @@ export const DEFAULT_MEMBER_REGISTER_FIELD_CONFIG: MemberRegisterFieldConfig = {
   faithPlusUserId: { visible: true, required: false },
   joinPath: { visible: true, required: false },
 };
+
+function enforceRequiredMemberRegisterFields(config: MemberRegisterFieldConfig) {
+  for (const key of REQUIRED_MEMBER_REGISTER_FIELD_KEYS) {
+    config[key] = { visible: true, required: true };
+  }
+  return config;
+}
 
 export const FIXED_MEMBER_REGISTER_FIELDS = [
   { label: "이름", description: "회원 식별을 위한 필수 항목" },
@@ -64,7 +85,7 @@ export function parseMemberRegisterFieldConfig(value?: string | null): MemberReg
   for (const key of Object.keys(fallback) as MemberRegisterFieldKey[]) {
     fallback[key] = { ...fallback[key] };
   }
-  if (!value) return fallback;
+  if (!value) return enforceRequiredMemberRegisterFields(fallback);
 
   try {
     const parsed = JSON.parse(value) as Partial<Record<MemberRegisterFieldKey, Partial<MemberRegisterFieldSetting>>>;
@@ -79,8 +100,8 @@ export function parseMemberRegisterFieldConfig(value?: string | null): MemberReg
         fallback[definition.key].required = false;
       }
     }
-    return fallback;
+    return enforceRequiredMemberRegisterFields(fallback);
   } catch {
-    return fallback;
+    return enforceRequiredMemberRegisterFields(fallback);
   }
 }
