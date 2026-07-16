@@ -34,6 +34,28 @@ function sortConflicts(conflicts: VehicleAvailabilityConflict[]) {
   );
 }
 
+/** 선택한 시간과 실제로 겹치는 모든 차량 예약을 날짜·시간·차량순으로 반환합니다. */
+export function getOverlappingVehicleConflicts({
+  conflicts,
+  startTime,
+  endTime,
+}: {
+  conflicts: VehicleAvailabilityConflict[];
+  startTime: string;
+  endTime: string;
+}) {
+  const startMinutes = parseTimeMinutes(startTime);
+  const endMinutes = parseTimeMinutes(endTime);
+  if (startMinutes === null || endMinutes === null || startMinutes >= endMinutes) return [];
+
+  return sortConflicts(conflicts.filter((conflict) => {
+    const conflictStart = parseTimeMinutes(conflict.startTime);
+    const conflictEnd = parseTimeMinutes(conflict.endTime);
+    return conflictStart !== null && conflictEnd !== null &&
+      rangesOverlap(startMinutes, endMinutes, conflictStart, conflictEnd);
+  }));
+}
+
 /**
  * 불가 막대에 실제로 영향을 준 예약만 찾습니다.
  * 시작 막대는 차량별 최소 사용시간, 종료 막대는 선택 시작부터 종료까지를 기준으로 봅니다.
@@ -69,9 +91,11 @@ export function getBlockingVehicleConflicts({
     selectedStartMinutes < segmentEndMinutes &&
     segmentStartMinutes >= selectedStartMinutes
   ) {
-    return sortConflicts(conflicts.filter((conflict) =>
-      overlapsConflict(selectedStartMinutes, segmentEndMinutes, conflict)
-    ));
+    return getOverlappingVehicleConflicts({
+      conflicts,
+      startTime: selectedStartTime,
+      endTime: segmentEnd,
+    });
   }
 
   // 시작 막대는 차량마다 다른 최소 사용시간까지 봐야 바로 다음 칸의 예약도 놓치지 않습니다.

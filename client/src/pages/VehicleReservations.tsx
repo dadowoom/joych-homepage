@@ -17,6 +17,7 @@ import { generateReservationTimePoints } from "@/lib/facilitySlotSelection";
 import { hasContentPermission } from "@/lib/contentPermissions";
 import {
   getBlockingVehicleConflicts,
+  getOverlappingVehicleConflicts,
   type VehicleAvailabilityConflict,
 } from "@/lib/vehicleAvailabilityConflicts";
 import { groupVehicleReservations } from "@/lib/vehicleReservationGroups";
@@ -456,6 +457,16 @@ function VehicleAvailabilityTimeline({
       selectedStartTime: startTime,
     });
   }, [data.conflicts, inspectedUnavailableRange, startTime, vehicles]);
+  const selectedConflicts = useMemo(() => {
+    if (!startTime || !endTime) return [];
+    return getOverlappingVehicleConflicts({
+      conflicts: data.conflicts ?? [],
+      startTime,
+      endTime,
+    });
+  }, [data.conflicts, endTime, startTime]);
+  const isInspectingUnavailableRange = inspectedUnavailableRange?.kind === "booked";
+  const visibleConflicts = isInspectingUnavailableRange ? inspectedConflicts : selectedConflicts;
 
   useEffect(() => {
     setUnavailableMessage("");
@@ -635,15 +646,17 @@ function VehicleAvailabilityTimeline({
         </p>
       )}
 
-      {inspectedUnavailableRange?.kind === "booked" && inspectedConflicts.length > 0 && (
+      {visibleConflicts.length > 0 && (
         <section
           className="rounded-xl border border-amber-200 bg-amber-50/60 p-3"
-          aria-label="차량 예약 충돌 상세"
+          aria-label={isInspectingUnavailableRange ? "차량 예약 충돌 상세" : "선택한 시간의 차량 예약 현황"}
           aria-live="polite"
         >
-          <p className="text-xs font-bold text-amber-900">불가 판정에 영향을 준 예약</p>
+          <p className="text-xs font-bold text-amber-900">
+            {isInspectingUnavailableRange ? "불가 판정에 영향을 준 예약" : "선택한 시간에 예약된 차량"}
+          </p>
           <div className="mt-2 grid gap-2">
-            {inspectedConflicts.map((conflict, index) => (
+            {visibleConflicts.map((conflict, index) => (
               <article
                 key={`${conflict.reservationDate}-${conflict.startTime}-${conflict.endTime}-${conflict.vehicleId}-${index}`}
                 className="rounded-lg border border-amber-100 bg-white p-3 text-xs text-gray-700 shadow-sm"
