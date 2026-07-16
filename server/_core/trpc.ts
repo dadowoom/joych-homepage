@@ -5,7 +5,7 @@ import type { TrpcContext } from "./context";
 import { hasAdminContentPermission } from "../db/adminPermissions";
 import { getMemberById } from "../db/member";
 import { getJwtSecretKey } from "./jwtSecret";
-import { MEMBER_SESSION_COOKIE } from "./memberSession";
+import { isMemberSessionCurrent, MEMBER_SESSION_COOKIE } from "./memberSession";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -112,6 +112,9 @@ export const memberProtectedProcedure = t.procedure.use(
       const member = await getMemberById(payload.memberId as number);
       if (!member) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: '존재하지 않는 성도 계정입니다.' });
+      }
+      if (!isMemberSessionCurrent(payload, member.sessionVersion)) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: '로그인이 만료되었습니다. 다시 로그인해 주세요.' });
       }
       if (member.status !== 'approved') {
         const statusMsg: Record<string, string> = {

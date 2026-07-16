@@ -1985,6 +1985,59 @@ else
   exit 1
 fi
 
+MIGRATION_0082="${APP_DIR}/drizzle/0082_member_session_version.sql"
+if [[ -f "${MIGRATION_0082}" ]]; then
+  echo "[deploy] database migration: member session version"
+  node --input-type=module <<'NODE'
+import fs from "node:fs/promises";
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required for migration 0082.");
+}
+
+const migrationId = "0082_member_session_version";
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  const [rows] = await connection.execute(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    [migrationId],
+  );
+  const alreadyRecorded = Array.isArray(rows) && rows.length > 0;
+  const [columns] = await connection.execute(
+    "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'church_members' AND COLUMN_NAME = 'session_version' LIMIT 1",
+  );
+
+  if (!Array.isArray(columns) || columns.length === 0) {
+    const sql = await fs.readFile("drizzle/0082_member_session_version.sql", "utf8");
+    await connection.query(sql);
+  }
+
+  if (!alreadyRecorded) {
+    await connection.execute(
+      "INSERT INTO app_migrations (id) VALUES (?)",
+      [migrationId],
+    );
+    console.log("[deploy] migration 0082 applied");
+  } else {
+    console.log("[deploy] migration 0082 already applied and schema verified");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+else
+  echo "[deploy] missing migration file: ${MIGRATION_0082}" >&2
+  exit 1
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

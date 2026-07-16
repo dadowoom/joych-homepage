@@ -19,6 +19,14 @@ type ChurchForm = {
   pastor: string;
 };
 
+type PasswordForm = {
+  currentPassword: string;
+  newPassword: string;
+  newPasswordConfirm: string;
+};
+
+type PasswordFormErrors = Partial<Record<keyof PasswordForm, string>>;
+
 const EMPTY_CHURCH_FORM: ChurchForm = {
   position: "",
   department: "",
@@ -27,6 +35,12 @@ const EMPTY_CHURCH_FORM: ChurchForm = {
   baptismDate: "",
   registeredAt: "",
   pastor: "",
+};
+
+const EMPTY_PASSWORD_FORM: PasswordForm = {
+  currentPassword: "",
+  newPassword: "",
+  newPasswordConfirm: "",
 };
 
 export default function MemberMyPage() {
@@ -40,6 +54,10 @@ export default function MemberMyPage() {
   const [faithPlusInput, setFaithPlusInput] = useState("");
   const [editingChurchInfo, setEditingChurchInfo] = useState(false);
   const [churchForm, setChurchForm] = useState<ChurchForm>(EMPTY_CHURCH_FORM);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [passwordForm, setPasswordForm] =
+    useState<PasswordForm>(EMPTY_PASSWORD_FORM);
+  const [passwordErrors, setPasswordErrors] = useState<PasswordFormErrors>({});
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [withdrawConfirm, setWithdrawConfirm] = useState("");
 
@@ -69,6 +87,20 @@ export default function MemberMyPage() {
     },
     onError: (e) => {
       toast.error(e.message || "저장에 실패했습니다.");
+    },
+  });
+
+  const changePasswordMutation = trpc.members.changeMyPassword.useMutation({
+    onSuccess: () => {
+      toast.success("비밀번호가 변경됐습니다. 새 비밀번호로 다시 로그인해주세요.");
+      setPasswordForm(EMPTY_PASSWORD_FORM);
+      setPasswordErrors({});
+      setPasswordOpen(false);
+      void utils.members.me.invalidate();
+      navigate("/member/login");
+    },
+    onError: (e) => {
+      toast.error(e.message || "비밀번호 변경에 실패했습니다.");
     },
   });
 
@@ -115,6 +147,49 @@ export default function MemberMyPage() {
       registeredAt: churchForm.registeredAt,
       pastor: churchForm.pastor,
     });
+  };
+
+  const setPasswordField =
+    (key: keyof PasswordForm) => (e: ChangeEvent<HTMLInputElement>) => {
+      setPasswordForm(prev => ({ ...prev, [key]: e.target.value }));
+      setPasswordErrors(prev => ({ ...prev, [key]: undefined }));
+    };
+
+  const handlePasswordSave = () => {
+    const errors: PasswordFormErrors = {};
+
+    if (!passwordForm.currentPassword) {
+      errors.currentPassword = "현재 비밀번호를 입력해주세요.";
+    }
+    if (passwordForm.newPassword.length < 8) {
+      errors.newPassword = "새 비밀번호는 8자 이상이어야 합니다.";
+    } else if (
+      !/[A-Za-z]/.test(passwordForm.newPassword) ||
+      !/\d/.test(passwordForm.newPassword)
+    ) {
+      errors.newPassword = "새 비밀번호는 영문과 숫자를 모두 포함해야 합니다.";
+    } else if (passwordForm.newPassword === passwordForm.currentPassword) {
+      errors.newPassword = "현재 비밀번호와 다른 비밀번호를 입력해주세요.";
+    }
+    if (passwordForm.newPasswordConfirm !== passwordForm.newPassword) {
+      errors.newPasswordConfirm = "새 비밀번호가 일치하지 않습니다.";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setPasswordErrors(errors);
+      return;
+    }
+
+    changePasswordMutation.mutate({
+      currentPassword: passwordForm.currentPassword,
+      newPassword: passwordForm.newPassword,
+    });
+  };
+
+  const closePasswordForm = () => {
+    setPasswordOpen(false);
+    setPasswordForm(EMPTY_PASSWORD_FORM);
+    setPasswordErrors({});
   };
 
   const setChurchField = (key: keyof ChurchForm) => (
@@ -243,6 +318,83 @@ export default function MemberMyPage() {
             <InfoRow label="생년월일" value={me.birthDate} />
             <InfoRow label="성별" value={me.gender} />
           </div>
+        </div>
+
+        {/* 비밀번호 변경 */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-gray-800 mb-1 flex items-center gap-2">
+                <i className="fas fa-lock text-[#1B5E20]"></i>
+                비밀번호 변경
+              </h2>
+              <p className="text-xs text-gray-400">
+                {me.hasPassword
+                  ? "안전한 계정 사용을 위해 비밀번호를 변경할 수 있습니다."
+                  : "간편가입 계정은 연결된 소셜 계정으로 로그인합니다."}
+              </p>
+            </div>
+            {me.hasPassword && !passwordOpen && (
+              <button
+                type="button"
+                onClick={() => setPasswordOpen(true)}
+                className="text-xs text-[#1B5E20] border border-[#1B5E20] rounded-lg px-3 py-1.5 hover:bg-[#E8F5E9] transition-colors flex-shrink-0"
+              >
+                변경
+              </button>
+            )}
+          </div>
+
+          {me.hasPassword && passwordOpen && (
+            <form
+              className="space-y-3 mt-4"
+              onSubmit={e => {
+                e.preventDefault();
+                handlePasswordSave();
+              }}
+            >
+              <PasswordInput
+                label="현재 비밀번호"
+                value={passwordForm.currentPassword}
+                onChange={setPasswordField("currentPassword")}
+                autoComplete="current-password"
+                error={passwordErrors.currentPassword}
+              />
+              <PasswordInput
+                label="새 비밀번호"
+                value={passwordForm.newPassword}
+                onChange={setPasswordField("newPassword")}
+                autoComplete="new-password"
+                placeholder="8자 이상, 영문과 숫자 포함"
+                error={passwordErrors.newPassword}
+              />
+              <PasswordInput
+                label="새 비밀번호 확인"
+                value={passwordForm.newPasswordConfirm}
+                onChange={setPasswordField("newPasswordConfirm")}
+                autoComplete="new-password"
+                placeholder="새 비밀번호를 한 번 더 입력해주세요"
+                error={passwordErrors.newPasswordConfirm}
+              />
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={changePasswordMutation.isPending}
+                  className="flex-1 py-2 bg-[#1B5E20] text-white rounded-lg text-sm font-medium hover:bg-[#154a18] disabled:opacity-50"
+                >
+                  {changePasswordMutation.isPending ? "변경 중..." : "변경"}
+                </button>
+                <button
+                  type="button"
+                  onClick={closePasswordForm}
+                  disabled={changePasswordMutation.isPending}
+                  className="flex-1 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+                >
+                  취소
+                </button>
+              </div>
+            </form>
+          )}
         </div>
 
         {/* 교회 정보 */}
@@ -540,6 +692,42 @@ function TextInfoRow({
         placeholder={placeholder}
         className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
       />
+    </div>
+  );
+}
+
+function PasswordInput({
+  label,
+  value,
+  onChange,
+  autoComplete,
+  placeholder,
+  error,
+}: {
+  label: string;
+  value: string;
+  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  autoComplete: "current-password" | "new-password";
+  placeholder?: string;
+  error?: string;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        {label}
+      </label>
+      <input
+        type="password"
+        value={value}
+        onChange={onChange}
+        autoComplete={autoComplete}
+        maxLength={128}
+        placeholder={placeholder}
+        className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30 ${
+          error ? "border-red-400" : "border-gray-300"
+        }`}
+      />
+      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
     </div>
   );
 }

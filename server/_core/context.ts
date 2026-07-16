@@ -6,6 +6,7 @@ import { getSessionCookieOptions } from "./cookies";
 import { getJwtSecretKey } from "./jwtSecret";
 import {
   MEMBER_SESSION_COOKIE,
+  isMemberSessionCurrent,
   refreshMemberSessionCookieIfNeeded,
   SESSION_REFRESH_THRESHOLD_MS,
 } from "./memberSession";
@@ -48,6 +49,7 @@ async function authenticateMemberContentManager(
 
     const member = await getMemberById(memberId);
     if (!member || member.status !== "approved") return null;
+    if (!isMemberSessionCurrent(payload, member.sessionVersion)) return null;
 
     const linkedUser = await getUserByOpenId(memberAdminOpenId(member.id));
     if (!linkedUser) return null;
@@ -78,11 +80,13 @@ async function authenticateApprovedMember(
 
     const member = await getMemberById(memberId);
     if (!member || member.status !== "approved") return null;
+    if (!isMemberSessionCurrent(payload, member.sessionVersion)) return null;
 
     await refreshMemberSessionCookieIfNeeded(req, res, payload, {
       id: member.id,
       email: member.email,
       name: member.name,
+      sessionVersion: member.sessionVersion,
     });
 
     return { memberId: member.id, memberName: member.name };

@@ -573,6 +573,8 @@ export const churchMembers = mysqlTable("church_members", {
   email: varchar("email", { length: 128 }).unique(),
   /** 비밀번호 해시 */
   passwordHash: varchar("password_hash", { length: 256 }),
+  /** 비밀번호 변경 때 증가 — 토큰의 버전과 다르면 기존 성도 세션을 무효화 */
+  sessionVersion: int("session_version").notNull().default(0),
 
   // ── 기본 정보 (성도 직접 입력) ────────────────────────────
   /** 성도 이름 */

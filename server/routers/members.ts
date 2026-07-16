@@ -31,9 +31,10 @@ import { adminPermissionProcedure, adminProcedure, publicProcedure, memberProtec
 import { checkRateLimit, recordFailure, resetFailures, getClientIp, checkSearchRateLimit, checkRegisterRateLimit } from "../_core/rateLimiter";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { getJwtSecretKey } from "../_core/jwtSecret";
-import { MEMBER_SESSION_COOKIE, setMemberSessionCookie } from "../_core/memberSession";
+import { isMemberSessionCurrent, MEMBER_SESSION_COOKIE, setMemberSessionCookie } from "../_core/memberSession";
 import {
   memberEmailSchema,
+  memberPasswordSchema,
   memberRegisterInputSchema,
   optionalMemberPhone,
   optionalDate,
@@ -65,6 +66,7 @@ import {
   adminHardDeleteMember,
   adminUpdateMember,
   adminResetMemberPassword,
+  updateMemberPasswordHash,
   getAllMembers,
   getPendingMembers,
   searchMembersByName,
@@ -145,18 +147,27 @@ function visibleRegisterValue(
 }
 
 function sanitizeMemberForSelf<T extends Record<string, unknown>>(member: T) {
-  const { passwordHash: _passwordHash, adminMemo: _adminMemo, ...safeData } = member;
-  return safeData;
+  const {
+    passwordHash: _passwordHash,
+    sessionVersion: _sessionVersion,
+    adminMemo: _adminMemo,
+    ...safeData
+  } = member;
+  return {
+    ...safeData,
+    hasPassword: Boolean(_passwordHash),
+  };
 }
 
 function sanitizeMemberForAdmin<T extends Record<string, unknown>>(member: T) {
-  const { passwordHash: _passwordHash, ...safeData } = member;
+  const { passwordHash: _passwordHash, sessionVersion: _sessionVersion, ...safeData } = member;
   return safeData;
 }
 
 function sanitizeMemberForDirectoryManager<T extends Record<string, unknown>>(member: T) {
   const {
     passwordHash: _passwordHash,
+    sessionVersion: _sessionVersion,
     adminMemo: _adminMemo,
     assignedDistricts: _assignedDistricts,
     ...safeData
@@ -341,6 +352,7 @@ export const membersRouter = router({
         id: member.id,
         email: member.email,
         name: member.name,
+        sessionVersion: member.sessionVersion,
       }, {
         persistent: input.autoLogin !== false,
       });
@@ -384,6 +396,7 @@ export const membersRouter = router({
         const member = await getMemberById(payload.memberId as number);
         if (!member) return null;
         if (member.status !== "approved") return null;
+        if (!isMemberSessionCurrent(payload, member.sessionVersion)) return null;
 
         // 비밀번호 해시와 관리자 내부 메모 제외
         return sanitizeMemberForSelf(member);
@@ -429,6 +442,63 @@ export const membersRouter = router({
     .mutation(async ({ input, ctx }) => {
       await updateMemberChurchInfo(ctx.memberId, input);
       return { success: true };
+    }),
+
+  /**
+   * 내 비밀번호 변경
+   * - 승인된 성도 본인만 변경할 수 있음
+   * - 현재 비밀번호 확인 후 회원가입과 동일한 정책으로 새 비밀번호 저장
+   */
+  changeMyPassword: memberProtectedProcedure
+    .input(z.object({
+      currentPassword: z.string()
+        .min(1, "현재 비밀번호를 입력해주세요.")
+        .max(128, "현재 비밀번호는 128자 이하로 입력해주세요."),
+      newPassword: memberPasswordSchema,
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const clientIp = getClientIp(ctx.req);
+      const ipKey = `ip:password-change:${clientIp}`;
+      const accountKey = `account:password-change:${ctx.memberId}`;
+
+      try {
+        checkRateLimit(ipKey);
+        checkRateLimit(accountKey);
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "비밀번호 확인 시도가 너무 많습니다.";
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message });
+      }
+
+      const member = await getMemberById(ctx.memberId);
+      if (!member?.passwordHash) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "간편가입 계정은 연결된 계정으로 로그인하며 변경할 비밀번호가 없습니다.",
+        });
+      }
+
+      const bcrypt = await import("bcryptjs");
+      const currentPasswordMatches = await bcrypt.compare(input.currentPassword, member.passwordHash);
+      if (!currentPasswordMatches) {
+        recordFailure(ipKey);
+        recordFailure(accountKey);
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "현재 비밀번호가 올바르지 않습니다." });
+      }
+
+      resetFailures(ipKey);
+      resetFailures(accountKey);
+
+      const passwordIsUnchanged = await bcrypt.compare(input.newPassword, member.passwordHash);
+      if (passwordIsUnchanged) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "새 비밀번호는 현재 비밀번호와 다르게 입력해주세요." });
+      }
+
+      const passwordHash = await bcrypt.hash(input.newPassword, 10);
+      await updateMemberPasswordHash(ctx.memberId, passwordHash);
+      ctx.res.clearCookie(MEMBER_SESSION_COOKIE, {
+        ...getSessionCookieOptions(ctx.req),
+      });
+      return { success: true, requiresLogin: true };
     }),
 
   /**

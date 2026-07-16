@@ -12,6 +12,7 @@ export type MemberSessionIdentity = {
   id: number;
   email: string | null;
   name: string;
+  sessionVersion?: number;
 };
 
 export type MemberSessionOptions = {
@@ -28,10 +29,27 @@ export async function createMemberSessionToken(
     name: member.name,
     type: "church_member",
     persistent: options.persistent !== false,
+    sessionVersion: member.sessionVersion ?? 0,
   })
     .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
     .setExpirationTime("30d")
     .sign(getJwtSecretKey());
+}
+
+/**
+ * 토큰과 DB의 세션 버전이 같은지 확인합니다.
+ * 기존 토큰에 버전 claim이 없으면 0으로 보아 마이그레이션 전 세션을 유지합니다.
+ */
+export function isMemberSessionCurrent(
+  payload: JWTPayload,
+  memberSessionVersion: number | null | undefined,
+) {
+  const currentVersion = memberSessionVersion ?? 0;
+  if (!Number.isInteger(currentVersion) || currentVersion < 0) return false;
+  if (payload.sessionVersion === undefined) return currentVersion === 0;
+  if (!Number.isInteger(payload.sessionVersion) || (payload.sessionVersion as number) < 0) return false;
+  return payload.sessionVersion === currentVersion;
 }
 
 export async function setMemberSessionCookie(

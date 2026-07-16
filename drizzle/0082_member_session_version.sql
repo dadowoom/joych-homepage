@@ -1,0 +1,2 @@
+ALTER TABLE `church_members`
+  ADD COLUMN `session_version` int NOT NULL DEFAULT 0;

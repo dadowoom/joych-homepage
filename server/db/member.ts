@@ -9,7 +9,7 @@
  *   - 관리자 전용: adminUpdateMember, adminResetMemberPassword
  */
 
-import { and, eq, asc, desc } from "drizzle-orm";
+import { and, eq, asc, desc, sql } from "drizzle-orm";
 import type { ResultSetHeader } from "mysql2";
 import {
   bulletinAdRequests,
@@ -660,7 +660,27 @@ export async function adminResetMemberPassword(id: number, tempPassword: string)
   const hash = await bcrypt.hash(tempPassword, 10);
   const db = await getDb();
   if (!db) throw new Error('DB not available');
-  await db.update(churchMembers).set({ passwordHash: hash, updatedAt: new Date() }).where(eq(churchMembers.id, id));
+  const changedAt = new Date();
+  await db.update(churchMembers).set({
+    passwordHash: hash,
+    sessionVersion: sql`${churchMembers.sessionVersion} + 1`,
+    updatedAt: changedAt,
+  }).where(eq(churchMembers.id, id));
+}
+
+/** 성도 본인: 검증이 끝난 새 비밀번호 해시 저장 */
+export async function updateMemberPasswordHash(id: number, passwordHash: string) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const changedAt = new Date();
+  await db
+    .update(churchMembers)
+    .set({
+      passwordHash,
+      sessionVersion: sql`${churchMembers.sessionVersion} + 1`,
+      updatedAt: changedAt,
+    })
+    .where(eq(churchMembers.id, id));
 }
 
 // ─── 성도 검색 (내부 주소록 전용) ─────────────────────────────────────────────
