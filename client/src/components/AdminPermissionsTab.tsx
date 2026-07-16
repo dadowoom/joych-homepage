@@ -1,6 +1,8 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { buildAssignedPermissionSubjectSelection } from "@/lib/adminPermissionSelection";
 
 type PermissionSubject = {
   memberId: number;
@@ -21,9 +23,10 @@ export default function AdminPermissionsTab() {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [assignedSubjectsCollapsed, setAssignedSubjectsCollapsed] = useState(false);
-  const permissionsQuery = trpc.cms.adminPermissions.list.useQuery({
-    searchTerm: submittedSearchTerm,
-  });
+  const permissionsQuery = trpc.cms.adminPermissions.list.useQuery(
+    { searchTerm: submittedSearchTerm },
+    { placeholderData: keepPreviousData },
+  );
   const permissions = permissionsQuery.data?.permissions ?? [];
   const subjects = permissionsQuery.data?.subjects ?? [];
   const assignedSubjects = permissionsQuery.data?.assignedSubjects ?? [];
@@ -109,6 +112,13 @@ export default function AdminPermissionsTab() {
     });
   };
 
+  const handleAssignedSubjectSelect = (subject: PermissionSubject) => {
+    const selection = buildAssignedPermissionSubjectSelection(subject);
+    setSearchInput(selection.searchInput);
+    setSubmittedSearchTerm(selection.submittedSearchTerm);
+    setSelectedMemberId(selection.selectedMemberId);
+  };
+
   const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextSearchTerm = searchInput.trim();
@@ -179,7 +189,7 @@ export default function AdminPermissionsTab() {
                   <button
                     key={subject.memberId}
                     type="button"
-                    onClick={() => setSelectedMemberId(subject.memberId)}
+                    onClick={() => handleAssignedSubjectSelect(subject)}
                     className={`rounded-lg border bg-white px-3 py-3 text-left transition-colors ${
                       isSelected
                         ? "border-[#1B5E20] ring-1 ring-[#A5D6A7]"
