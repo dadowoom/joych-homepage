@@ -13,9 +13,9 @@ export type LegacyVodInfo = {
   date: string;
 };
 
-const LEGACY_VOD_INFO_URL = "http://www.joych.org/core/xml/vod/vodInfo.xml.html";
+const LEGACY_VOD_INFO_URL = "http://joych.org/core/xml/vod/vodInfo.xml.html";
 const LEGACY_VOD_REFERER_BASE =
-  "http://www.joych.org/core/module/vod/skin_001/vodIframe.html";
+  "http://joych.org/core/module/vod/skin_001/vodIframe.html";
 const DEFAULT_VIDEO_RANGE = "bytes=0-1048575";
 const LEGACY_VOD_CACHE_TTL_MS = 10 * 60 * 1000;
 const LEGACY_VOD_CACHE = new Map<
