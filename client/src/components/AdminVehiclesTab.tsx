@@ -5,7 +5,7 @@
  * - 차량예약을 볼 수 있고 신청할 수 있는 성도 그룹 설정
  */
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -16,6 +16,10 @@ import {
   type VehicleReservationGroup,
 } from "@/lib/vehicleReservationGroups";
 import { sortVehiclePlateRows } from "@/lib/vehiclePlateSort";
+import {
+  DEFAULT_VEHICLE_INQUIRY_SETTINGS,
+  resolveVehicleInquirySettings,
+} from "@shared/vehicleInquiry";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -30,6 +34,7 @@ import {
   List,
   Loader2,
   Pencil,
+  Phone,
   Plus,
   Save,
   Star,
@@ -304,6 +309,7 @@ export default function AdminVehiclesTab() {
   const [imageVehicleId, setImageVehicleId] = useState<number | null>(null);
   const [uploadingVehicleImage, setUploadingVehicleImage] = useState(false);
   const [busyImageId, setBusyImageId] = useState<number | null>(null);
+  const [inquiryDraft, setInquiryDraft] = useState(DEFAULT_VEHICLE_INQUIRY_SETTINGS);
   const vehicleImageInputRef = useRef<HTMLInputElement | null>(null);
 
   const { data: vehicles = [], isLoading: vehiclesLoading } = trpc.cms.vehicles.list.useQuery(undefined, {
@@ -316,6 +322,7 @@ export default function AdminVehiclesTab() {
     );
   const { data: memberOptions = [] } = trpc.members.adminFieldOptions.useQuery();
   const { data: accessRules = [], isLoading: accessLoading } = trpc.cms.vehicles.accessRules.list.useQuery(undefined);
+  const { data: siteSettings } = trpc.home.settings.useQuery();
   const { data: vehicleImages = [], isLoading: vehicleImagesLoading } = trpc.cms.vehicles.images.list.useQuery(
     { vehicleId: imageVehicleId ?? 1 },
     { enabled: imageVehicleId !== null }
@@ -327,6 +334,10 @@ export default function AdminVehiclesTab() {
   const accessRuleRows = accessRules as AccessRuleDraft[];
   const vehicleImageRows = vehicleImages as VehicleImageRow[];
   const imageVehicle = vehicleRows.find(vehicle => vehicle.id === imageVehicleId) ?? null;
+
+  useEffect(() => {
+    setInquiryDraft(resolveVehicleInquirySettings(siteSettings));
+  }, [siteSettings]);
 
   const createVehicle = trpc.cms.vehicles.create.useMutation({
     onSuccess: () => {
@@ -475,6 +486,13 @@ export default function AdminVehiclesTab() {
     const matchesStatus = reservationStatusFilter === "all"
       || group.reservations.some(row => row.status === reservationStatusFilter);
     return matchesVehicle && matchesStatus;
+  });
+  const updateInquirySettings = trpc.cms.vehicles.inquirySettings.update.useMutation({
+    onSuccess: () => {
+      utils.home.settings.invalidate();
+      toast.success("차량 문의 안내가 저장되었습니다.");
+    },
+    onError: (error) => toast.error(error.message || "차량 문의 안내 저장에 실패했습니다."),
   });
 
   const optionGroups = useMemo(() => {
@@ -1008,6 +1026,68 @@ export default function AdminVehiclesTab() {
             </Button>
           </div>
         </div>
+      )}
+
+      {activeMode === "vehicles" && !showForm && (
+        <section className="rounded-xl border border-green-100 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#E8F5E9] text-[#1B5E20]">
+              <Phone className="h-5 w-5" />
+            </span>
+            <div>
+              <h4 className="text-sm font-bold text-gray-900">차량 문의 안내</h4>
+              <p className="mt-1 text-xs text-gray-500">사용자 차량예약 화면 하단에 공통으로 표시되는 연락처와 안내 문구입니다.</p>
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-600">담당 부서</span>
+              <input
+                value={inquiryDraft.department}
+                maxLength={40}
+                onChange={(event) => setInquiryDraft(current => ({ ...current, department: event.target.value }))}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-600">문의 연락처</span>
+              <input
+                value={inquiryDraft.phone}
+                inputMode="tel"
+                maxLength={40}
+                onChange={(event) => setInquiryDraft(current => ({ ...current, phone: event.target.value }))}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
+              />
+            </label>
+            <label className="block md:col-span-2">
+              <span className="mb-1 block text-xs font-medium text-gray-600">하단 안내 문구</span>
+              <textarea
+                value={inquiryDraft.note}
+                maxLength={300}
+                rows={2}
+                onChange={(event) => setInquiryDraft(current => ({ ...current, note: event.target.value }))}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
+              />
+            </label>
+          </div>
+          <div className="mt-4 flex justify-end">
+            <Button
+              type="button"
+              disabled={updateInquirySettings.isPending || !inquiryDraft.department.trim() || !inquiryDraft.phone.trim()}
+              onClick={() => updateInquirySettings.mutate({
+                department: inquiryDraft.department.trim(),
+                phone: inquiryDraft.phone.trim(),
+                note: inquiryDraft.note.trim(),
+              })}
+              className="bg-[#1B5E20] text-white hover:bg-[#2E7D32]"
+            >
+              {updateInquirySettings.isPending
+                ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                : <Save className="mr-1.5 h-4 w-4" />}
+              문의 안내 저장
+            </Button>
+          </div>
+        </section>
       )}
 
       {activeMode === "vehicles" && !showForm && imageVehicle && (

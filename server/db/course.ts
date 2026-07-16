@@ -7,15 +7,20 @@
  *   - 관리자 신청자 명단 및 성도 본인 신청 내역 조회
  */
 
-import { and, asc, desc, eq, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import type { ResultSetHeader } from "mysql2";
 import {
   COURSE_APPLICATION_CHECKLIST_DEFAULTS,
-  type CourseApplicationChecklistField,
+  DEFAULT_COURSE_APPLICATION_CHECKLIST_ITEMS,
+  buildCourseApplicationChecklistValues,
+  isLegacyCourseApplicationChecklistField,
+  type CourseApplicationChecklistItem,
 } from "@shared/courseApplicationChecklist";
 import {
   churchMembers,
   Course,
+  courseApplicationChecklistItems,
+  courseApplicationChecklistValues,
   courseApplications,
   courseRoomManagers,
   courses,
@@ -87,6 +92,95 @@ function summarizeApplications(rows: { courseId: number; status: CourseApplicati
   }
 
   return counts;
+}
+
+function defaultCourseApplicationChecklistItems() {
+  return DEFAULT_COURSE_APPLICATION_CHECKLIST_ITEMS.map(item => ({ ...item }));
+}
+
+function groupCourseApplicationChecklistItems(
+  rows: Array<{ courseId: number; itemKey: string; label: string; isActive: boolean }>,
+) {
+  const grouped = new Map<number, CourseApplicationChecklistItem[]>();
+  rows.forEach((row) => {
+    if (!row.isActive) return;
+    const items = grouped.get(row.courseId) ?? [];
+    items.push({ id: row.itemKey, label: row.label });
+    grouped.set(row.courseId, items);
+  });
+  return grouped;
+}
+
+export async function getCourseApplicationChecklistItems(courseId: number) {
+  const db = await getDb();
+  if (!db) return defaultCourseApplicationChecklistItems();
+  const rows = await db
+    .select({
+      courseId: courseApplicationChecklistItems.courseId,
+      itemKey: courseApplicationChecklistItems.itemKey,
+      label: courseApplicationChecklistItems.label,
+      isActive: courseApplicationChecklistItems.isActive,
+    })
+    .from(courseApplicationChecklistItems)
+    .where(eq(courseApplicationChecklistItems.courseId, courseId))
+    .orderBy(asc(courseApplicationChecklistItems.sortOrder), asc(courseApplicationChecklistItems.id));
+  return rows.length > 0
+    ? rows.filter(row => row.isActive).map(row => ({ id: row.itemKey, label: row.label }))
+    : defaultCourseApplicationChecklistItems();
+}
+
+export async function replaceCourseApplicationChecklistItems(
+  courseId: number,
+  items: CourseApplicationChecklistItem[],
+) {
+  const db = await getDb();
+  if (!db) return false;
+  return db.transaction(async (tx) => {
+    // Serialise definition replacements for the same course. Without locking the
+    // course row, concurrent saves can interleave soft deletes and upserts.
+    const [course] = await tx
+      .select({ id: courses.id })
+      .from(courses)
+      .where(eq(courses.id, courseId))
+      .limit(1)
+      .for("update");
+    if (!course) return false;
+
+    const existingRows = await tx
+      .select({ id: courseApplicationChecklistItems.id, itemKey: courseApplicationChecklistItems.itemKey })
+      .from(courseApplicationChecklistItems)
+      .where(eq(courseApplicationChecklistItems.courseId, courseId));
+    const existingByKey = new Map(existingRows.map(row => [row.itemKey, row]));
+    const nextKeys = new Set(items.map(item => item.id));
+
+    for (const row of existingRows) {
+      if (!nextKeys.has(row.itemKey)) {
+        await tx
+          .update(courseApplicationChecklistItems)
+          .set({ isActive: false })
+          .where(eq(courseApplicationChecklistItems.id, row.id));
+      }
+    }
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      const existing = existingByKey.get(item.id);
+      if (existing) {
+        await tx
+          .update(courseApplicationChecklistItems)
+          .set({ label: item.label, sortOrder: index, isActive: true })
+          .where(eq(courseApplicationChecklistItems.id, existing.id));
+      } else {
+        await tx.insert(courseApplicationChecklistItems).values({
+          courseId,
+          itemKey: item.id,
+          label: item.label,
+          sortOrder: index,
+          isActive: true,
+        });
+      }
+    }
+    return true;
+  });
 }
 
 function truncateText(value: string, maxLength: number) {
@@ -192,19 +286,37 @@ export async function getCoursesForAdmin(pageHref?: string) {
     })
     .from(courseApplications);
   const counts = summarizeApplications(applicationRows);
+  const checklistRows = await db
+    .select({
+      courseId: courseApplicationChecklistItems.courseId,
+      itemKey: courseApplicationChecklistItems.itemKey,
+      label: courseApplicationChecklistItems.label,
+      isActive: courseApplicationChecklistItems.isActive,
+    })
+    .from(courseApplicationChecklistItems)
+    .orderBy(
+      asc(courseApplicationChecklistItems.courseId),
+      asc(courseApplicationChecklistItems.sortOrder),
+      asc(courseApplicationChecklistItems.id),
+    );
+  const checklistItemsByCourse = groupCourseApplicationChecklistItems(checklistRows);
+  const configuredChecklistCourseIds = new Set(checklistRows.map(row => row.courseId));
 
   const normalizedHref = pageHref?.trim() || null;
   return courseRows
     .filter((course) => !normalizedHref || (course.pageHref ?? "/education/courses") === normalizedHref)
     .map((course) => ({
-    ...course,
-    ...(counts.get(course.id) ?? {
-      pendingCount: 0,
-      approvedCount: 0,
-      rejectedCount: 0,
-      cancelledCount: 0,
-      activeCount: 0,
-    }),
+      ...course,
+      ...(counts.get(course.id) ?? {
+        pendingCount: 0,
+        approvedCount: 0,
+        rejectedCount: 0,
+        cancelledCount: 0,
+        activeCount: 0,
+      }),
+      applicationChecklistItems: configuredChecklistCourseIds.has(course.id)
+        ? checklistItemsByCourse.get(course.id) ?? []
+        : defaultCourseApplicationChecklistItems(),
     }));
 }
 
@@ -301,8 +413,20 @@ export async function deleteCourse(id: number) {
   if (!db) return;
   const current = await getCourseById(id);
   await cancelLinkedCourseReservation(current?.facilityReservationId, "강좌 삭제로 시설예약이 자동 취소되었습니다.");
-  await db.delete(courseApplications).where(eq(courseApplications.courseId, id));
-  await db.delete(courses).where(eq(courses.id, id));
+  await db.transaction(async (tx) => {
+    const applicationRows = await tx
+      .select({ id: courseApplications.id })
+      .from(courseApplications)
+      .where(eq(courseApplications.courseId, id));
+    if (applicationRows.length > 0) {
+      await tx
+        .delete(courseApplicationChecklistValues)
+        .where(inArray(courseApplicationChecklistValues.applicationId, applicationRows.map(row => row.id)));
+    }
+    await tx.delete(courseApplications).where(eq(courseApplications.courseId, id));
+    await tx.delete(courseApplicationChecklistItems).where(eq(courseApplicationChecklistItems.courseId, id));
+    await tx.delete(courses).where(eq(courses.id, id));
+  });
 }
 
 export async function getCourseApplications(courseId?: number) {
@@ -344,10 +468,37 @@ export async function getCourseApplications(courseId?: number) {
     .leftJoin(churchMembers, eq(courseApplications.memberId, churchMembers.id))
     .orderBy(desc(courseApplications.createdAt));
 
-  if (courseId !== undefined) {
-    return rows.filter(row => row.courseId === courseId);
-  }
-  return rows;
+  const selectedRows = courseId !== undefined
+    ? rows.filter(row => row.courseId === courseId)
+    : rows;
+  if (selectedRows.length === 0) return [];
+
+  const valueRows = await db
+    .select({
+      applicationId: courseApplicationChecklistValues.applicationId,
+      itemKey: courseApplicationChecklistValues.itemKey,
+      checked: courseApplicationChecklistValues.checked,
+    })
+    .from(courseApplicationChecklistValues)
+    .where(inArray(
+      courseApplicationChecklistValues.applicationId,
+      selectedRows.map(row => row.id),
+    ));
+  const valuesByApplication = new Map<number, Record<string, boolean>>();
+  valueRows.forEach((row) => {
+    const values = valuesByApplication.get(row.applicationId) ?? {};
+    values[row.itemKey] = Boolean(row.checked);
+    valuesByApplication.set(row.applicationId, values);
+  });
+
+  return selectedRows.map(row => ({
+    ...row,
+    checklistValues: buildCourseApplicationChecklistValues({
+      feePaid: row.feePaid,
+      documentsSubmitted: row.documentsSubmitted,
+      storedValues: valuesByApplication.get(row.id),
+    }),
+  }));
 }
 
 export async function getCourseRoomManagers() {
@@ -527,6 +678,9 @@ export async function createOrReopenCourseApplication(
             ...COURSE_APPLICATION_CHECKLIST_DEFAULTS,
           })
           .where(eq(courseApplications.id, existing.id));
+        await tx
+          .delete(courseApplicationChecklistValues)
+          .where(eq(courseApplicationChecklistValues.applicationId, existing.id));
         return existing.id;
       }
 
@@ -566,27 +720,46 @@ export async function updateCourseApplicationStatus(
 
 export async function updateCourseApplicationChecklist(
   id: number,
-  field: CourseApplicationChecklistField,
+  field: string,
   checked: boolean,
 ) {
   const db = await getDb();
   if (!db) return false;
+  return db.transaction(async (tx) => {
+    const [application] = await tx
+      .select({ id: courseApplications.id, courseId: courseApplications.courseId })
+      .from(courseApplications)
+      .where(eq(courseApplications.id, id))
+      .limit(1);
+    if (!application) return false;
 
-  const values = field === "feePaid"
-    ? { feePaid: checked }
-    : { documentsSubmitted: checked };
-  const [result] = await db
-    .update(courseApplications)
-    .set(values)
-    .where(eq(courseApplications.id, id));
-  if (((result as ResultSetHeader | undefined)?.affectedRows ?? 0) > 0) return true;
+    const configuredItems = await tx
+      .select({
+        itemKey: courseApplicationChecklistItems.itemKey,
+        isActive: courseApplicationChecklistItems.isActive,
+      })
+      .from(courseApplicationChecklistItems)
+      .where(eq(courseApplicationChecklistItems.courseId, application.courseId));
+    const allowedKeys = new Set(
+      configuredItems.length > 0
+        ? configuredItems.filter(item => item.isActive).map(item => item.itemKey)
+        : DEFAULT_COURSE_APPLICATION_CHECKLIST_ITEMS.map(item => item.id),
+    );
+    if (!allowedKeys.has(field)) return false;
 
-  const [existing] = await db
-    .select({ id: courseApplications.id })
-    .from(courseApplications)
-    .where(eq(courseApplications.id, id))
-    .limit(1);
-  return Boolean(existing);
+    await tx
+      .insert(courseApplicationChecklistValues)
+      .values({ applicationId: id, itemKey: field, checked })
+      .onDuplicateKeyUpdate({ set: { checked } });
+
+    if (isLegacyCourseApplicationChecklistField(field)) {
+      await tx
+        .update(courseApplications)
+        .set(field === "feePaid" ? { feePaid: checked } : { documentsSubmitted: checked })
+        .where(eq(courseApplications.id, id));
+    }
+    return true;
+  });
 }
 
 export async function updateCourseApplicationDetails(

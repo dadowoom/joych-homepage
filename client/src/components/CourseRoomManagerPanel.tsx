@@ -2,9 +2,16 @@ import { useState } from "react";
 import { Check, ChevronDown, Loader2, Pencil, Plus, Trash2, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
-import { applyCourseApplicationChecklistChange } from "@/lib/courseApplicationChecklist";
+import {
+  applyCourseApplicationChecklistChange,
+  getCourseApplicationChecklistValue,
+  getCourseApplicationChecklistValues,
+} from "@/lib/courseApplicationChecklist";
 import CourseApplicationChecklist from "@/components/CourseApplicationChecklist";
-import { getCourseApplicationChecklistLabel } from "@shared/courseApplicationChecklist";
+import {
+  DEFAULT_COURSE_APPLICATION_CHECKLIST_ITEMS,
+  getCourseApplicationChecklistLabel,
+} from "@shared/courseApplicationChecklist";
 import { getKstDateKey } from "@/lib/facilityReservationTime";
 
 type Props = {
@@ -96,7 +103,7 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
       await utils.courseManagement.applications.cancel(queryInput);
       const previousChecked = utils.courseManagement.applications
         .getData(queryInput)
-        ?.find(application => application.id === variables.id)?.[variables.field] ?? !variables.checked;
+        ?.find(application => application.id === variables.id);
       utils.courseManagement.applications.setData(queryInput, current =>
         applyCourseApplicationChecklistChange(
           current,
@@ -105,10 +112,19 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
           variables.checked,
         ),
       );
-      return { queryInput, previousChecked };
+      return {
+        queryInput,
+        previousChecked: previousChecked
+          ? getCourseApplicationChecklistValue(previousChecked, variables.field)
+          : !variables.checked,
+      };
     },
     onSuccess: (_result, variables) => {
-      toast.success(`${getCourseApplicationChecklistLabel(variables.field, variables.checked)}로 표시했습니다.`);
+      const application = applications.find(item => item.id === variables.id);
+      const course = courses.find(item => item.id === application?.courseId);
+      const checklistItem = course?.applicationChecklistItems.find(item => item.id === variables.field)
+        ?? { id: variables.field, label: "확인 항목" };
+      toast.success(`${getCourseApplicationChecklistLabel(checklistItem, variables.checked)}로 표시했습니다.`);
     },
     onError: (error, variables, context) => {
       if (context) {
@@ -250,6 +266,10 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
               <div className="space-y-2">
                 {applications.filter(application => application.status === "pending" || application.status === "approved").map(application => {
                   const isEditing = editingApplicationId === application.id;
+                  const applicationCourse = courses.find(course => course.id === application.courseId);
+                  const checklistItems = applicationCourse?.applicationChecklistItems.length
+                    ? applicationCourse.applicationChecklistItems
+                    : DEFAULT_COURSE_APPLICATION_CHECKLIST_ITEMS;
                   return (
                     <div key={application.id} className={`rounded-lg border px-3 py-3 ${application.status === "pending" ? "border-amber-100 bg-amber-50/50" : "border-green-100 bg-green-50/40"}`}>
                       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -257,8 +277,8 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
                           <p className="text-sm font-bold text-gray-800">{application.courseTitle} · {application.applicantName}</p>
                           <p className="mt-0.5 text-xs text-gray-500">{application.applicantPhone || "연락처 미입력"}{application.applicantEmail ? ` · ${application.applicantEmail}` : ""}</p>
                           <CourseApplicationChecklist
-                            feePaid={application.feePaid}
-                            documentsSubmitted={application.documentsSubmitted}
+                            items={checklistItems}
+                            values={getCourseApplicationChecklistValues(application)}
                             disabled={updateApplicationChecklist.isPending}
                             onToggle={(field, checked) =>
                               updateApplicationChecklist.mutate({ id: application.id, field, checked })

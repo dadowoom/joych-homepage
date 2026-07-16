@@ -1278,6 +1278,38 @@ export const courseApplications = mysqlTable("course_applications", {
 export type CourseApplication = typeof courseApplications.$inferSelect;
 export type InsertCourseApplication = typeof courseApplications.$inferInsert;
 
+/** 강좌별 관리자 확인 항목 구성 */
+export const courseApplicationChecklistItems = mysqlTable("course_application_checklist_items", {
+  id: int("id").autoincrement().primaryKey(),
+  courseId: int("courseId").notNull(),
+  itemKey: varchar("itemKey", { length: 64 }).notNull(),
+  label: varchar("label", { length: 80 }).notNull(),
+  sortOrder: int("sortOrder").notNull().default(0),
+  isActive: boolean("isActive").notNull().default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("course_checklist_items_course_key_unique").on(table.courseId, table.itemKey),
+  index("course_checklist_items_course_sort_idx").on(table.courseId, table.isActive, table.sortOrder),
+]);
+
+export type CourseApplicationChecklistItemRow = typeof courseApplicationChecklistItems.$inferSelect;
+
+/** 신청자별 관리자 확인 항목 값 */
+export const courseApplicationChecklistValues = mysqlTable("course_application_checklist_values", {
+  id: int("id").autoincrement().primaryKey(),
+  applicationId: int("applicationId").notNull(),
+  itemKey: varchar("itemKey", { length: 64 }).notNull(),
+  checked: boolean("checked").notNull().default(false),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("course_checklist_values_application_key_unique").on(table.applicationId, table.itemKey),
+  index("course_checklist_values_application_idx").on(table.applicationId),
+]);
+
+export type CourseApplicationChecklistValueRow = typeof courseApplicationChecklistValues.$inferSelect;
+
 // ─────────────────────────────────────────────
 // 담임목사 저서
 // ─────────────────────────────────────────────

@@ -12,8 +12,20 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
 import CourseApplicationChecklist from "@/components/CourseApplicationChecklist";
-import { applyCourseApplicationChecklistChange } from "@/lib/courseApplicationChecklist";
-import { getCourseApplicationChecklistLabel } from "@shared/courseApplicationChecklist";
+import {
+  applyCourseApplicationChecklistChange,
+  escapeCourseApplicationCsvCell,
+  getCourseApplicationChecklistValue,
+  getCourseApplicationChecklistValues,
+} from "@/lib/courseApplicationChecklist";
+import {
+  DEFAULT_COURSE_APPLICATION_CHECKLIST_ITEMS,
+  MAX_COURSE_APPLICATION_CHECKLIST_ITEMS,
+  getCourseApplicationChecklistControlLabel,
+  getCourseApplicationChecklistCsvValue,
+  getCourseApplicationChecklistLabel,
+  type CourseApplicationChecklistItem,
+} from "@shared/courseApplicationChecklist";
 import ReservationTimelinePicker from "@/components/facility/ReservationTimelinePicker";
 import CourseRoomPermissionManager from "@/components/CourseRoomPermissionManager";
 import { getKstDateKey, getReservationTimeRestriction } from "@/lib/facilityReservationTime";
@@ -230,13 +242,8 @@ function formatCsvDateTime(value?: Date | string | number | null) {
   });
 }
 
-function escapeCsvCell(value: unknown) {
-  const text = String(value ?? "").replace(/\r?\n/g, " ").trim();
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
-
 function downloadCsvFile(fileName: string, rows: unknown[][]) {
-  const csv = rows.map(row => row.map(escapeCsvCell).join(",")).join("\r\n");
+  const csv = rows.map(row => row.map(escapeCourseApplicationCsvCell).join(",")).join("\r\n");
   const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -331,6 +338,8 @@ export default function AdminCoursesTab() {
   const [reviewComment, setReviewComment] = useState("");
   const [editingApplicationId, setEditingApplicationId] = useState<number | null>(null);
   const [applicationEditForm, setApplicationEditForm] = useState({ applicantName: "", applicantPhone: "", applicantEmail: "", memo: "" });
+  const [checklistEditorCourseId, setChecklistEditorCourseId] = useState<number | null>(null);
+  const [checklistDraft, setChecklistDraft] = useState<CourseApplicationChecklistItem[]>([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const courseStartMin = getKstDateKey();
   const courseEndMin = form.startDate > courseStartMin
@@ -424,7 +433,7 @@ export default function AdminCoursesTab() {
       await utils.cms.courses.applications.cancel(queryInput);
       const previousChecked = utils.cms.courses.applications
         .getData(queryInput)
-        ?.find(application => application.id === variables.id)?.[variables.field] ?? !variables.checked;
+        ?.find(application => application.id === variables.id);
       utils.cms.courses.applications.setData(queryInput, current =>
         applyCourseApplicationChecklistChange(
           current,
@@ -433,10 +442,19 @@ export default function AdminCoursesTab() {
           variables.checked,
         ),
       );
-      return { queryInput, previousChecked };
+      return {
+        queryInput,
+        previousChecked: previousChecked
+          ? getCourseApplicationChecklistValue(previousChecked, variables.field)
+          : !variables.checked,
+      };
     },
     onSuccess: (_result, variables) => {
-      toast.success(`${getCourseApplicationChecklistLabel(variables.field, variables.checked)}로 표시했습니다.`);
+      const application = applications.find(item => item.id === variables.id);
+      const course = courses.find(item => item.id === application?.courseId);
+      const checklistItem = course?.applicationChecklistItems.find(item => item.id === variables.field)
+        ?? { id: variables.field, label: "확인 항목" };
+      toast.success(`${getCourseApplicationChecklistLabel(checklistItem, variables.checked)}로 표시했습니다.`);
     },
     onError: (error, variables, context) => {
       if (context) {
@@ -455,6 +473,51 @@ export default function AdminCoursesTab() {
       void utils.cms.courses.applications.invalidate();
     },
   });
+  const updateApplicationChecklistItems = trpc.cms.courses.updateApplicationChecklistItems.useMutation({
+    onSuccess: async () => {
+      await utils.cms.courses.list.invalidate();
+      await utils.courseManagement.courses.invalidate();
+      setChecklistEditorCourseId(null);
+      setChecklistDraft([]);
+      toast.success("신청자 확인 항목을 저장했습니다.");
+    },
+    onError: error => toast.error(error.message || "확인 항목 저장에 실패했습니다."),
+  });
+
+  const openChecklistEditor = (course: Course) => {
+    setChecklistEditorCourseId(course.id);
+    setChecklistDraft((course.applicationChecklistItems.length > 0
+      ? course.applicationChecklistItems
+      : DEFAULT_COURSE_APPLICATION_CHECKLIST_ITEMS
+    ).map(item => ({ ...item })));
+  };
+
+  const addChecklistItem = () => {
+    if (checklistDraft.length >= MAX_COURSE_APPLICATION_CHECKLIST_ITEMS) {
+      toast.error(`확인 항목은 최대 ${MAX_COURSE_APPLICATION_CHECKLIST_ITEMS}개까지 추가할 수 있습니다.`);
+      return;
+    }
+    const generatedId = `check_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    setChecklistDraft(current => [...current, { id: generatedId, label: "" }]);
+  };
+
+  const saveChecklistItems = (courseId: number) => {
+    const items = checklistDraft.map(item => ({ ...item, label: item.label.trim() }));
+    if (items.length === 0) {
+      toast.error("확인 항목을 1개 이상 남겨주세요.");
+      return;
+    }
+    if (items.some(item => !item.label)) {
+      toast.error("확인 항목 이름을 모두 입력해주세요.");
+      return;
+    }
+    const normalizedLabels = items.map(item => item.label.replace(/\s+/g, " ").toLocaleLowerCase("ko-KR"));
+    if (new Set(normalizedLabels).size !== normalizedLabels.length) {
+      toast.error("같은 이름의 확인 항목은 한 번만 사용할 수 있습니다.");
+      return;
+    }
+    updateApplicationChecklistItems.mutate({ courseId, items });
+  };
 
   const startEditApplication = (application: CourseApplication) => {
     setReviewingId(null);
@@ -537,14 +600,34 @@ export default function AdminCoursesTab() {
     }
 
     const applicationFields = parseApplicationFields(exportCourse.applicationFields);
+    const checklistItems = exportCourse.applicationChecklistItems.length > 0
+      ? exportCourse.applicationChecklistItems
+      : DEFAULT_COURSE_APPLICATION_CHECKLIST_ITEMS;
     const rows = [
-      ["강좌명", "강좌 일정", "상태", "회비 납부 여부", "서류 제출 여부", "신청자명", "연락처", "이메일", "부서", "직분", "신청 메모", "추가 답변", "관리자 메모", "신청일", "처리일"],
+      [
+        "강좌명",
+        "강좌 일정",
+        "상태",
+        ...checklistItems.map(getCourseApplicationChecklistControlLabel),
+        "신청자명",
+        "연락처",
+        "이메일",
+        "부서",
+        "직분",
+        "신청 메모",
+        "추가 답변",
+        "관리자 메모",
+        "신청일",
+        "처리일",
+      ],
       ...filteredApplications.map(application => [
         application.courseTitle ?? exportCourse.title,
         formatDateRange(exportCourse),
         APPLICATION_STATUS[application.status]?.label ?? application.status,
-        application.feePaid ? "납부" : "미확인",
-        application.documentsSubmitted ? "제출" : "미확인",
+        ...checklistItems.map(item => getCourseApplicationChecklistCsvValue(
+          item,
+          getCourseApplicationChecklistValue(application, item.id),
+        )),
         application.applicantName,
         application.applicantPhone || application.memberPhone || "",
         application.applicantEmail || application.memberEmail || "",
@@ -1411,6 +1494,9 @@ export default function AdminCoursesTab() {
             const status = STATUS_LABELS[course.status];
             const expanded = expandedCourseId === course.id;
             const linkedFacility = course.facilityId ? facilityById.get(course.facilityId) : null;
+            const courseChecklistItems = course.applicationChecklistItems.length > 0
+              ? course.applicationChecklistItems
+              : DEFAULT_COURSE_APPLICATION_CHECKLIST_ITEMS;
             return (
               <div key={course.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="flex items-center gap-3 p-4">
@@ -1472,6 +1558,16 @@ export default function AdminCoursesTab() {
                       <div className="flex flex-wrap justify-end gap-1.5">
                         <button
                           type="button"
+                          onClick={() => checklistEditorCourseId === course.id
+                            ? setChecklistEditorCourseId(null)
+                            : openChecklistEditor(course)}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1 text-[11px] font-bold text-gray-600 transition-colors hover:bg-gray-50"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          확인 항목 관리
+                        </button>
+                        <button
+                          type="button"
                           onClick={downloadApplicationsCsv}
                           disabled={loadingApplications || filteredApplications.length === 0}
                           className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-white px-3 py-1 text-[11px] font-bold text-[#1B5E20] transition-colors hover:bg-[#F1F8E9] disabled:cursor-not-allowed disabled:opacity-40"
@@ -1493,6 +1589,80 @@ export default function AdminCoursesTab() {
                         ))}
                       </div>
                     </div>
+
+                    {checklistEditorCourseId === course.id && (
+                      <div className="mb-4 rounded-xl border border-green-200 bg-white p-3.5 shadow-sm">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-bold text-gray-800">신청자 확인 항목</p>
+                            <p className="mt-1 text-xs text-gray-500">
+                              이름을 바꾸거나 항목을 추가·삭제하면 신청자 표시와 엑셀 열에 같은 순서로 반영됩니다.
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-green-50 px-2.5 py-1 text-[11px] font-bold text-[#1B5E20]">
+                            {checklistDraft.length}/{MAX_COURSE_APPLICATION_CHECKLIST_ITEMS}개
+                          </span>
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          {checklistDraft.map((item, index) => (
+                            <div key={item.id} className="flex items-center gap-2">
+                              <span className="w-5 shrink-0 text-center text-xs font-bold text-gray-400">{index + 1}</span>
+                              <input
+                                value={item.label}
+                                maxLength={64}
+                                onChange={event => setChecklistDraft(current => current.map(currentItem =>
+                                  currentItem.id === item.id
+                                    ? { ...currentItem, label: event.target.value }
+                                    : currentItem
+                                ))}
+                                placeholder="예: 교재 수령"
+                                aria-label={`${index + 1}번째 확인 항목 이름`}
+                                className="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1B5E20] focus:ring-1 focus:ring-[#1B5E20]"
+                              />
+                              <button
+                                type="button"
+                                disabled={checklistDraft.length <= 1}
+                                onClick={() => setChecklistDraft(current => current.filter(currentItem => currentItem.id !== item.id))}
+                                className="rounded-lg border border-red-100 p-2 text-red-500 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-30"
+                                title={checklistDraft.length <= 1 ? "확인 항목은 1개 이상 필요합니다." : "항목 삭제"}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            onClick={addChecklistItem}
+                            disabled={checklistDraft.length >= MAX_COURSE_APPLICATION_CHECKLIST_ITEMS}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 px-3 py-2 text-xs font-bold text-[#1B5E20] hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            <Plus className="h-3.5 w-3.5" /> 항목 추가
+                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => { setChecklistEditorCourseId(null); setChecklistDraft([]); }}
+                              className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                            >
+                              취소
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => saveChecklistItems(course.id)}
+                              disabled={updateApplicationChecklistItems.isPending}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-[#1B5E20] px-3 py-2 text-xs font-bold text-white hover:bg-[#2E7D32] disabled:opacity-50"
+                            >
+                              {updateApplicationChecklistItems.isPending
+                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                : <Save className="h-3.5 w-3.5" />}
+                              항목 저장
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {loadingApplications ? (
                       <div className="flex items-center justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-[#1B5E20]" /></div>
@@ -1526,8 +1696,8 @@ export default function AdminCoursesTab() {
                                     <span>신청 {formatCreatedAt(application.createdAt)}</span>
                                   </div>
                                   <CourseApplicationChecklist
-                                    feePaid={application.feePaid}
-                                    documentsSubmitted={application.documentsSubmitted}
+                                    items={courseChecklistItems}
+                                    values={getCourseApplicationChecklistValues(application)}
                                     disabled={updateApplicationChecklist.isPending}
                                     onToggle={(field, checked) =>
                                       updateApplicationChecklist.mutate({ id: application.id, field, checked })

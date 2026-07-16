@@ -8,6 +8,7 @@ import { adminPermissionProcedure, publicProcedure, router } from "../../_core/t
 import { optionalTextSchema, requiredTextSchema } from "../../_core/contentValidation";
 import { storagePut } from "../../storage";
 import { validateImage } from "./upload";
+import { VEHICLE_INQUIRY_SETTING_KEYS } from "@shared/vehicleInquiry";
 import {
   addVehicleImage,
   createVehicle,
@@ -20,6 +21,7 @@ import {
   reorderVehicles,
   replaceVehicleReservationAccessRules,
   setVehicleThumbnail,
+  upsertSiteSettings,
   updateVehicle,
 } from "../../db";
 
@@ -79,6 +81,14 @@ const accessRuleSchema = z.object({
   isActive: z.boolean().default(true),
   sortOrder: z.number().int().min(0).max(10000).default(0),
 });
+const vehicleInquirySettingsSchema = z.object({
+  department: requiredTextSchema(40, "문의 담당 부서를 입력해주세요."),
+  phone: z.string().trim().min(1, "문의 연락처를 입력해주세요.").max(40).regex(
+    /^[0-9+().\-\s]+$/,
+    "문의 연락처는 숫자와 전화번호 기호만 입력해주세요.",
+  ),
+  note: z.string().trim().max(300, "문의 안내는 300자 이하로 입력해주세요."),
+});
 
 export const vehiclesRouter = router({
   list: vehicleProcedure.query(() => getVehicles(false)),
@@ -112,6 +122,19 @@ export const vehiclesRouter = router({
   delete: vehicleProcedure
     .input(z.object({ id: idSchema }))
     .mutation(({ input }) => deleteVehicle(input.id)),
+
+  inquirySettings: router({
+    update: vehicleProcedure
+      .input(vehicleInquirySettingsSchema)
+      .mutation(async ({ input }) => {
+        await upsertSiteSettings([
+          { key: VEHICLE_INQUIRY_SETTING_KEYS.department, value: input.department },
+          { key: VEHICLE_INQUIRY_SETTING_KEYS.phone, value: input.phone },
+          { key: VEHICLE_INQUIRY_SETTING_KEYS.note, value: input.note },
+        ]);
+        return { success: true };
+      }),
+  }),
 
   accessRules: router({
     list: vehicleProcedure.query(() => getVehicleReservationAccessRules(false)),

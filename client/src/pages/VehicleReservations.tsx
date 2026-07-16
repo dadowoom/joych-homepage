@@ -28,6 +28,7 @@ import {
   RESERVATION_REPEAT_OPTIONS,
   type ReservationRepeatType,
 } from "@shared/reservationRecurrence";
+import { resolveVehicleInquirySettings } from "@shared/vehicleInquiry";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -292,14 +293,23 @@ function VehicleCard({ vehicle, applyHref }: { vehicle: VehicleRow; applyHref: s
 }
 
 function VehicleInquiryCard() {
+  const { data: siteSettings } = trpc.home.settings.useQuery(undefined, {
+    staleTime: 60_000,
+  });
+  const inquiry = resolveVehicleInquirySettings(siteSettings);
+  const phoneHref = `tel:${inquiry.phone.replace(/[^\d+]/g, "")}`;
+
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-5">
       <p className="mb-2 flex items-center gap-2 text-sm font-bold text-gray-800">
         <Phone size={14} className="text-[#1B5E20]" />
         차량 문의
       </p>
-      <p className="text-sm text-gray-500">행정실: <span className="font-medium text-[#1B5E20]">054-270-1000</span></p>
-      <p className="mt-1 text-xs text-gray-400">예약 신청 후 담당자 승인 상태를 확인해 주세요.</p>
+      <p className="text-sm text-gray-500">
+        {inquiry.department}: {" "}
+        <a href={phoneHref} className="font-medium text-[#1B5E20] hover:underline">{inquiry.phone}</a>
+      </p>
+      {inquiry.note && <p className="mt-1 whitespace-pre-wrap text-xs text-gray-400">{inquiry.note}</p>}
     </div>
   );
 }

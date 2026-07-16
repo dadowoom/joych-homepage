@@ -4,7 +4,6 @@
  */
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { COURSE_APPLICATION_CHECKLIST_FIELDS } from "@shared/courseApplicationChecklist";
 import { publicProcedure, router } from "../_core/trpc";
 import { hasAdminContentPermission } from "../db/adminPermissions";
 import {
@@ -24,7 +23,10 @@ import {
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const idSchema = z.number().int().positive();
-const applicationChecklistFieldSchema = z.enum(COURSE_APPLICATION_CHECKLIST_FIELDS);
+const applicationChecklistFieldSchema = z.string().trim().regex(
+  /^(?:feePaid|documentsSubmitted|check_[A-Za-z0-9][A-Za-z0-9_-]{0,57})$/,
+  "확인 항목 식별자가 올바르지 않습니다.",
+);
 const nullableDate = z.string().regex(DATE_RE, "날짜 형식이 올바르지 않습니다.").nullable().optional();
 const nullableTime = z.string().regex(TIME_RE, "시간 형식이 올바르지 않습니다.").nullable().optional();
 const pageHrefSchema = z.string().trim().min(1).max(255).refine(

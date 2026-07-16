@@ -2100,6 +2100,142 @@ else
   exit 1
 fi
 
+MIGRATION_0084="${APP_DIR}/drizzle/0084_course_application_checklist_items.sql"
+if [[ -f "${MIGRATION_0084}" ]]; then
+  echo "[deploy] database migration: configurable course application checklist"
+  node --input-type=module <<'NODE'
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required for migration 0084.");
+}
+
+const migrationId = "0084_course_application_checklist_items";
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  const [rows] = await connection.execute(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    [migrationId],
+  );
+  const alreadyRecorded = Array.isArray(rows) && rows.length > 0;
+
+  // Run the table creation on every deploy. This makes an interrupted deploy
+  // recoverable even when only one of the two tables was created.
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS course_application_checklist_items (
+      id int NOT NULL AUTO_INCREMENT,
+      courseId int NOT NULL,
+      itemKey varchar(64) NOT NULL,
+      label varchar(80) NOT NULL,
+      sortOrder int NOT NULL DEFAULT 0,
+      isActive boolean NOT NULL DEFAULT true,
+      createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY course_checklist_items_course_key_unique (courseId, itemKey),
+      KEY course_checklist_items_course_sort_idx (courseId, isActive, sortOrder)
+    )
+  `);
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS course_application_checklist_values (
+      id int NOT NULL AUTO_INCREMENT,
+      applicationId int NOT NULL,
+      itemKey varchar(64) NOT NULL,
+      checked boolean NOT NULL DEFAULT false,
+      createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY course_checklist_values_application_key_unique (applicationId, itemKey),
+      KEY course_checklist_values_application_idx (applicationId)
+    )
+  `);
+
+  const hasColumn = async (tableName, columnName) => {
+    const [columns] = await connection.execute(
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1",
+      [tableName, columnName],
+    );
+    return Array.isArray(columns) && columns.length > 0;
+  };
+  const hasIndex = async (tableName, indexName) => {
+    const [indexes] = await connection.execute(
+      "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ? LIMIT 1",
+      [tableName, indexName],
+    );
+    return Array.isArray(indexes) && indexes.length > 0;
+  };
+
+  // Early development versions of this migration could leave the items table
+  // without isActive. Repair that exact partial state before recording success.
+  if (!(await hasColumn("course_application_checklist_items", "isActive"))) {
+    await connection.execute(
+      "ALTER TABLE course_application_checklist_items ADD COLUMN isActive boolean NOT NULL DEFAULT true AFTER sortOrder",
+    );
+  }
+  if (!(await hasIndex("course_application_checklist_items", "course_checklist_items_course_key_unique"))) {
+    await connection.execute(
+      "ALTER TABLE course_application_checklist_items ADD UNIQUE KEY course_checklist_items_course_key_unique (courseId, itemKey)",
+    );
+  }
+  if (!(await hasIndex("course_application_checklist_items", "course_checklist_items_course_sort_idx"))) {
+    await connection.execute(
+      "ALTER TABLE course_application_checklist_items ADD KEY course_checklist_items_course_sort_idx (courseId, isActive, sortOrder)",
+    );
+  }
+  if (!(await hasIndex("course_application_checklist_values", "course_checklist_values_application_key_unique"))) {
+    await connection.execute(
+      "ALTER TABLE course_application_checklist_values ADD UNIQUE KEY course_checklist_values_application_key_unique (applicationId, itemKey)",
+    );
+  }
+  if (!(await hasIndex("course_application_checklist_values", "course_checklist_values_application_idx"))) {
+    await connection.execute(
+      "ALTER TABLE course_application_checklist_values ADD KEY course_checklist_values_application_idx (applicationId)",
+    );
+  }
+
+  const requiredColumns = {
+    course_application_checklist_items: [
+      "id", "courseId", "itemKey", "label", "sortOrder", "isActive", "createdAt", "updatedAt",
+    ],
+    course_application_checklist_values: [
+      "id", "applicationId", "itemKey", "checked", "createdAt", "updatedAt",
+    ],
+  };
+  for (const [tableName, columnNames] of Object.entries(requiredColumns)) {
+    for (const columnName of columnNames) {
+      if (!(await hasColumn(tableName, columnName))) {
+        throw new Error(`Migration 0084 schema verification failed: ${tableName}.${columnName} is missing.`);
+      }
+    }
+  }
+
+  // Record only after both tables, the repair, and the schema verification have
+  // completed. A failed deploy can therefore safely retry this block.
+  if (!alreadyRecorded) {
+    await connection.execute(
+      "INSERT INTO app_migrations (id) VALUES (?)",
+      [migrationId],
+    );
+    console.log("[deploy] migration 0084 applied");
+  } else {
+    console.log("[deploy] migration 0084 already applied and schema verified");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+else
+  echo "[deploy] missing migration file: ${MIGRATION_0084}" >&2
+  exit 1
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

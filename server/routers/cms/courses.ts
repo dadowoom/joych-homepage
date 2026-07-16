@@ -9,7 +9,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { COURSE_APPLICATION_CHECKLIST_FIELDS } from "@shared/courseApplicationChecklist";
+import { MAX_COURSE_APPLICATION_CHECKLIST_ITEMS } from "@shared/courseApplicationChecklist";
 import { adminPermissionProcedure, router } from "../../_core/trpc";
 import { optionalTextSchema, requiredTextSchema, safeAssetUrlSchema } from "../../_core/contentValidation";
 import {
@@ -22,6 +22,7 @@ import {
   getCoursesForAdmin,
   ReservationLockError,
   ReservationOverlapError,
+  replaceCourseApplicationChecklistItems,
   updateCourse,
   updateCourseApplicationChecklist,
   updateCourseApplicationDetails,
@@ -38,7 +39,32 @@ const nullableTimeSchema = z.string().regex(TIME_RE, "시간은 HH:MM 형식으�
 const courseStatusSchema = z.enum(["draft", "open", "closed", "cancelled", "archived"]);
 const courseAudienceSchema = z.enum(["all", "member"]);
 const applicationStatusSchema = z.enum(["pending", "approved", "rejected", "cancelled"]);
-const applicationChecklistFieldSchema = z.enum(COURSE_APPLICATION_CHECKLIST_FIELDS);
+const applicationChecklistFieldSchema = z.string().trim().regex(
+  /^(?:feePaid|documentsSubmitted|check_[A-Za-z0-9][A-Za-z0-9_-]{0,57})$/,
+  "확인 항목 식별자가 올바르지 않습니다.",
+);
+const applicationChecklistItemSchema = z.object({
+  id: applicationChecklistFieldSchema,
+  label: z.string().trim().min(1, "확인 항목 이름을 입력해주세요.").max(80),
+});
+const applicationChecklistItemsSchema = z.array(applicationChecklistItemSchema)
+  .min(1, "확인 항목을 한 개 이상 등록해주세요.")
+  .max(MAX_COURSE_APPLICATION_CHECKLIST_ITEMS)
+  .superRefine((items, ctx) => {
+    const ids = new Set<string>();
+    const labels = new Set<string>();
+    items.forEach((item, index) => {
+      const normalizedLabel = item.label.toLocaleLowerCase("ko-KR");
+      if (ids.has(item.id)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [index, "id"], message: "중복된 확인 항목입니다." });
+      }
+      if (labels.has(normalizedLabel)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [index, "label"], message: "같은 이름의 확인 항목이 있습니다." });
+      }
+      ids.add(item.id);
+      labels.add(normalizedLabel);
+    });
+  });
 const applicationDetailsSchema = z.object({
   applicantName: requiredTextSchema(64, "신청자 이름을 입력해주세요."),
   applicantPhone: optionalTextSchema(32),
@@ -173,6 +199,19 @@ function handleCourseReservationError(error: unknown) {
 
 export const coursesRouter = router({
   list: courseProcedure.query(() => getCoursesForAdmin()),
+
+  updateApplicationChecklistItems: courseProcedure
+    .input(z.object({
+      courseId: idSchema,
+      items: applicationChecklistItemsSchema,
+    }))
+    .mutation(async ({ input }) => {
+      const updated = await replaceCourseApplicationChecklistItems(input.courseId, input.items);
+      if (!updated) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "강좌를 찾을 수 없습니다." });
+      }
+      return { success: true };
+    }),
 
   create: courseProcedure
     .input(courseBaseSchema)

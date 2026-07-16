@@ -294,6 +294,21 @@ export async function upsertSiteSetting(key: string, value: string) {
     .onDuplicateKeyUpdate({ set: { settingValue: value } });
 }
 
+/** 여러 사이트 설정을 하나의 트랜잭션으로 저장 */
+export async function upsertSiteSettings(
+  entries: ReadonlyArray<{ key: string; value: string }>,
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db.transaction(async (tx) => {
+    for (const entry of entries) {
+      await tx.insert(siteSettings)
+        .values({ settingKey: entry.key, settingValue: entry.value })
+        .onDuplicateKeyUpdate({ set: { settingValue: entry.value } });
+    }
+  });
+}
+
 export function getStaticPageSettingKey(href: string) {
   return `${STATIC_PAGE_SETTING_PREFIX}${href}`;
 }
