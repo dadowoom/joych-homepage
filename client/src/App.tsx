@@ -8,7 +8,7 @@ import MenuAccessGate from "@/components/MenuAccessGate";
 import { trpc } from "@/lib/trpc";
 import { findCourseRoomBySlug } from "@/lib/courseRoutes";
 import NotFound from "@/pages/NotFound";
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { Route, Switch, useLocation, type RouteComponentProps } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -339,6 +339,24 @@ function LegacyRedirect({ to }: { to: string }) {
   return null;
 }
 
+const MEMBER_SITE_ORIGIN = "https://newjoych.co.kr";
+
+function NewJoychOnlyRoute({ children }: { children: ReactNode }) {
+  const shouldRedirect =
+    typeof window !== "undefined" &&
+    window.location.hostname.toLowerCase() === "www.joych.org";
+
+  useEffect(() => {
+    if (!shouldRedirect) return;
+
+    window.location.replace(
+      `${MEMBER_SITE_ORIGIN}${window.location.pathname}${window.location.search}${window.location.hash}`
+    );
+  }, [shouldRedirect]);
+
+  return shouldRedirect ? null : <>{children}</>;
+}
+
 function ScrollToTop() {
   const [location] = useLocation();
 
@@ -468,10 +486,10 @@ function Router() {
 
       {/* 시설 예약 */}
       {/* 교회 회원 시스템 */}
-      <Route path="/member/register" component={MemberRegister} />
-      <Route path="/member/login" component={MemberLogin} />
-      <Route path="/member/social-complete" component={MemberSocialComplete} />
-      <Route path="/member/my-page" component={MemberMyPage} />
+      <Route path="/member/register"><NewJoychOnlyRoute><MemberRegister /></NewJoychOnlyRoute></Route>
+      <Route path="/member/login"><NewJoychOnlyRoute><MemberLogin /></NewJoychOnlyRoute></Route>
+      <Route path="/member/social-complete"><NewJoychOnlyRoute><MemberSocialComplete /></NewJoychOnlyRoute></Route>
+      <Route path="/member/my-page"><NewJoychOnlyRoute><MemberMyPage /></NewJoychOnlyRoute></Route>
 
       <Route path="/facility/external/:id/apply" component={ExternalFacilityApply} />
       <Route path="/facility/external/:id" component={ExternalFacilityDetail} />
@@ -490,7 +508,7 @@ function Router() {
       <Route path="/page/:slug" component={DynamicMenuHrefPage} />
 
       {/* 관리자 - 비공개 경로 */}
-      <Route path="/admin_joych_2026" component={AdminPage} />
+      <Route path="/admin_joych_2026"><NewJoychOnlyRoute><AdminPage /></NewJoychOnlyRoute></Route>
       {/* /admin 직접 접근 시 404로 처리 (관리자 페이지 존재 힌트 차단) */}
       <Route path="/admin" component={NotFound} />
 
