@@ -516,16 +516,13 @@ export default function MenuEditPanel({
                 </div>
               ) : (
                 <>
-                  <details open className="shrink-0 border-b bg-[#F4F8FF] px-2 py-2">
-                    <summary className="cursor-pointer text-[11px] font-semibold text-blue-700">
-                      2단 이동 대상: 다른 1단 위에 놓으면 하위 2단 상태로 이동
-                    </summary>
-                    <div className="mt-2 grid max-h-28 grid-cols-2 gap-1 overflow-y-auto pr-1">
+                  <div className="shrink-0 border-b bg-[#F4F8FF] p-2">
+                    <div className="grid max-h-28 grid-cols-2 gap-1 overflow-y-auto pr-1">
                       {localMenus
                         .filter((menu) => menu.id !== selectedMenu.id)
                         .map((menu) => <ItemMoveTarget key={menu.id} menu={menu} />)}
                     </div>
-                  </details>
+                  </div>
                   <div className="flex-1 overflow-y-auto p-2 space-y-1">
                     {selectedMenu.items.length === 0 && (
                       <p className="text-xs text-gray-400 text-center py-4">하위 메뉴가 없습니다</p>
@@ -659,16 +656,13 @@ export default function MenuEditPanel({
                       <YoutubeVideoManager menuItemId={selectedItem.id} label={selectedItem.label} compact />
                     </div>
                   )}
-                  <details open className="shrink-0 border-b bg-[#F7FBF5] px-2 py-2">
-                    <summary className="cursor-pointer text-[11px] font-semibold text-[#1B5E20]">
-                      3단 이동 대상: 다른 2단 위에 놓으면 3단 상태로 이동
-                    </summary>
-                    <div className="mt-2 grid max-h-28 grid-cols-2 gap-1 overflow-y-auto pr-1">
+                  <div className="shrink-0 border-b bg-[#F7FBF5] p-2">
+                    <div className="grid max-h-28 grid-cols-2 gap-1 overflow-y-auto pr-1">
                       {localMenus.flatMap((menu) => menu.items.map((item) => (
                         <SubItemMoveTarget key={item.id} menuLabel={menu.label} item={item} />
                       )))}
                     </div>
-                  </details>
+                  </div>
                   <div className="flex-1 overflow-y-auto p-2 space-y-1">
                     {selectedItem.subItems.length === 0 && (
                       <p className="text-xs text-gray-400 text-center py-4">3단 메뉴가 없습니다</p>
