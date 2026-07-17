@@ -348,7 +348,15 @@ const MEMBER_SITE_HOSTNAMES = new Set(["newjoych.co.kr", "www.newjoych.co.kr"]);
 function MainHomepageRoute() {
   const hostname =
     typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
-  const shouldRedirect = MEMBER_SITE_HOSTNAMES.has(hostname);
+  const isMemberSite = MEMBER_SITE_HOSTNAMES.has(hostname);
+  const adminSession = trpc.auth.me.useQuery(undefined, {
+    enabled: isMemberSite,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const isCheckingAdmin = isMemberSite && adminSession.isPending;
+  const shouldRedirect =
+    isMemberSite && !isCheckingAdmin && adminSession.data?.role !== "admin";
 
   useEffect(() => {
     if (shouldRedirect) {
@@ -376,7 +384,7 @@ function MainHomepageRoute() {
     );
   }, [hostname, shouldRedirect]);
 
-  return shouldRedirect ? null : <Home />;
+  return isCheckingAdmin || shouldRedirect ? null : <Home />;
 }
 
 function NewJoychOnlyRoute({ children }: { children: ReactNode }) {
