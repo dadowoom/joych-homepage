@@ -340,6 +340,44 @@ function LegacyRedirect({ to }: { to: string }) {
 }
 
 const MEMBER_SITE_ORIGIN = "https://newjoych.co.kr";
+const MAIN_SITE_ORIGIN = "https://www.joych.org";
+const MAIN_DOMAIN_BRIDGE_KEY = "joych_main";
+const MAIN_DOMAIN_BRIDGE_VALUE = "20260718";
+const MEMBER_SITE_HOSTNAMES = new Set(["newjoych.co.kr", "www.newjoych.co.kr"]);
+
+function MainHomepageRoute() {
+  const hostname =
+    typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
+  const shouldRedirect = MEMBER_SITE_HOSTNAMES.has(hostname);
+
+  useEffect(() => {
+    if (shouldRedirect) {
+      const destination = new URL(MAIN_SITE_ORIGIN);
+      destination.searchParams.set(MAIN_DOMAIN_BRIDGE_KEY, MAIN_DOMAIN_BRIDGE_VALUE);
+      window.location.replace(destination.toString());
+      return;
+    }
+
+    if (hostname !== "www.joych.org") return;
+
+    const currentUrl = new URL(window.location.href);
+    if (
+      currentUrl.pathname !== "/" ||
+      currentUrl.searchParams.get(MAIN_DOMAIN_BRIDGE_KEY) !== MAIN_DOMAIN_BRIDGE_VALUE
+    ) {
+      return;
+    }
+
+    currentUrl.searchParams.delete(MAIN_DOMAIN_BRIDGE_KEY);
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`
+    );
+  }, [hostname, shouldRedirect]);
+
+  return shouldRedirect ? null : <Home />;
+}
 
 function NewJoychOnlyRoute({ children }: { children: ReactNode }) {
   const shouldRedirect =
@@ -372,7 +410,7 @@ function Router() {
   return (
     <Switch>
       {/* 메인 */}
-      <Route path="/" component={Home} />
+      <Route path="/" component={MainHomepageRoute} />
       <Route path="/faith-data" component={FaithData} />
       <Route path="/church-directory" component={ChurchDirectory} />
       <Route path="/search" component={SearchPage} />
