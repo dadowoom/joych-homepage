@@ -7,13 +7,16 @@ const dbMocks = vi.hoisted(() => ({
   adminResetMemberPassword: vi.fn(),
   adminUpdateMember: vi.fn(),
   createMember: vi.fn(),
+  deleteMemberFieldOption: vi.fn(),
   decidePendingMemberRegistration: vi.fn(),
+  getAllMemberFieldOptions: vi.fn(),
   getAllMembers: vi.fn(),
   getMemberByEmail: vi.fn(),
   getMemberFieldOptions: vi.fn(),
   getPendingMembers: vi.fn(),
   getSiteSetting: vi.fn(),
   setMemberDistrictAssignments: vi.fn(),
+  updateMemberFieldOption: vi.fn(),
   updateMemberChurchInfo: vi.fn(),
 }));
 
@@ -29,13 +32,16 @@ vi.mock("./db", async (importOriginal) => {
     adminResetMemberPassword: dbMocks.adminResetMemberPassword,
     adminUpdateMember: dbMocks.adminUpdateMember,
     createMember: dbMocks.createMember,
+    deleteMemberFieldOption: dbMocks.deleteMemberFieldOption,
     decidePendingMemberRegistration: dbMocks.decidePendingMemberRegistration,
+    getAllMemberFieldOptions: dbMocks.getAllMemberFieldOptions,
     getAllMembers: dbMocks.getAllMembers,
     getMemberByEmail: dbMocks.getMemberByEmail,
     getMemberFieldOptions: dbMocks.getMemberFieldOptions,
     getPendingMembers: dbMocks.getPendingMembers,
     getSiteSetting: dbMocks.getSiteSetting,
     setMemberDistrictAssignments: dbMocks.setMemberDistrictAssignments,
+    updateMemberFieldOption: dbMocks.updateMemberFieldOption,
     updateMemberChurchInfo: dbMocks.updateMemberChurchInfo,
   };
 });
@@ -64,6 +70,10 @@ function createUser(contentPermissions: string[] = []): TrpcUser {
     memberId: 17,
     contentPermissions,
   };
+}
+
+function createAdminUser(): TrpcUser {
+  return { ...createUser(), role: "admin" };
 }
 
 function createContext(user: TrpcUser | null = null, ip = "203.0.113.17"): TrpcContext {
@@ -279,10 +289,10 @@ describe("member registration approval delegation", () => {
     expect(pushMocks.notifyMemberRegistration).not.toHaveBeenCalled();
   });
 
-  it("관리자가 직분을 필수로 설정하면 직분 없는 가입을 차단한다", async () => {
+  it("저장 설정이 직분을 숨겨도 직분 없는 가입을 차단한다", async () => {
     dbMocks.getSiteSetting.mockResolvedValueOnce({
       settingValue: JSON.stringify({
-        position: { visible: true, required: true },
+        position: { visible: false, required: false },
       }),
     });
     const caller = appRouter.createCaller(createContext(null, "203.0.113.34"));
@@ -298,5 +308,46 @@ describe("member registration approval delegation", () => {
 
     expect(dbMocks.createMember).not.toHaveBeenCalled();
     expect(pushMocks.notifyMemberRegistration).not.toHaveBeenCalled();
+  });
+});
+
+describe("required position options", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dbMocks.deleteMemberFieldOption.mockResolvedValue(undefined);
+    dbMocks.updateMemberFieldOption.mockResolvedValue(undefined);
+  });
+
+  it("마지막 활성 직분 선택지는 삭제하지 못한다", async () => {
+    dbMocks.getAllMemberFieldOptions.mockResolvedValue([
+      { id: 1, fieldType: "position", label: "집사", sortOrder: 0, isActive: true },
+    ]);
+    const caller = appRouter.createCaller(createContext(createAdminUser()));
+
+    await expect(caller.members.deleteFieldOption({ id: 1 }))
+      .rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(dbMocks.deleteMemberFieldOption).not.toHaveBeenCalled();
+  });
+
+  it("다른 활성 직분이 있으면 직분 선택지를 삭제할 수 있다", async () => {
+    dbMocks.getAllMemberFieldOptions.mockResolvedValue([
+      { id: 1, fieldType: "position", label: "집사", sortOrder: 0, isActive: true },
+      { id: 2, fieldType: "position", label: "권사", sortOrder: 1, isActive: true },
+    ]);
+    const caller = appRouter.createCaller(createContext(createAdminUser()));
+
+    await expect(caller.members.deleteFieldOption({ id: 1 })).resolves.toBeUndefined();
+    expect(dbMocks.deleteMemberFieldOption).toHaveBeenCalledWith(1);
+  });
+
+  it("마지막 활성 직분 선택지는 비활성화하지 못한다", async () => {
+    dbMocks.getAllMemberFieldOptions.mockResolvedValue([
+      { id: 1, fieldType: "position", label: "집사", sortOrder: 0, isActive: true },
+    ]);
+    const caller = appRouter.createCaller(createContext(createAdminUser()));
+
+    await expect(caller.members.updateFieldOption({ id: 1, isActive: false }))
+      .rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(dbMocks.updateMemberFieldOption).not.toHaveBeenCalled();
   });
 });

@@ -30,6 +30,7 @@ export const REQUIRED_MEMBER_REGISTER_FIELD_KEYS = [
   "phone",
   "birthDate",
   "gender",
+  "position",
 ] as const satisfies readonly MemberRegisterFieldKey[];
 
 const REQUIRED_MEMBER_REGISTER_FIELD_KEY_SET = new Set<MemberRegisterFieldKey>(
@@ -59,7 +60,7 @@ export const DEFAULT_MEMBER_REGISTER_FIELD_CONFIG: MemberRegisterFieldConfig = {
   gender: { visible: true, required: true },
   address: { visible: false, required: false },
   emergencyPhone: { visible: false, required: false },
-  position: { visible: true, required: false },
+  position: { visible: true, required: true },
   department: { visible: true, required: false },
   district: { visible: true, required: false },
   faithPlusUserId: { visible: true, required: false },

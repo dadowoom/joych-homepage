@@ -121,6 +121,22 @@ async function assertConfiguredRegisterOptions(
   }
 }
 
+async function assertRequiredPositionOptionRemains(id: number) {
+  const options = await getAllMemberFieldOptions();
+  const target = options.find((option) => option.id === id);
+  if (target?.fieldType !== "position" || !target.isActive) return;
+
+  const activePositionCount = options.filter(
+    (option) => option.fieldType === "position" && option.isActive,
+  ).length;
+  if (activePositionCount <= 1) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "직분은 회원가입 필수 항목이므로 활성 선택지를 최소 1개 유지해주세요.",
+    });
+  }
+}
+
 function assertRequiredRegisterFields(
   input: RegisterInputWithConfigurableFields,
   config: Awaited<ReturnType<typeof getRegisterFieldConfig>>,
@@ -655,8 +671,11 @@ export const membersRouter = router({
       sortOrder: z.number().int().min(0).max(10000).optional(),
       isActive: z.boolean().optional(),
     }))
-    .mutation(({ input }) => {
+    .mutation(async ({ input }) => {
       const { id, ...data } = input;
+      if (data.isActive === false) {
+        await assertRequiredPositionOptionRemains(id);
+      }
       return updateMemberFieldOption(id, data);
     }),
 
@@ -671,7 +690,10 @@ export const membersRouter = router({
   /** 선택지 삭제 (관리자) */
   deleteFieldOption: adminProcedure
     .input(z.object({ id: idSchema }))
-    .mutation(({ input }) => deleteMemberFieldOption(input.id)),
+    .mutation(async ({ input }) => {
+      await assertRequiredPositionOptionRemains(input.id);
+      return deleteMemberFieldOption(input.id);
+    }),
 
   /**
    * 성도 전체 정보 수정 (관리자)

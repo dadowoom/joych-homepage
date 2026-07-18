@@ -91,7 +91,7 @@ export default function MemberSocialComplete() {
     if (!form.gender) {
       nextErrors.gender = "성별을 선택해주세요.";
     }
-    if (fieldConfig.position.visible && fieldConfig.position.required && !form.position.trim()) {
+    if (!form.position.trim()) {
       nextErrors.position = "직분을 선택해주세요.";
     }
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
@@ -121,7 +121,7 @@ export default function MemberSocialComplete() {
           phone,
           birthDate: form.birthDate,
           gender: form.gender,
-          position: fieldConfig.position.visible ? form.position || undefined : undefined,
+          position: form.position,
           email: form.email || undefined,
         }),
       });
@@ -271,7 +271,7 @@ export default function MemberSocialComplete() {
                   onChange={(e) => update("position", e.target.value)}
                   className={inputClass("position")}
                 >
-                  <option value="">선택 안 함</option>
+                  <option value="">직분 선택</option>
                   {positionOptions.map((option) => (
                     <option key={option.id} value={option.label}>{option.label}</option>
                   ))}

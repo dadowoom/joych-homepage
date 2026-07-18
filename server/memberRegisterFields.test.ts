@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { MEMBER_APPROVAL_PERMISSION_KEY, STATIC_ADMIN_PERMISSIONS } from "../shared/adminPermissions";
 import {
+  isRequiredMemberRegisterField,
   MEMBER_REGISTER_FIELD_DEFINITIONS,
   parseMemberRegisterFieldConfig,
 } from "../shared/memberRegisterFields";
 
 describe("member registration field configuration", () => {
-  it("기존 저장값에 직분이 없어도 직분 항목을 기본 표시한다", () => {
+  it("기존 저장값에 직분이 없어도 직분을 표시·필수로 고정한다", () => {
     const config = parseMemberRegisterFieldConfig(JSON.stringify({
       phone: { visible: true, required: true },
       department: { visible: false, required: false },
@@ -17,27 +18,30 @@ describe("member registration field configuration", () => {
       label: "직분",
       section: "church",
     }));
-    expect(config.position).toEqual({ visible: true, required: false });
+    expect(isRequiredMemberRegisterField("position")).toBe(true);
+    expect(config.position).toEqual({ visible: true, required: true });
   });
 
-  it("숨긴 직분 항목은 필수 상태가 남지 않는다", () => {
+  it("저장 설정이 직분을 숨겨도 표시·필수로 고정한다", () => {
     const config = parseMemberRegisterFieldConfig(JSON.stringify({
       position: { visible: false, required: true },
     }));
 
-    expect(config.position).toEqual({ visible: false, required: false });
+    expect(config.position).toEqual({ visible: true, required: true });
   });
 
-  it("연락처·생년월일·성별은 저장 설정과 무관하게 표시와 필수를 고정한다", () => {
+  it("연락처·생년월일·성별·직분은 저장 설정과 무관하게 표시와 필수를 고정한다", () => {
     const config = parseMemberRegisterFieldConfig(JSON.stringify({
       phone: { visible: false, required: false },
       birthDate: { visible: false, required: false },
       gender: { visible: false, required: false },
+      position: { visible: false, required: false },
     }));
 
     expect(config.phone).toEqual({ visible: true, required: true });
     expect(config.birthDate).toEqual({ visible: true, required: true });
     expect(config.gender).toEqual({ visible: true, required: true });
+    expect(config.position).toEqual({ visible: true, required: true });
   });
 });
 

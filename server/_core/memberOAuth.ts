@@ -546,6 +546,10 @@ export async function createMemberFromSocialSignup(
   if (!isMemberGender(input.gender)) {
     return { member: null, status: "invalid_gender" as const };
   }
+  const position = sanitizeText(input.position, 64);
+  if (!position) {
+    return { member: null, status: "invalid_position" as const };
+  }
 
   const email = profile.email || input.email;
   if (email) {
@@ -571,7 +575,7 @@ export async function createMemberFromSocialSignup(
     phone,
     birthDate,
     gender: input.gender,
-    position: input.position || undefined,
+    position,
     joinPath: `${providers[profile.provider].label} 간편가입`,
   }, {
     provider: profile.provider as MemberSocialProvider,
@@ -584,7 +588,7 @@ export async function createMemberFromSocialSignup(
   void notifyMemberRegistration({
     memberId,
     name: input.name,
-    position: input.position || null,
+    position,
   });
 
   const member = await getMemberById(memberId);
@@ -664,6 +668,9 @@ export function registerMemberOAuthRoutes(app: Express) {
       }
       if (result.status === "invalid_gender") {
         return res.status(400).json({ message: "성별을 선택해주세요." });
+      }
+      if (result.status === "invalid_position") {
+        return res.status(400).json({ message: "직분을 선택해주세요." });
       }
       if (!result.member || result.status === "error") {
         return res.status(500).json({ message: "간편가입 처리 중 문제가 발생했습니다." });

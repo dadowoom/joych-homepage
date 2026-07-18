@@ -160,7 +160,7 @@ export default function MemberRegister() {
       address: isFieldVisible("address") ? form.address || undefined : undefined,
       emergencyPhone: isFieldVisible("emergencyPhone") ? form.emergencyPhone || undefined : undefined,
       joinPath: isFieldVisible("joinPath") ? form.joinPath || undefined : undefined,
-      position: isFieldVisible("position") ? form.position || undefined : undefined,
+      position: form.position,
       department: isFieldVisible("department") ? form.department || undefined : undefined,
       district: isFieldVisible("district") ? form.district || undefined : undefined,
       faithPlusUserId: isFieldVisible("faithPlusUserId") ? form.faithPlusUserId || undefined : undefined,
@@ -446,7 +446,7 @@ export default function MemberRegister() {
                     onChange={(e) => update("position", e.target.value)}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/30"
                   >
-                    <option value="">선택 안 함</option>
+                    <option value="">직분 선택</option>
                     {positionOptions.map((opt) => (
                       <option key={opt.id} value={opt.label}>{opt.label}</option>
                     ))}
