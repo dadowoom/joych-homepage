@@ -13,6 +13,7 @@ const dbMocks = vi.hoisted(() => ({
   getAdminReservationDetailsByDate: vi.fn(),
   createReservation: vi.fn(),
   createReservationIfAvailable: vi.fn(),
+  deleteReservationById: vi.fn(),
   getMemberById: vi.fn(),
   getSiteSettings: vi.fn(),
   updateReservationDetails: vi.fn(),
@@ -60,6 +61,7 @@ vi.mock("./db", async (importOriginal) => {
     getAdminReservationDetailsByDate: dbMocks.getAdminReservationDetailsByDate,
     createReservation: dbMocks.createReservation,
     createReservationIfAvailable: dbMocks.createReservationIfAvailable,
+    deleteReservationById: dbMocks.deleteReservationById,
     getSiteSettings: dbMocks.getSiteSettings,
     updateReservationDetails: dbMocks.updateReservationDetails,
   };
@@ -196,6 +198,7 @@ describe("facility reservation lead-time guard", () => {
     dbMocks.getAdminReservationDetailsByDate.mockResolvedValue([]);
     dbMocks.createReservation.mockResolvedValue(100);
     dbMocks.createReservationIfAvailable.mockResolvedValue(100);
+    dbMocks.deleteReservationById.mockResolvedValue(true);
     dbMocks.getSiteSettings.mockResolvedValue({});
     dbMocks.updateReservationDetails.mockResolvedValue(true);
   });
@@ -660,20 +663,27 @@ describe("facility reservation lead-time guard", () => {
     );
   });
 
-  it("lets reservation managers update facility reservation time", async () => {
+  it("lets reservation managers update a past facility reservation", async () => {
     const caller = appRouter.createCaller(createContext(createUserWithReservationPermission()));
 
     await expect(caller.cms.reservations.updateTime({
       id: 10,
-      reservationDate: "2026-06-17",
+      reservationDate: "2026-06-15",
       startTime: "16:00",
       endTime: "17:00",
     })).resolves.toEqual({ success: true });
     expect(dbMocks.updateReservationDetails).toHaveBeenCalledWith(10, {
-      reservationDate: "2026-06-17",
+      reservationDate: "2026-06-15",
       startTime: "16:00",
       endTime: "17:00",
     });
+  });
+
+  it("lets reservation managers delete a past facility reservation", async () => {
+    const caller = appRouter.createCaller(createContext(createUserWithReservationPermission()));
+
+    await expect(caller.cms.reservations.delete({ id: 10 })).resolves.toEqual({ success: true });
+    expect(dbMocks.deleteReservationById).toHaveBeenCalledWith(10);
   });
 
   it("lets reservation managers bypass closed days and blocked dates when the time is free", async () => {

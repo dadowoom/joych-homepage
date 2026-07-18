@@ -487,6 +487,20 @@ export default function AdminVehiclesTab() {
       || group.reservations.some(row => row.status === reservationStatusFilter);
     return matchesVehicle && matchesStatus;
   });
+
+  useEffect(() => {
+    if (reservationViewMode !== "list" || !editingReservationGroupKey) return;
+    const group = groupedReservations.find(candidate => candidate.key === editingReservationGroupKey);
+    if (!group) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      document
+        .getElementById(`vehicle-reservation-group-${group.first.id}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [editingReservationGroupKey, groupedReservations, reservationViewMode]);
+
   const updateInquirySettings = trpc.cms.vehicles.inquirySettings.update.useMutation({
     onSuccess: () => {
       utils.home.settings.invalidate();
@@ -666,6 +680,31 @@ export default function AdminVehiclesTab() {
       startTime: group.first.startTime,
       endTime: group.first.endTime,
     });
+  }
+
+  function startReservationTimeEditFromCalendar(row: VehicleReservationRow) {
+    const group = groupedReservations.find(candidate => (
+      candidate.reservations.some(reservation => reservation.id === row.id)
+    ));
+    if (!group) {
+      toast.error("차량 예약 정보를 찾을 수 없습니다.");
+      return;
+    }
+
+    setReservationViewMode("list");
+    startReservationTimeEdit(group);
+  }
+
+  function removeReservationFromCalendar(row: VehicleReservationRow) {
+    const group = groupedReservations.find(candidate => (
+      candidate.reservations.some(reservation => reservation.id === row.id)
+    ));
+    if (!group) {
+      toast.error("차량 예약 정보를 찾을 수 없습니다.");
+      return;
+    }
+
+    removeReservation(group);
   }
 
   function saveReservationTime(group: VehicleReservationGroupRow) {
@@ -1326,6 +1365,8 @@ export default function AdminVehiclesTab() {
               isMutatingReservation={isMutatingReservation}
               onApprove={(row) => approveReservation.mutate({ id: row.id })}
               onCancel={cancelVehicleReservation}
+              onEdit={startReservationTimeEditFromCalendar}
+              onDelete={removeReservationFromCalendar}
             />
           )}
 
@@ -1379,6 +1420,7 @@ export default function AdminVehiclesTab() {
                   return (
                     <div
                       key={group.key}
+                      id={`vehicle-reservation-group-${group.first.id}`}
                       data-testid="vehicle-reservation-card"
                       className="overflow-hidden rounded-xl border border-gray-200 bg-white"
                     >
@@ -1752,6 +1794,8 @@ function VehicleReservationCalendarView({
   isMutatingReservation,
   onApprove,
   onCancel,
+  onEdit,
+  onDelete,
 }: {
   reservations: VehicleReservationRow[];
   vehicleFilter: number | undefined;
@@ -1759,6 +1803,8 @@ function VehicleReservationCalendarView({
   isMutatingReservation: boolean;
   onApprove: (row: VehicleReservationRow) => void;
   onCancel: (row: VehicleReservationRow) => void;
+  onEdit: (row: VehicleReservationRow) => void;
+  onDelete: (row: VehicleReservationRow) => void;
 }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(() => getLocalDateKey());
@@ -1934,6 +1980,15 @@ function VehicleReservationCalendarView({
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="min-h-10 sm:min-h-0"
+                      disabled={isMutatingReservation}
+                      onClick={() => onEdit(reservation)}
+                    >
+                      수정
+                    </Button>
                     {reservation.status !== "approved" && (
                       <Button
                         size="sm"
@@ -1955,6 +2010,16 @@ function VehicleReservationCalendarView({
                         취소
                       </Button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="min-h-10 border-red-200 text-red-600 hover:bg-red-50 sm:min-h-0"
+                      disabled={isMutatingReservation}
+                      onClick={() => onDelete(reservation)}
+                      title={reservation.recurrenceGroupId ? "반복 차량 예약 묶음 전체 삭제" : "차량 예약 삭제"}
+                    >
+                      <Trash2 className="mr-1 h-3.5 w-3.5" /> 삭제
+                    </Button>
                   </div>
                 </div>
               );

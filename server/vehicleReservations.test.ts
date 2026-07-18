@@ -6,6 +6,7 @@ const dbMocks = vi.hoisted(() => ({
   canMemberUseVehicleReservation: vi.fn(),
   createVehicleReservationIfAvailable: vi.fn(),
   createVehicleReservationsIfAvailable: vi.fn(),
+  deleteVehicleReservationById: vi.fn(),
   deleteVehicleReservationGroup: vi.fn(),
   getAvailableVehiclesForSchedule: vi.fn(),
   getVehicleAvailabilityTimeline: vi.fn(),
@@ -57,6 +58,7 @@ vi.mock("./db", async (importOriginal) => {
     canMemberUseVehicleReservation: dbMocks.canMemberUseVehicleReservation,
     createVehicleReservationIfAvailable: dbMocks.createVehicleReservationIfAvailable,
     createVehicleReservationsIfAvailable: dbMocks.createVehicleReservationsIfAvailable,
+    deleteVehicleReservationById: dbMocks.deleteVehicleReservationById,
     deleteVehicleReservationGroup: dbMocks.deleteVehicleReservationGroup,
     getAvailableVehiclesForSchedule: dbMocks.getAvailableVehiclesForSchedule,
     getVehicleAvailabilityTimeline: dbMocks.getVehicleAvailabilityTimeline,
@@ -183,6 +185,7 @@ describe("vehicle reservations", () => {
         vehicleName: "스타리아",
       },
     });
+    dbMocks.deleteVehicleReservationById.mockResolvedValue(true);
     dbMocks.deleteVehicleReservationGroup.mockResolvedValue(3);
     dbMocks.getVehicleReservationById.mockResolvedValue({
       id: 10,
@@ -835,20 +838,27 @@ describe("vehicle reservations", () => {
     );
   });
 
-  it("lets vehicle managers update reservation time", async () => {
+  it("lets vehicle managers update a past reservation", async () => {
     const caller = appRouter.createCaller(createContext(createAdminUser(), false));
 
     await expect(caller.cms.vehicleReservations.updateTime({
       id: 10,
-      reservationDate: "2026-06-17",
+      reservationDate: "2026-06-15",
       startTime: "12:00",
       endTime: "13:00",
     })).resolves.toEqual({ success: true });
     expect(dbMocks.updateVehicleReservationDetails).toHaveBeenCalledWith(10, {
-      reservationDate: "2026-06-17",
+      reservationDate: "2026-06-15",
       startTime: "12:00",
       endTime: "13:00",
     });
+  });
+
+  it("lets vehicle managers delete a past reservation", async () => {
+    const caller = appRouter.createCaller(createContext(createAdminUser(), false));
+
+    await expect(caller.cms.vehicleReservations.delete({ id: 10 })).resolves.toEqual({ success: true });
+    expect(dbMocks.deleteVehicleReservationById).toHaveBeenCalledWith(10);
   });
 
   it("keeps administrator time edits aligned to the vehicle slot rules", async () => {
