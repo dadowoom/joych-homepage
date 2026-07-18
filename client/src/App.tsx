@@ -7,9 +7,12 @@ import MobilePushNotificationPrompt from "@/components/MobilePushNotificationPro
 import MenuAccessGate from "@/components/MenuAccessGate";
 import { trpc } from "@/lib/trpc";
 import { findCourseRoomBySlug } from "@/lib/courseRoutes";
-import { getMainHomepageDomainDecision } from "@/lib/mainHomepageDomain";
+import {
+  getMainHomepageDomainDecision,
+  shouldProbeMemberSiteSession,
+} from "@/lib/mainHomepageDomain";
 import NotFound from "@/pages/NotFound";
-import { lazy, Suspense, useEffect, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useRef, type ReactNode } from "react";
 import { Route, Switch, useLocation, type RouteComponentProps } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -344,12 +347,52 @@ const MEMBER_SITE_ORIGIN = "https://newjoych.co.kr";
 const MAIN_SITE_ORIGIN = "https://www.joych.org";
 const MAIN_DOMAIN_BRIDGE_KEY = "joych_main";
 const MAIN_DOMAIN_BRIDGE_VALUE = "20260718";
+const MAIN_DOMAIN_SESSION_RESUME_KEY = "joych_resume";
+const MAIN_DOMAIN_SESSION_RESUME_VALUE = "20260719";
+const MAIN_DOMAIN_SESSION_PROBE_STORAGE_KEY = "joych.mainSessionProbe";
 const MEMBER_SITE_HOSTNAMES = new Set(["newjoych.co.kr", "www.newjoych.co.kr"]);
 
+function hasCheckedMainDomainSessionThisTab() {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.sessionStorage.getItem(MAIN_DOMAIN_SESSION_PROBE_STORAGE_KEY)
+      === MAIN_DOMAIN_SESSION_RESUME_VALUE;
+  } catch {
+    return false;
+  }
+}
+
+function markMainDomainSessionChecked() {
+  try {
+    window.sessionStorage.setItem(
+      MAIN_DOMAIN_SESSION_PROBE_STORAGE_KEY,
+      MAIN_DOMAIN_SESSION_RESUME_VALUE,
+    );
+  } catch {
+    // 저장소 사용이 제한된 브라우저에서도 쿼리 표식으로 현재 왕복은 종료됩니다.
+  }
+}
+
 function MainHomepageRoute() {
+  const sessionProbeCompletedRef = useRef(false);
   const hostname =
     typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
   const isMemberSite = MEMBER_SITE_HOSTNAMES.has(hostname);
+  const isMainSite = hostname === "www.joych.org";
+  const currentPathname = typeof window !== "undefined" ? window.location.pathname : "";
+  const currentSearchParams = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search)
+    : null;
+  const hasAnonymousReturnMarker =
+    currentSearchParams?.get(MAIN_DOMAIN_BRIDGE_KEY) === MAIN_DOMAIN_BRIDGE_VALUE;
+  const hasSessionResumeMarker =
+    currentSearchParams?.get(MAIN_DOMAIN_SESSION_RESUME_KEY) === MAIN_DOMAIN_SESSION_RESUME_VALUE;
+  const shouldProbeMemberSession = shouldProbeMemberSiteSession({
+    isMainSite,
+    hasAnonymousReturnMarker,
+    hasCheckedThisTab:
+      sessionProbeCompletedRef.current || hasCheckedMainDomainSessionThisTab(),
+  });
   const adminSession = trpc.auth.me.useQuery(undefined, {
     enabled: isMemberSite,
     retry: false,
@@ -376,25 +419,62 @@ function MainHomepageRoute() {
       return;
     }
 
+    if (shouldProbeMemberSession) {
+      const destination = new URL(MEMBER_SITE_ORIGIN);
+      destination.searchParams.set(
+        MAIN_DOMAIN_SESSION_RESUME_KEY,
+        MAIN_DOMAIN_SESSION_RESUME_VALUE,
+      );
+      window.location.replace(destination.toString());
+      return;
+    }
+
+    if (
+      isMemberSite &&
+      !isCheckingSession &&
+      currentPathname === "/" &&
+      hasSessionResumeMarker
+    ) {
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.delete(MAIN_DOMAIN_SESSION_RESUME_KEY);
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`,
+      );
+      return;
+    }
+
     if (hostname !== "www.joych.org") return;
 
-    const currentUrl = new URL(window.location.href);
     if (
-      currentUrl.pathname !== "/" ||
-      currentUrl.searchParams.get(MAIN_DOMAIN_BRIDGE_KEY) !== MAIN_DOMAIN_BRIDGE_VALUE
+      currentPathname !== "/" ||
+      !hasAnonymousReturnMarker
     ) {
       return;
     }
 
+    sessionProbeCompletedRef.current = true;
+    markMainDomainSessionChecked();
+    const currentUrl = new URL(window.location.href);
     currentUrl.searchParams.delete(MAIN_DOMAIN_BRIDGE_KEY);
     window.history.replaceState(
       window.history.state,
       "",
       `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`
     );
-  }, [hostname, shouldRedirect]);
+  }, [
+    currentPathname,
+    hasAnonymousReturnMarker,
+    hasSessionResumeMarker,
+    hostname,
+    isCheckingSession,
+    isMemberSite,
+    shouldProbeMemberSession,
+    shouldRedirect,
+  ]);
 
-  return isCheckingSession || shouldRedirect ? null : <Home />;
+  return isCheckingSession || shouldRedirect || shouldProbeMemberSession ? null : <Home />;
 }
 
 function NewJoychOnlyRoute({ children }: { children: ReactNode }) {

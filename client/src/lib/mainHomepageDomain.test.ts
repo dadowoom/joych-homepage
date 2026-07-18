@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { getMainHomepageDomainDecision } from "./mainHomepageDomain";
+import {
+  getMainHomepageDomainDecision,
+  shouldProbeMemberSiteSession,
+} from "./mainHomepageDomain";
 
 const settledSession = {
   isMemberSite: true,
@@ -53,5 +56,39 @@ describe("getMainHomepageDomainDecision", () => {
         isMemberSessionPending: true,
       })
     ).toEqual({ isCheckingSession: false, shouldRedirect: false });
+  });
+});
+
+describe("shouldProbeMemberSiteSession", () => {
+  it("checks the saved member session when the main domain opens in a new tab", () => {
+    expect(shouldProbeMemberSiteSession({
+      isMainSite: true,
+      hasAnonymousReturnMarker: false,
+      hasCheckedThisTab: false,
+    })).toBe(true);
+  });
+
+  it("does not loop after an anonymous visitor returns to the main domain", () => {
+    expect(shouldProbeMemberSiteSession({
+      isMainSite: true,
+      hasAnonymousReturnMarker: true,
+      hasCheckedThisTab: false,
+    })).toBe(false);
+  });
+
+  it("checks at most once in the same tab", () => {
+    expect(shouldProbeMemberSiteSession({
+      isMainSite: true,
+      hasAnonymousReturnMarker: false,
+      hasCheckedThisTab: true,
+    })).toBe(false);
+  });
+
+  it("does not run on the member domain", () => {
+    expect(shouldProbeMemberSiteSession({
+      isMainSite: false,
+      hasAnonymousReturnMarker: false,
+      hasCheckedThisTab: false,
+    })).toBe(false);
   });
 });
