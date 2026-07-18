@@ -7,6 +7,7 @@ import MobilePushNotificationPrompt from "@/components/MobilePushNotificationPro
 import MenuAccessGate from "@/components/MenuAccessGate";
 import { trpc } from "@/lib/trpc";
 import { findCourseRoomBySlug } from "@/lib/courseRoutes";
+import { getMainHomepageDomainDecision } from "@/lib/mainHomepageDomain";
 import NotFound from "@/pages/NotFound";
 import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { Route, Switch, useLocation, type RouteComponentProps } from "wouter";
@@ -354,9 +355,18 @@ function MainHomepageRoute() {
     retry: false,
     refetchOnWindowFocus: false,
   });
-  const isCheckingAdmin = isMemberSite && adminSession.isPending;
-  const shouldRedirect =
-    isMemberSite && !isCheckingAdmin && adminSession.data?.role !== "admin";
+  const memberSession = trpc.members.me.useQuery(undefined, {
+    enabled: isMemberSite,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const { isCheckingSession, shouldRedirect } = getMainHomepageDomainDecision({
+    isMemberSite,
+    isAdminSessionPending: adminSession.isPending,
+    isMemberSessionPending: memberSession.isPending,
+    isAdmin: adminSession.data?.role === "admin",
+    hasMemberSession: Boolean(memberSession.data),
+  });
 
   useEffect(() => {
     if (shouldRedirect) {
@@ -384,7 +394,7 @@ function MainHomepageRoute() {
     );
   }, [hostname, shouldRedirect]);
 
-  return isCheckingAdmin || shouldRedirect ? null : <Home />;
+  return isCheckingSession || shouldRedirect ? null : <Home />;
 }
 
 function NewJoychOnlyRoute({ children }: { children: ReactNode }) {
