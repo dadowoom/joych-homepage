@@ -1,6 +1,6 @@
-import { isSiteHostname } from "@shared/siteHosts";
+import { PRIMARY_SITE_ORIGIN, isSiteHostname } from "@shared/siteHosts";
 
-const SITE_URL_BASE = "https://joych.org";
+const SITE_URL_BASE = PRIMARY_SITE_ORIGIN;
 
 function isHttpProtocol(protocol: string) {
   return protocol === "http:" || protocol === "https:";

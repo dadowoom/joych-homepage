@@ -61,7 +61,25 @@ describe("SEO meta injection", () => {
     );
   });
 
-  it("www 공개 도메인은 대표 도메인으로 301 정리한다", () => {
+  it("기존 OAuth 기준 주소가 남아 있어도 SEO 주소는 www.joych.org를 사용한다", () => {
+    withPublicUrlBase("https://newjoych.co.kr", () => {
+      const html = injectSeoMeta(baseHtml, {
+        path: "/about/directions",
+        originalUrl: "/about/directions",
+        protocol: "https",
+        headers: { host: "newjoych.co.kr" },
+      } as unknown as Request);
+
+      expect(html).toContain(
+        '<link rel="canonical" href="https://www.joych.org/about/directions" />'
+      );
+      expect(html).toContain(
+        '<meta property="og:url" content="https://www.joych.org/about/directions" />'
+      );
+    });
+  });
+
+  it("기존 newjoych 도메인은 서버에서 강제 이동시키지 않는다", () => {
     withPublicUrlBase("https://newjoych.co.kr", () => {
       const req = {
         originalUrl: "/about/directions?from=www",
@@ -74,20 +92,18 @@ describe("SEO meta injection", () => {
 
       canonicalHostRedirect(req, res, next);
 
-      expect(redirect).toHaveBeenCalledWith(
-        301,
-        "https://newjoych.co.kr/about/directions?from=www"
-      );
-      expect(next).not.toHaveBeenCalled();
+      expect(redirect).not.toHaveBeenCalled();
+      expect(next).toHaveBeenCalledOnce();
     });
   });
 
-  it("joych.org 전환 시 www 주소를 대표 주소로 301 정리한다", () => {
-    withPublicUrlBase("https://joych.org", () => {
+  it.each(["joych.org", "m.joych.org"])(
+    "%s 요청은 경로와 쿼리를 유지해 www 대표 주소로 301 정리한다",
+    host => {
       const req = {
-        originalUrl: "/worship/tv?from=www",
-        url: "/worship/tv?from=www",
-        headers: { host: "www.joych.org" },
+        originalUrl: "/worship/tv?from=alias",
+        url: "/worship/tv?from=alias",
+        headers: { host },
       } as unknown as Request;
       const redirect = vi.fn();
       const res = { redirect } as unknown as Response;
@@ -97,7 +113,44 @@ describe("SEO meta injection", () => {
 
       expect(redirect).toHaveBeenCalledWith(
         301,
-        "https://joych.org/worship/tv?from=www"
+        "https://www.joych.org/worship/tv?from=alias"
+      );
+      expect(next).not.toHaveBeenCalled();
+    }
+  );
+
+  it("대표 www 주소는 다시 이동시키지 않는다", () => {
+    const req = {
+      originalUrl: "/worship/tv",
+      url: "/worship/tv",
+      headers: { host: "www.joych.org" },
+    } as unknown as Request;
+    const redirect = vi.fn();
+    const res = { redirect } as unknown as Response;
+    const next = vi.fn() as unknown as NextFunction;
+
+    canonicalHostRedirect(req, res, next);
+
+    expect(redirect).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it("사용자 정의 도메인의 기존 www 정리 동작은 유지한다", () => {
+    withPublicUrlBase("https://church.example.com", () => {
+      const req = {
+        originalUrl: "/about/history?from=www",
+        url: "/about/history?from=www",
+        headers: { host: "www.church.example.com" },
+      } as unknown as Request;
+      const redirect = vi.fn();
+      const res = { redirect } as unknown as Response;
+      const next = vi.fn() as unknown as NextFunction;
+
+      canonicalHostRedirect(req, res, next);
+
+      expect(redirect).toHaveBeenCalledWith(
+        301,
+        "https://church.example.com/about/history?from=www"
       );
       expect(next).not.toHaveBeenCalled();
     });

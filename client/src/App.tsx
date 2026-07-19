@@ -8,8 +8,19 @@ import MenuAccessGate from "@/components/MenuAccessGate";
 import { trpc } from "@/lib/trpc";
 import { findCourseRoomBySlug } from "@/lib/courseRoutes";
 import {
-  getMainHomepageDomainDecision,
-  shouldProbeMemberSiteSession,
+  DOMAIN_SESSION_PROBE_STORAGE_KEY,
+  DOMAIN_SESSION_PROBE_STORAGE_VALUE,
+  LEGACY_SESSION_SITE_ORIGIN,
+  PRIMARY_SITE_HOSTNAME,
+  buildDomainSessionBridgeUrl,
+  clearDomainLogoutMark,
+  createDomainSessionProbeStorageValue,
+  getSiteDomainGateAction,
+  hasDomainBridgeReturnMarker,
+  hasDomainLogoutMark,
+  hasDomainLogoutReturnMarker,
+  isRecentDomainSessionProbeStorageValue,
+  stripDomainBridgeReturnMarker,
 } from "@/lib/mainHomepageDomain";
 import NotFound from "@/pages/NotFound";
 import { lazy, Suspense, useEffect, useRef, type ReactNode } from "react";
@@ -344,30 +355,34 @@ function LegacyRedirect({ to }: { to: string }) {
   return null;
 }
 
-const MEMBER_SITE_ORIGIN = "https://newjoych.co.kr";
-const MAIN_SITE_ORIGIN = "https://www.joych.org";
-const MAIN_DOMAIN_BRIDGE_KEY = "joych_main";
-const MAIN_DOMAIN_BRIDGE_VALUE = "20260718";
-const MAIN_DOMAIN_SESSION_RESUME_KEY = "joych_resume";
-const MAIN_DOMAIN_SESSION_RESUME_VALUE = "20260719";
-const MAIN_DOMAIN_SESSION_PROBE_STORAGE_KEY = "joych.mainSessionProbe";
-const MEMBER_SITE_HOSTNAMES = new Set(["newjoych.co.kr", "www.newjoych.co.kr"]);
+// Public-domain routing is decided once, before any page chrome is rendered.
 
-function hasCheckedMainDomainSessionThisTab() {
+function hasProbedLegacySessionThisTab() {
   if (typeof window === "undefined") return false;
   try {
-    return window.sessionStorage.getItem(MAIN_DOMAIN_SESSION_PROBE_STORAGE_KEY)
-      === MAIN_DOMAIN_SESSION_RESUME_VALUE;
+    if (
+      window.sessionStorage.getItem(DOMAIN_SESSION_PROBE_STORAGE_KEY) ===
+      DOMAIN_SESSION_PROBE_STORAGE_VALUE
+    ) {
+      return true;
+    }
+    return isRecentDomainSessionProbeStorageValue(
+      window.localStorage.getItem(DOMAIN_SESSION_PROBE_STORAGE_KEY),
+    );
   } catch {
     return false;
   }
 }
 
-function markMainDomainSessionChecked() {
+function markLegacySessionProbed() {
   try {
     window.sessionStorage.setItem(
-      MAIN_DOMAIN_SESSION_PROBE_STORAGE_KEY,
-      MAIN_DOMAIN_SESSION_RESUME_VALUE,
+      DOMAIN_SESSION_PROBE_STORAGE_KEY,
+      DOMAIN_SESSION_PROBE_STORAGE_VALUE,
+    );
+    window.localStorage.setItem(
+      DOMAIN_SESSION_PROBE_STORAGE_KEY,
+      createDomainSessionProbeStorageValue(),
     );
   } catch {
     // 저장소 사용이 제한된 브라우저에서도 쿼리 표식으로 현재 왕복은 종료됩니다.
@@ -380,129 +395,111 @@ function isStandalonePwaDisplay() {
     Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone);
 }
 
-function MainHomepageRoute() {
-  const sessionProbeCompletedRef = useRef(false);
-  const hostname =
-    typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
-  const isMemberSite = MEMBER_SITE_HOSTNAMES.has(hostname);
-  const isMainSite = hostname === "www.joych.org";
-  const isStandaloneDisplay = isStandalonePwaDisplay();
-  // 기존 Newjoych 설치 앱은 알림 구독과 서비스워커가 이 도메인에 묶여 있습니다.
-  // 일반 브라우저만 대표 도메인으로 보내고, 설치 앱은 기존 알림 통로에 남겨 둡니다.
-  const isLegacyInstalledPwa = isMemberSite && isStandaloneDisplay;
-  const currentPathname = typeof window !== "undefined" ? window.location.pathname : "";
-  const currentSearchParams = typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search)
-    : null;
-  const hasAnonymousReturnMarker =
-    currentSearchParams?.get(MAIN_DOMAIN_BRIDGE_KEY) === MAIN_DOMAIN_BRIDGE_VALUE;
-  const hasSessionResumeMarker =
-    currentSearchParams?.get(MAIN_DOMAIN_SESSION_RESUME_KEY) === MAIN_DOMAIN_SESSION_RESUME_VALUE;
-  const shouldProbeMemberSession = shouldProbeMemberSiteSession({
-    isMainSite,
-    hasAnonymousReturnMarker,
-    hasCheckedThisTab:
-      sessionProbeCompletedRef.current || hasCheckedMainDomainSessionThisTab(),
-  });
+function CanonicalDomainGate({ children }: { children: ReactNode }) {
+  const navigationStartedRef = useRef(false);
+  const [routerLocation] = useLocation();
+  const hostname = typeof window === "undefined"
+    ? ""
+    : window.location.hostname.toLowerCase();
+  const pathname = typeof window === "undefined" ? "/" : window.location.pathname;
+  const search = typeof window === "undefined" ? "" : window.location.search;
+  const hash = typeof window === "undefined" ? "" : window.location.hash;
+  const isPrimarySite = hostname === PRIMARY_SITE_HOSTNAME;
+  const hasBridgeReturnMarker = hasDomainBridgeReturnMarker(search);
+  const hasLogoutReturnMarker = hasDomainLogoutReturnMarker(search);
+  const completedRoundTripRef = useRef(
+    hasBridgeReturnMarker || hasLogoutReturnMarker,
+  );
   const adminSession = trpc.auth.me.useQuery(undefined, {
-    enabled: isMemberSite,
+    enabled: isPrimarySite,
     retry: false,
     refetchOnWindowFocus: false,
   });
   const memberSession = trpc.members.me.useQuery(undefined, {
-    enabled: isMemberSite,
+    enabled: isPrimarySite,
     retry: false,
     refetchOnWindowFocus: false,
   });
-  const { isCheckingSession, shouldRedirect } = getMainHomepageDomainDecision({
-    isMemberSite,
-    isLegacyInstalledPwa,
+  const action = getSiteDomainGateAction({
+    hostname,
+    pathname,
+    isStandalonePwa: isStandalonePwaDisplay(),
     isAdminSessionPending: adminSession.isPending,
     isMemberSessionPending: memberSession.isPending,
     isAdmin: adminSession.data?.role === "admin",
     hasMemberSession: Boolean(memberSession.data),
+    hasBridgeReturnMarker: hasBridgeReturnMarker || completedRoundTripRef.current,
+    hasLogoutReturnMarker: hasLogoutReturnMarker || completedRoundTripRef.current,
+    hasProbedLegacySession: hasProbedLegacySessionThisTab(),
+    hasExplicitlyLoggedOut: hasDomainLogoutMark(),
   });
 
   useEffect(() => {
-    if (shouldRedirect) {
-      const destination = new URL(MAIN_SITE_ORIGIN);
-      destination.searchParams.set(MAIN_DOMAIN_BRIDGE_KEY, MAIN_DOMAIN_BRIDGE_VALUE);
-      window.location.replace(destination.toString());
-      return;
-    }
+    if (typeof window === "undefined") return;
 
-    if (shouldProbeMemberSession) {
-      const destination = new URL(MEMBER_SITE_ORIGIN);
-      destination.searchParams.set(
-        MAIN_DOMAIN_SESSION_RESUME_KEY,
-        MAIN_DOMAIN_SESSION_RESUME_VALUE,
-      );
-      window.location.replace(destination.toString());
-      return;
-    }
-
+    // A successful password or social login on the primary origin supersedes a
+    // previous explicit-logout marker. This also keeps a future provider callback
+    // migration from leaving legacy-session probing disabled forever.
     if (
-      isMemberSite &&
-      !isCheckingSession &&
-      currentPathname === "/" &&
-      hasSessionResumeMarker
+      isPrimarySite &&
+      (adminSession.data?.role === "admin" || memberSession.data)
     ) {
-      const currentUrl = new URL(window.location.href);
-      currentUrl.searchParams.delete(MAIN_DOMAIN_SESSION_RESUME_KEY);
+      clearDomainLogoutMark();
+    }
+
+    if (isPrimarySite && (hasBridgeReturnMarker || hasLogoutReturnMarker)) {
+      completedRoundTripRef.current = true;
+      markLegacySessionProbed();
       window.history.replaceState(
         window.history.state,
         "",
-        `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`,
+        stripDomainBridgeReturnMarker({ pathname, search, hash }),
       );
       return;
     }
 
-    if (hostname !== "www.joych.org") return;
+    if (navigationStartedRef.current) return;
 
-    if (
-      currentPathname !== "/" ||
-      !hasAnonymousReturnMarker
-    ) {
+    if (action === "redirect-through-current-legacy-host") {
+      navigationStartedRef.current = true;
+      window.location.replace(
+        buildDomainSessionBridgeUrl(window.location.origin, {
+          pathname,
+          search,
+          hash,
+        }),
+      );
       return;
     }
 
-    sessionProbeCompletedRef.current = true;
-    markMainDomainSessionChecked();
-    const currentUrl = new URL(window.location.href);
-    currentUrl.searchParams.delete(MAIN_DOMAIN_BRIDGE_KEY);
-    window.history.replaceState(
-      window.history.state,
-      "",
-      `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`
-    );
+    if (action === "probe-legacy-session") {
+      navigationStartedRef.current = true;
+      window.location.replace(
+        buildDomainSessionBridgeUrl(LEGACY_SESSION_SITE_ORIGIN, {
+          pathname,
+          search,
+          hash,
+        }),
+      );
+    }
   }, [
-    currentPathname,
-    hasAnonymousReturnMarker,
-    hasSessionResumeMarker,
-    hostname,
-    isCheckingSession,
-    isMemberSite,
-    shouldProbeMemberSession,
-    shouldRedirect,
+    action,
+    hash,
+    hasBridgeReturnMarker,
+    hasLogoutReturnMarker,
+    isPrimarySite,
+    adminSession.data,
+    memberSession.data,
+    pathname,
+    routerLocation,
+    search,
   ]);
 
-  return isCheckingSession || shouldRedirect || shouldProbeMemberSession ? null : <Home />;
+  return action === "render" ? <>{children}</> : null;
 }
 
-function NewJoychOnlyRoute({ children }: { children: ReactNode }) {
-  const shouldRedirect =
-    typeof window !== "undefined" &&
-    window.location.hostname.toLowerCase() === "www.joych.org";
-
-  useEffect(() => {
-    if (!shouldRedirect) return;
-
-    window.location.replace(
-      `${MEMBER_SITE_ORIGIN}${window.location.pathname}${window.location.search}${window.location.hash}`
-    );
-  }, [shouldRedirect]);
-
-  return shouldRedirect ? null : <>{children}</>;
+function MainHomepageRoute() {
+  return <Home />;
 }
 
 function ScrollToTop() {
@@ -634,11 +631,11 @@ function Router() {
 
       {/* 시설 예약 */}
       {/* 교회 회원 시스템 */}
-      <Route path="/member/register"><NewJoychOnlyRoute><MemberRegister /></NewJoychOnlyRoute></Route>
-      <Route path="/member/login"><NewJoychOnlyRoute><MemberLogin /></NewJoychOnlyRoute></Route>
-      <Route path="/member/account-recovery"><NewJoychOnlyRoute><MemberAccountRecovery /></NewJoychOnlyRoute></Route>
-      <Route path="/member/social-complete"><NewJoychOnlyRoute><MemberSocialComplete /></NewJoychOnlyRoute></Route>
-      <Route path="/member/my-page"><NewJoychOnlyRoute><MemberMyPage /></NewJoychOnlyRoute></Route>
+      <Route path="/member/register" component={MemberRegister} />
+      <Route path="/member/login" component={MemberLogin} />
+      <Route path="/member/account-recovery" component={MemberAccountRecovery} />
+      <Route path="/member/social-complete" component={MemberSocialComplete} />
+      <Route path="/member/my-page" component={MemberMyPage} />
 
       <Route path="/facility/external/:id/apply" component={ExternalFacilityApply} />
       <Route path="/facility/external/:id" component={ExternalFacilityDetail} />
@@ -657,7 +654,7 @@ function Router() {
       <Route path="/page/:slug" component={DynamicMenuHrefPage} />
 
       {/* 관리자 - 비공개 경로 */}
-      <Route path="/admin_joych_2026"><NewJoychOnlyRoute><AdminPage /></NewJoychOnlyRoute></Route>
+      <Route path="/admin_joych_2026" component={AdminPage} />
       {/* /admin 직접 접근 시 404로 처리 (관리자 페이지 존재 힌트 차단) */}
       <Route path="/admin" component={NotFound} />
 
@@ -671,19 +668,21 @@ function Router() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="light">
-        <TooltipProvider>
-          <Toaster />
-          <ScrollToTop />
-          <SiteHeader />
-          <SitewideAdminEditor />
-          <MobilePushNotificationPrompt />
-          <Suspense fallback={null}>
-            <Router />
-          </Suspense>
-          <NoticePopupLayer />
-        </TooltipProvider>
-      </ThemeProvider>
+      <CanonicalDomainGate>
+        <ThemeProvider defaultTheme="light">
+          <TooltipProvider>
+            <Toaster />
+            <ScrollToTop />
+            <SiteHeader />
+            <SitewideAdminEditor />
+            <MobilePushNotificationPrompt />
+            <Suspense fallback={null}>
+              <Router />
+            </Suspense>
+            <NoticePopupLayer />
+          </TooltipProvider>
+        </ThemeProvider>
+      </CanonicalDomainGate>
     </ErrorBoundary>
   );
 }

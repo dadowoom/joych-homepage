@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import HomeAdminDock from "@/components/HomeAdminDock";
+import { finishDomainLogout } from "@/lib/mainHomepageDomain";
 
 const MenuEditPanel = lazy(() => import("@/components/MenuEditPanel"));
 const NoticeEditPanel = lazy(() => import("@/components/NoticeEditPanel"));
@@ -42,8 +43,8 @@ export default function SitewideAdminEditor() {
   const utils = trpc.useUtils();
 
   const logoutMutation = trpc.auth.logout.useMutation({
-    onSuccess: () => {
-      window.location.reload();
+    onSuccess: (data) => {
+      finishDomainLogout("/", data.domainLogoutIntent);
     },
   });
   const { data: notificationSummary } = trpc.cms.notifications.summary.useQuery(undefined, {

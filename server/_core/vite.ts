@@ -233,6 +233,14 @@ export function serveStatic(app: Express) {
           res.setHeader("Cache-Control", "no-cache");
           return;
         }
+        if (
+          normalized.endsWith("/sw.js") ||
+          normalized.endsWith("/manifest.webmanifest")
+        ) {
+          // 두 도메인의 설치 앱이 전환 배포를 즉시 감지하도록 장기 캐시를 막습니다.
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          return;
+        }
         if (normalized.includes("/assets/")) {
           res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
           return;

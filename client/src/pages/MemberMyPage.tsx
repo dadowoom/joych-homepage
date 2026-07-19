@@ -8,6 +8,7 @@ import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { PushNotificationToggle } from "@/components/PushNotificationToggle";
+import { finishDomainLogout } from "@/lib/mainHomepageDomain";
 
 type ChurchForm = {
   position: string;
@@ -62,9 +63,9 @@ export default function MemberMyPage() {
   const [withdrawConfirm, setWithdrawConfirm] = useState("");
 
   const logoutMutation = trpc.members.logout.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success("로그아웃됐습니다.");
-      navigate("/member/login");
+      finishDomainLogout("/member/login", data.domainLogoutIntent);
     },
   });
 

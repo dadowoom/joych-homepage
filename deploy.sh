@@ -77,7 +77,7 @@ ok "서버 재시작 완료"
 step "5단계: 배포 확인 중..."
 sleep 3  # 서버 시작 대기
 
-HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://dadowoomtest.co.kr/ --max-time 10)
+HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://www.joych.org/ --max-time 10)
 
 if [ "$HTTP_STATUS" = "200" ]; then
   ok "배포 확인 완료 (HTTP $HTTP_STATUS)"
@@ -89,7 +89,7 @@ fi
 echo ""
 echo "============================================"
 echo -e "${GREEN}  배포 완료!${NC}"
-echo "  주소: https://dadowoomtest.co.kr"
+echo "  주소: https://www.joych.org"
 echo "  시각: $(date '+%Y-%m-%d %H:%M:%S')"
 echo "============================================"
 echo ""

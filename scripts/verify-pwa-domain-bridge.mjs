@@ -67,6 +67,8 @@ const [legacySw, primarySw, legacyManifest, primaryManifest, legacyVapid, primar
 
 await Promise.all(
   origins.flatMap((origin) => [
+    // 기존 설치 앱은 legacy origin의 SPA 자체도 계속 직접 열 수 있어야 합니다.
+    fetchDirect(origin, "/"),
     fetchDirect(origin, "/pwa-icon-192.png"),
     fetchDirect(origin, "/pwa-icon-512.png"),
   ]),

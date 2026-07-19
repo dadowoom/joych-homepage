@@ -11,6 +11,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import HomeAdminDock from "@/components/HomeAdminDock";
 import PwaInstallCard from "@/components/PwaInstallCard";
 import { getLoginUrl } from "@/const";
+import { finishDomainLogout } from "@/lib/mainHomepageDomain";
 import HomeAffiliates from "./home/HomeAffiliates";
 import HomeFeatureCards from "./home/HomeFeatureCards";
 import HomeFooter from "./home/HomeFooter";
@@ -435,8 +436,8 @@ export default function Home() {
 
   // 로그아웃 mutation
   const logoutMutation = trpc.auth.logout.useMutation({
-    onSuccess: () => {
-      window.location.reload();
+    onSuccess: (data) => {
+      finishDomainLogout("/", data.domainLogoutIntent);
     },
   });
   const { data: notificationSummary } = trpc.cms.notifications.summary.useQuery(undefined, {

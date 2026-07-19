@@ -1,6 +1,7 @@
 import { getLoginUrl } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
+import { finishDomainLogout } from "@/lib/mainHomepageDomain";
 import { useCallback, useEffect, useMemo } from "react";
 
 type UseAuthOptions = {
@@ -24,8 +25,10 @@ export function useAuth(options?: UseAuthOptions) {
   });
 
   const logout = useCallback(async () => {
+    let domainLogoutIntent: string | null = null;
     try {
-      await logoutMutation.mutateAsync();
+      const result = await logoutMutation.mutateAsync();
+      domainLogoutIntent = result.domainLogoutIntent;
     } catch (error: unknown) {
       if (
         error instanceof TRPCClientError &&
@@ -37,6 +40,7 @@ export function useAuth(options?: UseAuthOptions) {
     } finally {
       utils.auth.me.setData(undefined, null);
       await utils.auth.me.invalidate();
+      finishDomainLogout("/", domainLogoutIntent);
     }
   }, [logoutMutation, utils]);
 

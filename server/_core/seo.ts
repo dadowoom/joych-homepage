@@ -1,10 +1,14 @@
 import type { Express, NextFunction, Request, Response } from "express";
+import {
+  PRIMARY_SITE_ORIGIN,
+  isSiteHostname,
+} from "../../shared/siteHosts";
 import { getVisibleMenus } from "../db/menu";
 import { isSafeHref } from "./contentValidation";
 
 type RequestWithCspNonce = Request & { cspNonce?: string };
 
-const DEFAULT_ORIGIN = "https://joych.org";
+const DEFAULT_ORIGIN = PRIMARY_SITE_ORIGIN;
 const SITE_NAME = "기쁨의교회";
 const SITE_TITLE = "기쁨의교회 | The Joyful Church";
 const DEFAULT_DESCRIPTION =
@@ -449,34 +453,68 @@ export function canonicalHostRedirect(
   res: Response,
   next: NextFunction
 ) {
-  const configured = getConfiguredOrigin() || DEFAULT_ORIGIN;
-  let canonical: URL;
+  const host = getRequestHost(req).toLowerCase();
+  const currentHostname = host.split(":")[0];
 
+  if (currentHostname === "joych.org" || currentHostname === "m.joych.org") {
+    const destination = new URL(
+      req.originalUrl || req.url || "/",
+      PRIMARY_SITE_ORIGIN
+    );
+    return res.redirect(301, destination.toString());
+  }
+
+  // newjoych.co.kr is intentionally kept alive for existing installed PWAs.
+  // Its browser navigation is handled by the client-side domain gate so that
+  // service workers, push endpoints and standalone mode keep working.
+  if (isSiteHostname(currentHostname)) {
+    return next();
+  }
+
+  const configured = getConfiguredOrigin();
+  if (!configured) return next();
+
+  let canonical: URL;
   try {
     canonical = new URL(configured);
   } catch {
     return next();
   }
 
-  const host = getRequestHost(req).toLowerCase();
-  const currentHostname = host.split(":")[0];
   const canonicalHostname = canonical.hostname.toLowerCase();
-
-  if (currentHostname !== `www.${canonicalHostname}`) {
+  if (
+    isSiteHostname(canonicalHostname) ||
+    currentHostname !== `www.${canonicalHostname}`
+  ) {
     return next();
   }
 
-  const destination = new URL(req.originalUrl || req.url || "/", canonical.origin);
+  const destination = new URL(
+    req.originalUrl || req.url || "/",
+    canonical.origin
+  );
   return res.redirect(301, destination.toString());
 }
 
 export function getPublicOrigin(req?: Request) {
   const configured = getConfiguredOrigin();
-  if (configured) return configured;
+  if (configured) {
+    try {
+      if (isSiteHostname(new URL(configured).hostname)) {
+        return PRIMARY_SITE_ORIGIN;
+      }
+    } catch {
+      // getConfiguredOrigin already validates the URL; keep a safe fallback.
+    }
+    return configured;
+  }
   if (!req) return DEFAULT_ORIGIN;
 
   const host = getRequestHost(req);
   if (!host) return DEFAULT_ORIGIN;
+
+  const hostname = host.split(":")[0].toLowerCase();
+  if (isSiteHostname(hostname)) return PRIMARY_SITE_ORIGIN;
 
   const proto =
     getFirstHeaderValue(req.headers["x-forwarded-proto"]) ||

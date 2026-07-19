@@ -1,7 +1,9 @@
 # 기쁨의교회 홈페이지 (joych-homepage)
 
 > **관리 주체:** 기쁨의교회 (The Joyful Church)  
-> **운영 도메인:** [joych.org](https://joych.org) / [www.joych.org](https://www.joych.org) / [newjoych.co.kr](https://newjoych.co.kr)
+> **대표 운영 도메인:** [www.joych.org](https://www.joych.org)
+> **기존 앱 호환 도메인:** `newjoych.co.kr` (기존 PWA·푸시 연결용, 일반 웹은 대표 주소로 이동)
+> **소셜 로그인 호환:** 운영 `PUBLIC_URL_BASE`는 기존 PWA와 등록된 콜백을 위해 `https://newjoych.co.kr`로 유지
 > **최초 개발:** 2026년 4월 | **기술 플랫폼:** Manus Web App (tRPC + React + MySQL)
 
 ---

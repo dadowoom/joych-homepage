@@ -14,6 +14,7 @@ import { serveStatic, setupVite } from "./vite";
 import { canonicalHostRedirect, registerSeoUtilityRoutes } from "./seo";
 import { registerLegacyVodRoutes } from "./legacyVod";
 import { registerLegacyPageRedirects } from "./legacyPageRedirects";
+import { registerDomainSessionBridgeRoutes } from "./domainSessionBridge";
 
 const MB = 1024 * 1024;
 const STANDARD_BODY_LIMIT_BYTES = 5 * MB;
@@ -243,8 +244,6 @@ async function startServer() {
     }
     next();
   });
-  app.use(canonicalHostRedirect);
-
   // Manus development-only endpoints/files must not be exposed in production.
   app.use("/__manus__", (_req, res) => {
     res.status(404).type("text/plain").send("Not found");
@@ -270,6 +269,12 @@ async function startServer() {
   );
   // 쿠키 파싱 미들웨어 (req.cookies 사용 가능하게)
   app.use(cookieParser());
+
+  // 구주소의 host-only 로그인 쿠키를 검증한 뒤 대표 도메인에 1회 이전합니다.
+  registerDomainSessionBridgeRoutes(app);
+  // Bridge endpoints must see the legacy Host before bare/m aliases are sent to
+  // the canonical host; all remaining requests still redirect normally.
+  app.use(canonicalHostRedirect);
 
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);

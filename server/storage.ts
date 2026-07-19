@@ -1,14 +1,30 @@
 // 로컬 파일시스템 기반 스토리지 헬퍼
 // 외부 서버(iwinv) 배포 시 사용: /var/www/joych-homepage/uploads/ 에 저장
-// 외부 접근 URL: https://dadowoomtest.co.kr/uploads/파일명
+// 외부 접근 URL: https://www.joych.org/uploads/파일명
 
 import fs from "fs";
 import path from "path";
+import { PRIMARY_SITE_ORIGIN, isSiteHostname } from "@shared/siteHosts";
 
 // 업로드 디렉토리: 환경변수 UPLOAD_DIR 또는 기본값
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), "uploads");
-// 공개 URL 베이스: 환경변수 PUBLIC_URL_BASE 또는 기본값
-const PUBLIC_URL_BASE = process.env.PUBLIC_URL_BASE || "http://localhost:3000";
+// OAuth callback 기준(PUBLIC_URL_BASE)이 기존 도메인으로 남아 있더라도,
+// 새로 저장되는 공개 파일 주소는 대표 도메인을 사용합니다.
+export function getStoragePublicUrlBase(
+  configured = process.env.PUBLIC_URL_BASE || "http://localhost:3000"
+) {
+  const trimmed = configured.replace(/\/+$/, "");
+
+  try {
+    if (isSiteHostname(new URL(trimmed).hostname)) {
+      return PRIMARY_SITE_ORIGIN;
+    }
+  } catch {
+    // 기존 동작처럼 잘못된/상대 형식은 문자열 그대로 사용합니다.
+  }
+
+  return trimmed;
+}
 
 /**
  * 업로드 디렉토리 초기화 (없으면 생성)
@@ -51,7 +67,7 @@ export async function storagePut(
     fs.writeFileSync(filePath, Buffer.from(data));
   }
 
-  const url = `${PUBLIC_URL_BASE.replace(/\/+$/, "")}/uploads/${key}`;
+  const url = `${getStoragePublicUrlBase()}/uploads/${key}`;
   return { key, url };
 }
 
@@ -62,6 +78,6 @@ export async function storagePut(
  */
 export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
   const key = path.normalize(relKey.replace(/^\/+/, "")).replace(/\\/g, "/");
-  const url = `${PUBLIC_URL_BASE.replace(/\/+$/, "")}/uploads/${key}`;
+  const url = `${getStoragePublicUrlBase()}/uploads/${key}`;
   return { key, url };
 }

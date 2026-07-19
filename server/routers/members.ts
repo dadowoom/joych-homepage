@@ -30,6 +30,7 @@ import { TRPCError } from "@trpc/server";
 import { adminPermissionProcedure, adminProcedure, publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
 import { checkAccountRecoveryRateLimit, checkRateLimit, recordFailure, resetFailures, getClientIp, checkSearchRateLimit, checkRegisterRateLimit } from "../_core/rateLimiter";
 import { getSessionCookieOptions } from "../_core/cookies";
+import { createDomainLogoutIntent } from "../_core/domainSessionBridge";
 import { getJwtSecretKey } from "../_core/jwtSecret";
 import { isMemberSessionCurrent, MEMBER_SESSION_COOKIE, setMemberSessionCookie } from "../_core/memberSession";
 import {
@@ -503,11 +504,14 @@ export const membersRouter = router({
 
   /** 성도 로그아웃 (쿠키 삭제) */
   logout: publicProcedure
-    .mutation(({ ctx }) => {
+    .mutation(async ({ ctx }) => {
+      const domainLogoutIntent = await createDomainLogoutIntent(ctx.req, ctx.res, {
+        memberId: ctx.memberId,
+      });
       ctx.res.clearCookie(MEMBER_SESSION_COOKIE, {
         ...getSessionCookieOptions(ctx.req),
       });
-      return { success: true };
+      return { success: true, domainLogoutIntent };
     }),
 
   /**

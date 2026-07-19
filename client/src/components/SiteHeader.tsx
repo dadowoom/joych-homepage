@@ -9,6 +9,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { isExternalSiteHref, normalizeSiteHref } from "@/lib/siteHref";
+import { finishDomainLogout } from "@/lib/mainHomepageDomain";
 import { toFallbackMenuTree } from "@shared/siteNavigation";
 import { useLanguage, translateSiteText } from "@/contexts/LanguageContext";
 
@@ -204,9 +205,10 @@ export default function SiteHeader() {
 
   const { data: memberMe } = trpc.members.me.useQuery();
   const memberLogoutMutation = trpc.members.logout.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (data) => {
       utils.members.me.setData(undefined, null);
       await invalidateMemberSessionBoundQueries(utils);
+      finishDomainLogout("/", data.domainLogoutIntent);
     },
   });
   const { data: dbMenus, isLoading: menusLoading } = trpc.home.menus.useQuery(

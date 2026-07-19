@@ -22,6 +22,7 @@ import { useMemo, useState } from "react";
 import { Link, useSearch, useLocation } from "wouter";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { clearDomainLogoutMark } from "@/lib/mainHomepageDomain";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useIsMobile } from "@/hooks/useMobile";
 import AdminFacilitiesTab from "@/components/AdminFacilitiesTab";
@@ -395,7 +396,7 @@ function AdminMobileBlocked() {
 
 // ─── 메인 관리자 페이지 ───────────────────────────────────────────────────────
 export default function AdminPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const isMobile = useIsMobile();
   const searchString = useSearch();
   const [, setLocation] = useLocation();
@@ -432,6 +433,7 @@ export default function AdminPage() {
 
   const adminLoginMutation = trpc.auth.adminLogin.useMutation({
     onSuccess: () => {
+      clearDomainLogoutMark();
       localStorage.removeItem("admin_fail_count");
       localStorage.removeItem("admin_lock_until");
       setFailCount(0);
@@ -847,16 +849,7 @@ export default function AdminPage() {
               {canManageFullAdmin(user) ? "admin" : "manager"}
             </span>
             <button
-              onClick={() => {
-                fetch("/api/trpc/auth.logout", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  credentials: "include",
-                  body: JSON.stringify({ "0": { json: null } }),
-                }).then(() => {
-                  window.location.reload();
-                });
-              }}
+              onClick={() => void logout()}
               className="text-xs text-gray-400 hover:text-red-400 transition-colors px-2 py-1 rounded hover:bg-white/10"
             >
               로그아웃

@@ -1,4 +1,8 @@
 import { useRef, useState, useEffect } from "react";
+import {
+  isExternalSiteHref,
+  normalizeSiteHref,
+} from "@/lib/siteHref";
 
 export type HomeSectionConfig = {
   eyebrow: string;
@@ -74,10 +78,12 @@ export function getUsableHref(
   href: string | null | undefined,
   fallback: string
 ) {
-  const trimmed = href?.trim();
-  return trimmed && trimmed !== "#" ? trimmed : fallback;
+  const normalized = normalizeSiteHref(href);
+  if (normalized) return normalized;
+
+  return normalizeSiteHref(fallback) ?? fallback;
 }
 
 export function isExternalHref(href: string) {
-  return href.startsWith("http://") || href.startsWith("https://");
+  return isExternalSiteHref(href);
 }

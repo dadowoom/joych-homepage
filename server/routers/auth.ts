@@ -14,6 +14,7 @@ import crypto from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { ADMIN_SESSION_MS, COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "../_core/cookies";
+import { createDomainLogoutIntent } from "../_core/domainSessionBridge";
 import { publicProcedure, router } from "../_core/trpc";
 import { sdk } from "../_core/sdk";
 import { ENV } from "../_core/env";
@@ -38,10 +39,13 @@ export const authRouter = router({
    * 로그아웃
    * 세션 쿠키를 삭제하여 로그아웃 처리
    */
-  logout: publicProcedure.mutation(({ ctx }) => {
+  logout: publicProcedure.mutation(async ({ ctx }) => {
+    const domainLogoutIntent = await createDomainLogoutIntent(ctx.req, ctx.res, {
+      adminOpenId: ctx.user?.role === "admin" ? ctx.user.openId : null,
+    });
     const cookieOptions = getSessionCookieOptions(ctx.req);
     ctx.res.clearCookie(COOKIE_NAME, cookieOptions);
-    return { success: true } as const;
+    return { success: true, domainLogoutIntent } as const;
   }),
 
   /**

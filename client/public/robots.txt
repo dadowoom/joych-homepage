@@ -5,4 +5,4 @@ Disallow: /admin_joych_2026
 Disallow: /member/
 Disallow: /facility/my-reservations
 
-Sitemap: https://joych.org/sitemap.xml
+Sitemap: https://www.joych.org/sitemap.xml

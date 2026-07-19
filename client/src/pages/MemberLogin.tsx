@@ -7,6 +7,7 @@ import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import MemberSocialAuthButtons from "@/components/MemberSocialAuthButtons";
+import { clearDomainLogoutMark } from "@/lib/mainHomepageDomain";
 
 const REMEMBERED_MEMBER_EMAIL_KEY = "joych.memberLogin.rememberedEmail";
 
@@ -124,6 +125,7 @@ export default function MemberLogin() {
 
   const loginMutation = trpc.members.login.useMutation({
     onSuccess: async (data) => {
+      clearDomainLogoutMark();
       if (typeof window !== "undefined") {
         if (rememberEmail && email.trim()) {
           window.localStorage.setItem(REMEMBERED_MEMBER_EMAIL_KEY, email.trim());
