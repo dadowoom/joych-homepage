@@ -495,7 +495,24 @@ function CanonicalDomainGate({ children }: { children: ReactNode }) {
     search,
   ]);
 
-  return action === "render" ? <>{children}</> : null;
+  if (action === "render") return <>{children}</>;
+
+  if (pathname === "/admin_joych_2026") {
+    return (
+      <div
+        className="flex min-h-screen items-center justify-center bg-gray-50"
+        role="status"
+        aria-live="polite"
+      >
+        <div className="text-center">
+          <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-[#1B5E20] border-t-transparent" />
+          <p className="text-sm text-gray-500">관리자 로그인 상태를 확인하고 있습니다.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 function MainHomepageRoute() {

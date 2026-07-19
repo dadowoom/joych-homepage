@@ -18,36 +18,41 @@
  *   - 주보 관리    : components/AdminBulletinsTab.tsx
  */
 
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { Link, useSearch, useLocation } from "wouter";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { clearDomainLogoutMark } from "@/lib/mainHomepageDomain";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useIsMobile } from "@/hooks/useMobile";
-import AdminFacilitiesTab from "@/components/AdminFacilitiesTab";
-import AdminReservationsTab from "@/components/AdminReservationsTab";
-import AdminVehiclesTab from "@/components/AdminVehiclesTab";
-import AdminMemberOptionsTab from "@/components/AdminMemberOptionsTab";
-import AdminMembersTab from "@/components/AdminMembersTab";
-import AdminMissionReportsTab from "@/components/AdminMissionReportsTab";
-import AdminPopupsTab from "@/components/AdminPopupsTab";
-import AdminFreeBoardTab from "@/components/AdminFreeBoardTab";
-import AdminStaffTab from "@/components/AdminStaffTab";
-import AdminSupportRequestsTab from "@/components/AdminSupportRequestsTab";
-import AdminTestimoniesTab from "@/components/AdminTestimoniesTab";
-import AdminCoursesTab from "@/components/AdminCoursesTab";
-import AdminBulletinsTab from "@/components/AdminBulletinsTab";
-import AdminPushBroadcastTab from "@/components/AdminPushBroadcastTab";
-import AdminPermissionsTab from "@/components/AdminPermissionsTab";
-import AdminMenuAccessTab from "@/components/AdminMenuAccessTab";
-import AdminViewModesTab from "@/components/AdminViewModesTab";
-import AdminChurchHistoryTab from "@/components/AdminChurchHistoryTab";
-import AdminPastorBooksTab from "@/components/AdminPastorBooksTab";
 import AdminMemberAlerts from "@/components/admin/AdminMemberAlerts";
 import { PushNotificationToggle } from "@/components/PushNotificationToggle";
-import YoutubeAdminTab from "@/components/YoutubeAdminTab";
-import { SettingsTab } from "@/components/admin/SettingsTab";
+
+const AdminFacilitiesTab = lazy(() => import("@/components/AdminFacilitiesTab"));
+const AdminReservationsTab = lazy(() => import("@/components/AdminReservationsTab"));
+const AdminVehiclesTab = lazy(() => import("@/components/AdminVehiclesTab"));
+const AdminMemberOptionsTab = lazy(() => import("@/components/AdminMemberOptionsTab"));
+const AdminMembersTab = lazy(() => import("@/components/AdminMembersTab"));
+const AdminMissionReportsTab = lazy(() => import("@/components/AdminMissionReportsTab"));
+const AdminPopupsTab = lazy(() => import("@/components/AdminPopupsTab"));
+const AdminFreeBoardTab = lazy(() => import("@/components/AdminFreeBoardTab"));
+const AdminStaffTab = lazy(() => import("@/components/AdminStaffTab"));
+const AdminSupportRequestsTab = lazy(() => import("@/components/AdminSupportRequestsTab"));
+const AdminTestimoniesTab = lazy(() => import("@/components/AdminTestimoniesTab"));
+const AdminCoursesTab = lazy(() => import("@/components/AdminCoursesTab"));
+const AdminBulletinsTab = lazy(() => import("@/components/AdminBulletinsTab"));
+const AdminPushBroadcastTab = lazy(() => import("@/components/AdminPushBroadcastTab"));
+const AdminPermissionsTab = lazy(() => import("@/components/AdminPermissionsTab"));
+const AdminMenuAccessTab = lazy(() => import("@/components/AdminMenuAccessTab"));
+const AdminViewModesTab = lazy(() => import("@/components/AdminViewModesTab"));
+const AdminChurchHistoryTab = lazy(() => import("@/components/AdminChurchHistoryTab"));
+const AdminPastorBooksTab = lazy(() => import("@/components/AdminPastorBooksTab"));
+const YoutubeAdminTab = lazy(() => import("@/components/YoutubeAdminTab"));
+const SettingsTab = lazy(() =>
+  import("@/components/admin/SettingsTab").then(module => ({
+    default: module.SettingsTab,
+  })),
+);
 import {
   canManageAdminTab,
   canManageAnyContent,
@@ -432,15 +437,14 @@ export default function AdminPage() {
   };
 
   const adminLoginMutation = trpc.auth.adminLogin.useMutation({
-    onSuccess: () => {
+    onSuccess: ({ user: authenticatedAdmin }) => {
       clearDomainLogoutMark();
       localStorage.removeItem("admin_fail_count");
       localStorage.removeItem("admin_lock_until");
       setFailCount(0);
-      // 쿠키가 브라우저에 저장된 후 홈으로 이동 (즉시 이동하면 세션 인식 실패)
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 300);
+      setLoginError("");
+      utils.auth.me.setData(undefined, authenticatedAdmin);
+      setLocation("/admin_joych_2026", { replace: true });
     },
     onError: error => {
       const isRateLimited =
@@ -1504,33 +1508,44 @@ export default function AdminPage() {
             {/* 탭 콘텐츠 */}
             {!isNotificationsView && activeTab !== "memberDashboard" && (
               <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
-                {activeTab === "settings" && <SettingsTab />}
-                {activeTab === "facilities" && <AdminFacilitiesTab />}
-                {activeTab === "externalFacilities" && (
-                  <AdminFacilitiesTab mode="external" />
-                )}
-                {activeTab === "facilitySchedule" && (
-                  <AdminFacilitiesTab mode="buildingSchedule" />
-                )}
-                {activeTab === "reservations" && <AdminReservationsTab />}
-                {activeTab === "vehicles" && <AdminVehiclesTab />}
-                {activeTab === "memberOptions" && <AdminMemberOptionsTab />}
-                {activeTab === "permissions" && <AdminPermissionsTab />}
-                {activeTab === "menuAccess" && <AdminMenuAccessTab />}
-                {activeTab === "viewModes" && <AdminViewModesTab />}
-                {activeTab === "members" && <AdminMembersTab />}
-                {activeTab === "staff" && <AdminStaffTab />}
-                {activeTab === "missionReports" && <AdminMissionReportsTab />}
-                {activeTab === "testimonies" && <AdminTestimoniesTab />}
-                {activeTab === "freeBoard" && <AdminFreeBoardTab />}
-                {activeTab === "supportRequests" && <AdminSupportRequestsTab />}
-                {activeTab === "courses" && <AdminCoursesTab />}
-                {activeTab === "bulletins" && <AdminBulletinsTab />}
-                {activeTab === "pushBroadcast" && <AdminPushBroadcastTab />}
-                {activeTab === "youtube" && <YoutubeAdminTab />}
-                {activeTab === "popups" && <AdminPopupsTab />}
-                {activeTab === "history" && <AdminChurchHistoryTab />}
-                {activeTab === "pastorBooks" && <AdminPastorBooksTab />}
+                <Suspense
+                  fallback={(
+                    <div className="flex min-h-48 items-center justify-center" role="status">
+                      <div className="text-center">
+                        <div className="mx-auto mb-3 h-7 w-7 animate-spin rounded-full border-2 border-[#1B5E20] border-t-transparent" />
+                        <p className="text-sm text-gray-500">관리 화면을 불러오고 있습니다.</p>
+                      </div>
+                    </div>
+                  )}
+                >
+                  {activeTab === "settings" && <SettingsTab />}
+                  {activeTab === "facilities" && <AdminFacilitiesTab />}
+                  {activeTab === "externalFacilities" && (
+                    <AdminFacilitiesTab mode="external" />
+                  )}
+                  {activeTab === "facilitySchedule" && (
+                    <AdminFacilitiesTab mode="buildingSchedule" />
+                  )}
+                  {activeTab === "reservations" && <AdminReservationsTab />}
+                  {activeTab === "vehicles" && <AdminVehiclesTab />}
+                  {activeTab === "memberOptions" && <AdminMemberOptionsTab />}
+                  {activeTab === "permissions" && <AdminPermissionsTab />}
+                  {activeTab === "menuAccess" && <AdminMenuAccessTab />}
+                  {activeTab === "viewModes" && <AdminViewModesTab />}
+                  {activeTab === "members" && <AdminMembersTab />}
+                  {activeTab === "staff" && <AdminStaffTab />}
+                  {activeTab === "missionReports" && <AdminMissionReportsTab />}
+                  {activeTab === "testimonies" && <AdminTestimoniesTab />}
+                  {activeTab === "freeBoard" && <AdminFreeBoardTab />}
+                  {activeTab === "supportRequests" && <AdminSupportRequestsTab />}
+                  {activeTab === "courses" && <AdminCoursesTab />}
+                  {activeTab === "bulletins" && <AdminBulletinsTab />}
+                  {activeTab === "pushBroadcast" && <AdminPushBroadcastTab />}
+                  {activeTab === "youtube" && <YoutubeAdminTab />}
+                  {activeTab === "popups" && <AdminPopupsTab />}
+                  {activeTab === "history" && <AdminChurchHistoryTab />}
+                  {activeTab === "pastorBooks" && <AdminPastorBooksTab />}
+                </Suspense>
               </div>
             )}
           </main>

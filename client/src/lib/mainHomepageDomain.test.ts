@@ -104,13 +104,23 @@ describe("getSiteDomainGateAction", () => {
     ).toBe("wait-for-primary-session");
   });
 
-  it("checks Newjoych once when only the administrator session exists on www", () => {
+  it("renders immediately when only the administrator session exists on www", () => {
     expect(
       getSiteDomainGateAction({
         ...primaryAnonymousVisit,
         isAdmin: true,
       }),
-    ).toBe("probe-legacy-session");
+    ).toBe("render");
+  });
+
+  it("does not wait for the member-session check after the administrator session is confirmed", () => {
+    expect(
+      getSiteDomainGateAction({
+        ...primaryAnonymousVisit,
+        isAdmin: true,
+        isMemberSessionPending: true,
+      }),
+    ).toBe("render");
   });
 
   it("checks Newjoych once when only the member session exists on www", () => {

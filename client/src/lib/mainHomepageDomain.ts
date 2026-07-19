@@ -227,7 +227,7 @@ export function getSiteDomainGateAction({
 
   if (normalizedHostname !== PRIMARY_SITE_HOSTNAME) return "render";
 
-  if (isAdminSessionPending || isMemberSessionPending) {
+  if (isAdminSessionPending || (isMemberSessionPending && !isAdmin)) {
     return "wait-for-primary-session";
   }
 
@@ -236,7 +236,7 @@ export function getSiteDomainGateAction({
   if (isStandalonePwa) return "render";
 
   if (
-    (isAdmin && hasMemberSession) ||
+    isAdmin ||
     hasBridgeReturnMarker ||
     hasLogoutReturnMarker ||
     hasExplicitlyLoggedOut ||
