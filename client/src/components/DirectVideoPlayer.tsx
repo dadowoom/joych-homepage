@@ -90,17 +90,6 @@ export function getPlayableSrc(src: string) {
   return src;
 }
 
-function getVideoType(src: string) {
-  try {
-    const path = new URL(src, window.location.origin).pathname.toLowerCase();
-    if (path.endsWith(".webm")) return "video/webm";
-    if (path.endsWith(".ogg") || path.endsWith(".ogv")) return "video/ogg";
-    return "video/mp4";
-  } catch {
-    return "video/mp4";
-  }
-}
-
 function isLegacyVideoSource(src: string) {
   try {
     const path = new URL(src, window.location.origin).pathname;
@@ -123,14 +112,29 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
   const [mediaErrorCode, setMediaErrorCode] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const playableSrc = useMemo(() => getPlayableSrc(src), [src]);
-  const videoType = useMemo(() => getVideoType(playableSrc), [playableSrc]);
   const isLegacySource = useMemo(() => isLegacyVideoSource(playableSrc), [playableSrc]);
   const isExternalSource = useMemo(() => isExternalPlaybackSource(playableSrc), [playableSrc]);
 
   useEffect(() => {
     setHasError(false);
     setMediaErrorCode(null);
-  }, [src]);
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Assign the media source only after React has attached the video element
+    // to the document. iOS WebKit can fetch the initial byte ranges but leave
+    // the player suspended when the source is present before the element is
+    // connected. Every iPhone browser uses this same WebKit media engine.
+    video.src = playableSrc;
+    video.load();
+
+    return () => {
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+    };
+  }, [playableSrc]);
 
   const handleError = useCallback(() => {
     setHasError(true);
@@ -158,7 +162,6 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
   return (
     <>
       <video
-        key={playableSrc}
         className={className}
         controls
         preload="metadata"
@@ -169,10 +172,12 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
           setHasError(false);
           setMediaErrorCode(null);
         }}
+        onCanPlay={() => {
+          setHasError(false);
+          setMediaErrorCode(null);
+        }}
         {...inlinePlaybackAttrs}
-      >
-        <source src={playableSrc} type={videoType} />
-      </video>
+      />
       {hasError && (
         <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/80 px-5 text-center text-white">
           <div>
