@@ -4,6 +4,7 @@ import { getJwtSecretKey } from "./_core/jwtSecret";
 import {
   buildPrimaryBridgeReturnUrl,
   buildPrimaryLogoutReturnUrl,
+  DOMAIN_BRIDGE_FORM_REFERRER_POLICY,
   assertSessionBridgeRequestOrigin,
   consumeSessionBridgeToken,
   createDomainLogoutIntent,
@@ -17,6 +18,10 @@ import {
 } from "./_core/domainSessionBridge";
 
 describe("domain session bridge", () => {
+  it("keeps the source origin available for the cross-domain session POST", () => {
+    expect(DOMAIN_BRIDGE_FORM_REFERRER_POLICY).toBe("origin");
+  });
+
   beforeEach(() => resetConsumedSessionBridgeTokensForTests());
 
   it("preserves a local path, query, and hash", () => {

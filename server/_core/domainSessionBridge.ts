@@ -18,6 +18,7 @@ export const DOMAIN_BRIDGE_MARKER = "__joych_bridge";
 export const DOMAIN_BRIDGE_MARKER_VALUE = "1";
 export const DOMAIN_LOGOUT_MARKER = "__joych_logout";
 export const DOMAIN_LOGOUT_MARKER_VALUE = "1";
+export const DOMAIN_BRIDGE_FORM_REFERRER_POLICY = "origin";
 
 const BRIDGE_TYPE = "joych_domain_session_bridge";
 const BRIDGE_AUDIENCE = PRIMARY_SITE_ORIGIN;
@@ -353,6 +354,10 @@ function setNoStoreHeaders(res: Response) {
 function renderAutoPostPage(res: Response, token: string) {
   const nonce = String(res.locals.cspNonce || "");
   setNoStoreHeaders(res);
+  // A `no-referrer` policy serializes the Origin header as `null` for a basic
+  // cross-origin form POST. Keep the path private while allowing the browser to
+  // send the source origin required by assertSessionBridgeRequestOrigin().
+  res.setHeader("Referrer-Policy", DOMAIN_BRIDGE_FORM_REFERRER_POLICY);
   res.setHeader(
     "Content-Security-Policy",
     `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; form-action ${PRIMARY_SITE_ORIGIN}; base-uri 'none'; frame-ancestors 'none'`,
