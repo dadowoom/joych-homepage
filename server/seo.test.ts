@@ -102,4 +102,28 @@ describe("SEO meta injection", () => {
       expect(next).not.toHaveBeenCalled();
     });
   });
+
+  it.each([
+    "/sw.js",
+    "/manifest.webmanifest",
+    "/pwa-icon-192.png",
+    "/pwa-icon-512.png",
+    "/api/trpc/home.getVapidPublicKey",
+  ])("Newjoych의 기존 PWA 연결 경로 %s는 Joych로 리다이렉트하지 않는다", (pathname) => {
+    withPublicUrlBase("https://www.joych.org", () => {
+      const req = {
+        originalUrl: pathname,
+        url: pathname,
+        headers: { host: "newjoych.co.kr" },
+      } as unknown as Request;
+      const redirect = vi.fn();
+      const res = { redirect } as unknown as Response;
+      const next = vi.fn() as unknown as NextFunction;
+
+      canonicalHostRedirect(req, res, next);
+
+      expect(redirect).not.toHaveBeenCalled();
+      expect(next).toHaveBeenCalledOnce();
+    });
+  });
 });

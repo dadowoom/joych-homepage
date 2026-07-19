@@ -4,6 +4,7 @@ import { and, eq, inArray, or, type SQL } from "drizzle-orm";
 import { MEMBER_APPROVAL_PERMISSION_KEY } from "@shared/adminPermissions";
 import { adminContentPermissions, churchMembers, memberDistricts, pushSubscriptions, users } from "../../drizzle/schema";
 import { getDb, getMembersAssignedToDistrict } from "../db";
+import { selectUniquePushSubscriptions } from "./pushSubscriptionPolicy";
 
 let initialized = false;
 let warnedMissingVapid = false;
@@ -68,18 +69,21 @@ async function dispatchPushSubscriptions(
   payload: PushPayload,
   context: string,
 ): Promise<PushDispatchResult> {
+  // 회원 단위로 하나만 고르면 기존 Newjoych 설치 앱이나 다른 기기가 알림을
+  // 놓칠 수 있습니다. 서로 다른 endpoint는 모두 보내고 정확한 중복만 제거합니다.
+  const uniqueSubscriptions = selectUniquePushSubscriptions(subscriptions);
   const db = await getDb();
   if (!db) {
-    return { subscriptionCount: subscriptions.length, sentCount: 0, expiredCount: 0, failedCount: subscriptions.length };
+    return { subscriptionCount: uniqueSubscriptions.length, sentCount: 0, expiredCount: 0, failedCount: uniqueSubscriptions.length };
   }
 
-  if (subscriptions.length === 0) {
+  if (uniqueSubscriptions.length === 0) {
     console.warn(`[push] No subscriptions for ${context} vapid=${vapidPublicKeyFingerprint || "uninitialized"}`);
     return { subscriptionCount: 0, sentCount: 0, expiredCount: 0, failedCount: 0 };
   }
 
   const payloadJson = JSON.stringify(payload);
-  const results = await Promise.allSettled(subscriptions.map(async (subscription): Promise<PushSendOutcome> => {
+  const results = await Promise.allSettled(uniqueSubscriptions.map(async (subscription): Promise<PushSendOutcome> => {
     try {
       await webpush.sendNotification(
         {
@@ -118,8 +122,8 @@ async function dispatchPushSubscriptions(
   const sentCount = outcomes.filter((outcome) => outcome === "sent").length;
   const expiredCount = outcomes.filter((outcome) => outcome === "expired").length;
   const failedCount = outcomes.filter((outcome) => outcome === "failed").length;
-  console.log(`[push] Dispatch ${context} subscriptions=${subscriptions.length} sent=${sentCount} expired=${expiredCount} failed=${failedCount} vapid=${vapidPublicKeyFingerprint}`);
-  return { subscriptionCount: subscriptions.length, sentCount, expiredCount, failedCount };
+  console.log(`[push] Dispatch ${context} subscriptions=${uniqueSubscriptions.length} sent=${sentCount} expired=${expiredCount} failed=${failedCount} vapid=${vapidPublicKeyFingerprint}`);
+  return { subscriptionCount: uniqueSubscriptions.length, sentCount, expiredCount, failedCount };
 }
 
 export async function sendPushToPermissionHolders(

@@ -60,7 +60,7 @@ jobs:
       - name: Create deploy artifact
         run: |
           ARTIFACT="joych-homepage-${GITHUB_SHA}.tar.gz"
-          tar -czf "${ARTIFACT}" dist package.json pnpm-lock.yaml pnpm-workspace.yaml patches drizzle/*.sql
+          tar -czf "${ARTIFACT}" dist package.json pnpm-lock.yaml pnpm-workspace.yaml patches drizzle/*.sql scripts/verify-pwa-domain-bridge.mjs
           echo "ARTIFACT=${ARTIFACT}" >> "${GITHUB_ENV}"
 
       - name: Prepare SSH

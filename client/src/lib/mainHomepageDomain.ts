@@ -1,5 +1,6 @@
 type MainHomepageDomainDecisionInput = {
   isMemberSite: boolean;
+  isLegacyInstalledPwa: boolean;
   isAdminSessionPending: boolean;
   isMemberSessionPending: boolean;
   isAdmin: boolean;
@@ -14,6 +15,7 @@ type MainHomepageSessionProbeInput = {
 
 export function getMainHomepageDomainDecision({
   isMemberSite,
+  isLegacyInstalledPwa,
   isAdminSessionPending,
   isMemberSessionPending,
   isAdmin,
@@ -22,7 +24,11 @@ export function getMainHomepageDomainDecision({
   const isCheckingSession =
     isMemberSite && (isAdminSessionPending || isMemberSessionPending);
   const shouldRedirect =
-    isMemberSite && !isCheckingSession && !isAdmin && !hasMemberSession;
+    isMemberSite &&
+    !isCheckingSession &&
+    !isAdmin &&
+    !hasMemberSession &&
+    !isLegacyInstalledPwa;
 
   return { isCheckingSession, shouldRedirect };
 }

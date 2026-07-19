@@ -373,12 +373,22 @@ function markMainDomainSessionChecked() {
   }
 }
 
+function isStandalonePwaDisplay() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(display-mode: standalone)").matches ||
+    Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone);
+}
+
 function MainHomepageRoute() {
   const sessionProbeCompletedRef = useRef(false);
   const hostname =
     typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
   const isMemberSite = MEMBER_SITE_HOSTNAMES.has(hostname);
   const isMainSite = hostname === "www.joych.org";
+  const isStandaloneDisplay = isStandalonePwaDisplay();
+  // 기존 Newjoych 설치 앱은 알림 구독과 서비스워커가 이 도메인에 묶여 있습니다.
+  // 일반 브라우저만 대표 도메인으로 보내고, 설치 앱은 기존 알림 통로에 남겨 둡니다.
+  const isLegacyInstalledPwa = isMemberSite && isStandaloneDisplay;
   const currentPathname = typeof window !== "undefined" ? window.location.pathname : "";
   const currentSearchParams = typeof window !== "undefined"
     ? new URLSearchParams(window.location.search)
@@ -405,6 +415,7 @@ function MainHomepageRoute() {
   });
   const { isCheckingSession, shouldRedirect } = getMainHomepageDomainDecision({
     isMemberSite,
+    isLegacyInstalledPwa,
     isAdminSessionPending: adminSession.isPending,
     isMemberSessionPending: memberSession.isPending,
     isAdmin: adminSession.data?.role === "admin",

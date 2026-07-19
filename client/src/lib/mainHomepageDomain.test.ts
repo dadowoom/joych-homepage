@@ -6,6 +6,7 @@ import {
 
 const settledSession = {
   isMemberSite: true,
+  isLegacyInstalledPwa: false,
   isAdminSessionPending: false,
   isMemberSessionPending: false,
   isAdmin: false,
@@ -45,6 +46,15 @@ describe("getMainHomepageDomainDecision", () => {
       isCheckingSession: false,
       shouldRedirect: true,
     });
+  });
+
+  it("keeps an anonymous legacy installed PWA on newjoych so its push channel can recover", () => {
+    expect(
+      getMainHomepageDomainDecision({
+        ...settledSession,
+        isLegacyInstalledPwa: true,
+      }),
+    ).toEqual({ isCheckingSession: false, shouldRedirect: false });
   });
 
   it("does not apply member-domain routing on the public main domain", () => {

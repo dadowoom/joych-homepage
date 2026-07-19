@@ -2243,6 +2243,9 @@ sleep 4
 echo "[deploy] healthcheck: ${HEALTHCHECK_URL}"
 curl -fsS "${HEALTHCHECK_URL}" >/dev/null
 
+echo "[deploy] verify Newjoych/Joych PWA notification bridge"
+node "${APP_DIR}/scripts/verify-pwa-domain-bridge.mjs"
+
 rm -f "${ARTIFACT}"
 
 trap - ERR
