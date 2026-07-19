@@ -1180,7 +1180,13 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
                 {day}
               </p>
               {groupCounts.slice(0, 3).map(([label, count]) => (
-                <div key={label} className="mb-0.5 truncate rounded bg-green-50 px-1 py-0.5 text-[10px] text-green-700">
+                <div
+                  key={label}
+                  className={
+                    "mb-0.5 truncate rounded px-1 py-0.5 text-[10px] "
+                    + (label === "외부인" ? "bg-orange-100 text-orange-700" : "bg-green-50 text-green-700")
+                  }
+                >
                   {label} {count}
                 </div>
               ))}
@@ -1206,7 +1212,8 @@ function CalendarView({ searchFilteredReservations, searchFilteredBlockedDates, 
 
       {/* 범례 */}
       <div className="flex flex-wrap gap-4 mt-4 text-xs text-gray-500">
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-50 border border-green-200 inline-block"></span>달력 칸은 성도/외부인별 예약 수로 표시됩니다.</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-50 border border-green-200 inline-block"></span>성도 예약</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-100 border border-orange-200 inline-block"></span>외부인 예약</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 border border-red-300 inline-block"></span>예약불가</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-rose-50 border border-rose-200 inline-block"></span>부분차단</span>
       </div>
