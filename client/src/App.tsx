@@ -27,6 +27,7 @@ const PlaygroundRankings = lazy(() => import("./pages/PlaygroundRankings"));
 const LegacyVodPage = lazy(() => import("./pages/LegacyVodPage"));
 const MemberRegister = lazy(() => import("./pages/MemberRegister"));
 const MemberLogin = lazy(() => import("./pages/MemberLogin"));
+const MemberAccountRecovery = lazy(() => import("./pages/MemberAccountRecovery"));
 const MemberMyPage = lazy(() => import("./pages/MemberMyPage"));
 const MemberSocialComplete = lazy(() => import("./pages/MemberSocialComplete"));
 const FacilityList = lazy(() => import("./pages/FacilityList"));
@@ -635,6 +636,7 @@ function Router() {
       {/* 교회 회원 시스템 */}
       <Route path="/member/register"><NewJoychOnlyRoute><MemberRegister /></NewJoychOnlyRoute></Route>
       <Route path="/member/login"><NewJoychOnlyRoute><MemberLogin /></NewJoychOnlyRoute></Route>
+      <Route path="/member/account-recovery"><NewJoychOnlyRoute><MemberAccountRecovery /></NewJoychOnlyRoute></Route>
       <Route path="/member/social-complete"><NewJoychOnlyRoute><MemberSocialComplete /></NewJoychOnlyRoute></Route>
       <Route path="/member/my-page"><NewJoychOnlyRoute><MemberMyPage /></NewJoychOnlyRoute></Route>
 

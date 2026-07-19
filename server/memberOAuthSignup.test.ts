@@ -4,6 +4,7 @@ const memberDbMocks = vi.hoisted(() => ({
   createMemberWithSocialAccount: vi.fn(),
   getMemberByEmail: vi.fn(),
   getMemberById: vi.fn(),
+  getMembersByNameAndPhone: vi.fn(),
   getMemberFieldOptions: vi.fn(),
   getMemberSocialAccount: vi.fn(),
 }));
@@ -19,6 +20,7 @@ vi.mock("./db/member", async (importOriginal) => {
     createMemberWithSocialAccount: memberDbMocks.createMemberWithSocialAccount,
     getMemberByEmail: memberDbMocks.getMemberByEmail,
     getMemberById: memberDbMocks.getMemberById,
+    getMembersByNameAndPhone: memberDbMocks.getMembersByNameAndPhone,
     getMemberFieldOptions: memberDbMocks.getMemberFieldOptions,
     getMemberSocialAccount: memberDbMocks.getMemberSocialAccount,
   };
@@ -57,6 +59,7 @@ describe("social member registration notification", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     memberDbMocks.getMemberByEmail.mockResolvedValue(null);
+    memberDbMocks.getMembersByNameAndPhone.mockResolvedValue([]);
     memberDbMocks.getMemberFieldOptions.mockResolvedValue([
       { id: 1, fieldType: "position", label: "권사", sortOrder: 0, isActive: true },
     ]);
@@ -164,6 +167,19 @@ describe("social member registration notification", () => {
       status: "email_conflict",
     });
 
+    expect(memberDbMocks.createMemberWithSocialAccount).not.toHaveBeenCalled();
+    expect(pushMocks.notifyMemberRegistration).not.toHaveBeenCalled();
+  });
+
+  it("이름과 연락처가 같은 기존 성도가 있으면 간편가입 생성과 알림을 막는다", async () => {
+    memberDbMocks.getMembersByNameAndPhone.mockResolvedValueOnce([{ id: 9, status: "approved" }]);
+
+    await expect(createMemberFromSocialSignup(profile, input)).resolves.toEqual({
+      member: null,
+      status: "identity_conflict",
+    });
+
+    expect(memberDbMocks.getMembersByNameAndPhone).toHaveBeenCalledWith("소셜성도", "010-1234-5678");
     expect(memberDbMocks.createMemberWithSocialAccount).not.toHaveBeenCalled();
     expect(pushMocks.notifyMemberRegistration).not.toHaveBeenCalled();
   });

@@ -76,7 +76,20 @@ export default function MemberRegister() {
       navigate("/member/login?social=pending");
     },
     onError: (e) => {
-      if (e.message.includes("이미 사용 중인")) {
+      if (e.message.includes("이미 가입 신청된 이름과 연락처")) {
+        setStep(1);
+        setErrors(prev => ({
+          ...prev,
+          name: "이미 가입 신청된 이름과 연락처입니다.",
+          phone: "아이디·비밀번호 찾기를 이용해주세요.",
+        }));
+        toast.error(e.message, {
+          action: {
+            label: "계정 찾기",
+            onClick: () => navigate("/member/account-recovery"),
+          },
+        });
+      } else if (e.message.includes("이미 사용 중인")) {
         setErrors(prev => ({ ...prev, email: "이미 사용 중인 이메일입니다." }));
       } else {
         toast.error(e.message || "회원가입에 실패했습니다.");

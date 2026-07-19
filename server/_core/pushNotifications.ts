@@ -177,6 +177,36 @@ export async function sendPushToPermissionHolders(
   }
 }
 
+export async function sendPushToAdministrators(payload: PushPayload): Promise<void> {
+  try {
+    if (!initWebPush()) return;
+
+    const db = await getDb();
+    if (!db) return;
+
+    const administrators = await db
+      .select({ id: users.id, openId: users.openId })
+      .from(users)
+      .where(eq(users.role, "admin"));
+    const userIds = administrators.map((user) => user.id);
+    const memberIds = administrators
+      .map((user) => memberIdFromAdminOpenId(user.openId))
+      .filter((memberId): memberId is number => memberId !== null);
+    const conditions: SQL[] = [];
+    if (userIds.length > 0) conditions.push(inArray(pushSubscriptions.userId, userIds));
+    if (memberIds.length > 0) conditions.push(inArray(pushSubscriptions.memberId, memberIds));
+    if (conditions.length === 0) return;
+
+    const subscriptions = await db
+      .select()
+      .from(pushSubscriptions)
+      .where(or(...conditions));
+    await dispatchPushSubscriptions(subscriptions, payload, "administrators");
+  } catch (error) {
+    console.error("[push] Administrator notification dispatch failed", error);
+  }
+}
+
 export async function sendPushToMember(
   memberId: number | null | undefined,
   payload: PushPayload,
@@ -214,6 +244,20 @@ export function notifyMemberRegistration(params: {
     body: `${params.name}${positionLabel}님이 회원가입을 신청했습니다.`,
     url: "/admin_joych_2026?tab=members",
     tag: `member-registration-${params.memberId}`,
+  });
+}
+
+export function notifyMemberPasswordResetRequest(params: {
+  requestId: number;
+  name: string;
+  position?: string | null;
+}) {
+  const positionLabel = params.position ? ` (${params.position})` : "";
+  return sendPushToAdministrators({
+    title: "비밀번호 재설정 요청",
+    body: `${params.name}${positionLabel}님이 비밀번호 재설정을 요청했습니다.`,
+    url: "/admin_joych_2026?tab=members&passwordResetRequest=1",
+    tag: `member-password-reset-${params.requestId}`,
   });
 }
 

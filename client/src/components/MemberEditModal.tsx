@@ -60,6 +60,7 @@ type Props = {
   fieldOptions: FieldOption[];
   open: boolean;
   isFullAdmin: boolean;
+  initialTab?: "basic" | "account";
   onClose: () => void;
   onSaved: () => void;
 };
@@ -91,7 +92,7 @@ const TAB_LABELS: { key: TabType; label: string }[] = [
   { key: "account", label: "계정 관리" },
 ];
 
-export default function MemberEditModal({ member, fieldOptions, open, isFullAdmin, onClose, onSaved }: Props) {
+export default function MemberEditModal({ member, fieldOptions, open, isFullAdmin, initialTab = "basic", onClose, onSaved }: Props) {
   const utils = trpc.useUtils();
   const [activeTab, setActiveTab] = useState<TabType>("basic");
   const [tempPassword, setTempPassword] = useState("");
@@ -138,10 +139,10 @@ export default function MemberEditModal({ member, fieldOptions, open, isFullAdmi
         faithPlusUserId: member.faithPlusUserId ?? "",
         assignedDistricts: member.assignedDistricts ?? [],
       });
-      setActiveTab("basic");
+      setActiveTab(isFullAdmin ? initialTab : "basic");
       setTempPassword("");
     }
-  }, [member]);
+  }, [initialTab, isFullAdmin, member]);
 
   const positionOptions = fieldOptions.filter(o => o.fieldType === "position" && o.isActive);
   const departmentOptions = fieldOptions.filter(o => o.fieldType === "department" && o.isActive);
@@ -173,6 +174,8 @@ export default function MemberEditModal({ member, fieldOptions, open, isFullAdmi
     onSuccess: () => {
       toast.success(`비밀번호가 "${tempPassword}"로 초기화됐습니다. 성도에게 전달해 주세요.`);
       setTempPassword("");
+      utils.members.passwordResetRequests.invalidate();
+      onSaved();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -449,12 +452,12 @@ export default function MemberEditModal({ member, fieldOptions, open, isFullAdmi
                   value={tempPassword}
                   onChange={(e) => setTempPassword(e.target.value)}
                   className={inputCls + " flex-1"}
-                  placeholder="임시 비밀번호 (6자 이상)"
+                  placeholder="임시 비밀번호 (영문+숫자, 8자 이상)"
                   type="text"
                 />
                 <Button
                   onClick={handleResetPassword}
-                  disabled={!tempPassword || tempPassword.length < 6 || resetPasswordMutation.isPending}
+                  disabled={!tempPassword || tempPassword.length < 8 || resetPasswordMutation.isPending}
                   className="bg-amber-600 hover:bg-amber-700 text-white text-sm px-4"
                 >
                   {resetPasswordMutation.isPending ? "처리 중..." : "초기화"}

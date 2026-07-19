@@ -132,7 +132,17 @@ export default function MemberSocialComplete() {
       toast.success("회원가입 신청이 접수되었습니다. 관리자 승인 후 로그인하실 수 있습니다.");
       navigate("/member/login?social=registered");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "간편가입에 실패했습니다.");
+      const message = error instanceof Error ? error.message : "간편가입에 실패했습니다.";
+      if (message.includes("이미 가입 신청된 이름과 연락처")) {
+        toast.error(message, {
+          action: {
+            label: "계정 찾기",
+            onClick: () => navigate("/member/account-recovery"),
+          },
+        });
+      } else {
+        toast.error(message);
+      }
     } finally {
       setIsSubmitting(false);
     }

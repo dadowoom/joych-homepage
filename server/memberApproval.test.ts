@@ -12,6 +12,7 @@ const dbMocks = vi.hoisted(() => ({
   getAllMemberFieldOptions: vi.fn(),
   getAllMembers: vi.fn(),
   getMemberByEmail: vi.fn(),
+  getMembersByNameAndPhone: vi.fn(),
   getMemberFieldOptions: vi.fn(),
   getPendingMembers: vi.fn(),
   getSiteSetting: vi.fn(),
@@ -37,6 +38,7 @@ vi.mock("./db", async (importOriginal) => {
     getAllMemberFieldOptions: dbMocks.getAllMemberFieldOptions,
     getAllMembers: dbMocks.getAllMembers,
     getMemberByEmail: dbMocks.getMemberByEmail,
+    getMembersByNameAndPhone: dbMocks.getMembersByNameAndPhone,
     getMemberFieldOptions: dbMocks.getMemberFieldOptions,
     getPendingMembers: dbMocks.getPendingMembers,
     getSiteSetting: dbMocks.getSiteSetting,
@@ -128,6 +130,7 @@ describe("member registration approval delegation", () => {
     dbMocks.getPendingMembers.mockResolvedValue([pendingMember]);
     dbMocks.decidePendingMemberRegistration.mockResolvedValue(true);
     dbMocks.getMemberByEmail.mockResolvedValue(null);
+    dbMocks.getMembersByNameAndPhone.mockResolvedValue([]);
     dbMocks.getMemberFieldOptions.mockResolvedValue([
       { id: 1, fieldType: "position", label: "집사", sortOrder: 0, isActive: true },
     ]);
@@ -268,6 +271,28 @@ describe("member registration approval delegation", () => {
       position: "집사",
     })).rejects.toMatchObject({ code: "CONFLICT" });
 
+    expect(dbMocks.createMember).not.toHaveBeenCalled();
+    expect(pushMocks.notifyMemberRegistration).not.toHaveBeenCalled();
+  });
+
+  it("같은 이름과 연락처로 이미 신청한 성도는 이메일이 달라도 중복 가입과 알림을 막는다", async () => {
+    dbMocks.getMembersByNameAndPhone.mockResolvedValueOnce([pendingMember]);
+    const caller = appRouter.createCaller(createContext(null, "203.0.113.35"));
+
+    await expect(caller.members.register({
+      email: "another-account@example.com",
+      password: "joyful2026",
+      name: "새성도",
+      phone: "01012345678",
+      birthDate: "1990-01-02",
+      gender: "남",
+      position: "집사",
+    })).rejects.toMatchObject({
+      code: "CONFLICT",
+      message: expect.stringContaining("아이디·비밀번호 찾기"),
+    });
+
+    expect(dbMocks.getMembersByNameAndPhone).toHaveBeenCalledWith("새성도", "010-1234-5678");
     expect(dbMocks.createMember).not.toHaveBeenCalled();
     expect(pushMocks.notifyMemberRegistration).not.toHaveBeenCalled();
   });

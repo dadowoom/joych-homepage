@@ -668,6 +668,24 @@ export type MemberSocialAccount = typeof memberSocialAccounts.$inferSelect;
 export type InsertMemberSocialAccount = typeof memberSocialAccounts.$inferInsert;
 
 // ─────────────────────────────────────────────
+// 교적부: 비밀번호 재설정 요청
+// ─────────────────────────────────────────────
+export const memberPasswordResetRequests = mysqlTable("member_password_reset_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 비밀번호 재설정을 요청한 church_members.id */
+  memberId: int("member_id").notNull(),
+  status: mysqlEnum("status", ["pending", "resolved", "cancelled"]).notNull().default("pending"),
+  requestedAt: timestamp("requested_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+}, (table) => [
+  index("member_password_reset_requests_member_idx").on(table.memberId),
+  index("member_password_reset_requests_status_requested_idx").on(table.status, table.requestedAt),
+]);
+
+export type MemberPasswordResetRequest = typeof memberPasswordResetRequests.$inferSelect;
+export type InsertMemberPasswordResetRequest = typeof memberPasswordResetRequests.$inferInsert;
+
+// ─────────────────────────────────────────────
 // 공개 접수: 기도 요청 / 새가족 등록 문의
 // ─────────────────────────────────────────────
 export const prayerRequests = mysqlTable("prayer_requests", {

@@ -2236,6 +2236,68 @@ else
   exit 1
 fi
 
+MIGRATION_0085="${APP_DIR}/drizzle/0085_member_password_reset_requests.sql"
+if [[ -f "${MIGRATION_0085}" ]]; then
+  echo "[deploy] database migration: member password reset requests"
+  node --input-type=module <<'NODE'
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required for migration 0085.");
+}
+
+const migrationId = "0085_member_password_reset_requests";
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS member_password_reset_requests (
+      id int NOT NULL AUTO_INCREMENT,
+      member_id int NOT NULL,
+      status enum('pending','resolved','cancelled') NOT NULL DEFAULT 'pending',
+      requested_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      resolved_at timestamp NULL DEFAULT NULL,
+      PRIMARY KEY (id),
+      KEY member_password_reset_requests_member_idx (member_id),
+      KEY member_password_reset_requests_status_requested_idx (status, requested_at)
+    )
+  `);
+
+  const [columns] = await connection.execute(
+    "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'member_password_reset_requests'",
+  );
+  const columnNames = new Set(Array.isArray(columns) ? columns.map((row) => row.COLUMN_NAME) : []);
+  for (const required of ["id", "member_id", "status", "requested_at", "resolved_at"]) {
+    if (!columnNames.has(required)) {
+      throw new Error(`Migration 0085 schema verification failed: ${required} is missing.`);
+    }
+  }
+
+  const [rows] = await connection.execute(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    [migrationId],
+  );
+  if (!Array.isArray(rows) || rows.length === 0) {
+    await connection.execute("INSERT INTO app_migrations (id) VALUES (?)", [migrationId]);
+    console.log("[deploy] migration 0085 applied");
+  } else {
+    console.log("[deploy] migration 0085 already applied and schema verified");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+else
+  echo "[deploy] missing migration file: ${MIGRATION_0085}" >&2
+  exit 1
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

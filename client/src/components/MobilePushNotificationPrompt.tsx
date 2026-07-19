@@ -7,6 +7,7 @@ const HIDDEN_PATH_PREFIXES = [
   "/admin_joych_2026",
   "/member/login",
   "/member/register",
+  "/member/account-recovery",
   "/member/social-complete",
 ];
 

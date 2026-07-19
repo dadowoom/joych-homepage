@@ -119,15 +119,19 @@ export function resetFailures(key: string): void {
 
 /**
  * Express Request에서 클라이언트 IP 추출
- * Nginx 프록시 환경에서 X-Forwarded-For 헤더 우선 사용
+ * Express의 trust proxy 검증이 끝난 req.ip를 우선 사용합니다.
+ * 테스트 등 req.ip가 없는 환경에서만 전달 헤더를 보조값으로 사용합니다.
  */
 export function getClientIp(req: { ip?: string; headers: Record<string, string | string[] | undefined> }): string {
+  const trustedIp = req.ip?.trim();
+  if (trustedIp) return trustedIp;
+
   const forwarded = req.headers["x-forwarded-for"];
   if (forwarded) {
     const ip = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(",")[0];
     return ip.trim();
   }
-  return req.ip ?? "unknown";
+  return "unknown";
 }
 
 // ─── 검색 API Rate Limiter (내부 주소록 남용 방지) ────────────────────────────
@@ -172,6 +176,27 @@ export function checkRegisterRateLimit(key: string): void {
   record.count += 1;
   if (record.count > REGISTER_MAX_PER_HOUR) {
     throw Object.assign(new Error("회원가입 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."), {
+      code: "TOO_MANY_REQUESTS",
+    });
+  }
+}
+
+// ─── 계정 찾기/재설정 요청 Rate Limiter ──────────────────────────────────────
+const ACCOUNT_RECOVERY_MAX_PER_HOUR = 5;
+const accountRecoveryStore = new Map<string, SearchRecord>();
+
+/** 개인정보 대조와 재설정 요청은 IP·동작별로 시간당 5회까지만 허용합니다. */
+export function checkAccountRecoveryRateLimit(key: string): void {
+  const now = Date.now();
+  const record = accountRecoveryStore.get(key);
+  if (!record || now - record.windowStart > REGISTER_WINDOW_MS) {
+    accountRecoveryStore.set(key, { count: 1, windowStart: now });
+    return;
+  }
+
+  record.count += 1;
+  if (record.count > ACCOUNT_RECOVERY_MAX_PER_HOUR) {
+    throw Object.assign(new Error("계정 찾기 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."), {
       code: "TOO_MANY_REQUESTS",
     });
   }

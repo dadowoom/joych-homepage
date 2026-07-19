@@ -12,11 +12,16 @@ import {
 import { getSiteSetting } from "../db/content";
 import { notifyMemberRegistration } from "./pushNotifications";
 import {
+  MemberRegistrationBusyError,
+  withMemberRegistrationIdentityLock,
+} from "./memberRegistrationLock";
+import {
   createMemberSocialAccount,
   createMemberWithSocialAccount,
   getMemberFieldOptions,
   getMemberByEmail,
   getMemberById,
+  getMembersByNameAndPhone,
   getMemberSocialAccount,
   getMemberSocialAccountByMember,
   type MemberSocialProvider,
@@ -551,14 +556,6 @@ export async function createMemberFromSocialSignup(
     return { member: null, status: "invalid_position" as const };
   }
 
-  const email = profile.email || input.email;
-  if (email) {
-    const existingMember = await getMemberByEmail(email);
-    if (existingMember) {
-      return { member: null, status: "email_conflict" as const };
-    }
-  }
-
   const existingSocialAccount = await getMemberSocialAccount(
     profile.provider as MemberSocialProvider,
     profile.providerUserId
@@ -568,31 +565,46 @@ export async function createMemberFromSocialSignup(
     return { member, status: member ? "ok" as const : "error" as const };
   }
 
-  const memberId = await createMemberWithSocialAccount({
-    email,
-    passwordHash: null,
-    name: input.name,
-    phone,
-    birthDate,
-    gender: input.gender,
-    position,
-    joinPath: `${providers[profile.provider].label} 간편가입`,
-  }, {
-    provider: profile.provider as MemberSocialProvider,
-    providerUserId: profile.providerUserId,
-    email,
-    displayName: profile.displayName,
-    profileImageUrl: profile.profileImageUrl,
-  });
+  return withMemberRegistrationIdentityLock(input.name, phone, async () => {
+    const identityMatches = await getMembersByNameAndPhone(input.name, phone);
+    if (identityMatches.length > 0) {
+      return { member: null, status: "identity_conflict" as const };
+    }
 
-  void notifyMemberRegistration({
-    memberId,
-    name: input.name,
-    position,
-  });
+    const email = profile.email || input.email;
+    if (email) {
+      const existingMember = await getMemberByEmail(email);
+      if (existingMember) {
+        return { member: null, status: "email_conflict" as const };
+      }
+    }
 
-  const member = await getMemberById(memberId);
-  return { member, status: member ? "ok" as const : "error" as const };
+    const memberId = await createMemberWithSocialAccount({
+      email,
+      passwordHash: null,
+      name: input.name,
+      phone,
+      birthDate,
+      gender: input.gender,
+      position,
+      joinPath: `${providers[profile.provider].label} 간편가입`,
+    }, {
+      provider: profile.provider as MemberSocialProvider,
+      providerUserId: profile.providerUserId,
+      email,
+      displayName: profile.displayName,
+      profileImageUrl: profile.profileImageUrl,
+    });
+
+    void notifyMemberRegistration({
+      memberId,
+      name: input.name,
+      position,
+    });
+
+    const member = await getMemberById(memberId);
+    return { member, status: member ? "ok" as const : "error" as const };
+  });
 }
 
 export function registerMemberOAuthRoutes(app: Express) {
@@ -660,6 +672,11 @@ export function registerMemberOAuthRoutes(app: Express) {
       if (result.status === "email_conflict") {
         return res.status(409).json({ message: "이미 사용 중인 이메일입니다." });
       }
+      if (result.status === "identity_conflict") {
+        return res.status(409).json({
+          message: "이미 가입 신청된 이름과 연락처입니다. 로그인 또는 아이디·비밀번호 찾기를 이용해주세요.",
+        });
+      }
       if (result.status === "invalid_phone") {
         return res.status(400).json({ message: MEMBER_PHONE_ERROR_MESSAGE });
       }
@@ -679,6 +696,9 @@ export function registerMemberOAuthRoutes(app: Express) {
       clearSocialSignupCookie(req, res);
       return res.json({ ok: true });
     } catch (error) {
+      if (error instanceof MemberRegistrationBusyError) {
+        return res.status(429).json({ message: error.message });
+      }
       const message =
         error instanceof Error && error.message === "invalid_email"
           ? "올바른 이메일 형식을 입력해주세요."

@@ -9,8 +9,9 @@
  *   - 관리자 전용: adminUpdateMember, adminResetMemberPassword
  */
 
-import { and, eq, asc, desc, sql } from "drizzle-orm";
+import { and, eq, asc, desc, gte, inArray, sql } from "drizzle-orm";
 import type { ResultSetHeader } from "mysql2";
+import { normalizeLegacyMemberPhone, normalizeMemberPhone } from "@shared/memberPhone";
 import {
   bulletinAdRequests,
   churchMembers,
@@ -18,6 +19,7 @@ import {
   freeBoardPosts,
   memberDistricts,
   memberFieldOptions,
+  memberPasswordResetRequests,
   memberSocialAccounts,
   missionReportAuthors,
   missionReports,
@@ -225,6 +227,30 @@ export async function getMemberById(id: number) {
   return rows[0] ?? null;
 }
 
+/**
+ * 이름과 연락처가 모두 같은 기존 가입 정보를 조회합니다.
+ * 신규 표준 번호뿐 아니라 안전하게 변환할 수 있는 기존 +82 번호도 같은 번호로 봅니다.
+ */
+export async function getMembersByNameAndPhone(name: string, phone: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const normalizedName = name.trim();
+  const normalizedPhone = normalizeMemberPhone(phone);
+  if (!normalizedName || !normalizedPhone) return [];
+
+  const rows = await db
+    .select()
+    .from(churchMembers)
+    .where(eq(churchMembers.name, normalizedName))
+    .orderBy(desc(churchMembers.createdAt));
+
+  return rows.filter((member) =>
+    member.status !== "withdrawn" &&
+    normalizeLegacyMemberPhone(member.phone) === normalizedPhone
+  );
+}
+
 /** 소셜 제공자 계정으로 성도 연결 정보 조회 */
 export async function getMemberSocialAccount(provider: MemberSocialProvider, providerUserId: string) {
   const db = await getDb();
@@ -249,6 +275,20 @@ export async function getMemberSocialAccountByMember(provider: MemberSocialProvi
     ))
     .limit(1);
   return rows[0] ?? null;
+}
+
+/** 계정 찾기 화면에 표시할 간편가입 제공자 목록 */
+export async function getMemberSocialProviders(memberIds: number[]) {
+  const db = await getDb();
+  if (!db || memberIds.length === 0) return [];
+
+  return db
+    .select({
+      memberId: memberSocialAccounts.memberId,
+      provider: memberSocialAccounts.provider,
+    })
+    .from(memberSocialAccounts)
+    .where(inArray(memberSocialAccounts.memberId, memberIds));
 }
 
 /** 전체 성도 목록 조회 (관리자용) */
@@ -285,6 +325,73 @@ export async function getPendingMembers() {
   return db.select().from(churchMembers)
     .where(eq(churchMembers.status, 'pending'))
     .orderBy(desc(churchMembers.createdAt));
+}
+
+const MEMBER_PASSWORD_RESET_REQUEST_TTL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * 같은 성도의 동시 요청을 DB 행 잠금으로 직렬화합니다.
+ * 24시간 안의 대기 요청은 재사용하고, 오래된 요청은 취소 후 새로 생성합니다.
+ */
+export async function createMemberPasswordResetRequest(memberId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT id FROM church_members WHERE id = ${memberId} FOR UPDATE`);
+
+    const existing = await tx
+      .select({
+        id: memberPasswordResetRequests.id,
+        requestedAt: memberPasswordResetRequests.requestedAt,
+      })
+      .from(memberPasswordResetRequests)
+      .where(and(
+        eq(memberPasswordResetRequests.memberId, memberId),
+        eq(memberPasswordResetRequests.status, "pending"),
+      ))
+      .orderBy(desc(memberPasswordResetRequests.requestedAt))
+      .limit(1);
+    const cutoff = Date.now() - MEMBER_PASSWORD_RESET_REQUEST_TTL_MS;
+    if (existing[0] && existing[0].requestedAt.getTime() >= cutoff) {
+      return { id: existing[0].id, created: false };
+    }
+
+    if (existing[0]) {
+      await tx
+        .update(memberPasswordResetRequests)
+        .set({ status: "cancelled", resolvedAt: new Date() })
+        .where(eq(memberPasswordResetRequests.id, existing[0].id));
+    }
+
+    const [result] = await tx.insert(memberPasswordResetRequests).values({ memberId });
+    return { id: (result as ResultSetHeader).insertId, created: true };
+  });
+}
+
+/** 최고관리자 화면에 표시할 미처리 비밀번호 재설정 요청 */
+export async function getPendingMemberPasswordResetRequests() {
+  const db = await getDb();
+  if (!db) return [];
+  const cutoff = new Date(Date.now() - MEMBER_PASSWORD_RESET_REQUEST_TTL_MS);
+
+  return db
+    .select({
+      id: memberPasswordResetRequests.id,
+      memberId: churchMembers.id,
+      name: churchMembers.name,
+      email: churchMembers.email,
+      phone: churchMembers.phone,
+      position: churchMembers.position,
+      requestedAt: memberPasswordResetRequests.requestedAt,
+    })
+    .from(memberPasswordResetRequests)
+    .innerJoin(churchMembers, eq(memberPasswordResetRequests.memberId, churchMembers.id))
+    .where(and(
+      eq(memberPasswordResetRequests.status, "pending"),
+      gte(memberPasswordResetRequests.requestedAt, cutoff),
+    ))
+    .orderBy(desc(memberPasswordResetRequests.requestedAt));
 }
 
 // ─── 성도 등록/수정 ───────────────────────────────────────────────────────────
@@ -661,11 +768,20 @@ export async function adminResetMemberPassword(id: number, tempPassword: string)
   const db = await getDb();
   if (!db) throw new Error('DB not available');
   const changedAt = new Date();
-  await db.update(churchMembers).set({
-    passwordHash: hash,
-    sessionVersion: sql`${churchMembers.sessionVersion} + 1`,
-    updatedAt: changedAt,
-  }).where(eq(churchMembers.id, id));
+  await db.transaction(async (tx) => {
+    await tx.update(churchMembers).set({
+      passwordHash: hash,
+      sessionVersion: sql`${churchMembers.sessionVersion} + 1`,
+      updatedAt: changedAt,
+    }).where(eq(churchMembers.id, id));
+    await tx
+      .update(memberPasswordResetRequests)
+      .set({ status: "resolved", resolvedAt: changedAt })
+      .where(and(
+        eq(memberPasswordResetRequests.memberId, id),
+        eq(memberPasswordResetRequests.status, "pending"),
+      ));
+  });
 }
 
 /** 성도 본인: 검증이 끝난 새 비밀번호 해시 저장 */

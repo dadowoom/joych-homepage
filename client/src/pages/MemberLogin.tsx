@@ -268,6 +268,9 @@ export default function MemberLogin() {
 
           {/* 하단 링크 */}
           <div className="text-center mt-6 space-y-2">
+            <Link href="/member/account-recovery" className="block text-sm font-medium text-[#1B5E20] hover:underline">
+              아이디·비밀번호 찾기
+            </Link>
             <p className="text-sm text-gray-500">
               아직 회원이 아니신가요?{" "}
               <Link href="/member/register" className="text-[#1B5E20] font-medium hover:underline">

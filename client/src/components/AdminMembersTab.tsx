@@ -94,11 +94,14 @@ export default function AdminMembersTab() {
 
   // 모달 상태
   const [editingMember, setEditingMember] = useState<AdminMember | null>(null);
+  const [editingInitialTab, setEditingInitialTab] = useState<"basic" | "account">("basic");
 
   // 데이터 조회
   const adminListQuery = trpc.members.adminList.useQuery(undefined, { enabled: canManageMemberRegistry });
   const members: Member[] = adminListQuery.data ?? [];
   const isLoading = adminListQuery.isLoading;
+  const passwordResetRequestsQuery = trpc.members.passwordResetRequests.useQuery(undefined, { enabled: isFullAdmin });
+  const passwordResetRequests = passwordResetRequestsQuery.data ?? [];
   const { data: fieldOptions = [] } = trpc.members.fieldOptions.useQuery({});
 
   // 필터 선택지 (활성화된 것만)
@@ -210,6 +213,10 @@ export default function AdminMembersTab() {
 
   const quickApprove = (id: number) => approvalMutation.mutate({ id, status: "approved" });
   const quickReject  = (id: number) => approvalMutation.mutate({ id, status: "rejected" });
+  const openMemberEditor = (member: AdminMember, initialTab: "basic" | "account" = "basic") => {
+    setEditingInitialTab(initialTab);
+    setEditingMember(member);
+  };
   const restoreMember = (member: Member) => {
     const confirmed = window.confirm(
       `${member.name} 성도를 대기 상태로 복구할까요?\n\n복구 후 다시 승인하거나 정보를 수정할 수 있습니다.`
@@ -262,7 +269,7 @@ export default function AdminMembersTab() {
       )}
       {canManageMemberRegistry && (
         <button
-          onClick={() => setEditingMember(member as AdminMember)}
+          onClick={() => openMemberEditor(member as AdminMember)}
           disabled={isMutating}
           className="text-xs px-3 py-1 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
         >
@@ -336,6 +343,49 @@ export default function AdminMembersTab() {
           </p>
         </div>
       </div>
+
+      {isFullAdmin && passwordResetRequests.length > 0 && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-bold text-amber-900">
+                비밀번호 재설정 요청 {passwordResetRequests.length}건
+              </p>
+              <p className="mt-0.5 text-xs text-amber-700">
+                성도 정보를 열어 임시 비밀번호를 설정한 뒤 등록된 연락처로 안내해주세요.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {passwordResetRequests.map((request) => {
+              const member = members.find((item) => item.id === request.memberId);
+              return (
+                <div key={request.id} className="flex flex-col gap-2 rounded-lg border border-amber-100 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0 text-sm">
+                    <p className="font-semibold text-gray-800">
+                      {request.name}{request.position ? ` (${request.position})` : ""}
+                    </p>
+                    <p className="mt-1 break-all text-xs text-gray-500">
+                      {formatPhoneNumber(request.phone) || "연락처 미입력"} · {request.email || "이메일 미입력"}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-gray-400">
+                      요청 {new Date(request.requestedAt).toLocaleString("ko-KR")}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => member && openMemberEditor(member as AdminMember, "account")}
+                    disabled={!member}
+                    className="shrink-0 rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-40"
+                  >
+                    비밀번호 초기화
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── 필터 영역 ── */}
       <div className="bg-gray-50 rounded-xl p-3 mb-4 space-y-3">
@@ -626,12 +676,17 @@ export default function AdminMembersTab() {
           member={editingMember}
           fieldOptions={fieldOptions}
           isFullAdmin={isFullAdmin}
+          initialTab={editingInitialTab}
           open={!!editingMember}
-          onClose={() => setEditingMember(null)}
+          onClose={() => {
+            setEditingMember(null);
+            setEditingInitialTab("basic");
+          }}
           onSaved={() => {
             utils.members.adminList.invalidate();
             utils.members.pendingList.invalidate();
             utils.members.approvalList.invalidate();
+            utils.members.passwordResetRequests.invalidate();
           }}
         />
       )}

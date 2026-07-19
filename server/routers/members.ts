@@ -28,7 +28,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { adminPermissionProcedure, adminProcedure, publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
-import { checkRateLimit, recordFailure, resetFailures, getClientIp, checkSearchRateLimit, checkRegisterRateLimit } from "../_core/rateLimiter";
+import { checkAccountRecoveryRateLimit, checkRateLimit, recordFailure, resetFailures, getClientIp, checkSearchRateLimit, checkRegisterRateLimit } from "../_core/rateLimiter";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { getJwtSecretKey } from "../_core/jwtSecret";
 import { isMemberSessionCurrent, MEMBER_SESSION_COOKIE, setMemberSessionCookie } from "../_core/memberSession";
@@ -39,6 +39,8 @@ import {
   optionalMemberPhone,
   optionalDate,
   optionalText,
+  requiredBirthDate,
+  requiredMemberPhone,
   requiredText,
 } from "../_core/memberValidation";
 import {
@@ -59,7 +61,10 @@ import {
   deleteMemberFieldOption,
   getMemberByEmail,
   getMemberById,
+  getMembersByNameAndPhone,
+  getMemberSocialProviders,
   createMember,
+  createMemberPasswordResetRequest,
   decidePendingMemberRegistration,
   updateMemberBasicInfo,
   updateMemberChurchInfo,
@@ -69,12 +74,17 @@ import {
   updateMemberPasswordHash,
   getAllMembers,
   getPendingMembers,
+  getPendingMemberPasswordResetRequests,
   searchMembersByName,
   setMemberDistrictAssignments,
   withdrawMemberAndErasePersonalData,
   getSiteSetting,
 } from "../db";
-import { notifyMemberRegistration } from "../_core/pushNotifications";
+import { notifyMemberPasswordResetRequest, notifyMemberRegistration } from "../_core/pushNotifications";
+import {
+  MemberRegistrationBusyError,
+  withMemberRegistrationIdentityLock,
+} from "../_core/memberRegistrationLock";
 
 const idSchema = z.number().int().positive();
 const fieldTypeSchema = z.enum(["position", "department", "district", "baptism"]);
@@ -209,6 +219,23 @@ function sanitizeMemberForApproval<T extends Record<string, unknown>>(member: T)
 
 const memberApprovalProcedure = adminPermissionProcedure(MEMBER_APPROVAL_PERMISSION_KEY);
 
+export function maskMemberLoginEmail(email: string | null | undefined) {
+  const normalized = email?.trim().toLowerCase();
+  if (!normalized) return null;
+  const atIndex = normalized.indexOf("@");
+  if (atIndex <= 0) return null;
+
+  const local = normalized.slice(0, atIndex);
+  const domain = normalized.slice(atIndex + 1);
+  const visibleLength = Math.min(2, Math.max(1, local.length - 1));
+  return `${local.slice(0, visibleLength)}${"*".repeat(Math.max(3, local.length - visibleLength))}@${domain}`;
+}
+
+const MEMBER_SOCIAL_PROVIDER_LABELS = {
+  google: "Google",
+  kakao: "카카오",
+} as const;
+
 export const membersRouter = router({
   // ─── 공개 API ────────────────────────────────────────────────────────────────
 
@@ -252,6 +279,84 @@ export const membersRouter = router({
     .input(z.object({ fieldType: fieldTypeSchema.optional() }))
     .query(({ input }) => getMemberFieldOptions(input.fieldType)),
 
+  /** 이름·연락처·생년월일 대조 후 로그인 이메일을 마스킹해서 안내합니다. */
+  findLoginId: publicProcedure
+    .input(z.object({
+      name: requiredText(64, "이름을 입력해주세요."),
+      phone: requiredMemberPhone,
+      birthDate: requiredBirthDate,
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const clientIp = getClientIp(ctx.req);
+      try {
+        checkAccountRecoveryRateLimit(`find-id:${clientIp}`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "계정 찾기 요청이 너무 많습니다.";
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message });
+      }
+
+      const identityMatches = await getMembersByNameAndPhone(input.name, input.phone);
+      const matches = identityMatches.filter((member) => member.birthDate === input.birthDate);
+      const providers = await getMemberSocialProviders(matches.map((member) => member.id));
+      const providerMap = new Map<number, (keyof typeof MEMBER_SOCIAL_PROVIDER_LABELS)[]>();
+      for (const account of providers) {
+        const list = providerMap.get(account.memberId) ?? [];
+        if (!list.includes(account.provider)) list.push(account.provider);
+        providerMap.set(account.memberId, list);
+      }
+
+      return {
+        found: matches.length > 0,
+        accounts: matches.map((member) => ({
+          maskedEmail: maskMemberLoginEmail(member.email),
+          hasPassword: Boolean(member.passwordHash),
+          socialProviders: (providerMap.get(member.id) ?? []).map(
+            (provider) => MEMBER_SOCIAL_PROVIDER_LABELS[provider],
+          ),
+        })),
+      };
+    }),
+
+  /**
+   * 비밀번호 원문은 복구하지 않습니다. 일치하는 일반가입 계정의 재설정 요청만
+   * 최고관리자에게 전달하고, 성공 여부와 관계없이 같은 응답을 반환합니다.
+   */
+  requestPasswordReset: publicProcedure
+    .input(z.object({
+      name: requiredText(64, "이름을 입력해주세요."),
+      phone: requiredMemberPhone,
+      birthDate: requiredBirthDate,
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const clientIp = getClientIp(ctx.req);
+      try {
+        checkAccountRecoveryRateLimit(`password-reset:${clientIp}`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "재설정 요청이 너무 많습니다.";
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message });
+      }
+
+      const identityMatches = await getMembersByNameAndPhone(input.name, input.phone);
+      const matches = identityMatches.filter(
+        (member) => member.birthDate === input.birthDate && Boolean(member.passwordHash),
+      );
+      for (const member of matches) {
+        const request = await createMemberPasswordResetRequest(member.id);
+        if (request.created) {
+          void notifyMemberPasswordResetRequest({
+            requestId: request.id,
+            name: member.name,
+            position: member.position,
+          });
+        }
+      }
+
+      return {
+        accepted: true,
+        message: "입력하신 정보와 일치하는 일반가입 계정이 있으면 관리자에게 재설정 요청이 전달됩니다.",
+      };
+    }),
+
   /**
    * 성도 회원가입
    * - 가입 신청 후 관리자 승인 대기
@@ -272,44 +377,56 @@ export const membersRouter = router({
       assertRequiredRegisterFields(input, fieldConfig);
       await assertConfiguredRegisterOptions(input, fieldConfig);
 
-      const bcrypt = await import("bcryptjs");
+      try {
+        return await withMemberRegistrationIdentityLock(input.name, input.phone, async () => {
+          const identityMatches = await getMembersByNameAndPhone(input.name, input.phone);
+          if (identityMatches.length > 0) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "이미 가입 신청된 이름과 연락처입니다. 로그인 또는 아이디·비밀번호 찾기를 이용해주세요.",
+            });
+          }
 
-      // 이메일 중복 확인
-      const existing = await getMemberByEmail(input.email);
-      if (existing) {
-        throw new TRPCError({ code: "CONFLICT", message: "이미 사용 중인 이메일입니다." });
+          const existing = await getMemberByEmail(input.email);
+          if (existing) {
+            throw new TRPCError({ code: "CONFLICT", message: "이미 사용 중인 이메일입니다." });
+          }
+
+          const bcrypt = await import("bcryptjs");
+          const passwordHash = await bcrypt.hash(input.password, 10);
+          const id = await createMember({
+            email: input.email,
+            passwordHash,
+            name: input.name,
+            phone: input.phone,
+            birthDate: input.birthDate,
+            gender: input.gender,
+            address: visibleRegisterValue(input, fieldConfig, "address"),
+            emergencyPhone: visibleRegisterValue(input, fieldConfig, "emergencyPhone"),
+            joinPath: visibleRegisterValue(input, fieldConfig, "joinPath"),
+            position: visibleRegisterValue(input, fieldConfig, "position"),
+            department: visibleRegisterValue(input, fieldConfig, "department"),
+            district: visibleRegisterValue(input, fieldConfig, "district"),
+            faithPlusUserId: visibleRegisterValue(input, fieldConfig, "faithPlusUserId"),
+          });
+
+          ctx.res.clearCookie(MEMBER_SESSION_COOKIE, {
+            ...getSessionCookieOptions(ctx.req),
+          });
+          void notifyMemberRegistration({
+            memberId: id,
+            name: input.name,
+            position: visibleRegisterValue(input, fieldConfig, "position"),
+          });
+
+          return { success: true, id, autoLoggedIn: false };
+        });
+      } catch (error) {
+        if (error instanceof MemberRegistrationBusyError) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: error.message });
+        }
+        throw error;
       }
-
-      // 비밀번호 해시화 (bcrypt, salt rounds=10)
-      const passwordHash = await bcrypt.hash(input.password, 10);
-
-      const id = await createMember({
-        email: input.email,
-        passwordHash,
-        name: input.name,
-        phone: input.phone,
-        birthDate: input.birthDate,
-        gender: input.gender,
-        address: visibleRegisterValue(input, fieldConfig, "address"),
-        emergencyPhone: visibleRegisterValue(input, fieldConfig, "emergencyPhone"),
-        joinPath: visibleRegisterValue(input, fieldConfig, "joinPath"),
-        position: visibleRegisterValue(input, fieldConfig, "position"),
-        department: visibleRegisterValue(input, fieldConfig, "department"),
-        district: visibleRegisterValue(input, fieldConfig, "district"),
-        faithPlusUserId: visibleRegisterValue(input, fieldConfig, "faithPlusUserId"),
-      });
-
-      ctx.res.clearCookie(MEMBER_SESSION_COOKIE, {
-        ...getSessionCookieOptions(ctx.req),
-      });
-
-      void notifyMemberRegistration({
-        memberId: id,
-        name: input.name,
-        position: visibleRegisterValue(input, fieldConfig, "position"),
-      });
-
-      return { success: true, id, autoLoggedIn: false };
     }),
 
   /**
@@ -547,6 +664,9 @@ export const membersRouter = router({
   /** 승인 대기 성도 목록 (관리자) */
   pendingList: adminProcedure.query(async () => (await getPendingMembers()).map(sanitizeMemberForAdmin)),
 
+  /** 최고관리자용 비밀번호 재설정 요청 목록 */
+  passwordResetRequests: adminProcedure.query(() => getPendingMemberPasswordResetRequests()),
+
   /** 회원가입 승인 권한 담당자용 승인 대기 목록 */
   approvalList: memberApprovalProcedure.query(async () =>
     (await getPendingMembers()).map(sanitizeMemberForApproval)
@@ -738,9 +858,7 @@ export const membersRouter = router({
   resetPassword: adminProcedure
     .input(z.object({
       id: idSchema,
-      tempPassword: z.string()
-        .min(8, "임시 비밀번호는 8자 이상이어야 합니다.")
-        .max(128, "임시 비밀번호는 128자 이하로 입력해주세요."),
+      tempPassword: memberPasswordSchema,
     }))
     .mutation(({ input }) => adminResetMemberPassword(input.id, input.tempPassword)),
 });
