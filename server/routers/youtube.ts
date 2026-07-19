@@ -53,7 +53,7 @@ async function normalizeVideoInput(input: {
   const rawVideoUrl = input.videoUrl?.trim() ?? "";
 
   if (videoId) {
-    return { videoId, videoUrl: null };
+    return { videoId, videoUrl: null, legacyInfo: null };
   }
   if (!rawVideoUrl) {
     throw new TRPCError({
@@ -67,7 +67,10 @@ async function normalizeVideoInput(input: {
     if (legacyInfo) {
       return {
         videoId: null,
-        videoUrl: `/api/legacy-vod/${legacyInfo.pageCode}/${legacyInfo.num}/${legacyInfo.vodType}.mp4`,
+        // Persist the verified MP4 itself. The old metadata service is only
+        // needed once during registration and can disappear without breaking
+        // the video again later.
+        videoUrl: legacyInfo.vodFile,
         legacyInfo,
       };
     }
@@ -204,6 +207,8 @@ export const youtubeRouter = router({
   updateVideo: youtubeAdminProcedure
     .input(z.object({
       id: z.number().int().positive(),
+      videoId: z.string().trim().max(2048).optional().nullable(),
+      videoUrl: z.string().trim().max(2048).optional().nullable(),
       title: requiredTextSchema(256, "영상 제목을 입력해주세요.").optional(),
       preacher: optionalTextSchema(128).nullable(),
       scripture: optionalTextSchema(256).nullable(),
@@ -213,9 +218,22 @@ export const youtubeRouter = router({
       sortOrder: z.number().int().min(0).max(10000).optional(),
       isVisible: z.boolean().optional(),
     }))
-    .mutation(({ input }) => {
-      const { id, ...data } = input;
-      return updateYoutubeVideo(id, data);
+    .mutation(async ({ input }) => {
+      const { id, videoId, videoUrl, ...data } = input;
+      const hasSourceUpdate = videoId !== undefined || videoUrl !== undefined;
+      if (!hasSourceUpdate) {
+        return updateYoutubeVideo(id, data);
+      }
+
+      const normalized = await normalizeVideoInput({ videoId, videoUrl });
+      const { legacyInfo: _legacyInfo, ...videoSource } = normalized;
+      return updateYoutubeVideo(id, {
+        ...data,
+        ...videoSource,
+        thumbnailUrl: videoSource.videoId
+          ? `https://img.youtube.com/vi/${videoSource.videoId}/hqdefault.jpg`
+          : null,
+      });
     }),
 
   /** 유튜브 영상 삭제 (관리자) */

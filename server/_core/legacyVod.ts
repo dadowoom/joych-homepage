@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { Readable } from "stream";
 import type { ReadableStream } from "stream/web";
+import { getYoutubeVideoByLegacySource } from "../db/youtube";
 
 export type LegacyVodInfo = {
   pageCode: string;
@@ -13,15 +14,41 @@ export type LegacyVodInfo = {
   date: string;
 };
 
-const LEGACY_VOD_INFO_URL = "http://joych.org/core/xml/vod/vodInfo.xml.html";
+const LEGACY_VOD_INFO_URL = "http://admin.joych.org/core/xml/vod/vodInfo.xml.html";
 const LEGACY_VOD_REFERER_BASE =
-  "http://joych.org/core/module/vod/skin_001/vodIframe.html";
-const DEFAULT_VIDEO_RANGE = "bytes=0-1048575";
+  "http://admin.joych.org/core/module/vod/skin_001/vodIframe.html";
 const LEGACY_VOD_CACHE_TTL_MS = 10 * 60 * 1000;
 const LEGACY_VOD_CACHE = new Map<
   string,
   { expiresAt: number; info: LegacyVodInfo }
 >();
+
+type LegacyVodFallbackRule = {
+  vodType: string;
+  directory: string;
+  filenameSuffix: string;
+};
+
+// The old joych.org XML endpoint disappeared when the domain moved to the new
+// server, but these MP4 archives are still available on sermon.joych.org. The
+// rules below were checked against every matching production row and the
+// source server's directory inventory before being enabled.
+const LEGACY_VOD_FALLBACK_RULES: Record<string, LegacyVodFallbackRule> = {
+  "423": { vodType: "237", directory: "wed", filenameSuffix: "_wed.mp4" },
+  "424": { vodType: "238", directory: "friday_night", filenameSuffix: "_fri.mp4" },
+  "242": { vodType: "40", directory: "special", filenameSuffix: "_hyi.mp4" },
+  "359": { vodType: "69", directory: "special", filenameSuffix: "_testi.mp4" },
+  "192": { vodType: "19", directory: "hymn", filenameSuffix: "_hymn1.mp4" },
+};
+
+// Three archive rows use a filename that cannot be derived from their stored
+// date. Keep the mapping tied to the legacy numeric ID so no unrelated video
+// can be selected accidentally.
+const LEGACY_VOD_FILE_OVERRIDES = new Map<string, string>([
+  ["359:12390:69", "special/260412_testi_4.mp4"],
+  ["192:11140:19", "hymn/240908_hymn1.mp4"],
+  ["192:10199:19", "hymn/230611_hymn1.mp4"],
+]);
 
 function isAllowedSermonMp4Url(url: URL) {
   return (
@@ -38,9 +65,16 @@ function isNumericId(value: string | undefined): value is string {
 
 function isLegacyJoychPageUrl(url: URL) {
   return (
-    url.protocol === "http:" &&
-    (url.hostname === "www.joych.org" || url.hostname === "joych.org") &&
-    url.pathname === "/main/sub.html"
+    (url.protocol === "http:" || url.protocol === "https:") &&
+    (
+      url.hostname === "www.joych.org" ||
+      url.hostname === "joych.org" ||
+      url.hostname === "admin.joych.org"
+    ) &&
+    (
+      url.pathname === "/main/sub.html" ||
+      url.pathname === "/core/module/vod/skin_001/vodIframe.html"
+    )
   );
 }
 
@@ -78,6 +112,86 @@ function getRequestParams(req: Request) {
   return { pageCode, num, vodType };
 }
 
+function getLegacyFallbackFilePath(
+  pageCode: string,
+  num: string,
+  vodType: string,
+  sermonDate: string | null,
+) {
+  const cacheKey = getCacheKey(pageCode, num, vodType);
+  const override = LEGACY_VOD_FILE_OVERRIDES.get(cacheKey);
+  if (override) return override;
+
+  const rule = LEGACY_VOD_FALLBACK_RULES[pageCode];
+  if (!rule || rule.vodType !== vodType) return null;
+
+  const dateMatch = sermonDate?.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!dateMatch) return null;
+
+  const compactDate = `${dateMatch[1].slice(2)}${dateMatch[2]}${dateMatch[3]}`;
+  return `${rule.directory}/${compactDate}${rule.filenameSuffix}`;
+}
+
+async function isAvailableSermonVideo(vodFile: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch(vodFile, {
+      method: "HEAD",
+      headers: {
+        Referer: "http://www.joych.org/",
+        "User-Agent": "Mozilla/5.0",
+      },
+      signal: controller.signal,
+    });
+    return (
+      response.ok &&
+      (response.headers.get("content-type") ?? "").toLowerCase().startsWith("video/mp4")
+    );
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchStoredLegacyVodFallback(
+  pageCode: string,
+  num: string,
+  vodType: string,
+) {
+  const cacheKey = getCacheKey(pageCode, num, vodType);
+  const rule = LEGACY_VOD_FALLBACK_RULES[pageCode];
+  if (!LEGACY_VOD_FILE_OVERRIDES.has(cacheKey) && (!rule || rule.vodType !== vodType)) {
+    return null;
+  }
+
+  const video = await getYoutubeVideoByLegacySource(pageCode, num, vodType);
+  if (!video) return null;
+
+  const filePath = getLegacyFallbackFilePath(
+    pageCode,
+    num,
+    vodType,
+    video.sermonDate,
+  );
+  if (!filePath) return null;
+
+  const vodFile = `http://sermon.joych.org/mp4/${filePath}`;
+  if (!await isAvailableSermonVideo(vodFile)) return null;
+
+  return {
+    pageCode,
+    num,
+    vodType,
+    vodFile,
+    subject: video.title ?? "",
+    word: video.scripture ?? "",
+    preacher: video.preacher ?? "",
+    date: video.sermonDate ?? "",
+  } satisfies LegacyVodInfo;
+}
+
 export async function fetchLegacyVodInfo(
   pageCode: string,
   num: string,
@@ -87,6 +201,23 @@ export async function fetchLegacyVodInfo(
   const cached = LEGACY_VOD_CACHE.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.info;
+  }
+
+  // Prefer the verified MP4 fallback for records already stored in the new
+  // database. This avoids calling the retired XML endpoint and immediately
+  // restores the recoverable archive videos.
+  let fallbackInfo: LegacyVodInfo | null = null;
+  try {
+    fallbackInfo = await fetchStoredLegacyVodFallback(pageCode, num, vodType);
+  } catch (error) {
+    console.warn("[LegacyVOD] stored fallback lookup failed", error);
+  }
+  if (fallbackInfo) {
+    LEGACY_VOD_CACHE.set(cacheKey, {
+      expiresAt: Date.now() + LEGACY_VOD_CACHE_TTL_MS,
+      info: fallbackInfo,
+    });
+    return fallbackInfo;
   }
 
   const controller = new AbortController();
@@ -262,11 +393,7 @@ function getApprovedDirectVideoPathUrl(req: Request) {
 
 function getUpstreamVideoRange(req: Request) {
   const clientRange = typeof req.headers.range === "string" ? req.headers.range.trim() : "";
-  if (clientRange) return clientRange;
-
-  // Some mobile browsers probe mp4 metadata without sending Range first.
-  // Keep those GET requests in streaming mode instead of starting a full-file download.
-  return req.method === "GET" ? DEFAULT_VIDEO_RANGE : null;
+  return clientRange || null;
 }
 
 async function sendApprovedVideoStream(
@@ -277,7 +404,9 @@ async function sendApprovedVideoStream(
 ) {
   const upstreamRange = getUpstreamVideoRange(req);
   const controller = new AbortController();
-  req.on("close", () => controller.abort());
+  res.on("close", () => {
+    if (!res.writableEnded) controller.abort();
+  });
 
   try {
     const upstream = await fetch(sourceUrl, {
@@ -289,6 +418,13 @@ async function sendApprovedVideoStream(
       },
       signal: controller.signal,
     });
+
+    if (upstream.status === 416) {
+      res.status(416);
+      setHeaderFromUpstream(res, upstream, "content-range");
+      res.end();
+      return;
+    }
 
     if (![200, 206].includes(upstream.status)) {
       res.status(502).json({ error: "Upstream video stream unavailable" });
@@ -318,6 +454,7 @@ async function sendApprovedVideoStream(
       upstream.body as unknown as ReadableStream<Uint8Array>
     );
     stream.on("error", error => {
+      if (controller.signal.aborted || error.name === "AbortError") return;
       console.error(`${logPrefix} stream error`, error);
       if (!res.headersSent) {
         res.status(502).end();
@@ -394,7 +531,7 @@ export function registerLegacyVodRoutes(app: Express) {
         preacher: info.preacher,
         date: info.date,
         streamUrl: `/api/legacy-vod/${info.pageCode}/${info.num}/${info.vodType}.mp4`,
-        originalPageUrl: `http://www.joych.org/main/sub.html?pageCode=${info.pageCode}&num=${info.num}&page=`,
+        originalPageUrl: `${LEGACY_VOD_REFERER_BASE}?pageCode=${info.pageCode}&num=${info.num}&vodType=${info.vodType}`,
       });
     } catch (error) {
       console.error("[LegacyVOD] info error", error);

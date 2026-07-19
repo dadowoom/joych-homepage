@@ -258,6 +258,7 @@ export default function YoutubeAdminTab() {
   const [videoDescription, setVideoDescription] = useState("");
 
   const [editingVideoId, setEditingVideoId] = useState<number | null>(null);
+  const [editVideoUrl, setEditVideoUrl] = useState("");
   const [editVideoTitle, setEditVideoTitle] = useState("");
   const [editVideoPreacher, setEditVideoPreacher] = useState("");
   const [editVideoScripture, setEditVideoScripture] = useState("");
@@ -344,6 +345,7 @@ export default function YoutubeAdminTab() {
 
   function resetEditVideoForm() {
     setEditingVideoId(null);
+    setEditVideoUrl("");
     setEditVideoTitle("");
     setEditVideoPreacher("");
     setEditVideoScripture("");
@@ -397,6 +399,7 @@ export default function YoutubeAdminTab() {
   function startEditVideo(video: VideoListItem) {
     setAddingVideo(false);
     setEditingVideoId(video.id);
+    setEditVideoUrl(video.videoUrl ?? video.videoId ?? "");
     setEditVideoTitle(video.title ?? "");
     setEditVideoPreacher(video.preacher ?? "");
     setEditVideoScripture(video.scripture ?? "");
@@ -406,10 +409,29 @@ export default function YoutubeAdminTab() {
 
   function handleUpdateVideo() {
     if (!editingVideoId) return;
+    const trimmedUrl = editVideoUrl.trim();
+    if (!trimmedUrl) return toast.error("영상 주소를 입력해주세요.");
     const title = editVideoTitle.trim();
     if (!title) return toast.error("영상 제목을 입력해주세요.");
+
+    const currentVideo = videos.find((video) => video.id === editingVideoId);
+    const originalSource = (currentVideo?.videoUrl ?? currentVideo?.videoId ?? "").trim();
+    let source: { videoId: string | null; videoUrl: string | null } | undefined;
+    if (trimmedUrl !== originalSource) {
+      const nextVideoId = extractVideoId(trimmedUrl);
+      source = nextVideoId
+        ? { videoId: nextVideoId, videoUrl: null }
+        : isDirectVideoUrl(trimmedUrl)
+          ? { videoId: null, videoUrl: trimmedUrl }
+          : undefined;
+      if (!source) {
+        return toast.error("올바른 유튜브 링크 또는 영상 파일 주소를 입력해주세요.");
+      }
+    }
+
     updateVideo.mutate({
       id: editingVideoId,
+      ...(source ?? {}),
       title,
       preacher: optionalValue(editVideoPreacher),
       scripture: optionalValue(editVideoScripture),
@@ -554,13 +576,16 @@ export default function YoutubeAdminTab() {
               {addingVideo && (
                 <div className="mb-3 space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
                   <div>
-                    <label className="mb-1 block text-xs text-gray-500">유튜브 링크, 영상 파일 주소, 옛 홈페이지 목록/상세주소</label>
+                    <label className="mb-1 block text-xs text-gray-500">유튜브 링크, MP4 주소, 옛 홈페이지 영상 상세주소</label>
                     <Input
                       value={videoUrl}
                       onChange={(e) => setVideoUrl(e.target.value)}
-                      placeholder="http://www.joych.org/main/sub.html?pageCode=424"
+                      placeholder="http://admin.joych.org/core/module/vod/skin_001/vodIframe.html?pageCode=423&num=12484&vodType=237"
                       className="h-8 text-sm"
                     />
+                    <p className="mt-1 text-[11px] leading-relaxed text-gray-400">
+                      pageCode만 있는 옛 목록주소가 아니라 num과 vodType이 포함된 상세주소를 입력해주세요.
+                    </p>
                   </div>
                   <div>
                     <label className="mb-1 block text-xs text-gray-500">제목</label>
@@ -643,6 +668,15 @@ export default function YoutubeAdminTab() {
                     </button>
                   </div>
                   <div>
+                    <label className="mb-1 block text-xs text-gray-500">영상 주소</label>
+                    <Input
+                      value={editVideoUrl}
+                      onChange={(e) => setEditVideoUrl(e.target.value)}
+                      placeholder="유튜브 링크 또는 MP4 영상 주소"
+                      className="h-8 bg-white text-sm"
+                    />
+                  </div>
+                  <div>
                     <label className="mb-1 block text-xs text-gray-500">제목</label>
                     <Input
                       value={editVideoTitle}
@@ -692,7 +726,7 @@ export default function YoutubeAdminTab() {
                     <Button
                       size="sm"
                       onClick={handleUpdateVideo}
-                      disabled={updateVideo.isPending || !editVideoTitle.trim()}
+                      disabled={updateVideo.isPending || !editVideoUrl.trim() || !editVideoTitle.trim()}
                       className="h-7 bg-[#1B5E20] text-xs hover:bg-[#2E7D32]"
                     >
                       {updateVideo.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "저장"}

@@ -2298,6 +2298,179 @@ else
   exit 1
 fi
 
+MIGRATION_0086="${APP_DIR}/drizzle/0086_recover_legacy_joyfultv_mp4.sql"
+if [[ -f "${MIGRATION_0086}" ]]; then
+  echo "[deploy] database migration: recover legacy JoyfulTV MP4 sources"
+  node --input-type=module <<'NODE'
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required for migration 0086.");
+}
+
+const migrationId = "0086_recover_legacy_joyfultv_mp4";
+const connection = await mysql.createConnection(databaseUrl);
+const recoverableWhere = `
+  (playlistId = 90001 AND videoUrl LIKE '%/api/legacy-vod/423/%/237.mp4') OR
+  (playlistId = 90002 AND videoUrl LIKE '%/api/legacy-vod/424/%/238.mp4') OR
+  (playlistId = 90003 AND videoUrl LIKE '%/api/legacy-vod/242/%/40.mp4') OR
+  (playlistId = 90004 AND videoUrl LIKE '%/api/legacy-vod/359/%/69.mp4') OR
+  (playlistId = 90007 AND videoUrl LIKE '%/api/legacy-vod/192/%/19.mp4')
+`;
+
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  const [rows] = await connection.execute(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    [migrationId],
+  );
+  const alreadyRecorded = Array.isArray(rows) && rows.length > 0;
+
+  if (!alreadyRecorded) {
+    const [recoverableRows] = await connection.execute(
+      `SELECT id, playlistId, sermonDate, videoUrl FROM youtube_videos WHERE ${recoverableWhere}`,
+    );
+
+    const buildRecoverySource = (row) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(row.sermonDate ?? "")) return null;
+      if (Number(row.playlistId) === 90004 && Number(row.id) === 90025) {
+        return "http://sermon.joych.org/mp4/special/260412_testi_4.mp4";
+      }
+      if (Number(row.playlistId) === 90007 && Number(row.id) === 90226) {
+        return "http://sermon.joych.org/mp4/hymn/240908_hymn1.mp4";
+      }
+      if (Number(row.playlistId) === 90007 && Number(row.id) === 90290) {
+        return "http://sermon.joych.org/mp4/hymn/230611_hymn1.mp4";
+      }
+
+      const compactDate = row.sermonDate.slice(2).replaceAll("-", "");
+      switch (Number(row.playlistId)) {
+        case 90001:
+          return `http://sermon.joych.org/mp4/wed/${compactDate}_wed.mp4`;
+        case 90002:
+          return `http://sermon.joych.org/mp4/friday_night/${compactDate}_fri.mp4`;
+        case 90003:
+          return `http://sermon.joych.org/mp4/special/${compactDate}_hyi.mp4`;
+        case 90004:
+          return `http://sermon.joych.org/mp4/special/${compactDate}_testi.mp4`;
+        case 90007:
+          return `http://sermon.joych.org/mp4/hymn/${compactDate}_hymn1.mp4`;
+        default:
+          return null;
+      }
+    };
+
+    const candidates = Array.isArray(recoverableRows)
+      ? recoverableRows.map((row) => ({ row, source: buildRecoverySource(row) }))
+      : [];
+    const failures = [];
+    let candidateIndex = 0;
+    const workerCount = Math.min(12, candidates.length);
+    await Promise.all(Array.from({ length: workerCount }, async () => {
+      while (candidateIndex < candidates.length) {
+        const candidate = candidates[candidateIndex++];
+        if (!candidate.source) {
+          failures.push(`id=${candidate.row.id}:unmapped`);
+          continue;
+        }
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15_000);
+        try {
+          const response = await fetch(candidate.source, {
+            method: "HEAD",
+            headers: {
+              Referer: "http://www.joych.org/",
+              "User-Agent": "Mozilla/5.0",
+            },
+            signal: controller.signal,
+          });
+          const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+          if (!response.ok || !contentType.startsWith("video/mp4")) {
+            failures.push(`id=${candidate.row.id}:status=${response.status}:type=${contentType}`);
+          }
+        } catch (error) {
+          failures.push(`id=${candidate.row.id}:${error instanceof Error ? error.message : "request failed"}`);
+        } finally {
+          clearTimeout(timeout);
+        }
+      }
+    }));
+
+    if (failures.length > 0) {
+      throw new Error(
+        `Migration 0086 source verification failed (${failures.length}): ${failures.slice(0, 10).join(", ")}`,
+      );
+    }
+    console.log(`[deploy] migration 0086 verified sources=${candidates.length}`);
+
+    await connection.beginTransaction();
+    try {
+      let updatedRows = 0;
+      for (const candidate of candidates) {
+        const [result] = await connection.execute(
+          `
+            UPDATE youtube_videos
+            SET videoUrl = ?, updatedAt = CURRENT_TIMESTAMP
+            WHERE id = ? AND playlistId = ? AND sermonDate = ? AND videoUrl = ?
+          `,
+          [
+            candidate.source,
+            candidate.row.id,
+            candidate.row.playlistId,
+            candidate.row.sermonDate,
+            candidate.row.videoUrl,
+          ],
+        );
+        if (Number(result.affectedRows ?? 0) !== 1) {
+          throw new Error(
+            `Migration 0086 row changed after verification: id=${candidate.row.id}`,
+          );
+        }
+        updatedRows += 1;
+      }
+
+      const [remainingRows] = await connection.execute(
+        `SELECT COUNT(*) AS remaining FROM youtube_videos WHERE ${recoverableWhere}`,
+      );
+      const remaining = Number(remainingRows?.[0]?.remaining ?? -1);
+      if (remaining !== 0) {
+        throw new Error(`Migration 0086 verification failed: ${remaining} recoverable legacy rows remain.`);
+      }
+
+      await connection.execute("INSERT INTO app_migrations (id) VALUES (?)", [migrationId]);
+      await connection.commit();
+      console.log(`[deploy] migration 0086 applied rows=${updatedRows}`);
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    }
+  } else {
+    const [remainingRows] = await connection.execute(
+      `SELECT COUNT(*) AS remaining FROM youtube_videos WHERE ${recoverableWhere}`,
+    );
+    const remaining = Number(remainingRows?.[0]?.remaining ?? -1);
+    if (remaining !== 0) {
+      throw new Error(`Migration 0086 invariant failed: ${remaining} recoverable legacy rows remain.`);
+    }
+    console.log("[deploy] migration 0086 already applied and data verified");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+else
+  echo "[deploy] missing migration file: ${MIGRATION_0086}" >&2
+  exit 1
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

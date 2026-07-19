@@ -10,7 +10,7 @@
  *   - 메뉴 자동 연결: syncPlaylistToMenu, syncAllPlaylistsToMenus
  */
 
-import { and, asc, desc, eq, gte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, like } from "drizzle-orm";
 import { youtubePlaylists, youtubeVideos, menus, menuItems, menuSubItems } from "../../drizzle/schema";
 import { makeUniqueMenuPageHref, type MenuHrefCandidate } from "../_core/menuHref";
 import { getDb } from "./connection";
@@ -118,6 +118,37 @@ export async function getVisibleYoutubeVideos(playlistId: number) {
     .orderBy(...getYoutubeVideoOrderBy(playlistId));
 }
 
+/**
+ * Find the database row that owns an old `/api/legacy-vod/...` source.
+ *
+ * Some rows were saved with an absolute newjoych.co.kr URL while others use
+ * a relative URL, so the canonical path is matched as a suffix. The legacy
+ * identifiers are numeric-only before this function is called.
+ */
+export async function getYoutubeVideoByLegacySource(
+  pageCode: string,
+  num: string,
+  vodType: string,
+) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const legacyPath = `/api/legacy-vod/${pageCode}/${num}/${vodType}.mp4`;
+  const [video] = await db
+    .select({
+      id: youtubeVideos.id,
+      title: youtubeVideos.title,
+      preacher: youtubeVideos.preacher,
+      scripture: youtubeVideos.scripture,
+      sermonDate: youtubeVideos.sermonDate,
+    })
+    .from(youtubeVideos)
+    .where(like(youtubeVideos.videoUrl, `%${legacyPath}`))
+    .limit(1);
+
+  return video ?? null;
+}
+
 /** 유튜브 영상 추가 */
 export async function createYoutubeVideo(data: {
   playlistId: number;
@@ -139,6 +170,8 @@ export async function createYoutubeVideo(data: {
 
 /** 유튜브 영상 수정 */
 export async function updateYoutubeVideo(id: number, data: {
+  videoId?: string | null;
+  videoUrl?: string | null;
   title?: string;
   preacher?: string | null;
   scripture?: string | null;

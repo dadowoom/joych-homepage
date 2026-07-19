@@ -13,6 +13,15 @@ type DirectVideoPlayerProps = {
   className?: string;
 };
 
+const APP_MEDIA_HOSTNAMES = new Set([
+  "newjoych.co.kr",
+  "www.newjoych.co.kr",
+  "joych.org",
+  "www.joych.org",
+  "m.joych.org",
+]);
+const MEDIA_ERROR_DECODE = 3;
+
 const inlinePlaybackAttrs = {
   playsInline: true,
   "webkit-playsinline": "true",
@@ -43,7 +52,7 @@ function normalizeSource(src: string) {
   return trimmed;
 }
 
-function getPlayableSrc(src: string) {
+export function getPlayableSrc(src: string) {
   if (typeof window === "undefined") return src;
 
   try {
@@ -53,6 +62,16 @@ function getPlayableSrc(src: string) {
       // Keep sermon files on a same-origin .mp4 URL. iOS video playback is
       // less forgiving with query-string proxy URLs than ordinary page fetches.
       return new URL(proxiedSrc, window.location.origin).toString();
+    }
+
+    const isKnownAppMediaPath =
+      APP_MEDIA_HOSTNAMES.has(url.hostname) &&
+      /^\/api\/(?:legacy-vod|direct-video(?:-proxy)?)(?:\/|$)/.test(url.pathname);
+    if (isKnownAppMediaPath) {
+      // Saved media URLs may still contain the former newjoych.co.kr host.
+      // Always use the domain the visitor is currently on so CORP/same-origin
+      // rules cannot block playback after the public-domain transition.
+      return `${url.pathname}${url.search}${url.hash}`;
     }
 
     const current = new URL(window.location.href);
@@ -82,45 +101,59 @@ function getVideoType(src: string) {
   }
 }
 
-function getLegacyOriginalUrl(src: string) {
+function isLegacyVideoSource(src: string) {
   try {
     const path = new URL(src, window.location.origin).pathname;
-    const match = /^\/api\/legacy-vod\/(\d+)\/(\d+)\/(\d+)\.mp4$/.exec(path);
-    if (!match) return null;
-
-    const [, pageCode, num, vodType] = match;
-    return `http://www.joych.org/core/module/vod/skin_001/vodIframe.html?pageCode=${pageCode}&num=${num}&vodType=${vodType}`;
+    return /^\/api\/legacy-vod\/\d+\/\d+\/\d+\.mp4$/.test(path);
   } catch {
-    return null;
+    return false;
+  }
+}
+
+function isExternalPlaybackSource(src: string) {
+  try {
+    return new URL(src, window.location.origin).origin !== window.location.origin;
+  } catch {
+    return false;
   }
 }
 
 export default function DirectVideoPlayer({ src, title, className }: DirectVideoPlayerProps) {
   const [hasError, setHasError] = useState(false);
-  const [isLegacyUnavailable, setIsLegacyUnavailable] = useState(false);
+  const [mediaErrorCode, setMediaErrorCode] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const playableSrc = useMemo(() => getPlayableSrc(src), [src]);
   const videoType = useMemo(() => getVideoType(playableSrc), [playableSrc]);
-  const legacyOriginalUrl = useMemo(() => getLegacyOriginalUrl(playableSrc), [playableSrc]);
+  const isLegacySource = useMemo(() => isLegacyVideoSource(playableSrc), [playableSrc]);
+  const isExternalSource = useMemo(() => isExternalPlaybackSource(playableSrc), [playableSrc]);
 
   useEffect(() => {
     setHasError(false);
-    setIsLegacyUnavailable(false);
+    setMediaErrorCode(null);
   }, [src]);
 
   const handleError = useCallback(() => {
     setHasError(true);
-    setIsLegacyUnavailable(Boolean(legacyOriginalUrl));
-  }, [legacyOriginalUrl]);
+    setMediaErrorCode(videoRef.current?.error?.code ?? null);
+  }, []);
 
-  const errorTitle = isLegacyUnavailable
-    ? "구형 영상 파일을 바로 재생할 수 없습니다."
-    : "영상 재생에 문제가 있습니다.";
-  const errorDescription = isLegacyUnavailable
-    ? "이 자료는 옛 홈페이지의 WMV/MMS 형식이라 mp4 원본 확인이 필요합니다."
-    : "새 창에서 열면 브라우저가 영상만 따로 다시 엽니다.";
-  const errorHref = isLegacyUnavailable && legacyOriginalUrl ? legacyOriginalUrl : playableSrc;
-  const errorLinkText = isLegacyUnavailable ? "옛 영상 페이지 열기" : "새 창에서 영상 열기";
+  const retryPlayback = useCallback(() => {
+    setHasError(false);
+    setMediaErrorCode(null);
+    videoRef.current?.load();
+  }, []);
+
+  const isDecodeError = mediaErrorCode === MEDIA_ERROR_DECODE;
+  const errorTitle = isDecodeError
+    ? "이 휴대폰에서 지원하지 않는 영상 형식입니다."
+    : isLegacySource
+      ? "이 옛 영상은 원본 MP4를 찾지 못했습니다."
+      : "영상 재생에 문제가 있습니다.";
+  const errorDescription = isDecodeError
+    ? "PC에서 확인하거나 모바일 호환용 영상으로 다시 제작해야 재생할 수 있습니다."
+    : isLegacySource
+      ? "복구 가능한 옛 영상은 자동 연결했습니다. 이 영상은 교회가 원본 파일을 확인해 다시 등록해야 합니다."
+      : "잠시 후 다시 시도하거나 영상 파일을 직접 열어주세요.";
 
   return (
     <>
@@ -134,7 +167,7 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
         onError={handleError}
         onLoadedMetadata={() => {
           setHasError(false);
-          setIsLegacyUnavailable(false);
+          setMediaErrorCode(null);
         }}
         {...inlinePlaybackAttrs}
       >
@@ -145,12 +178,24 @@ export default function DirectVideoPlayer({ src, title, className }: DirectVideo
           <div>
             <p className="text-sm font-semibold">{errorTitle}</p>
             <p className="mt-2 text-xs leading-relaxed text-white/75">{errorDescription}</p>
-            <a
-              href={errorHref}
-              className="mt-3 inline-flex rounded-md bg-white px-4 py-2 text-sm font-semibold text-[#1B5E20]"
-            >
-              {errorLinkText}
-            </a>
+            {isLegacySource ? (
+              <button
+                type="button"
+                onClick={retryPlayback}
+                className="mt-3 inline-flex rounded-md bg-white px-4 py-2 text-sm font-semibold text-[#1B5E20]"
+              >
+                다시 시도
+              </button>
+            ) : (
+              <a
+                href={playableSrc}
+                target={isExternalSource ? "_blank" : undefined}
+                rel={isExternalSource ? "noreferrer" : undefined}
+                className="mt-3 inline-flex rounded-md bg-white px-4 py-2 text-sm font-semibold text-[#1B5E20]"
+              >
+                영상 직접 열기
+              </a>
+            )}
           </div>
         </div>
       )}
