@@ -600,7 +600,12 @@ export function BulletinDetail() {
   };
 
   return (
-    <SubPageLayout pageTitle="주보 보기" parentLabel={parentLabel} sideMenuItems={sideMenuItems}>
+    <SubPageLayout
+      pageTitle="주보 보기"
+      parentLabel={parentLabel}
+      sideMenuItems={sideMenuItems}
+      hideFooterSocialLinks
+    >
       <div className="max-w-5xl">
         <div className="mb-5 flex items-center justify-between gap-3 border-b border-gray-100 pb-4">
           <Link href="/worship/bulletin" className="text-sm font-semibold text-[#1B5E20] hover:underline">
@@ -893,7 +898,12 @@ export function Bulletin() {
     });
   };
   return (
-    <SubPageLayout pageTitle="주보 보기" parentLabel={parentLabel} sideMenuItems={sideMenuItems}>
+    <SubPageLayout
+      pageTitle="주보 보기"
+      parentLabel={parentLabel}
+      sideMenuItems={sideMenuItems}
+      hideFooterSocialLinks
+    >
       <div className="max-w-5xl">
         {isAccessDenied ? (
           <MemberOnlyContentNotice

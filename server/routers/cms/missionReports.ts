@@ -137,7 +137,7 @@ export const missionReportsRouter = router({
       region: requiredTextSchema(128, "사역 지역을 입력해주세요.").optional(),
       continent: continentSchema.optional(),
       sentYear: z.number().int().min(0).max(9999).optional(),
-      profileImage: safeAssetUrlSchema.optional(),
+      profileImage: safeAssetUrlSchema.nullable().optional(),
       organization: optionalTextSchema(128),
       description: optionalTextSchema(20000),
       isActive: z.boolean().optional(),

@@ -8,6 +8,24 @@
 import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { ImagePlus, Loader2, X } from "lucide-react";
+
+const MAX_MISSIONARY_PROFILE_IMAGE_BYTES = 1 * 1024 * 1024;
+const MISSIONARY_PROFILE_IMAGE_MIMES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+]);
+
+function fileToBase64(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(new Error("프로필 이미지를 읽지 못했습니다."));
+    reader.readAsDataURL(file);
+  });
+}
 
 const CONTINENT_OPTIONS = [
   { value: "asia", label: "아시아" },
@@ -47,12 +65,84 @@ function getEmptyMissionaryForm(): MissionaryFormState {
   };
 }
 
+function ProfileImageUploadField({
+  value,
+  isUploading,
+  disabled,
+  onFileSelect,
+  onClear,
+}: {
+  value: string;
+  isUploading: boolean;
+  disabled: boolean;
+  onFileSelect: (file: File) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+      <div className="flex items-center gap-3">
+        {value ? (
+          <img
+            src={value}
+            alt="선교사 프로필 미리보기"
+            className="h-16 w-16 shrink-0 rounded-lg border border-gray-200 bg-white object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white text-gray-300">
+            <ImagePlus className="h-6 w-6" />
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap gap-2">
+            <label
+              className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-green-200 bg-white px-3 text-xs font-semibold text-[#1B5E20] transition hover:bg-green-50 ${
+                disabled ? "pointer-events-none opacity-50" : "cursor-pointer"
+              }`}
+            >
+              {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
+              {isUploading ? "업로드 중" : value ? "이미지 변경" : "이미지 선택"}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="sr-only"
+                disabled={disabled}
+                onChange={(event) => {
+                  const input = event.currentTarget;
+                  const file = input.files?.[0];
+                  input.value = "";
+                  if (file) onFileSelect(file);
+                }}
+              />
+            </label>
+            {value && (
+              <button
+                type="button"
+                onClick={onClear}
+                disabled={disabled}
+                className="inline-flex h-9 items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white px-3 text-xs text-gray-500 hover:bg-gray-100 disabled:opacity-50"
+              >
+                <X className="h-3.5 w-3.5" />
+                제거
+              </button>
+            )}
+          </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-gray-400">
+            JPG, PNG, WEBP, GIF / 최대 1MB
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminMissionReportsTab() {
   const utils = trpc.useUtils();
   const [memberSearch, setMemberSearch] = useState("");
   const [missionaryForm, setMissionaryForm] = useState<MissionaryFormState>(getEmptyMissionaryForm);
   const [editingMissionaryId, setEditingMissionaryId] = useState<number | null>(null);
   const [editingMissionaryForm, setEditingMissionaryForm] = useState<MissionaryFormState>(getEmptyMissionaryForm);
+  const [profileImageUploadTarget, setProfileImageUploadTarget] = useState<"create" | "edit" | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState<number | "">("");
   const [selectedMissionaryId, setSelectedMissionaryId] = useState<number | "">(
     ""
@@ -98,6 +188,38 @@ export default function AdminMissionReportsTab() {
     () => filteredMembers.slice(0, 8),
     [filteredMembers]
   );
+
+  const uploadProfileImage = trpc.cms.missionReports.uploadImage.useMutation();
+
+  const handleProfileImageFile = async (file: File, target: "create" | "edit") => {
+    if (!MISSIONARY_PROFILE_IMAGE_MIMES.has(file.type)) {
+      toast.error("프로필 이미지는 JPG, PNG, WEBP, GIF 파일만 가능합니다.");
+      return;
+    }
+    if (file.size > MAX_MISSIONARY_PROFILE_IMAGE_BYTES) {
+      toast.error("프로필 이미지는 1MB 이하만 업로드할 수 있습니다.");
+      return;
+    }
+
+    setProfileImageUploadTarget(target);
+    try {
+      const result = await uploadProfileImage.mutateAsync({
+        base64: await fileToBase64(file),
+        fileName: file.name,
+        mimeType: file.type,
+      });
+      if (target === "create") {
+        setMissionaryForm((previous) => ({ ...previous, profileImage: result.url }));
+      } else {
+        setEditingMissionaryForm((previous) => ({ ...previous, profileImage: result.url }));
+      }
+      toast.success("프로필 이미지가 업로드됐습니다.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "프로필 이미지 업로드에 실패했습니다.");
+    } finally {
+      setProfileImageUploadTarget(null);
+    }
+  };
 
   const createMissionary = trpc.cms.missionReports.createMissionary.useMutation(
     {
@@ -221,7 +343,7 @@ export default function AdminMissionReportsTab() {
       id: editingMissionaryId,
       ...editingMissionaryForm,
       organization: editingMissionaryForm.organization || undefined,
-      profileImage: editingMissionaryForm.profileImage || undefined,
+      profileImage: editingMissionaryForm.profileImage || null,
     });
   };
 
@@ -296,21 +418,17 @@ export default function AdminMissionReportsTab() {
               }))
             }
           />
-          <input
-            className={adminFieldClass}
-            placeholder="프로필 이미지 URL"
+          <ProfileImageUploadField
             value={missionaryForm.profileImage}
-            onChange={(e) =>
-              setMissionaryForm((prev) => ({
-                ...prev,
-                profileImage: e.target.value,
-              }))
-            }
+            isUploading={profileImageUploadTarget === "create"}
+            disabled={uploadProfileImage.isPending}
+            onFileSelect={(file) => void handleProfileImageFile(file, "create")}
+            onClear={() => setMissionaryForm((previous) => ({ ...previous, profileImage: "" }))}
           />
         </div>
         <button
           onClick={submitMissionary}
-          disabled={createMissionary.isPending}
+          disabled={createMissionary.isPending || uploadProfileImage.isPending}
           className="mt-3 rounded-lg bg-[#1B5E20] px-4 py-2 text-sm text-white hover:bg-[#2E7D32] disabled:opacity-50"
         >
           추가
@@ -372,11 +490,12 @@ export default function AdminMissionReportsTab() {
                         onChange={(e) => setEditingMissionaryForm((prev) => ({ ...prev, organization: e.target.value }))}
                         placeholder="소속 기관"
                       />
-                      <input
-                        className={adminFieldClass}
+                      <ProfileImageUploadField
                         value={editingMissionaryForm.profileImage}
-                        onChange={(e) => setEditingMissionaryForm((prev) => ({ ...prev, profileImage: e.target.value }))}
-                        placeholder="프로필 이미지 URL"
+                        isUploading={profileImageUploadTarget === "edit"}
+                        disabled={uploadProfileImage.isPending}
+                        onFileSelect={(file) => void handleProfileImageFile(file, "edit")}
+                        onClear={() => setEditingMissionaryForm((previous) => ({ ...previous, profileImage: "" }))}
                       />
                     </div>
                     <div className="flex justify-end gap-2">
@@ -390,7 +509,7 @@ export default function AdminMissionReportsTab() {
                       <button
                         type="button"
                         onClick={submitMissionaryEdit}
-                        disabled={updateMissionary.isPending}
+                        disabled={updateMissionary.isPending || uploadProfileImage.isPending}
                         className="rounded-lg bg-[#1B5E20] px-3 py-1.5 text-xs text-white hover:bg-[#2E7D32] disabled:opacity-50"
                       >
                         저장
