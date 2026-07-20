@@ -185,7 +185,7 @@ export default function MemberAccountRecovery() {
 
                   {requestSubmitted && (
                     <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm leading-6 text-green-800">
-                      재설정 요청이 접수됐습니다. 관리자가 확인 후 등록된 연락처로 임시 비밀번호를 안내합니다.
+                      재설정 요청이 접수됐습니다. 관리자가 등록된 연락처로 본인 확인 후 24시간짜리 일회용 재설정 링크를 푸시로 전달합니다. 푸시를 받지 못하면 관리자가 같은 링크를 전화·문자로 안내할 수 있습니다.
                     </div>
                   )}
                 </div>

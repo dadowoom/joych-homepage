@@ -39,6 +39,7 @@ const LegacyVodPage = lazy(() => import("./pages/LegacyVodPage"));
 const MemberRegister = lazy(() => import("./pages/MemberRegister"));
 const MemberLogin = lazy(() => import("./pages/MemberLogin"));
 const MemberAccountRecovery = lazy(() => import("./pages/MemberAccountRecovery"));
+const MemberPasswordReset = lazy(() => import("./pages/MemberPasswordReset"));
 const MemberMyPage = lazy(() => import("./pages/MemberMyPage"));
 const MemberSocialComplete = lazy(() => import("./pages/MemberSocialComplete"));
 const FacilityList = lazy(() => import("./pages/FacilityList"));
@@ -651,6 +652,7 @@ function Router() {
       <Route path="/member/register" component={MemberRegister} />
       <Route path="/member/login" component={MemberLogin} />
       <Route path="/member/account-recovery" component={MemberAccountRecovery} />
+      <Route path="/member/password-reset" component={MemberPasswordReset} />
       <Route path="/member/social-complete" component={MemberSocialComplete} />
       <Route path="/member/my-page" component={MemberMyPage} />
 

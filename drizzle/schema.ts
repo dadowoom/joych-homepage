@@ -674,12 +674,18 @@ export const memberPasswordResetRequests = mysqlTable("member_password_reset_req
   id: int("id").autoincrement().primaryKey(),
   /** 비밀번호 재설정을 요청한 church_members.id */
   memberId: int("member_id").notNull(),
-  status: mysqlEnum("status", ["pending", "resolved", "cancelled"]).notNull().default("pending"),
+  status: mysqlEnum("status", ["pending", "approved", "resolved", "cancelled"]).notNull().default("pending"),
   requestedAt: timestamp("requested_at").defaultNow().notNull(),
+  /** 관리자 본인 확인 후 발급되는 일회용 링크의 SHA-256 해시 */
+  resetTokenHash: varchar("reset_token_hash", { length: 64 }),
+  resetTokenExpiresAt: timestamp("reset_token_expires_at"),
+  approvedBy: int("approved_by"),
+  approvedAt: timestamp("approved_at"),
   resolvedAt: timestamp("resolved_at"),
 }, (table) => [
   index("member_password_reset_requests_member_idx").on(table.memberId),
   index("member_password_reset_requests_status_requested_idx").on(table.status, table.requestedAt),
+  uniqueIndex("member_password_reset_requests_token_hash_unique").on(table.resetTokenHash),
 ]);
 
 export type MemberPasswordResetRequest = typeof memberPasswordResetRequests.$inferSelect;

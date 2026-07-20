@@ -343,24 +343,25 @@ export async function createMemberPasswordResetRequest(memberId: number) {
     const existing = await tx
       .select({
         id: memberPasswordResetRequests.id,
+        status: memberPasswordResetRequests.status,
         requestedAt: memberPasswordResetRequests.requestedAt,
       })
       .from(memberPasswordResetRequests)
       .where(and(
         eq(memberPasswordResetRequests.memberId, memberId),
-        eq(memberPasswordResetRequests.status, "pending"),
+        inArray(memberPasswordResetRequests.status, ["pending", "approved"]),
       ))
       .orderBy(desc(memberPasswordResetRequests.requestedAt))
       .limit(1);
     const cutoff = Date.now() - MEMBER_PASSWORD_RESET_REQUEST_TTL_MS;
-    if (existing[0] && existing[0].requestedAt.getTime() >= cutoff) {
+    if (existing[0]?.status === "pending" && existing[0].requestedAt.getTime() >= cutoff) {
       return { id: existing[0].id, created: false };
     }
 
     if (existing[0]) {
       await tx
         .update(memberPasswordResetRequests)
-        .set({ status: "cancelled", resolvedAt: new Date() })
+        .set({ status: "cancelled", resetTokenHash: null, resolvedAt: new Date() })
         .where(eq(memberPasswordResetRequests.id, existing[0].id));
     }
 
@@ -392,6 +393,131 @@ export async function getPendingMemberPasswordResetRequests() {
       gte(memberPasswordResetRequests.requestedAt, cutoff),
     ))
     .orderBy(desc(memberPasswordResetRequests.requestedAt));
+}
+
+/**
+ * 최고관리자가 등록 연락처로 본인 확인을 마친 뒤 일회용 재설정 링크를 승인합니다.
+ * 토큰 원문은 저장하지 않고 SHA-256 해시만 저장합니다.
+ */
+export async function approveMemberPasswordResetRequest(
+  requestId: number,
+  approvedBy: number,
+  resetTokenHash: string,
+  resetTokenExpiresAt: Date,
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`
+      SELECT id
+      FROM member_password_reset_requests
+      WHERE id = ${requestId} AND status = 'pending'
+      FOR UPDATE
+    `);
+
+    const rows = await tx
+      .select({
+        id: memberPasswordResetRequests.id,
+        memberId: churchMembers.id,
+        name: churchMembers.name,
+        phone: churchMembers.phone,
+        position: churchMembers.position,
+      })
+      .from(memberPasswordResetRequests)
+      .innerJoin(churchMembers, eq(memberPasswordResetRequests.memberId, churchMembers.id))
+      .where(and(
+        eq(memberPasswordResetRequests.id, requestId),
+        eq(memberPasswordResetRequests.status, "pending"),
+      ))
+      .limit(1);
+    const request = rows[0];
+    if (!request) return null;
+
+    const approvedAt = new Date();
+    await tx
+      .update(memberPasswordResetRequests)
+      .set({
+        status: "approved",
+        resetTokenHash,
+        resetTokenExpiresAt,
+        approvedBy,
+        approvedAt,
+      })
+      .where(eq(memberPasswordResetRequests.id, requestId));
+
+    return { ...request, approvedAt, resetTokenExpiresAt };
+  });
+}
+
+export type CompleteMemberPasswordResetResult =
+  | { status: "completed"; memberId: number }
+  | { status: "invalid" }
+  | { status: "expired" };
+
+/** 일회용 링크로 새 비밀번호를 저장하고 링크와 기존 로그인 세션을 폐기합니다. */
+export async function completeMemberPasswordReset(
+  resetTokenHash: string,
+  passwordHash: string,
+): Promise<CompleteMemberPasswordResetResult> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`
+      SELECT id
+      FROM member_password_reset_requests
+      WHERE reset_token_hash = ${resetTokenHash} AND status = 'approved'
+      FOR UPDATE
+    `);
+
+    const rows = await tx
+      .select({
+        id: memberPasswordResetRequests.id,
+        memberId: memberPasswordResetRequests.memberId,
+        resetTokenExpiresAt: memberPasswordResetRequests.resetTokenExpiresAt,
+      })
+      .from(memberPasswordResetRequests)
+      .where(and(
+        eq(memberPasswordResetRequests.resetTokenHash, resetTokenHash),
+        eq(memberPasswordResetRequests.status, "approved"),
+      ))
+      .limit(1);
+    const request = rows[0];
+    if (!request) return { status: "invalid" };
+
+    const completedAt = new Date();
+    if (!request.resetTokenExpiresAt || request.resetTokenExpiresAt.getTime() <= completedAt.getTime()) {
+      await tx
+        .update(memberPasswordResetRequests)
+        .set({
+          status: "cancelled",
+          resetTokenHash: null,
+          resolvedAt: completedAt,
+        })
+        .where(eq(memberPasswordResetRequests.id, request.id));
+      return { status: "expired" };
+    }
+
+    await tx
+      .update(churchMembers)
+      .set({
+        passwordHash,
+        sessionVersion: sql`${churchMembers.sessionVersion} + 1`,
+        updatedAt: completedAt,
+      })
+      .where(eq(churchMembers.id, request.memberId));
+    await tx
+      .update(memberPasswordResetRequests)
+      .set({
+        status: "resolved",
+        resetTokenHash: null,
+        resolvedAt: completedAt,
+      })
+      .where(eq(memberPasswordResetRequests.id, request.id));
+
+    return { status: "completed", memberId: request.memberId };
+  });
 }
 
 // ─── 성도 등록/수정 ───────────────────────────────────────────────────────────
@@ -776,10 +902,10 @@ export async function adminResetMemberPassword(id: number, tempPassword: string)
     }).where(eq(churchMembers.id, id));
     await tx
       .update(memberPasswordResetRequests)
-      .set({ status: "resolved", resolvedAt: changedAt })
+      .set({ status: "resolved", resetTokenHash: null, resolvedAt: changedAt })
       .where(and(
         eq(memberPasswordResetRequests.memberId, id),
-        eq(memberPasswordResetRequests.status, "pending"),
+        inArray(memberPasswordResetRequests.status, ["pending", "approved"]),
       ));
   });
 }

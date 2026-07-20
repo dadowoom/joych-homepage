@@ -17,6 +17,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { canManageAdminTab } from "@/lib/contentPermissions";
 import { formatPhoneNumber } from "@/lib/phoneNumber";
+import { PRIMARY_SITE_ORIGIN } from "@/lib/mainHomepageDomain";
 import { toast } from "sonner";
 import MemberEditModal from "./MemberEditModal";
 
@@ -42,6 +43,11 @@ type PageSize = typeof PAGE_SIZE_OPTIONS[number];
 
 type AdminMember = inferRouterOutputs<AppRouter>["members"]["adminList"][number];
 type Member = AdminMember;
+type PasswordResetDelivery = {
+  resetUrl: string;
+  expiresAt: Date;
+  pushSentCount: number;
+};
 
 function MemberSummary({ member, number }: { member: Member; number: number }) {
   const status = STATUS_LABELS[member.status ?? "pending"] ?? STATUS_LABELS.pending;
@@ -95,6 +101,7 @@ export default function AdminMembersTab() {
   // 모달 상태
   const [editingMember, setEditingMember] = useState<AdminMember | null>(null);
   const [editingInitialTab, setEditingInitialTab] = useState<"basic" | "account">("basic");
+  const [passwordResetDelivery, setPasswordResetDelivery] = useState<PasswordResetDelivery | null>(null);
 
   // 데이터 조회
   const adminListQuery = trpc.members.adminList.useQuery(undefined, { enabled: canManageMemberRegistry });
@@ -103,6 +110,34 @@ export default function AdminMembersTab() {
   const passwordResetRequestsQuery = trpc.members.passwordResetRequests.useQuery(undefined, { enabled: isFullAdmin });
   const passwordResetRequests = passwordResetRequestsQuery.data ?? [];
   const { data: fieldOptions = [] } = trpc.members.fieldOptions.useQuery({});
+
+  const approvePasswordResetMutation = trpc.members.approvePasswordResetRequest.useMutation({
+    onSuccess: (result) => {
+      const resetUrl = new URL(result.resetPath, PRIMARY_SITE_ORIGIN).toString();
+      setPasswordResetDelivery({
+        resetUrl,
+        expiresAt: new Date(result.expiresAt),
+        pushSentCount: result.pushSentCount,
+      });
+      utils.members.passwordResetRequests.invalidate();
+      toast.success(
+        result.pushSentCount > 0
+          ? "본인 확인을 완료하고 성도에게 재설정 푸시를 보냈습니다."
+          : "일회용 링크를 만들었습니다. 푸시 기기가 없어 링크를 직접 전달해주세요.",
+      );
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const copyPasswordResetLink = async () => {
+    if (!passwordResetDelivery) return;
+    try {
+      await navigator.clipboard.writeText(passwordResetDelivery.resetUrl);
+      toast.success("일회용 재설정 링크를 복사했습니다.");
+    } catch {
+      toast.error("링크를 복사하지 못했습니다. 주소를 직접 선택해 복사해주세요.");
+    }
+  };
 
   // 필터 선택지 (활성화된 것만)
   const districtOptions = useMemo(() => fieldOptions.filter(o => o.fieldType === "district" && o.isActive), [fieldOptions]);
@@ -344,6 +379,36 @@ export default function AdminMembersTab() {
         </div>
       </div>
 
+      {isFullAdmin && passwordResetDelivery && (
+        <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-4">
+          <p className="text-sm font-bold text-green-900">비밀번호 재설정 전달 준비 완료</p>
+          <p className="mt-1 text-xs leading-5 text-green-800">
+            {passwordResetDelivery.pushSentCount > 0
+              ? `성도의 등록 기기 ${passwordResetDelivery.pushSentCount}곳에 푸시를 보냈습니다.`
+              : "등록된 푸시 기기가 없습니다. 아래 링크를 등록 연락처로 직접 전달해주세요."}
+            {" "}이 링크는 24시간 동안 한 번만 사용할 수 있습니다.
+          </p>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <input
+              readOnly
+              value={passwordResetDelivery.resetUrl}
+              className="min-w-0 flex-1 rounded-lg border border-green-200 bg-white px-3 py-2 text-xs text-gray-700"
+              onFocus={(event) => event.currentTarget.select()}
+            />
+            <button
+              type="button"
+              onClick={copyPasswordResetLink}
+              className="shrink-0 rounded-lg bg-[#1B5E20] px-4 py-2 text-xs font-semibold text-white hover:bg-[#154a18]"
+            >
+              링크 복사
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] text-green-700">
+            만료: {passwordResetDelivery.expiresAt.toLocaleString("ko-KR")}
+          </p>
+        </div>
+      )}
+
       {isFullAdmin && passwordResetRequests.length > 0 && (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -352,13 +417,12 @@ export default function AdminMembersTab() {
                 비밀번호 재설정 요청 {passwordResetRequests.length}건
               </p>
               <p className="mt-0.5 text-xs text-amber-700">
-                성도 정보를 열어 임시 비밀번호를 설정한 뒤 등록된 연락처로 안내해주세요.
+                등록된 전화번호로 본인을 확인한 뒤 일회용 재설정 링크를 발급해주세요.
               </p>
             </div>
           </div>
           <div className="space-y-2">
             {passwordResetRequests.map((request) => {
-              const member = members.find((item) => item.id === request.memberId);
               return (
                 <div key={request.id} className="flex flex-col gap-2 rounded-lg border border-amber-100 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0 text-sm">
@@ -374,11 +438,21 @@ export default function AdminMembersTab() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => member && openMemberEditor(member as AdminMember, "account")}
-                    disabled={!member}
+                    onClick={() => {
+                      const confirmed = window.confirm(
+                        `${request.name}${request.position ? ` (${request.position})` : ""}님의 등록 전화번호로 본인 확인을 마쳤습니까?\n\n확인을 누르면 24시간짜리 일회용 재설정 링크가 발급됩니다.`,
+                      );
+                      if (confirmed) {
+                        setPasswordResetDelivery(null);
+                        approvePasswordResetMutation.mutate({ requestId: request.id });
+                      }
+                    }}
+                    disabled={approvePasswordResetMutation.isPending}
                     className="shrink-0 rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-40"
                   >
-                    비밀번호 초기화
+                    {approvePasswordResetMutation.isPending && approvePasswordResetMutation.variables?.requestId === request.id
+                      ? "링크 발급 중..."
+                      : "본인 확인 완료"}
                   </button>
                 </div>
               );

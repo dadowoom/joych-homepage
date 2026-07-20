@@ -8,6 +8,7 @@ const HIDDEN_PATH_PREFIXES = [
   "/member/login",
   "/member/register",
   "/member/account-recovery",
+  "/member/password-reset",
   "/member/social-complete",
 ];
 

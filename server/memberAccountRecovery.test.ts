@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext, TrpcUser } from "./_core/context";
 
 const dbMocks = vi.hoisted(() => ({
+  approveMemberPasswordResetRequest: vi.fn(),
+  completeMemberPasswordReset: vi.fn(),
   createMemberPasswordResetRequest: vi.fn(),
   getMembersByNameAndPhone: vi.fn(),
   getMemberSocialProviders: vi.fn(),
@@ -9,6 +11,7 @@ const dbMocks = vi.hoisted(() => ({
 }));
 
 const pushMocks = vi.hoisted(() => ({
+  notifyMemberPasswordResetApproved: vi.fn(),
   notifyMemberPasswordResetRequest: vi.fn(),
 }));
 
@@ -16,6 +19,8 @@ vi.mock("./db", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./db")>();
   return {
     ...actual,
+    approveMemberPasswordResetRequest: dbMocks.approveMemberPasswordResetRequest,
+    completeMemberPasswordReset: dbMocks.completeMemberPasswordReset,
     createMemberPasswordResetRequest: dbMocks.createMemberPasswordResetRequest,
     getMembersByNameAndPhone: dbMocks.getMembersByNameAndPhone,
     getMemberSocialProviders: dbMocks.getMemberSocialProviders,
@@ -27,6 +32,7 @@ vi.mock("./_core/pushNotifications", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./_core/pushNotifications")>();
   return {
     ...actual,
+    notifyMemberPasswordResetApproved: pushMocks.notifyMemberPasswordResetApproved,
     notifyMemberPasswordResetRequest: pushMocks.notifyMemberPasswordResetRequest,
   };
 });
@@ -90,7 +96,21 @@ describe("member account recovery", () => {
     dbMocks.getMembersByNameAndPhone.mockResolvedValue([]);
     dbMocks.getMemberSocialProviders.mockResolvedValue([]);
     dbMocks.createMemberPasswordResetRequest.mockResolvedValue({ id: 701, created: true });
+    dbMocks.approveMemberPasswordResetRequest.mockResolvedValue({
+      id: 701,
+      memberId: 81,
+      name: "계정성도",
+      phone: "010-1234-5678",
+      position: "집사",
+    });
+    dbMocks.completeMemberPasswordReset.mockResolvedValue({ status: "completed", memberId: 81 });
     dbMocks.getPendingMemberPasswordResetRequests.mockResolvedValue([]);
+    pushMocks.notifyMemberPasswordResetApproved.mockResolvedValue({
+      subscriptionCount: 1,
+      sentCount: 1,
+      expiredCount: 0,
+      failedCount: 0,
+    });
   });
 
   it("로그인 이메일은 앞부분을 가리고 전체 주소나 비밀번호 해시를 노출하지 않는다", async () => {
@@ -181,6 +201,53 @@ describe("member account recovery", () => {
 
     await expect(adminCaller.members.passwordResetRequests()).resolves.toEqual([{ id: 701, memberId: 81 }]);
     await expect(guestCaller.members.passwordResetRequests()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("최고관리자가 본인 확인을 완료하면 24시간짜리 일회용 링크를 성도 푸시로 보낸다", async () => {
+    const caller = appRouter.createCaller(createContext("203.0.113.89", createAdminUser()));
+
+    const result = await caller.members.approvePasswordResetRequest({ requestId: 701 });
+
+    expect(result.success).toBe(true);
+    expect(result.pushSentCount).toBe(1);
+    expect(result.resetPath).toMatch(/^\/member\/password-reset\?token=/);
+    expect(dbMocks.approveMemberPasswordResetRequest).toHaveBeenCalledWith(
+      701,
+      1,
+      expect.stringMatching(/^[a-f0-9]{64}$/),
+      expect.any(Date),
+    );
+    expect(pushMocks.notifyMemberPasswordResetApproved).toHaveBeenCalledWith(expect.objectContaining({
+      memberId: 81,
+      resetPath: result.resetPath,
+    }));
+  });
+
+  it("일회용 링크로 새 비밀번호를 저장하면 성공하고 기존 세션 폐기는 DB 처리에 맡긴다", async () => {
+    const caller = appRouter.createCaller(createContext("203.0.113.90"));
+
+    await expect(caller.members.completePasswordReset({
+      token: "a".repeat(43),
+      newPassword: "newpassword2026",
+    })).resolves.toEqual({ success: true });
+
+    expect(dbMocks.completeMemberPasswordReset).toHaveBeenCalledWith(
+      expect.stringMatching(/^[a-f0-9]{64}$/),
+      expect.any(String),
+    );
+  });
+
+  it("이미 사용한 일회용 링크는 다시 사용할 수 없다", async () => {
+    dbMocks.completeMemberPasswordReset.mockResolvedValue({ status: "invalid" });
+    const caller = appRouter.createCaller(createContext("203.0.113.91"));
+
+    await expect(caller.members.completePasswordReset({
+      token: "b".repeat(43),
+      newPassword: "newpassword2026",
+    })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining("이미 사용"),
+    });
   });
 
   it("계정 찾기는 같은 IP에서 시간당 다섯 번을 넘기면 제한한다", async () => {

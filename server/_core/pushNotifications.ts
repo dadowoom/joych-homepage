@@ -211,25 +211,32 @@ export async function sendPushToMember(
   memberId: number | null | undefined,
   payload: PushPayload,
   context: string,
-): Promise<void> {
+): Promise<PushDispatchResult> {
+  const emptyResult: PushDispatchResult = {
+    subscriptionCount: 0,
+    sentCount: 0,
+    expiredCount: 0,
+    failedCount: 0,
+  };
   try {
     if (!memberId) {
       console.warn(`[push] No member target for ${context}`);
-      return;
+      return emptyResult;
     }
-    if (!initWebPush()) return;
+    if (!initWebPush()) return emptyResult;
 
     const db = await getDb();
-    if (!db) return;
+    if (!db) return emptyResult;
 
     const subscriptions = await db
       .select()
       .from(pushSubscriptions)
       .where(eq(pushSubscriptions.memberId, memberId));
 
-    await dispatchPushSubscriptions(subscriptions, payload, `${context} memberId=${memberId}`);
+    return await dispatchPushSubscriptions(subscriptions, payload, `${context} memberId=${memberId}`);
   } catch (error) {
     console.error(`[push] Member notification failed context=${context}`, error);
+    return emptyResult;
   }
 }
 
@@ -259,6 +266,19 @@ export function notifyMemberPasswordResetRequest(params: {
     url: "/admin_joych_2026?tab=members&passwordResetRequest=1",
     tag: `member-password-reset-${params.requestId}`,
   });
+}
+
+export function notifyMemberPasswordResetApproved(params: {
+  memberId: number;
+  resetPath: string;
+  expiresAt: Date;
+}) {
+  return sendPushToMember(params.memberId, {
+    title: "비밀번호 재설정 본인 확인 완료",
+    body: "눌러서 24시간 안에 새 비밀번호를 설정해주세요. 비밀번호 자체는 알림에 표시되지 않습니다.",
+    url: params.resetPath,
+    tag: `member-password-reset-approved-${params.memberId}`,
+  }, "member-password-reset-approved");
 }
 
 export function notifyFacilityReservation(params: {

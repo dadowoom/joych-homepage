@@ -25,6 +25,7 @@
  *   - 관리자: adminList, pendingList, updateChurchInfo, adminFieldOptions, 등
  */
 
+import crypto from "node:crypto";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { adminPermissionProcedure, adminProcedure, publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
@@ -66,6 +67,8 @@ import {
   getMemberSocialProviders,
   createMember,
   createMemberPasswordResetRequest,
+  approveMemberPasswordResetRequest,
+  completeMemberPasswordReset,
   decidePendingMemberRegistration,
   updateMemberBasicInfo,
   updateMemberChurchInfo,
@@ -81,13 +84,22 @@ import {
   withdrawMemberAndErasePersonalData,
   getSiteSetting,
 } from "../db";
-import { notifyMemberPasswordResetRequest, notifyMemberRegistration } from "../_core/pushNotifications";
+import {
+  notifyMemberPasswordResetApproved,
+  notifyMemberPasswordResetRequest,
+  notifyMemberRegistration,
+} from "../_core/pushNotifications";
 import {
   MemberRegistrationBusyError,
   withMemberRegistrationIdentityLock,
 } from "../_core/memberRegistrationLock";
 
 const idSchema = z.number().int().positive();
+const MEMBER_PASSWORD_RESET_LINK_TTL_MS = 24 * 60 * 60 * 1000;
+
+function hashPasswordResetToken(token: string) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
 const fieldTypeSchema = z.enum(["position", "department", "district", "baptism"]);
 const registerOptionFieldKeys = ["position", "department", "district"] as const;
 const editableChurchDate = z.string()
@@ -356,6 +368,40 @@ export const membersRouter = router({
         accepted: true,
         message: "입력하신 정보와 일치하는 일반가입 계정이 있으면 관리자에게 재설정 요청이 전달됩니다.",
       };
+    }),
+
+  /** 관리자 확인 후 발급된 24시간짜리 일회용 링크로 새 비밀번호를 설정합니다. */
+  completePasswordReset: publicProcedure
+    .input(z.object({
+      token: z.string().trim().min(32).max(256),
+      newPassword: memberPasswordSchema,
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const clientIp = getClientIp(ctx.req);
+      try {
+        checkAccountRecoveryRateLimit(`password-reset-complete:${clientIp}`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "비밀번호 재설정 시도가 너무 많습니다.";
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message });
+      }
+
+      const bcrypt = await import("bcryptjs");
+      const passwordHash = await bcrypt.hash(input.newPassword, 10);
+      const result = await completeMemberPasswordReset(hashPasswordResetToken(input.token), passwordHash);
+      if (result.status === "expired") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "재설정 링크의 24시간 유효기간이 지났습니다. 다시 요청해주세요.",
+        });
+      }
+      if (result.status !== "completed") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "이미 사용했거나 올바르지 않은 재설정 링크입니다.",
+        });
+      }
+
+      return { success: true };
     }),
 
   /**
@@ -670,6 +716,41 @@ export const membersRouter = router({
 
   /** 최고관리자용 비밀번호 재설정 요청 목록 */
   passwordResetRequests: adminProcedure.query(() => getPendingMemberPasswordResetRequests()),
+
+  /** 등록 연락처로 본인 확인을 마친 요청에 일회용 링크를 발급하고 성도 푸시로 전달합니다. */
+  approvePasswordResetRequest: adminProcedure
+    .input(z.object({ requestId: idSchema }))
+    .mutation(async ({ input, ctx }) => {
+      const resetToken = crypto.randomBytes(32).toString("base64url");
+      const resetTokenHash = hashPasswordResetToken(resetToken);
+      const resetTokenExpiresAt = new Date(Date.now() + MEMBER_PASSWORD_RESET_LINK_TTL_MS);
+      const request = await approveMemberPasswordResetRequest(
+        input.requestId,
+        ctx.user.id,
+        resetTokenHash,
+        resetTokenExpiresAt,
+      );
+      if (!request) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "이미 처리됐거나 만료된 비밀번호 재설정 요청입니다.",
+        });
+      }
+
+      const resetPath = `/member/password-reset?token=${encodeURIComponent(resetToken)}`;
+      const pushResult = await notifyMemberPasswordResetApproved({
+        memberId: request.memberId,
+        resetPath,
+        expiresAt: resetTokenExpiresAt,
+      });
+
+      return {
+        success: true,
+        resetPath,
+        expiresAt: resetTokenExpiresAt,
+        pushSentCount: pushResult.sentCount,
+      };
+    }),
 
   /** 회원가입 승인 권한 담당자용 승인 대기 목록 */
   approvalList: memberApprovalProcedure.query(async () =>

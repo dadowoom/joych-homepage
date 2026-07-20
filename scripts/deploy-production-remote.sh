@@ -2471,6 +2471,76 @@ else
   exit 1
 fi
 
+MIGRATION_0087="${APP_DIR}/drizzle/0087_member_password_reset_delivery.sql"
+if [[ -f "${MIGRATION_0087}" ]]; then
+  echo "[deploy] database migration: secure member password reset delivery"
+  node --input-type=module <<'NODE'
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required for migration 0087.");
+}
+
+const migrationId = "0087_member_password_reset_delivery";
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await connection.execute(`
+    ALTER TABLE member_password_reset_requests
+      MODIFY COLUMN status enum('pending','approved','resolved','cancelled') NOT NULL DEFAULT 'pending'
+  `);
+
+  const [columns] = await connection.execute(
+    "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'member_password_reset_requests'",
+  );
+  const columnNames = new Set(Array.isArray(columns) ? columns.map((row) => row.COLUMN_NAME) : []);
+  const additions = [
+    ["reset_token_hash", "ADD COLUMN reset_token_hash varchar(64) NULL AFTER requested_at"],
+    ["reset_token_expires_at", "ADD COLUMN reset_token_expires_at timestamp NULL DEFAULT NULL AFTER reset_token_hash"],
+    ["approved_by", "ADD COLUMN approved_by int NULL AFTER reset_token_expires_at"],
+    ["approved_at", "ADD COLUMN approved_at timestamp NULL DEFAULT NULL AFTER approved_by"],
+  ];
+  for (const [column, ddl] of additions) {
+    if (!columnNames.has(column)) {
+      await connection.execute(`ALTER TABLE member_password_reset_requests ${ddl}`);
+    }
+  }
+
+  const [indexes] = await connection.execute(
+    "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'member_password_reset_requests' AND INDEX_NAME = 'member_password_reset_requests_token_hash_unique'",
+  );
+  if (!Array.isArray(indexes) || indexes.length === 0) {
+    await connection.execute(`
+      ALTER TABLE member_password_reset_requests
+        ADD UNIQUE KEY member_password_reset_requests_token_hash_unique (reset_token_hash)
+    `);
+  }
+
+  const [rows] = await connection.execute(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    [migrationId],
+  );
+  if (!Array.isArray(rows) || rows.length === 0) {
+    await connection.execute("INSERT INTO app_migrations (id) VALUES (?)", [migrationId]);
+    console.log("[deploy] migration 0087 applied");
+  } else {
+    console.log("[deploy] migration 0087 already applied and schema verified");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+else
+  echo "[deploy] missing migration file: ${MIGRATION_0087}" >&2
+  exit 1
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4
