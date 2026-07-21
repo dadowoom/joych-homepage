@@ -13,6 +13,10 @@
 import { and, asc, desc, eq, gte, like } from "drizzle-orm";
 import { youtubePlaylists, youtubeVideos, menus, menuItems, menuSubItems } from "../../drizzle/schema";
 import { makeUniqueMenuPageHref, type MenuHrefCandidate } from "../_core/menuHref";
+import {
+  getCanonicalJoyfulTvPlaylistTitle,
+  matchesJoyfulTvPlaylistMenuLabel,
+} from "../_core/youtubePlaylistMenu";
 import { getDb } from "./connection";
 
 const JOYFUL_TV_MENU_LABEL = "조이풀TV";
@@ -210,7 +214,7 @@ export async function reorderYoutubeVideos(orderedIds: number[]) {
 /**
  * 플레이리스트 이름과 메뉴에 playlistId 자동 연결
  * - 2단 메뉴(menuItems)와 3단 메뉴(menuSubItems) 모두 검색
- * - 이름이 같은 메뉴가 있으면 해당 메뉴의 playlistId를 업데이트
+ * - 이름이 같거나 정해진 조이풀TV 3단 메뉴 별칭이면 해당 메뉴의 playlistId를 업데이트
  * - 조이풀TV 아래에 동일 이름 메뉴가 없으면 2단 메뉴를 자동 생성
  */
 export async function syncPlaylistToMenu(playlistId: number, title: string) {
@@ -252,12 +256,19 @@ export async function syncPlaylistToMenu(playlistId: number, title: string) {
 
   let updatedMenuItems = 0;
   let updatedMenuSubItems = 0;
+  const canonicalPlaylistTitle = getCanonicalJoyfulTvPlaylistTitle(playlistId, title);
   const joyfulItemIds = new Set(itemList
     .filter(item => joyfulTvMenu && item.menuId === joyfulTvMenu.id)
     .map(item => item.id));
 
-  // 2단 메뉴에서 동일 이름 검색 후 연결
-  const matchingItems = itemList.filter(item => item.label === title);
+  // 2단 메뉴에서 동일 이름을 연결하고, 조이풀TV 안에서는 정해진 별칭도 함께 인식합니다.
+  const matchingItems = itemList.filter(item =>
+    item.label === title || (
+      joyfulTvMenu &&
+      item.menuId === joyfulTvMenu.id &&
+      matchesJoyfulTvPlaylistMenuLabel(item.label, playlistId, title)
+    ),
+  );
   const joyfulTvMatchingItems = matchingItems.filter(item =>
     joyfulTvMenu && item.menuId === joyfulTvMenu.id
   );
@@ -294,8 +305,13 @@ export async function syncPlaylistToMenu(playlistId: number, title: string) {
     updatedMenuItems += 1;
   }
 
-  // 3단 메뉴에서 동일 이름 검색 후 연결
-  const matchingSubItems = subItemList.filter(sub => sub.label === title);
+  // 3단 메뉴에서 동일 이름과 정해진 메뉴 별칭을 검색해 연결합니다.
+  const matchingSubItems = subItemList.filter(sub =>
+    sub.label === title || (
+      joyfulItemIds.has(sub.menuItemId) &&
+      matchesJoyfulTvPlaylistMenuLabel(sub.label, playlistId, title)
+    ),
+  );
   for (const sub of matchingSubItems) {
     const isJoyfulTvSubItem = joyfulItemIds.has(sub.menuItemId);
     await db.update(menuSubItems)
@@ -322,12 +338,12 @@ export async function syncPlaylistToMenu(playlistId: number, title: string) {
     .filter(item => item.menuId === joyfulTvMenu.id)
     .reduce((max, item) => Math.max(max, item.sortOrder), 0);
   const href = makeUniqueMenuPageHref(
-    [JOYFUL_TV_MENU_LABEL, title],
+    [JOYFUL_TV_MENU_LABEL, canonicalPlaylistTitle],
     collectMenuHrefCandidates(menuList, itemList, subItemList),
   );
   await db.insert(menuItems).values({
     menuId: joyfulTvMenu.id,
-    label: title,
+    label: canonicalPlaylistTitle,
     href,
     sortOrder: maxItemSortOrder + 1,
     isVisible: true,

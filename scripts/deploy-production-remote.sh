@@ -2697,6 +2697,73 @@ else
   exit 1
 fi
 
+MIGRATION_0091="${APP_DIR}/drizzle/0091_joyfultv_playlist_links.sql"
+if [[ -f "${MIGRATION_0091}" ]]; then
+  echo "[deploy] database migration: Joyful TV third-level playlist links"
+  node --input-type=module <<'NODE'
+import fs from "node:fs/promises";
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error("DATABASE_URL is required for migration 0091.");
+
+const migrationId = "0091_joyfultv_playlist_links";
+const connection = await mysql.createConnection({ uri: databaseUrl, multipleStatements: true });
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  const sql = await fs.readFile("drizzle/0091_joyfultv_playlist_links.sql", "utf8");
+  await connection.query(sql);
+
+  const [playlistRows] = await connection.execute(
+    "SELECT COUNT(*) AS count FROM youtube_playlists WHERE id IN (90007,90008,90009,90010,90011,90015,90016,90017)",
+  );
+  const [linkRows] = await connection.execute(`
+    SELECT COUNT(*) AS count
+    FROM menu_sub_items AS sub
+    INNER JOIN menu_items AS item ON item.id = sub.menuItemId
+    INNER JOIN menus AS menu ON menu.id = item.menuId
+    WHERE REPLACE(LOWER(menu.label), ' ', '') IN ('조이풀tv', '조이풀티비')
+      AND item.label = '찬양'
+      AND sub.pageType = 'youtube'
+      AND (
+        (sub.label = '[주일 1부]샬롬 찬양대' AND sub.playlistId = 90007) OR
+        (sub.label = '[주일 2부]호산나 찬양대' AND sub.playlistId = 90008) OR
+        (sub.label = '[주일 3부]시온 찬양대' AND sub.playlistId = 90009) OR
+        (sub.label = '[주일 찬양팀]조이언스' AND sub.playlistId = 90010) OR
+        (sub.label = '[수요 찬양팀]디사이플스' AND sub.playlistId = 90011) OR
+        (sub.label = '[금요 찬양팀]카리스' AND sub.playlistId = 90015) OR
+        (sub.label = '[청년부 찬양팀]리빌드' AND sub.playlistId = 90016) OR
+        (sub.label = '예배특송' AND sub.playlistId = 90017)
+      )
+  `);
+  const playlistCount = Number(playlistRows?.[0]?.count ?? 0);
+  const linkCount = Number(linkRows?.[0]?.count ?? 0);
+  if (playlistCount !== 8 || linkCount !== 8) {
+    throw new Error(`Migration 0091 invariant failed: playlists=${playlistCount}, links=${linkCount}`);
+  }
+
+  const [rows] = await connection.execute("SELECT id FROM app_migrations WHERE id = ? LIMIT 1", [migrationId]);
+  if (!Array.isArray(rows) || rows.length === 0) {
+    await connection.execute("INSERT INTO app_migrations (id) VALUES (?)", [migrationId]);
+    console.log("[deploy] migration 0091 applied");
+  } else {
+    console.log("[deploy] migration 0091 already applied and links verified");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+else
+  echo "[deploy] missing migration file: ${MIGRATION_0091}" >&2
+  exit 1
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4
