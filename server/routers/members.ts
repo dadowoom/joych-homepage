@@ -48,6 +48,7 @@ import {
 import {
   MEMBER_APPROVAL_PERMISSION_KEY,
 } from "@shared/adminPermissions";
+import { MEMBER_SELF_SERVICE_TEMP_PASSWORD } from "@shared/memberPasswordRecovery";
 import {
   MEMBER_REGISTER_FIELD_CONFIG_KEY,
   MEMBER_REGISTER_FIELD_DEFINITIONS,
@@ -66,7 +67,6 @@ import {
   getMembersByNameAndPhone,
   getMemberSocialProviders,
   createMember,
-  createMemberPasswordResetRequest,
   approveMemberPasswordResetRequest,
   completeMemberPasswordReset,
   decidePendingMemberRegistration,
@@ -86,7 +86,6 @@ import {
 } from "../db";
 import {
   notifyMemberPasswordResetApproved,
-  notifyMemberPasswordResetRequest,
   notifyMemberRegistration,
 } from "../_core/pushNotifications";
 import {
@@ -323,6 +322,7 @@ export const membersRouter = router({
         accounts: matches.map((member) => ({
           maskedEmail: maskMemberLoginEmail(member.email),
           hasPassword: Boolean(member.passwordHash),
+          canResetPassword: member.status === "approved" && Boolean(member.passwordHash),
           socialProviders: (providerMap.get(member.id) ?? []).map(
             (provider) => MEMBER_SOCIAL_PROVIDER_LABELS[provider],
           ),
@@ -330,10 +330,7 @@ export const membersRouter = router({
       };
     }),
 
-  /**
-   * 비밀번호 원문은 복구하지 않습니다. 일치하는 일반가입 계정의 재설정 요청만
-   * 최고관리자에게 전달하고, 성공 여부와 관계없이 같은 응답을 반환합니다.
-   */
+  /** 이름·연락처·생년월일이 일치하는 승인된 일반가입 계정을 즉시 임시 비밀번호로 초기화합니다. */
   requestPasswordReset: publicProcedure
     .input(z.object({
       name: requiredText(64, "이름을 입력해주세요."),
@@ -351,22 +348,21 @@ export const membersRouter = router({
 
       const identityMatches = await getMembersByNameAndPhone(input.name, input.phone);
       const matches = identityMatches.filter(
-        (member) => member.birthDate === input.birthDate && Boolean(member.passwordHash),
+        (member) => member.birthDate === input.birthDate
+          && member.status === "approved"
+          && Boolean(member.passwordHash),
       );
       for (const member of matches) {
-        const request = await createMemberPasswordResetRequest(member.id);
-        if (request.created) {
-          void notifyMemberPasswordResetRequest({
-            requestId: request.id,
-            name: member.name,
-            position: member.position,
-          });
-        }
+        await adminResetMemberPassword(member.id, MEMBER_SELF_SERVICE_TEMP_PASSWORD);
       }
 
       return {
         accepted: true,
-        message: "입력하신 정보와 일치하는 일반가입 계정이 있으면 관리자에게 재설정 요청이 전달됩니다.",
+        reset: matches.length > 0,
+        temporaryPassword: matches.length > 0 ? MEMBER_SELF_SERVICE_TEMP_PASSWORD : null,
+        message: matches.length > 0
+          ? "비밀번호가 임시 비밀번호로 초기화되었습니다."
+          : "초기화할 수 있는 승인된 일반가입 계정을 찾지 못했습니다.",
       };
     }),
 

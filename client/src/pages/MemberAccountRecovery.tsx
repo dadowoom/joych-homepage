@@ -8,6 +8,7 @@ import {
   MEMBER_PHONE_ERROR_MESSAGE,
   normalizeMemberPhone,
 } from "@shared/memberPhone";
+import { MEMBER_SELF_SERVICE_TEMP_PASSWORD } from "@shared/memberPasswordRecovery";
 
 export default function MemberAccountRecovery() {
   const [form, setForm] = useState({ name: "", phone: "", birthDate: "" });
@@ -18,7 +19,7 @@ export default function MemberAccountRecovery() {
     onSuccess: () => setRequestSubmitted(false),
   });
   const resetRequestMutation = trpc.members.requestPasswordReset.useMutation({
-    onSuccess: () => setRequestSubmitted(true),
+    onSuccess: (result) => setRequestSubmitted(result.reset),
   });
 
   const update = (field: keyof typeof form, value: string) => {
@@ -57,7 +58,7 @@ export default function MemberAccountRecovery() {
   };
 
   const accounts = findMutation.data?.accounts ?? [];
-  const canRequestPasswordReset = accounts.some((account) => account.hasPassword);
+  const canRequestPasswordReset = accounts.some((account) => account.canResetPassword);
   const inputClass = (field: keyof typeof form) =>
     `w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition focus:ring-2 focus:ring-[#1B5E20]/25 ${
       errors[field] ? "border-red-400" : "border-gray-300 focus:border-[#1B5E20]"
@@ -173,7 +174,7 @@ export default function MemberAccountRecovery() {
                       className="flex w-full items-center justify-center gap-2 rounded-lg border border-amber-300 bg-amber-50 py-3 text-sm font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
                     >
                       <ShieldCheck className="h-4 w-4" />
-                      {resetRequestMutation.isPending ? "요청 중..." : "비밀번호 재설정 요청"}
+                      {resetRequestMutation.isPending ? "초기화 중..." : "비밀번호 초기화"}
                     </button>
                   )}
 
@@ -184,9 +185,25 @@ export default function MemberAccountRecovery() {
                   )}
 
                   {requestSubmitted && (
-                    <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm leading-6 text-green-800">
-                      재설정 요청이 접수됐습니다. 관리자가 등록된 연락처로 본인 확인 후 24시간짜리 일회용 재설정 링크를 푸시로 전달합니다. 푸시를 받지 못하면 관리자가 같은 링크를 전화·문자로 안내할 수 있습니다.
+                    <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-4 text-sm leading-6 text-green-800">
+                      <p className="font-bold">비밀번호가 초기화되었습니다.</p>
+                      <p className="mt-2 text-xs text-green-700">임시 비밀번호</p>
+                      <p className="mt-0.5 rounded-lg border border-green-200 bg-white px-3 py-2 text-center font-mono text-xl font-bold tracking-wider text-[#1B5E20]">
+                        {resetRequestMutation.data?.temporaryPassword ?? MEMBER_SELF_SERVICE_TEMP_PASSWORD}
+                      </p>
+                      <p className="mt-2 text-xs leading-5 text-green-700">
+                        위 비밀번호로 로그인한 뒤 내 정보에서 새 비밀번호로 변경해주세요. 기존에 로그인돼 있던 기기는 보안을 위해 로그아웃됩니다.
+                      </p>
+                      <Link href="/member/login" className="mt-3 flex w-full items-center justify-center rounded-lg bg-[#1B5E20] py-2.5 text-sm font-bold text-white">
+                        로그인하러 가기
+                      </Link>
                     </div>
+                  )}
+
+                  {resetRequestMutation.data && !resetRequestMutation.data.reset && (
+                    <p className="rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+                      {resetRequestMutation.data.message}
+                    </p>
                   )}
                 </div>
               ) : (

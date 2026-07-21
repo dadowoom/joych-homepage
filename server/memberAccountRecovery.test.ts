@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext, TrpcUser } from "./_core/context";
 
 const dbMocks = vi.hoisted(() => ({
+  adminResetMemberPassword: vi.fn(),
   approveMemberPasswordResetRequest: vi.fn(),
   completeMemberPasswordReset: vi.fn(),
-  createMemberPasswordResetRequest: vi.fn(),
   getMembersByNameAndPhone: vi.fn(),
   getMemberSocialProviders: vi.fn(),
   getPendingMemberPasswordResetRequests: vi.fn(),
@@ -12,16 +12,15 @@ const dbMocks = vi.hoisted(() => ({
 
 const pushMocks = vi.hoisted(() => ({
   notifyMemberPasswordResetApproved: vi.fn(),
-  notifyMemberPasswordResetRequest: vi.fn(),
 }));
 
 vi.mock("./db", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./db")>();
   return {
     ...actual,
+    adminResetMemberPassword: dbMocks.adminResetMemberPassword,
     approveMemberPasswordResetRequest: dbMocks.approveMemberPasswordResetRequest,
     completeMemberPasswordReset: dbMocks.completeMemberPasswordReset,
-    createMemberPasswordResetRequest: dbMocks.createMemberPasswordResetRequest,
     getMembersByNameAndPhone: dbMocks.getMembersByNameAndPhone,
     getMemberSocialProviders: dbMocks.getMemberSocialProviders,
     getPendingMemberPasswordResetRequests: dbMocks.getPendingMemberPasswordResetRequests,
@@ -33,7 +32,6 @@ vi.mock("./_core/pushNotifications", async (importOriginal) => {
   return {
     ...actual,
     notifyMemberPasswordResetApproved: pushMocks.notifyMemberPasswordResetApproved,
-    notifyMemberPasswordResetRequest: pushMocks.notifyMemberPasswordResetRequest,
   };
 });
 
@@ -95,7 +93,7 @@ describe("member account recovery", () => {
     vi.clearAllMocks();
     dbMocks.getMembersByNameAndPhone.mockResolvedValue([]);
     dbMocks.getMemberSocialProviders.mockResolvedValue([]);
-    dbMocks.createMemberPasswordResetRequest.mockResolvedValue({ id: 701, created: true });
+    dbMocks.adminResetMemberPassword.mockResolvedValue(undefined);
     dbMocks.approveMemberPasswordResetRequest.mockResolvedValue({
       id: 701,
       memberId: 81,
@@ -127,8 +125,8 @@ describe("member account recovery", () => {
     expect(result).toEqual({
       found: true,
       accounts: [
-        { maskedEmail: "jo***********@example.com", hasPassword: true, socialProviders: [] },
-        { maskedEmail: "so***********@example.com", hasPassword: false, socialProviders: ["Google"] },
+        { maskedEmail: "jo***********@example.com", hasPassword: true, canResetPassword: true, socialProviders: [] },
+        { maskedEmail: "so***********@example.com", hasPassword: false, canResetPassword: false, socialProviders: ["Google"] },
       ],
     });
     expect(JSON.stringify(result)).not.toContain("never-return-this-hash");
@@ -146,7 +144,7 @@ describe("member account recovery", () => {
     })).resolves.toEqual({ found: false, accounts: [] });
   });
 
-  it("일치하는 일반가입 계정만 재설정 요청을 만들고 최고관리자 푸시를 한 번 보낸다", async () => {
+  it("일치하는 승인된 일반가입 계정을 관리자 승인 없이 고정 임시 비밀번호로 초기화한다", async () => {
     dbMocks.getMembersByNameAndPhone.mockResolvedValue([passwordMember, socialMember]);
     const caller = appRouter.createCaller(createContext("203.0.113.83"));
 
@@ -156,28 +154,28 @@ describe("member account recovery", () => {
       birthDate: "1980-02-03",
     });
 
-    expect(result).toEqual(expect.objectContaining({ accepted: true }));
-    expect(dbMocks.createMemberPasswordResetRequest).toHaveBeenCalledTimes(1);
-    expect(dbMocks.createMemberPasswordResetRequest).toHaveBeenCalledWith(81);
-    expect(pushMocks.notifyMemberPasswordResetRequest).toHaveBeenCalledWith({
-      requestId: 701,
-      name: "계정성도",
-      position: "집사",
+    expect(result).toEqual({
+      accepted: true,
+      reset: true,
+      temporaryPassword: "0542701000",
+      message: "비밀번호가 임시 비밀번호로 초기화되었습니다.",
     });
+    expect(dbMocks.adminResetMemberPassword).toHaveBeenCalledTimes(1);
+    expect(dbMocks.adminResetMemberPassword).toHaveBeenCalledWith(81, "0542701000");
   });
 
-  it("이미 대기 중인 재설정 요청은 중복 푸시하지 않는다", async () => {
-    dbMocks.getMembersByNameAndPhone.mockResolvedValue([passwordMember]);
-    dbMocks.createMemberPasswordResetRequest.mockResolvedValue({ id: 701, created: false });
+  it("승인 대기 계정은 본인정보가 일치해도 자동 초기화하지 않는다", async () => {
+    dbMocks.getMembersByNameAndPhone.mockResolvedValue([{ ...passwordMember, status: "pending" }]);
     const caller = appRouter.createCaller(createContext("203.0.113.84"));
 
-    await caller.members.requestPasswordReset({
+    const result = await caller.members.requestPasswordReset({
       name: "계정성도",
       phone: "010-1234-5678",
       birthDate: "1980-02-03",
     });
 
-    expect(pushMocks.notifyMemberPasswordResetRequest).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({ reset: false, temporaryPassword: null }));
+    expect(dbMocks.adminResetMemberPassword).not.toHaveBeenCalled();
   });
 
   it("일치하는 계정이 없어도 동일한 접수 응답을 주고 요청을 만들지 않는다", async () => {
@@ -189,9 +187,8 @@ describe("member account recovery", () => {
       birthDate: "1970-01-01",
     });
 
-    expect(result).toEqual(expect.objectContaining({ accepted: true }));
-    expect(dbMocks.createMemberPasswordResetRequest).not.toHaveBeenCalled();
-    expect(pushMocks.notifyMemberPasswordResetRequest).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({ accepted: true, reset: false, temporaryPassword: null }));
+    expect(dbMocks.adminResetMemberPassword).not.toHaveBeenCalled();
   });
 
   it("재설정 요청 목록은 최고관리자만 조회한다", async () => {
