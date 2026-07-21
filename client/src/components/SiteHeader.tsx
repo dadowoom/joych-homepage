@@ -375,7 +375,16 @@ export default function SiteHeader() {
       >
         <div className="container flex items-center justify-between h-16 md:h-[72px]">
           {/* 로고 */}
-          <Link href="/" className="flex items-center">
+          <Link
+            href="/"
+            className="flex items-center"
+            onClick={(event) => {
+              if (location !== "/") return;
+
+              event.preventDefault();
+              window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+            }}
+          >
             <img
               src="https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-logo_35c62cc5.jpg"
               alt="기쁨의교회"
