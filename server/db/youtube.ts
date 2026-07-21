@@ -27,11 +27,10 @@ function isChoirPlaylist(playlistId: number) {
   return CHOIR_PLAYLIST_IDS.has(playlistId);
 }
 
-function getYoutubeVideoOrderBy(playlistId: number) {
-  if (isChoirPlaylist(playlistId)) {
-    return [desc(youtubeVideos.sermonDate), desc(youtubeVideos.id)];
-  }
-  return [asc(youtubeVideos.sortOrder), asc(youtubeVideos.id)];
+function getYoutubeVideoOrderBy(_playlistId: number) {
+  // 관리자 등록 목록과 공개 영상 목록 모두 설교 날짜를 기준으로 통일합니다.
+  // 같은 날짜의 영상은 나중에 등록한 영상이 먼저 보입니다.
+  return [desc(youtubeVideos.sermonDate), desc(youtubeVideos.id)];
 }
 
 function getVisibleChoirVideoConditions(playlistId: number) {
@@ -96,7 +95,7 @@ export async function deleteYoutubePlaylist(id: number) {
 
 // ─── 영상 CRUD ────────────────────────────────────────────────────────────────
 
-/** 특정 플레이리스트의 영상 목록 (정렬순, 관리자용) */
+/** 특정 플레이리스트의 영상 목록 (설교 날짜 최신순, 관리자용) */
 export async function getYoutubeVideosByPlaylist(playlistId: number) {
   const db = await getDb();
   if (!db) return [];
@@ -105,7 +104,7 @@ export async function getYoutubeVideosByPlaylist(playlistId: number) {
     .orderBy(...getYoutubeVideoOrderBy(playlistId));
 }
 
-/** 특정 플레이리스트의 공개 영상 목록 (정렬순, 일반 사용자용) */
+/** 특정 플레이리스트의 공개 영상 목록 (설교 날짜 최신순, 일반 사용자용) */
 export async function getVisibleYoutubeVideos(playlistId: number) {
   const db = await getDb();
   if (!db) return [];

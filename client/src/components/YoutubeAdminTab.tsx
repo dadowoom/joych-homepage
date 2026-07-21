@@ -1,20 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  closestCenter,
-  DndContext,
-  DragEndEvent,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import {
-  arrayMove,
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { Eye, EyeOff, GripVertical, LayoutGrid, List, Loader2, Pencil, Plus, Search, Trash2, Youtube } from "lucide-react";
+import { Eye, EyeOff, LayoutGrid, List, Loader2, Pencil, Plus, Search, Trash2, Youtube } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,7 +46,7 @@ function getThumbnailUrl(video: VideoListItem) {
   return video.thumbnailUrl || (video.videoId ? `https://img.youtube.com/vi/${video.videoId}/default.jpg` : null);
 }
 
-function SortableVideoItem({
+function VideoItem({
   video,
   onDelete,
   onEdit,
@@ -74,30 +59,11 @@ function SortableVideoItem({
   onToggleVisible: (video: VideoListItem) => void;
   isTogglePending: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: video.id });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
   const meta = [video.preacher, video.scripture, video.sermonDate].filter(Boolean).join(" · ");
   const thumbnailUrl = getThumbnailUrl(video);
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="group flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-2"
-    >
-      <button
-        {...attributes}
-        {...listeners}
-        className="shrink-0 cursor-grab text-gray-300 hover:text-gray-500 active:cursor-grabbing"
-        type="button"
-      >
-        <GripVertical className="h-4 w-4" />
-      </button>
+    <div className="group flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-2">
       {thumbnailUrl ? (
         <img
           src={thumbnailUrl}
@@ -149,7 +115,7 @@ function SortableVideoItem({
   );
 }
 
-function SortableVideoThumbnailItem({
+function VideoThumbnailItem({
   video,
   onDelete,
   onEdit,
@@ -162,28 +128,12 @@ function SortableVideoThumbnailItem({
   onToggleVisible: (video: VideoListItem) => void;
   isTogglePending: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: video.id });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
   const meta = [video.preacher, video.sermonDate].filter(Boolean).join(" · ");
   const thumbnailUrl = getThumbnailUrl(video);
 
   return (
-    <div ref={setNodeRef} style={style} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
       <div className="relative aspect-video bg-[#eef4ed]">
-        <button
-          {...attributes}
-          {...listeners}
-          className="absolute left-2 top-2 z-10 rounded bg-white/90 p-1 text-gray-500 shadow-sm"
-          type="button"
-          title="순서 변경"
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
         {video.isVisible === false && (
           <span className="absolute right-2 top-2 z-10 rounded-full bg-gray-900/75 px-2 py-0.5 text-[11px] font-medium text-white">
             숨김
@@ -324,15 +274,6 @@ export default function YoutubeAdminTab() {
     onError: (err) => toast.error(err.message || "영상 삭제에 실패했습니다."),
   });
 
-  const reorderVideos = trpc.youtube.reorderVideos.useMutation({
-    onSuccess: () => {
-      utils.youtube.getVideosAdmin.invalidate();
-      utils.youtube.getVideos.invalidate();
-    },
-  });
-
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-
   function resetAddVideoForm() {
     setVideoUrl("");
     setVideoTitle("");
@@ -351,15 +292,6 @@ export default function YoutubeAdminTab() {
     setEditVideoScripture("");
     setEditVideoSermonDate("");
     setEditVideoDescription("");
-  }
-
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = videos.findIndex((v) => v.id === active.id);
-    const newIndex = videos.findIndex((v) => v.id === over.id);
-    const reordered = arrayMove(videos, oldIndex, newIndex);
-    reorderVideos.mutate({ orderedIds: reordered.map((v) => v.id) });
   }
 
   function handleAddVideo() {
@@ -766,6 +698,7 @@ export default function YoutubeAdminTab() {
                   </button>
                 </div>
               </div>
+              <p className="mb-3 text-xs text-gray-500">설교 날짜 최신순으로 자동 정렬됩니다.</p>
 
               {videosLoading ? (
                 <p className="py-4 text-center text-xs text-gray-400">불러오는 중...</p>
@@ -780,35 +713,31 @@ export default function YoutubeAdminTab() {
                   <p className="mt-1 text-xs text-gray-400">설교제목, 날짜, 설교자, 본문을 다시 확인해 주세요.</p>
                 </div>
               ) : (
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                  <SortableContext items={filteredVideos.map((v) => v.id)} strategy={verticalListSortingStrategy}>
-                    <div className={videoViewMode === "thumbnail" ? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3" : "space-y-2"}>
-                      {filteredVideos.map((video) => {
-                        const commonProps = {
-                          video,
-                          onEdit: startEditVideo,
-                          onToggleVisible: (item: VideoListItem) => {
-                            toggleVideoVisibility.mutate({
-                              id: item.id,
-                              isVisible: item.isVisible === false,
-                            });
-                          },
-                          isTogglePending:
-                            toggleVideoVisibility.isPending &&
-                            toggleVideoVisibility.variables?.id === video.id,
-                          onDelete: (id: number) => {
-                            if (confirm("이 영상을 삭제할까요?")) deleteVideo.mutate({ id });
-                          },
-                        };
-                        return videoViewMode === "thumbnail" ? (
-                          <SortableVideoThumbnailItem key={video.id} {...commonProps} />
-                        ) : (
-                          <SortableVideoItem key={video.id} {...commonProps} />
-                        );
-                      })}
-                    </div>
-                  </SortableContext>
-                </DndContext>
+                <div className={videoViewMode === "thumbnail" ? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3" : "space-y-2"}>
+                  {filteredVideos.map((video) => {
+                    const commonProps = {
+                      video,
+                      onEdit: startEditVideo,
+                      onToggleVisible: (item: VideoListItem) => {
+                        toggleVideoVisibility.mutate({
+                          id: item.id,
+                          isVisible: item.isVisible === false,
+                        });
+                      },
+                      isTogglePending:
+                        toggleVideoVisibility.isPending &&
+                        toggleVideoVisibility.variables?.id === video.id,
+                      onDelete: (id: number) => {
+                        if (confirm("이 영상을 삭제할까요?")) deleteVideo.mutate({ id });
+                      },
+                    };
+                    return videoViewMode === "thumbnail" ? (
+                      <VideoThumbnailItem key={video.id} {...commonProps} />
+                    ) : (
+                      <VideoItem key={video.id} {...commonProps} />
+                    );
+                  })}
+                </div>
               )}
             </>
           )}
