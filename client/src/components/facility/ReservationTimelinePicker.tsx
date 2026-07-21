@@ -133,7 +133,7 @@ export default function ReservationTimelinePicker({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-medium text-[#1B5E20]">{guideText}</p>
         {showSelectAll && (
@@ -158,7 +158,7 @@ export default function ReservationTimelinePicker({
         )}
       </div>
 
-      <div className="overflow-x-auto pb-2">
+      <div className="w-full max-w-full overflow-x-auto overscroll-x-contain pb-2">
         <div className="min-w-max">
           <div className="flex overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             {segments.map(({ start, end }) => {
