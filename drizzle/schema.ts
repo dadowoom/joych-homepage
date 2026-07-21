@@ -1208,7 +1208,7 @@ export const courses = mysqlTable("courses", {
   facilityId: int("facilityId"),
   facilityReservationId: int("facilityReservationId"),
   /** 강좌 시설예약 반복 방식 */
-  facilityRepeatMode: mysqlEnum("facilityRepeatMode", ["none", "weekly", "monthly-weekday", "custom"]).notNull().default("none"),
+  facilityRepeatMode: mysqlEnum("facilityRepeatMode", ["none", "daily", "weekly", "monthly-weekday", "custom"]).notNull().default("none"),
   /** 반복 요일 JSON: 0(일)~6(토) */
   facilityRepeatDays: text("facilityRepeatDays"),
   /** 직접 선택한 시설예약 날짜 JSON */

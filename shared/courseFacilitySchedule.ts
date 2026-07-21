@@ -1,5 +1,6 @@
 export const COURSE_FACILITY_REPEAT_MODES = [
   "none",
+  "daily",
   "weekly",
   "monthly-weekday",
   "custom",
@@ -127,16 +128,15 @@ export function buildCourseFacilityScheduleDates(
     return { dates, error: null };
   }
 
-  const days = normalizeCourseFacilityRepeatDays(input.repeatDays);
-  if (days.length === 0) return { dates: [], error: "반복할 요일을 한 개 이상 선택해 주세요." };
-
   const dates: string[] = [];
-  if (mode === "weekly") {
-    for (let cursor = start; cursor <= end; cursor = addUtcDays(cursor, 1)) {
-      if (days.includes(cursor.getUTCDay())) dates.push(formatDateKey(cursor));
+  if (mode === "daily" || mode === "weekly") {
+    const stepDays = mode === "daily" ? 1 : 7;
+    for (let cursor = start; cursor <= end; cursor = addUtcDays(cursor, stepDays)) {
+      dates.push(formatDateKey(cursor));
     }
-  } else {
+  } else if (mode === "monthly-weekday") {
     const nth = Math.floor((start.getUTCDate() - 1) / 7) + 1;
+    const weekday = start.getUTCDay();
     for (
       let monthOffset = 0;
       monthOffset <= 12 && dates.length < COURSE_FACILITY_SCHEDULE_MAX_OCCURRENCES;
@@ -144,11 +144,11 @@ export function buildCourseFacilityScheduleDates(
     ) {
       const month = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + monthOffset, 1));
       if (month > end) break;
-      days.forEach(day => {
-        const candidate = nthWeekdayDate(month.getUTCFullYear(), month.getUTCMonth(), nth, day);
-        if (candidate && candidate >= start && candidate <= end) dates.push(formatDateKey(candidate));
-      });
+      const candidate = nthWeekdayDate(month.getUTCFullYear(), month.getUTCMonth(), nth, weekday);
+      if (candidate && candidate >= start && candidate <= end) dates.push(formatDateKey(candidate));
     }
+  } else {
+    return { dates: [], error: "반복 방식이 올바르지 않습니다." };
   }
 
   const uniqueDates = Array.from(new Set(dates)).sort();
@@ -164,9 +164,14 @@ export function buildCourseFacilityScheduleDates(
 export function describeCourseFacilitySchedule(input: CourseFacilityScheduleInput, count: number) {
   const mode = input.repeatMode ?? "none";
   if (mode === "none") return "반복 없음";
-  if (mode === "custom") return `날짜 직접 선택 · 총 ${count}회`;
-  const weekdays = normalizeCourseFacilityRepeatDays(input.repeatDays)
-    .map(day => COURSE_WEEKDAY_LABELS[day])
-    .join("·");
-  return `${mode === "weekly" ? "매주" : "매월 같은 주"} ${weekdays} · 총 ${count}회`;
+  if (mode === "custom") return `임의 날짜 선택 · 총 ${count}회`;
+  if (mode === "daily") return `매일 · 총 ${count}회`;
+
+  const start = parseDateKey(input.startDate);
+  if (!start) return `${mode === "weekly" ? "매주" : "매월 같은 주"} · 총 ${count}회`;
+  const weekday = COURSE_WEEKDAY_LABELS[start.getUTCDay()];
+  if (mode === "weekly") return `매주 ${weekday}요일 · 총 ${count}회`;
+
+  const nth = Math.floor((start.getUTCDate() - 1) / 7) + 1;
+  return `매월 같은 주 (${nth}주 ${weekday}요일) · 총 ${count}회`;
 }

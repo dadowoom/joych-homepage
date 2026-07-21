@@ -155,7 +155,7 @@ function assertCourseFacilityReservationPolicy(value: {
   endDate?: string | null;
   startTime?: string | null;
   endTime?: string | null;
-  facilityRepeatMode?: "none" | "weekly" | "monthly-weekday" | "custom" | null;
+  facilityRepeatMode?: "none" | "daily" | "weekly" | "monthly-weekday" | "custom" | null;
   facilityRepeatDays?: number[] | string | null;
   facilityCustomDates?: string[] | string | null;
 }) {
