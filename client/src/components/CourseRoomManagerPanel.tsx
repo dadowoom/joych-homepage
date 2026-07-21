@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CalendarCheck, Check, ChevronDown, Loader2, Pencil, Plus, Trash2, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { useSearch } from "wouter";
@@ -10,6 +10,7 @@ import {
 } from "@/lib/courseApplicationChecklist";
 import CourseApplicationChecklist from "@/components/CourseApplicationChecklist";
 import CourseFacilityReservationPickerDialog from "@/components/CourseFacilityReservationPickerDialog";
+import CourseFacilityScheduleFields from "@/components/CourseFacilityScheduleFields";
 import {
   DEFAULT_COURSE_APPLICATION_CHECKLIST_ITEMS,
   getCourseApplicationChecklistLabel,
@@ -19,6 +20,12 @@ import {
   getCourseFacilityReservationRestriction,
   getCourseManagerFacilityReservationMaxDateKey,
 } from "@shared/courseFacilityReservationPolicy";
+import {
+  buildCourseFacilityScheduleDates,
+  parseCourseFacilityCustomDates,
+  parseCourseFacilityRepeatDays,
+  type CourseFacilityRepeatMode,
+} from "@shared/courseFacilitySchedule";
 
 type Props = {
   pageHref: string;
@@ -33,6 +40,9 @@ const EMPTY_FORM = {
   target: "",
   capacity: "0",
   facilityId: "",
+  facilityRepeatMode: "none" as CourseFacilityRepeatMode,
+  facilityRepeatDays: [] as number[],
+  facilityCustomDates: [] as string[],
   startDate: "",
   endDate: "",
   startTime: "",
@@ -77,6 +87,33 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
   );
   const { data: facilities = [] } = trpc.home.facilities.useQuery(undefined, { enabled: enabled && open });
   const reservableFacilities = facilities.filter(facility => facility.isVisible && facility.isReservable);
+  const facilitySchedule = useMemo(() => {
+    if (!form.facilityId) return { dates: [] as string[], error: null as string | null };
+    return buildCourseFacilityScheduleDates({
+      startDate: form.startDate,
+      endDate: form.endDate,
+      repeatMode: form.facilityRepeatMode,
+      repeatDays: form.facilityRepeatDays,
+      customDates: form.facilityCustomDates,
+    });
+  }, [form.endDate, form.facilityCustomDates, form.facilityId, form.facilityRepeatDays, form.facilityRepeatMode, form.startDate]);
+  const selectedFacilityId = form.facilityId ? Number(form.facilityId) : 0;
+  const canCheckFacilitySchedule = selectedFacilityId > 0
+    && facilitySchedule.dates.length > 0
+    && Boolean(form.startTime && form.endTime && form.startTime < form.endTime);
+  const { data: facilityScheduleConflicts = [], isFetching: checkingFacilitySchedule } =
+    trpc.courseManagement.checkFacilitySchedule.useQuery({
+      pageHref,
+      facilityId: selectedFacilityId || 1,
+      dates: facilitySchedule.dates,
+      startTime: form.startTime || "00:00",
+      endTime: form.endTime || "00:01",
+      courseId: editingId ?? undefined,
+    }, { enabled: enabled && open && canCheckFacilitySchedule });
+  const facilityConflictDates = useMemo(
+    () => new Set(facilityScheduleConflicts.map(conflict => conflict.reservationDate)),
+    [facilityScheduleConflicts],
+  );
 
   const refresh = () => {
     utils.courseManagement.courses.invalidate({ pageHref });
@@ -184,6 +221,14 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
       toast.error(facilityRestriction);
       return;
     }
+    if (facilityId && facilitySchedule.error) {
+      toast.error(facilitySchedule.error);
+      return;
+    }
+    if (facilityId && facilityConflictDates.size > 0) {
+      toast.error(`기존 예약과 겹치는 날짜가 ${facilityConflictDates.size}개 있습니다. 빨간 날짜를 확인해주세요.`);
+      return;
+    }
     const course = {
       title: form.title.trim(),
       summary: nullable(form.summary),
@@ -194,6 +239,9 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
       fee: null,
       capacity: Math.max(0, Number(form.capacity) || 0),
       facilityId,
+      facilityRepeatMode: form.facilityRepeatMode,
+      facilityRepeatDays: form.facilityRepeatDays,
+      facilityCustomDates: form.facilityCustomDates,
       startDate: nullable(form.startDate),
       endDate: nullable(form.endDate),
       startTime: nullable(form.startTime),
@@ -220,6 +268,9 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
       target: course.target ?? "",
       capacity: String(course.capacity ?? 0),
       facilityId: course.facilityId ? String(course.facilityId) : "",
+      facilityRepeatMode: (course.facilityRepeatMode ?? "none") as CourseFacilityRepeatMode,
+      facilityRepeatDays: parseCourseFacilityRepeatDays(course.facilityRepeatDays),
+      facilityCustomDates: parseCourseFacilityCustomDates(course.facilityCustomDates),
       startDate: course.startDate ?? "",
       endDate: course.endDate ?? "",
       startTime: course.startTime ?? "",
@@ -271,7 +322,11 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
               <label className="text-xs font-medium text-gray-600">장소<input value={form.location} onChange={e => setForm(prev => ({ ...prev, location: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
               <div className="text-xs font-medium text-gray-600 md:col-span-2">
                 <label htmlFor="course-facility">강좌 시설예약</label>
-                <select id="course-facility" value={form.facilityId} onChange={e => setForm(prev => ({ ...prev, facilityId: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"><option value="">시설예약 연결 안 함</option>{reservableFacilities.map(facility => <option key={facility.id} value={facility.id}>{facility.name}{facility.location ? ` · ${facility.location}` : ""}</option>)}</select>
+                <select id="course-facility" value={form.facilityId} onChange={e => setForm(prev => ({
+                  ...prev,
+                  facilityId: e.target.value,
+                  ...(!e.target.value ? { facilityRepeatMode: "none" as const, facilityRepeatDays: [], facilityCustomDates: [] } : {}),
+                }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"><option value="">시설예약 연결 안 함</option>{reservableFacilities.map(facility => <option key={facility.id} value={facility.id}>{facility.name}{facility.location ? ` · ${facility.location}` : ""}</option>)}</select>
                 <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
                   <button type="button" onClick={() => setFacilityPickerOpen(true)} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#1B5E20] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#2E7D32]"><CalendarCheck className="h-4 w-4" />달력/시간표로 선택</button>
                   {form.facilityId && form.startDate && form.startTime && form.endTime && <span className="font-medium text-[#1B5E20]">{form.startDate} {form.startTime}~{form.endTime} 연결 예정</span>}
@@ -279,9 +334,26 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
                 {form.facilityId && <span className="mt-1.5 block rounded-md bg-green-50 px-2.5 py-2 text-[11px] font-medium leading-5 text-green-800">강좌 담당자 전용: 오늘부터 365일 이내 · 24시간 선택 · 자동승인 · 기존 예약과 중복 불가</span>}
               </div>
               <label className="text-xs font-medium text-gray-600">시작일<input type="date" min={courseStartMin} max={form.facilityId ? courseFacilityMax : undefined} value={form.startDate} onChange={e => setForm(prev => ({ ...prev, startDate: e.target.value, endDate: prev.endDate && prev.endDate < e.target.value ? e.target.value : prev.endDate }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
-              <label className="text-xs font-medium text-gray-600">종료일<input type="date" min={courseEndMin} value={form.endDate} onChange={e => setForm(prev => ({ ...prev, endDate: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
+              <label className="text-xs font-medium text-gray-600">종료일<input type="date" min={courseEndMin} max={form.facilityId ? courseFacilityMax : undefined} value={form.endDate} onChange={e => setForm(prev => ({ ...prev, endDate: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
               <label className="text-xs font-medium text-gray-600">시작 시간<input type="time" value={form.startTime} onChange={e => setForm(prev => ({ ...prev, startTime: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
               <label className="text-xs font-medium text-gray-600">종료 시간<input type="time" value={form.endTime} onChange={e => setForm(prev => ({ ...prev, endTime: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
+              <div className="md:col-span-2">
+                <CourseFacilityScheduleFields
+                  enabled={Boolean(form.facilityId)}
+                  startDate={form.startDate}
+                  endDate={form.endDate}
+                  repeatMode={form.facilityRepeatMode}
+                  repeatDays={form.facilityRepeatDays}
+                  customDates={form.facilityCustomDates}
+                  scheduleDates={facilitySchedule.dates}
+                  scheduleError={facilitySchedule.error}
+                  conflictDates={facilityConflictDates}
+                  checkingConflicts={checkingFacilitySchedule}
+                  onRepeatModeChange={facilityRepeatMode => setForm(prev => ({ ...prev, facilityRepeatMode }))}
+                  onRepeatDaysChange={facilityRepeatDays => setForm(prev => ({ ...prev, facilityRepeatDays }))}
+                  onCustomDatesChange={facilityCustomDates => setForm(prev => ({ ...prev, facilityCustomDates }))}
+                />
+              </div>
               <label className="text-xs font-medium text-gray-600">정원<input type="number" min="0" value={form.capacity} onChange={e => setForm(prev => ({ ...prev, capacity: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
               <label className="text-xs font-medium text-gray-600">공개 대상<select value={form.audience} onChange={e => setForm(prev => ({ ...prev, audience: e.target.value as "all" | "member" }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"><option value="member">성도</option><option value="all">전체 공개</option></select></label>
             </div>

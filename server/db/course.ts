@@ -7,6 +7,7 @@
  *   - 관리자 신청자 명단 및 성도 본인 신청 내역 조회
  */
 
+import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import type { ResultSetHeader } from "mysql2";
 import {
@@ -16,6 +17,12 @@ import {
   isLegacyCourseApplicationChecklistField,
   type CourseApplicationChecklistItem,
 } from "@shared/courseApplicationChecklist";
+import {
+  buildCourseFacilityScheduleDates,
+  describeCourseFacilitySchedule,
+  parseCourseFacilityCustomDates,
+  parseCourseFacilityRepeatDays,
+} from "@shared/courseFacilitySchedule";
 import {
   churchMembers,
   Course,
@@ -31,10 +38,10 @@ import {
 } from "../../drizzle/schema";
 import { getDb } from "./connection";
 import {
-  createReservationIfAvailable,
+  getReservationConflictsForDates,
   getReservationById,
-  updateReservationDetails,
-  updateReservationStatus,
+  getReservationsByGroupId,
+  replaceReservationsIfAvailable,
 } from "./facility";
 
 export type CourseStatus = "draft" | "open" | "closed" | "cancelled" | "archived";
@@ -58,6 +65,8 @@ export class CourseApplicationLockError extends Error {
     super("신청 처리 중입니다. 잠시 후 다시 시도해주세요.");
   }
 }
+
+export class CourseFacilityScheduleError extends Error {}
 
 function extractMysqlScalar(result: unknown) {
   const rows = Array.isArray(result) ? result[0] : result;
@@ -187,12 +196,34 @@ function truncateText(value: string, maxLength: number) {
   return value.length > maxLength ? value.slice(0, maxLength) : value;
 }
 
+type CourseFacilityScheduleCourse = Pick<Course,
+  "id" | "title" | "capacity" | "facilityId" | "startDate" | "endDate" | "startTime" | "endTime" |
+  "status" | "facilityRepeatMode" | "facilityRepeatDays" | "facilityCustomDates"
+>;
+type CourseReservationDataInput = Pick<Course,
+  "id" | "title" | "capacity" | "facilityId" | "startDate" | "endDate" | "startTime" | "endTime"
+> & Partial<Pick<Course, "status" | "facilityRepeatMode" | "facilityRepeatDays" | "facilityCustomDates">>;
+
 function hasCourseReservationSchedule(course: Pick<Course, "facilityId" | "startDate" | "startTime" | "endTime" | "status">) {
   return course.status !== "cancelled"
     && Boolean(course.facilityId && course.startDate && course.startTime && course.endTime);
 }
 
-export function buildCourseReservationData(course: Pick<Course, "id" | "title" | "capacity" | "facilityId" | "startDate" | "endDate" | "startTime" | "endTime">): Omit<InsertReservation, "id" | "createdAt" | "updatedAt"> {
+function getCourseFacilitySchedule(course: CourseFacilityScheduleCourse) {
+  return buildCourseFacilityScheduleDates({
+    startDate: course.startDate,
+    endDate: course.endDate,
+    repeatMode: course.facilityRepeatMode,
+    repeatDays: parseCourseFacilityRepeatDays(course.facilityRepeatDays),
+    customDates: parseCourseFacilityCustomDates(course.facilityCustomDates),
+  });
+}
+
+export function buildCourseReservationData(
+  course: CourseReservationDataInput,
+  reservationDate = course.startDate ?? "",
+  recurrence?: { groupId: string | null; label: string | null; sequence: number },
+): Omit<InsertReservation, "id" | "createdAt" | "updatedAt"> {
   if (!course.facilityId || !course.startDate || !course.startTime || !course.endTime) {
     throw new Error("강좌 시설예약을 만들려면 시설, 시작일, 시작 시간, 종료 시간이 필요합니다.");
   }
@@ -208,7 +239,7 @@ export function buildCourseReservationData(course: Pick<Course, "id" | "title" |
     reservationType: "course",
     reserverName: truncateText(`[강좌] ${title}`, 64),
     reserverPhone: null,
-    reservationDate: course.startDate,
+    reservationDate,
     startTime: course.startTime,
     endTime: course.endTime,
     purpose: truncateText(`강좌 운영: ${title}`, 256),
@@ -216,9 +247,9 @@ export function buildCourseReservationData(course: Pick<Course, "id" | "title" |
     attendees: Math.max(1, Number(course.capacity) || 1),
     notes: truncateText(`강좌관리에서 자동 생성된 시설예약입니다.${dateRange}`, 1000),
     status: "approved",
-    recurrenceGroupId: null,
-    recurrenceLabel: null,
-    recurrenceSequence: 0,
+    recurrenceGroupId: recurrence?.groupId ?? null,
+    recurrenceLabel: recurrence?.label ?? null,
+    recurrenceSequence: recurrence?.sequence ?? 0,
     adminComment: null,
     processedBy: null,
     processedAt: null,
@@ -234,44 +265,83 @@ function mergeCourseData(current: Course, data: Partial<InsertCourse>): Course {
   } as Course;
 }
 
+async function getLinkedCourseReservations(reservationId: number | null | undefined) {
+  if (!reservationId) return [];
+  const reservation = await getReservationById(reservationId);
+  if (!reservation) return [];
+  if (reservation.recurrenceGroupId) return getReservationsByGroupId(reservation.recurrenceGroupId);
+  return [reservation];
+}
+
 async function cancelLinkedCourseReservation(reservationId: number | null | undefined, reason: string) {
-  if (!reservationId) return;
-  await updateReservationStatus(reservationId, "cancelled", reason);
+  const linked = await getLinkedCourseReservations(reservationId);
+  if (linked.length === 0) return;
+  await replaceReservationsIfAvailable([], linked.map(row => row.id), reason);
 }
 
 async function syncCourseFacilityReservation(current: Course | null, nextCourse: Course) {
   const currentReservationId = current?.facilityReservationId ?? null;
+  const linked = await getLinkedCourseReservations(currentReservationId);
+  const linkedIds = linked.map(row => row.id);
 
   if (!hasCourseReservationSchedule(nextCourse)) {
-    await cancelLinkedCourseReservation(currentReservationId, "강좌 취소 또는 시설예약 연결 해제로 자동 취소되었습니다.");
-    return currentReservationId;
+    await replaceReservationsIfAvailable(
+      [],
+      linkedIds,
+      "강좌 취소 또는 시설예약 연결 해제로 자동 취소되었습니다.",
+    );
+    return null;
   }
 
-  if (currentReservationId) {
-    const currentReservation = await getReservationById(currentReservationId);
-    const canReuseReservation = currentReservation
-      && currentReservation.status !== "cancelled"
-      && currentReservation.facilityId === nextCourse.facilityId;
-
-    if (canReuseReservation) {
-      await updateReservationDetails(currentReservationId, {
-        reservationDate: nextCourse.startDate ?? undefined,
-        startTime: nextCourse.startTime ?? undefined,
-        endTime: nextCourse.endTime ?? undefined,
-        purpose: truncateText(`강좌 운영: ${nextCourse.title}`, 256),
-        department: "강좌",
-        attendees: Math.max(1, Number(nextCourse.capacity) || 1),
-        notes: `강좌관리에서 자동 수정된 시설예약입니다.${nextCourse.endDate && nextCourse.endDate !== nextCourse.startDate ? ` 강좌 기간: ${nextCourse.startDate}~${nextCourse.endDate}` : ""}`,
-      });
-      return currentReservationId;
-    }
+  const schedule = getCourseFacilitySchedule(nextCourse);
+  if (schedule.error) throw new CourseFacilityScheduleError(schedule.error);
+  const repeatMode = nextCourse.facilityRepeatMode ?? "none";
+  const repeatDays = parseCourseFacilityRepeatDays(nextCourse.facilityRepeatDays);
+  const customDates = parseCourseFacilityCustomDates(nextCourse.facilityCustomDates);
+  const groupId = schedule.dates.length > 1 ? `course_${nextCourse.id}_${randomUUID()}` : null;
+  const label = schedule.dates.length > 1
+    ? describeCourseFacilitySchedule({
+      startDate: nextCourse.startDate,
+      endDate: nextCourse.endDate,
+      repeatMode,
+      repeatDays,
+      customDates,
+    }, schedule.dates.length)
+    : null;
+  const reservationData = schedule.dates.map((reservationDate, index) =>
+    buildCourseReservationData(nextCourse, reservationDate, {
+      groupId,
+      label,
+      sequence: groupId ? index + 1 : 0,
+    })
+  );
+  const createdIds = await replaceReservationsIfAvailable(
+    reservationData,
+    linkedIds,
+    "강좌 시설예약 일정 변경으로 기존 예약이 자동 취소되었습니다.",
+  );
+  if (!createdIds[0]) {
+    throw new CourseFacilityScheduleError("강좌 시설예약을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
   }
+  return createdIds[0];
+}
 
-  const nextReservationId = await createReservationIfAvailable(buildCourseReservationData(nextCourse));
-  if (currentReservationId) {
-    await cancelLinkedCourseReservation(currentReservationId, "강좌 시설 변경으로 기존 시설예약이 자동 취소되었습니다.");
-  }
-  return nextReservationId;
+export async function getCourseFacilityScheduleConflicts(input: {
+  facilityId: number;
+  dates: string[];
+  startTime: string;
+  endTime: string;
+  courseId?: number;
+}) {
+  const course = input.courseId ? await getCourseById(input.courseId) : null;
+  const linked = await getLinkedCourseReservations(course?.facilityReservationId);
+  return getReservationConflictsForDates({
+    facilityId: input.facilityId,
+    dates: input.dates,
+    startTime: input.startTime,
+    endTime: input.endTime,
+    ignoreReservationIds: linked.map(row => row.id),
+  });
 }
 
 export async function getCoursesForAdmin(pageHref?: string) {

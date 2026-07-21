@@ -10,6 +10,12 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { MAX_COURSE_APPLICATION_CHECKLIST_ITEMS } from "@shared/courseApplicationChecklist";
+import {
+  COURSE_FACILITY_REPEAT_MODES,
+  buildCourseFacilityScheduleDates,
+  serializeCourseFacilityCustomDates,
+  serializeCourseFacilityRepeatDays,
+} from "@shared/courseFacilitySchedule";
 import { adminPermissionProcedure, router } from "../../_core/trpc";
 import { optionalTextSchema, requiredTextSchema, safeAssetUrlSchema } from "../../_core/contentValidation";
 import {
@@ -19,10 +25,12 @@ import {
   deleteCourseRoomManager,
   getAllMembers,
   getCourseApplications,
+  getCourseFacilityScheduleConflicts,
   getCourseRoomManagers,
   getCoursesForAdmin,
   ReservationLockError,
   ReservationOverlapError,
+  CourseFacilityScheduleError,
   replaceCourseApplicationChecklistItems,
   updateCourse,
   updateCourseApplicationChecklist,
@@ -114,6 +122,9 @@ const courseShape = {
   fee: optionalTextSchema(128),
   capacity: z.number().int().min(0).max(100000).default(0),
   facilityId: z.number().int().positive().nullable().optional(),
+  facilityRepeatMode: z.enum(COURSE_FACILITY_REPEAT_MODES).default("none"),
+  facilityRepeatDays: z.array(z.number().int().min(0).max(6)).max(7).default([]),
+  facilityCustomDates: z.array(z.string().regex(DATE_RE)).max(366).default([]),
   startDate: nullableDateSchema,
   endDate: nullableDateSchema,
   startTime: nullableTimeSchema,
@@ -182,6 +193,18 @@ function validateNewCourseDates(
 export const courseBaseSchema = z.object(courseShape).superRefine((value, ctx) => {
   validateCourseDatesAndTimes(value, ctx);
   validateNewCourseDates(value, ctx);
+  if (value.facilityId) {
+    const schedule = buildCourseFacilityScheduleDates({
+      startDate: value.startDate,
+      endDate: value.endDate,
+      repeatMode: value.facilityRepeatMode,
+      repeatDays: value.facilityRepeatDays,
+      customDates: value.facilityCustomDates,
+    });
+    if (schedule.error) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["facilityRepeatMode"], message: schedule.error });
+    }
+  }
 });
 
 const courseUpdateSchema = z.object(courseShape).partial().extend({
@@ -195,11 +218,40 @@ function handleCourseReservationError(error: unknown) {
   if (error instanceof ReservationLockError) {
     throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: error.message });
   }
+  if (error instanceof CourseFacilityScheduleError) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+  }
   throw error;
+}
+
+function serializeCourseFacilityFields<T extends {
+  facilityRepeatDays?: number[];
+  facilityCustomDates?: string[];
+}>(input: T) {
+  const { facilityRepeatDays, facilityCustomDates, ...rest } = input;
+  return {
+    ...rest,
+    ...(facilityRepeatDays !== undefined
+      ? { facilityRepeatDays: serializeCourseFacilityRepeatDays(facilityRepeatDays) }
+      : {}),
+    ...(facilityCustomDates !== undefined
+      ? { facilityCustomDates: serializeCourseFacilityCustomDates(facilityCustomDates) }
+      : {}),
+  };
 }
 
 export const coursesRouter = router({
   list: courseProcedure.query(() => getCoursesForAdmin()),
+
+  checkFacilitySchedule: courseProcedure
+    .input(z.object({
+      facilityId: idSchema,
+      dates: z.array(z.string().regex(DATE_RE)).min(1).max(366),
+      startTime: z.string().regex(TIME_RE),
+      endTime: z.string().regex(TIME_RE),
+      courseId: idSchema.optional(),
+    }))
+    .query(({ input }) => getCourseFacilityScheduleConflicts(input)),
 
   updateApplicationChecklistItems: courseProcedure
     .input(z.object({
@@ -218,7 +270,7 @@ export const coursesRouter = router({
     .input(courseBaseSchema)
     .mutation(async ({ input }) => {
       try {
-        return await createCourse(input);
+        return await createCourse(serializeCourseFacilityFields(input));
       } catch (error) {
         handleCourseReservationError(error);
       }
@@ -229,7 +281,7 @@ export const coursesRouter = router({
     .mutation(async ({ input }) => {
       const { id, ...data } = input;
       try {
-        return await updateCourse(id, data);
+        return await updateCourse(id, serializeCourseFacilityFields(data));
       } catch (error) {
         handleCourseReservationError(error);
       }

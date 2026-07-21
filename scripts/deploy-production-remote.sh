@@ -2646,6 +2646,57 @@ else
   exit 1
 fi
 
+MIGRATION_0090="${APP_DIR}/drizzle/0090_course_facility_recurrence.sql"
+if [[ -f "${MIGRATION_0090}" ]]; then
+  echo "[deploy] database migration: course facility recurrence"
+  node --input-type=module <<'NODE'
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error("DATABASE_URL is required for migration 0090.");
+const url = new URL(databaseUrl);
+const databaseName = url.pathname.replace(/^\//, "");
+const migrationId = "0090_course_facility_recurrence";
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  async function hasColumn(columnName) {
+    const [rows] = await connection.execute(
+      "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'courses' AND COLUMN_NAME = ?",
+      [databaseName, columnName],
+    );
+    return Number(rows?.[0]?.count ?? 0) > 0;
+  }
+  if (!(await hasColumn("facilityRepeatMode"))) {
+    await connection.query("ALTER TABLE `courses` ADD COLUMN `facilityRepeatMode` enum('none','weekly','monthly-weekday','custom') NOT NULL DEFAULT 'none' AFTER `facilityReservationId`");
+  }
+  if (!(await hasColumn("facilityRepeatDays"))) {
+    await connection.query("ALTER TABLE `courses` ADD COLUMN `facilityRepeatDays` text NULL AFTER `facilityRepeatMode`");
+  }
+  if (!(await hasColumn("facilityCustomDates"))) {
+    await connection.query("ALTER TABLE `courses` ADD COLUMN `facilityCustomDates` text NULL AFTER `facilityRepeatDays`");
+  }
+  const [rows] = await connection.execute("SELECT id FROM app_migrations WHERE id = ? LIMIT 1", [migrationId]);
+  if (!Array.isArray(rows) || rows.length === 0) {
+    await connection.execute("INSERT INTO app_migrations (id) VALUES (?)", [migrationId]);
+    console.log("[deploy] migration 0090 applied");
+  } else {
+    console.log("[deploy] migration 0090 already applied and schema verified");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+else
+  echo "[deploy] missing migration file: ${MIGRATION_0090}" >&2
+  exit 1
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

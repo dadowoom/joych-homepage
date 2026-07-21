@@ -1207,6 +1207,12 @@ export const courses = mysqlTable("courses", {
   capacity: int("capacity").notNull().default(0),
   facilityId: int("facilityId"),
   facilityReservationId: int("facilityReservationId"),
+  /** 강좌 시설예약 반복 방식 */
+  facilityRepeatMode: mysqlEnum("facilityRepeatMode", ["none", "weekly", "monthly-weekday", "custom"]).notNull().default("none"),
+  /** 반복 요일 JSON: 0(일)~6(토) */
+  facilityRepeatDays: text("facilityRepeatDays"),
+  /** 직접 선택한 시설예약 날짜 JSON */
+  facilityCustomDates: text("facilityCustomDates"),
   /** 강좌 시작일 */
   startDate: varchar("startDate", { length: 10 }),
   /** 강좌 종료일 */

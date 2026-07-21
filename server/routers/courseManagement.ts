@@ -8,17 +8,27 @@ import { publicProcedure, router } from "../_core/trpc";
 import { hasAdminContentPermission } from "../db/adminPermissions";
 import { getCourseFacilityReservationRestriction } from "../../shared/courseFacilityReservationPolicy";
 import {
+  COURSE_FACILITY_REPEAT_MODES,
+  buildCourseFacilityScheduleDates,
+  parseCourseFacilityCustomDates,
+  parseCourseFacilityRepeatDays,
+  serializeCourseFacilityCustomDates,
+  serializeCourseFacilityRepeatDays,
+} from "../../shared/courseFacilitySchedule";
+import {
   createCourse,
   deleteCourse,
   getCourseApplicationById,
   getCourseApplications,
   getCourseById,
+  getCourseFacilityScheduleConflicts,
   getCoursesForAdmin,
   getFacilityById,
   getCourseRoomManagementPagesForMember,
   hasCourseRoomManagementAccess,
   ReservationLockError,
   ReservationOverlapError,
+  CourseFacilityScheduleError,
   updateCourse,
   updateCourseApplicationChecklist,
   updateCourseApplicationDetails,
@@ -97,6 +107,9 @@ const courseInputShape = {
   fee: optionalText(128),
   capacity: z.number().int().min(0).max(100_000).default(0),
   facilityId: z.number().int().positive().nullable().optional(),
+  facilityRepeatMode: z.enum(COURSE_FACILITY_REPEAT_MODES).default("none"),
+  facilityRepeatDays: z.array(z.number().int().min(0).max(6)).max(7).default([]),
+  facilityCustomDates: z.array(z.string().regex(DATE_RE)).max(366).default([]),
   startDate: nullableDate,
   endDate: nullableDate,
   startTime: nullableTime,
@@ -117,6 +130,18 @@ export const courseCreateSchema = z.object(courseInputShape).superRefine((value,
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["applyEndDate"], message: "신청 마감일은 신청 시작일 이후여야 합니다." });
   }
   validateNewCourseDates(value, ctx);
+  if (value.facilityId) {
+    const schedule = buildCourseFacilityScheduleDates({
+      startDate: value.startDate,
+      endDate: value.endDate,
+      repeatMode: value.facilityRepeatMode,
+      repeatDays: value.facilityRepeatDays,
+      customDates: value.facilityCustomDates,
+    });
+    if (schedule.error) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["facilityRepeatMode"], message: schedule.error });
+    }
+  }
   const facilityRestriction = getCourseFacilityReservationRestriction(value);
   if (facilityRestriction) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["facilityId"], message: facilityRestriction });
@@ -127,11 +152,26 @@ const courseUpdateSchema = z.object(courseInputShape).partial();
 function assertCourseFacilityReservationPolicy(value: {
   facilityId?: number | null;
   startDate?: string | null;
+  endDate?: string | null;
   startTime?: string | null;
   endTime?: string | null;
+  facilityRepeatMode?: "none" | "weekly" | "monthly-weekday" | "custom" | null;
+  facilityRepeatDays?: number[] | string | null;
+  facilityCustomDates?: string[] | string | null;
 }) {
-  const restriction = getCourseFacilityReservationRestriction(value);
-  if (restriction) throw new TRPCError({ code: "BAD_REQUEST", message: restriction });
+  if (!value.facilityId) return;
+  const schedule = buildCourseFacilityScheduleDates({
+    startDate: value.startDate,
+    endDate: value.endDate,
+    repeatMode: value.facilityRepeatMode,
+    repeatDays: parseCourseFacilityRepeatDays(value.facilityRepeatDays),
+    customDates: parseCourseFacilityCustomDates(value.facilityCustomDates),
+  });
+  if (schedule.error) throw new TRPCError({ code: "BAD_REQUEST", message: schedule.error });
+  for (const date of schedule.dates) {
+    const restriction = getCourseFacilityReservationRestriction({ ...value, startDate: date });
+    if (restriction) throw new TRPCError({ code: "BAD_REQUEST", message: `${date}: ${restriction}` });
+  }
 }
 
 async function assertReservableCourseFacility(facilityId?: number | null) {
@@ -149,7 +189,26 @@ function handleCourseReservationError(error: unknown): never {
   if (error instanceof ReservationLockError) {
     throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: error.message });
   }
+  if (error instanceof CourseFacilityScheduleError) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+  }
   throw error;
+}
+
+function serializeCourseFacilityFields<T extends {
+  facilityRepeatDays?: number[];
+  facilityCustomDates?: string[];
+}>(input: T) {
+  const { facilityRepeatDays, facilityCustomDates, ...rest } = input;
+  return {
+    ...rest,
+    ...(facilityRepeatDays !== undefined
+      ? { facilityRepeatDays: serializeCourseFacilityRepeatDays(facilityRepeatDays) }
+      : {}),
+    ...(facilityCustomDates !== undefined
+      ? { facilityCustomDates: serializeCourseFacilityCustomDates(facilityCustomDates) }
+      : {}),
+  };
 }
 
 async function assertCourseRoomAccess(
@@ -198,6 +257,22 @@ export const courseManagementRouter = router({
       return getCoursesForAdmin(input.pageHref);
     }),
 
+  checkFacilitySchedule: publicProcedure
+    .input(z.object({
+      pageHref: pageHrefSchema,
+      facilityId: idSchema,
+      dates: z.array(z.string().regex(DATE_RE)).min(1).max(366),
+      startTime: z.string().regex(TIME_RE),
+      endTime: z.string().regex(TIME_RE),
+      courseId: idSchema.optional(),
+    }))
+    .query(async ({ input, ctx }) => {
+      await assertCourseRoomAccess(ctx, input.pageHref);
+      if (input.courseId) await getOwnedCourseOrThrow(ctx, input.courseId);
+      const { pageHref: _pageHref, ...conflictInput } = input;
+      return getCourseFacilityScheduleConflicts(conflictInput);
+    }),
+
   applications: publicProcedure
     .input(z.object({ pageHref: pageHrefSchema }))
     .query(async ({ input, ctx }) => {
@@ -211,9 +286,10 @@ export const courseManagementRouter = router({
     .mutation(async ({ input, ctx }) => {
       await assertCourseRoomAccess(ctx, input.pageHref);
       await assertReservableCourseFacility(input.course.facilityId);
+      assertCourseFacilityReservationPolicy(input.course);
       try {
         return await createCourse({
-          ...input.course,
+          ...serializeCourseFacilityFields(input.course),
           imageUrl: null,
           facilityReservationId: null,
           pageHref: input.pageHref,
@@ -228,11 +304,16 @@ export const courseManagementRouter = router({
     .input(z.object({ id: idSchema, course: courseUpdateSchema }))
     .mutation(async ({ input, ctx }) => {
       const { course, access } = await getOwnedCourseOrThrow(ctx, input.id);
-      const nextCourse = { ...course, ...input.course };
+      const nextCourse = {
+        ...course,
+        facilityRepeatDays: parseCourseFacilityRepeatDays(course.facilityRepeatDays),
+        facilityCustomDates: parseCourseFacilityCustomDates(course.facilityCustomDates),
+        ...input.course,
+      };
       assertCourseFacilityReservationPolicy(nextCourse);
       await assertReservableCourseFacility(nextCourse.facilityId);
       try {
-        await updateCourse(input.id, input.course);
+        await updateCourse(input.id, serializeCourseFacilityFields(input.course));
         return { success: true, processedBy: access.processedBy ?? null };
       } catch (error) {
         handleCourseReservationError(error);

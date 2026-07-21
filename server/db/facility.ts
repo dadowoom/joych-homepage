@@ -631,6 +631,111 @@ export async function updateReservationDetails(id: number, data: ReservationDeta
   });
 }
 
+/**
+ * 반복 예약을 한 번의 트랜잭션으로 교체합니다.
+ * 새 일정 중 하나라도 겹치면 기존 예약은 그대로 유지되고 전체 변경이 취소됩니다.
+ */
+export async function replaceReservationsIfAvailable(
+  dataList: Array<Omit<InsertReservation, "id" | "createdAt" | "updatedAt">>,
+  replaceReservationIds: number[] = [],
+  cancelReason = "반복 일정 변경으로 기존 예약이 자동 취소되었습니다.",
+) {
+  const db = await getDb();
+  if (!db) return [];
+  if (dataList.length === 0) {
+    if (replaceReservationIds.length > 0) {
+      await db.update(reservations)
+        .set({ status: "cancelled", adminComment: cancelReason })
+        .where(inArray(reservations.id, replaceReservationIds));
+    }
+    return [];
+  }
+
+  const lockKeys = Array.from(new Set(dataList.map(data =>
+    `reservation:${data.facilityId}:${data.reservationDate}`
+  ))).sort();
+
+  return db.transaction(async (tx) => {
+    const acquiredLocks: string[] = [];
+    try {
+      for (const lockKey of lockKeys) {
+        const lockResult = await tx.execute(sql`SELECT GET_LOCK(${lockKey}, 5) AS locked`);
+        if (Number(extractMysqlScalar(lockResult)) !== 1) throw new ReservationLockError();
+        acquiredLocks.push(lockKey);
+      }
+
+      for (const data of dataList) {
+        const overlapConditions = [
+          eq(reservations.facilityId, data.facilityId),
+          eq(reservations.reservationDate, data.reservationDate),
+          inArray(reservations.status, ACTIVE_RESERVATION_STATUSES),
+          lt(reservations.startTime, data.endTime),
+          gt(reservations.endTime, data.startTime),
+        ];
+        if (replaceReservationIds.length > 0) {
+          overlapConditions.push(notInArray(reservations.id, replaceReservationIds));
+        }
+        const overlapping = await tx
+          .select({ startTime: reservations.startTime, endTime: reservations.endTime })
+          .from(reservations)
+          .where(and(...overlapConditions))
+          .limit(1);
+        if (overlapping[0]) {
+          throw new ReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime, data.reservationDate);
+        }
+      }
+
+      const createdIds: number[] = [];
+      for (const data of dataList) {
+        const [result] = await tx.insert(reservations).values(data).$returningId();
+        if (result?.id) createdIds.push(result.id);
+      }
+      if (replaceReservationIds.length > 0) {
+        await tx.update(reservations)
+          .set({ status: "cancelled", adminComment: cancelReason })
+          .where(inArray(reservations.id, replaceReservationIds));
+      }
+      return createdIds;
+    } finally {
+      for (const lockKey of acquiredLocks.reverse()) {
+        await tx.execute(sql`SELECT RELEASE_LOCK(${lockKey})`);
+      }
+    }
+  });
+}
+
+export async function getReservationConflictsForDates(input: {
+  facilityId: number;
+  dates: string[];
+  startTime: string;
+  endTime: string;
+  ignoreReservationIds?: number[];
+}) {
+  const db = await getDb();
+  if (!db || input.dates.length === 0) return [];
+  const conditions = [
+    eq(reservations.facilityId, input.facilityId),
+    inArray(reservations.reservationDate, input.dates),
+    inArray(reservations.status, ACTIVE_RESERVATION_STATUSES),
+    lt(reservations.startTime, input.endTime),
+    gt(reservations.endTime, input.startTime),
+  ];
+  if ((input.ignoreReservationIds?.length ?? 0) > 0) {
+    conditions.push(notInArray(reservations.id, input.ignoreReservationIds!));
+  }
+  return db.select({
+    id: reservations.id,
+    reservationDate: reservations.reservationDate,
+    startTime: reservations.startTime,
+    endTime: reservations.endTime,
+    reserverName: reservations.reserverName,
+    purpose: reservations.purpose,
+  })
+    .from(reservations)
+    .where(and(...conditions))
+    .orderBy(asc(reservations.reservationDate), asc(reservations.startTime));
+}
+
 export async function updateReservationGroupDetails(
   recurrenceGroupId: string,
   data: Omit<ReservationDetailsUpdate, "reservationDate">

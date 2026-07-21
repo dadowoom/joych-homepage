@@ -28,8 +28,15 @@ import {
 } from "@shared/courseApplicationChecklist";
 import ReservationTimelinePicker from "@/components/facility/ReservationTimelinePicker";
 import CourseRoomPermissionManager from "@/components/CourseRoomPermissionManager";
+import CourseFacilityScheduleFields from "@/components/CourseFacilityScheduleFields";
 import { getKstDateKey, getReservationTimeRestriction } from "@/lib/facilityReservationTime";
 import { generateReservationTimePoints } from "@/lib/facilitySlotSelection";
+import {
+  buildCourseFacilityScheduleDates,
+  parseCourseFacilityCustomDates,
+  parseCourseFacilityRepeatDays,
+  type CourseFacilityRepeatMode,
+} from "@shared/courseFacilitySchedule";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -109,6 +116,9 @@ const EMPTY_FORM = {
   fee: "",
   capacity: 0,
   facilityId: "",
+  facilityRepeatMode: "none" as CourseFacilityRepeatMode,
+  facilityRepeatDays: [] as number[],
+  facilityCustomDates: [] as string[],
   startDate: "",
   endDate: "",
   startTime: "",
@@ -671,6 +681,31 @@ export default function AdminCoursesTab() {
   const editingCourse = useMemo(() => {
     return editingId ? courses.find(course => course.id === editingId) ?? null : null;
   }, [courses, editingId]);
+  const facilitySchedule = useMemo(() => {
+    if (!form.facilityId) return { dates: [] as string[], error: null as string | null };
+    return buildCourseFacilityScheduleDates({
+      startDate: form.startDate,
+      endDate: form.endDate,
+      repeatMode: form.facilityRepeatMode,
+      repeatDays: form.facilityRepeatDays,
+      customDates: form.facilityCustomDates,
+    });
+  }, [form.endDate, form.facilityCustomDates, form.facilityId, form.facilityRepeatDays, form.facilityRepeatMode, form.startDate]);
+  const canCheckFacilitySchedule = selectedFacilityId > 0
+    && facilitySchedule.dates.length > 0
+    && Boolean(form.startTime && form.endTime && form.startTime < form.endTime);
+  const { data: facilityScheduleConflicts = [], isFetching: checkingFacilitySchedule } =
+    trpc.cms.courses.checkFacilitySchedule.useQuery({
+      facilityId: selectedFacilityId || 1,
+      dates: facilitySchedule.dates,
+      startTime: form.startTime || "00:00",
+      endTime: form.endTime || "00:01",
+      courseId: editingId ?? undefined,
+    }, { enabled: canCheckFacilitySchedule });
+  const facilityConflictDates = useMemo(
+    () => new Set(facilityScheduleConflicts.map(conflict => conflict.reservationDate)),
+    [facilityScheduleConflicts],
+  );
 
   const { data: facilityPickerHours = [] } = trpc.home.facilityHours.useQuery(
     { facilityId: selectedFacilityId },
@@ -850,7 +885,13 @@ export default function AdminCoursesTab() {
   }
 
   function clearFacilityReservationLink() {
-    setForm(prev => ({ ...prev, facilityId: "" }));
+    setForm(prev => ({
+      ...prev,
+      facilityId: "",
+      facilityRepeatMode: "none",
+      facilityRepeatDays: [],
+      facilityCustomDates: [],
+    }));
     setFacilityPickerStartTime("");
     setFacilityPickerEndTime("");
     toast.success("시설예약 연결을 해제했습니다. 강좌 일정은 그대로 유지됩니다.");
@@ -885,6 +926,9 @@ export default function AdminCoursesTab() {
       fee: course.fee ?? "",
       capacity: course.capacity,
       facilityId: course.facilityId ? String(course.facilityId) : "",
+      facilityRepeatMode: (course.facilityRepeatMode ?? "none") as CourseFacilityRepeatMode,
+      facilityRepeatDays: parseCourseFacilityRepeatDays(course.facilityRepeatDays),
+      facilityCustomDates: parseCourseFacilityCustomDates(course.facilityCustomDates),
       startDate: course.startDate ?? "",
       endDate: course.endDate ?? "",
       startTime: course.startTime ?? "",
@@ -913,6 +957,9 @@ export default function AdminCoursesTab() {
       fee: form.fee,
       capacity: Number(form.capacity) || 0,
       facilityId: form.facilityId ? Number(form.facilityId) : null,
+      facilityRepeatMode: form.facilityRepeatMode,
+      facilityRepeatDays: form.facilityRepeatDays,
+      facilityCustomDates: form.facilityCustomDates,
       startDate: emptyToNull(form.startDate),
       endDate: emptyToNull(form.endDate),
       startTime: emptyToNull(form.startTime),
@@ -941,6 +988,14 @@ export default function AdminCoursesTab() {
       return;
     }
     const payload = buildPayload();
+    if (form.facilityId && facilitySchedule.error) {
+      toast.error(facilitySchedule.error);
+      return;
+    }
+    if (form.facilityId && facilityConflictDates.size > 0) {
+      toast.error(`기존 예약과 겹치는 날짜가 ${facilityConflictDates.size}개 있습니다. 빨간 날짜를 확인해주세요.`);
+      return;
+    }
     if (editingId) {
       updateCourse.mutate({ id: editingId, ...payload });
     } else {
@@ -1309,8 +1364,23 @@ export default function AdminCoursesTab() {
                   )}
                 </div>
                 <p className="text-[11px] text-gray-500 mt-2">
-                  시설예약은 선택사항입니다. 시설을 연결하면 저장 시 강좌 시작일 기준으로 시설예약이 자동 생성됩니다. 강좌 취소 또는 삭제 시 연결 예약도 자동 취소됩니다.
+                  시설예약은 선택사항입니다. 강좌 취소 또는 삭제 시 연결된 모든 회차도 함께 자동 취소됩니다.
                 </p>
+                <CourseFacilityScheduleFields
+                  enabled={Boolean(form.facilityId)}
+                  startDate={form.startDate}
+                  endDate={form.endDate}
+                  repeatMode={form.facilityRepeatMode}
+                  repeatDays={form.facilityRepeatDays}
+                  customDates={form.facilityCustomDates}
+                  scheduleDates={facilitySchedule.dates}
+                  scheduleError={facilitySchedule.error}
+                  conflictDates={facilityConflictDates}
+                  checkingConflicts={checkingFacilitySchedule}
+                  onRepeatModeChange={facilityRepeatMode => setForm(prev => ({ ...prev, facilityRepeatMode }))}
+                  onRepeatDaysChange={facilityRepeatDays => setForm(prev => ({ ...prev, facilityRepeatDays }))}
+                  onCustomDatesChange={facilityCustomDates => setForm(prev => ({ ...prev, facilityCustomDates }))}
+                />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">신청 시작일</label>
