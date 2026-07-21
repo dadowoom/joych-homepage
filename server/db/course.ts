@@ -540,6 +540,21 @@ export async function hasCourseRoomManagementAccess(memberId: number, pageHref: 
   return Boolean(row);
 }
 
+export async function getCourseRoomManagementPagesForMember(memberId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const rows = await db.select({ pageHref: courseRoomManagers.pageHref })
+    .from(courseRoomManagers)
+    .where(and(
+      eq(courseRoomManagers.memberId, memberId),
+      eq(courseRoomManagers.canManage, true),
+    ))
+    .orderBy(asc(courseRoomManagers.pageHref));
+
+  return rows.map(row => row.pageHref);
+}
+
 export async function createCourseRoomManager(data: InsertCourseRoomManager) {
   const db = await getDb();
   if (!db) return null;

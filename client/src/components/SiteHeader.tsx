@@ -10,6 +10,7 @@ import { Link, useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { isExternalSiteHref, normalizeSiteHref } from "@/lib/siteHref";
 import { finishDomainLogout } from "@/lib/mainHomepageDomain";
+import { getManagementPageHref } from "@/lib/managementEntry";
 import { toFallbackMenuTree } from "@shared/siteNavigation";
 import { useLanguage, translateSiteText } from "@/contexts/LanguageContext";
 
@@ -176,6 +177,8 @@ async function invalidateMemberSessionBoundQueries(
 ) {
   await Promise.all([
     utils.members.me.invalidate(),
+    utils.auth.me.invalidate(),
+    utils.courseManagement.myManagementPages.invalidate(),
     utils.home.menus.invalidate(),
     utils.home.menuItem.invalidate(),
     utils.home.menuSubItem.invalidate(),
@@ -204,6 +207,16 @@ export default function SiteHeader() {
   const utils = trpc.useUtils();
 
   const { data: memberMe } = trpc.members.me.useQuery();
+  const { data: managementUser } = trpc.auth.me.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const { data: courseRoomManagementPages = [] } =
+    trpc.courseManagement.myManagementPages.useQuery();
+  const managementPageHref = getManagementPageHref(
+    managementUser,
+    courseRoomManagementPages,
+  );
   const memberLogoutMutation = trpc.members.logout.useMutation({
     onSuccess: async (data) => {
       utils.members.me.setData(undefined, null);
@@ -415,7 +428,7 @@ export default function SiteHeader() {
           </form>
 
           {/* PC 메뉴 */}
-          <nav className="hidden md:block">
+          <nav className="hidden md:flex items-center">
             <ul className="flex">
               {displayMenus.map(item => {
                 const parentHref = getUsableHref(item.href);
@@ -622,18 +635,27 @@ export default function SiteHeader() {
                 );
               })}
             </ul>
+            {managementPageHref && (
+              <Link
+                href={managementPageHref}
+                onClick={closeDesktopMenus}
+                className="inline-flex h-[72px] shrink-0 items-center px-3 text-sm font-bold text-[#1B5E20] transition-colors hover:text-[#2E7D32]"
+              >
+                관리페이지
+              </Link>
+            )}
           </nav>
 
           {/* 모바일 오른쪽 버튼 그룹 */}
           <div className="md:hidden flex items-center gap-1">
-            <button
-              type="button"
-              onClick={toggleLanguage}
-              className="p-2 text-xs font-bold text-gray-600"
-              aria-label="언어 변경"
-            >
-              {language === "ja" ? "KO" : "JA"}
-            </button>
+            {managementPageHref && (
+              <Link
+                href={managementPageHref}
+                className="whitespace-nowrap px-1.5 py-2 text-[11px] font-bold text-[#1B5E20]"
+              >
+                관리페이지
+              </Link>
+            )}
             <button
               className="p-2 text-[#1B5E20]"
               onClick={() => {

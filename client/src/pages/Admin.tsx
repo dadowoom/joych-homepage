@@ -367,38 +367,6 @@ const NOTIFICATION_GROUP_HREFS: Partial<Record<string, string>> = {
   noticeRecent: "/page/행정지원-공지사항",
 };
 
-function AdminMobileBlocked() {
-  return (
-    <div
-      className="min-h-screen flex items-center justify-center bg-gray-50 px-4"
-      style={{ fontFamily: "'Noto Sans KR', sans-serif" }}
-    >
-      <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-lg">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#E8F5E9] text-[#1B5E20]">
-          <i className="fas fa-desktop text-xl"></i>
-        </div>
-        <h1
-          className="text-xl font-bold text-gray-900"
-          style={{ fontFamily: "'Noto Serif KR', serif" }}
-        >
-          PC에서 접속해주세요
-        </h1>
-        <p className="mt-3 text-sm leading-6 text-gray-500">
-          관리자 페이지는 PC 화면에서 사용할 수 있습니다.
-          <br />
-          예약 또는 회원가입 승인 권한이 있는 분은 모바일에서도 담당 업무를 관리할 수 있습니다.
-        </p>
-        <Link
-          href="/"
-          className="mt-6 inline-flex h-10 items-center justify-center rounded-lg border border-gray-200 px-4 text-sm text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
-        >
-          홈페이지로 돌아가기
-        </Link>
-      </div>
-    </div>
-  );
-}
-
 // ─── 메인 관리자 페이지 ───────────────────────────────────────────────────────
 export default function AdminPage() {
   const { user, loading, logout } = useAuth();
@@ -695,13 +663,12 @@ export default function AdminPage() {
 
   const permittedTabs = VALID_TABS.filter(tab => canAccessTab(tab));
 
-  const mobileAdminTabs = permittedTabs.filter(tab =>
+  const mobileNotificationTabs = permittedTabs.filter(tab =>
     tab === "reservations" || tab === "vehicles" || tab === "members"
   );
-  const canUseMobileAdmin = mobileAdminTabs.length > 0;
-  const canUsePushNotifications = mobileAdminTabs.length > 0;
-  const hasReservationNotifications = mobileAdminTabs.includes("reservations") || mobileAdminTabs.includes("vehicles");
-  const hasMemberApprovalNotifications = mobileAdminTabs.includes("members");
+  const canUsePushNotifications = mobileNotificationTabs.length > 0;
+  const hasReservationNotifications = mobileNotificationTabs.includes("reservations") || mobileNotificationTabs.includes("vehicles");
+  const hasMemberApprovalNotifications = mobileNotificationTabs.includes("members");
   const pushEnabledDescription = hasReservationNotifications && hasMemberApprovalNotifications
     ? "이 기기에서 새 예약과 회원가입 승인 알림을 받을 준비가 되어 있습니다."
     : hasMemberApprovalNotifications
@@ -712,10 +679,6 @@ export default function AdminPage() {
     : hasMemberApprovalNotifications
       ? "새 회원가입 신청 알림을 이 기기에서 받을 수 있습니다."
       : "새 예약 신청 알림을 이 기기에서 받을 수 있습니다.";
-
-  if (isMobile && !canUseMobileAdmin) {
-    return <AdminMobileBlocked />;
-  }
 
   if (permittedTabs.length === 0) {
     return (
@@ -740,7 +703,7 @@ export default function AdminPage() {
     );
   }
 
-  const effectivePermittedTabs = isMobile ? mobileAdminTabs : permittedTabs;
+  const effectivePermittedTabs = permittedTabs;
   const defaultTabs = effectivePermittedTabs.filter(
     tab => tab !== "memberDashboard"
   );
@@ -1046,47 +1009,21 @@ export default function AdminPage() {
               />
             )}
 
-            {isMobile && canUseMobileAdmin && (
-              <div className="flex gap-2">
-                {mobileAdminTabs.includes("reservations") && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("reservations")}
-                    className={`flex min-h-11 flex-1 items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
-                      activeTab === "reservations"
-                        ? "bg-[#1B5E20] text-white"
-                        : "bg-white text-gray-600 ring-1 ring-gray-200"
-                    }`}
-                  >
-                    예약 관리
-                  </button>
-                )}
-                {mobileAdminTabs.includes("vehicles") && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("vehicles")}
-                    className={`flex min-h-11 flex-1 items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
-                      activeTab === "vehicles"
-                        ? "bg-[#1B5E20] text-white"
-                        : "bg-white text-gray-600 ring-1 ring-gray-200"
-                    }`}
-                  >
-                    차량 예약
-                  </button>
-                )}
-                {mobileAdminTabs.includes("members") && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("members")}
-                    className={`flex min-h-11 flex-1 items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
-                      activeTab === "members"
-                        ? "bg-[#1B5E20] text-white"
-                        : "bg-white text-gray-600 ring-1 ring-gray-200"
-                    }`}
-                  >
-                    가입 승인
-                  </button>
-                )}
+            {isMobile && (
+              <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+                <label htmlFor="mobile-admin-tab" className="mb-2 block text-xs font-bold text-gray-600">
+                  내 관리 메뉴
+                </label>
+                <select
+                  id="mobile-admin-tab"
+                  value={activeTab}
+                  onChange={event => setActiveTab(event.target.value as Tab)}
+                  className="h-11 w-full rounded-lg border border-[#A5D6A7] bg-white px-3 text-sm font-semibold text-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
+                >
+                  {effectivePermittedTabs.map(tab => (
+                    <option key={tab} value={tab}>{TABS_BY_ID[tab].label}</option>
+                  ))}
+                </select>
               </div>
             )}
 

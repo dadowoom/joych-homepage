@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Check, ChevronDown, Loader2, Pencil, Plus, Trash2, Users, X } from "lucide-react";
 import { toast } from "sonner";
+import { useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import {
   applyCourseApplicationChecklistChange,
@@ -48,7 +49,10 @@ function nullable(value: string) {
 
 export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
   const utils = trpc.useUtils();
-  const [open, setOpen] = useState(false);
+  const searchString = useSearch();
+  const [open, setOpen] = useState(
+    () => new URLSearchParams(searchString).get("manage") === "1",
+  );
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingApplicationId, setEditingApplicationId] = useState<number | null>(null);
   const [applicationForm, setApplicationForm] = useState({ applicantName: "", applicantPhone: "", applicantEmail: "", memo: "" });

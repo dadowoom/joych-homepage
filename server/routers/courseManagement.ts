@@ -13,6 +13,7 @@ import {
   getCourseApplications,
   getCourseById,
   getCoursesForAdmin,
+  getCourseRoomManagementPagesForMember,
   hasCourseRoomManagementAccess,
   updateCourse,
   updateCourseApplicationChecklist,
@@ -140,6 +141,11 @@ async function getOwnedCourseOrThrow(
 }
 
 export const courseManagementRouter = router({
+  myManagementPages: publicProcedure.query(async ({ ctx }) => {
+    if (!ctx.memberId) return [];
+    return getCourseRoomManagementPagesForMember(ctx.memberId);
+  }),
+
   access: publicProcedure
     .input(z.object({ pageHref: pageHrefSchema }))
     .query(async ({ input, ctx }) => {
