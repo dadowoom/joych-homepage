@@ -2603,6 +2603,49 @@ else
   exit 1
 fi
 
+MIGRATION_0089="${APP_DIR}/drizzle/0089_remove_revoked_course_room_managers.sql"
+if [[ -f "${MIGRATION_0089}" ]]; then
+  echo "[deploy] database migration: remove revoked course room managers"
+  node --input-type=module <<'NODE'
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required for migration 0089.");
+}
+
+const migrationId = "0089_remove_revoked_course_room_managers";
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  const [rows] = await connection.execute(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    [migrationId],
+  );
+  if (!Array.isArray(rows) || rows.length === 0) {
+    const [result] = await connection.execute(
+      "DELETE FROM course_room_managers WHERE canManage = false",
+    );
+    await connection.execute("INSERT INTO app_migrations (id) VALUES (?)", [migrationId]);
+    console.log(`[deploy] migration 0089 applied removed=${Number(result?.affectedRows ?? 0)}`);
+  } else {
+    console.log("[deploy] migration 0089 already applied");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+else
+  echo "[deploy] missing migration file: ${MIGRATION_0089}" >&2
+  exit 1
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

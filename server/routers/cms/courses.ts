@@ -16,6 +16,7 @@ import {
   createCourse,
   createCourseRoomManager,
   deleteCourse,
+  deleteCourseRoomManager,
   getAllMembers,
   getCourseApplications,
   getCourseRoomManagers,
@@ -303,5 +304,7 @@ export const coursesRouter = router({
 
   updateRoomManager: courseProcedure
     .input(z.object({ id: idSchema, canManage: z.boolean() }))
-    .mutation(({ input }) => updateCourseRoomManager(input.id, { canManage: input.canManage })),
+    .mutation(({ input }) => input.canManage
+      ? updateCourseRoomManager(input.id, { canManage: true })
+      : deleteCourseRoomManager(input.id)),
 });

@@ -522,6 +522,7 @@ export async function getCourseRoomManagers() {
   })
     .from(courseRoomManagers)
     .leftJoin(churchMembers, eq(courseRoomManagers.memberId, churchMembers.id))
+    .where(eq(courseRoomManagers.canManage, true))
     .orderBy(asc(courseRoomManagers.pageHref), desc(courseRoomManagers.createdAt));
 }
 
@@ -564,6 +565,12 @@ export async function updateCourseRoomManager(id: number, data: Partial<InsertCo
   const db = await getDb();
   if (!db) return;
   await db.update(courseRoomManagers).set(data).where(eq(courseRoomManagers.id, id));
+}
+
+export async function deleteCourseRoomManager(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(courseRoomManagers).where(eq(courseRoomManagers.id, id));
 }
 
 export async function getMyCourseApplications(memberId: number) {
