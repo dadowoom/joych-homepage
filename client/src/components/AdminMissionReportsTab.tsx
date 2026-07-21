@@ -518,16 +518,33 @@ export default function AdminMissionReportsTab() {
                   </div>
                 ) : (
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-medium text-gray-800">
-                        {missionary.name} <span className="font-normal text-gray-400">· {missionary.region}</span>
-                      </p>
-                      <p className="mt-0.5 text-xs text-gray-400">
-                        {CONTINENT_OPTIONS.find((option) => option.value === missionary.continent)?.label ?? missionary.continent}
-                        {missionary.sentYear ? ` · ${missionary.sentYear}년` : ""}
-                        {missionary.organization ? ` · ${missionary.organization}` : ""}
-                        {!missionary.isActive ? " · 숨김" : ""}
-                      </p>
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      {missionary.profileImage ? (
+                        <img
+                          src={missionary.profileImage}
+                          alt={`${missionary.name} 프로필`}
+                          className="h-12 w-12 shrink-0 rounded-lg border border-gray-200 bg-gray-50 object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div
+                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-gray-300"
+                          aria-label={`${missionary.name} 프로필 이미지 없음`}
+                        >
+                          <ImagePlus className="h-5 w-5" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-800">
+                          {missionary.name} <span className="font-normal text-gray-400">· {missionary.region}</span>
+                        </p>
+                        <p className="mt-0.5 text-xs text-gray-400">
+                          {CONTINENT_OPTIONS.find((option) => option.value === missionary.continent)?.label ?? missionary.continent}
+                          {missionary.sentYear ? ` · ${missionary.sentYear}년` : ""}
+                          {missionary.organization ? ` · ${missionary.organization}` : ""}
+                          {!missionary.isActive ? " · 숨김" : ""}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex shrink-0 gap-2">
                       <button
