@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, ChevronDown, Loader2, Pencil, Plus, Trash2, Users, X } from "lucide-react";
+import { CalendarCheck, Check, ChevronDown, Loader2, Pencil, Plus, Trash2, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -9,6 +9,7 @@ import {
   getCourseApplicationChecklistValues,
 } from "@/lib/courseApplicationChecklist";
 import CourseApplicationChecklist from "@/components/CourseApplicationChecklist";
+import CourseFacilityReservationPickerDialog from "@/components/CourseFacilityReservationPickerDialog";
 import {
   DEFAULT_COURSE_APPLICATION_CHECKLIST_ITEMS,
   getCourseApplicationChecklistLabel,
@@ -62,6 +63,7 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
   const [editingApplicationId, setEditingApplicationId] = useState<number | null>(null);
   const [applicationForm, setApplicationForm] = useState({ applicantName: "", applicantPhone: "", applicantEmail: "", memo: "" });
   const [form, setForm] = useState<CourseRoomForm>(EMPTY_FORM);
+  const [facilityPickerOpen, setFacilityPickerOpen] = useState(false);
   const courseStartMin = getKstDateKey();
   const courseFacilityMax = getCourseManagerFacilityReservationMaxDateKey(courseStartMin);
   const courseEndMin = form.startDate > courseStartMin ? form.startDate : courseStartMin;
@@ -84,6 +86,7 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
   const resetForm = () => {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setFacilityPickerOpen(false);
   };
   const createCourse = trpc.courseManagement.create.useMutation({
     onSuccess: () => { refresh(); resetForm(); toast.success("강좌가 등록됐습니다."); },
@@ -266,7 +269,15 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
               <label className="text-xs font-medium text-gray-600">한 줄 소개<input value={form.summary} onChange={e => setForm(prev => ({ ...prev, summary: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
               <label className="text-xs font-medium text-gray-600">강사/담당<input value={form.instructor} onChange={e => setForm(prev => ({ ...prev, instructor: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
               <label className="text-xs font-medium text-gray-600">장소<input value={form.location} onChange={e => setForm(prev => ({ ...prev, location: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
-              <label className="text-xs font-medium text-gray-600 md:col-span-2">강좌 시설예약<select value={form.facilityId} onChange={e => setForm(prev => ({ ...prev, facilityId: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"><option value="">시설예약 연결 안 함</option>{reservableFacilities.map(facility => <option key={facility.id} value={facility.id}>{facility.name}{facility.location ? ` · ${facility.location}` : ""}</option>)}</select>{form.facilityId && <span className="mt-1.5 block rounded-md bg-green-50 px-2.5 py-2 text-[11px] font-medium leading-5 text-green-800">강좌 담당자 전용: 오늘부터 365일 이내 · 24시간 선택 · 자동승인 · 기존 예약과 중복 불가</span>}</label>
+              <div className="text-xs font-medium text-gray-600 md:col-span-2">
+                <label htmlFor="course-facility">강좌 시설예약</label>
+                <select id="course-facility" value={form.facilityId} onChange={e => setForm(prev => ({ ...prev, facilityId: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"><option value="">시설예약 연결 안 함</option>{reservableFacilities.map(facility => <option key={facility.id} value={facility.id}>{facility.name}{facility.location ? ` · ${facility.location}` : ""}</option>)}</select>
+                <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <button type="button" onClick={() => setFacilityPickerOpen(true)} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#1B5E20] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#2E7D32]"><CalendarCheck className="h-4 w-4" />달력/시간표로 선택</button>
+                  {form.facilityId && form.startDate && form.startTime && form.endTime && <span className="font-medium text-[#1B5E20]">{form.startDate} {form.startTime}~{form.endTime} 연결 예정</span>}
+                </div>
+                {form.facilityId && <span className="mt-1.5 block rounded-md bg-green-50 px-2.5 py-2 text-[11px] font-medium leading-5 text-green-800">강좌 담당자 전용: 오늘부터 365일 이내 · 24시간 선택 · 자동승인 · 기존 예약과 중복 불가</span>}
+              </div>
               <label className="text-xs font-medium text-gray-600">시작일<input type="date" min={courseStartMin} max={form.facilityId ? courseFacilityMax : undefined} value={form.startDate} onChange={e => setForm(prev => ({ ...prev, startDate: e.target.value, endDate: prev.endDate && prev.endDate < e.target.value ? e.target.value : prev.endDate }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
               <label className="text-xs font-medium text-gray-600">종료일<input type="date" min={courseEndMin} value={form.endDate} onChange={e => setForm(prev => ({ ...prev, endDate: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
               <label className="text-xs font-medium text-gray-600">시작 시간<input type="time" value={form.startTime} onChange={e => setForm(prev => ({ ...prev, startTime: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
@@ -276,6 +287,32 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
             </div>
             <div className="mt-3 flex justify-end gap-2"><button disabled={createCourse.isPending || updateCourse.isPending} className="inline-flex items-center gap-1.5 rounded-lg bg-[#1B5E20] px-3 py-2 text-xs font-bold text-white disabled:opacity-50"><Plus className="h-3.5 w-3.5" />{editingId ? "수정 저장" : "강좌 등록"}</button></div>
           </form>
+
+          <CourseFacilityReservationPickerDialog
+            open={facilityPickerOpen}
+            facilities={reservableFacilities}
+            facilityId={form.facilityId}
+            initialDate={form.startDate}
+            initialStartTime={form.startTime}
+            initialEndTime={form.endTime}
+            minDate={courseStartMin}
+            maxDate={courseFacilityMax}
+            currentReservationId={editingId ? courses.find(course => course.id === editingId)?.facilityReservationId : null}
+            onFacilityChange={facilityId => setForm(prev => ({ ...prev, facilityId }))}
+            onApply={selection => {
+              setForm(prev => ({
+                ...prev,
+                facilityId: selection.facilityId,
+                startDate: selection.date,
+                endDate: prev.endDate && prev.endDate >= selection.date ? prev.endDate : selection.date,
+                startTime: selection.startTime,
+                endTime: selection.endTime,
+              }));
+              setFacilityPickerOpen(false);
+              toast.success("선택한 시설예약 시간이 강좌 일정에 반영됐습니다.");
+            }}
+            onClose={() => setFacilityPickerOpen(false)}
+          />
 
           <div className="mt-5">
             <p className="mb-2 text-sm font-bold text-gray-800">이 강좌방의 강좌</p>
