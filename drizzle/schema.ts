@@ -731,6 +731,10 @@ export type InsertNewMemberRequest = typeof newMemberRequests.$inferInsert;
 // Public support intake: external church/institution visit requests
 export const visitRequests = mysqlTable("visit_requests", {
   id: int("id").autoincrement().primaryKey(),
+  /** 로그인 성도가 신청한 경우 계정 기준으로 본인 신청을 관리합니다. */
+  memberId: int("member_id"),
+  /** 비로그인 신청인이 같은 브라우저에서 수정·삭제할 때 쓰는 관리키의 SHA-256 해시 */
+  manageTokenHash: varchar("manage_token_hash", { length: 64 }),
   organizationName: varchar("organization_name", { length: 128 }).notNull(),
   applicantName: varchar("applicant_name", { length: 64 }).notNull(),
   phone: varchar("phone", { length: 32 }).notNull(),
@@ -750,6 +754,8 @@ export const visitRequests = mysqlTable("visit_requests", {
 }, (table) => [
   index("visit_requests_status_created_idx").on(table.status, table.createdAt),
   index("visit_requests_date_idx").on(table.visitDate),
+  index("visit_requests_member_created_idx").on(table.memberId, table.createdAt),
+  uniqueIndex("visit_requests_manage_token_hash_unique").on(table.manageTokenHash),
 ]);
 
 export type VisitRequest = typeof visitRequests.$inferSelect;

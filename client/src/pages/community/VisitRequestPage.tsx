@@ -16,6 +16,12 @@ import {
   X,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import {
+  findVisitManagementToken,
+  getVisitManagementTokens,
+  removeVisitManagementToken,
+  saveVisitManagementToken,
+} from "@/lib/supportRequestOwnership";
 import { toast } from "sonner";
 import { ViewModeToggle, type ViewMode } from "@/components/dynamic-page/ViewModeToggle";
 import {
@@ -28,6 +34,7 @@ import {
   fileToBase64,
   getEmptyVisitForm,
   getTodayKstDateKey,
+  MySupportRequestsPanel,
   SupportBoardIntro,
 } from "./_shared";
 
@@ -56,6 +63,10 @@ function VisitRequestBoardPage() {
   const { user } = useAuth();
   const href = "/support/tour";
   const { data: requests = [], isLoading } = trpc.support.listVisits.useQuery();
+  const [managementTokens, setManagementTokens] = useState(getVisitManagementTokens);
+  const { data: myVisitRequests = [] } = trpc.support.myVisits.useQuery({
+    manageTokens: managementTokens,
+  });
   const { data: menuItem } = trpc.home.menuItemByHref.useQuery({ href });
   const { data: subItem } = trpc.home.menuSubItemByHref.useQuery({ href });
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -67,6 +78,7 @@ function VisitRequestBoardPage() {
   const [searchInput, setSearchInput] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
   const [form, setForm] = useState(getEmptyVisitForm);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const defaultViewMode = useMemo(
     () => subItem?.defaultViewMode ?? menuItem?.defaultViewMode ?? "list",
     [menuItem?.defaultViewMode, subItem?.defaultViewMode],
@@ -83,16 +95,40 @@ function VisitRequestBoardPage() {
 
   const resetForm = () => {
     setForm(getEmptyVisitForm());
+    setEditingId(null);
     setShowForm(false);
   };
 
   const submitVisit = trpc.support.submitVisit.useMutation({
-    onSuccess: () => {
+    onSuccess: (result) => {
+      setManagementTokens(saveVisitManagementToken(result.requestId, result.manageToken));
       toast.success("탐방신청이 접수되었습니다.");
       setSubmitted(true);
       resetForm();
       setPage(1);
       utils.support.listVisits.invalidate();
+      utils.support.myVisits.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const updateVisit = trpc.support.updateMyVisit.useMutation({
+    onSuccess: () => {
+      toast.success("탐방신청이 수정되었습니다.");
+      resetForm();
+      utils.support.listVisits.invalidate();
+      utils.support.myVisits.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const deleteVisit = trpc.support.deleteMyVisit.useMutation({
+    onSuccess: (_result, variables) => {
+      setManagementTokens(removeVisitManagementToken(variables.id));
+      toast.success("탐방신청이 삭제되었습니다.");
+      resetForm();
+      utils.support.listVisits.invalidate();
+      utils.support.myVisits.invalidate();
     },
     onError: (error) => toast.error(error.message),
   });
@@ -120,6 +156,38 @@ function VisitRequestBoardPage() {
     setShowForm((value) => !value);
   };
 
+  const handleEdit = (id: number) => {
+    const request = myVisitRequests.find((item) => item.id === id);
+    if (!request) return;
+    setEditingId(request.id);
+    setForm({
+      organizationName: request.organizationName,
+      applicantName: request.applicantName,
+      phone: request.phone,
+      region: request.region ?? "",
+      denomination: request.denomination ?? "",
+      email: request.email ?? "",
+      visitDate: request.visitDate,
+      visitTime: request.visitTime ?? "",
+      headcount: String(request.headcount),
+      visitorType: request.visitorType,
+      purpose: request.purpose,
+      message: request.message ?? "",
+      agreePrivacy: true,
+    });
+    setSubmitted(false);
+    setShowForm(true);
+    requestAnimationFrame(() => document.getElementById("visit-request-form")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
+
+  const handleDelete = (id: number) => {
+    if (!window.confirm("이 탐방신청을 삭제하시겠습니까?")) return;
+    deleteVisit.mutate({
+      id,
+      manageToken: findVisitManagementToken(managementTokens, id),
+    });
+  };
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!form.agreePrivacy) {
@@ -127,7 +195,7 @@ function VisitRequestBoardPage() {
       return;
     }
 
-    submitVisit.mutate({
+    const payload = {
       organizationName: form.organizationName,
       applicantName: form.applicantName,
       phone: form.phone,
@@ -140,7 +208,16 @@ function VisitRequestBoardPage() {
       visitorType: form.visitorType as "church" | "institution" | "individual" | "other",
       purpose: form.purpose,
       message: form.message,
-    });
+    };
+    if (editingId) {
+      updateVisit.mutate({
+        id: editingId,
+        manageToken: findVisitManagementToken(managementTokens, editingId),
+        ...payload,
+      });
+      return;
+    }
+    submitVisit.mutate(payload);
   };
 
   return (
@@ -171,6 +248,19 @@ function VisitRequestBoardPage() {
           </div>
         )}
 
+        <MySupportRequestsPanel
+          items={myVisitRequests.map((request) => ({
+            id: request.id,
+            title: request.organizationName,
+            summary: `방문 희망일 ${request.visitDate}`,
+            status: request.status,
+            createdAt: request.createdAt,
+          }))}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          busyId={deleteVisit.isPending ? deleteVisit.variables?.id : null}
+        />
+
         {canManageVisits && (
           <AdminSupportRequestsTab
             initialKind="visits"
@@ -182,11 +272,11 @@ function VisitRequestBoardPage() {
         )}
 
         {showForm && (
-          <div className="border border-gray-200 bg-white shadow-sm">
+          <div id="visit-request-form" className="scroll-mt-24 border border-gray-200 bg-white shadow-sm">
             <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-6 py-4">
               <div>
                 <h2 className="flex items-center gap-2 font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-                  <MapPin className="h-5 w-5 text-[#1B5E20]" /> 탐방신청서
+                  <MapPin className="h-5 w-5 text-[#1B5E20]" /> {editingId ? "탐방신청서 수정" : "탐방신청서"}
                 </h2>
                 <p className="mt-1 text-xs text-gray-400">연락처, 이메일, 탐방 목적과 요청사항은 담당자와 관리자만 확인합니다.</p>
               </div>
@@ -287,7 +377,7 @@ function VisitRequestBoardPage() {
                   <input
                     type="date"
                     required
-                    min={getTodayKstDateKey()}
+                    min={editingId ? undefined : getTodayKstDateKey()}
                     value={form.visitDate}
                     onChange={(event) => setForm({ ...form, visitDate: event.target.value })}
                     className="w-full border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
@@ -358,10 +448,12 @@ function VisitRequestBoardPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={submitVisit.isPending}
+                  disabled={submitVisit.isPending || updateVisit.isPending}
                   className="bg-[#1B5E20] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#2E7D32] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {submitVisit.isPending ? "접수 중..." : "신청"}
+                  {submitVisit.isPending || updateVisit.isPending
+                    ? "저장 중..."
+                    : editingId ? "수정 저장" : "신청"}
                 </button>
               </div>
             </form>

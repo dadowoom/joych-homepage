@@ -2,7 +2,8 @@
  * 공개 접수 DB 함수 (기도 요청 / 새가족 등록 문의)
  */
 
-import { desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, ne, or, type SQL } from "drizzle-orm";
+import type { ResultSetHeader } from "mysql2";
 import {
   bulletinAdRequests,
   InsertBulletinAdRequest,
@@ -83,7 +84,8 @@ export async function updateNewMemberRequestStatus(
 
 export async function createVisitRequest(data: InsertVisitRequest) {
   const db = await requireDb();
-  await db.insert(visitRequests).values(data);
+  const result = await db.insert(visitRequests).values(data);
+  return (result as unknown as ResultSetHeader).insertId;
 }
 
 export async function listVisitRequests(limit = 100) {
@@ -173,6 +175,136 @@ export async function deleteVisitRequest(id: number) {
   await db.delete(visitRequests).where(eq(visitRequests.id, id));
 }
 
+type VisitManageToken = { id: number; tokenHash: string };
+
+function getVisitOwnershipCondition(
+  memberId: number | null | undefined,
+  manageTokenHash: string | null | undefined,
+) {
+  if (memberId && manageTokenHash) {
+    return or(
+      eq(visitRequests.memberId, memberId),
+      eq(visitRequests.manageTokenHash, manageTokenHash),
+    );
+  }
+  if (memberId) return eq(visitRequests.memberId, memberId);
+  if (manageTokenHash) return eq(visitRequests.manageTokenHash, manageTokenHash);
+  return null;
+}
+
+/** 로그인 계정 또는 비로그인 신청 관리키로 확인된 탐방신청만 반환합니다. */
+export async function listOwnedVisitRequests(
+  memberId: number | null | undefined,
+  manageTokens: VisitManageToken[],
+) {
+  const db = await requireDb();
+  const ownershipConditions: SQL[] = [];
+  if (memberId) ownershipConditions.push(eq(visitRequests.memberId, memberId));
+  for (const entry of manageTokens) {
+    ownershipConditions.push(and(
+      eq(visitRequests.id, entry.id),
+      eq(visitRequests.manageTokenHash, entry.tokenHash),
+    )!);
+  }
+  if (ownershipConditions.length === 0) return [];
+
+  return db
+    .select()
+    .from(visitRequests)
+    .where(and(
+      ne(visitRequests.status, "archived"),
+      or(...ownershipConditions),
+    ))
+    .orderBy(desc(visitRequests.createdAt));
+}
+
+export async function getOwnedVisitRequest(
+  id: number,
+  memberId: number | null | undefined,
+  manageTokenHash: string | null | undefined,
+) {
+  const db = await requireDb();
+  const ownership = getVisitOwnershipCondition(memberId, manageTokenHash);
+  if (!ownership) return null;
+  const rows = await db
+    .select()
+    .from(visitRequests)
+    .where(and(
+      eq(visitRequests.id, id),
+      ne(visitRequests.status, "archived"),
+      ownership,
+    ))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function updateOwnedVisitRequest(
+  id: number,
+  memberId: number | null | undefined,
+  manageTokenHash: string | null | undefined,
+  data: {
+    organizationName: string;
+    applicantName: string;
+    phone: string;
+    region: string;
+    denomination?: string | null;
+    email: string;
+    visitDate: string;
+    visitTime?: string | null;
+    headcount: number;
+    visitorType: "church" | "institution" | "individual" | "other";
+    purpose: string;
+    message?: string | null;
+  },
+) {
+  const db = await requireDb();
+  const ownership = getVisitOwnershipCondition(memberId, manageTokenHash);
+  if (!ownership) return false;
+  const result = await db
+    .update(visitRequests)
+    .set({
+      organizationName: data.organizationName,
+      applicantName: data.applicantName,
+      phone: data.phone,
+      region: data.region,
+      denomination: data.denomination ?? null,
+      email: data.email,
+      visitDate: data.visitDate,
+      visitTime: data.visitTime ?? null,
+      headcount: data.headcount,
+      visitorType: data.visitorType,
+      purpose: data.purpose,
+      message: data.message ?? null,
+      status: "new",
+      adminMemo: null,
+    })
+    .where(and(
+      eq(visitRequests.id, id),
+      ne(visitRequests.status, "archived"),
+      ownership,
+    ));
+  return (result as unknown as ResultSetHeader).affectedRows > 0;
+}
+
+export async function archiveOwnedVisitRequest(
+  id: number,
+  memberId: number | null | undefined,
+  manageTokenHash: string | null | undefined,
+) {
+  const db = await requireDb();
+  const ownership = getVisitOwnershipCondition(memberId, manageTokenHash);
+  if (!ownership) return false;
+  const result = await db
+    .update(visitRequests)
+    .set({ status: "archived", adminMemo: null })
+    .where(and(
+      eq(visitRequests.id, id),
+      ne(visitRequests.status, "archived"),
+      ownership,
+    ));
+  return (result as unknown as ResultSetHeader).affectedRows > 0;
+}
+
 export async function createSubtitleRequest(data: InsertSubtitleRequest) {
   const db = await requireDb();
   await db.insert(subtitleRequests).values(data);
@@ -246,6 +378,86 @@ export async function deleteSubtitleRequest(id: number) {
   await db.delete(subtitleRequests).where(eq(subtitleRequests.id, id));
 }
 
+export async function listMemberSubtitleRequests(memberId: number) {
+  const db = await requireDb();
+  return db
+    .select()
+    .from(subtitleRequests)
+    .where(and(
+      eq(subtitleRequests.memberId, memberId),
+      ne(subtitleRequests.status, "archived"),
+    ))
+    .orderBy(desc(subtitleRequests.createdAt));
+}
+
+export async function getMemberSubtitleRequest(id: number, memberId: number) {
+  const db = await requireDb();
+  const rows = await db
+    .select()
+    .from(subtitleRequests)
+    .where(and(
+      eq(subtitleRequests.id, id),
+      eq(subtitleRequests.memberId, memberId),
+      ne(subtitleRequests.status, "archived"),
+    ))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+type OwnedRequestAttachment = {
+  attachmentName: string;
+  attachmentUrl: string;
+  attachmentSize: number;
+  attachmentMime: string;
+} | null;
+
+export async function updateMemberSubtitleRequest(
+  id: number,
+  memberId: number,
+  data: {
+    title: string;
+    requestedDate?: string | null;
+    content: string;
+    attachment?: OwnedRequestAttachment;
+  },
+) {
+  const db = await requireDb();
+  const result = await db
+    .update(subtitleRequests)
+    .set({
+      title: data.title,
+      requestedDate: data.requestedDate ?? null,
+      content: data.content,
+      status: "new",
+      adminMemo: null,
+      ...(data.attachment !== undefined ? {
+        attachmentName: data.attachment?.attachmentName ?? null,
+        attachmentUrl: data.attachment?.attachmentUrl ?? null,
+        attachmentSize: data.attachment?.attachmentSize ?? null,
+        attachmentMime: data.attachment?.attachmentMime ?? null,
+      } : {}),
+    })
+    .where(and(
+      eq(subtitleRequests.id, id),
+      eq(subtitleRequests.memberId, memberId),
+      ne(subtitleRequests.status, "archived"),
+    ));
+  return (result as unknown as ResultSetHeader).affectedRows > 0;
+}
+
+export async function archiveMemberSubtitleRequest(id: number, memberId: number) {
+  const db = await requireDb();
+  const result = await db
+    .update(subtitleRequests)
+    .set({ status: "archived", adminMemo: null })
+    .where(and(
+      eq(subtitleRequests.id, id),
+      eq(subtitleRequests.memberId, memberId),
+      ne(subtitleRequests.status, "archived"),
+    ));
+  return (result as unknown as ResultSetHeader).affectedRows > 0;
+}
+
 export async function createBulletinAdRequest(data: InsertBulletinAdRequest) {
   const db = await requireDb();
   await db.insert(bulletinAdRequests).values(data);
@@ -317,4 +529,77 @@ export async function updateBulletinAdRequest(
 export async function deleteBulletinAdRequest(id: number) {
   const db = await requireDb();
   await db.delete(bulletinAdRequests).where(eq(bulletinAdRequests.id, id));
+}
+
+export async function listMemberBulletinAdRequests(memberId: number) {
+  const db = await requireDb();
+  return db
+    .select()
+    .from(bulletinAdRequests)
+    .where(and(
+      eq(bulletinAdRequests.memberId, memberId),
+      ne(bulletinAdRequests.status, "archived"),
+    ))
+    .orderBy(desc(bulletinAdRequests.createdAt));
+}
+
+export async function getMemberBulletinAdRequest(id: number, memberId: number) {
+  const db = await requireDb();
+  const rows = await db
+    .select()
+    .from(bulletinAdRequests)
+    .where(and(
+      eq(bulletinAdRequests.id, id),
+      eq(bulletinAdRequests.memberId, memberId),
+      ne(bulletinAdRequests.status, "archived"),
+    ))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function updateMemberBulletinAdRequest(
+  id: number,
+  memberId: number,
+  data: {
+    title: string;
+    requestedDate?: string | null;
+    content: string;
+    attachment?: OwnedRequestAttachment;
+  },
+) {
+  const db = await requireDb();
+  const result = await db
+    .update(bulletinAdRequests)
+    .set({
+      title: data.title,
+      requestedDate: data.requestedDate ?? null,
+      content: data.content,
+      status: "new",
+      adminMemo: null,
+      ...(data.attachment !== undefined ? {
+        attachmentName: data.attachment?.attachmentName ?? null,
+        attachmentUrl: data.attachment?.attachmentUrl ?? null,
+        attachmentSize: data.attachment?.attachmentSize ?? null,
+        attachmentMime: data.attachment?.attachmentMime ?? null,
+      } : {}),
+    })
+    .where(and(
+      eq(bulletinAdRequests.id, id),
+      eq(bulletinAdRequests.memberId, memberId),
+      ne(bulletinAdRequests.status, "archived"),
+    ));
+  return (result as unknown as ResultSetHeader).affectedRows > 0;
+}
+
+export async function archiveMemberBulletinAdRequest(id: number, memberId: number) {
+  const db = await requireDb();
+  const result = await db
+    .update(bulletinAdRequests)
+    .set({ status: "archived", adminMemo: null })
+    .where(and(
+      eq(bulletinAdRequests.id, id),
+      eq(bulletinAdRequests.memberId, memberId),
+      ne(bulletinAdRequests.status, "archived"),
+    ));
+  return (result as unknown as ResultSetHeader).affectedRows > 0;
 }

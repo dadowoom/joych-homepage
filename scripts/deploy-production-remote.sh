@@ -2541,6 +2541,68 @@ else
   exit 1
 fi
 
+MIGRATION_0088="${APP_DIR}/drizzle/0088_support_request_self_management.sql"
+if [[ -f "${MIGRATION_0088}" ]]; then
+  echo "[deploy] database migration: applicant support request management"
+  node --input-type=module <<'NODE'
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required for migration 0088.");
+}
+
+const migrationId = "0088_support_request_self_management";
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  const [columns] = await connection.execute(
+    "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'visit_requests'",
+  );
+  const columnNames = new Set(Array.isArray(columns) ? columns.map((row) => row.COLUMN_NAME) : []);
+  if (!columnNames.has("member_id")) {
+    await connection.execute("ALTER TABLE visit_requests ADD COLUMN member_id int NULL AFTER id");
+  }
+  if (!columnNames.has("manage_token_hash")) {
+    await connection.execute("ALTER TABLE visit_requests ADD COLUMN manage_token_hash varchar(64) NULL AFTER member_id");
+  }
+
+  const [indexes] = await connection.execute(
+    "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'visit_requests'",
+  );
+  const indexNames = new Set(Array.isArray(indexes) ? indexes.map((row) => row.INDEX_NAME) : []);
+  if (!indexNames.has("visit_requests_member_created_idx")) {
+    await connection.execute("ALTER TABLE visit_requests ADD KEY visit_requests_member_created_idx (member_id, created_at)");
+  }
+  if (!indexNames.has("visit_requests_manage_token_hash_unique")) {
+    await connection.execute("ALTER TABLE visit_requests ADD UNIQUE KEY visit_requests_manage_token_hash_unique (manage_token_hash)");
+  }
+
+  const [rows] = await connection.execute(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    [migrationId],
+  );
+  if (!Array.isArray(rows) || rows.length === 0) {
+    await connection.execute("INSERT INTO app_migrations (id) VALUES (?)", [migrationId]);
+    console.log("[deploy] migration 0088 applied");
+  } else {
+    console.log("[deploy] migration 0088 already applied and schema verified");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+else
+  echo "[deploy] missing migration file: ${MIGRATION_0088}" >&2
+  exit 1
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

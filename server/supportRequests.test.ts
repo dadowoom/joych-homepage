@@ -3,12 +3,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 
 const dbMocks = vi.hoisted(() => ({
+  archiveMemberBulletinAdRequest: vi.fn(),
+  archiveMemberSubtitleRequest: vi.fn(),
+  archiveOwnedVisitRequest: vi.fn(),
   createPrayerRequest: vi.fn(),
   createNewMemberRequest: vi.fn(),
   createSubtitleRequest: vi.fn(),
   createBulletinAdRequest: vi.fn(),
   createVisitRequest: vi.fn(),
+  getMemberBulletinAdRequest: vi.fn(),
   getMemberById: vi.fn(),
+  getMemberSubtitleRequest: vi.fn(),
+  listMemberBulletinAdRequests: vi.fn(),
+  listMemberSubtitleRequests: vi.fn(),
+  listOwnedVisitRequests: vi.fn(),
+  updateMemberBulletinAdRequest: vi.fn(),
+  updateMemberSubtitleRequest: vi.fn(),
+  updateOwnedVisitRequest: vi.fn(),
 }));
 
 const joseMocks = vi.hoisted(() => ({
@@ -31,12 +42,23 @@ vi.mock("./db", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./db")>();
   return {
     ...actual,
+    archiveMemberBulletinAdRequest: dbMocks.archiveMemberBulletinAdRequest,
+    archiveMemberSubtitleRequest: dbMocks.archiveMemberSubtitleRequest,
+    archiveOwnedVisitRequest: dbMocks.archiveOwnedVisitRequest,
     createPrayerRequest: dbMocks.createPrayerRequest,
     createNewMemberRequest: dbMocks.createNewMemberRequest,
     createSubtitleRequest: dbMocks.createSubtitleRequest,
     createBulletinAdRequest: dbMocks.createBulletinAdRequest,
     createVisitRequest: dbMocks.createVisitRequest,
+    getMemberBulletinAdRequest: dbMocks.getMemberBulletinAdRequest,
     getMemberById: dbMocks.getMemberById,
+    getMemberSubtitleRequest: dbMocks.getMemberSubtitleRequest,
+    listMemberBulletinAdRequests: dbMocks.listMemberBulletinAdRequests,
+    listMemberSubtitleRequests: dbMocks.listMemberSubtitleRequests,
+    listOwnedVisitRequests: dbMocks.listOwnedVisitRequests,
+    updateMemberBulletinAdRequest: dbMocks.updateMemberBulletinAdRequest,
+    updateMemberSubtitleRequest: dbMocks.updateMemberSubtitleRequest,
+    updateOwnedVisitRequest: dbMocks.updateOwnedVisitRequest,
   };
 });
 
@@ -61,6 +83,18 @@ describe("공개 접수 라우터", () => {
     vi.clearAllMocks();
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-11T00:00:00.000Z"));
+    dbMocks.createVisitRequest.mockResolvedValue(901);
+    dbMocks.listMemberBulletinAdRequests.mockResolvedValue([]);
+    dbMocks.listMemberSubtitleRequests.mockResolvedValue([]);
+    dbMocks.listOwnedVisitRequests.mockResolvedValue([]);
+    dbMocks.getMemberBulletinAdRequest.mockResolvedValue({ id: 301, memberId: 1 });
+    dbMocks.getMemberSubtitleRequest.mockResolvedValue({ id: 201, memberId: 1 });
+    dbMocks.updateMemberBulletinAdRequest.mockResolvedValue(true);
+    dbMocks.updateMemberSubtitleRequest.mockResolvedValue(true);
+    dbMocks.updateOwnedVisitRequest.mockResolvedValue(true);
+    dbMocks.archiveMemberBulletinAdRequest.mockResolvedValue(true);
+    dbMocks.archiveMemberSubtitleRequest.mockResolvedValue(true);
+    dbMocks.archiveOwnedVisitRequest.mockResolvedValue(true);
     dbMocks.getMemberById.mockResolvedValue({
       id: 1,
       name: "홍길동",
@@ -247,7 +281,11 @@ describe("공개 접수 라우터", () => {
       headcount: 3,
       visitorType: "institution",
       purpose: "교회 탐방",
-    })).resolves.toEqual({ ok: true });
+    })).resolves.toEqual(expect.objectContaining({
+      ok: true,
+      requestId: 901,
+      manageToken: expect.any(String),
+    }));
 
     await expect(memberCaller.support.submitSubtitle({
       title: "오늘 자막 신청",
@@ -264,5 +302,158 @@ describe("공개 접수 라우터", () => {
     expect(dbMocks.createVisitRequest).toHaveBeenCalledOnce();
     expect(dbMocks.createSubtitleRequest).toHaveBeenCalledOnce();
     expect(dbMocks.createBulletinAdRequest).toHaveBeenCalledOnce();
+  });
+
+  it("returns only the signed-in member's subtitle and bulletin requests", async () => {
+    dbMocks.listMemberSubtitleRequests.mockResolvedValue([{ id: 201, memberId: 1, title: "자막 신청" }]);
+    dbMocks.listMemberBulletinAdRequests.mockResolvedValue([{ id: 301, memberId: 1, title: "주보 광고" }]);
+    const caller = appRouter.createCaller(createContext(1));
+
+    await expect(caller.support.mySubtitles()).resolves.toEqual([{ id: 201, title: "자막 신청" }]);
+    await expect(caller.support.myBulletinAds()).resolves.toEqual([{ id: 301, title: "주보 광고" }]);
+    expect(dbMocks.listMemberSubtitleRequests).toHaveBeenCalledWith(1);
+    expect(dbMocks.listMemberBulletinAdRequests).toHaveBeenCalledWith(1);
+  });
+
+  it("lets a member update and delete only their own subtitle request", async () => {
+    const caller = appRouter.createCaller(createContext(1));
+
+    await expect(caller.support.updateMySubtitle({
+      id: 201,
+      title: "수정한 자막 신청",
+      requestedDate: "2026-07-12",
+      content: "수정한 자막 내용",
+      removeAttachment: true,
+    })).resolves.toEqual({ ok: true });
+    await expect(caller.support.deleteMySubtitle({ id: 201 })).resolves.toEqual({ ok: true });
+
+    expect(dbMocks.getMemberSubtitleRequest).toHaveBeenCalledWith(201, 1);
+    expect(dbMocks.updateMemberSubtitleRequest).toHaveBeenCalledWith(201, 1, expect.objectContaining({
+      title: "수정한 자막 신청",
+      attachment: null,
+    }));
+    expect(dbMocks.archiveMemberSubtitleRequest).toHaveBeenCalledWith(201, 1);
+  });
+
+  it("lets a member update and delete only their own bulletin ad request", async () => {
+    const caller = appRouter.createCaller(createContext(1));
+
+    await expect(caller.support.updateMyBulletinAd({
+      id: 301,
+      title: "수정한 주보 광고",
+      requestedDate: "2026-07-12",
+      content: "수정한 주보 광고 내용",
+    })).resolves.toEqual({ ok: true });
+    await expect(caller.support.deleteMyBulletinAd({ id: 301 })).resolves.toEqual({ ok: true });
+
+    expect(dbMocks.getMemberBulletinAdRequest).toHaveBeenCalledWith(301, 1);
+    expect(dbMocks.updateMemberBulletinAdRequest).toHaveBeenCalledWith(301, 1, expect.objectContaining({
+      title: "수정한 주보 광고",
+    }));
+    expect(dbMocks.archiveMemberBulletinAdRequest).toHaveBeenCalledWith(301, 1);
+  });
+
+  it("rejects a member trying to update another member's request", async () => {
+    dbMocks.getMemberSubtitleRequest.mockResolvedValue(null);
+    const caller = appRouter.createCaller(createContext(1));
+
+    await expect(caller.support.updateMySubtitle({
+      id: 999,
+      title: "다른 사람 신청",
+      content: "수정하면 안 되는 내용",
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(dbMocks.updateMemberSubtitleRequest).not.toHaveBeenCalled();
+  });
+
+  it("hashes an anonymous visit management token and uses it for self-management", async () => {
+    const caller = appRouter.createCaller(createContext());
+    const submitted = await caller.support.submitVisit({
+      organizationName: "방문 기관",
+      applicantName: "신청인",
+      phone: "010-1234-5678",
+      region: "포항",
+      email: "visitor@example.com",
+      visitDate: "2026-07-12",
+      headcount: 3,
+      visitorType: "institution",
+      purpose: "교회 탐방",
+    });
+
+    expect(submitted).toEqual(expect.objectContaining({
+      ok: true,
+      requestId: 901,
+      manageToken: expect.any(String),
+    }));
+    expect(dbMocks.createVisitRequest).toHaveBeenCalledWith(expect.objectContaining({
+      memberId: null,
+      manageTokenHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+    }));
+    expect(dbMocks.createVisitRequest.mock.calls[0][0].manageTokenHash).not.toBe(submitted.manageToken);
+
+    await expect(caller.support.updateMyVisit({
+      id: 901,
+      manageToken: submitted.manageToken,
+      organizationName: "수정 기관",
+      applicantName: "신청인",
+      phone: "010-1234-5678",
+      region: "포항",
+      email: "visitor@example.com",
+      visitDate: "2026-07-13",
+      headcount: 4,
+      visitorType: "institution",
+      purpose: "수정한 탐방",
+    })).resolves.toEqual({ ok: true });
+
+    const tokenHash = dbMocks.updateOwnedVisitRequest.mock.calls[0][2];
+    expect(tokenHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(tokenHash).toBe(dbMocks.createVisitRequest.mock.calls[0][0].manageTokenHash);
+  });
+
+  it("lists and deletes an anonymous visitor's request with the management token", async () => {
+    dbMocks.listOwnedVisitRequests.mockResolvedValue([{
+      id: 901,
+      memberId: null,
+      manageTokenHash: "a".repeat(64),
+      organizationName: "방문 기관",
+    }]);
+    const caller = appRouter.createCaller(createContext());
+    const manageToken = "visit-management-token-that-is-long-enough";
+
+    await expect(caller.support.myVisits({
+      manageTokens: [{ id: 901, token: manageToken }],
+    })).resolves.toEqual([{ id: 901, organizationName: "방문 기관" }]);
+    expect(dbMocks.listOwnedVisitRequests).toHaveBeenCalledWith(null, [{
+      id: 901,
+      tokenHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+    }]);
+
+    await expect(caller.support.deleteMyVisit({
+      id: 901,
+      manageToken,
+    })).resolves.toEqual({ ok: true });
+    expect(dbMocks.archiveOwnedVisitRequest).toHaveBeenCalledWith(
+      901,
+      null,
+      expect.stringMatching(/^[a-f0-9]{64}$/),
+    );
+  });
+
+  it("rejects an anonymous visit update when the management token is invalid", async () => {
+    dbMocks.updateOwnedVisitRequest.mockResolvedValue(false);
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(caller.support.updateMyVisit({
+      id: 901,
+      manageToken: "x".repeat(32),
+      organizationName: "방문 기관",
+      applicantName: "신청인",
+      phone: "010-1234-5678",
+      region: "포항",
+      email: "visitor@example.com",
+      visitDate: "2026-07-12",
+      headcount: 3,
+      visitorType: "institution",
+      purpose: "교회 탐방",
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

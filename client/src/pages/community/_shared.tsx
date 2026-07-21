@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { ArrowLeft, Check, ChevronRight, Pencil, Phone } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, Pencil, Phone, Trash2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
 import { getSupportSideMenuItems } from "@/lib/supportSideMenu";
@@ -96,6 +96,84 @@ export function getEmptyVisitForm() {
     message: "",
     agreePrivacy: false,
   };
+}
+
+export type MySupportRequestItem = {
+  id: number;
+  title: string;
+  summary?: string | null;
+  status: string;
+  createdAt: string | Date;
+};
+
+function getMyRequestStatusLabel(status: string) {
+  if (status === "new") return "신규";
+  if (status === "reviewed") return "확인완료";
+  if (status === "contacted") return "연락완료";
+  if (status === "scheduled") return "일정확정";
+  if (status === "completed") return "처리완료";
+  return status;
+}
+
+export function MySupportRequestsPanel({
+  items,
+  onEdit,
+  onDelete,
+  busyId,
+}: {
+  items: MySupportRequestItem[];
+  onEdit: (id: number) => void;
+  onDelete: (id: number) => void;
+  busyId?: number | null;
+}) {
+  if (items.length === 0) return null;
+
+  return (
+    <section className="border border-emerald-100 bg-emerald-50/40 p-4 sm:p-5">
+      <div className="mb-3">
+        <h2 className="text-sm font-bold text-gray-900">내 신청 내역</h2>
+        <p className="mt-1 text-xs text-gray-500">본인이 작성한 신청만 수정하거나 삭제할 수 있습니다.</p>
+      </div>
+      <div className="space-y-2">
+        {items.map((item) => (
+          <article
+            key={item.id}
+            className="flex flex-col gap-3 border border-emerald-100 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="truncate text-sm font-semibold text-gray-900">{item.title}</p>
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-[#1B5E20]">
+                  {getMyRequestStatusLabel(item.status)}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                {item.summary ? `${item.summary} · ` : ""}{formatSupportDate(item.createdAt)} 접수
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={() => onEdit(item.id)}
+                disabled={busyId === item.id}
+                className="inline-flex h-8 items-center gap-1 border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 hover:border-[#1B5E20] hover:text-[#1B5E20] disabled:opacity-50"
+              >
+                <Pencil className="h-3.5 w-3.5" /> 수정
+              </button>
+              <button
+                type="button"
+                onClick={() => onDelete(item.id)}
+                disabled={busyId === item.id}
+                className="inline-flex h-8 items-center gap-1 border border-red-200 bg-white px-3 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> {busyId === item.id ? "삭제 중" : "삭제"}
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 export function SupportBoardIntro({

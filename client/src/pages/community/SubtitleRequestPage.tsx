@@ -28,6 +28,7 @@ import {
   fileToBase64,
   getEmptyVisitForm,
   getTodayKstDateKey,
+  MySupportRequestsPanel,
   SupportBoardIntro,
 } from "./_shared";
 
@@ -46,6 +47,9 @@ export default function SubtitleRequestPage() {
     refetchOnWindowFocus: false,
   });
   const { data: subtitleRequests = [], isLoading } = trpc.support.listSubtitles.useQuery();
+  const { data: mySubtitleRequests = [] } = trpc.support.mySubtitles.useQuery(undefined, {
+    enabled: Boolean(memberMe),
+  });
   const { data: menuItem } = trpc.home.menuItemByHref.useQuery({ href });
   const { data: subItem } = trpc.home.menuSubItemByHref.useQuery({ href });
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -56,6 +60,9 @@ export default function SubtitleRequestPage() {
   const [searchInput, setSearchInput] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [existingAttachmentName, setExistingAttachmentName] = useState<string | null>(null);
+  const [removeExistingAttachment, setRemoveExistingAttachment] = useState(false);
   const [form, setForm] = useState({
     title: "",
     authorName: "",
@@ -88,6 +95,9 @@ export default function SubtitleRequestPage() {
       content: "",
     });
     setSelectedFile(null);
+    setEditingId(null);
+    setExistingAttachmentName(null);
+    setRemoveExistingAttachment(false);
     setShowForm(false);
   };
 
@@ -97,6 +107,27 @@ export default function SubtitleRequestPage() {
       resetForm();
       setPage(1);
       utils.support.listSubtitles.invalidate();
+      utils.support.mySubtitles.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const updateSubtitle = trpc.support.updateMySubtitle.useMutation({
+    onSuccess: () => {
+      toast.success("자막 신청이 수정되었습니다.");
+      resetForm();
+      utils.support.listSubtitles.invalidate();
+      utils.support.mySubtitles.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const deleteSubtitle = trpc.support.deleteMySubtitle.useMutation({
+    onSuccess: () => {
+      toast.success("자막 신청이 삭제되었습니다.");
+      resetForm();
+      utils.support.listSubtitles.invalidate();
+      utils.support.mySubtitles.invalidate();
     },
     onError: (error) => toast.error(error.message),
   });
@@ -128,6 +159,30 @@ export default function SubtitleRequestPage() {
     setShowForm((value) => !value);
   };
 
+  const handleEdit = (id: number) => {
+    const request = mySubtitleRequests.find((item) => item.id === id);
+    if (!request) return;
+    setEditingId(request.id);
+    setForm({
+      title: request.title,
+      authorName: request.authorName,
+      phone: request.phone,
+      email: request.email ?? "",
+      requestedDate: request.requestedDate ?? "",
+      content: request.content,
+    });
+    setSelectedFile(null);
+    setExistingAttachmentName(request.attachmentName ?? null);
+    setRemoveExistingAttachment(false);
+    setShowForm(true);
+    requestAnimationFrame(() => document.getElementById("subtitle-request-form")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
+
+  const handleDelete = (id: number) => {
+    if (!window.confirm("이 자막 신청을 삭제하시겠습니까?")) return;
+    deleteSubtitle.mutate({ id });
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!memberMe) {
@@ -153,15 +208,24 @@ export default function SubtitleRequestPage() {
       }
     }
 
-    submitSubtitle.mutate({
+    const payload = {
       title: form.title,
       requestedDate: form.requestedDate || undefined,
       content: form.content,
       attachment,
-    });
+    };
+    if (editingId) {
+      updateSubtitle.mutate({
+        id: editingId,
+        ...payload,
+        removeAttachment: removeExistingAttachment,
+      });
+      return;
+    }
+    submitSubtitle.mutate(payload);
   };
 
-  const isSaving = submitSubtitle.isPending;
+  const isSaving = submitSubtitle.isPending || updateSubtitle.isPending;
 
   return (
     <SupportPageWrapper title="자막 신청" activeHref="/support/subtitle">
@@ -187,6 +251,19 @@ export default function SubtitleRequestPage() {
           </div>
         </div>
 
+        <MySupportRequestsPanel
+          items={(memberMe ? mySubtitleRequests : []).map((request) => ({
+            id: request.id,
+            title: request.title,
+            summary: request.requestedDate ? `자막 필요일 ${request.requestedDate}` : null,
+            status: request.status,
+            createdAt: request.createdAt,
+          }))}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          busyId={deleteSubtitle.isPending ? deleteSubtitle.variables?.id : null}
+        />
+
         {canManageSubtitles && (
           <AdminSupportRequestsTab
             initialKind="subtitles"
@@ -198,11 +275,11 @@ export default function SubtitleRequestPage() {
         )}
 
         {showForm && memberMe && (
-          <div className="border border-gray-200 bg-white shadow-sm">
+          <div id="subtitle-request-form" className="scroll-mt-24 border border-gray-200 bg-white shadow-sm">
             <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-6 py-4">
               <div>
                 <h2 className="font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>
-                  자막 신청서
+                  {editingId ? "자막 신청서 수정" : "자막 신청서"}
                 </h2>
                 <p className="mt-1 text-xs text-gray-400">
                   작성자: {memberMe.name} · 연락처 {memberMe.phone || "미등록"}
@@ -261,7 +338,7 @@ export default function SubtitleRequestPage() {
                   <label className="mb-2 block text-sm font-medium text-gray-700">자막 필요일</label>
                   <input
                     type="date"
-                    min={getTodayKstDateKey()}
+                    min={editingId ? undefined : getTodayKstDateKey()}
                     value={form.requestedDate}
                     onChange={(event) => setForm({ ...form, requestedDate: event.target.value })}
                     className="w-full border border-gray-200 px-4 py-3 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/20"
@@ -300,7 +377,11 @@ export default function SubtitleRequestPage() {
                       />
                     </label>
                     <span className="min-w-0 truncate text-sm text-gray-500">
-                      {selectedFile ? selectedFile.name : "PDF, DOCX, HWP, TXT, JPG, PNG / 최대 1MB"}
+                      {selectedFile
+                        ? selectedFile.name
+                        : existingAttachmentName && !removeExistingAttachment
+                          ? `기존 파일: ${existingAttachmentName}`
+                          : "PDF, DOCX, HWP, TXT, JPG, PNG / 최대 1MB"}
                     </span>
                     {selectedFile && (
                       <button
@@ -309,6 +390,15 @@ export default function SubtitleRequestPage() {
                         className="text-xs text-gray-400 hover:text-red-500"
                       >
                         파일 제거
+                      </button>
+                    )}
+                    {!selectedFile && existingAttachmentName && !removeExistingAttachment && (
+                      <button
+                        type="button"
+                        onClick={() => setRemoveExistingAttachment(true)}
+                        className="text-xs text-gray-400 hover:text-red-500"
+                      >
+                        기존 파일 삭제
                       </button>
                     )}
                   </div>
@@ -327,7 +417,7 @@ export default function SubtitleRequestPage() {
                   disabled={isSaving}
                   className="bg-[#1B5E20] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#2E7D32] disabled:opacity-50"
                 >
-                  {isSaving ? "접수 중..." : "신청"}
+                  {isSaving ? "저장 중..." : editingId ? "수정 저장" : "신청"}
                 </button>
               </div>
             </form>
