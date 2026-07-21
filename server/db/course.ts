@@ -192,7 +192,7 @@ function hasCourseReservationSchedule(course: Pick<Course, "facilityId" | "start
     && Boolean(course.facilityId && course.startDate && course.startTime && course.endTime);
 }
 
-function buildCourseReservationData(course: Pick<Course, "id" | "title" | "capacity" | "facilityId" | "startDate" | "endDate" | "startTime" | "endTime">): Omit<InsertReservation, "id" | "createdAt" | "updatedAt"> {
+export function buildCourseReservationData(course: Pick<Course, "id" | "title" | "capacity" | "facilityId" | "startDate" | "endDate" | "startTime" | "endTime">): Omit<InsertReservation, "id" | "createdAt" | "updatedAt"> {
   if (!course.facilityId || !course.startDate || !course.startTime || !course.endTime) {
     throw new Error("강좌 시설예약을 만들려면 시설, 시작일, 시작 시간, 종료 시간이 필요합니다.");
   }

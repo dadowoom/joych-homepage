@@ -6,6 +6,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { publicProcedure, router } from "../_core/trpc";
 import { hasAdminContentPermission } from "../db/adminPermissions";
+import { getCourseFacilityReservationRestriction } from "../../shared/courseFacilityReservationPolicy";
 import {
   createCourse,
   deleteCourse,
@@ -13,8 +14,11 @@ import {
   getCourseApplications,
   getCourseById,
   getCoursesForAdmin,
+  getFacilityById,
   getCourseRoomManagementPagesForMember,
   hasCourseRoomManagementAccess,
+  ReservationLockError,
+  ReservationOverlapError,
   updateCourse,
   updateCourseApplicationChecklist,
   updateCourseApplicationDetails,
@@ -92,6 +96,7 @@ const courseInputShape = {
   target: optionalText(128),
   fee: optionalText(128),
   capacity: z.number().int().min(0).max(100_000).default(0),
+  facilityId: z.number().int().positive().nullable().optional(),
   startDate: nullableDate,
   endDate: nullableDate,
   startTime: nullableTime,
@@ -112,8 +117,40 @@ export const courseCreateSchema = z.object(courseInputShape).superRefine((value,
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["applyEndDate"], message: "신청 마감일은 신청 시작일 이후여야 합니다." });
   }
   validateNewCourseDates(value, ctx);
+  const facilityRestriction = getCourseFacilityReservationRestriction(value);
+  if (facilityRestriction) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["facilityId"], message: facilityRestriction });
+  }
 });
 const courseUpdateSchema = z.object(courseInputShape).partial();
+
+function assertCourseFacilityReservationPolicy(value: {
+  facilityId?: number | null;
+  startDate?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+}) {
+  const restriction = getCourseFacilityReservationRestriction(value);
+  if (restriction) throw new TRPCError({ code: "BAD_REQUEST", message: restriction });
+}
+
+async function assertReservableCourseFacility(facilityId?: number | null) {
+  if (!facilityId) return;
+  const facility = await getFacilityById(facilityId);
+  if (!facility || !facility.isVisible || !facility.isReservable) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "현재 강좌 시설예약에 사용할 수 없는 시설입니다." });
+  }
+}
+
+function handleCourseReservationError(error: unknown): never {
+  if (error instanceof ReservationOverlapError) {
+    throw new TRPCError({ code: "CONFLICT", message: error.message });
+  }
+  if (error instanceof ReservationLockError) {
+    throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: error.message });
+  }
+  throw error;
+}
 
 async function assertCourseRoomAccess(
   ctx: { user: Parameters<typeof hasAdminContentPermission>[0]; memberId: number | null },
@@ -173,22 +210,33 @@ export const courseManagementRouter = router({
     .input(z.object({ pageHref: pageHrefSchema, course: courseCreateSchema }))
     .mutation(async ({ input, ctx }) => {
       await assertCourseRoomAccess(ctx, input.pageHref);
-      return createCourse({
-        ...input.course,
-        imageUrl: null,
-        facilityId: null,
-        facilityReservationId: null,
-        pageHref: input.pageHref,
-        applicationFields: "[]",
-      });
+      await assertReservableCourseFacility(input.course.facilityId);
+      try {
+        return await createCourse({
+          ...input.course,
+          imageUrl: null,
+          facilityReservationId: null,
+          pageHref: input.pageHref,
+          applicationFields: "[]",
+        });
+      } catch (error) {
+        handleCourseReservationError(error);
+      }
     }),
 
   update: publicProcedure
     .input(z.object({ id: idSchema, course: courseUpdateSchema }))
     .mutation(async ({ input, ctx }) => {
-      const { access } = await getOwnedCourseOrThrow(ctx, input.id);
-      await updateCourse(input.id, input.course);
-      return { success: true, processedBy: access.processedBy ?? null };
+      const { course, access } = await getOwnedCourseOrThrow(ctx, input.id);
+      const nextCourse = { ...course, ...input.course };
+      assertCourseFacilityReservationPolicy(nextCourse);
+      await assertReservableCourseFacility(nextCourse.facilityId);
+      try {
+        await updateCourse(input.id, input.course);
+        return { success: true, processedBy: access.processedBy ?? null };
+      } catch (error) {
+        handleCourseReservationError(error);
+      }
     }),
 
   delete: publicProcedure

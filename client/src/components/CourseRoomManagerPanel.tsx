@@ -14,6 +14,10 @@ import {
   getCourseApplicationChecklistLabel,
 } from "@shared/courseApplicationChecklist";
 import { getKstDateKey } from "@/lib/facilityReservationTime";
+import {
+  getCourseFacilityReservationRestriction,
+  getCourseManagerFacilityReservationMaxDateKey,
+} from "@shared/courseFacilityReservationPolicy";
 
 type Props = {
   pageHref: string;
@@ -27,6 +31,7 @@ const EMPTY_FORM = {
   location: "",
   target: "",
   capacity: "0",
+  facilityId: "",
   startDate: "",
   endDate: "",
   startTime: "",
@@ -58,6 +63,7 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
   const [applicationForm, setApplicationForm] = useState({ applicantName: "", applicantPhone: "", applicantEmail: "", memo: "" });
   const [form, setForm] = useState<CourseRoomForm>(EMPTY_FORM);
   const courseStartMin = getKstDateKey();
+  const courseFacilityMax = getCourseManagerFacilityReservationMaxDateKey(courseStartMin);
   const courseEndMin = form.startDate > courseStartMin ? form.startDate : courseStartMin;
   const { data: access, isLoading: checkingAccess } = trpc.courseManagement.access.useQuery({ pageHref });
   const enabled = Boolean(access?.canManage);
@@ -67,6 +73,8 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
   const { data: applications = [], isLoading: loadingApplications } = trpc.courseManagement.applications.useQuery(
     { pageHref }, { enabled: enabled && open },
   );
+  const { data: facilities = [] } = trpc.home.facilities.useQuery(undefined, { enabled: enabled && open });
+  const reservableFacilities = facilities.filter(facility => facility.isVisible && facility.isReservable);
 
   const refresh = () => {
     utils.courseManagement.courses.invalidate({ pageHref });
@@ -162,6 +170,17 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
       toast.error("강좌 및 신청 일정은 오늘 또는 이후 날짜로 선택해주세요.");
       return;
     }
+    const facilityId = form.facilityId ? Number(form.facilityId) : null;
+    const facilityRestriction = getCourseFacilityReservationRestriction({
+      facilityId,
+      startDate: nullable(form.startDate),
+      startTime: nullable(form.startTime),
+      endTime: nullable(form.endTime),
+    });
+    if (facilityRestriction) {
+      toast.error(facilityRestriction);
+      return;
+    }
     const course = {
       title: form.title.trim(),
       summary: nullable(form.summary),
@@ -171,6 +190,7 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
       target: nullable(form.target),
       fee: null,
       capacity: Math.max(0, Number(form.capacity) || 0),
+      facilityId,
       startDate: nullable(form.startDate),
       endDate: nullable(form.endDate),
       startTime: nullable(form.startTime),
@@ -196,6 +216,7 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
       location: course.location ?? "",
       target: course.target ?? "",
       capacity: String(course.capacity ?? 0),
+      facilityId: course.facilityId ? String(course.facilityId) : "",
       startDate: course.startDate ?? "",
       endDate: course.endDate ?? "",
       startTime: course.startTime ?? "",
@@ -245,7 +266,8 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
               <label className="text-xs font-medium text-gray-600">한 줄 소개<input value={form.summary} onChange={e => setForm(prev => ({ ...prev, summary: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
               <label className="text-xs font-medium text-gray-600">강사/담당<input value={form.instructor} onChange={e => setForm(prev => ({ ...prev, instructor: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
               <label className="text-xs font-medium text-gray-600">장소<input value={form.location} onChange={e => setForm(prev => ({ ...prev, location: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
-              <label className="text-xs font-medium text-gray-600">시작일<input type="date" min={courseStartMin} value={form.startDate} onChange={e => setForm(prev => ({ ...prev, startDate: e.target.value, endDate: prev.endDate && prev.endDate < e.target.value ? e.target.value : prev.endDate }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
+              <label className="text-xs font-medium text-gray-600 md:col-span-2">강좌 시설예약<select value={form.facilityId} onChange={e => setForm(prev => ({ ...prev, facilityId: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"><option value="">시설예약 연결 안 함</option>{reservableFacilities.map(facility => <option key={facility.id} value={facility.id}>{facility.name}{facility.location ? ` · ${facility.location}` : ""}</option>)}</select>{form.facilityId && <span className="mt-1.5 block rounded-md bg-green-50 px-2.5 py-2 text-[11px] font-medium leading-5 text-green-800">강좌 담당자 전용: 오늘부터 365일 이내 · 24시간 선택 · 자동승인 · 기존 예약과 중복 불가</span>}</label>
+              <label className="text-xs font-medium text-gray-600">시작일<input type="date" min={courseStartMin} max={form.facilityId ? courseFacilityMax : undefined} value={form.startDate} onChange={e => setForm(prev => ({ ...prev, startDate: e.target.value, endDate: prev.endDate && prev.endDate < e.target.value ? e.target.value : prev.endDate }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
               <label className="text-xs font-medium text-gray-600">종료일<input type="date" min={courseEndMin} value={form.endDate} onChange={e => setForm(prev => ({ ...prev, endDate: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
               <label className="text-xs font-medium text-gray-600">시작 시간<input type="time" value={form.startTime} onChange={e => setForm(prev => ({ ...prev, startTime: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>
               <label className="text-xs font-medium text-gray-600">종료 시간<input type="time" value={form.endTime} onChange={e => setForm(prev => ({ ...prev, endTime: e.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" /></label>

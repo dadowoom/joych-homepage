@@ -595,28 +595,40 @@ export async function updateReservationDetails(id: number, data: ReservationDeta
   const nextReservationDate = data.reservationDate ?? reservation.reservationDate;
   const nextStartTime = data.startTime ?? reservation.startTime;
   const nextEndTime = data.endTime ?? reservation.endTime;
+  const lockKey = `reservation:${reservation.facilityId}:${nextReservationDate}`;
 
-  const overlapping = await db
-    .select({ startTime: reservations.startTime, endTime: reservations.endTime })
-    .from(reservations)
-    .where(and(
-      eq(reservations.facilityId, reservation.facilityId),
-      eq(reservations.reservationDate, nextReservationDate),
-      ne(reservations.id, id),
-      inArray(reservations.status, ACTIVE_RESERVATION_STATUSES),
-      lt(reservations.startTime, nextEndTime),
-      gt(reservations.endTime, nextStartTime),
-    ))
-    .limit(1);
+  return db.transaction(async (tx) => {
+    const lockResult = await tx.execute(sql`SELECT GET_LOCK(${lockKey}, 5) AS locked`);
+    if (Number(extractMysqlScalar(lockResult)) !== 1) {
+      throw new ReservationLockError();
+    }
 
-  if (overlapping[0]) {
-    throw new ReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime, nextReservationDate);
-  }
+    try {
+      const overlapping = await tx
+        .select({ startTime: reservations.startTime, endTime: reservations.endTime })
+        .from(reservations)
+        .where(and(
+          eq(reservations.facilityId, reservation.facilityId),
+          eq(reservations.reservationDate, nextReservationDate),
+          ne(reservations.id, id),
+          inArray(reservations.status, ACTIVE_RESERVATION_STATUSES),
+          lt(reservations.startTime, nextEndTime),
+          gt(reservations.endTime, nextStartTime),
+        ))
+        .limit(1);
 
-  await db.update(reservations)
-    .set(toReservationUpdateValues(data))
-    .where(eq(reservations.id, id));
-  return true;
+      if (overlapping[0]) {
+        throw new ReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime, nextReservationDate);
+      }
+
+      await tx.update(reservations)
+        .set(toReservationUpdateValues(data))
+        .where(eq(reservations.id, id));
+      return true;
+    } finally {
+      await tx.execute(sql`SELECT RELEASE_LOCK(${lockKey})`);
+    }
+  });
 }
 
 export async function updateReservationGroupDetails(
