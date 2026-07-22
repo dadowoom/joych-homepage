@@ -60,6 +60,7 @@ import {
   Youtube as YoutubeIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { extractPlainTextPastedImageUrls } from "@/lib/richTextImagePaste";
 import { trpc } from "@/lib/trpc";
 import { Details, DetailsSummary, DivBlock, Figcaption, Figure, SectionBlock } from "./tiptapCustomNodes";
 
@@ -1977,6 +1978,16 @@ export function RichTextEditor({
           focusTableCellIfClickMissed(view, focusPosition);
           return false;
         },
+      },
+      handlePaste: (view, event) => {
+        const plainText = event.clipboardData?.getData("text/plain") ?? "";
+        const imageUrls = extractPlainTextPastedImageUrls(plainText);
+        if (!imageUrls) return false;
+
+        const imageHtml = imageUrls
+          .map((src) => `<img src="${escapeHtml(src)}"><br>`)
+          .join("");
+        return view.pasteHTML(imageHtml);
       },
     },
     onUpdate: ({ editor: currentEditor }) => {
