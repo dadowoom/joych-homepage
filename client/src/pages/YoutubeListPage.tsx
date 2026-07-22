@@ -18,7 +18,7 @@ interface YoutubeListPageProps {
   title?: string;
 }
 
-const LIST_PAGE_SIZE = 20;
+const LIST_PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 
 function formatSermonDate(value?: string | null) {
   const trimmed = value?.trim();
@@ -58,8 +58,11 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
   const [isEditPanelOpen, setIsEditPanelOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"thumbnail" | "list">("thumbnail");
-  const [visibleListCount, setVisibleListCount] = useState(LIST_PAGE_SIZE);
+  const [listPageSize, setListPageSize] = useState<(typeof LIST_PAGE_SIZE_OPTIONS)[number]>(20);
+  const [listPage, setListPage] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
+  const playerSectionRef = useRef<HTMLDivElement>(null);
+  const listSectionRef = useRef<HTMLDivElement>(null);
   const selectedVideoId = useMemo(() => {
     const raw = new URLSearchParams(searchString).get("video");
     const parsed = raw ? Number(raw) : NaN;
@@ -82,7 +85,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
   useEffect(() => {
     setActiveIndex(0);
     setSlideOffset(0);
-    setVisibleListCount(LIST_PAGE_SIZE);
+    setListPage(1);
   }, [playlistId, searchTerm, viewMode]);
 
   useEffect(() => {
@@ -108,8 +111,20 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
   ) : null;
 
   const activeVideo = filteredVideos[activeIndex];
-  const listViewVideos = filteredVideos.slice(0, visibleListCount);
+  const totalListPages = Math.max(1, Math.ceil(filteredVideos.length / listPageSize));
+  const activeListPage = Math.min(listPage, totalListPages);
+  const listPageStart = (activeListPage - 1) * listPageSize;
+  const listViewVideos = filteredVideos.slice(listPageStart, listPageStart + listPageSize);
+  const listPageNumbers = Array.from({ length: totalListPages }, (_, index) => index + 1);
   const CARDS_PER_VIEW = 4; // 한 번에 보이는 카드 수
+
+  useEffect(() => {
+    setListPage(1);
+  }, [listPageSize]);
+
+  useEffect(() => {
+    if (listPage > totalListPages) setListPage(totalListPages);
+  }, [listPage, totalListPages]);
 
   useEffect(() => {
     if (!selectedVideoId || filteredVideos.length === 0) return;
@@ -142,6 +157,16 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
     // 선택한 카드가 보이도록 슬라이드 조정
     if (index < slideOffset) setSlideOffset(index);
     else if (index >= slideOffset + CARDS_PER_VIEW) setSlideOffset(index - CARDS_PER_VIEW + 1);
+    window.requestAnimationFrame(() => {
+      playerSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
+  const handleListPageChange = (nextPage: number) => {
+    setListPage(Math.min(Math.max(nextPage, 1), totalListPages));
+    window.requestAnimationFrame(() => {
+      listSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   };
 
   const managementPanel = canManage && isEditPanelOpen ? (
@@ -265,7 +290,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
       )}
 
       {activeVideo && (
-        <div className="mb-6">
+        <div ref={playerSectionRef} className="mb-6 scroll-mt-24 md:scroll-mt-32">
           <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
             {activeVideo.videoId ? (
               <iframe
@@ -308,42 +333,87 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
 
       {/* 영상 카드 슬라이드 (2개 이상일 때만 표시) */}
       {viewMode === "list" && filteredVideos.length > 0 && (
-        <div>
-          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-            {listViewVideos.map((video, index) => (
-              <button
-                key={video.id}
-                type="button"
-                onClick={() => handleCardClick(index)}
-                className={`flex w-full items-center gap-3 border-b border-gray-100 p-3 text-left last:border-b-0 ${
-                  index === activeIndex ? "bg-[#F1F8E9]" : "hover:bg-gray-50"
-                }`}
+        <div ref={listSectionRef} className="scroll-mt-24 md:scroll-mt-32">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="text-xs text-gray-500">
+              전체 {filteredVideos.length}개 중 {listPageStart + 1}–{Math.min(listPageStart + listPageSize, filteredVideos.length)}개
+            </p>
+            <label className="flex shrink-0 items-center gap-2 text-xs text-gray-500">
+              <span>목록 수</span>
+              <select
+                value={listPageSize}
+                onChange={(event) => setListPageSize(Number(event.target.value) as (typeof LIST_PAGE_SIZE_OPTIONS)[number])}
+                className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-700 outline-none focus:border-[#1B5E20]"
+                aria-label="페이지당 영상 수"
               >
-                <div className="h-16 w-28 shrink-0 overflow-hidden rounded bg-gray-100">
-                  <VideoThumbnail title={video.title} src={getThumbnailUrl(video)} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-gray-900">{video.title}</p>
-                  <p className="mt-1 truncate text-xs text-gray-500">
-                    {[video.preacher, formatSermonDate(video.sermonDate), video.scripture].filter(Boolean).join(" · ")}
-                  </p>
-                </div>
-              </button>
-            ))}
+                {LIST_PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>{size}개씩 보기</option>
+                ))}
+              </select>
+            </label>
           </div>
-          {filteredVideos.length > listViewVideos.length && (
-            <div className="mt-3 flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
-              <p className="text-xs text-gray-500">
-                전체 {filteredVideos.length}개 중 {listViewVideos.length}개를 보여드리고 있습니다.
-              </p>
+          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+            {listViewVideos.map((video, pageIndex) => {
+              const videoIndex = listPageStart + pageIndex;
+              return (
+                <button
+                  key={video.id}
+                  type="button"
+                  onClick={() => handleCardClick(videoIndex)}
+                  className={`flex w-full items-center gap-3 border-b border-gray-100 p-3 text-left last:border-b-0 ${
+                    videoIndex === activeIndex ? "bg-[#F1F8E9]" : "hover:bg-gray-50"
+                  }`}
+                >
+                  <div className="h-16 w-28 shrink-0 overflow-hidden rounded bg-gray-100">
+                    <VideoThumbnail title={video.title} src={getThumbnailUrl(video)} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-gray-900">{video.title}</p>
+                    <p className="mt-1 truncate text-xs text-gray-500">
+                      {[video.preacher, formatSermonDate(video.sermonDate), video.scripture].filter(Boolean).join(" · ")}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          {totalListPages > 1 && (
+            <nav className="mt-5 flex flex-wrap items-center justify-center gap-1" aria-label="영상 목록 페이지">
               <button
                 type="button"
-                onClick={() => setVisibleListCount((count) => Math.min(filteredVideos.length, count + LIST_PAGE_SIZE))}
-                className="inline-flex h-9 items-center justify-center rounded-md border border-[#1B5E20] bg-white px-5 text-sm font-semibold text-[#1B5E20] transition-colors hover:bg-[#F1F8E9]"
+                onClick={() => handleListPageChange(activeListPage - 1)}
+                disabled={activeListPage === 1}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:border-[#1B5E20]/40 hover:text-[#1B5E20] disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="이전 페이지"
               >
-                이전 영상 {Math.min(LIST_PAGE_SIZE, filteredVideos.length - listViewVideos.length)}개 더보기
+                <ChevronLeft className="h-4 w-4" />
               </button>
-            </div>
+              {listPageNumbers.map((pageNumber) => (
+                <button
+                  key={pageNumber}
+                  type="button"
+                  onClick={() => handleListPageChange(pageNumber)}
+                  className={`inline-flex h-9 min-w-9 items-center justify-center rounded-md border px-2 text-sm ${
+                    activeListPage === pageNumber
+                      ? "border-[#1B5E20] bg-[#1B5E20] font-semibold text-white"
+                      : "border-gray-200 text-gray-500 hover:border-[#1B5E20]/40 hover:text-[#1B5E20]"
+                  }`}
+                  aria-current={activeListPage === pageNumber ? "page" : undefined}
+                  aria-label={`${pageNumber}페이지`}
+                >
+                  {pageNumber}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => handleListPageChange(activeListPage + 1)}
+                disabled={activeListPage === totalListPages}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:border-[#1B5E20]/40 hover:text-[#1B5E20] disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="다음 페이지"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </nav>
           )}
         </div>
       )}
