@@ -5,13 +5,14 @@
   "license": "MIT",
   "scripts": {
     "dev": "NODE_ENV=development tsx watch server/_core/index.ts",
-    "build": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist && esbuild scripts/backfillLegacyVehicleReservations.ts scripts/normalizeMemberPhones.ts scripts/migratePublicSiteUrls.ts --platform=node --packages=external --bundle --format=esm --outdir=dist/scripts",
+    "build": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist && esbuild scripts/backfillLegacyVehicleReservations.ts scripts/normalizeMemberPhones.ts scripts/migratePublicSiteUrls.ts scripts/importLegacyHebronVideos.ts --platform=node --packages=external --bundle --format=esm --outdir=dist/scripts",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run",
     "verify:pwa-bridge": "node scripts/verify-pwa-domain-bridge.mjs",
     "migrate:public-site-urls": "tsx scripts/migratePublicSiteUrls.ts",
+    "import:legacy-hebron": "tsx scripts/importLegacyHebronVideos.ts",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "cms:normalize-menu-hrefs": "tsx scripts/normalize-cms-menu-hrefs.ts",
     "cms:seed-static-pages": "tsx scripts/seed-static-page-content.ts"

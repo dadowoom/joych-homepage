@@ -18,6 +18,8 @@ interface YoutubeListPageProps {
   title?: string;
 }
 
+const LIST_PAGE_SIZE = 20;
+
 function formatSermonDate(value?: string | null) {
   const trimmed = value?.trim();
   if (!trimmed) return "";
@@ -56,6 +58,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
   const [isEditPanelOpen, setIsEditPanelOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"thumbnail" | "list">("thumbnail");
+  const [visibleListCount, setVisibleListCount] = useState(LIST_PAGE_SIZE);
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedVideoId = useMemo(() => {
     const raw = new URLSearchParams(searchString).get("video");
@@ -79,6 +82,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
   useEffect(() => {
     setActiveIndex(0);
     setSlideOffset(0);
+    setVisibleListCount(LIST_PAGE_SIZE);
   }, [playlistId, searchTerm, viewMode]);
 
   useEffect(() => {
@@ -104,8 +108,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
   ) : null;
 
   const activeVideo = filteredVideos[activeIndex];
-  const LIST_VIEW_LIMIT = 20;
-  const listViewVideos = filteredVideos.slice(0, LIST_VIEW_LIMIT);
+  const listViewVideos = filteredVideos.slice(0, visibleListCount);
   const CARDS_PER_VIEW = 4; // 한 번에 보이는 카드 수
 
   useEffect(() => {
@@ -328,10 +331,19 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
               </button>
             ))}
           </div>
-          {filteredVideos.length > LIST_VIEW_LIMIT && (
-            <p className="mt-2 text-right text-xs text-gray-400">
-              목록은 최근 {LIST_VIEW_LIMIT}개까지만 표시됩니다. 검색으로 더 좁혀 볼 수 있습니다.
-            </p>
+          {filteredVideos.length > listViewVideos.length && (
+            <div className="mt-3 flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
+              <p className="text-xs text-gray-500">
+                전체 {filteredVideos.length}개 중 {listViewVideos.length}개를 보여드리고 있습니다.
+              </p>
+              <button
+                type="button"
+                onClick={() => setVisibleListCount((count) => Math.min(filteredVideos.length, count + LIST_PAGE_SIZE))}
+                className="inline-flex h-9 items-center justify-center rounded-md border border-[#1B5E20] bg-white px-5 text-sm font-semibold text-[#1B5E20] transition-colors hover:bg-[#F1F8E9]"
+              >
+                이전 영상 {Math.min(LIST_PAGE_SIZE, filteredVideos.length - listViewVideos.length)}개 더보기
+              </button>
+            </div>
           )}
         </div>
       )}
