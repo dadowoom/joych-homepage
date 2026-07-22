@@ -2826,6 +2826,8 @@ MIGRATION_0093="${APP_DIR}/dist/scripts/importLegacyHebronVideos.js"
 if [[ -f "${MIGRATION_0093}" ]]; then
   echo "[deploy] database migration: import legacy Hebron Wednesday-worship videos"
   node "${MIGRATION_0093}" --apply
+  echo "[deploy] database migration: import legacy Shekinah Friday-prayer videos"
+  node "${MIGRATION_0093}" --friday --apply
 else
   echo "[deploy] missing migration runner: ${MIGRATION_0093}" >&2
   exit 1

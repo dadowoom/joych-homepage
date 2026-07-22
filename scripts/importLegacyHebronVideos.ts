@@ -10,6 +10,7 @@ import mysql, {
 } from "mysql2/promise";
 
 type RunMode = "dry-run" | "apply";
+type LegacyArchiveKey = "hebron" | "friday";
 
 type LegacyListRow = Readonly<{
   date: string;
@@ -20,8 +21,8 @@ type LegacyListRow = Readonly<{
 }>;
 
 type LegacyVideo = Readonly<{
-  pageCode: typeof PAGE_CODE;
-  vodType: typeof VOD_TYPE;
+  pageCode: string;
+  vodType: string;
   num: string;
   videoUrl: string;
   title: string;
@@ -71,12 +72,84 @@ interface TableEngineRow extends RowDataPacket {
   ENGINE: string | null;
 }
 
-const PAGE_CODE = "423" as const;
-const VOD_TYPE = "237" as const;
-const PLAYLIST_ID = 90001;
-const EXPECTED_COUNT = 263;
-const NEWEST_DATE = "2026-07-15";
-const OLDEST_DATE = "2021-02-17";
+type LegacyArchiveConfig = Readonly<{
+  key: LegacyArchiveKey;
+  label: string;
+  pageCode: string;
+  vodType: string;
+  playlistId: number;
+  expectedCount: number;
+  newestDate: string;
+  oldestDate: string;
+  migrationId: string;
+  namedLock: string;
+  allowedMp4Url: RegExp;
+  fastUrlLikePatterns: readonly string[];
+  requiredSourceNums: readonly string[];
+  videoUrlOverrides: Readonly<Record<string, Readonly<{
+    expectedOriginal: string;
+    replacement: string;
+  }>>>;
+}>;
+
+const ARCHIVE_CONFIGS: Record<LegacyArchiveKey, LegacyArchiveConfig> = {
+  hebron: {
+    key: "hebron",
+    label: "Hebron Wednesday-worship",
+    pageCode: "423",
+    vodType: "237",
+    playlistId: 90001,
+    expectedCount: 263,
+    newestDate: "2026-07-15",
+    oldestDate: "2021-02-17",
+    migrationId: "0093_import_legacy_hebron_videos_20210217_20260715",
+    namedLock: "joych:import-legacy-hebron-videos:90001",
+    allowedMp4Url: /^https?:\/\/sermon\.joych\.org\/mp4\/wed\/[^?#]+\.mp4$/i,
+    fastUrlLikePatterns: [
+      "http://sermon.joych.org/mp4/wed/%.mp4",
+      "https://sermon.joych.org/mp4/wed/%.mp4",
+    ],
+    requiredSourceNums: [],
+    videoUrlOverrides: {},
+  },
+  friday: {
+    key: "friday",
+    label: "Shekinah Friday-prayer",
+    pageCode: "424",
+    vodType: "238",
+    playlistId: 90002,
+    expectedCount: 245,
+    newestDate: "2026-07-10",
+    oldestDate: "2021-04-02",
+    migrationId: "0094_import_legacy_friday_videos_20210402_20260710",
+    namedLock: "joych:import-legacy-friday-videos:90002",
+    allowedMp4Url: /^https?:\/\/sermon\.joych\.org\/mp4\/(?:friday_night\/[^?#]+|special\/251205_2)\.mp4$/i,
+    fastUrlLikePatterns: [
+      "http://sermon.joych.org/mp4/friday_night/%.mp4",
+      "https://sermon.joych.org/mp4/friday_night/%.mp4",
+      "http://sermon.joych.org/mp4/special/251205_2.mp4",
+      "https://sermon.joych.org/mp4/special/251205_2.mp4",
+    ],
+    requiredSourceNums: ["12579", "8902"],
+    videoUrlOverrides: {
+      // The legacy XML for 2022-06-17 incorrectly repeats the 2022-06-10 URL.
+      // The correctly dated source file exists and has been verified as video/mp4.
+      "9529": {
+        expectedOriginal: "http://sermon.joych.org/mp4/friday_night/220610_fri.mp4",
+        replacement: "http://sermon.joych.org/mp4/friday_night/220617_fri.mp4",
+      },
+    },
+  },
+};
+
+const ARCHIVE_KEY: LegacyArchiveKey = process.argv.includes("--friday") ? "friday" : "hebron";
+const ARCHIVE = ARCHIVE_CONFIGS[ARCHIVE_KEY];
+const PAGE_CODE = ARCHIVE.pageCode;
+const VOD_TYPE = ARCHIVE.vodType;
+const PLAYLIST_ID = ARCHIVE.playlistId;
+const EXPECTED_COUNT = ARCHIVE.expectedCount;
+const NEWEST_DATE = ARCHIVE.newestDate;
+const OLDEST_DATE = ARCHIVE.oldestDate;
 const MAX_LIST_PAGES = 100;
 const SOURCE_CONCURRENCY = 5;
 const REQUEST_TIMEOUT_MS = 20_000;
@@ -84,16 +157,16 @@ const REQUEST_ATTEMPTS = 3;
 const LIST_BASE_URL = "http://joych.anyline.kr/main/sub.html";
 const VOD_INFO_URL = "http://admin.joych.org/core/xml/vod/vodInfo.xml.html";
 const VOD_REFERER_BASE = "http://admin.joych.org/core/module/vod/skin_001/vodIframe.html";
-const MIGRATION_ID = "0093_import_legacy_hebron_videos_20210217_20260715";
-const NAMED_LOCK = "joych:import-legacy-hebron-videos:90001";
+const MIGRATION_ID = ARCHIVE.migrationId;
+const NAMED_LOCK = ARCHIVE.namedLock;
 const DEFAULT_BACKUP_DIR = resolve("backups");
-const ALLOWED_MP4_URL = /^https?:\/\/sermon\.joych\.org\/mp4\/wed\/[^?#]+\.mp4$/i;
+const ALLOWED_MP4_URL = ARCHIVE.allowedMp4Url;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const LIST_ROW_PATTERN = /<tr>\s*<td[^>]*>(\d{4}-\d{2}-\d{2})<\/td>\s*<td[^>]*>\s*<a[^>]*[?&]num=(\d+)[^>]*>([\s\S]*?)<\/a>\s*<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>\s*<\/tr>/gi;
 
 function parseMode(args: readonly string[]): RunMode | "help" {
-  const allowed = new Set(["--apply", "--dry-run", "--help", "-h"]);
+  const allowed = new Set(["--apply", "--dry-run", "--friday", "--help", "-h"]);
   const unknown = args.filter(argument => !allowed.has(argument));
   if (unknown.length > 0) {
     throw new Error(`Unknown option(s): ${unknown.join(", ")}`);
@@ -106,9 +179,9 @@ function parseMode(args: readonly string[]): RunMode | "help" {
 }
 
 function printHelp() {
-  console.log(`Usage: npm run import:legacy-hebron -- [--dry-run | --apply]
+  console.log(`Usage: npm run import:legacy-hebron -- [--friday] [--dry-run | --apply]
 
-Collects and validates the fixed legacy Hebron Wednesday-worship archive:
+Collects and validates the fixed legacy ${ARCHIVE.label} archive:
   pageCode=${PAGE_CODE}, vodType=${VOD_TYPE}, ${NEWEST_DATE} through ${OLDEST_DATE}
 
 The default is a read-only dry run. --apply requires DATABASE_URL, writes a
@@ -240,6 +313,11 @@ async function collectLegacyList() {
       `Expected ${EXPECTED_COUNT} list rows in the fixed date range, found ${selected.length}.`,
     );
   }
+  for (const requiredNum of ARCHIVE.requiredSourceNums) {
+    if (!selected.some(row => row.num === requiredNum)) {
+      throw new Error(`Required legacy source number ${requiredNum} is missing from the fixed range.`);
+    }
+  }
   return selected;
 }
 
@@ -291,11 +369,29 @@ async function fetchLegacyVideo(row: LegacyListRow): Promise<LegacyVideo> {
     throw new Error(`Legacy metadata number mismatch: requested ${row.num}, received ${returnedNum}.`);
   }
 
+  const xmlVideoUrl = getXmlTag(xml, "vodFile");
+  const videoUrlOverride = ARCHIVE.videoUrlOverrides[row.num];
+  if (videoUrlOverride) {
+    let canonicalXmlUrl: string;
+    try {
+      canonicalXmlUrl = canonicalVideoUrl(xmlVideoUrl);
+    } catch {
+      throw new Error(`Legacy metadata ${row.num} returned an invalid MP4 URL before override.`);
+    }
+    const expectedUrls = [videoUrlOverride.expectedOriginal, videoUrlOverride.replacement]
+      .map(canonicalVideoUrl);
+    if (!expectedUrls.includes(canonicalXmlUrl)) {
+      throw new Error(
+        `Legacy metadata ${row.num} changed unexpectedly; refusing the configured URL override.`,
+      );
+    }
+  }
+
   const video: LegacyVideo = {
     pageCode: PAGE_CODE,
     vodType: VOD_TYPE,
     num: row.num,
-    videoUrl: getXmlTag(xml, "vodFile"),
+    videoUrl: videoUrlOverride?.replacement || xmlVideoUrl,
     title: getXmlTag(xml, "subject"),
     preacher: getXmlTag(xml, "preacher"),
     scripture: getXmlTag(xml, "word"),
@@ -376,7 +472,7 @@ function validateArchive(videos: readonly LegacyVideo[]) {
 }
 
 async function collectAndValidateArchive() {
-  console.log("Collecting the legacy Hebron list...");
+  console.log(`Collecting the legacy ${ARCHIVE.label} list...`);
   const listRows = await collectLegacyList();
   console.log(`Validated ${listRows.length} list rows. Loading authoritative XML metadata...`);
   const videos = await mapConcurrent(listRows, SOURCE_CONCURRENCY, fetchLegacyVideo);
@@ -442,10 +538,17 @@ function analyzeExistingRows(
 }
 
 async function writePlaylistBackup(rows: readonly YoutubeVideoRow[]) {
-  const backupDir = resolve(process.env.HEBRON_IMPORT_BACKUP_DIR?.trim() || DEFAULT_BACKUP_DIR);
+  const backupDir = resolve(
+    process.env.LEGACY_VIDEO_IMPORT_BACKUP_DIR?.trim()
+      || process.env.HEBRON_IMPORT_BACKUP_DIR?.trim()
+      || DEFAULT_BACKUP_DIR,
+  );
   await mkdir(backupDir, { recursive: true });
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const path = resolve(backupDir, `youtube-playlist-${PLAYLIST_ID}-before-hebron-import-${timestamp}.json`);
+  const path = resolve(
+    backupDir,
+    `youtube-playlist-${PLAYLIST_ID}-before-${ARCHIVE.key}-import-${timestamp}.json`,
+  );
   const payload = {
     migrationId: MIGRATION_ID,
     generatedAt: new Date().toISOString(),
@@ -489,7 +592,7 @@ async function acquireNamedLock(connection: PoolConnection) {
     [NAMED_LOCK],
   );
   if (Number(rows[0]?.locked) !== 1) {
-    throw new Error("Could not acquire the Hebron import lock within 30 seconds.");
+    throw new Error(`Could not acquire the ${ARCHIVE.label} import lock within 30 seconds.`);
   }
 }
 
@@ -521,9 +624,14 @@ async function verifyCompletedImportFast(connection: PoolConnection) {
     [PLAYLIST_ID],
   );
   if (Number(playlistRows[0]?.count ?? 0) !== 1) {
-    throw new Error(`Completed Hebron import marker exists, but playlist ${PLAYLIST_ID} is missing.`);
+    throw new Error(
+      `Completed ${ARCHIVE.label} import marker exists, but playlist ${PLAYLIST_ID} is missing.`,
+    );
   }
 
+  const fastUrlPredicate = ARCHIVE.fastUrlLikePatterns
+    .map(() => "LOWER(videoUrl) LIKE ?")
+    .join(" OR ");
   const [rows] = await connection.query<CompletedImportInvariantRow[]>(
     `SELECT
        COUNT(*) AS count,
@@ -535,11 +643,8 @@ async function verifyCompletedImportFast(connection: PoolConnection) {
      WHERE playlistId = ?
        AND sermonDate >= ?
        AND sermonDate <= ?
-       AND (
-         LOWER(videoUrl) LIKE 'http://sermon.joych.org/mp4/wed/%.mp4'
-         OR LOWER(videoUrl) LIKE 'https://sermon.joych.org/mp4/wed/%.mp4'
-       )`,
-    [PLAYLIST_ID, OLDEST_DATE, NEWEST_DATE],
+       AND (${fastUrlPredicate})`,
+    [PLAYLIST_ID, OLDEST_DATE, NEWEST_DATE, ...ARCHIVE.fastUrlLikePatterns],
   );
   const invariant = rows[0];
   const count = Number(invariant?.count ?? 0);
@@ -553,7 +658,7 @@ async function verifyCompletedImportFast(connection: PoolConnection) {
     || invalidTitleCount !== 0
   ) {
     throw new Error(
-      `Completed Hebron import invariant failed: count=${count}, uniqueUrls=${uniqueUrlCount}, `
+      `Completed ${ARCHIVE.label} import invariant failed: count=${count}, uniqueUrls=${uniqueUrlCount}, `
       + `range=${invariant?.minDate ?? "none"}..${invariant?.maxDate ?? "none"}, `
       + `invalidTitles=${invalidTitleCount}.`,
     );
@@ -663,7 +768,7 @@ async function applyImport(connection: PoolConnection, videos: readonly LegacyVi
     throw error;
   } finally {
     await releaseNamedLock(connection).catch(error => {
-      console.error("Warning: failed to release the Hebron import lock", error);
+      console.error(`Warning: failed to release the ${ARCHIVE.label} import lock`, error);
     });
   }
 }
