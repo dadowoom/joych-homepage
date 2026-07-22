@@ -20,6 +20,23 @@ interface YoutubeListPageProps {
 
 const LIST_PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 
+export function paginateVideoList<T>(videos: readonly T[], pageSize: number, requestedPage: number) {
+  const totalPages = Math.max(1, Math.ceil(videos.length / pageSize));
+  const activePage = Math.min(Math.max(requestedPage, 1), totalPages);
+  const pageStart = (activePage - 1) * pageSize;
+
+  return {
+    totalPages,
+    activePage,
+    pageStart,
+    pageVideos: videos.slice(pageStart, pageStart + pageSize),
+  };
+}
+
+export function getNextSlideOffset(currentOffset: number, visibleItemCount: number, cardsPerView: number) {
+  return Math.min(Math.max(0, visibleItemCount - cardsPerView), currentOffset + 1);
+}
+
 function formatSermonDate(value?: string | null) {
   const trimmed = value?.trim();
   if (!trimmed) return "";
@@ -111,15 +128,18 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
   ) : null;
 
   const activeVideo = filteredVideos[activeIndex];
-  const totalListPages = Math.max(1, Math.ceil(filteredVideos.length / listPageSize));
-  const activeListPage = Math.min(listPage, totalListPages);
-  const listPageStart = (activeListPage - 1) * listPageSize;
-  const listViewVideos = filteredVideos.slice(listPageStart, listPageStart + listPageSize);
+  const {
+    totalPages: totalListPages,
+    activePage: activeListPage,
+    pageStart: listPageStart,
+    pageVideos: listViewVideos,
+  } = paginateVideoList(filteredVideos, listPageSize, listPage);
   const listPageNumbers = Array.from({ length: totalListPages }, (_, index) => index + 1);
   const CARDS_PER_VIEW = 4; // 한 번에 보이는 카드 수
 
   useEffect(() => {
     setListPage(1);
+    setSlideOffset(0);
   }, [listPageSize]);
 
   useEffect(() => {
@@ -149,21 +169,28 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
   };
 
   const handleNext = () => {
-    setSlideOffset((prev) => Math.min(Math.max(0, filteredVideos.length - CARDS_PER_VIEW), prev + 1));
+    setSlideOffset((prev) => getNextSlideOffset(prev, listViewVideos.length, CARDS_PER_VIEW));
   };
 
-  const handleCardClick = (index: number) => {
+  const handleVideoClick = (index: number) => {
     setActiveIndex(index);
-    // 선택한 카드가 보이도록 슬라이드 조정
-    if (index < slideOffset) setSlideOffset(index);
-    else if (index >= slideOffset + CARDS_PER_VIEW) setSlideOffset(index - CARDS_PER_VIEW + 1);
     window.requestAnimationFrame(() => {
       playerSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   };
 
+  const handleThumbnailClick = (videoIndex: number, pageIndex: number) => {
+    handleVideoClick(videoIndex);
+    // 현재 페이지 안에서 선택한 카드가 보이도록 슬라이드를 조정합니다.
+    if (pageIndex < slideOffset) setSlideOffset(pageIndex);
+    else if (pageIndex >= slideOffset + CARDS_PER_VIEW) {
+      setSlideOffset(pageIndex - CARDS_PER_VIEW + 1);
+    }
+  };
+
   const handleListPageChange = (nextPage: number) => {
     setListPage(Math.min(Math.max(nextPage, 1), totalListPages));
+    setSlideOffset(0);
     window.requestAnimationFrame(() => {
       listSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -359,7 +386,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
                 <button
                   key={video.id}
                   type="button"
-                  onClick={() => handleCardClick(videoIndex)}
+                  onClick={() => handleVideoClick(videoIndex)}
                   className={`flex w-full items-center gap-3 border-b border-gray-100 p-3 text-left last:border-b-0 ${
                     videoIndex === activeIndex ? "bg-[#F1F8E9]" : "hover:bg-gray-50"
                   }`}
@@ -419,58 +446,119 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
       )}
 
       {viewMode === "thumbnail" && filteredVideos.length > 1 && (
-        <div className="relative">
-          {/* 좌측 버튼 */}
-          <button
-            onClick={handlePrev}
-            disabled={slideOffset === 0}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-          >
-            <ChevronLeft className="w-5 h-5 text-gray-600" />
-          </button>
-
-          {/* 카드 목록 */}
-          <div ref={containerRef} className="overflow-hidden">
-            <div
-              className="flex gap-3 transition-transform duration-300"
-              style={{ transform: `translateX(calc(-${slideOffset} * (100% / ${CARDS_PER_VIEW} + 0.75rem)))` }}
+        <div ref={listSectionRef} className="scroll-mt-24 md:scroll-mt-32">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="text-xs text-gray-500">
+              전체 {filteredVideos.length}개 중 {listPageStart + 1}–{Math.min(listPageStart + listPageSize, filteredVideos.length)}개
+            </p>
+            <label className="flex shrink-0 items-center gap-2 text-xs text-gray-500">
+              <span>목록 수</span>
+              <select
+                value={listPageSize}
+                onChange={(event) => setListPageSize(Number(event.target.value) as (typeof LIST_PAGE_SIZE_OPTIONS)[number])}
+                className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-700 outline-none focus:border-[#1B5E20]"
+                aria-label="페이지당 영상 수"
+              >
+                {LIST_PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>{size}개씩 보기</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="relative">
+            {/* 좌측 버튼 */}
+            <button
+              onClick={handlePrev}
+              disabled={slideOffset === 0}
+              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             >
-              {filteredVideos.map((video, index) => (
-                <button
-                  key={video.id}
-                  onClick={() => handleCardClick(index)}
-                  className={`flex-shrink-0 w-[calc(25%-0.5625rem)] rounded-lg overflow-hidden border-2 transition-all text-left ${
-                    index === activeIndex
-                      ? "border-[#1B5E20] shadow-md"
-                      : "border-transparent hover:border-gray-300"
-                  }`}
-                >
-                  {/* 썸네일 */}
-                  <div className="relative aspect-video bg-gray-100">
-                    <VideoThumbnail title={video.title} src={getThumbnailUrl(video)} />
-                    {index === activeIndex && (
-                      <div className="absolute inset-0 bg-[#1B5E20]/20 flex items-center justify-center">
-                        <PlayCircle className="w-8 h-8 text-white drop-shadow" />
+              <ChevronLeft className="w-5 h-5 text-gray-600" />
+            </button>
+
+            {/* 카드 목록 */}
+            <div ref={containerRef} className="overflow-hidden">
+              <div
+                className="flex gap-3 transition-transform duration-300"
+                style={{ transform: `translateX(calc(-${slideOffset} * (100% / ${CARDS_PER_VIEW} + 0.75rem)))` }}
+              >
+                {listViewVideos.map((video, pageIndex) => {
+                  const videoIndex = listPageStart + pageIndex;
+                  return (
+                    <button
+                      key={video.id}
+                      onClick={() => handleThumbnailClick(videoIndex, pageIndex)}
+                      className={`flex-shrink-0 w-[calc(25%-0.5625rem)] rounded-lg overflow-hidden border-2 transition-all text-left ${
+                        videoIndex === activeIndex
+                          ? "border-[#1B5E20] shadow-md"
+                          : "border-transparent hover:border-gray-300"
+                      }`}
+                    >
+                      {/* 썸네일 */}
+                      <div className="relative aspect-video bg-gray-100">
+                        <VideoThumbnail title={video.title} src={getThumbnailUrl(video)} />
+                        {videoIndex === activeIndex && (
+                          <div className="absolute inset-0 bg-[#1B5E20]/20 flex items-center justify-center">
+                            <PlayCircle className="w-8 h-8 text-white drop-shadow" />
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  {/* 제목 */}
-                  <div className="p-2 bg-white">
-                    <p className="text-xs font-medium text-gray-800 line-clamp-2 leading-tight">{video.title}</p>
-                  </div>
+                      {/* 제목 */}
+                      <div className="p-2 bg-white">
+                        <p className="text-xs font-medium text-gray-800 line-clamp-2 leading-tight">{video.title}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 우측 버튼 */}
+            <button
+              onClick={handleNext}
+              disabled={slideOffset >= listViewVideos.length - CARDS_PER_VIEW}
+              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            >
+              <ChevronRight className="w-5 h-5 text-gray-600" />
+            </button>
+          </div>
+          {totalListPages > 1 && (
+            <nav className="mt-5 flex flex-wrap items-center justify-center gap-1" aria-label="영상 목록 페이지">
+              <button
+                type="button"
+                onClick={() => handleListPageChange(activeListPage - 1)}
+                disabled={activeListPage === 1}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:border-[#1B5E20]/40 hover:text-[#1B5E20] disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="이전 페이지"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              {listPageNumbers.map((pageNumber) => (
+                <button
+                  key={pageNumber}
+                  type="button"
+                  onClick={() => handleListPageChange(pageNumber)}
+                  className={`inline-flex h-9 min-w-9 items-center justify-center rounded-md border px-2 text-sm ${
+                    activeListPage === pageNumber
+                      ? "border-[#1B5E20] bg-[#1B5E20] font-semibold text-white"
+                      : "border-gray-200 text-gray-500 hover:border-[#1B5E20]/40 hover:text-[#1B5E20]"
+                  }`}
+                  aria-current={activeListPage === pageNumber ? "page" : undefined}
+                  aria-label={`${pageNumber}페이지`}
+                >
+                  {pageNumber}
                 </button>
               ))}
-            </div>
-          </div>
-
-          {/* 우측 버튼 */}
-          <button
-            onClick={handleNext}
-            disabled={slideOffset >= filteredVideos.length - CARDS_PER_VIEW}
-            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-          >
-            <ChevronRight className="w-5 h-5 text-gray-600" />
-          </button>
+              <button
+                type="button"
+                onClick={() => handleListPageChange(activeListPage + 1)}
+                disabled={activeListPage === totalListPages}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:border-[#1B5E20]/40 hover:text-[#1B5E20] disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="다음 페이지"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </nav>
+          )}
         </div>
       )}
     </div>

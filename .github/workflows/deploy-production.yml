@@ -28,7 +28,9 @@ jobs:
   deploy:
     name: Build and Deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The first legacy praise import validates and inserts more than 5,000 videos.
+    # Migration markers make subsequent deployments return quickly.
+    timeout-minutes: 60
 
     steps:
       - name: Checkout

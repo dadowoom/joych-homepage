@@ -2828,6 +2828,19 @@ if [[ -f "${MIGRATION_0093}" ]]; then
   node "${MIGRATION_0093}" --apply
   echo "[deploy] database migration: import legacy Shekinah Friday-prayer videos"
   node "${MIGRATION_0093}" --friday --apply
+  for legacy_archive in \
+    praise-shalom \
+    praise-hosanna \
+    praise-zion \
+    praise-joyance \
+    praise-disciples \
+    praise-charis \
+    praise-rebuild \
+    praise-special
+  do
+    echo "[deploy] database migration: import legacy ${legacy_archive} videos"
+    node "${MIGRATION_0093}" "--archive=${legacy_archive}" --apply
+  done
 else
   echo "[deploy] missing migration runner: ${MIGRATION_0093}" >&2
   exit 1
