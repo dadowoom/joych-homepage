@@ -30,6 +30,7 @@ import {
   getTodayKstDateKey,
   MySupportRequestsPanel,
   SupportBoardIntro,
+  SupportRequestOwnerActions,
 } from "./_shared";
 
 function getProcessingStatusLabel(status: string) {
@@ -74,6 +75,10 @@ export default function SubtitleRequestPage() {
   const defaultViewMode = useMemo(
     () => subItem?.defaultViewMode ?? menuItem?.defaultViewMode ?? "list",
     [menuItem?.defaultViewMode, subItem?.defaultViewMode],
+  );
+  const mySubtitleRequestIds = useMemo(
+    () => new Set(mySubtitleRequests.map((request) => request.id)),
+    [mySubtitleRequests],
   );
   const canManageSubtitles =
     hasContentPermission(user, SUPPORT_REQUEST_ROOT_PERMISSION_KEY) ||
@@ -494,6 +499,7 @@ export default function SubtitleRequestPage() {
                   {visibleRequests.map((request, index) => {
                     const requestNumber = filteredRequests.length - (pageStart + index);
                     const isExpanded = expandedId === request.id;
+                    const isOwnRequest = mySubtitleRequestIds.has(request.id);
                     return (
                       <Fragment key={request.id}>
                         <tr className="transition-colors hover:bg-gray-50">
@@ -523,20 +529,32 @@ export default function SubtitleRequestPage() {
                                 <span className="mx-2 text-gray-300">|</span>
                                 처리상태 {getProcessingStatusLabel(request.status)}
                               </div>
-                              <div className="whitespace-pre-line border-l-2 border-[#1B5E20]/30 pl-4 text-sm leading-7 text-gray-700">
-                                {request.content}
-                              </div>
-                              {request.adminMemo && (
-                                <div className="mt-4 border border-[#d8f3dc] bg-[#f8fcf8] px-4 py-3">
-                                  <p className="mb-1 text-xs font-semibold text-[#1B5E20]">관리자 답변</p>
-                                  <p className="whitespace-pre-line text-sm leading-6 text-gray-700">{request.adminMemo}</p>
+                              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="min-w-0 flex-1">
+                                  <div className="whitespace-pre-line border-l-2 border-[#1B5E20]/30 pl-4 text-sm leading-7 text-gray-700">
+                                    {request.content}
+                                  </div>
+                                  {request.adminMemo && (
+                                    <div className="mt-4 border border-[#d8f3dc] bg-[#f8fcf8] px-4 py-3">
+                                      <p className="mb-1 text-xs font-semibold text-[#1B5E20]">관리자 답변</p>
+                                      <p className="whitespace-pre-line text-sm leading-6 text-gray-700">{request.adminMemo}</p>
+                                    </div>
+                                  )}
+                                  {request.attachmentName && (
+                                    <p className="mt-3 text-xs text-[#0F607A]">
+                                      첨부파일은 관리자 확인용으로 접수되었습니다.
+                                    </p>
+                                  )}
                                 </div>
-                              )}
-                              {request.attachmentName && (
-                                <p className="mt-3 text-xs text-[#0F607A]">
-                                  첨부파일은 관리자 확인용으로 접수되었습니다.
-                                </p>
-                              )}
+                                {isOwnRequest && (
+                                  <SupportRequestOwnerActions
+                                    requestId={request.id}
+                                    onEdit={handleEdit}
+                                    onDelete={handleDelete}
+                                    isBusy={deleteSubtitle.isPending && deleteSubtitle.variables?.id === request.id}
+                                  />
+                                )}
+                              </div>
                             </td>
                           </tr>
                         )}
@@ -551,6 +569,7 @@ export default function SubtitleRequestPage() {
               {visibleRequests.map((request, index) => {
                 const requestNumber = filteredRequests.length - (pageStart + index);
                 const isExpanded = expandedId === request.id;
+                const isOwnRequest = mySubtitleRequestIds.has(request.id);
                 return (
                   <article key={request.id} className={viewMode === "grid" ? "border border-gray-200 bg-white p-4" : "p-4"}>
                     <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
@@ -573,6 +592,15 @@ export default function SubtitleRequestPage() {
                       <div className="mt-4 border-l-2 border-[#1B5E20]/30 pl-3 text-sm leading-6 text-gray-700">
                         <p className="mb-2 text-xs text-gray-400">자막 필요일 {request.requestedDate || "-"}</p>
                         <p className="whitespace-pre-line">{request.content}</p>
+                        {isOwnRequest && (
+                          <SupportRequestOwnerActions
+                            requestId={request.id}
+                            onEdit={handleEdit}
+                            onDelete={handleDelete}
+                            isBusy={deleteSubtitle.isPending && deleteSubtitle.variables?.id === request.id}
+                            className="mt-3"
+                          />
+                        )}
                         {request.adminMemo && (
                           <div className="mt-4 border border-[#d8f3dc] bg-[#f8fcf8] px-3 py-3">
                             <p className="mb-1 text-xs font-semibold text-[#1B5E20]">관리자 답변</p>

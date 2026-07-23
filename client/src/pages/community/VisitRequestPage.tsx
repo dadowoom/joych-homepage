@@ -36,6 +36,7 @@ import {
   getTodayKstDateKey,
   MySupportRequestsPanel,
   SupportBoardIntro,
+  SupportRequestOwnerActions,
 } from "./_shared";
 
 export default function VisitRequestPage() {
@@ -82,6 +83,10 @@ function VisitRequestBoardPage() {
   const defaultViewMode = useMemo(
     () => subItem?.defaultViewMode ?? menuItem?.defaultViewMode ?? "list",
     [menuItem?.defaultViewMode, subItem?.defaultViewMode],
+  );
+  const myVisitRequestIds = useMemo(
+    () => new Set(myVisitRequests.map((request) => request.id)),
+    [myVisitRequests],
   );
   const canManageVisits =
     hasContentPermission(user, SUPPORT_REQUEST_ROOT_PERMISSION_KEY) ||
@@ -526,6 +531,7 @@ function VisitRequestBoardPage() {
                   {visibleRequests.map((request, index) => {
                     const requestNumber = filteredRequests.length - (pageStart + index);
                     const isExpanded = expandedId === request.id;
+                    const isOwnRequest = myVisitRequestIds.has(request.id);
                     return (
                       <Fragment key={request.id}>
                         <tr className="transition-colors hover:bg-gray-50">
@@ -542,16 +548,26 @@ function VisitRequestBoardPage() {
                         {isExpanded && (
                           <tr className="bg-gray-50/70">
                             <td colSpan={5} className="px-8 py-5">
-                              <div className="mb-3 text-xs text-gray-400">
-                                {request.region || "지역 미입력"}
-                                <span className="mx-2 text-gray-300">|</span>
-                                {VISITOR_TYPE_LABELS[request.visitorType] ?? request.visitorType}
-                                <span className="mx-2 text-gray-300">|</span>
-                                방문 {request.visitDate}{request.visitTime ? ` ${request.visitTime}` : ""}
-                                <span className="mx-2 text-gray-300">|</span>
-                                {request.headcount}명
-                                <span className="mx-2 text-gray-300">|</span>
-                                상태 {VISIT_STATUS_LABELS[request.status] ?? "접수"}
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="text-xs leading-6 text-gray-400">
+                                  {request.region || "지역 미입력"}
+                                  <span className="mx-2 text-gray-300">|</span>
+                                  {VISITOR_TYPE_LABELS[request.visitorType] ?? request.visitorType}
+                                  <span className="mx-2 text-gray-300">|</span>
+                                  방문 {request.visitDate}{request.visitTime ? ` ${request.visitTime}` : ""}
+                                  <span className="mx-2 text-gray-300">|</span>
+                                  {request.headcount}명
+                                  <span className="mx-2 text-gray-300">|</span>
+                                  상태 {VISIT_STATUS_LABELS[request.status] ?? "접수"}
+                                </div>
+                                {isOwnRequest && (
+                                  <SupportRequestOwnerActions
+                                    requestId={request.id}
+                                    onEdit={handleEdit}
+                                    onDelete={handleDelete}
+                                    isBusy={deleteVisit.isPending && deleteVisit.variables?.id === request.id}
+                                  />
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -567,6 +583,7 @@ function VisitRequestBoardPage() {
               {visibleRequests.map((request, index) => {
                 const requestNumber = filteredRequests.length - (pageStart + index);
                 const isExpanded = expandedId === request.id;
+                const isOwnRequest = myVisitRequestIds.has(request.id);
                 return (
                   <article key={request.id} className={viewMode === "grid" ? "border border-gray-200 bg-white p-4" : "p-4"}>
                     <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
@@ -586,6 +603,15 @@ function VisitRequestBoardPage() {
                         <p className="mb-2 text-xs text-gray-400">
                           {request.region || "지역 미입력"} · {VISITOR_TYPE_LABELS[request.visitorType] ?? request.visitorType} · {request.headcount}명
                         </p>
+                        {isOwnRequest && (
+                          <SupportRequestOwnerActions
+                            requestId={request.id}
+                            onEdit={handleEdit}
+                            onDelete={handleDelete}
+                            isBusy={deleteVisit.isPending && deleteVisit.variables?.id === request.id}
+                            className="mt-3"
+                          />
+                        )}
                       </div>
                     )}
                   </article>

@@ -151,28 +151,51 @@ export function MySupportRequestsPanel({
                 {item.summary ? `${item.summary} · ` : ""}{formatSupportDate(item.createdAt)} 접수
               </p>
             </div>
-            <div className="flex shrink-0 gap-2">
-              <button
-                type="button"
-                onClick={() => onEdit(item.id)}
-                disabled={busyId === item.id}
-                className="inline-flex h-8 items-center gap-1 border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 hover:border-[#1B5E20] hover:text-[#1B5E20] disabled:opacity-50"
-              >
-                <Pencil className="h-3.5 w-3.5" /> 수정
-              </button>
-              <button
-                type="button"
-                onClick={() => onDelete(item.id)}
-                disabled={busyId === item.id}
-                className="inline-flex h-8 items-center gap-1 border border-red-200 bg-white px-3 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
-              >
-                <Trash2 className="h-3.5 w-3.5" /> {busyId === item.id ? "삭제 중" : "삭제"}
-              </button>
-            </div>
+            <SupportRequestOwnerActions
+              requestId={item.id}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              isBusy={busyId === item.id}
+            />
           </article>
         ))}
       </div>
     </section>
+  );
+}
+
+export function SupportRequestOwnerActions({
+  requestId,
+  onEdit,
+  onDelete,
+  isBusy = false,
+  className = "",
+}: {
+  requestId: number;
+  onEdit: (id: number) => void;
+  onDelete: (id: number) => void;
+  isBusy?: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={`flex shrink-0 flex-wrap items-center justify-end gap-2 ${className}`}>
+      <button
+        type="button"
+        onClick={() => onEdit(requestId)}
+        disabled={isBusy}
+        className="inline-flex h-8 items-center gap-1 border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 hover:border-[#1B5E20] hover:text-[#1B5E20] disabled:opacity-50"
+      >
+        <Pencil className="h-3.5 w-3.5" /> 수정
+      </button>
+      <button
+        type="button"
+        onClick={() => onDelete(requestId)}
+        disabled={isBusy}
+        className="inline-flex h-8 items-center gap-1 border border-red-200 bg-white px-3 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+      >
+        <Trash2 className="h-3.5 w-3.5" /> {isBusy ? "삭제 중" : "삭제"}
+      </button>
+    </div>
   );
 }
 
