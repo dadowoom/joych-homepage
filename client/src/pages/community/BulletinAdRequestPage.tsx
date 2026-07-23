@@ -1,7 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
-import AdminSupportRequestsTab from "@/components/AdminSupportRequestsTab";
 import { hasContentPermission } from "@/lib/contentPermissions";
 import { SUPPORT_REQUEST_PERMISSION_KEYS, SUPPORT_REQUEST_ROOT_PERMISSION_KEY } from "@shared/adminPermissions";
 import {
@@ -28,7 +27,6 @@ import {
   fileToBase64,
   getEmptyVisitForm,
   getTodayKstDateKey,
-  MySupportRequestsPanel,
   SupportBoardIntro,
   SupportRequestOwnerActions,
 } from "./_shared";
@@ -245,29 +243,6 @@ export default function BulletinAdRequestPage() {
             </button>
           </div>
         </div>
-
-        <MySupportRequestsPanel
-          items={(memberMe ? myBulletinAdRequests : []).map((request) => ({
-            id: request.id,
-            title: request.title,
-            summary: request.requestedDate ? `게재 희망일 ${request.requestedDate}` : null,
-            status: request.status,
-            createdAt: request.createdAt,
-          }))}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          busyId={deleteBulletinAd.isPending ? deleteBulletinAd.variables?.id : null}
-        />
-
-        {canManageBulletinAds && (
-          <AdminSupportRequestsTab
-            initialKind="bulletinAds"
-            allowedKinds={["bulletinAds"]}
-            hideKindCards
-            title="주보 광고신청 관리"
-            description="이 페이지에서 바로 주보 광고신청 접수 내용을 확인하고 답변 메모와 처리 상태를 저장합니다."
-          />
-        )}
 
         {showForm && memberMe && (
           <div id="bulletin-ad-request-form" className="scroll-mt-24 border border-gray-200 bg-white shadow-sm">

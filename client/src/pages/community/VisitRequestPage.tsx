@@ -1,7 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
-import AdminSupportRequestsTab from "@/components/AdminSupportRequestsTab";
 import { hasContentPermission } from "@/lib/contentPermissions";
 import { SUPPORT_REQUEST_PERMISSION_KEYS, SUPPORT_REQUEST_ROOT_PERMISSION_KEY } from "@shared/adminPermissions";
 import {
@@ -34,7 +33,6 @@ import {
   fileToBase64,
   getEmptyVisitForm,
   getTodayKstDateKey,
-  MySupportRequestsPanel,
   SupportBoardIntro,
   SupportRequestOwnerActions,
 } from "./_shared";
@@ -251,29 +249,6 @@ function VisitRequestBoardPage() {
           <div className="border border-[#d8f3dc] bg-[#f1f8f3] px-5 py-4 text-sm text-[#1B5E20]">
             탐방신청이 접수되었습니다. 담당자가 신청 내용을 확인한 뒤 일정 가능 여부와 안내 사항을 연락드리겠습니다.
           </div>
-        )}
-
-        <MySupportRequestsPanel
-          items={myVisitRequests.map((request) => ({
-            id: request.id,
-            title: request.organizationName,
-            summary: `방문 희망일 ${request.visitDate}`,
-            status: request.status,
-            createdAt: request.createdAt,
-          }))}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          busyId={deleteVisit.isPending ? deleteVisit.variables?.id : null}
-        />
-
-        {canManageVisits && (
-          <AdminSupportRequestsTab
-            initialKind="visits"
-            allowedKinds={["visits"]}
-            hideKindCards
-            title="탐방신청 관리"
-            description="이 페이지에서 바로 탐방신청 접수 내용을 확인하고 내부 메모와 처리 상태를 저장합니다."
-          />
         )}
 
         {showForm && (

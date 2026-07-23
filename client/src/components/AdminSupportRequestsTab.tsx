@@ -10,7 +10,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { hasContentPermission } from "@/lib/contentPermissions";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Inbox, Paperclip, Save, Search, Pencil, Trash2 } from "lucide-react";
+import { Inbox, Paperclip, Save, Search } from "lucide-react";
 import {
   SUPPORT_REQUEST_PERMISSION_KEYS,
   SUPPORT_REQUEST_ROOT_PERMISSION_KEY,
@@ -45,39 +45,6 @@ type AdminRequestItem = {
   attachmentSize?: number | null;
   attachmentMime?: string | null;
   memoMode: "public" | "internal";
-  requestedDate?: string | null;
-  phone?: string | null;
-  region?: string | null;
-  denomination?: string | null;
-  email?: string | null;
-  organizationName?: string | null;
-  applicantName?: string | null;
-  visitDate?: string | null;
-  visitTime?: string | null;
-  headcount?: number | null;
-  visitorType?: "church" | "institution" | "individual" | "other" | null;
-  purpose?: string | null;
-  message?: string | null;
-};
-
-type SupportRequestEditDraft = {
-  title: string;
-  requestedDate: string;
-  content: string;
-  status: string;
-  adminMemo: string;
-  organizationName: string;
-  applicantName: string;
-  phone: string;
-  region: string;
-  denomination: string;
-  email: string;
-  visitDate: string;
-  visitTime: string;
-  headcount: string;
-  visitorType: string;
-  purpose: string;
-  message: string;
 };
 
 const fieldClass =
@@ -207,28 +174,6 @@ function makeItemKey(kind: SupportRequestKind, id: number) {
   return `${kind}:${id}`;
 }
 
-function createEditDraft(item: AdminRequestItem): SupportRequestEditDraft {
-  return {
-    title: item.title ?? "",
-    requestedDate: item.requestedDate ?? "",
-    content: item.content ?? "",
-    status: item.status ?? "new",
-    adminMemo: item.adminMemo ?? "",
-    organizationName: item.organizationName ?? "",
-    applicantName: item.applicantName ?? "",
-    phone: item.phone ?? "",
-    region: item.region ?? "",
-    denomination: item.denomination ?? "",
-    email: item.email ?? "",
-    visitDate: item.visitDate ?? "",
-    visitTime: item.visitTime ?? "",
-    headcount: item.headcount ? String(item.headcount) : "1",
-    visitorType: item.visitorType ?? "church",
-    purpose: item.purpose ?? "",
-    message: item.message ?? "",
-  };
-}
-
 function canManageSupportRequestKind(
   user: Parameters<typeof hasContentPermission>[0],
   kind: SupportRequestKind,
@@ -264,7 +209,6 @@ export default function AdminSupportRequestsTab({
   const [keyword, setKeyword] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [memoDrafts, setMemoDrafts] = useState<Record<string, string>>({});
-  const [editDrafts, setEditDrafts] = useState<Record<string, SupportRequestEditDraft>>({});
 
   const permittedKinds = useMemo(
     () =>
@@ -343,63 +287,6 @@ export default function AdminSupportRequestsTab({
     onError: (error) => toast.error(error.message),
   });
 
-  const updateBulletinAdRequest = trpc.cms.supportRequests.updateBulletinAd.useMutation({
-    onSuccess: () => {
-      toast.success("주보광고신청이 수정되었습니다.");
-      utils.cms.supportRequests.listBulletinAds.invalidate();
-      utils.support.listBulletinAds.invalidate();
-    },
-    onError: (error) => toast.error(error.message),
-  });
-
-  const deleteBulletinAdRequest = trpc.cms.supportRequests.deleteBulletinAd.useMutation({
-    onSuccess: () => {
-      toast.success("주보광고신청이 삭제되었습니다.");
-      utils.cms.supportRequests.listBulletinAds.invalidate();
-      utils.support.listBulletinAds.invalidate();
-      setSelectedKey(null);
-    },
-    onError: (error) => toast.error(error.message),
-  });
-
-  const updateSubtitleRequest = trpc.cms.supportRequests.updateSubtitle.useMutation({
-    onSuccess: () => {
-      toast.success("자막신청이 수정되었습니다.");
-      utils.cms.supportRequests.listSubtitles.invalidate();
-      utils.support.listSubtitles.invalidate();
-    },
-    onError: (error) => toast.error(error.message),
-  });
-
-  const deleteSubtitleRequest = trpc.cms.supportRequests.deleteSubtitle.useMutation({
-    onSuccess: () => {
-      toast.success("자막신청이 삭제되었습니다.");
-      utils.cms.supportRequests.listSubtitles.invalidate();
-      utils.support.listSubtitles.invalidate();
-      setSelectedKey(null);
-    },
-    onError: (error) => toast.error(error.message),
-  });
-
-  const updateVisitRequest = trpc.cms.supportRequests.updateVisit.useMutation({
-    onSuccess: () => {
-      toast.success("탐방신청이 수정되었습니다.");
-      utils.cms.supportRequests.listVisits.invalidate();
-      utils.support.listVisits.invalidate();
-    },
-    onError: (error) => toast.error(error.message),
-  });
-
-  const deleteVisitRequest = trpc.cms.supportRequests.deleteVisit.useMutation({
-    onSuccess: () => {
-      toast.success("탐방신청이 삭제되었습니다.");
-      utils.cms.supportRequests.listVisits.invalidate();
-      utils.support.listVisits.invalidate();
-      setSelectedKey(null);
-    },
-    onError: (error) => toast.error(error.message),
-  });
-
   const sections = useMemo(() => {
     const bulletinItems: AdminRequestItem[] = (
       bulletinAds as SupportOutput["listBulletinAds"]
@@ -425,9 +312,6 @@ export default function AdminSupportRequestsTab({
       attachmentSize: request.attachmentSize,
       attachmentMime: request.attachmentMime,
       memoMode: "public",
-      requestedDate: request.requestedDate,
-      phone: request.phone,
-      email: request.email,
     }));
 
     const subtitleItems: AdminRequestItem[] = (
@@ -454,9 +338,6 @@ export default function AdminSupportRequestsTab({
       attachmentSize: request.attachmentSize,
       attachmentMime: request.attachmentMime,
       memoMode: "public",
-      requestedDate: request.requestedDate,
-      phone: request.phone,
-      email: request.email,
     }));
 
     const visitItems: AdminRequestItem[] = (
@@ -484,18 +365,6 @@ export default function AdminSupportRequestsTab({
       ],
       adminMemo: request.adminMemo,
       memoMode: "internal",
-      phone: request.phone,
-      region: request.region,
-      denomination: request.denomination,
-      email: request.email,
-      organizationName: request.organizationName,
-      applicantName: request.applicantName,
-      visitDate: request.visitDate,
-      visitTime: request.visitTime,
-      headcount: request.headcount,
-      visitorType: request.visitorType,
-      purpose: request.purpose,
-      message: request.message,
     }));
 
     const prayerItems: AdminRequestItem[] = (
@@ -581,10 +450,6 @@ export default function AdminSupportRequestsTab({
 
   const selectedItem =
     filteredItems.find((item) => item.key === selectedKey) ?? filteredItems[0] ?? null;
-  const selectedDraft = selectedItem ? getEditDraft(selectedItem) : null;
-  const canEditSelectedItem = selectedItem
-    ? selectedItem.kind === "bulletinAds" || selectedItem.kind === "subtitles" || selectedItem.kind === "visits"
-    : false;
 
   const permittedSectionItems = permittedKinds.flatMap((kind) => sections[kind]);
   const totalCount = permittedSectionItems.length;
@@ -604,27 +469,6 @@ export default function AdminSupportRequestsTab({
 
   function setMemoValue(item: AdminRequestItem, value: string) {
     setMemoDrafts((prev) => ({ ...prev, [item.key]: value }));
-  }
-
-  function getEditDraft(item: AdminRequestItem) {
-    return editDrafts[item.key] ?? createEditDraft(item);
-  }
-
-  function setEditValue<K extends keyof SupportRequestEditDraft>(
-    item: AdminRequestItem,
-    key: K,
-    value: SupportRequestEditDraft[K],
-  ) {
-    setEditDrafts((prev) => ({
-      ...prev,
-      [item.key]: {
-        ...getEditDraft(item),
-        [key]: value,
-      },
-    }));
-    if (key === "adminMemo") {
-      setMemoValue(item, String(value ?? ""));
-    }
   }
 
   function saveItem(item: AdminRequestItem, status = item.status) {
@@ -666,69 +510,6 @@ export default function AdminSupportRequestsTab({
       status: status as "new" | "contacted" | "archived",
       adminMemo,
     });
-  }
-
-  function saveEditedItem(item: AdminRequestItem) {
-    const draft = getEditDraft(item);
-    if (item.kind === "bulletinAds") {
-      updateBulletinAdRequest.mutate({
-        id: item.id,
-        title: draft.title,
-        requestedDate: draft.requestedDate || undefined,
-        content: draft.content,
-        status: draft.status as "new" | "reviewed" | "completed" | "archived",
-        adminMemo: draft.adminMemo || null,
-      });
-      return;
-    }
-    if (item.kind === "subtitles") {
-      updateSubtitleRequest.mutate({
-        id: item.id,
-        title: draft.title,
-        requestedDate: draft.requestedDate || undefined,
-        content: draft.content,
-        status: draft.status as "new" | "reviewed" | "completed" | "archived",
-        adminMemo: draft.adminMemo || null,
-      });
-      return;
-    }
-    if (item.kind === "visits") {
-      updateVisitRequest.mutate({
-        id: item.id,
-        organizationName: draft.organizationName,
-        applicantName: draft.applicantName,
-        phone: draft.phone,
-        region: draft.region || undefined,
-        denomination: draft.denomination || undefined,
-        email: draft.email || undefined,
-        visitDate: draft.visitDate,
-        visitTime: draft.visitTime || undefined,
-        headcount: Math.max(1, Number(draft.headcount) || 1),
-        visitorType: draft.visitorType as "church" | "institution" | "individual" | "other",
-        purpose: draft.purpose,
-        message: draft.message || undefined,
-        status: draft.status as "new" | "contacted" | "scheduled" | "completed" | "archived",
-        adminMemo: draft.adminMemo || null,
-      });
-      return;
-    }
-    saveItem(item, draft.status);
-  }
-
-  function deleteItem(item: AdminRequestItem) {
-    const confirmed = window.confirm(`${kindMeta[item.kind].title} 항목을 삭제할까요?`);
-    if (!confirmed) return;
-    if (item.kind === "bulletinAds") {
-      deleteBulletinAdRequest.mutate({ id: item.id });
-      return;
-    }
-    if (item.kind === "subtitles") {
-      deleteSubtitleRequest.mutate({ id: item.id });
-      return;
-    }
-    if (item.kind === "visits") {
-      deleteVisitRequest.mutate({ id: item.id });
-    }
   }
 
   return (
@@ -928,8 +709,8 @@ export default function AdminSupportRequestsTab({
                     <label className="mb-1.5 block text-xs font-medium text-gray-500">처리 상태</label>
                     <select
                       className={`${fieldClass} w-full bg-white`}
-                      value={selectedDraft?.status ?? selectedItem.status}
-                      onChange={(event) => setEditValue(selectedItem, "status", event.target.value)}
+                      value={selectedItem.status}
+                      onChange={(event) => saveItem(selectedItem, event.target.value)}
                     >
                       {Object.entries(selectedItem.statusLabels).map(([value, label]) => (
                         <option key={value} value={value}>
@@ -944,8 +725,8 @@ export default function AdminSupportRequestsTab({
                     </label>
                     <textarea
                       className={`${fieldClass} h-24 w-full resize-none`}
-                      value={selectedDraft?.adminMemo ?? getMemoValue(selectedItem)}
-                      onChange={(event) => setEditValue(selectedItem, "adminMemo", event.target.value)}
+                      value={getMemoValue(selectedItem)}
+                      onChange={(event) => setMemoValue(selectedItem, event.target.value)}
                       placeholder={
                         selectedItem.memoMode === "public"
                           ? "신청자가 게시글에서 확인할 답변을 입력하세요."
@@ -960,168 +741,10 @@ export default function AdminSupportRequestsTab({
                   </div>
                 </div>
 
-                {canEditSelectedItem && selectedDraft && (
-                  <div className="space-y-3 rounded-xl border border-[#d8f3dc] bg-[#f8fcf8] p-4">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-[#1B5E20]">
-                      <Pencil className="h-4 w-4" />
-                      접수 내용 수정
-                    </div>
-
-                    {(selectedItem.kind === "bulletinAds" || selectedItem.kind === "subtitles") && (
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <div className="md:col-span-2">
-                          <label className="mb-1.5 block text-xs font-medium text-gray-500">제목</label>
-                          <input
-                            className={`${fieldClass} w-full`}
-                            value={selectedDraft.title}
-                            onChange={(event) => setEditValue(selectedItem, "title", event.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1.5 block text-xs font-medium text-gray-500">요청일</label>
-                          <input
-                            type="date"
-                            className={`${fieldClass} w-full`}
-                            value={selectedDraft.requestedDate}
-                            onChange={(event) => setEditValue(selectedItem, "requestedDate", event.target.value)}
-                          />
-                        </div>
-                        <div className="md:col-span-2">
-                          <label className="mb-1.5 block text-xs font-medium text-gray-500">내용</label>
-                          <textarea
-                            className={`${fieldClass} h-32 w-full resize-none`}
-                            value={selectedDraft.content}
-                            onChange={(event) => setEditValue(selectedItem, "content", event.target.value)}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedItem.kind === "visits" && (
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <div>
-                          <label className="mb-1.5 block text-xs font-medium text-gray-500">단체명</label>
-                          <input
-                            className={`${fieldClass} w-full`}
-                            value={selectedDraft.organizationName}
-                            onChange={(event) => setEditValue(selectedItem, "organizationName", event.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1.5 block text-xs font-medium text-gray-500">신청자명</label>
-                          <input
-                            className={`${fieldClass} w-full`}
-                            value={selectedDraft.applicantName}
-                            onChange={(event) => setEditValue(selectedItem, "applicantName", event.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1.5 block text-xs font-medium text-gray-500">연락처</label>
-                          <input
-                            className={`${fieldClass} w-full`}
-                            value={selectedDraft.phone}
-                            onChange={(event) => setEditValue(selectedItem, "phone", event.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1.5 block text-xs font-medium text-gray-500">이메일</label>
-                          <input
-                            className={`${fieldClass} w-full`}
-                            value={selectedDraft.email}
-                            onChange={(event) => setEditValue(selectedItem, "email", event.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1.5 block text-xs font-medium text-gray-500">지역</label>
-                          <input
-                            className={`${fieldClass} w-full`}
-                            value={selectedDraft.region}
-                            onChange={(event) => setEditValue(selectedItem, "region", event.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1.5 block text-xs font-medium text-gray-500">소속 교단</label>
-                          <input
-                            className={`${fieldClass} w-full`}
-                            value={selectedDraft.denomination}
-                            onChange={(event) => setEditValue(selectedItem, "denomination", event.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1.5 block text-xs font-medium text-gray-500">방문일</label>
-                          <input
-                            type="date"
-                            className={`${fieldClass} w-full`}
-                            value={selectedDraft.visitDate}
-                            onChange={(event) => setEditValue(selectedItem, "visitDate", event.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1.5 block text-xs font-medium text-gray-500">방문 시간</label>
-                          <input
-                            className={`${fieldClass} w-full`}
-                            value={selectedDraft.visitTime}
-                            onChange={(event) => setEditValue(selectedItem, "visitTime", event.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1.5 block text-xs font-medium text-gray-500">인원</label>
-                          <input
-                            type="number"
-                            min={1}
-                            className={`${fieldClass} w-full`}
-                            value={selectedDraft.headcount}
-                            onChange={(event) => setEditValue(selectedItem, "headcount", event.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1.5 block text-xs font-medium text-gray-500">방문 유형</label>
-                          <select
-                            className={`${fieldClass} w-full bg-white`}
-                            value={selectedDraft.visitorType}
-                            onChange={(event) => setEditValue(selectedItem, "visitorType", event.target.value)}
-                          >
-                            <option value="church">교회</option>
-                            <option value="institution">기관 / 단체</option>
-                            <option value="individual">개인</option>
-                            <option value="other">기타</option>
-                          </select>
-                        </div>
-                        <div className="md:col-span-2">
-                          <label className="mb-1.5 block text-xs font-medium text-gray-500">방문 목적</label>
-                          <input
-                            className={`${fieldClass} w-full`}
-                            value={selectedDraft.purpose}
-                            onChange={(event) => setEditValue(selectedItem, "purpose", event.target.value)}
-                          />
-                        </div>
-                        <div className="md:col-span-2">
-                          <label className="mb-1.5 block text-xs font-medium text-gray-500">내용</label>
-                          <textarea
-                            className={`${fieldClass} h-32 w-full resize-none`}
-                            value={selectedDraft.message}
-                            onChange={(event) => setEditValue(selectedItem, "message", event.target.value)}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-2">
-                  {canEditSelectedItem && (
-                    <button
-                      type="button"
-                      onClick={() => deleteItem(selectedItem)}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-red-200 px-4 text-sm font-semibold text-red-600 hover:bg-red-50"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      삭제
-                    </button>
-                  )}
+                <div className="flex justify-end">
                   <button
                     type="button"
-                    onClick={() => (canEditSelectedItem ? saveEditedItem(selectedItem) : saveItem(selectedItem))}
+                    onClick={() => saveItem(selectedItem)}
                     className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#1B5E20] px-4 text-sm font-semibold text-white hover:bg-[#2E7D32]"
                   >
                     <Save className="h-4 w-4" />
