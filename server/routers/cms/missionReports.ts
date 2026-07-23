@@ -17,6 +17,7 @@ import {
 } from "../../_core/contentValidation";
 import {
   createMissionAuthorGrant,
+  createMissionAuthorGrants,
   createMissionReportWithDetails,
   createMissionary,
   deleteMissionAuthorGrant,
@@ -180,6 +181,19 @@ export const missionReportsRouter = router({
     }))
     .mutation(({ input, ctx }) =>
       createMissionAuthorGrant({ ...input, canWrite: true, createdBy: ctx.user.id })
+    ),
+
+  createAuthorGrants: missionReportProcedure
+    .input(z.object({
+      memberId: idSchema,
+      missionaryIds: z.array(idSchema).min(1).max(1000),
+    }))
+    .mutation(({ input, ctx }) =>
+      createMissionAuthorGrants({
+        memberId: input.memberId,
+        missionaryIds: input.missionaryIds,
+        createdBy: ctx.user.id,
+      })
     ),
 
   updateAuthorGrant: missionReportProcedure

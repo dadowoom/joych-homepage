@@ -281,6 +281,44 @@ export async function createMissionAuthorGrant(data: InsertMissionReportAuthor) 
   return result?.id ?? null;
 }
 
+export async function createMissionAuthorGrants(data: {
+  memberId: number;
+  missionaryIds: number[];
+  createdBy: number;
+}) {
+  const db = await getDb();
+  const missionaryIds = Array.from(new Set(data.missionaryIds));
+  if (!db || missionaryIds.length === 0) return { grantedCount: 0 };
+
+  await db.transaction(async (tx) => {
+    for (const missionaryId of missionaryIds) {
+      const [existing] = await tx.select({ id: missionReportAuthors.id })
+        .from(missionReportAuthors)
+        .where(and(
+          eq(missionReportAuthors.memberId, data.memberId),
+          eq(missionReportAuthors.missionaryId, missionaryId),
+        ))
+        .limit(1);
+
+      if (existing) {
+        await tx.update(missionReportAuthors)
+          .set({ canWrite: true, createdBy: data.createdBy })
+          .where(eq(missionReportAuthors.id, existing.id));
+        continue;
+      }
+
+      await tx.insert(missionReportAuthors).values({
+        memberId: data.memberId,
+        missionaryId,
+        canWrite: true,
+        createdBy: data.createdBy,
+      });
+    }
+  });
+
+  return { grantedCount: missionaryIds.length };
+}
+
 export async function updateMissionAuthorGrant(id: number, data: Partial<InsertMissionReportAuthor>) {
   const db = await getDb();
   if (!db) return;

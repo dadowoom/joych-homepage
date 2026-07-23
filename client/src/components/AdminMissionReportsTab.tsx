@@ -23,6 +23,10 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { trpc } from "@/lib/trpc";
+import {
+  resolveMissionaryGrantIds,
+  type MissionaryGrantSelection,
+} from "@/lib/missionAuthorGrantSelection";
 import { moveMissionaryOrder } from "@/lib/missionaryOrder";
 import { toast } from "sonner";
 import { GripVertical, ImagePlus, Loader2, X } from "lucide-react";
@@ -214,9 +218,8 @@ export default function AdminMissionReportsTab() {
   const [editingMissionaryForm, setEditingMissionaryForm] = useState<MissionaryFormState>(getEmptyMissionaryForm);
   const [profileImageUploadTarget, setProfileImageUploadTarget] = useState<"create" | "edit" | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState<number | "">("");
-  const [selectedMissionaryId, setSelectedMissionaryId] = useState<number | "">(
-    ""
-  );
+  const [selectedMissionarySelection, setSelectedMissionarySelection] =
+    useState<MissionaryGrantSelection>("");
 
   const { data: missionaries = [], isLoading: loadingMissionaries } =
     trpc.cms.missionReports.missionaries.useQuery();
@@ -348,9 +351,9 @@ export default function AdminMissionReportsTab() {
     onError: (e) => toast.error(e.message),
   });
 
-  const createGrant = trpc.cms.missionReports.createAuthorGrant.useMutation({
-    onSuccess: () => {
-      toast.success("작성 권한이 부여됐습니다.");
+  const createGrants = trpc.cms.missionReports.createAuthorGrants.useMutation({
+    onSuccess: ({ grantedCount }) => {
+      toast.success(`${grantedCount}곳의 작성 권한이 부여됐습니다.`);
       utils.cms.missionReports.authorGrants.invalidate();
     },
     onError: (e) => toast.error(e.message),
@@ -423,13 +426,25 @@ export default function AdminMissionReportsTab() {
   };
 
   const submitGrant = () => {
-    if (!selectedMemberId || !selectedMissionaryId) {
-      toast.error("성도와 해당 선교사/사역지를 선택해 주세요.");
+    if (!selectedMemberId) {
+      toast.error("성도를 선택해 주세요.");
       return;
     }
-    createGrant.mutate({
+    const missionaryIds = resolveMissionaryGrantIds(
+      selectedMissionarySelection,
+      missionaries,
+    );
+    if (missionaryIds.length === 0) {
+      toast.error(
+        selectedMissionarySelection === "all"
+          ? "등록된 선교사/사역지가 없습니다."
+          : "선교사/사역지를 선택해 주세요.",
+      );
+      return;
+    }
+    createGrants.mutate({
       memberId: selectedMemberId,
-      missionaryId: selectedMissionaryId,
+      missionaryIds,
     });
   };
 
@@ -807,14 +822,18 @@ export default function AdminMissionReportsTab() {
           </select>
           <select
             className={adminFieldClass}
-            value={selectedMissionaryId}
-            onChange={(e) =>
-              setSelectedMissionaryId(
-                e.target.value ? Number(e.target.value) : ""
-              )
-            }
+            value={selectedMissionarySelection}
+            onChange={(e) => {
+              const value = e.target.value;
+              setSelectedMissionarySelection(
+                value === "all" ? "all" : value ? Number(value) : "",
+              );
+            }}
           >
             <option value="">선교사/사역지 선택</option>
+            <option value="all" disabled={missionaries.length === 0}>
+              전체 선교사/사역지 ({missionaries.length}곳)
+            </option>
             {missionaries.map((missionary) => (
               <option key={missionary.id} value={missionary.id}>
                 {missionary.name} · {missionary.region}
@@ -823,10 +842,14 @@ export default function AdminMissionReportsTab() {
           </select>
           <button
             onClick={submitGrant}
-            disabled={createGrant.isPending}
+            disabled={createGrants.isPending}
             className="rounded-lg bg-[#1B5E20] px-4 py-2 text-sm text-white hover:bg-[#2E7D32] disabled:opacity-50"
           >
-            권한 부여
+            {createGrants.isPending
+              ? "권한 부여 중..."
+              : selectedMissionarySelection === "all"
+                ? "전체 권한 부여"
+                : "권한 부여"}
           </button>
         </div>
         {memberSearch.trim() && (
