@@ -48,6 +48,7 @@ import { dynamicBoardsRouter } from "./dynamicBoards";
 import { pastorBooksRouter } from "./pastorBooks";
 import { pushBroadcastRouter } from "./pushBroadcast";
 import { boardIntroductionsRouter } from "./boardIntroductions";
+import { worshipScheduleRouter } from "./worshipSchedule";
 
 export const cmsRouter = router({
   notices: noticesRouter,
@@ -75,4 +76,5 @@ export const cmsRouter = router({
   pastorBooks: pastorBooksRouter,
   pushBroadcast: pushBroadcastRouter,
   boardIntroductions: boardIntroductionsRouter,
+  worshipSchedule: worshipScheduleRouter,
 });

@@ -47,6 +47,9 @@ const AdminMenuAccessTab = lazy(() => import("@/components/AdminMenuAccessTab"))
 const AdminViewModesTab = lazy(() => import("@/components/AdminViewModesTab"));
 const AdminChurchHistoryTab = lazy(() => import("@/components/AdminChurchHistoryTab"));
 const AdminPastorBooksTab = lazy(() => import("@/components/AdminPastorBooksTab"));
+const AdminWorshipScheduleDraftTab = lazy(
+  () => import("@/components/admin/AdminWorshipScheduleDraftTab"),
+);
 const YoutubeAdminTab = lazy(() => import("@/components/YoutubeAdminTab"));
 const SettingsTab = lazy(() =>
   import("@/components/admin/SettingsTab").then(module => ({
@@ -79,6 +82,7 @@ type Tab =
   | "bulletins"
   | "pushBroadcast"
   | "youtube"
+  | "worshipScheduleDraft"
   | "popups"
   | "history"
   | "pastorBooks"
@@ -140,6 +144,14 @@ const TABS: TabItem[] = [
     description:
       "게시판과 갤러리 메뉴가 처음 열릴 때 기본으로 보여줄 화면 방식을 관리합니다.",
     status: "목록형/갤러리형",
+  },
+  {
+    id: "worshipScheduleDraft",
+    label: "예배시간 체험판",
+    icon: "fa-calendar-days",
+    description:
+      "색상 예배 블록과 예배시간을 직접 편집하고 실제 화면 모양을 미리 확인합니다. 체험 초안은 공개 페이지에 반영되지 않습니다.",
+    status: "공개 미적용",
   },
   {
     id: "youtube",
@@ -292,6 +304,7 @@ const TAB_GROUPS: TabGroup[] = [
     description: "홈페이지에 공개되는 자료",
     tabs: [
       "viewModes",
+      "worshipScheduleDraft",
       "youtube",
       "bulletins",
       "testimonies",
@@ -1469,6 +1482,9 @@ export default function AdminPage() {
                   {activeTab === "permissions" && <AdminPermissionsTab />}
                   {activeTab === "menuAccess" && <AdminMenuAccessTab />}
                   {activeTab === "viewModes" && <AdminViewModesTab />}
+                  {activeTab === "worshipScheduleDraft" && (
+                    <AdminWorshipScheduleDraftTab />
+                  )}
                   {activeTab === "members" && <AdminMembersTab />}
                   {activeTab === "staff" && <AdminStaffTab />}
                   {activeTab === "missionReports" && <AdminMissionReportsTab />}

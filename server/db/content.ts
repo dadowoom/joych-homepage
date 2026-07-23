@@ -11,10 +11,12 @@
 
 import { createHash } from "node:crypto";
 import { and, eq, asc, desc, inArray, isNull, like, not } from "drizzle-orm";
+import type { ResultSetHeader } from "mysql2";
 import {
   heroSlides, galleryAlbums, galleryItems, menuItems, menuSubItems, affiliates, quickMenus, siteSettings,
   InsertAffiliate, InsertGalleryAlbum, InsertGalleryItem,
 } from "../../drizzle/schema";
+import { WORSHIP_SCHEDULE_SETTING_PREFIX } from "@shared/worshipSchedule";
 import { getDb } from "./connection";
 
 const STATIC_PAGE_SETTING_PREFIX = "static_page:";
@@ -431,6 +433,7 @@ export async function getSiteSettings(): Promise<Record<string, string>> {
     .where(and(
       not(like(siteSettings.settingKey, `${STATIC_PAGE_SETTING_PREFIX}%`)),
       not(like(siteSettings.settingKey, `${TRANSLATION_SETTING_PREFIX}%`)),
+      not(like(siteSettings.settingKey, `${WORSHIP_SCHEDULE_SETTING_PREFIX}%`)),
     ));
   return Object.fromEntries(rows.map(r => [r.settingKey, r.settingValue ?? ""]));
 }
@@ -450,6 +453,45 @@ export async function upsertSiteSetting(key: string, value: string) {
   await db.insert(siteSettings)
     .values({ settingKey: key, settingValue: value })
     .onDuplicateKeyUpdate({ set: { settingValue: value } });
+}
+
+export type SiteSettingCompareAndSwapResult =
+  | "saved"
+  | "conflict"
+  | "unavailable";
+
+/**
+ * Save a setting only when it has not changed since the caller read it.
+ * `expectedValue === null` means the row must not exist yet.
+ */
+export async function compareAndSwapSiteSetting(
+  key: string,
+  expectedValue: string | null,
+  value: string,
+): Promise<SiteSettingCompareAndSwapResult> {
+  const db = await getDb();
+  if (!db) return "unavailable";
+
+  if (expectedValue === null) {
+    const [result] = await db
+      .insert(siteSettings)
+      .ignore()
+      .values({ settingKey: key, settingValue: value });
+    return Number((result as ResultSetHeader | undefined)?.affectedRows ?? 0) === 1
+      ? "saved"
+      : "conflict";
+  }
+
+  const [result] = await db
+    .update(siteSettings)
+    .set({ settingValue: value })
+    .where(and(
+      eq(siteSettings.settingKey, key),
+      eq(siteSettings.settingValue, expectedValue),
+    ));
+  return Number((result as ResultSetHeader | undefined)?.affectedRows ?? 0) === 1
+    ? "saved"
+    : "conflict";
 }
 
 /** 여러 사이트 설정을 하나의 트랜잭션으로 저장 */
