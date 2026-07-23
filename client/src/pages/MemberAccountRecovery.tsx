@@ -12,11 +12,17 @@ import { MEMBER_SELF_SERVICE_TEMP_PASSWORD } from "@shared/memberPasswordRecover
 
 export default function MemberAccountRecovery() {
   const [form, setForm] = useState({ name: "", phone: "", birthDate: "" });
+  const [verificationEmail, setVerificationEmail] = useState("");
+  const [verificationEmailError, setVerificationEmailError] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [requestSubmitted, setRequestSubmitted] = useState(false);
 
   const findMutation = trpc.members.findLoginId.useMutation({
-    onSuccess: () => setRequestSubmitted(false),
+    onSuccess: () => {
+      setVerificationEmail("");
+      setVerificationEmailError("");
+      setRequestSubmitted(false);
+    },
   });
   const resetRequestMutation = trpc.members.requestPasswordReset.useMutation({
     onSuccess: (result) => setRequestSubmitted(result.reset),
@@ -26,6 +32,15 @@ export default function MemberAccountRecovery() {
     setForm((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, [field]: "", general: "" }));
     findMutation.reset();
+    resetRequestMutation.reset();
+    setVerificationEmail("");
+    setVerificationEmailError("");
+    setRequestSubmitted(false);
+  };
+
+  const updateVerificationEmail = (value: string) => {
+    setVerificationEmail(value);
+    setVerificationEmailError("");
     resetRequestMutation.reset();
     setRequestSubmitted(false);
   };
@@ -54,7 +69,16 @@ export default function MemberAccountRecovery() {
   const handleResetRequest = () => {
     const identity = getValidatedIdentity();
     if (!identity) return;
-    resetRequestMutation.mutate(identity);
+    const email = verificationEmail.trim().toLowerCase();
+    if (!email) {
+      setVerificationEmailError("확인된 계정의 전체 이메일 주소를 입력해주세요.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setVerificationEmailError("이메일 주소를 올바른 형식으로 입력해주세요.");
+      return;
+    }
+    resetRequestMutation.mutate({ ...identity, email });
   };
 
   const accounts = findMutation.data?.accounts ?? [];
@@ -94,7 +118,11 @@ export default function MemberAccountRecovery() {
         </div>
 
         <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-          <form onSubmit={handleFind} className="space-y-4">
+          <form onSubmit={handleFind}>
+            <fieldset
+              disabled={findMutation.isPending || resetRequestMutation.isPending}
+              className="space-y-4 disabled:opacity-70"
+            >
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">이름</label>
               <input
@@ -141,6 +169,7 @@ export default function MemberAccountRecovery() {
               <Search className="h-4 w-4" />
               {findMutation.isPending ? "확인 중..." : "가입 계정 찾기"}
             </button>
+            </fieldset>
           </form>
 
           {findMutation.error && (
@@ -167,15 +196,52 @@ export default function MemberAccountRecovery() {
                   ))}
 
                   {canRequestPasswordReset && !requestSubmitted && (
-                    <button
-                      type="button"
-                      onClick={handleResetRequest}
-                      disabled={resetRequestMutation.isPending}
-                      className="flex w-full items-center justify-center gap-2 rounded-lg border border-amber-300 bg-amber-50 py-3 text-sm font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
-                    >
-                      <ShieldCheck className="h-4 w-4" />
-                      {resetRequestMutation.isPending ? "초기화 중..." : "비밀번호 초기화"}
-                    </button>
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+                      <label htmlFor="password-reset-email" className="block text-sm font-semibold text-gray-800">
+                        가입 이메일 전체 입력
+                      </label>
+                      <p className="mt-1 text-xs leading-5 text-gray-500">
+                        위에 일부만 표시된 가입 이메일을 전체 입력해야 비밀번호를 초기화할 수 있습니다.
+                      </p>
+                      <input
+                        id="password-reset-email"
+                        type="email"
+                        value={verificationEmail}
+                        onChange={(event) => updateVerificationEmail(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            handleResetRequest();
+                          }
+                        }}
+                        className={`mt-3 w-full rounded-lg border bg-white px-3 py-2.5 text-sm outline-none transition focus:ring-2 focus:ring-[#1B5E20]/25 ${
+                          verificationEmailError
+                            ? "border-red-400"
+                            : "border-gray-300 focus:border-[#1B5E20]"
+                        }`}
+                        autoComplete="email"
+                        inputMode="email"
+                        maxLength={128}
+                        placeholder="가입한 이메일 전체 주소"
+                        disabled={resetRequestMutation.isPending}
+                        aria-invalid={Boolean(verificationEmailError)}
+                        aria-describedby={verificationEmailError ? "password-reset-email-error" : undefined}
+                      />
+                      {verificationEmailError && (
+                        <p id="password-reset-email-error" className="mt-1 text-xs text-red-500">
+                          {verificationEmailError}
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleResetRequest}
+                        disabled={resetRequestMutation.isPending}
+                        className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-amber-300 bg-amber-50 py-3 text-sm font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                      >
+                        <ShieldCheck className="h-4 w-4" />
+                        {resetRequestMutation.isPending ? "확인 및 초기화 중..." : "이메일 확인 후 비밀번호 초기화"}
+                      </button>
+                    </div>
                   )}
 
                   {resetRequestMutation.error && (

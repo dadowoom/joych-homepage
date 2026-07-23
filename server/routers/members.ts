@@ -330,12 +330,13 @@ export const membersRouter = router({
       };
     }),
 
-  /** 이름·연락처·생년월일이 일치하는 승인된 일반가입 계정을 즉시 임시 비밀번호로 초기화합니다. */
+  /** 이름·연락처·생년월일·전체 이메일이 모두 일치하는 승인된 일반가입 계정만 초기화합니다. */
   requestPasswordReset: publicProcedure
     .input(z.object({
       name: requiredText(64, "이름을 입력해주세요."),
       phone: requiredMemberPhone,
       birthDate: requiredBirthDate,
+      email: memberEmailSchema,
     }))
     .mutation(async ({ input, ctx }) => {
       const clientIp = getClientIp(ctx.req);
@@ -347,22 +348,23 @@ export const membersRouter = router({
       }
 
       const identityMatches = await getMembersByNameAndPhone(input.name, input.phone);
-      const matches = identityMatches.filter(
+      const matchedMember = identityMatches.find(
         (member) => member.birthDate === input.birthDate
+          && member.email?.trim().toLowerCase() === input.email
           && member.status === "approved"
           && Boolean(member.passwordHash),
       );
-      for (const member of matches) {
-        await adminResetMemberPassword(member.id, MEMBER_SELF_SERVICE_TEMP_PASSWORD);
+      if (matchedMember) {
+        await adminResetMemberPassword(matchedMember.id, MEMBER_SELF_SERVICE_TEMP_PASSWORD);
       }
 
       return {
         accepted: true,
-        reset: matches.length > 0,
-        temporaryPassword: matches.length > 0 ? MEMBER_SELF_SERVICE_TEMP_PASSWORD : null,
-        message: matches.length > 0
+        reset: Boolean(matchedMember),
+        temporaryPassword: matchedMember ? MEMBER_SELF_SERVICE_TEMP_PASSWORD : null,
+        message: matchedMember
           ? "비밀번호가 임시 비밀번호로 초기화되었습니다."
-          : "초기화할 수 있는 승인된 일반가입 계정을 찾지 못했습니다.",
+          : "입력한 전체 이메일과 일치하는 승인된 일반가입 계정을 찾지 못했습니다.",
       };
     }),
 

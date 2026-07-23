@@ -152,6 +152,7 @@ describe("member account recovery", () => {
       name: "계정성도",
       phone: "010-1234-5678",
       birthDate: "1980-02-03",
+      email: "  JOYFUL.MEMBER@EXAMPLE.COM  ",
     });
 
     expect(result).toEqual({
@@ -164,6 +165,84 @@ describe("member account recovery", () => {
     expect(dbMocks.adminResetMemberPassword).toHaveBeenCalledWith(81, "0542701000");
   });
 
+  it("동일한 본인정보로 계정이 여러 개여도 전체 이메일과 일치하는 계정 하나만 초기화한다", async () => {
+    const secondPasswordMember = {
+      ...passwordMember,
+      id: 83,
+      email: "second.member@example.com",
+    };
+    dbMocks.getMembersByNameAndPhone.mockResolvedValue([passwordMember, secondPasswordMember]);
+    const caller = appRouter.createCaller(createContext("203.0.113.94"));
+
+    await expect(caller.members.requestPasswordReset({
+      name: "계정성도",
+      phone: "010-1234-5678",
+      birthDate: "1980-02-03",
+      email: "second.member@example.com",
+    })).resolves.toEqual(expect.objectContaining({ reset: true }));
+
+    expect(dbMocks.adminResetMemberPassword).toHaveBeenCalledTimes(1);
+    expect(dbMocks.adminResetMemberPassword).toHaveBeenCalledWith(83, "0542701000");
+  });
+
+  it("전체 이메일이 비어 있거나 형식이 잘못되면 DB를 조회하기 전에 거부한다", async () => {
+    const caller = appRouter.createCaller(createContext("203.0.113.95"));
+    const identity = {
+      name: "계정성도",
+      phone: "010-1234-5678",
+      birthDate: "1980-02-03",
+    };
+
+    await expect(caller.members.requestPasswordReset({
+      ...identity,
+      email: "",
+    })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(caller.members.requestPasswordReset({
+      ...identity,
+      email: "not-an-email",
+    })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(dbMocks.getMembersByNameAndPhone).not.toHaveBeenCalled();
+    expect(dbMocks.adminResetMemberPassword).not.toHaveBeenCalled();
+  });
+
+  it("마스킹된 안내만 보고는 초기화할 수 없고 등록된 전체 이메일이 정확히 일치해야 한다", async () => {
+    dbMocks.getMembersByNameAndPhone.mockResolvedValue([passwordMember]);
+    const caller = appRouter.createCaller(createContext("203.0.113.92"));
+
+    const result = await caller.members.requestPasswordReset({
+      name: "계정성도",
+      phone: "010-1234-5678",
+      birthDate: "1980-02-03",
+      email: "wrong.member@example.com",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      accepted: true,
+      reset: false,
+      temporaryPassword: null,
+    }));
+    expect(dbMocks.adminResetMemberPassword).not.toHaveBeenCalled();
+  });
+
+  it("전체 이메일이 소셜 전용 계정과 일치해도 비밀번호를 새로 만들지 않는다", async () => {
+    dbMocks.getMembersByNameAndPhone.mockResolvedValue([passwordMember, socialMember]);
+    const caller = appRouter.createCaller(createContext("203.0.113.93"));
+
+    const result = await caller.members.requestPasswordReset({
+      name: "계정성도",
+      phone: "010-1234-5678",
+      birthDate: "1980-02-03",
+      email: "social.member@example.com",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      accepted: true,
+      reset: false,
+      temporaryPassword: null,
+    }));
+    expect(dbMocks.adminResetMemberPassword).not.toHaveBeenCalled();
+  });
+
   it("승인 대기 계정은 본인정보가 일치해도 자동 초기화하지 않는다", async () => {
     dbMocks.getMembersByNameAndPhone.mockResolvedValue([{ ...passwordMember, status: "pending" }]);
     const caller = appRouter.createCaller(createContext("203.0.113.84"));
@@ -172,6 +251,7 @@ describe("member account recovery", () => {
       name: "계정성도",
       phone: "010-1234-5678",
       birthDate: "1980-02-03",
+      email: "joyful.member@example.com",
     });
 
     expect(result).toEqual(expect.objectContaining({ reset: false, temporaryPassword: null }));
@@ -185,9 +265,31 @@ describe("member account recovery", () => {
       name: "없는성도",
       phone: "010-9999-8888",
       birthDate: "1970-01-01",
+      email: "missing.member@example.com",
     });
 
     expect(result).toEqual(expect.objectContaining({ accepted: true, reset: false, temporaryPassword: null }));
+    expect(dbMocks.adminResetMemberPassword).not.toHaveBeenCalled();
+  });
+
+  it("틀린 이메일 초기화 시도도 같은 IP에서 시간당 다섯 번을 넘기면 제한한다", async () => {
+    dbMocks.getMembersByNameAndPhone.mockResolvedValue([passwordMember]);
+    const caller = appRouter.createCaller(createContext("203.0.113.96"));
+    const input = {
+      name: "계정성도",
+      phone: "010-1234-5678",
+      birthDate: "1980-02-03",
+      email: "wrong.member@example.com",
+    };
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await expect(caller.members.requestPasswordReset(input)).resolves.toEqual(
+        expect.objectContaining({ reset: false }),
+      );
+    }
+    await expect(caller.members.requestPasswordReset(input)).rejects.toMatchObject({
+      code: "TOO_MANY_REQUESTS",
+    });
     expect(dbMocks.adminResetMemberPassword).not.toHaveBeenCalled();
   });
 
