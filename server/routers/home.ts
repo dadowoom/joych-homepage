@@ -44,6 +44,7 @@ import {
   getActiveNoticePopups,
   getVisibleAffiliates,
   getVisibleGalleryItems,
+  getVisibleGalleryAlbums,
   getVisibleHomeGalleryItems,
   getSiteSettings,
   getSiteSetting,
@@ -577,6 +578,10 @@ export const homeRouter = router({
   gallery: publicProcedure
     .input(z.object({ galleryScopeKey: z.string().trim().min(1).max(96) }))
     .query(({ input }) => getVisibleGalleryItems(input.galleryScopeKey)),
+
+  galleryAlbums: publicProcedure
+    .input(z.object({ galleryScopeKey: z.string().trim().min(1).max(96) }))
+    .query(({ input }) => getVisibleGalleryAlbums(input.galleryScopeKey)),
 
   homeGallery: publicProcedure.query(() => getVisibleHomeGalleryItems()),
 

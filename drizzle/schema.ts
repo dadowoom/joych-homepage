@@ -415,6 +415,32 @@ export const galleryItems = mysqlTable("gallery_items", {
 export type GalleryItem = typeof galleryItems.$inferSelect;
 export type InsertGalleryItem = typeof galleryItems.$inferInsert;
 
+export const galleryAlbums = mysqlTable("gallery_albums", {
+  id: int("id").autoincrement().primaryKey(),
+  galleryScopeKey: varchar("galleryScopeKey", { length: 96 }).notNull(),
+  albumKey: varchar("albumKey", { length: 96 }).notNull(),
+  title: varchar("title", { length: 160 }).notNull(),
+  description: text("description"),
+  albumSortOrder: int("albumSortOrder").notNull().default(0),
+  coverImageId: int("coverImageId").references(() => galleryItems.id, {
+    onDelete: "set null",
+  }),
+  isVisible: boolean("isVisible").notNull().default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("gallery_albums_scope_key_uq").on(table.galleryScopeKey, table.albumKey),
+  index("gallery_albums_scope_visible_sort_idx").on(
+    table.galleryScopeKey,
+    table.isVisible,
+    table.albumSortOrder,
+  ),
+  index("gallery_albums_cover_image_idx").on(table.coverImageId),
+]);
+
+export type GalleryAlbum = typeof galleryAlbums.$inferSelect;
+export type InsertGalleryAlbum = typeof galleryAlbums.$inferInsert;
+
 // ─────────────────────────────────────────────
 // CMS: 관련 기관
 // ─────────────────────────────────────────────

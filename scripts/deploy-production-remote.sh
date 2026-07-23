@@ -2846,6 +2846,112 @@ else
   exit 1
 fi
 
+MIGRATION_0105="${APP_DIR}/drizzle/0105_gallery_albums.sql"
+if [[ -f "${MIGRATION_0105}" ]]; then
+  echo "[deploy] database migration: persistent gallery albums and cover photos"
+  node --input-type=module <<'NODE'
+import fs from "node:fs/promises";
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error("DATABASE_URL is required for migration 0105.");
+
+const migrationId = "0105_gallery_albums";
+const connection = await mysql.createConnection({ uri: databaseUrl, multipleStatements: true });
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // The SQL is intentionally idempotent. Running it again also repairs any
+  // event-gallery rows created by an older application during a rollback.
+  const sql = await fs.readFile("drizzle/0105_gallery_albums.sql", "utf8");
+  const statements = sql
+    .split("--> statement-breakpoint")
+    .map(statement => statement.trim())
+    .filter(Boolean);
+  for (const statement of statements) {
+    await connection.query(statement);
+  }
+
+  const [tableRows] = await connection.execute(`
+    SELECT COUNT(*) AS count
+    FROM INFORMATION_SCHEMA.TABLES
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'gallery_albums'
+  `);
+  const [indexRows] = await connection.execute(`
+    SELECT COUNT(*) AS count
+    FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'gallery_albums'
+      AND INDEX_NAME = 'gallery_albums_scope_key_uq'
+      AND NON_UNIQUE = 0
+  `);
+  const [orphanRows] = await connection.execute(`
+    SELECT COUNT(*) AS count
+    FROM gallery_items AS item
+    LEFT JOIN gallery_albums AS album
+      ON album.galleryScopeKey = item.galleryScopeKey
+      AND album.albumKey = item.albumKey
+    WHERE item.isHomeGallery = false
+      AND NULLIF(TRIM(item.galleryScopeKey), '') IS NOT NULL
+      AND NULLIF(TRIM(item.albumKey), '') IS NOT NULL
+      AND album.id IS NULL
+  `);
+  const [invalidCoverRows] = await connection.execute(`
+    SELECT COUNT(*) AS count
+    FROM gallery_albums AS album
+    LEFT JOIN gallery_items AS cover
+      ON cover.id = album.coverImageId
+      AND cover.galleryScopeKey = album.galleryScopeKey
+      AND cover.albumKey = album.albumKey
+      AND cover.isHomeGallery = false
+    WHERE album.coverImageId IS NOT NULL
+      AND cover.id IS NULL
+  `);
+
+  const tableCount = Number(tableRows?.[0]?.count ?? 0);
+  const uniqueIndexColumnCount = Number(indexRows?.[0]?.count ?? 0);
+  const orphanCount = Number(orphanRows?.[0]?.count ?? 0);
+  const invalidCoverCount = Number(invalidCoverRows?.[0]?.count ?? 0);
+  if (
+    tableCount !== 1 ||
+    uniqueIndexColumnCount !== 2 ||
+    orphanCount !== 0 ||
+    invalidCoverCount !== 0
+  ) {
+    throw new Error(
+      `Migration 0105 invariant failed: table=${tableCount}, ` +
+      `uniqueIndexColumns=${uniqueIndexColumnCount}, orphans=${orphanCount}, ` +
+      `invalidCovers=${invalidCoverCount}`,
+    );
+  }
+
+  const [rows] = await connection.execute(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    [migrationId],
+  );
+  if (!Array.isArray(rows) || rows.length === 0) {
+    await connection.execute(
+      "INSERT INTO app_migrations (id) VALUES (?)",
+      [migrationId],
+    );
+    console.log("[deploy] migration 0105 applied");
+  } else {
+    console.log("[deploy] migration 0105 already applied and schema verified");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+else
+  echo "[deploy] missing migration file: ${MIGRATION_0105}" >&2
+  exit 1
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

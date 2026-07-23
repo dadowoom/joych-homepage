@@ -34,6 +34,7 @@ import {
   Plus,
   Save,
   Search,
+  Star,
   Trash2,
   Upload,
   ZoomIn,
@@ -44,6 +45,7 @@ import { useLocation, useSearch } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { canManageBoardContent } from "@/lib/contentPermissions";
+import { extractImageSourceInputUrls } from "@/lib/richTextImagePaste";
 import {
   RichTextEditor,
   RichTextViewer,
@@ -66,13 +68,29 @@ type GalleryItem = {
   createdAt?: string | Date | null;
 };
 
+type GalleryAlbum = {
+  id: number;
+  galleryScopeKey: string;
+  albumKey: string;
+  title: string;
+  description?: string | null;
+  albumSortOrder: number;
+  coverImageId?: number | null;
+  isVisible?: boolean | null;
+  createdAt?: string | Date | null;
+};
+
 type GalleryGroup = {
   key: string;
+  albumKey?: string | null;
   title: string;
   description: string;
   createdAt: string | Date | null | undefined;
   albumSortOrder: number;
   sortOrder: number;
+  coverImageId?: number | null;
+  isVisible?: boolean | null;
+  hasAlbumRecord: boolean;
   images: GalleryItem[];
 };
 
@@ -233,8 +251,24 @@ function buildGalleryHref(location: string, search: string, groupKey?: string) {
   return query ? `${pathname}?${query}` : pathname;
 }
 
-function buildGalleryGroups(items: GalleryItem[]) {
+function buildGalleryGroups(items: GalleryItem[], albums: GalleryAlbum[] = []) {
   const groups = new Map<string, GalleryGroup>();
+
+  albums.forEach(album => {
+    groups.set(`album:${album.albumKey}`, {
+      key: `album:${album.albumKey}`,
+      albumKey: album.albumKey,
+      title: album.title,
+      description: album.description?.trim() || "",
+      createdAt: album.createdAt,
+      albumSortOrder: album.albumSortOrder,
+      sortOrder: 0,
+      coverImageId: album.coverImageId,
+      isVisible: album.isVisible,
+      hasAlbumRecord: true,
+      images: [],
+    });
+  });
 
   items.forEach((item, index) => {
     const key = makeGroupKey(item);
@@ -246,15 +280,20 @@ function buildGalleryGroups(items: GalleryItem[]) {
 
     if (existing) {
       existing.images.push(item);
-      if (!existing.description && description) {
+      if (!existing.hasAlbumRecord && !existing.description && description) {
         existing.description = description;
       }
       existing.sortOrder = Math.min(existing.sortOrder, sortOrder);
-      existing.albumSortOrder = Math.max(
-        existing.albumSortOrder,
-        albumSortOrder
-      );
-      if (toTime(item.createdAt) > toTime(existing.createdAt)) {
+      if (!existing.hasAlbumRecord) {
+        existing.albumSortOrder = Math.max(
+          existing.albumSortOrder,
+          albumSortOrder
+        );
+      }
+      if (
+        !existing.hasAlbumRecord &&
+        toTime(item.createdAt) > toTime(existing.createdAt)
+      ) {
         existing.createdAt = item.createdAt;
       }
       return;
@@ -262,16 +301,25 @@ function buildGalleryGroups(items: GalleryItem[]) {
 
     groups.set(key, {
       key,
+      albumKey: item.albumKey,
       title,
       description,
       createdAt: item.createdAt,
       albumSortOrder,
       sortOrder,
+      coverImageId: null,
+      isVisible: item.isVisible,
+      hasAlbumRecord: false,
       images: [item],
     });
   });
 
-  return Array.from(groups.values()).sort((a, b) => {
+  return Array.from(groups.values()).map(group => ({
+    ...group,
+    images: [...group.images].sort((a, b) =>
+      getItemSortOrder(a, 0) - getItemSortOrder(b, 0)
+    ),
+  })).sort((a, b) => {
     if (a.albumSortOrder !== b.albumSortOrder)
       return b.albumSortOrder - a.albumSortOrder;
     if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
@@ -279,7 +327,15 @@ function buildGalleryGroups(items: GalleryItem[]) {
   });
 }
 
+function getGalleryGroupCover(group: GalleryGroup) {
+  return group.images.find(image => image.id === group.coverImageId)
+    ?? group.images[0]
+    ?? null;
+}
+
 function getGalleryGroupVisibility(group: GalleryGroup) {
+  if (group.isVisible === false) return "hidden" as const;
+  if (group.images.length === 0) return "visible" as const;
   const visibleCount = group.images.filter(
     image => image.isVisible !== false
   ).length;
@@ -387,7 +443,7 @@ function SortableGalleryAlbumOrderItem({
     transition,
     isDragging,
   } = useSortable({ id: group.key });
-  const thumbnail = group.images[0];
+  const thumbnail = getGalleryGroupCover(group);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -411,13 +467,17 @@ function SortableGalleryAlbumOrderItem({
       >
         <GripVertical className="h-4 w-4" />
       </button>
-      {thumbnail && (
+      {thumbnail ? (
         <img
           src={thumbnail.imageUrl}
           alt={group.title}
           className="h-12 w-16 shrink-0 object-cover"
           loading="lazy"
         />
+      ) : (
+        <span className="flex h-12 w-16 shrink-0 items-center justify-center bg-gray-100 text-gray-300">
+          <Images className="h-5 w-5" />
+        </span>
       )}
       <div className="min-w-0 flex-1">
         <span className="inline-flex h-5 min-w-5 items-center justify-center bg-[#1B5E20] px-1 text-white">
@@ -447,7 +507,17 @@ export function GalleryContent({
   }, {
     enabled: !canManage && canLoadGallery,
   });
+  const publicGalleryAlbumsQuery = trpc.home.galleryAlbums.useQuery({
+    galleryScopeKey: normalizedScopeKey,
+  }, {
+    enabled: !canManage && canLoadGallery,
+  });
   const adminGalleryQuery = trpc.cms.content.gallery.list.useQuery({
+    galleryScopeKey: normalizedScopeKey,
+  }, {
+    enabled: canManage && canLoadGallery,
+  });
+  const adminGalleryAlbumsQuery = trpc.cms.content.gallery.listAlbums.useQuery({
     galleryScopeKey: normalizedScopeKey,
   }, {
     enabled: canManage && canLoadGallery,
@@ -466,20 +536,23 @@ export function GalleryContent({
   const [searchKeyword, setSearchKeyword] = useState("");
   const [albumTitle, setAlbumTitle] = useState("");
   const [albumCreatedAt, setAlbumCreatedAt] = useState(toDateTimeLocalValue());
-  const [isUploading, setIsUploading] = useState(false);
+  const [isCreatingAlbum, setIsCreatingAlbum] = useState(false);
   const [isAlbumOrderOpen, setIsAlbumOrderOpen] = useState(false);
   const [localOrder, setLocalOrder] = useState<GalleryItem[] | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const detailFileInputRef = useRef<HTMLInputElement>(null);
 
   const items = canManage ? adminGalleryQuery.data : publicGalleryQuery.data;
+  const albums = canManage
+    ? adminGalleryAlbumsQuery.data
+    : publicGalleryAlbumsQuery.data;
   const isLoading = canManage
-    ? adminGalleryQuery.isLoading
-    : publicGalleryQuery.isLoading;
+    ? adminGalleryQuery.isLoading || adminGalleryAlbumsQuery.isLoading
+    : publicGalleryQuery.isLoading || publicGalleryAlbumsQuery.isLoading;
   const galleryItems = (localOrder ?? items ?? []) as GalleryItem[];
+  const galleryAlbums = (albums ?? []) as GalleryAlbum[];
   const galleryGroups = useMemo(
-    () => buildGalleryGroups(galleryItems),
-    [galleryItems]
+    () => buildGalleryGroups(galleryItems, galleryAlbums),
+    [galleryItems, galleryAlbums]
   );
   const filteredGroups = useMemo(() => {
     const keyword = searchKeyword.trim().toLowerCase();
@@ -529,8 +602,12 @@ export function GalleryContent({
     Record<number, string>
   >({});
   const [editingPhotoId, setEditingPhotoId] = useState<number | null>(null);
+  const [settingCoverPhotoId, setSettingCoverPhotoId] = useState<number | null>(null);
   const [isSavingDetail, setIsSavingDetail] = useState(false);
   const [isAddingDetailPhotos, setIsAddingDetailPhotos] = useState(false);
+  const [mediaPhotoInput, setMediaPhotoInput] = useState("");
+  const [isAddingMediaPhotos, setIsAddingMediaPhotos] = useState(false);
+  const newAlbumKeyToEditRef = useRef<string | null>(null);
   const [deletingAlbumKey, setDeletingAlbumKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -544,10 +621,14 @@ export function GalleryContent({
       setEditAlbumDescription("");
       setEditAlbumCreatedAt("");
       setEditPhotoCaptions({});
+      setMediaPhotoInput("");
       return;
     }
 
-    setIsDetailEditing(false);
+    const shouldOpenNewAlbum =
+      detailGroup.albumKey === newAlbumKeyToEditRef.current;
+    setIsDetailEditing(shouldOpenNewAlbum);
+    if (shouldOpenNewAlbum) newAlbumKeyToEditRef.current = null;
     setEditAlbumTitle(detailGroup.title);
     setEditAlbumDescription(normalizeRichTextValue(detailGroup.description));
     setEditAlbumCreatedAt(toDateTimeLocalValue(detailGroup.createdAt));
@@ -559,6 +640,7 @@ export function GalleryContent({
         ])
       )
     );
+    setMediaPhotoInput("");
   }, [detailGroup?.key]);
 
   const sensors = useSensors(
@@ -567,17 +649,24 @@ export function GalleryContent({
   );
 
   const uploadGalleryImage = trpc.cms.upload.galleryImage.useMutation();
-  const createGalleryItem = trpc.cms.content.gallery.create.useMutation();
+  const createGalleryAlbum = trpc.cms.content.gallery.createAlbum.useMutation();
+  const createGalleryItems = trpc.cms.content.gallery.createMany.useMutation();
   const updateGalleryItem = trpc.cms.content.gallery.update.useMutation();
-  const updateGalleryAlbum = trpc.cms.content.gallery.updateAlbum.useMutation();
+  const updateGalleryAlbum =
+    trpc.cms.content.gallery.updateAlbumRecord.useMutation();
   const deleteGalleryItem = trpc.cms.content.gallery.delete.useMutation();
-  const deleteGalleryAlbum = trpc.cms.content.gallery.deleteAlbum.useMutation();
+  const deleteGalleryAlbum =
+    trpc.cms.content.gallery.deleteAlbumRecord.useMutation();
+  const setGalleryAlbumCover =
+    trpc.cms.content.gallery.setAlbumCover.useMutation();
   const reorderGalleryAlbums =
-    trpc.cms.content.gallery.reorderAlbums.useMutation({
+    trpc.cms.content.gallery.reorderAlbumRecords.useMutation({
       onSuccess: () => {
         setLocalOrder(null);
         utils.home.gallery.invalidate();
+        utils.home.galleryAlbums.invalidate();
         utils.cms.content.gallery.list.invalidate();
+        utils.cms.content.gallery.listAlbums.invalidate();
         toast.success("앨범 순서가 저장되었습니다.");
       },
       onError: error => {
@@ -598,86 +687,45 @@ export function GalleryContent({
     },
   });
 
-  const handleFilesChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const files = sortGalleryUploadFiles(Array.from(event.target.files ?? []));
-    if (files.length === 0) return;
-
+  const handleCreateAlbum = async () => {
     const title = albumTitle.trim();
     if (!title) {
-      toast.error("앨범 제목을 먼저 입력해주세요.");
-      event.target.value = "";
+      toast.error("앨범 제목을 입력해주세요.");
       return;
     }
 
-    if (files.length > MAX_GALLERY_UPLOAD_COUNT) {
-      toast.error(
-        `한 번에 최대 ${MAX_GALLERY_UPLOAD_COUNT}장까지 업로드할 수 있습니다.`
-      );
-      event.target.value = "";
-      return;
-    }
-
-    const invalidTypeFile = files.find(
-      file => !ALLOWED_GALLERY_IMAGE_TYPES.has(file.type)
-    );
-    if (invalidTypeFile) {
-      toast.error("JPG, PNG, WEBP, GIF 이미지만 업로드할 수 있습니다.");
-      event.target.value = "";
-      return;
-    }
-
-    const oversizedFile = files.find(
-      file => file.size > MAX_GALLERY_UPLOAD_SIZE
-    );
-    if (oversizedFile) {
-      toast.error("이미지 1장당 1MB 이하로 업로드해주세요.");
-      event.target.value = "";
-      return;
-    }
-
-    setIsUploading(true);
     const albumKey = `gallery-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const albumSortOrder = Math.floor(Date.now() / 1000);
+    setIsCreatingAlbum(true);
     try {
-      for (let index = 0; index < files.length; index += 1) {
-        const file = files[index];
-        const base64 = await readFileAsBase64(file);
-        const { url } = await uploadGalleryImage.mutateAsync({
-          base64,
-          fileName: file.name,
-          mimeType: file.type,
-        });
-        await createGalleryItem.mutateAsync({
-          galleryScopeKey: normalizedScopeKey,
-          imageUrl: url,
-          albumKey,
-          albumTitle: title,
-          albumSortOrder,
-          caption: "",
-          gridSpan: "col-span-1 row-span-1",
-          sortOrder: index + 1,
-          createdAt: albumCreatedAt ? new Date(albumCreatedAt) : undefined,
-        });
-      }
-
+      await createGalleryAlbum.mutateAsync({
+        galleryScopeKey: normalizedScopeKey,
+        albumKey,
+        title,
+        description: "",
+        albumSortOrder,
+        isVisible: true,
+        createdAt: albumCreatedAt ? new Date(albumCreatedAt) : undefined,
+      });
       setAlbumTitle("");
       setAlbumCreatedAt(toDateTimeLocalValue());
-      await Promise.all([
-        utils.home.gallery.invalidate(),
-        utils.cms.content.gallery.list.invalidate(),
-      ]);
-      toast.success(
-        `${files.length}장의 사진을 업로드했습니다. 목록에서 앨범을 선택해 확인할 수 있습니다.`
+      await refreshGallery();
+      const detailHref = buildGalleryHref(
+        location,
+        searchString,
+        `album:${albumKey}`
       );
+      newAlbumKeyToEditRef.current = albumKey;
+      navigate(detailHref);
+      toast.success("앨범을 만들었습니다. 이제 사진을 추가해주세요.");
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
-          : "업로드 중 문제가 발생했습니다.";
-      toast.error(`사진 업로드 실패: ${message}`);
+          : "앨범 생성 중 문제가 발생했습니다.";
+      toast.error(`앨범 생성 실패: ${message}`);
     } finally {
-      setIsUploading(false);
-      event.target.value = "";
+      setIsCreatingAlbum(false);
     }
   };
 
@@ -685,7 +733,9 @@ export function GalleryContent({
     setLocalOrder(null);
     await Promise.all([
       utils.home.gallery.invalidate(),
+      utils.home.galleryAlbums.invalidate(),
       utils.cms.content.gallery.list.invalidate(),
+      utils.cms.content.gallery.listAlbums.invalidate(),
     ]);
   };
 
@@ -718,6 +768,11 @@ export function GalleryContent({
 
   const handleSaveDetailAlbum = async () => {
     if (!detailGroup) return;
+    const albumKey = detailGroup.albumKey?.trim();
+    if (!albumKey) {
+      toast.error("앨범 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.");
+      return;
+    }
 
     const title = editAlbumTitle.trim();
     if (!title) {
@@ -730,9 +785,9 @@ export function GalleryContent({
     try {
       await updateGalleryAlbum.mutateAsync({
         galleryScopeKey: normalizedScopeKey,
-        ids: detailGroup.images.map(image => image.id),
-        albumTitle: title,
-        albumDescription: description,
+        albumKey,
+        title,
+        description,
         createdAt: editAlbumCreatedAt
           ? new Date(editAlbumCreatedAt)
           : undefined,
@@ -770,6 +825,12 @@ export function GalleryContent({
     event: ChangeEvent<HTMLInputElement>
   ) => {
     if (!detailGroup) return;
+    const albumKey = detailGroup.albumKey?.trim();
+    if (!albumKey) {
+      toast.error("앨범 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.");
+      event.target.value = "";
+      return;
+    }
     const files = sortGalleryUploadFiles(Array.from(event.target.files ?? []));
     if (files.length === 0) return;
     if (!validateGalleryFiles(files)) {
@@ -777,11 +838,14 @@ export function GalleryContent({
       return;
     }
 
-    const title = editAlbumTitle.trim() || detailGroup.title;
-    const description = editAlbumDescription.trim();
-    const firstImage = detailGroup.images[0];
     setIsAddingDetailPhotos(true);
     try {
+      const uploadedItems: Array<{
+        imageUrl: string;
+        caption: string;
+        gridSpan: string;
+        sortOrder: number;
+      }> = [];
       for (let index = 0; index < files.length; index += 1) {
         const file = files[index];
         const base64 = await readFileAsBase64(file);
@@ -790,18 +854,18 @@ export function GalleryContent({
           fileName: file.name,
           mimeType: file.type,
         });
-        await createGalleryItem.mutateAsync({
-          galleryScopeKey: normalizedScopeKey,
+        uploadedItems.push({
           imageUrl: url,
-          albumKey: firstImage?.albumKey ?? undefined,
-          albumTitle: title,
-          albumDescription: description,
-          albumSortOrder: detailGroup.albumSortOrder,
           caption: "",
           gridSpan: "col-span-1 row-span-1",
           sortOrder: detailGroup.images.length + index + 1,
         });
       }
+      await createGalleryItems.mutateAsync({
+        galleryScopeKey: normalizedScopeKey,
+        albumKey,
+        items: uploadedItems,
+      });
 
       await refreshGallery();
       toast.success(`${files.length}장의 사진을 앨범에 추가했습니다.`);
@@ -814,6 +878,94 @@ export function GalleryContent({
     } finally {
       setIsAddingDetailPhotos(false);
       event.target.value = "";
+    }
+  };
+
+  const handleAddMediaPhotos = async () => {
+    if (!detailGroup) return;
+    const albumKey = detailGroup.albumKey?.trim();
+    if (!albumKey) {
+      toast.error("앨범 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.");
+      return;
+    }
+
+    const parsedUrls = extractImageSourceInputUrls(mediaPhotoInput);
+    if (!parsedUrls) {
+      toast.error(
+        "사진 주소를 확인해주세요. HTTPS 이미지 주소 또는 photo.joych.org 주소를 한 줄에 하나씩 입력할 수 있습니다."
+      );
+      return;
+    }
+
+    const existingUrls = new Set(detailGroup.images.map(image => image.imageUrl));
+    const uniqueUrls = Array.from(new Set(parsedUrls)).filter(
+      url => !existingUrls.has(url)
+    );
+    if (uniqueUrls.length === 0) {
+      toast.error("이미 등록된 주소이거나 추가할 새 사진 주소가 없습니다.");
+      return;
+    }
+    if (uniqueUrls.length > MAX_GALLERY_UPLOAD_COUNT) {
+      toast.error(
+        `한 번에 최대 ${MAX_GALLERY_UPLOAD_COUNT}장까지 추가할 수 있습니다.`
+      );
+      return;
+    }
+
+    setIsAddingMediaPhotos(true);
+    try {
+      await createGalleryItems.mutateAsync({
+        galleryScopeKey: normalizedScopeKey,
+        albumKey,
+        items: uniqueUrls.map((imageUrl, index) => ({
+          imageUrl,
+          caption: "",
+          gridSpan: "col-span-1 row-span-1",
+          sortOrder: detailGroup.images.length + index + 1,
+        })),
+      });
+      setMediaPhotoInput("");
+      await refreshGallery();
+      const skippedCount = parsedUrls.length - uniqueUrls.length;
+      toast.success(
+        `${uniqueUrls.length}장의 미디어 사진을 추가했습니다.${skippedCount > 0 ? ` 중복 ${skippedCount}장은 제외했습니다.` : ""}`
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "미디어 사진 추가 중 문제가 발생했습니다.";
+      toast.error(`미디어 사진 추가 실패: ${message}`);
+    } finally {
+      setIsAddingMediaPhotos(false);
+    }
+  };
+
+  const handleSetCoverPhoto = async (item: GalleryItem) => {
+    if (!detailGroup) return;
+    const albumKey = detailGroup.albumKey?.trim();
+    if (!albumKey) {
+      toast.error("앨범 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.");
+      return;
+    }
+
+    setSettingCoverPhotoId(item.id);
+    try {
+      await setGalleryAlbumCover.mutateAsync({
+        galleryScopeKey: normalizedScopeKey,
+        albumKey,
+        photoId: item.id,
+      });
+      await refreshGallery();
+      toast.success("대표사진을 변경했습니다.");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "대표사진 변경 중 문제가 발생했습니다.";
+      toast.error(`대표사진 변경 실패: ${message}`);
+    } finally {
+      setSettingCoverPhotoId(null);
     }
   };
 
@@ -864,9 +1016,6 @@ export function GalleryContent({
         galleryScopeKey: normalizedScopeKey,
       });
       await refreshGallery();
-      if (detailGroup.images.length <= 1) {
-        navigate(buildGalleryHref(location, searchString));
-      }
       toast.success("사진을 삭제했습니다.");
     } catch (error) {
       const message =
@@ -880,7 +1029,12 @@ export function GalleryContent({
   };
 
   const handleDeleteAlbum = async (group: GalleryGroup) => {
-    if (!canManage || group.images.length === 0) return;
+    if (!canManage) return;
+    const albumKey = group.albumKey?.trim();
+    if (!albumKey) {
+      toast.error("앨범 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.");
+      return;
+    }
 
     const shouldDelete = window.confirm(
       `"${group.title}" 앨범 전체를 삭제할까요?\n\n사진 ${group.images.length}개가 함께 삭제되며, 삭제 후에는 되돌릴 수 없습니다.`
@@ -891,7 +1045,7 @@ export function GalleryContent({
     try {
       await deleteGalleryAlbum.mutateAsync({
         galleryScopeKey: normalizedScopeKey,
-        ids: group.images.map(image => image.id),
+        albumKey,
       });
       await refreshGallery();
       if (detailGroupKey === group.key) {
@@ -910,7 +1064,12 @@ export function GalleryContent({
   };
 
   const handleToggleAlbumVisibility = async (group: GalleryGroup) => {
-    if (!canManage || group.images.length === 0) return;
+    if (!canManage) return;
+    const albumKey = group.albumKey?.trim();
+    if (!albumKey) {
+      toast.error("앨범 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.");
+      return;
+    }
 
     const visibility = getGalleryGroupVisibility(group);
     const nextVisible = visibility !== "visible";
@@ -918,7 +1077,7 @@ export function GalleryContent({
     try {
       await updateGalleryAlbum.mutateAsync({
         galleryScopeKey: normalizedScopeKey,
-        ids: group.images.map(image => image.id),
+        albumKey,
         isVisible: nextVisible,
       });
       await refreshGallery();
@@ -955,7 +1114,10 @@ export function GalleryContent({
     setLocalOrder(reordered);
     reorderGalleryItems.mutate({
       galleryScopeKey: normalizedScopeKey,
-      items: reordered.map((item, index) => ({ id: item.id, sortOrder: index + 1 })),
+      items: reorderedGroupImages.map((item, index) => ({
+        id: item.id,
+        sortOrder: index + 1,
+      })),
     });
   };
 
@@ -968,30 +1130,12 @@ export function GalleryContent({
     if (oldIndex === -1 || newIndex === -1) return;
 
     const reorderedGroups = arrayMove(galleryGroups, oldIndex, newIndex);
-    const updates = reorderedGroups.map((group, index) => {
-      const first = group.images[0];
-      return {
-        albumKey: first?.albumKey ?? undefined,
-        albumTitle: first?.albumTitle ?? undefined,
+    const updates = reorderedGroups
+      .filter(group => Boolean(group.albumKey))
+      .map((group, index) => ({
+        albumKey: group.albumKey!,
         albumSortOrder: reorderedGroups.length - index,
-      };
-    });
-    const albumOrderByKey = new Map(
-      reorderedGroups.map((group, index) => [
-        group.key,
-        reorderedGroups.length - index,
-      ])
-    );
-
-    setLocalOrder(
-      reorderedGroups.flatMap(group =>
-        group.images.map(image => ({
-          ...image,
-          albumSortOrder:
-            albumOrderByKey.get(group.key) ?? image.albumSortOrder ?? 0,
-        }))
-      )
-    );
+      }));
     reorderGalleryAlbums.mutate({
       galleryScopeKey: normalizedScopeKey,
       items: updates,
@@ -1048,10 +1192,10 @@ export function GalleryContent({
     <section className="border border-[#D8E8DA] bg-[#F8FCF8] p-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-[#1B5E20]">갤러리 사진 업로드</p>
+          <p className="text-sm font-bold text-[#1B5E20]">새 행사사진 앨범</p>
           <p className="mt-1 text-xs text-gray-500">
-            앨범 제목을 입력하고 사진을 여러 장 선택하면 같은 앨범으로 묶여
-            등록됩니다.
+            먼저 빈 앨범을 만든 뒤 앨범 안에서 사진을 추가하고 대표사진을
+            선택할 수 있습니다.
           </p>
           <label
             className="mt-3 block text-xs font-semibold text-gray-600"
@@ -1083,30 +1227,22 @@ export function GalleryContent({
         <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col">
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
+            onClick={handleCreateAlbum}
+            disabled={isCreatingAlbum}
             className="inline-flex h-10 items-center justify-center gap-2 bg-[#1B5E20] px-4 text-sm font-semibold text-white transition hover:bg-[#2E7D32] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isUploading ? (
+            {isCreatingAlbum ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Upload className="h-4 w-4" />
+              <Plus className="h-4 w-4" />
             )}
-            {isUploading ? "업로드 중" : "사진 업로드"}
+            {isCreatingAlbum ? "만드는 중" : "앨범 만들기"}
           </button>
           <p className="text-xs text-gray-400">
-            JPG, PNG, WEBP, GIF / 장당 1MB
+            생성 후 앨범 상세 화면으로 이동합니다.
           </p>
         </div>
       </div>
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        accept="image/jpeg,image/png,image/webp,image/gif"
-        className="hidden"
-        onChange={handleFilesChange}
-      />
     </section>
   ) : null;
 
@@ -1170,7 +1306,7 @@ export function GalleryContent({
     );
   }
 
-  if (galleryItems.length === 0) {
+  if (galleryGroups.length === 0) {
     return (
       <div className="space-y-5">
         {adminGalleryTools}
@@ -1356,7 +1492,7 @@ export function GalleryContent({
                       ) : (
                         <Plus className="h-4 w-4" />
                       )}
-                      사진 추가
+                      내 컴퓨터 사진 추가
                     </button>
                     <button
                       type="button"
@@ -1397,6 +1533,41 @@ export function GalleryContent({
                     </button>
                   </div>
                 </div>
+                <div className="mt-4 border border-[#D8E8DA] bg-white p-4">
+                  <label
+                    className="block text-xs font-semibold text-gray-700"
+                    htmlFor="gallery-media-photo-urls"
+                  >
+                    미디어 서버 사진 주소 추가
+                  </label>
+                  <p className="mt-1 text-xs leading-5 text-gray-500">
+                    photo.joych.org 이미지 주소나 &lt;IMG SRC=...&gt; 태그를
+                    여러 줄로 붙여넣으면 사진별로 자동 분류됩니다. 사진 파일은
+                    우리 서버에 복사하지 않고 미디어 서버에서 연결합니다.
+                  </p>
+                  <div className="mt-3 flex flex-col gap-2 lg:flex-row lg:items-stretch">
+                    <textarea
+                      id="gallery-media-photo-urls"
+                      value={mediaPhotoInput}
+                      onChange={event => setMediaPhotoInput(event.target.value)}
+                      className="min-h-28 flex-1 resize-y border border-gray-300 px-3 py-2 font-mono text-xs leading-5 outline-none focus:border-[#1B5E20]"
+                      placeholder={"https://photo.joych.org/photo/2026/0621/11.jpg\nhttps://photo.joych.org/photo/2026/0621/12.jpg"}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddMediaPhotos}
+                      disabled={isAddingMediaPhotos || !mediaPhotoInput.trim()}
+                      className="inline-flex min-h-10 items-center justify-center gap-2 border border-[#1B5E20] bg-[#F1F8E9] px-4 text-sm font-semibold text-[#1B5E20] hover:bg-[#E8F5E9] disabled:cursor-not-allowed disabled:opacity-50 lg:w-44"
+                    >
+                      {isAddingMediaPhotos ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
+                      주소 사진 추가
+                    </button>
+                  </div>
+                </div>
                 <p className="mt-3 text-xs text-gray-400">
                   사진 설명, 사진 교체, 삭제는 각 사진 아래에서 수정할 수
                   있습니다.
@@ -1413,12 +1584,36 @@ export function GalleryContent({
             )}
             <div className="grid gap-6 px-4 py-6 lg:grid-cols-[minmax(0,1fr)_260px]">
               <div className="space-y-5">
+                {detailGroup.images.length === 0 && (
+                  <div className="flex min-h-64 flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50 px-5 py-12 text-center">
+                    <Images className="mb-3 h-10 w-10 text-gray-300" />
+                    <p className="text-sm font-semibold text-gray-600">
+                      아직 등록된 사진이 없습니다.
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-gray-400">
+                      앨범 수정에서 내 컴퓨터 사진을 올리거나 미디어 서버 주소를
+                      붙여넣어주세요.
+                    </p>
+                    {canManage && !isDetailEditing && (
+                      <button
+                        type="button"
+                        onClick={() => setIsDetailEditing(true)}
+                        className="mt-4 inline-flex h-9 items-center justify-center gap-2 bg-[#1B5E20] px-4 text-sm font-semibold text-white hover:bg-[#2E7D32]"
+                      >
+                        <Plus className="h-4 w-4" />
+                        사진 추가하기
+                      </button>
+                    )}
+                  </div>
+                )}
                 {detailGroup.images.map((image, imageIndex) => {
                   const photoStory = getPhotoStory(
                     image.caption,
                     detailGroup.title,
                     imageIndex
                   );
+                  const isCoverPhoto =
+                    image.id === getGalleryGroupCover(detailGroup)?.id;
 
                   return (
                     <figure key={image.id} className="w-full max-w-none">
@@ -1439,6 +1634,12 @@ export function GalleryContent({
                         <span className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-[#1B5E20] opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
                           <ZoomIn className="h-4 w-4" />
                         </span>
+                        {canManage && isCoverPhoto && (
+                          <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-[#1B5E20] px-3 py-1.5 text-xs font-semibold text-white shadow-sm">
+                            <Star className="h-3.5 w-3.5 fill-current" />
+                            대표사진
+                          </span>
+                        )}
                       </button>
                       <figcaption className="mt-2 flex items-center justify-between text-xs text-gray-400">
                         <span>
@@ -1479,6 +1680,23 @@ export function GalleryContent({
                             입력한 글은 사진과 사진 사이에 본문처럼 표시됩니다.
                           </p>
                           <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleSetCoverPhoto(image)}
+                              disabled={
+                                isCoverPhoto || settingCoverPhotoId === image.id
+                              }
+                              className="inline-flex h-8 items-center justify-center gap-1.5 border border-amber-300 bg-white px-3 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:bg-amber-50 disabled:opacity-70"
+                            >
+                              {settingCoverPhotoId === image.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Star
+                                  className={`h-3.5 w-3.5 ${isCoverPhoto ? "fill-current" : ""}`}
+                                />
+                              )}
+                              {isCoverPhoto ? "현재 대표사진" : "대표사진으로 선택"}
+                            </button>
                             <label className="inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 border border-[#1B5E20] bg-white px-3 text-xs font-semibold text-[#1B5E20] hover:bg-[#F1F8E9]">
                               {editingPhotoId === image.id ? (
                                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1799,7 +2017,7 @@ export function GalleryContent({
             ) : (
               <div className="grid grid-cols-2 gap-x-8 gap-y-7 border-y border-[#86C5D8] py-5 sm:grid-cols-3 lg:grid-cols-4">
                 {visibleGroups.map(group => {
-                  const thumbnail = group.images[0];
+                  const thumbnail = getGalleryGroupCover(group);
                   const detailHref = buildGalleryHref(
                     location,
                     searchString,
@@ -1821,12 +2039,19 @@ export function GalleryContent({
                         className="group block focus:outline-none"
                       >
                         <span className="mx-auto block overflow-hidden bg-gray-100 ring-1 ring-gray-200 transition group-hover:ring-[#86C5D8]">
-                          <img
-                            src={thumbnail.imageUrl}
-                            alt={group.title}
-                            loading="lazy"
-                            className="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-105"
-                          />
+                          {thumbnail ? (
+                            <img
+                              src={thumbnail.imageUrl}
+                              alt={group.title}
+                              loading="lazy"
+                              className="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-105"
+                            />
+                          ) : (
+                            <span className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-2 text-gray-300">
+                              <Images className="h-8 w-8" />
+                              <span className="text-xs">사진 추가 대기</span>
+                            </span>
+                          )}
                         </span>
                         <span className="mt-2 block break-keep text-xs leading-5 text-gray-700 group-hover:text-[#1B5E20]">
                           {group.title}

@@ -36,10 +36,17 @@ import {
   deleteHeroSlide,
   clearAllHeroSlideCustomButtons,
   getAllGalleryItems,
+  getAllGalleryAlbums,
   getAllHomeGalleryItems,
   updateGalleryItem,
   updateGalleryAlbumItems,
   createGalleryItem,
+  createGalleryAlbumRecord,
+  updateGalleryAlbumRecord,
+  deleteGalleryAlbumRecord,
+  setGalleryAlbumCover,
+  createGalleryItemsForAlbum,
+  reorderGalleryAlbumRecords,
   deleteGalleryItem,
   deleteGalleryItems,
   reorderGalleryAlbums,
@@ -266,6 +273,117 @@ export const contentRouter = router({
     list: contentProcedure
       .input(z.object({ galleryScopeKey: z.string().trim().min(1).max(96) }).optional())
       .query(({ input }) => getAllGalleryItems(input?.galleryScopeKey)),
+    listAlbums: contentProcedure
+      .input(z.object({
+        galleryScopeKey: z.string().trim().min(1).max(96),
+      }))
+      .query(({ input }) => getAllGalleryAlbums(input.galleryScopeKey)),
+    createAlbum: contentProcedure
+      .input(z.object({
+        galleryScopeKey: z.string().trim().min(1).max(96),
+        albumKey: z.string().trim().min(1).max(96),
+        title: requiredTextSchema(160, "앨범 제목을 입력해주세요."),
+        description: optionalTextSchema(20000),
+        albumSortOrder: z.number().int().min(0).max(2147483647).optional(),
+        isVisible: z.boolean().optional(),
+        createdAt: z.coerce.date().optional(),
+      }))
+      .mutation(({ input }) => createGalleryAlbumRecord(input)),
+    updateAlbumRecord: contentProcedure
+      .input(z.object({
+        galleryScopeKey: z.string().trim().min(1).max(96),
+        albumKey: z.string().trim().min(1).max(96),
+        title: requiredTextSchema(160, "앨범 제목을 입력해주세요.").optional(),
+        description: optionalTextSchema(20000),
+        isVisible: z.boolean().optional(),
+        createdAt: z.coerce.date().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const updated = await updateGalleryAlbumRecord(input);
+        if (!updated) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "수정할 앨범을 찾을 수 없습니다.",
+          });
+        }
+        return true;
+      }),
+    deleteAlbumRecord: contentProcedure
+      .input(z.object({
+        galleryScopeKey: z.string().trim().min(1).max(96),
+        albumKey: z.string().trim().min(1).max(96),
+      }))
+      .mutation(async ({ input }) => {
+        const deleted = await deleteGalleryAlbumRecord(
+          input.galleryScopeKey,
+          input.albumKey,
+        );
+        if (!deleted) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "삭제할 앨범을 찾을 수 없습니다.",
+          });
+        }
+        return true;
+      }),
+    setAlbumCover: contentProcedure
+      .input(z.object({
+        galleryScopeKey: z.string().trim().min(1).max(96),
+        albumKey: z.string().trim().min(1).max(96),
+        photoId: z.number().int().positive(),
+      }))
+      .mutation(async ({ input }) => {
+        const updated = await setGalleryAlbumCover(
+          input.galleryScopeKey,
+          input.albumKey,
+          input.photoId,
+        );
+        if (!updated) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "이 앨범의 공개 사진만 대표사진으로 선택할 수 있습니다.",
+          });
+        }
+        return true;
+      }),
+    createMany: contentProcedure
+      .input(z.object({
+        galleryScopeKey: z.string().trim().min(1).max(96),
+        albumKey: z.string().trim().min(1).max(96),
+        items: z.array(z.object({
+          imageUrl: safeAssetUrlSchema.refine(
+            value => value.length > 0,
+            "이미지 주소를 입력해주세요.",
+          ),
+          caption: optionalTextSchema(20000),
+          gridSpan: gridSpanValueSchema.optional(),
+          sortOrder: sortOrderSchema.optional(),
+        })).min(1).max(100),
+      }))
+      .mutation(async ({ input }) => {
+        const insertedIds = await createGalleryItemsForAlbum(
+          input.galleryScopeKey,
+          input.albumKey,
+          input.items,
+        );
+        if (insertedIds.length === 0) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "사진을 추가할 앨범을 찾을 수 없습니다.",
+          });
+        }
+        return insertedIds;
+      }),
+    reorderAlbumRecords: contentProcedure
+      .input(z.object({
+        galleryScopeKey: z.string().trim().min(1).max(96),
+        items: z.array(z.object({
+          albumKey: z.string().trim().min(1).max(96),
+          albumSortOrder: z.number().int().min(0).max(2147483647),
+        })).max(200),
+      }))
+      .mutation(({ input }) =>
+        reorderGalleryAlbumRecords(input.galleryScopeKey, input.items)),
     listHome: contentProcedure.query(() => getAllHomeGalleryItems()),
     /** 갤러리 사진 추가 */
     create: contentProcedure

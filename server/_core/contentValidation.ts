@@ -18,6 +18,8 @@ const BLOCK_TYPES = new Set([
 const DEFAULT_BLOCK_CONTENT_LIMIT = 20000;
 const HTML_BLOCK_CONTENT_LIMIT = 60000;
 const HTML_BODY_CONTENT_LIMIT = 50000;
+const CHURCH_PHOTO_PROXY_PREFIX = "/api/church-photo/";
+const SAFE_CHURCH_PHOTO_EXTENSION_RE = /\.(?:jpe?g|png|gif|webp)$/i;
 
 function isSafeAbsoluteUrl(value: string, allowedProtocols = ["http:", "https:"]) {
   try {
@@ -26,6 +28,34 @@ function isSafeAbsoluteUrl(value: string, allowedProtocols = ["http:", "https:"]
   } catch {
     return false;
   }
+}
+
+function isSafeChurchPhotoProxyPath(value: string) {
+  if (!value.startsWith(CHURCH_PHOTO_PROXY_PREFIX)) return false;
+  if (value.length > 2_048 || /[\\?#\u0000-\u001f\u007f]/.test(value)) {
+    return false;
+  }
+
+  let decodedPath: string;
+  try {
+    decodedPath = decodeURIComponent(value.slice(CHURCH_PHOTO_PROXY_PREFIX.length));
+  } catch {
+    return false;
+  }
+
+  const segments = decodedPath.split("/");
+  return (
+    segments[0] === "photo" &&
+    segments.length >= 3 &&
+    segments.every(
+      segment =>
+        Boolean(segment) &&
+        segment !== "." &&
+        segment !== ".." &&
+        !/[\\?#\u0000-\u001f\u007f]/.test(segment),
+    ) &&
+    SAFE_CHURCH_PHOTO_EXTENSION_RE.test(segments.at(-1) ?? "")
+  );
 }
 
 export function isSafeHref(value: string) {
@@ -41,6 +71,9 @@ export function isSafeAssetUrl(value: string) {
   const url = value.trim();
   if (!url) return true;
   if (url.startsWith("/uploads/")) return !url.includes("\\") && !url.includes("..");
+  if (url.startsWith(CHURCH_PHOTO_PROXY_PREFIX)) {
+    return isSafeChurchPhotoProxyPath(url);
+  }
   return isSafeAbsoluteUrl(url);
 }
 

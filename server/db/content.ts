@@ -12,8 +12,8 @@
 import { createHash } from "node:crypto";
 import { and, eq, asc, desc, inArray, isNull, like, not } from "drizzle-orm";
 import {
-  heroSlides, galleryItems, menuItems, menuSubItems, affiliates, quickMenus, siteSettings,
-  InsertAffiliate, InsertGalleryItem,
+  heroSlides, galleryAlbums, galleryItems, menuItems, menuSubItems, affiliates, quickMenus, siteSettings,
+  InsertAffiliate, InsertGalleryAlbum, InsertGalleryItem,
 } from "../../drizzle/schema";
 import { getDb } from "./connection";
 
@@ -94,6 +94,49 @@ function galleryScopeCondition(galleryScopeKey?: string | null) {
   return normalized ? eq(galleryItems.galleryScopeKey, normalized) : undefined;
 }
 
+function galleryAlbumCondition(galleryScopeKey: string, albumKey: string) {
+  return and(
+    eq(galleryAlbums.galleryScopeKey, galleryScopeKey.trim()),
+    eq(galleryAlbums.albumKey, albumKey.trim()),
+  );
+}
+
+function galleryAlbumPhotoCondition(galleryScopeKey: string, albumKey: string) {
+  return and(
+    eq(galleryItems.galleryScopeKey, galleryScopeKey.trim()),
+    eq(galleryItems.albumKey, albumKey.trim()),
+    eq(galleryItems.isHomeGallery, false),
+  );
+}
+
+type GalleryCoverCandidate = {
+  id: number;
+  isVisible?: boolean | null;
+  sortOrder?: number | null;
+  createdAt?: Date | string | null;
+};
+
+export function chooseGalleryCoverId(
+  items: GalleryCoverCandidate[],
+  preferredId?: number | null,
+) {
+  const visibleItems = items
+    .filter(item => item.isVisible !== false)
+    .sort((left, right) => {
+      const sortDiff = Number(left.sortOrder ?? 999) - Number(right.sortOrder ?? 999);
+      if (sortDiff !== 0) return sortDiff;
+      const leftTime = left.createdAt ? new Date(left.createdAt).getTime() : 0;
+      const rightTime = right.createdAt ? new Date(right.createdAt).getTime() : 0;
+      if (leftTime !== rightTime) return rightTime - leftTime;
+      return left.id - right.id;
+    });
+
+  if (preferredId && visibleItems.some(item => item.id === preferredId)) {
+    return preferredId;
+  }
+  return visibleItems[0]?.id ?? null;
+}
+
 async function getEventGalleryScopeKey() {
   const db = await getDb();
   if (!db) return null;
@@ -128,26 +171,78 @@ export async function getVisibleGalleryItems(galleryScopeKey: string) {
     .orderBy(desc(galleryItems.albumSortOrder), asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
 }
 
+export async function getAllGalleryAlbums(galleryScopeKey: string) {
+  const db = await getDb();
+  const scope = galleryScopeKey.trim();
+  if (!db || !scope) return [];
+  return db.select().from(galleryAlbums)
+    .where(eq(galleryAlbums.galleryScopeKey, scope))
+    .orderBy(desc(galleryAlbums.albumSortOrder), desc(galleryAlbums.createdAt), desc(galleryAlbums.id));
+}
+
+export async function getVisibleGalleryAlbums(galleryScopeKey: string) {
+  const db = await getDb();
+  const scope = galleryScopeKey.trim();
+  if (!db || !scope) return [];
+
+  const [albums, photos] = await Promise.all([
+    db.select().from(galleryAlbums)
+      .where(and(
+        eq(galleryAlbums.galleryScopeKey, scope),
+        eq(galleryAlbums.isVisible, true),
+      ))
+      .orderBy(desc(galleryAlbums.albumSortOrder), desc(galleryAlbums.createdAt), desc(galleryAlbums.id)),
+    db.select({ albumKey: galleryItems.albumKey }).from(galleryItems)
+      .where(and(
+        eq(galleryItems.galleryScopeKey, scope),
+        eq(galleryItems.isHomeGallery, false),
+        eq(galleryItems.isVisible, true),
+      )),
+  ]);
+
+  const albumKeysWithVisiblePhotos = new Set(
+    photos.map(photo => photo.albumKey?.trim()).filter((key): key is string => Boolean(key)),
+  );
+  return albums.filter(album => albumKeysWithVisiblePhotos.has(album.albumKey));
+}
+
 export async function getVisibleHomeGalleryItems() {
   const db = await getDb();
   const eventGalleryScopeKey = await getEventGalleryScopeKey();
   if (!db || !eventGalleryScopeKey) return [];
-  const items = await db.select().from(galleryItems)
-    .where(and(
-      eq(galleryItems.isVisible, true),
-      eq(galleryItems.isHomeGallery, false),
-      eq(galleryItems.galleryScopeKey, eventGalleryScopeKey),
-    ))
-    .orderBy(desc(galleryItems.albumSortOrder), asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
+  const [albums, items] = await Promise.all([
+    getVisibleGalleryAlbums(eventGalleryScopeKey),
+    db.select().from(galleryItems)
+      .where(and(
+        eq(galleryItems.isVisible, true),
+        eq(galleryItems.isHomeGallery, false),
+        eq(galleryItems.galleryScopeKey, eventGalleryScopeKey),
+      ))
+      .orderBy(desc(galleryItems.albumSortOrder), asc(galleryItems.sortOrder), desc(galleryItems.createdAt)),
+  ]);
 
-  const seenAlbums = new Set<string>();
-  // The home gallery showcases recent albums, so keep only one representative photo per album.
-  const homeGalleryItems = items.filter((item) => {
+  const itemsByAlbum = new Map<string, typeof items>();
+  for (const item of items) {
     const albumKey = item.albumKey?.trim() || item.albumTitle?.trim() || `single:${item.id}`;
-    if (seenAlbums.has(albumKey)) return false;
-    seenAlbums.add(albumKey);
-    return true;
+    const albumItems = itemsByAlbum.get(albumKey) ?? [];
+    albumItems.push(item);
+    itemsByAlbum.set(albumKey, albumItems);
+  }
+
+  const homeGalleryItems = albums.flatMap(album => {
+    const albumItems = itemsByAlbum.get(album.albumKey) ?? [];
+    const coverId = chooseGalleryCoverId(albumItems, album.coverImageId);
+    const cover = albumItems.find(item => item.id === coverId);
+    return cover ? [cover] : [];
   });
+
+  const knownAlbumKeys = new Set(albums.map(album => album.albumKey));
+  for (const [albumKey, albumItems] of Array.from(itemsByAlbum.entries())) {
+    if (knownAlbumKeys.has(albumKey)) continue;
+    const coverId = chooseGalleryCoverId(albumItems);
+    const cover = albumItems.find(item => item.id === coverId);
+    if (cover) homeGalleryItems.push(cover);
+  }
 
   return homeGalleryItems.slice(0, 8);
 }
@@ -156,14 +251,72 @@ export async function getVisibleHomeGalleryItems() {
 export async function updateGalleryItem(id: number, data: Partial<InsertGalleryItem>, galleryScopeKey?: string | null) {
   const db = await getDb();
   if (!db) return;
-  await db.update(galleryItems).set(data).where(and(eq(galleryItems.id, id), galleryScopeCondition(galleryScopeKey)));
+  await db.transaction(async tx => {
+    const [current] = await tx.select().from(galleryItems)
+      .where(and(eq(galleryItems.id, id), galleryScopeCondition(galleryScopeKey)))
+      .limit(1);
+    if (!current) return;
+
+    await tx.update(galleryItems).set(data)
+      .where(and(eq(galleryItems.id, id), galleryScopeCondition(galleryScopeKey)));
+
+    const scope = current.galleryScopeKey?.trim();
+    const albumKey = current.albumKey?.trim();
+    if (!scope || !albumKey || current.isHomeGallery) return;
+
+    const [album] = await tx.select().from(galleryAlbums)
+      .where(galleryAlbumCondition(scope, albumKey))
+      .limit(1);
+    if (!album) return;
+
+    const updatedIsVisible = data.isVisible ?? current.isVisible;
+    if (album.coverImageId !== id || updatedIsVisible !== false) return;
+
+    const candidates = await tx.select({
+      id: galleryItems.id,
+      isVisible: galleryItems.isVisible,
+      sortOrder: galleryItems.sortOrder,
+      createdAt: galleryItems.createdAt,
+    }).from(galleryItems)
+      .where(galleryAlbumPhotoCondition(scope, albumKey));
+    await tx.update(galleryAlbums)
+      .set({ coverImageId: chooseGalleryCoverId(candidates) })
+      .where(galleryAlbumCondition(scope, albumKey));
+  });
 }
 
 /** 갤러리 앨범 공통 정보 수정 */
 export async function updateGalleryAlbumItems(ids: number[], data: Partial<InsertGalleryItem>, galleryScopeKey?: string | null) {
   const db = await getDb();
   if (!db || ids.length === 0) return;
-  await db.update(galleryItems).set(data).where(and(inArray(galleryItems.id, ids), galleryScopeCondition(galleryScopeKey)));
+  await db.transaction(async tx => {
+    const affectedItems = await tx.select().from(galleryItems)
+      .where(and(inArray(galleryItems.id, ids), galleryScopeCondition(galleryScopeKey)));
+    await tx.update(galleryItems).set(data)
+      .where(and(inArray(galleryItems.id, ids), galleryScopeCondition(galleryScopeKey)));
+
+    const albumPairs = new Map<string, { scope: string; albumKey: string }>();
+    for (const item of affectedItems) {
+      const scope = item.galleryScopeKey?.trim();
+      const albumKey = item.albumKey?.trim();
+      if (scope && albumKey && !item.isHomeGallery) {
+        albumPairs.set(`${scope}\u0000${albumKey}`, { scope, albumKey });
+      }
+    }
+
+    for (const { scope, albumKey } of Array.from(albumPairs.values())) {
+      const albumData: Partial<InsertGalleryAlbum> = {};
+      if (data.albumTitle !== undefined) albumData.title = data.albumTitle || "최근 행사 사진";
+      if (data.albumDescription !== undefined) albumData.description = data.albumDescription;
+      if (data.albumSortOrder !== undefined) albumData.albumSortOrder = data.albumSortOrder;
+      if (data.isVisible !== undefined) albumData.isVisible = data.isVisible;
+      if (data.createdAt !== undefined) albumData.createdAt = data.createdAt;
+      if (Object.keys(albumData).length > 0) {
+        await tx.update(galleryAlbums).set(albumData)
+          .where(galleryAlbumCondition(scope, albumKey));
+      }
+    }
+  });
 }
 
 // ─── 관련기관 (Affiliates) ────────────────────────────────────────────────────
@@ -240,23 +393,28 @@ export async function reorderGalleryItems(items: { id: number; sortOrder: number
 export async function reorderGalleryAlbums(items: { albumKey?: string | null; albumTitle?: string | null; albumSortOrder: number }[], galleryScopeKey?: string | null) {
   const db = await getDb();
   if (!db) return;
-  await Promise.all(
-    items.map(item => {
+  await db.transaction(async tx => {
+    await Promise.all(items.map(async item => {
       if (item.albumKey) {
-        return db.update(galleryItems)
+        await tx.update(galleryItems)
           .set({ albumSortOrder: item.albumSortOrder })
           .where(and(eq(galleryItems.albumKey, item.albumKey), galleryScopeCondition(galleryScopeKey)));
+        if (galleryScopeKey?.trim()) {
+          await tx.update(galleryAlbums)
+            .set({ albumSortOrder: item.albumSortOrder })
+            .where(galleryAlbumCondition(galleryScopeKey, item.albumKey));
+        }
+        return;
       }
 
       if (item.albumTitle) {
-        return db.update(galleryItems)
+        await tx.update(galleryItems)
           .set({ albumSortOrder: item.albumSortOrder })
           .where(and(isNull(galleryItems.albumKey), eq(galleryItems.albumTitle, item.albumTitle), galleryScopeCondition(galleryScopeKey)));
+        return;
       }
-
-      return Promise.resolve();
-    })
-  );
+    }));
+  });
 }
 
 // ─── 사이트 설정 ──────────────────────────────────────────────────────────────
@@ -452,34 +610,348 @@ export async function getAllHomeGalleryItems() {
     .where(eq(galleryItems.isHomeGallery, true))
     .orderBy(asc(galleryItems.sortOrder), desc(galleryItems.createdAt));
 }
+
+export async function createGalleryAlbumRecord(data: {
+  galleryScopeKey: string;
+  albumKey: string;
+  title: string;
+  description?: string;
+  albumSortOrder?: number;
+  isVisible?: boolean;
+  createdAt?: Date;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  const scope = data.galleryScopeKey.trim();
+  const albumKey = data.albumKey.trim();
+  const [result] = await db.insert(galleryAlbums).values({
+    galleryScopeKey: scope,
+    albumKey,
+    title: data.title.trim(),
+    description: data.description?.trim() || null,
+    albumSortOrder: data.albumSortOrder ?? Math.floor(Date.now() / 1000),
+    isVisible: data.isVisible ?? true,
+    ...(data.createdAt ? { createdAt: data.createdAt } : {}),
+  }).$returningId();
+  return result?.id ?? null;
+}
+
+export async function updateGalleryAlbumRecord(data: {
+  galleryScopeKey: string;
+  albumKey: string;
+  title?: string;
+  description?: string;
+  isVisible?: boolean;
+  createdAt?: Date;
+}) {
+  const db = await getDb();
+  if (!db) return false;
+  const scope = data.galleryScopeKey.trim();
+  const albumKey = data.albumKey.trim();
+
+  return db.transaction(async tx => {
+    const [album] = await tx.select().from(galleryAlbums)
+      .where(galleryAlbumCondition(scope, albumKey))
+      .limit(1);
+    if (!album) return false;
+
+    const albumData: Partial<InsertGalleryAlbum> = {};
+    const legacyData: Partial<InsertGalleryItem> = {};
+    if (data.title !== undefined) {
+      albumData.title = data.title.trim();
+      legacyData.albumTitle = data.title.trim();
+    }
+    if (data.description !== undefined) {
+      albumData.description = data.description.trim() || null;
+      legacyData.albumDescription = data.description.trim() || null;
+    }
+    if (data.isVisible !== undefined) {
+      albumData.isVisible = data.isVisible;
+      legacyData.isVisible = data.isVisible;
+    }
+    if (data.createdAt !== undefined) {
+      albumData.createdAt = data.createdAt;
+      legacyData.createdAt = data.createdAt;
+    }
+
+    if (Object.keys(albumData).length > 0) {
+      await tx.update(galleryAlbums).set(albumData)
+        .where(galleryAlbumCondition(scope, albumKey));
+    }
+    if (Object.keys(legacyData).length > 0) {
+      await tx.update(galleryItems).set(legacyData)
+        .where(galleryAlbumPhotoCondition(scope, albumKey));
+    }
+    return true;
+  });
+}
+
+export async function deleteGalleryAlbumRecord(galleryScopeKey: string, albumKey: string) {
+  const db = await getDb();
+  if (!db) return false;
+  const scope = galleryScopeKey.trim();
+  const key = albumKey.trim();
+
+  return db.transaction(async tx => {
+    const [album] = await tx.select({ id: galleryAlbums.id }).from(galleryAlbums)
+      .where(galleryAlbumCondition(scope, key))
+      .limit(1);
+    if (!album) return false;
+    await tx.delete(galleryItems).where(galleryAlbumPhotoCondition(scope, key));
+    await tx.delete(galleryAlbums).where(galleryAlbumCondition(scope, key));
+    return true;
+  });
+}
+
+export async function setGalleryAlbumCover(
+  galleryScopeKey: string,
+  albumKey: string,
+  photoId: number,
+) {
+  const db = await getDb();
+  if (!db) return false;
+  const scope = galleryScopeKey.trim();
+  const key = albumKey.trim();
+
+  return db.transaction(async tx => {
+    const [album] = await tx.select({ id: galleryAlbums.id }).from(galleryAlbums)
+      .where(galleryAlbumCondition(scope, key))
+      .limit(1);
+    if (!album) return false;
+
+    const [photo] = await tx.select({
+      id: galleryItems.id,
+      isVisible: galleryItems.isVisible,
+    }).from(galleryItems)
+      .where(and(
+        galleryAlbumPhotoCondition(scope, key),
+        eq(galleryItems.id, photoId),
+      ))
+      .limit(1);
+    if (!photo || photo.isVisible === false) return false;
+
+    await tx.update(galleryAlbums).set({ coverImageId: photo.id })
+      .where(galleryAlbumCondition(scope, key));
+    return true;
+  });
+}
+
+export type CreateGalleryAlbumPhotoInput = {
+  imageUrl: string;
+  caption?: string;
+  gridSpan?: string;
+  sortOrder?: number;
+};
+
+export async function createGalleryItemsForAlbum(
+  galleryScopeKey: string,
+  albumKey: string,
+  items: CreateGalleryAlbumPhotoInput[],
+) {
+  const db = await getDb();
+  if (!db || items.length === 0) return [];
+  const scope = galleryScopeKey.trim();
+  const key = albumKey.trim();
+
+  return db.transaction(async tx => {
+    const [album] = await tx.select().from(galleryAlbums)
+      .where(galleryAlbumCondition(scope, key))
+      .limit(1);
+    if (!album) return [];
+
+    const existingSortOrders = await tx.select({ sortOrder: galleryItems.sortOrder })
+      .from(galleryItems)
+      .where(galleryAlbumPhotoCondition(scope, key));
+    const nextDefaultSortOrder = existingSortOrders.reduce(
+      (highest, item) => Math.max(highest, item.sortOrder ?? 0),
+      0,
+    );
+
+    const insertedIds: number[] = [];
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      const [result] = await tx.insert(galleryItems).values({
+        imageUrl: item.imageUrl,
+        galleryScopeKey: scope,
+        albumKey: key,
+        albumTitle: album.title,
+        albumDescription: album.description,
+        albumSortOrder: album.albumSortOrder,
+        caption: item.caption?.trim() || null,
+        gridSpan: item.gridSpan ?? "col-span-1 row-span-1",
+        sortOrder: item.sortOrder ?? nextDefaultSortOrder + index + 1,
+        isVisible: album.isVisible,
+        isHomeGallery: false,
+        createdAt: album.createdAt,
+      }).$returningId();
+      if (result?.id) insertedIds.push(result.id);
+    }
+
+    if (!album.coverImageId && insertedIds.length > 0) {
+      const candidates = await tx.select({
+        id: galleryItems.id,
+        isVisible: galleryItems.isVisible,
+        sortOrder: galleryItems.sortOrder,
+        createdAt: galleryItems.createdAt,
+      }).from(galleryItems)
+        .where(galleryAlbumPhotoCondition(scope, key));
+      await tx.update(galleryAlbums)
+        .set({ coverImageId: chooseGalleryCoverId(candidates) })
+        .where(galleryAlbumCondition(scope, key));
+    }
+    return insertedIds;
+  });
+}
+
+export async function reorderGalleryAlbumRecords(
+  galleryScopeKey: string,
+  items: { albumKey: string; albumSortOrder: number }[],
+) {
+  const db = await getDb();
+  if (!db) return;
+  const scope = galleryScopeKey.trim();
+  await db.transaction(async tx => {
+    for (const item of items) {
+      const albumKey = item.albumKey.trim();
+      await tx.update(galleryAlbums)
+        .set({ albumSortOrder: item.albumSortOrder })
+        .where(galleryAlbumCondition(scope, albumKey));
+      await tx.update(galleryItems)
+        .set({ albumSortOrder: item.albumSortOrder })
+        .where(galleryAlbumPhotoCondition(scope, albumKey));
+    }
+  });
+}
+
 export async function createGalleryItem(data: { imageUrl: string; galleryScopeKey?: string; albumKey?: string; albumTitle?: string; albumDescription?: string; albumSortOrder?: number; caption?: string; gridSpan?: string; sortOrder?: number; isHomeGallery?: boolean; createdAt?: Date }) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(galleryItems).values({
-    imageUrl: data.imageUrl,
-    galleryScopeKey: data.galleryScopeKey?.trim() || null,
-    albumKey: data.albumKey ?? null,
-    albumTitle: data.albumTitle ?? null,
-    albumDescription: data.albumDescription ?? null,
-    albumSortOrder: data.albumSortOrder ?? Math.floor(Date.now() / 1000),
-    caption: data.caption ?? null,
-    gridSpan: data.gridSpan ?? "col-span-1 row-span-1",
-    sortOrder: data.sortOrder ?? 999,
-    isVisible: true,
-    isHomeGallery: data.isHomeGallery ?? false,
-    ...(data.createdAt ? { createdAt: data.createdAt } : {}),
+  const scope = data.galleryScopeKey?.trim() || null;
+  const albumKey = data.albumKey?.trim() || null;
+  const albumSortOrder = data.albumSortOrder ?? Math.floor(Date.now() / 1000);
+  await db.transaction(async tx => {
+    if (!data.isHomeGallery && scope && albumKey) {
+      await tx.insert(galleryAlbums).values({
+        galleryScopeKey: scope,
+        albumKey,
+        title: data.albumTitle?.trim() || "최근 행사 사진",
+        description: data.albumDescription?.trim() || null,
+        albumSortOrder,
+        isVisible: true,
+        ...(data.createdAt ? { createdAt: data.createdAt } : {}),
+      }).onDuplicateKeyUpdate({
+        set: {
+          title: data.albumTitle?.trim() || "최근 행사 사진",
+          description: data.albumDescription?.trim() || null,
+          albumSortOrder,
+          ...(data.createdAt ? { createdAt: data.createdAt } : {}),
+        },
+      });
+    }
+
+    const [result] = await tx.insert(galleryItems).values({
+      imageUrl: data.imageUrl,
+      galleryScopeKey: scope,
+      albumKey,
+      albumTitle: data.albumTitle ?? null,
+      albumDescription: data.albumDescription ?? null,
+      albumSortOrder,
+      caption: data.caption ?? null,
+      gridSpan: data.gridSpan ?? "col-span-1 row-span-1",
+      sortOrder: data.sortOrder ?? 999,
+      isVisible: true,
+      isHomeGallery: data.isHomeGallery ?? false,
+      ...(data.createdAt ? { createdAt: data.createdAt } : {}),
+    }).$returningId();
+
+    if (!data.isHomeGallery && scope && albumKey && result?.id) {
+      const [album] = await tx.select({ coverImageId: galleryAlbums.coverImageId })
+        .from(galleryAlbums)
+        .where(galleryAlbumCondition(scope, albumKey))
+        .limit(1);
+      if (album && !album.coverImageId) {
+        await tx.update(galleryAlbums).set({ coverImageId: result.id })
+          .where(galleryAlbumCondition(scope, albumKey));
+      }
+    }
   });
 }
 /** 갤러리 항목 삭제 */
 export async function deleteGalleryItem(id: number, galleryScopeKey?: string | null) {
   const db = await getDb();
   if (!db) return;
-  await db.delete(galleryItems).where(and(eq(galleryItems.id, id), galleryScopeCondition(galleryScopeKey)));
+  await db.transaction(async tx => {
+    const [item] = await tx.select().from(galleryItems)
+      .where(and(eq(galleryItems.id, id), galleryScopeCondition(galleryScopeKey)))
+      .limit(1);
+    if (!item) return;
+
+    const scope = item.galleryScopeKey?.trim();
+    const albumKey = item.albumKey?.trim();
+    const [album] = scope && albumKey && !item.isHomeGallery
+      ? await tx.select({ coverImageId: galleryAlbums.coverImageId })
+        .from(galleryAlbums)
+        .where(galleryAlbumCondition(scope, albumKey))
+        .limit(1)
+      : [];
+
+    await tx.delete(galleryItems)
+      .where(and(eq(galleryItems.id, id), galleryScopeCondition(galleryScopeKey)));
+
+    if (!scope || !albumKey || item.isHomeGallery) return;
+    if (album?.coverImageId !== id) return;
+    const candidates = await tx.select({
+      id: galleryItems.id,
+      isVisible: galleryItems.isVisible,
+      sortOrder: galleryItems.sortOrder,
+      createdAt: galleryItems.createdAt,
+    }).from(galleryItems)
+      .where(galleryAlbumPhotoCondition(scope, albumKey));
+    const fallbackCoverId = chooseGalleryCoverId(candidates);
+    await tx.update(galleryAlbums)
+      .set({ coverImageId: fallbackCoverId })
+      .where(galleryAlbumCondition(scope, albumKey));
+  });
 }
 
 /** Delete every photo that belongs to one gallery album/post. */
 export async function deleteGalleryItems(ids: number[], galleryScopeKey?: string | null) {
   const db = await getDb();
   if (!db || ids.length === 0) return;
-  await db.delete(galleryItems).where(and(inArray(galleryItems.id, ids), galleryScopeCondition(galleryScopeKey)));
+  await db.transaction(async tx => {
+    const affectedItems = await tx.select().from(galleryItems)
+      .where(and(inArray(galleryItems.id, ids), galleryScopeCondition(galleryScopeKey)));
+    await tx.delete(galleryItems)
+      .where(and(inArray(galleryItems.id, ids), galleryScopeCondition(galleryScopeKey)));
+
+    const albumPairs = new Map<string, { scope: string; albumKey: string }>();
+    for (const item of affectedItems) {
+      const scope = item.galleryScopeKey?.trim();
+      const albumKey = item.albumKey?.trim();
+      if (scope && albumKey && !item.isHomeGallery) {
+        albumPairs.set(`${scope}\u0000${albumKey}`, { scope, albumKey });
+      }
+    }
+
+    for (const { scope, albumKey } of Array.from(albumPairs.values())) {
+      const remaining = await tx.select({
+        id: galleryItems.id,
+        isVisible: galleryItems.isVisible,
+        sortOrder: galleryItems.sortOrder,
+        createdAt: galleryItems.createdAt,
+      }).from(galleryItems)
+        .where(galleryAlbumPhotoCondition(scope, albumKey));
+      if (remaining.length === 0) {
+        await tx.delete(galleryAlbums).where(galleryAlbumCondition(scope, albumKey));
+      } else {
+        const [album] = await tx.select({ coverImageId: galleryAlbums.coverImageId })
+          .from(galleryAlbums)
+          .where(galleryAlbumCondition(scope, albumKey))
+          .limit(1);
+        await tx.update(galleryAlbums)
+          .set({ coverImageId: chooseGalleryCoverId(remaining, album?.coverImageId) })
+          .where(galleryAlbumCondition(scope, albumKey));
+      }
+    }
+  });
 }
