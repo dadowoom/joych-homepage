@@ -17,6 +17,10 @@ import {
 } from "@/lib/vehicleReservationGroups";
 import { sortVehiclePlateRows } from "@/lib/vehiclePlateSort";
 import {
+  resolveVehicleReservationCalendarGroup,
+  VEHICLE_RESERVATION_CALENDAR_GROUPS,
+} from "@/lib/vehicleReservationCalendarGroups";
+import {
   DEFAULT_VEHICLE_INQUIRY_SETTINGS,
   resolveVehicleInquirySettings,
 } from "@shared/vehicleInquiry";
@@ -271,18 +275,8 @@ function getReservationPhone(row: VehicleReservationRow) {
   return row.reserverPhone || row.memberPhone || "-";
 }
 
-function getReservationGroupLabel(row: VehicleReservationRow) {
-  const lowerName = getReservationName(row).toLowerCase();
-  const lowerDepartment = (row.department ?? "").toLowerCase();
-  const isAdminLike =
-    lowerName.includes("관리자") ||
-    lowerName.includes("admin") ||
-    lowerDepartment.includes("관리자") ||
-    lowerDepartment.includes("admin");
-  if (isAdminLike) return "관리자";
-
-  const label = getReservationPosition(row);
-  return label && label !== "-" ? label : "기타";
+function getReservationCalendarGroup(row: VehicleReservationRow) {
+  return resolveVehicleReservationCalendarGroup(row.memberPosition);
 }
 
 export default function AdminVehiclesTab() {
@@ -1879,13 +1873,14 @@ function VehicleReservationCalendarView({
           if (!day) return <div key={`empty-${index}`} />;
           const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
           const dayReservations = reservationsByDate[dateKey] ?? [];
-          const groupCounts = Array.from(
-            dayReservations.reduce((map, reservation) => {
-              const label = getReservationGroupLabel(reservation);
-              map.set(label, (map.get(label) ?? 0) + 1);
-              return map;
-            }, new Map<string, number>()),
-          );
+          const countByGroup = dayReservations.reduce((map, reservation) => {
+            const group = getReservationCalendarGroup(reservation);
+            map.set(group.key, (map.get(group.key) ?? 0) + 1);
+            return map;
+          }, new Map<"clergy" | "administrator", number>());
+          const groupCounts = (["clergy", "administrator"] as const)
+            .map(groupKey => [groupKey, countByGroup.get(groupKey) ?? 0] as const)
+            .filter(([, count]) => count > 0);
           const isToday = getLocalDateKey() === dateKey;
           const isSelected = selectedDate === dateKey;
           const isSunday = index % 7 === 0;
@@ -1909,19 +1904,28 @@ function VehicleReservationCalendarView({
               }`}>
                 {day}
               </p>
-              {groupCounts.slice(0, 3).map(([label, count]) => (
-                <CalendarBadge key={label} className="bg-green-50 text-green-700">
-                  {label} {count}
-                </CalendarBadge>
-              ))}
-              {groupCounts.length > 3 && <CalendarBadge className="bg-gray-100 text-gray-500">+{groupCounts.length - 3}</CalendarBadge>}
+              {groupCounts.map(([groupKey, count]) => {
+                const group = VEHICLE_RESERVATION_CALENDAR_GROUPS[groupKey];
+                return (
+                  <CalendarBadge key={groupKey} className={group.badgeClassName}>
+                    {group.label} {count}
+                  </CalendarBadge>
+                );
+              })}
             </button>
           );
         })}
       </div>
 
       <div className="mt-4 flex flex-wrap gap-4 text-xs text-gray-500">
-        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-green-50 ring-1 ring-green-200" />달력 칸은 직분/분류별 예약 수로 표시됩니다.</span>
+        <span className="flex items-center gap-1">
+          <span className={`inline-block h-3 w-3 rounded ${VEHICLE_RESERVATION_CALENDAR_GROUPS.clergy.swatchClassName}`} />
+          교역자
+        </span>
+        <span className="flex items-center gap-1">
+          <span className={`inline-block h-3 w-3 rounded ${VEHICLE_RESERVATION_CALENDAR_GROUPS.administrator.swatchClassName}`} />
+          관리자
+        </span>
       </div>
 
       <div className="mt-5 overflow-hidden rounded-xl border border-gray-200 bg-white">
@@ -1970,7 +1974,7 @@ function VehicleReservationCalendarView({
                   </div>
                   <div>
                     <p className="font-semibold text-gray-900">
-                      {getReservationName(reservation)} <span className="font-normal text-gray-500">({getReservationPosition(reservation)})</span>
+                      {getReservationName(reservation)} <span className="font-normal text-gray-500">({getReservationCalendarGroup(reservation).label})</span>
                     </p>
                     <p className="text-[11px] text-gray-500">신청 {formatCreatedAt(reservation.createdAt)}</p>
                   </div>
