@@ -13,6 +13,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { canonicalHostRedirect, registerSeoUtilityRoutes } from "./seo";
 import { registerLegacyVodRoutes } from "./legacyVod";
+import { registerChurchPhotoRoutes } from "./churchPhoto";
 import { registerLegacyPageRedirects } from "./legacyPageRedirects";
 import { registerDomainSessionBridgeRoutes } from "./domainSessionBridge";
 
@@ -259,6 +260,7 @@ async function startServer() {
   registerLegacyPageRedirects(app);
   registerSeoUtilityRoutes(app);
   registerLegacyVodRoutes(app);
+  registerChurchPhotoRoutes(app);
 
   app.use(requestBodyLimitGuard);
   app.use(skipTrpcBodyParser(express.json({ limit: GENERAL_JSON_LIMIT })));

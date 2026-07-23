@@ -1899,7 +1899,7 @@ function RichTextToolbar({
             취소
           </button>
           <p className="basis-full text-[11px] leading-5 text-gray-500">
-            한 장 또는 여러 장을 줄바꿈으로 넣을 수 있습니다. photo.joych.org의 HTTP 주소는 HTTPS로 자동 변환됩니다. Ctrl+Enter로 바로 삽입할 수 있습니다.
+            한 장 또는 여러 장을 줄바꿈으로 넣을 수 있습니다. photo.joych.org 주소는 홈페이지에서 안전하게 연결됩니다. Ctrl+Enter로 바로 삽입할 수 있습니다.
           </p>
         </div>
       )}

@@ -9,6 +9,7 @@ const IMAGE_SOURCE_INPUT_TOKEN_PATTERN = /<\s*img\b[^>]*>|https?:\/\/[^\s"'<>`]+
 const IMAGE_SOURCE_INPUT_WRAPPER_PATTERN = /<\s*\/?\s*(?:p|br|div|span)\b[^>]*>/gi;
 const IMAGE_SRC_ATTRIBUTE_PATTERN = /(\bsrc\s*=\s*)(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/i;
 const JOYCH_PHOTO_HOST = "photo.joych.org";
+const JOYCH_PHOTO_PROXY_PATH = "/api/church-photo";
 
 function decodeHtmlTagEntities(value: string) {
   return value
@@ -29,11 +30,15 @@ function getSafeAbsoluteImageUrl(value: string, requireHttps = false) {
     if (url.protocol !== "http:" && url.protocol !== "https:") return null;
     if (url.username || url.password) return null;
 
-    // The public site only permits HTTPS images. The church photo server is
-    // known to serve the same files over HTTPS, so legacy HTTP addresses can
-    // be upgraded without changing the requested photo path.
-    if (url.protocol === "http:" && url.hostname.toLowerCase() === JOYCH_PHOTO_HOST) {
-      url.protocol = "https:";
+    // The church photo archive currently answers over HTTP only. Browsers must
+    // not load that address directly from our HTTPS site, so both its legacy
+    // HTTP and HTTPS forms are routed through the same-origin streaming proxy.
+    if (
+      url.hostname.toLowerCase() === JOYCH_PHOTO_HOST &&
+      url.pathname.toLowerCase().startsWith("/photo/") &&
+      /\.(?:jpe?g|png|gif|webp)$/i.test(url.pathname)
+    ) {
+      return `${JOYCH_PHOTO_PROXY_PATH}${url.pathname}`;
     }
 
     if (requireHttps && url.protocol !== "https:") return null;
@@ -51,7 +56,7 @@ function extractImageSrcFromTag(tag: string) {
 /**
  * Parses the image toolbar input. It accepts one URL, URLs separated by lines
  * or whitespace, IMG tags, and mixtures of those formats. Only the extracted
- * HTTPS URLs are returned; pasted HTML itself is never inserted.
+ * safe URLs are returned; pasted HTML itself is never inserted.
  */
 export function extractImageSourceInputUrls(value?: string | null) {
   const rawValue = value ?? "";
@@ -86,7 +91,7 @@ export function extractImageSourceInputUrls(value?: string | null) {
   return unsupportedText ? null : imageUrls;
 }
 
-/** Upgrades legacy church photo URLs inside HTML source without trusting HTML. */
+/** Routes legacy church photo URLs through our safe same-origin image proxy. */
 export function normalizeRichTextImageSources(value?: string | null) {
   const html = value ?? "";
   if (!html) return "";
