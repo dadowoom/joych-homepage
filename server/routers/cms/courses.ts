@@ -18,6 +18,7 @@ import {
 } from "@shared/courseFacilitySchedule";
 import { adminPermissionProcedure, router } from "../../_core/trpc";
 import { optionalTextSchema, requiredTextSchema, safeAssetUrlSchema } from "../../_core/contentValidation";
+import { assertCourseCustomScheduleAccess } from "../../courseCustomScheduleAccess";
 import {
   createCourse,
   createCourseRoomManager,
@@ -25,6 +26,7 @@ import {
   deleteCourseRoomManager,
   getAllMembers,
   getCourseApplications,
+  getCourseById,
   getCourseFacilityScheduleConflicts,
   getCourseRoomManagers,
   getCoursesForAdmin,
@@ -268,7 +270,8 @@ export const coursesRouter = router({
 
   create: courseProcedure
     .input(courseBaseSchema)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await assertCourseCustomScheduleAccess(ctx, input);
       try {
         return await createCourse(serializeCourseFacilityFields(input));
       } catch (error) {
@@ -278,8 +281,13 @@ export const coursesRouter = router({
 
   update: courseProcedure
     .input(courseUpdateSchema)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      const currentCourse = await getCourseById(id);
+      if (!currentCourse) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "강좌를 찾을 수 없습니다." });
+      }
+      await assertCourseCustomScheduleAccess(ctx, { ...currentCourse, ...data }, currentCourse);
       try {
         return await updateCourse(id, serializeCourseFacilityFields(data));
       } catch (error) {

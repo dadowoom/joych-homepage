@@ -375,6 +375,17 @@ export default function AdminCoursesTab() {
     { enabled: expandedCourseId !== null, refetchInterval: 30000 },
   );
   const uploadCourseImage = trpc.cms.upload.courseImage.useMutation();
+  const customSchedulePageHref = form.pageHref || "/education/courses";
+  const { data: customScheduleAccess } = trpc.courseManagement.access.useQuery(
+    { pageHref: customSchedulePageHref },
+    {
+      staleTime: 0,
+      refetchOnMount: "always",
+      refetchOnWindowFocus: true,
+      refetchInterval: query => query.state.data?.canUseCustomDates ? 10_000 : false,
+    },
+  );
+  const canUseCustomDates = customScheduleAccess?.canUseCustomDates === true;
 
   useEffect(() => {
     const params = new URLSearchParams(searchString);
@@ -946,6 +957,7 @@ export default function AdminCoursesTab() {
   }
 
   function buildPayload() {
+    const includeFacilitySchedule = canUseCustomDates || form.facilityRepeatMode !== "custom";
     return {
       title: form.title,
       summary: form.summary,
@@ -957,9 +969,11 @@ export default function AdminCoursesTab() {
       fee: form.fee,
       capacity: Number(form.capacity) || 0,
       facilityId: form.facilityId ? Number(form.facilityId) : null,
-      facilityRepeatMode: form.facilityRepeatMode,
-      facilityRepeatDays: form.facilityRepeatDays,
-      facilityCustomDates: form.facilityCustomDates,
+      ...(includeFacilitySchedule ? {
+        facilityRepeatMode: form.facilityRepeatMode,
+        facilityRepeatDays: form.facilityRepeatDays,
+        facilityCustomDates: form.facilityCustomDates,
+      } : {}),
       startDate: emptyToNull(form.startDate),
       endDate: emptyToNull(form.endDate),
       startTime: emptyToNull(form.startTime),
@@ -1368,6 +1382,7 @@ export default function AdminCoursesTab() {
                 </p>
                 <CourseFacilityScheduleFields
                   enabled={Boolean(form.facilityId)}
+                  allowCustomDates={canUseCustomDates}
                   startDate={form.startDate}
                   endDate={form.endDate}
                   repeatMode={form.facilityRepeatMode}

@@ -49,6 +49,24 @@ function makeCourseInput() {
   };
 }
 
+function makeCustomCourseInput() {
+  const startDate = addDaysToDateKey(getKstDateKey(), 2)!;
+  const secondDate = addDaysToDateKey(getKstDateKey(), 4)!;
+  return {
+    pageHref: "/education/flute",
+    course: {
+      title: "불규칙 플루트 강좌",
+      facilityId: 7,
+      facilityRepeatMode: "custom" as const,
+      facilityCustomDates: [startDate, secondDate],
+      startDate,
+      endDate: secondDate,
+      startTime: "09:00",
+      endTime: "11:00",
+    },
+  };
+}
+
 describe("course manager linked facility reservation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -83,6 +101,32 @@ describe("course manager linked facility reservation", () => {
 
     await expect(caller.courseManagement.create(makeCourseInput())).rejects.toMatchObject({
       code: "BAD_REQUEST",
+    });
+    expect(dbMocks.createCourse).not.toHaveBeenCalled();
+  });
+
+  it("allows arbitrary dates for the assigned course room manager", async () => {
+    const caller = appRouter.createCaller(createContext());
+    const input = makeCustomCourseInput();
+
+    await expect(caller.courseManagement.create(input)).resolves.toBe(91);
+    expect(dbMocks.createCourse).toHaveBeenCalledWith(expect.objectContaining({
+      facilityRepeatMode: "custom",
+      facilityCustomDates: JSON.stringify(input.course.facilityCustomDates),
+    }));
+  });
+
+  it("hides access and blocks arbitrary dates immediately after permission removal", async () => {
+    dbMocks.hasCourseRoomManagementAccess.mockResolvedValue(false);
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(caller.courseManagement.access({ pageHref: "/education/flute" })).resolves.toEqual({
+      canManage: false,
+      canUseCustomDates: false,
+      scope: null,
+    });
+    await expect(caller.courseManagement.create(makeCustomCourseInput())).rejects.toMatchObject({
+      code: "FORBIDDEN",
     });
     expect(dbMocks.createCourse).not.toHaveBeenCalled();
   });

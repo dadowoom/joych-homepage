@@ -6,6 +6,10 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { publicProcedure, router } from "../_core/trpc";
 import { hasAdminContentPermission } from "../db/adminPermissions";
+import {
+  assertCourseCustomScheduleAccess,
+  canUseCourseCustomSchedule,
+} from "../courseCustomScheduleAccess";
 import { getCourseFacilityReservationRestriction } from "../../shared/courseFacilityReservationPolicy";
 import {
   COURSE_FACILITY_REPEAT_MODES,
@@ -245,9 +249,12 @@ export const courseManagementRouter = router({
   access: publicProcedure
     .input(z.object({ pageHref: pageHrefSchema }))
     .query(async ({ input, ctx }) => {
-      if (hasAdminContentPermission(ctx.user, "content:courses")) return { canManage: true, scope: "all" as const };
-      const canManage = Boolean(ctx.memberId && await hasCourseRoomManagementAccess(ctx.memberId, input.pageHref));
-      return { canManage, scope: canManage ? "room" as const : null };
+      const canUseCustomDates = await canUseCourseCustomSchedule(ctx, input.pageHref);
+      if (hasAdminContentPermission(ctx.user, "content:courses")) {
+        return { canManage: true, canUseCustomDates, scope: "all" as const };
+      }
+      const canManage = canUseCustomDates;
+      return { canManage, canUseCustomDates, scope: canManage ? "room" as const : null };
     }),
 
   courses: publicProcedure
@@ -285,6 +292,7 @@ export const courseManagementRouter = router({
     .input(z.object({ pageHref: pageHrefSchema, course: courseCreateSchema }))
     .mutation(async ({ input, ctx }) => {
       await assertCourseRoomAccess(ctx, input.pageHref);
+      await assertCourseCustomScheduleAccess(ctx, { ...input.course, pageHref: input.pageHref });
       await assertReservableCourseFacility(input.course.facilityId);
       assertCourseFacilityReservationPolicy(input.course);
       try {
@@ -310,6 +318,7 @@ export const courseManagementRouter = router({
         facilityCustomDates: parseCourseFacilityCustomDates(course.facilityCustomDates),
         ...input.course,
       };
+      await assertCourseCustomScheduleAccess(ctx, nextCourse, course);
       assertCourseFacilityReservationPolicy(nextCourse);
       await assertReservableCourseFacility(nextCourse.facilityId);
       try {

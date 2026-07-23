@@ -15,6 +15,7 @@ import { RESERVATION_REPEAT_OPTIONS } from "@shared/reservationRecurrence";
 
 type Props = {
   enabled: boolean;
+  allowCustomDates: boolean;
   startDate: string;
   endDate: string;
   repeatMode: CourseFacilityRepeatMode;
@@ -33,6 +34,12 @@ const REPEAT_OPTIONS: Array<{ value: CourseFacilityRepeatMode; label: string }> 
   ...RESERVATION_REPEAT_OPTIONS,
   { value: "custom", label: "임의 날짜 선택" },
 ];
+
+export function getCourseFacilityRepeatOptions(allowCustomDates: boolean) {
+  return allowCustomDates
+    ? REPEAT_OPTIONS
+    : REPEAT_OPTIONS.filter(option => option.value !== "custom");
+}
 
 function getDateFromKey(dateKey: string) {
   const date = dateKey ? new Date(`${dateKey}T12:00:00`) : null;
@@ -96,6 +103,7 @@ function getRepeatSummary(mode: CourseFacilityRepeatMode, startDate: string, end
 }
 
 export default function CourseFacilityScheduleFields(props: Props) {
+  const repeatOptions = getCourseFacilityRepeatOptions(props.allowCustomDates);
   const [visibleMonth, setVisibleMonth] = useState(() => getMonthKey(props.startDate) || getCurrentMonthKey());
   const conflictCount = useMemo(
     () => props.scheduleDates.filter(date => props.conflictDates.has(date)).length,
@@ -114,7 +122,7 @@ export default function CourseFacilityScheduleFields(props: Props) {
     });
   }, [endMonth, startMonth]);
 
-  if (!props.enabled) return null;
+  if (!props.enabled || (!props.allowCustomDates && props.repeatMode === "custom")) return null;
 
   const changeMode = (mode: CourseFacilityRepeatMode) => {
     props.onRepeatModeChange(mode);
@@ -148,7 +156,9 @@ export default function CourseFacilityScheduleFields(props: Props) {
             시설 사용 일정
           </p>
           <p className="mt-1 text-[11px] leading-5 text-gray-500">
-            시설예약과 같은 반복 방식을 사용합니다. 불규칙한 일정은 임의 날짜 선택으로 필요한 날만 고르세요.
+            {props.allowCustomDates
+              ? "시설예약과 같은 반복 방식을 사용합니다. 불규칙한 일정은 임의 날짜 선택으로 필요한 날만 고르세요."
+              : "시설예약과 같은 반복 방식을 사용합니다."}
           </p>
         </div>
         {props.checkingConflicts && (
@@ -166,7 +176,7 @@ export default function CourseFacilityScheduleFields(props: Props) {
             onChange={event => changeMode(event.target.value as CourseFacilityRepeatMode)}
             className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#1B5E20] focus:outline-none"
           >
-            {REPEAT_OPTIONS.map(option => (
+            {repeatOptions.map(option => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
@@ -175,7 +185,7 @@ export default function CourseFacilityScheduleFields(props: Props) {
         {props.repeatMode !== "custom" && (
           <div className="rounded-lg border border-green-100 bg-green-50 px-3 py-2.5">
             <p className="text-xs font-bold text-green-800">
-              {REPEAT_OPTIONS.find(option => option.value === props.repeatMode)?.label}
+              {repeatOptions.find(option => option.value === props.repeatMode)?.label}
             </p>
             <p className="mt-1 text-[11px] leading-5 text-green-700">
               {getRepeatSummary(props.repeatMode, props.startDate, props.endDate)}
@@ -184,7 +194,7 @@ export default function CourseFacilityScheduleFields(props: Props) {
         )}
       </div>
 
-      {props.repeatMode === "custom" && (
+      {props.allowCustomDates && props.repeatMode === "custom" && (
         <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 sm:p-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>

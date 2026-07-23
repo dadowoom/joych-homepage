@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CalendarCheck, Check, ChevronDown, Loader2, Pencil, Plus, Trash2, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { useSearch } from "wouter";
@@ -77,8 +77,17 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
   const courseStartMin = getKstDateKey();
   const courseFacilityMax = getCourseManagerFacilityReservationMaxDateKey(courseStartMin);
   const courseEndMin = form.startDate > courseStartMin ? form.startDate : courseStartMin;
-  const { data: access, isLoading: checkingAccess } = trpc.courseManagement.access.useQuery({ pageHref });
+  const { data: access, isLoading: checkingAccess } = trpc.courseManagement.access.useQuery(
+    { pageHref },
+    {
+      staleTime: 0,
+      refetchOnMount: "always",
+      refetchOnWindowFocus: true,
+      refetchInterval: query => query.state.data?.canManage ? 10_000 : false,
+    },
+  );
   const enabled = Boolean(access?.canManage);
+  const canUseCustomDates = access?.canUseCustomDates === true;
   const { data: courses = [], isLoading: loadingCourses } = trpc.courseManagement.courses.useQuery(
     { pageHref }, { enabled },
   );
@@ -125,17 +134,34 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
     setForm(EMPTY_FORM);
     setFacilityPickerOpen(false);
   };
+
+  useEffect(() => {
+    if (access?.canManage !== false) return;
+    setOpen(false);
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+    setFacilityPickerOpen(false);
+  }, [access?.canManage]);
+
+  const handleManagementError = (error: { message?: string; data?: { code?: string } | null }, fallback: string) => {
+    if (error.data?.code === "FORBIDDEN") {
+      void utils.courseManagement.access.invalidate({ pageHref });
+      setOpen(false);
+      resetForm();
+    }
+    toast.error(error.message || fallback);
+  };
   const createCourse = trpc.courseManagement.create.useMutation({
     onSuccess: () => { refresh(); resetForm(); toast.success("강좌가 등록됐습니다."); },
-    onError: error => toast.error(error.message || "강좌 등록에 실패했습니다."),
+    onError: error => handleManagementError(error, "강좌 등록에 실패했습니다."),
   });
   const updateCourse = trpc.courseManagement.update.useMutation({
     onSuccess: () => { refresh(); resetForm(); toast.success("강좌가 수정됐습니다."); },
-    onError: error => toast.error(error.message || "강좌 수정에 실패했습니다."),
+    onError: error => handleManagementError(error, "강좌 수정에 실패했습니다."),
   });
   const deleteCourse = trpc.courseManagement.delete.useMutation({
     onSuccess: () => { refresh(); toast.success("강좌가 삭제됐습니다."); },
-    onError: error => toast.error(error.message || "강좌 삭제에 실패했습니다."),
+    onError: error => handleManagementError(error, "강좌 삭제에 실패했습니다."),
   });
   const updateApplication = trpc.courseManagement.updateApplicationStatus.useMutation({
     onSuccess: () => { refresh(); toast.success("신청 상태가 변경됐습니다."); },
@@ -229,6 +255,7 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
       toast.error(`기존 예약과 겹치는 날짜가 ${facilityConflictDates.size}개 있습니다. 빨간 날짜를 확인해주세요.`);
       return;
     }
+    const includeFacilitySchedule = canUseCustomDates || form.facilityRepeatMode !== "custom";
     const course = {
       title: form.title.trim(),
       summary: nullable(form.summary),
@@ -239,9 +266,11 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
       fee: null,
       capacity: Math.max(0, Number(form.capacity) || 0),
       facilityId,
-      facilityRepeatMode: form.facilityRepeatMode,
-      facilityRepeatDays: form.facilityRepeatDays,
-      facilityCustomDates: form.facilityCustomDates,
+      ...(includeFacilitySchedule ? {
+        facilityRepeatMode: form.facilityRepeatMode,
+        facilityRepeatDays: form.facilityRepeatDays,
+        facilityCustomDates: form.facilityCustomDates,
+      } : {}),
       startDate: nullable(form.startDate),
       endDate: nullable(form.endDate),
       startTime: nullable(form.startTime),
@@ -340,6 +369,7 @@ export default function CourseRoomManagerPanel({ pageHref, roomLabel }: Props) {
               <div className="md:col-span-2">
                 <CourseFacilityScheduleFields
                   enabled={Boolean(form.facilityId)}
+                  allowCustomDates={canUseCustomDates}
                   startDate={form.startDate}
                   endDate={form.endDate}
                   repeatMode={form.facilityRepeatMode}
