@@ -29,16 +29,27 @@ export function getStoragePublicUrlBase(
 /**
  * 업로드 디렉토리 초기화 (없으면 생성)
  */
-function ensureUploadDir(relKey: string): string {
+function resolveUploadFilePath(relKey: string): string {
   const normalizedKey = path.normalize(relKey);
-  if (path.isAbsolute(normalizedKey) || normalizedKey.startsWith("..") || normalizedKey.includes(`${path.sep}..${path.sep}`)) {
+  if (
+    !normalizedKey
+    || normalizedKey === "."
+    || path.isAbsolute(normalizedKey)
+    || normalizedKey.startsWith("..")
+    || normalizedKey.includes(`${path.sep}..${path.sep}`)
+  ) {
     throw new Error("Invalid upload path");
   }
   const uploadRoot = path.resolve(UPLOAD_DIR);
   const filePath = path.resolve(uploadRoot, normalizedKey);
-  if (!filePath.startsWith(`${uploadRoot}${path.sep}`) && filePath !== uploadRoot) {
+  if (!filePath.startsWith(`${uploadRoot}${path.sep}`)) {
     throw new Error("Invalid upload path");
   }
+  return filePath;
+}
+
+function ensureUploadDir(relKey: string): string {
+  const filePath = resolveUploadFilePath(relKey);
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -80,4 +91,55 @@ export async function storageGet(relKey: string): Promise<{ key: string; url: st
   const key = path.normalize(relKey.replace(/^\/+/, "")).replace(/\\/g, "/");
   const url = `${getStoragePublicUrlBase()}/uploads/${key}`;
   return { key, url };
+}
+
+/**
+ * Delete a file previously written by storagePut. Missing files are treated as
+ * already deleted, while invalid paths are rejected before touching the disk.
+ */
+export async function storageDelete(relKey: string): Promise<boolean> {
+  const key = path.normalize(relKey.replace(/^\/+/, "")).replace(/\\/g, "/");
+  const filePath = resolveUploadFilePath(key);
+
+  try {
+    await fs.promises.unlink(filePath);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return false;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Delete only URLs that point at this application's upload directory. This
+ * deliberately ignores unrelated external URLs.
+ */
+export async function storageDeleteByUrl(fileUrl: string): Promise<boolean> {
+  let parsed: URL;
+  let configured: URL;
+  try {
+    configured = new URL(getStoragePublicUrlBase());
+    parsed = new URL(fileUrl, configured);
+  } catch {
+    return false;
+  }
+
+  if (parsed.origin !== configured.origin && !isSiteHostname(parsed.hostname)) {
+    return false;
+  }
+  if (!parsed.pathname.startsWith("/uploads/")) {
+    return false;
+  }
+
+  let key: string;
+  try {
+    key = decodeURIComponent(parsed.pathname.slice("/uploads/".length));
+  } catch {
+    return false;
+  }
+  if (!key) return false;
+
+  return storageDelete(key);
 }

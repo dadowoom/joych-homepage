@@ -32,6 +32,7 @@ const TRPC_UPLOAD_PROCEDURES = [
   "cms.facilities.images.upload",
   "cms.pastorBooks.images.upload",
   "cms.bulletins.create",
+  "cms.bulletins.update",
   "mission.uploadImage",
   "testimony.uploadImage",
   "support.submitSubtitle",
