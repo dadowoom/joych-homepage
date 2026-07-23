@@ -202,11 +202,21 @@ describe("legacy HaYoungIn and testimony archive invariants", () => {
       vodType: "69",
       playlistId: 90004,
       expectedListCount: 210,
-      expectedVideoCount: 210,
+      expectedVideoCount: 204,
       newestDate: "2026-06-26",
       oldestDate: "2018-05-06",
+      expectedVideoNewestDate: "2026-06-26",
+      expectedVideoOldestDate: "2018-07-20",
       requiredSourceNums: ["12552", "6837"],
     });
+    expect(Object.keys(LEGACY_ARCHIVE_CONFIGS.testimony.excludedSources)).toEqual([
+      "6837",
+      "6957",
+      "7001",
+      "7305",
+      "7461",
+      "7462",
+    ]);
   });
 
   it("only accepts the media directories used by each audited archive", () => {
@@ -230,6 +240,37 @@ describe("legacy HaYoungIn and testimony archive invariants", () => {
         "http://sermon.joych.org/mp4/special/Sequence 01.mp4",
       ),
     ).toBe(true);
+  });
+
+  it("separates the audited source boundary from the playable-video boundary", () => {
+    const config: LegacyArchiveConfig = {
+      ...LEGACY_ARCHIVE_CONFIGS.testimony,
+      expectedVideoCount: 2,
+    };
+    const videos = [
+      {
+        pageCode: "359",
+        vodType: "69",
+        num: "12552",
+        videoUrl: "http://sermon.joych.org/mp4/special/new.mp4",
+        title: "Newest",
+        preacher: "",
+        scripture: "",
+        sermonDate: "2026-06-26",
+      },
+      {
+        pageCode: "359",
+        vodType: "69",
+        num: "7025",
+        videoUrl: "http://sermon.joych.org/mp4/special/old.mp4",
+        title: "Oldest playable",
+        preacher: "",
+        scripture: "",
+        sermonDate: "2018-07-20",
+      },
+    ] satisfies LegacyVideo[];
+
+    expect(() => validateArchiveVideos(videos, config)).not.toThrow();
   });
 
   it("inserts archive rows oldest-first so same-day public order stays stable", () => {

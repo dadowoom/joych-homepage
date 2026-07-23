@@ -99,6 +99,8 @@ export type LegacyArchiveConfig = Readonly<{
   expectedVideoCount: number;
   newestDate: string;
   oldestDate: string;
+  expectedVideoNewestDate?: string;
+  expectedVideoOldestDate?: string;
   migrationId: string;
   namedLock: string;
   sourceConcurrency: number;
@@ -225,9 +227,11 @@ export const LEGACY_ARCHIVE_CONFIGS: Record<LegacyArchiveKey, LegacyArchiveConfi
     vodType: "69",
     playlistId: 90004,
     expectedListCount: 210,
-    expectedVideoCount: 210,
+    expectedVideoCount: 204,
     newestDate: "2026-06-26",
     oldestDate: "2018-05-06",
+    expectedVideoNewestDate: "2026-06-26",
+    expectedVideoOldestDate: "2018-07-20",
     migrationId: "0104_import_legacy_testimony_videos_20180506_20260626",
     namedLock: "joych:import-legacy-testimony-videos:90004",
     sourceConcurrency: 5,
@@ -235,7 +239,32 @@ export const LEGACY_ARCHIVE_CONFIGS: Record<LegacyArchiveKey, LegacyArchiveConfi
     allowedMp4Url: TESTIMONY_MP4_URL,
     fastUrlLikePatterns: TESTIMONY_FAST_URL_PATTERNS,
     requiredSourceNums: ["12552", "6837"],
-    excludedSources: {},
+    excludedSources: {
+      "7462": {
+        date: "2019-01-02",
+        title: "수요예배 - 이스라엘 & 요르단 비전트립 간증",
+      },
+      "7461": {
+        date: "2019-01-02",
+        title: "수요예배 - 이스라엘 & 요르단 비전트립 간증",
+      },
+      "7305": {
+        date: "2018-11-02",
+        title: "금요아둘람 기도회",
+      },
+      "7001": {
+        date: "2018-07-08",
+        title: "주일 2부 간증",
+      },
+      "6957": {
+        date: "2018-06-20",
+        title: "호국보훈의 달 수요 특별집회 간증",
+      },
+      "6837": {
+        date: "2018-05-06",
+        title: "주일 2부 간증",
+      },
+    },
     videoUrlOverrides: {},
   },
   "praise-shalom": {
@@ -534,6 +563,8 @@ const EXPECTED_LIST_COUNT = ARCHIVE.expectedListCount;
 const EXPECTED_VIDEO_COUNT = ARCHIVE.expectedVideoCount;
 const NEWEST_DATE = ARCHIVE.newestDate;
 const OLDEST_DATE = ARCHIVE.oldestDate;
+const EXPECTED_VIDEO_NEWEST_DATE = ARCHIVE.expectedVideoNewestDate ?? NEWEST_DATE;
+const EXPECTED_VIDEO_OLDEST_DATE = ARCHIVE.expectedVideoOldestDate ?? OLDEST_DATE;
 const MAX_LIST_PAGES = 100;
 const SOURCE_CONCURRENCY = ARCHIVE.sourceConcurrency;
 const REQUEST_TIMEOUT_MS = 20_000;
@@ -930,7 +961,9 @@ export function validateArchiveVideos(
   }
 
   const dates = videos.map(video => video.sermonDate).sort();
-  if (dates[0] !== config.oldestDate || dates.at(-1) !== config.newestDate) {
+  const expectedOldestDate = config.expectedVideoOldestDate ?? config.oldestDate;
+  const expectedNewestDate = config.expectedVideoNewestDate ?? config.newestDate;
+  if (dates[0] !== expectedOldestDate || dates.at(-1) !== expectedNewestDate) {
     throw new Error(
       `Archive boundary mismatch: ${dates[0] ?? "none"} through ${dates.at(-1) ?? "none"}.`,
     );
@@ -961,7 +994,7 @@ async function collectAndValidateArchive(verifyAllMp4Files: boolean) {
   }
   console.log(
     `Source metadata validation passed: ${videos.length} unique videos, `
-    + `${NEWEST_DATE} through ${OLDEST_DATE}.`,
+    + `${EXPECTED_VIDEO_NEWEST_DATE} through ${EXPECTED_VIDEO_OLDEST_DATE}.`,
   );
   return [...videos].sort((left, right) =>
     right.sermonDate.localeCompare(left.sermonDate) || Number(right.num) - Number(left.num)
@@ -1142,8 +1175,8 @@ async function verifyCompletedImportFast(connection: PoolConnection) {
     : count === EXPECTED_VIDEO_COUNT && uniqueUrlCount === EXPECTED_VIDEO_COUNT;
   if (
     !countMatches
-    || invariant?.minDate !== OLDEST_DATE
-    || invariant?.maxDate !== NEWEST_DATE
+    || invariant?.minDate !== EXPECTED_VIDEO_OLDEST_DATE
+    || invariant?.maxDate !== EXPECTED_VIDEO_NEWEST_DATE
     || invalidTitleCount !== 0
   ) {
     throw new Error(
@@ -1155,7 +1188,7 @@ async function verifyCompletedImportFast(connection: PoolConnection) {
   console.log(
     `Migration marker and database invariants verified: playlist=${PLAYLIST_ID}, `
     + `videos=${count} (minimum ${EXPECTED_VIDEO_COUNT}), `
-    + `range=${NEWEST_DATE} through ${OLDEST_DATE}.`,
+    + `range=${EXPECTED_VIDEO_NEWEST_DATE} through ${EXPECTED_VIDEO_OLDEST_DATE}.`,
   );
 }
 
