@@ -60,7 +60,11 @@ import {
   Youtube as YoutubeIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { extractPlainTextPastedImageUrls } from "@/lib/richTextImagePaste";
+import {
+  extractImageSourceInputUrls,
+  extractPlainTextPastedImageUrls,
+  normalizeRichTextImageSources,
+} from "@/lib/richTextImagePaste";
 import { trpc } from "@/lib/trpc";
 import { Details, DetailsSummary, DivBlock, Figcaption, Figure, SectionBlock } from "./tiptapCustomNodes";
 
@@ -462,7 +466,7 @@ function normalizeRichTextTableLayoutForViewer(html: string) {
 function sanitizeRichTextForViewer(value: string | null | undefined, scopeSelector: string) {
   const { html, css } = extractStyleBlocks(value);
   ensureRichTextSanitizeHook();
-  const cleanHtml = DOMPurify.sanitize(html, richTextSanitizeOptions);
+  const cleanHtml = DOMPurify.sanitize(normalizeRichTextImageSources(html), richTextSanitizeOptions);
   const normalizedHtml = normalizeRichTextTableLayoutForViewer(cleanHtml);
   const scopedCustomCss = scopeRichTextCss(css, scopeSelector);
   return {
@@ -553,7 +557,7 @@ function applyViewerTableFit(root: HTMLElement) {
 export function sanitizeRichTextHtml(value?: string | null) {
   const { html } = extractStyleBlocks(value);
   ensureRichTextSanitizeHook();
-  const cleanHtml = DOMPurify.sanitize(html, richTextSanitizeOptions);
+  const cleanHtml = DOMPurify.sanitize(normalizeRichTextImageSources(html), richTextSanitizeOptions);
   return normalizeRichTextTableLayoutForViewer(cleanHtml);
 }
 
@@ -562,7 +566,7 @@ function isEmptyEditorHtml(value: string) {
 }
 
 function getEditorContentForValue(value?: string | null) {
-  return normalizeRichTextValue(value) || "<p></p>";
+  return normalizeRichTextImageSources(normalizeRichTextValue(value)) || "<p></p>";
 }
 
 function isSameEditorHtmlValue(currentHtml: string, nextValue: string) {
@@ -1099,8 +1103,20 @@ function RichTextToolbar({
   };
 
   const insertImage = () => {
-    if (!imageUrl.trim()) return;
-    editor.chain().focus().setImage({ src: imageUrl.trim() }).run();
+    const imageUrls = extractImageSourceInputUrls(imageUrl);
+    if (!imageUrls) {
+      window.alert(
+        "올바른 HTTPS 사진 주소 또는 <IMG SRC=...> 태그를 입력해주세요. 여러 개는 줄바꿈으로 구분할 수 있습니다.",
+      );
+      return;
+    }
+
+    editor.chain().focus().insertContent(
+      imageUrls.flatMap((src) => [
+        { type: "image", attrs: { src } },
+        { type: "paragraph" },
+      ]),
+    ).run();
     setImageUrl("");
     setIsImageInputOpen(false);
   };
@@ -1830,19 +1846,21 @@ function RichTextToolbar({
           </>
       </div>
       {isImageInputOpen && (
-        <div className="flex flex-wrap items-center gap-2 border-t border-gray-200 bg-white px-2 py-2">
-          <input
-            type="url"
+        <div className="flex flex-wrap items-start gap-2 border-t border-gray-200 bg-white px-2 py-2">
+          <textarea
             value={imageUrl}
             onChange={(event) => setImageUrl(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter") {
+              if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
                 event.preventDefault();
                 insertImage();
               }
             }}
-            placeholder="https://example.com/image.jpg"
-            className="h-9 min-w-[16rem] flex-1 border border-gray-200 px-3 text-sm outline-none focus:border-[#1B5E20]"
+            rows={2}
+            maxLength={50_000}
+            aria-label="사진 주소 또는 이미지 태그 입력"
+            placeholder={'사진 주소 또는 <IMG SRC="..."> 태그를 여러 줄로 붙여넣으세요.'}
+            className="min-h-[4.5rem] min-w-[16rem] flex-1 resize-y border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1B5E20]"
           />
           <button
             type="button"
@@ -1880,6 +1898,9 @@ function RichTextToolbar({
           >
             취소
           </button>
+          <p className="basis-full text-[11px] leading-5 text-gray-500">
+            한 장 또는 여러 장을 줄바꿈으로 넣을 수 있습니다. photo.joych.org의 HTTP 주소는 HTTPS로 자동 변환됩니다. Ctrl+Enter로 바로 삽입할 수 있습니다.
+          </p>
         </div>
       )}
     </div>
@@ -2146,6 +2167,11 @@ export function RichTextEditor({
           onChange={(event) => {
             setSourceHtml(event.target.value);
             onChange(isEmptyEditorHtml(event.target.value) ? "" : event.target.value);
+          }}
+          onBlur={() => {
+            const cleanHtml = sanitizeRichTextHtml(sourceHtml);
+            setSourceHtml(cleanHtml);
+            onChange(isEmptyEditorHtml(cleanHtml) ? "" : cleanHtml);
           }}
           placeholder="<p>HTML을 직접 입력하세요.</p>"
           spellCheck={false}

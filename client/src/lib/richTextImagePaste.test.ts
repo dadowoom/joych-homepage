@@ -1,5 +1,81 @@
 import { describe, expect, it } from "vitest";
-import { extractPlainTextPastedImageUrls } from "./richTextImagePaste";
+import {
+  extractImageSourceInputUrls,
+  extractPlainTextPastedImageUrls,
+  normalizeRichTextImageSources,
+} from "./richTextImagePaste";
+
+describe("extractImageSourceInputUrls", () => {
+  it("upgrades a single legacy Joych photo URL to HTTPS", () => {
+    expect(
+      extractImageSourceInputUrls("http://photo.joych.org/photo/2026/0621/11.jpg"),
+    ).toEqual(["https://photo.joych.org/photo/2026/0621/11.jpg"]);
+  });
+
+  it("extracts multiple bare URLs in their pasted order", () => {
+    expect(
+      extractImageSourceInputUrls([
+        "https://photo.joych.org/photo/2026/0621/11.jpg",
+        "https://photo.joych.org/photo/2026/0621/12.jpg",
+        "https://photo.joych.org/photo/2026/0621/13.jpg",
+      ].join("\n")),
+    ).toEqual([
+      "https://photo.joych.org/photo/2026/0621/11.jpg",
+      "https://photo.joych.org/photo/2026/0621/12.jpg",
+      "https://photo.joych.org/photo/2026/0621/13.jpg",
+    ]);
+  });
+
+  it("accepts uppercase, unquoted IMG tags and mixed URL input", () => {
+    expect(
+      extractImageSourceInputUrls(
+        "<IMG SRC=http://photo.joych.org/photo/2026/0621/11.jpg><BR>\n" +
+          "https://photo.joych.org/photo/2026/0621/12.jpg",
+      ),
+    ).toEqual([
+      "https://photo.joych.org/photo/2026/0621/11.jpg",
+      "https://photo.joych.org/photo/2026/0621/12.jpg",
+    ]);
+  });
+
+  it("accepts legacy Excel paragraph noise", () => {
+    expect(
+      extractImageSourceInputUrls(
+        '<img src="https://photo.joych.org/photo/2026/0621/11.jpg"><p/>.</p/><br>',
+      ),
+    ).toEqual(["https://photo.joych.org/photo/2026/0621/11.jpg"]);
+  });
+
+  it.each([
+    "http://example.com/image.jpg",
+    "javascript:alert(1)",
+    "data:image/png;base64,AAAA",
+    "file:///C:/secret.jpg",
+    "https://user:secret@example.com/image.jpg",
+  ])("rejects unsupported image source %s", (source) => {
+    expect(extractImageSourceInputUrls(source)).toBeNull();
+  });
+
+  it("rejects more than 200 images", () => {
+    const input = Array.from(
+      { length: 201 },
+      (_, index) => `https://photo.joych.org/photo/2026/0621/${index}.jpg`,
+    ).join("\n");
+    expect(extractImageSourceInputUrls(input)).toBeNull();
+  });
+});
+
+describe("normalizeRichTextImageSources", () => {
+  it("upgrades Joych photo IMG sources while preserving unrelated HTML", () => {
+    expect(
+      normalizeRichTextImageSources(
+        '<P>사진</P><IMG SRC=http://photo.joych.org/photo/2026/0621/11.jpg>',
+      ),
+    ).toBe(
+      '<P>사진</P><IMG SRC="https://photo.joych.org/photo/2026/0621/11.jpg">',
+    );
+  });
+});
 
 describe("extractPlainTextPastedImageUrls", () => {
   it("extracts multiple image URLs in their pasted order", () => {
@@ -30,6 +106,14 @@ describe("extractPlainTextPastedImageUrls", () => {
     expect(extractPlainTextPastedImageUrls(html)).toEqual([
       "https://photo.joych.org/photo/2026/0628/2.jpg",
     ]);
+  });
+
+  it("upgrades legacy Joych photo URLs pasted as IMG tags", () => {
+    expect(
+      extractPlainTextPastedImageUrls(
+        '<IMG SRC="http://photo.joych.org/photo/2026/0621/11.jpg">',
+      ),
+    ).toEqual(["https://photo.joych.org/photo/2026/0621/11.jpg"]);
   });
 
   it("drops script blocks and image event attributes by returning URLs only", () => {
