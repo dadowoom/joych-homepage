@@ -5,6 +5,7 @@ import {
   canonicalVideoUrl,
   excludeVerifiedLegacySources,
   getPraiseArchiveCatalogSummary,
+  oldestFirstInsertOrder,
   parseArchiveKey,
   parseLegacyListRows,
   parseMode,
@@ -34,6 +35,11 @@ describe("legacy video archive CLI", () => {
     expect(parseArchiveKey(["--archive=praise-shalom"])).toBe("praise-shalom");
     expect(parseArchiveKey(["--archive=shalom"])).toBe("praise-shalom");
     expect(parseArchiveKey(["--archive=special"])).toBe("praise-special");
+  });
+
+  it("accepts the HaYoungIn and testimony archives", () => {
+    expect(parseArchiveKey(["--archive=hayoungin"])).toBe("hayoungin");
+    expect(parseArchiveKey(["--archive=testimony"])).toBe("testimony");
   });
 
   it("rejects conflicting, empty, and unknown archive options", () => {
@@ -176,5 +182,62 @@ describe("legacy praise archive invariants", () => {
     const sample = selectEvenlySpacedVerificationSample(videos, 5, ["37"]);
 
     expect(sample.map(video => video.num)).toEqual(["1", "26", "37", "51", "75", "100"]);
+  });
+});
+
+describe("legacy HaYoungIn and testimony archive invariants", () => {
+  it("fixes both requested source ranges and target playlists", () => {
+    expect(LEGACY_ARCHIVE_CONFIGS.hayoungin).toMatchObject({
+      pageCode: "242",
+      vodType: "40",
+      playlistId: 90003,
+      expectedListCount: 111,
+      expectedVideoCount: 111,
+      newestDate: "2026-04-25",
+      oldestDate: "2018-05-14",
+      requiredSourceNums: ["12423", "6854"],
+    });
+    expect(LEGACY_ARCHIVE_CONFIGS.testimony).toMatchObject({
+      pageCode: "359",
+      vodType: "69",
+      playlistId: 90004,
+      expectedListCount: 210,
+      expectedVideoCount: 210,
+      newestDate: "2026-06-26",
+      oldestDate: "2018-05-06",
+      requiredSourceNums: ["12552", "6837"],
+    });
+  });
+
+  it("only accepts the media directories used by each audited archive", () => {
+    expect(
+      LEGACY_ARCHIVE_CONFIGS.hayoungin.allowedMp4Url.test(
+        "http://sermon.joych.org/mp4/special/180514_hyi.mp4",
+      ),
+    ).toBe(true);
+    expect(
+      LEGACY_ARCHIVE_CONFIGS.hayoungin.allowedMp4Url.test(
+        "http://sermon.joych.org/mp4/etc/testi_180506.mp4",
+      ),
+    ).toBe(false);
+    expect(
+      LEGACY_ARCHIVE_CONFIGS.testimony.allowedMp4Url.test(
+        "http://sermon.joych.org/mp4/etc/testi_180506.mp4",
+      ),
+    ).toBe(true);
+    expect(
+      LEGACY_ARCHIVE_CONFIGS.testimony.allowedMp4Url.test(
+        "http://sermon.joych.org/mp4/special/Sequence 01.mp4",
+      ),
+    ).toBe(true);
+  });
+
+  it("inserts archive rows oldest-first so same-day public order stays stable", () => {
+    const videos = [
+      { num: "3", sermonDate: "2026-01-02" },
+      { num: "2", sermonDate: "2026-01-01" },
+      { num: "1", sermonDate: "2026-01-01" },
+    ] as LegacyVideo[];
+    expect(oldestFirstInsertOrder(videos).map(video => video.num)).toEqual(["1", "2", "3"]);
   });
 });

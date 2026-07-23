@@ -14,6 +14,8 @@
     "migrate:public-site-urls": "tsx scripts/migratePublicSiteUrls.ts",
     "import:legacy-hebron": "tsx scripts/importLegacyHebronVideos.ts",
     "import:legacy-friday": "tsx scripts/importLegacyHebronVideos.ts --friday",
+    "import:legacy-hayoungin": "tsx scripts/importLegacyHebronVideos.ts --archive=hayoungin",
+    "import:legacy-testimony": "tsx scripts/importLegacyHebronVideos.ts --archive=testimony",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "cms:normalize-menu-hrefs": "tsx scripts/normalize-cms-menu-hrefs.ts",
     "cms:seed-static-pages": "tsx scripts/seed-static-page-content.ts"

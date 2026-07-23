@@ -13,6 +13,8 @@ export type RunMode = "dry-run" | "apply";
 export type LegacyArchiveKey =
   | "hebron"
   | "friday"
+  | "hayoungin"
+  | "testimony"
   | "praise-shalom"
   | "praise-hosanna"
   | "praise-zion"
@@ -111,10 +113,22 @@ export type LegacyArchiveConfig = Readonly<{
   }>>>;
 }>;
 
-const PRAISE_MP4_URL = /^https?:\/\/sermon\.joych\.org\/mp4\/[^?#]+\.mp4$/i;
-const PRAISE_FAST_URL_PATTERNS = [
+const JOYCH_MP4_URL = /^https?:\/\/sermon\.joych\.org\/mp4\/[^?#]+\.mp4$/i;
+const JOYCH_FAST_URL_PATTERNS = [
   "http://sermon.joych.org/mp4/%.mp4",
   "https://sermon.joych.org/mp4/%.mp4",
+] as const;
+const HAYOUNGIN_MP4_URL = /^https?:\/\/sermon\.joych\.org\/mp4\/special\/[^?#]+\.mp4$/i;
+const HAYOUNGIN_FAST_URL_PATTERNS = [
+  "http://sermon.joych.org/mp4/special/%.mp4",
+  "https://sermon.joych.org/mp4/special/%.mp4",
+] as const;
+const TESTIMONY_MP4_URL = /^https?:\/\/sermon\.joych\.org\/mp4\/(?:special|etc)\/[^?#]+\.mp4$/i;
+const TESTIMONY_FAST_URL_PATTERNS = [
+  "http://sermon.joych.org/mp4/special/%.mp4",
+  "https://sermon.joych.org/mp4/special/%.mp4",
+  "http://sermon.joych.org/mp4/etc/%.mp4",
+  "https://sermon.joych.org/mp4/etc/%.mp4",
 ] as const;
 
 export const PRAISE_ARCHIVE_KEYS = [
@@ -184,6 +198,46 @@ export const LEGACY_ARCHIVE_CONFIGS: Record<LegacyArchiveKey, LegacyArchiveConfi
       },
     },
   },
+  hayoungin: {
+    key: "hayoungin",
+    label: "HaYoungIn dawn-prayer sermons",
+    pageCode: "242",
+    vodType: "40",
+    playlistId: 90003,
+    expectedListCount: 111,
+    expectedVideoCount: 111,
+    newestDate: "2026-04-25",
+    oldestDate: "2018-05-14",
+    migrationId: "0103_import_legacy_hayoungin_videos_20180514_20260425",
+    namedLock: "joych:import-legacy-hayoungin-videos:90003",
+    sourceConcurrency: 5,
+    fastVerification: "minimum-range",
+    allowedMp4Url: HAYOUNGIN_MP4_URL,
+    fastUrlLikePatterns: HAYOUNGIN_FAST_URL_PATTERNS,
+    requiredSourceNums: ["12423", "6854"],
+    excludedSources: {},
+    videoUrlOverrides: {},
+  },
+  testimony: {
+    key: "testimony",
+    label: "Testimony videos",
+    pageCode: "359",
+    vodType: "69",
+    playlistId: 90004,
+    expectedListCount: 210,
+    expectedVideoCount: 210,
+    newestDate: "2026-06-26",
+    oldestDate: "2018-05-06",
+    migrationId: "0104_import_legacy_testimony_videos_20180506_20260626",
+    namedLock: "joych:import-legacy-testimony-videos:90004",
+    sourceConcurrency: 5,
+    fastVerification: "minimum-range",
+    allowedMp4Url: TESTIMONY_MP4_URL,
+    fastUrlLikePatterns: TESTIMONY_FAST_URL_PATTERNS,
+    requiredSourceNums: ["12552", "6837"],
+    excludedSources: {},
+    videoUrlOverrides: {},
+  },
   "praise-shalom": {
     key: "praise-shalom",
     label: "Sunday first-service Shalom choir",
@@ -198,8 +252,8 @@ export const LEGACY_ARCHIVE_CONFIGS: Record<LegacyArchiveKey, LegacyArchiveConfi
     namedLock: "joych:import-legacy-praise-shalom:90007",
     sourceConcurrency: 5,
     fastVerification: "minimum-range",
-    allowedMp4Url: PRAISE_MP4_URL,
-    fastUrlLikePatterns: PRAISE_FAST_URL_PATTERNS,
+    allowedMp4Url: JOYCH_MP4_URL,
+    fastUrlLikePatterns: JOYCH_FAST_URL_PATTERNS,
     requiredSourceNums: ["12584", "3229"],
     excludedSources: {
       "5622": {
@@ -228,8 +282,8 @@ export const LEGACY_ARCHIVE_CONFIGS: Record<LegacyArchiveKey, LegacyArchiveConfi
     namedLock: "joych:import-legacy-praise-hosanna:90008",
     sourceConcurrency: 5,
     fastVerification: "minimum-range",
-    allowedMp4Url: PRAISE_MP4_URL,
-    fastUrlLikePatterns: PRAISE_FAST_URL_PATTERNS,
+    allowedMp4Url: JOYCH_MP4_URL,
+    fastUrlLikePatterns: JOYCH_FAST_URL_PATTERNS,
     requiredSourceNums: ["12585", "3253"],
     excludedSources: {
       "5038": {
@@ -253,8 +307,8 @@ export const LEGACY_ARCHIVE_CONFIGS: Record<LegacyArchiveKey, LegacyArchiveConfi
     namedLock: "joych:import-legacy-praise-zion:90009",
     sourceConcurrency: 5,
     fastVerification: "minimum-range",
-    allowedMp4Url: PRAISE_MP4_URL,
-    fastUrlLikePatterns: PRAISE_FAST_URL_PATTERNS,
+    allowedMp4Url: JOYCH_MP4_URL,
+    fastUrlLikePatterns: JOYCH_FAST_URL_PATTERNS,
     requiredSourceNums: ["12586", "3254"],
     excludedSources: {},
     videoUrlOverrides: {},
@@ -273,8 +327,8 @@ export const LEGACY_ARCHIVE_CONFIGS: Record<LegacyArchiveKey, LegacyArchiveConfi
     namedLock: "joych:import-legacy-praise-joyance:90010",
     sourceConcurrency: 5,
     fastVerification: "minimum-range",
-    allowedMp4Url: PRAISE_MP4_URL,
-    fastUrlLikePatterns: PRAISE_FAST_URL_PATTERNS,
+    allowedMp4Url: JOYCH_MP4_URL,
+    fastUrlLikePatterns: JOYCH_FAST_URL_PATTERNS,
     requiredSourceNums: ["12583", "3232"],
     excludedSources: {
       "3963": {
@@ -307,8 +361,8 @@ export const LEGACY_ARCHIVE_CONFIGS: Record<LegacyArchiveKey, LegacyArchiveConfi
     namedLock: "joych:import-legacy-praise-disciples:90011",
     sourceConcurrency: 5,
     fastVerification: "minimum-range",
-    allowedMp4Url: PRAISE_MP4_URL,
-    fastUrlLikePatterns: PRAISE_FAST_URL_PATTERNS,
+    allowedMp4Url: JOYCH_MP4_URL,
+    fastUrlLikePatterns: JOYCH_FAST_URL_PATTERNS,
     requiredSourceNums: ["12591", "5033"],
     excludedSources: {},
     videoUrlOverrides: {
@@ -332,8 +386,8 @@ export const LEGACY_ARCHIVE_CONFIGS: Record<LegacyArchiveKey, LegacyArchiveConfi
     namedLock: "joych:import-legacy-praise-charis:90015",
     sourceConcurrency: 5,
     fastVerification: "minimum-range",
-    allowedMp4Url: PRAISE_MP4_URL,
-    fastUrlLikePatterns: PRAISE_FAST_URL_PATTERNS,
+    allowedMp4Url: JOYCH_MP4_URL,
+    fastUrlLikePatterns: JOYCH_FAST_URL_PATTERNS,
     requiredSourceNums: ["12567", "5035"],
     excludedSources: {},
     videoUrlOverrides: {},
@@ -352,8 +406,8 @@ export const LEGACY_ARCHIVE_CONFIGS: Record<LegacyArchiveKey, LegacyArchiveConfi
     namedLock: "joych:import-legacy-praise-rebuild:90016",
     sourceConcurrency: 5,
     fastVerification: "minimum-range",
-    allowedMp4Url: PRAISE_MP4_URL,
-    fastUrlLikePatterns: PRAISE_FAST_URL_PATTERNS,
+    allowedMp4Url: JOYCH_MP4_URL,
+    fastUrlLikePatterns: JOYCH_FAST_URL_PATTERNS,
     requiredSourceNums: ["12588", "3264"],
     excludedSources: {
       "5159": {
@@ -389,8 +443,8 @@ export const LEGACY_ARCHIVE_CONFIGS: Record<LegacyArchiveKey, LegacyArchiveConfi
     namedLock: "joych:import-legacy-praise-special:90017",
     sourceConcurrency: 5,
     fastVerification: "minimum-range",
-    allowedMp4Url: PRAISE_MP4_URL,
-    fastUrlLikePatterns: PRAISE_FAST_URL_PATTERNS,
+    allowedMp4Url: JOYCH_MP4_URL,
+    fastUrlLikePatterns: JOYCH_FAST_URL_PATTERNS,
     requiredSourceNums: ["12589", "12582", "3250"],
     excludedSources: {
       "3966": {
@@ -964,6 +1018,12 @@ function analyzeExistingRows(
   };
 }
 
+export function oldestFirstInsertOrder(videos: readonly LegacyVideo[]) {
+  // The public list uses sermonDate DESC, id DESC. Inserting oldest first keeps
+  // the source order stable when an archive contains multiple videos on one day.
+  return [...videos].reverse();
+}
+
 async function writePlaylistBackup(rows: readonly YoutubeVideoRow[]) {
   const backupDir = resolve(
     process.env.LEGACY_VIDEO_IMPORT_BACKUP_DIR?.trim()
@@ -1171,7 +1231,7 @@ async function applyImport(connection: PoolConnection, videos: readonly LegacyVi
     const analyzed = analyzeExistingRows(videos, lockedRows);
     let inserted = 0;
 
-    for (const video of analyzed.missing) {
+    for (const video of oldestFirstInsertOrder(analyzed.missing)) {
       const [result] = await connection.execute<ResultSetHeader>(
         `INSERT INTO youtube_videos (
            playlistId, videoId, videoUrl, title, preacher, scripture, sermonDate,
