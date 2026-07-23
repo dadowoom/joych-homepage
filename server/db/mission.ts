@@ -115,6 +115,17 @@ export async function updateMissionary(id: number, data: Partial<InsertMissionar
   await db.update(missionaries).set(data).where(eq(missionaries.id, id));
 }
 
+export async function reorderMissionaries(items: Array<{ id: number; sortOrder: number }>) {
+  const db = await getDb();
+  if (!db || items.length === 0) return;
+
+  await db.transaction(async (tx) => {
+    for (const item of items) {
+      await tx.update(missionaries).set({ sortOrder: item.sortOrder }).where(eq(missionaries.id, item.id));
+    }
+  });
+}
+
 export async function deleteMissionary(id: number) {
   const db = await getDb();
   if (!db) {

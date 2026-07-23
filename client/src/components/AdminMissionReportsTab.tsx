@@ -5,10 +5,27 @@
  * - 제출된 선교보고 승인/반려
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  sortableKeyboardCoordinates,
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { trpc } from "@/lib/trpc";
+import { moveMissionaryOrder } from "@/lib/missionaryOrder";
 import { toast } from "sonner";
-import { ImagePlus, Loader2, X } from "lucide-react";
+import { GripVertical, ImagePlus, Loader2, X } from "lucide-react";
 
 const MAX_MISSIONARY_PROFILE_IMAGE_BYTES = 1 * 1024 * 1024;
 const MISSIONARY_PROFILE_IMAGE_MIMES = new Set([
@@ -63,6 +80,59 @@ function getEmptyMissionaryForm(): MissionaryFormState {
     organization: "",
     profileImage: "",
   };
+}
+
+function SortableMissionaryCard({
+  id,
+  label,
+  disabled,
+  children,
+}: {
+  id: number;
+  label: string;
+  disabled: boolean;
+  children: ReactNode;
+}) {
+  const {
+    attributes,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id, disabled });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.65 : 1,
+        zIndex: isDragging ? 10 : undefined,
+      }}
+      className={`rounded-xl border bg-white p-3 ${
+        isDragging ? "border-green-300 shadow-lg" : "border-gray-100"
+      }`}
+    >
+      <div className="flex items-stretch gap-2">
+        <button
+          ref={setActivatorNodeRef}
+          type="button"
+          aria-label={`${label} 순서 이동`}
+          title="마우스로 끌어 순서 이동"
+          disabled={disabled}
+          className="flex w-7 shrink-0 touch-none cursor-grab items-center justify-center rounded-lg text-gray-300 transition hover:bg-gray-50 hover:text-gray-500 active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-40"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-5 w-5" />
+        </button>
+        <div className="min-w-0 flex-1">{children}</div>
+      </div>
+    </div>
+  );
 }
 
 function ProfileImageUploadField({
@@ -150,10 +220,16 @@ export default function AdminMissionReportsTab() {
 
   const { data: missionaries = [], isLoading: loadingMissionaries } =
     trpc.cms.missionReports.missionaries.useQuery();
+  const [missionaryOrder, setMissionaryOrder] = useState<(typeof missionaries) | null>(null);
   const { data: grants = [] } =
     trpc.cms.missionReports.authorGrants.useQuery();
   const { data: reports = [] } = trpc.cms.missionReports.reports.useQuery();
   const { data: members = [] } = trpc.cms.missionReports.members.useQuery();
+  const displayMissionaries = missionaryOrder ?? missionaries;
+  const missionarySensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const approvedMembers = useMemo(
     () => members.filter((member) => member.status === "approved"),
@@ -226,6 +302,7 @@ export default function AdminMissionReportsTab() {
       onSuccess: () => {
         toast.success("선교사/사역지가 추가됐습니다.");
         setMissionaryForm(getEmptyMissionaryForm());
+        setMissionaryOrder(null);
         utils.cms.missionReports.missionaries.invalidate();
         utils.mission.missionaries.invalidate();
       },
@@ -237,16 +314,33 @@ export default function AdminMissionReportsTab() {
     onSuccess: () => {
       toast.success("선교사/사역지가 수정됐습니다.");
       setEditingMissionaryId(null);
+      setMissionaryOrder(null);
       utils.cms.missionReports.missionaries.invalidate();
       utils.mission.missionaries.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
 
+  const reorderMissionaries = trpc.cms.missionReports.reorderMissionaries.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.cms.missionReports.missionaries.invalidate(),
+        utils.mission.missionaries.invalidate(),
+      ]);
+      setMissionaryOrder(null);
+      toast.success("선교사/사역지 순서가 저장됐습니다.");
+    },
+    onError: (error) => {
+      setMissionaryOrder(null);
+      toast.error(`순서 저장에 실패했습니다: ${error.message}`);
+    },
+  });
+
   const deleteMissionary = trpc.cms.missionReports.deleteMissionary.useMutation({
     onSuccess: () => {
       toast.success("선교사/사역지가 삭제됐습니다.");
       setEditingMissionaryId(null);
+      setMissionaryOrder(null);
       utils.cms.missionReports.missionaries.invalidate();
       utils.cms.missionReports.authorGrants.invalidate();
       utils.mission.missionaries.invalidate();
@@ -296,6 +390,21 @@ export default function AdminMissionReportsTab() {
     onError: (e) => toast.error(e.message),
   });
 
+  const handleMissionaryDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || reorderMissionaries.isPending) return;
+
+    const result = moveMissionaryOrder(
+      displayMissionaries,
+      Number(active.id),
+      Number(over.id),
+    );
+    if (!result) return;
+
+    setMissionaryOrder(result.orderedItems);
+    reorderMissionaries.mutate({ items: result.updates });
+  };
+
   const submitMissionary = () => {
     if (!missionaryForm.name.trim() || !missionaryForm.region.trim()) {
       toast.error("이름과 사역 지역을 입력해 주세요.");
@@ -306,7 +415,10 @@ export default function AdminMissionReportsTab() {
       organization: missionaryForm.organization || undefined,
       profileImage: missionaryForm.profileImage || undefined,
       isActive: true,
-      sortOrder: missionaries.length,
+      sortOrder: missionaries.reduce(
+        (highest, missionary) => Math.max(highest, missionary.sortOrder),
+        0,
+      ) + 1,
     });
   };
 
@@ -439,17 +551,40 @@ export default function AdminMissionReportsTab() {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h4 className="font-bold text-gray-800">등록된 선교사/사역지</h4>
-            <p className="mt-0.5 text-xs text-gray-500">수정하거나, 연결된 보고서가 없는 항목은 삭제할 수 있습니다.</p>
+            <p className="mt-0.5 text-xs text-gray-500">
+              왼쪽 손잡이를 마우스로 끌어 표시 순서를 바꿀 수 있습니다.
+            </p>
           </div>
-          <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-[#1B5E20]">
-            {missionaries.length}개
-          </span>
+          <div className="flex items-center gap-2">
+            {reorderMissionaries.isPending && (
+              <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> 순서 저장 중
+              </span>
+            )}
+            <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-[#1B5E20]">
+              {missionaries.length}개
+            </span>
+          </div>
         </div>
-        <div className="space-y-2">
-          {missionaries.map((missionary) => {
+        <DndContext
+          sensors={missionarySensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleMissionaryDragEnd}
+        >
+          <SortableContext
+            items={displayMissionaries.map((missionary) => missionary.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-2">
+          {displayMissionaries.map((missionary) => {
             const isEditing = editingMissionaryId === missionary.id;
             return (
-              <div key={missionary.id} className="rounded-xl border border-gray-100 bg-white p-3">
+              <SortableMissionaryCard
+                key={missionary.id}
+                id={missionary.id}
+                label={missionary.name}
+                disabled={editingMissionaryId !== null || reorderMissionaries.isPending}
+              >
                 {isEditing ? (
                   <div className="space-y-2">
                     <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
@@ -569,7 +704,7 @@ export default function AdminMissionReportsTab() {
                     </div>
                   </div>
                 )}
-              </div>
+              </SortableMissionaryCard>
             );
           })}
           {missionaries.length === 0 && (
@@ -577,7 +712,9 @@ export default function AdminMissionReportsTab() {
               등록된 선교사/사역지가 없습니다.
             </p>
           )}
-        </div>
+            </div>
+          </SortableContext>
+        </DndContext>
       </section>
 
       <section className="rounded-xl border border-gray-200 p-4">

@@ -27,6 +27,7 @@ import {
   getMissionReportById,
   getAllMissionReports,
   getMissionAuthorGrants,
+  reorderMissionaries,
   updateMissionAuthorGrant,
   updateMissionReportStatus,
   updateMissionReportWithDetails,
@@ -147,6 +148,15 @@ export const missionReportsRouter = router({
       const { id, ...data } = input;
       return updateMissionary(id, data);
     }),
+
+  reorderMissionaries: missionReportProcedure
+    .input(z.object({
+      items: z.array(z.object({
+        id: idSchema,
+        sortOrder: z.number().int().min(1).max(10000),
+      })).min(1).max(1000),
+    }))
+    .mutation(({ input }) => reorderMissionaries(input.items)),
 
   deleteMissionary: missionReportProcedure
     .input(z.object({ id: idSchema }))
