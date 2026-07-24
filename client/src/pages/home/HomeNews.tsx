@@ -23,7 +23,7 @@ const FALLBACK_SERMONS = [
     badge: "금요예배",
     title: "금요 경배의 용사들",
     date: "조이풀TV",
-    href: "/worship/tv/shekhinah",
+    href: "/page/조이풀tv-금요-경배와-용사들",
   },
 ];
 
