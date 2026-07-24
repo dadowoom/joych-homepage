@@ -409,6 +409,18 @@ export function normalizeKakaoProfile(profile: unknown): NormalizedSocialProfile
   const kakaoAccount = (data.kakao_account ?? {}) as Record<string, unknown>;
   const accountProfile = (kakaoAccount.profile ?? {}) as Record<string, unknown>;
   const properties = (data.properties ?? {}) as Record<string, unknown>;
+  const accountName =
+    typeof kakaoAccount.name === "string" && kakaoAccount.name.trim()
+      ? kakaoAccount.name.trim()
+      : null;
+  const accountNickname =
+    typeof accountProfile.nickname === "string" && accountProfile.nickname.trim()
+      ? accountProfile.nickname.trim()
+      : null;
+  const propertyNickname =
+    typeof properties.nickname === "string" && properties.nickname.trim()
+      ? properties.nickname.trim()
+      : null;
   const emailVerified =
     typeof kakaoAccount.is_email_verified === "boolean"
       ? kakaoAccount.is_email_verified
@@ -425,12 +437,7 @@ export function normalizeKakaoProfile(profile: unknown): NormalizedSocialProfile
     providerUserId: assertString(providerUserId, "Kakao profile id missing"),
     email: typeof kakaoAccount.email === "string" ? kakaoAccount.email.trim().toLowerCase() : null,
     emailVerified,
-    displayName:
-      typeof accountProfile.nickname === "string"
-        ? accountProfile.nickname
-        : typeof properties.nickname === "string"
-          ? properties.nickname
-          : null,
+    displayName: accountName ?? accountNickname ?? propertyNickname,
     profileImageUrl:
       typeof accountProfile.profile_image_url === "string"
         ? accountProfile.profile_image_url

@@ -124,6 +124,33 @@ describe("member OAuth helpers", () => {
     });
   });
 
+  it("uses the Kakao account name before a profile nickname", () => {
+    expect(normalizeKakaoProfile({
+      id: "kakao-user-with-name",
+      kakao_account: {
+        name: "  홍길동  ",
+        profile: { nickname: "길동이" },
+      },
+      properties: {
+        nickname: "카카오닉네임",
+      },
+    })).toMatchObject({
+      displayName: "홍길동",
+    });
+  });
+
+  it("falls back to a Kakao nickname when the account name is blank", () => {
+    expect(normalizeKakaoProfile({
+      id: "kakao-user-with-blank-name",
+      kakao_account: {
+        name: "   ",
+        profile: { nickname: "  기쁨성도  " },
+      },
+    })).toMatchObject({
+      displayName: "기쁨성도",
+    });
+  });
+
   it("기존 성도 이메일 자동 연결은 인증된 소셜 이메일만 허용", () => {
     expect(canUseProfileEmailForMemberAutoLink({
       email: "member@example.com",
