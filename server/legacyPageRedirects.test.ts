@@ -2,7 +2,19 @@ import { describe, expect, it, vi } from "vitest";
 import type { NextFunction, Request, Response } from "express";
 import {
   BULLETIN_PATH,
+  FRIDAY_WORSHIP_PATH,
+  HAYOUNGIN_PATH,
+  HEBRON_WORSHIP_PATH,
+  PRAISE_CHARIS_PATH,
+  PRAISE_DISCIPLES_PATH,
+  PRAISE_HOSANNA_PATH,
+  PRAISE_JOYANCE_PATH,
+  PRAISE_REBUILD_PATH,
+  PRAISE_SHALOM_PATH,
+  PRAISE_SPECIAL_PATH,
+  PRAISE_ZION_PATH,
   SUNDAY_WORSHIP_PATH,
+  TESTIMONY_PATH,
   WORSHIP_GUIDE_PATH,
   legacyPageRedirectHandler,
   resolveLegacyPageRedirect,
@@ -30,6 +42,23 @@ describe("legacy page redirects", () => {
     expect(resolveLegacyPageRedirect(["29", "30"])).toBeNull();
   });
 
+  it.each([
+    ["423", HEBRON_WORSHIP_PATH],
+    ["424", FRIDAY_WORSHIP_PATH],
+    ["242", HAYOUNGIN_PATH],
+    ["359", TESTIMONY_PATH],
+    ["192", PRAISE_SHALOM_PATH],
+    ["193", PRAISE_HOSANNA_PATH],
+    ["194", PRAISE_ZION_PATH],
+    ["181", PRAISE_JOYANCE_PATH],
+    ["319", PRAISE_DISCIPLES_PATH],
+    ["320", PRAISE_CHARIS_PATH],
+    ["183", PRAISE_REBUILD_PATH],
+    ["197", PRAISE_SPECIAL_PATH],
+  ])("maps old video pageCode=%s to its current category", (pageCode, target) => {
+    expect(resolveLegacyPageRedirect(pageCode)).toBe(target);
+  });
+
   it("returns a permanent redirect for pageCode=29", () => {
     const req = { query: { pageCode: "29" } } as unknown as Request;
     const redirect = vi.fn();
@@ -38,7 +67,10 @@ describe("legacy page redirects", () => {
 
     legacyPageRedirectHandler(req, res, next);
 
-    expect(redirect).toHaveBeenCalledWith(301, WORSHIP_GUIDE_PATH);
+    expect(redirect).toHaveBeenCalledWith(
+      301,
+      new URL(WORSHIP_GUIDE_PATH, "https://www.joych.org").toString()
+    );
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -50,7 +82,10 @@ describe("legacy page redirects", () => {
 
     legacyPageRedirectHandler(req, res, next);
 
-    expect(redirect).toHaveBeenCalledWith(301, SUNDAY_WORSHIP_PATH);
+    expect(redirect).toHaveBeenCalledWith(
+      301,
+      new URL(SUNDAY_WORSHIP_PATH, "https://www.joych.org").toString()
+    );
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -62,19 +97,39 @@ describe("legacy page redirects", () => {
 
     legacyPageRedirectHandler(req, res, next);
 
-    expect(redirect).toHaveBeenCalledWith(301, BULLETIN_PATH);
+    expect(redirect).toHaveBeenCalledWith(
+      301,
+      new URL(BULLETIN_PATH, "https://www.joych.org").toString()
+    );
     expect(next).not.toHaveBeenCalled();
   });
 
-  it("passes unrelated page codes to the existing application routes", () => {
-    const req = { query: { pageCode: "424" } } as unknown as Request;
+  it("returns a real noindex 404 page for an unverified old pageCode", () => {
+    const req = { query: { pageCode: "999999" } } as unknown as Request;
     const redirect = vi.fn();
-    const res = { redirect } as unknown as Response;
+    const send = vi.fn();
+    const setHeader = vi.fn();
+    const res = {
+      redirect,
+      send,
+      setHeader,
+      status: vi.fn(),
+      type: vi.fn(),
+    } as unknown as Response;
+    vi.mocked(res.status).mockReturnValue(res);
+    vi.mocked(res.type).mockReturnValue(res);
     const next = vi.fn() as unknown as NextFunction;
 
     legacyPageRedirectHandler(req, res, next);
 
     expect(redirect).not.toHaveBeenCalled();
-    expect(next).toHaveBeenCalledOnce();
+    expect(next).not.toHaveBeenCalled();
+    expect(setHeader).toHaveBeenCalledWith(
+      "X-Robots-Tag",
+      "noindex, nofollow"
+    );
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.type).toHaveBeenCalledWith("html");
+    expect(send).toHaveBeenCalledWith(expect.stringContaining("이전 페이지"));
   });
 });

@@ -4,6 +4,12 @@ import {
   isSiteHostname,
 } from "../../shared/siteHosts";
 import { getVisibleMenus } from "../db/menu";
+import {
+  listPublishedBulletinSeoRows,
+  listPublishedMissionReportSeoRows,
+  listPublishedTestimonySeoRows,
+  listVisiblePastorBookSeoRows,
+} from "../db/seo";
 import { isSafeHref } from "./contentValidation";
 
 type RequestWithCspNonce = Request & { cspNonce?: string };
@@ -30,6 +36,7 @@ type SeoRoute = {
   title: string;
   description: string;
   priority?: string;
+  lastModified?: Date | string | null;
 };
 
 const ROUTES: SeoRoute[] = [
@@ -181,8 +188,6 @@ const ROUTES: SeoRoute[] = [
     priority: "0.5",
   },
 ];
-
-const ROUTE_MAP = new Map(ROUTES.map(route => [route.path, route]));
 
 const EXTRA_SITEMAP_ROUTES: SeoRoute[] = [
   ...ROUTES,
@@ -416,6 +421,55 @@ const EXTRA_SITEMAP_ROUTES: SeoRoute[] = [
   },
 ];
 
+const ROUTE_MAP = new Map(
+  EXTRA_SITEMAP_ROUTES.map(route => [normalizePath(route.path), route])
+);
+
+const LEGACY_PWA_HOSTNAMES = new Set([
+  "newjoych.co.kr",
+  "www.newjoych.co.kr",
+]);
+
+const CANONICAL_PATH_ALIASES = new Map<string, string>([
+  ["/about/pastor", "/page/교회소개-담임목사-소개-담임목사인사"],
+  ["/about/history", "/page/교회소개-교회-연혁"],
+  ["/about/vision", "/page/교회소개-3대-비전-9대-전략"],
+  ["/about/staff", "/page/교회소개-섬기는-분"],
+  ["/about/directions", "/page/교회소개-오시는길"],
+  ["/worship/tv/sunday", "/page/조이풀tv-주일예배"],
+  ["/worship/tv/shekhinah", "/page/조이풀tv-금요-경배와-용사들"],
+  ["/worship/tv/hayoungin", "/page/조이풀tv-하영인"],
+  ["/worship/tv/testimony", "/page/조이풀tv-생선-간증"],
+  ["/community/news", "/page/행정지원-공지사항"],
+  ["/community/photo", "/page/커뮤니티-최근-행사-사진"],
+  ["/page/행정지원-주보-주보보기", "/worship/bulletin"],
+  ["/page/행정지원-주보보기", "/worship/bulletin"],
+  ["/page/커뮤니티-선교소식", "/mission"],
+  ["/page/커뮤니티-선교-소식", "/mission"],
+  ["/page/사역선교-선교소식", "/mission"],
+  ["/page/사역선교-선교-소식", "/mission"],
+  ["/page/선교-선교소식", "/mission"],
+  ["/page/선교-선교-소식", "/mission"],
+  ["/page/커뮤니티-생선간증", "/community/testimony"],
+  ["/page/커뮤니티-생선-간증", "/community/testimony"],
+  ["/page/커뮤니티-은혜의간증", "/community/testimony"],
+  ["/page/커뮤니티-은혜의-간증", "/community/testimony"],
+  ["/page/교회소개-담임목사-저서", "/about/pastor/books"],
+  [
+    "/page/교회소개-담임목사-소개-담임목사저서",
+    "/about/pastor/books",
+  ],
+  [
+    "/page/교회소개-담임목사-소개-담임목사-저서",
+    "/about/pastor/books",
+  ],
+  ["/page/교회소개-담임목사소개-담임목사저서", "/about/pastor/books"],
+  [
+    "/page/교회소개-담임목사소개-담임목사-저서",
+    "/about/pastor/books",
+  ],
+]);
+
 function stripTrailingSlash(value: string) {
   return value.replace(/\/+$/, "");
 }
@@ -448,6 +502,30 @@ function getRequestHost(req: Request) {
   );
 }
 
+function isLegacyPwaRequest(req: Request) {
+  const hostname = getRequestHost(req).toLowerCase().split(":")[0];
+  return LEGACY_PWA_HOSTNAMES.has(hostname);
+}
+
+function isHtmlDocumentRequest(req: Request) {
+  const method = (req.method ?? "GET").toUpperCase();
+  if (method !== "GET" && method !== "HEAD") return false;
+
+  const requestUrl = req.originalUrl || req.url || "/";
+  const pathname = requestUrl.split("?")[0] || "/";
+  if (pathname.startsWith("/api/") || /\.[a-z0-9]{1,12}$/i.test(pathname)) {
+    return false;
+  }
+
+  const accept = req.headers.accept;
+  return (
+    !accept ||
+    accept.includes("text/html") ||
+    accept.includes("application/xhtml+xml") ||
+    accept.includes("*/*")
+  );
+}
+
 export function canonicalHostRedirect(
   req: Request,
   res: Response,
@@ -468,6 +546,12 @@ export function canonicalHostRedirect(
   // Its browser navigation is handled by the client-side domain gate so that
   // service workers, push endpoints and standalone mode keep working.
   if (isSiteHostname(currentHostname)) {
+    if (
+      LEGACY_PWA_HOSTNAMES.has(currentHostname) &&
+      isHtmlDocumentRequest(req)
+    ) {
+      res.setHeader("X-Robots-Tag", "noindex, follow");
+    }
     return next();
   }
 
@@ -553,7 +637,16 @@ function buildFallbackSeo(pathname: string): SeoRoute {
   const title = pageTitle ? `${pageTitle} | ${SITE_NAME}` : SITE_TITLE;
   return {
     path: pathname,
-    title,
+    title:
+      /^\/worship\/bulletin\/\d+$/.test(pathname)
+        ? `주보 상세 | ${SITE_NAME}`
+        : /^\/mission\/\d+$/.test(pathname)
+          ? `선교보고 | ${SITE_NAME}`
+          : /^\/community\/testimony\/\d+$/.test(pathname)
+            ? `생선 간증 | ${SITE_NAME}`
+            : /^\/about\/pastor\/books\/\d+$/.test(pathname)
+              ? `담임목사 저서 | ${SITE_NAME}`
+              : title,
     description: pageTitle
       ? `${SITE_NAME} ${pageTitle} 페이지입니다.`
       : DEFAULT_DESCRIPTION,
@@ -577,6 +670,24 @@ function isPrivatePath(pathname: string) {
   );
 }
 
+function isIndexablePublicPath(pathname: string) {
+  const normalized = normalizePath(pathname);
+  return (
+    ROUTE_MAP.has(normalized) ||
+    /^\/page\/[^/]+$/.test(normalized) ||
+    /^\/worship\/bulletin\/\d+$/.test(normalized) ||
+    /^\/mission\/\d+$/.test(normalized) ||
+    /^\/community\/testimony\/\d+$/.test(normalized) ||
+    /^\/about\/pastor\/books\/\d+$/.test(normalized) ||
+    /^\/education\/courses\/[^/]+$/.test(normalized)
+  );
+}
+
+function getCanonicalPath(pathname: string) {
+  const normalized = normalizePath(pathname);
+  return CANONICAL_PATH_ALIASES.get(normalized) ?? normalized;
+}
+
 function buildUrl(pathname: string, origin: string) {
   return new URL(pathname, `${origin}/`).toString();
 }
@@ -593,7 +704,7 @@ function escapeXml(value: string) {
   return escapeHtml(value).replace(/'/g, "&apos;");
 }
 
-function buildStructuredData(canonicalUrl: string) {
+function buildStructuredData(canonicalUrl: string, seo: SeoRoute) {
   const publicOrigin = new URL(canonicalUrl).origin;
   const defaultImage = buildUrl(DEFAULT_IMAGE_PATH, publicOrigin);
   const churchId = `${publicOrigin}/#church`;
@@ -634,7 +745,8 @@ function buildStructuredData(canonicalUrl: string) {
     {
       "@context": "https://schema.org",
       "@type": "WebPage",
-      name: SITE_TITLE,
+      name: seo.title,
+      description: seo.description,
       url: canonicalUrl,
       inLanguage: "ko-KR",
       isPartOf: {
@@ -671,9 +783,13 @@ export function injectSeoMeta(html: string, req: Request) {
   const path = normalizePath(requestPath);
   const seo = getSeoRoute(path);
   const origin = getPublicOrigin(req);
-  const canonicalUrl = buildUrl(path, origin);
+  const canonicalUrl = buildUrl(getCanonicalPath(path), origin);
   const defaultImage = buildUrl(DEFAULT_IMAGE_PATH, origin);
-  const robots = isPrivatePath(path) ? "noindex, nofollow" : "index, follow";
+  const robots = isPrivatePath(path)
+    ? "noindex, nofollow"
+    : isLegacyPwaRequest(req) || !isIndexablePublicPath(path)
+      ? "noindex, follow"
+      : "index, follow";
 
   let output = html;
   output = upsertTag(
@@ -760,7 +876,7 @@ export function injectSeoMeta(html: string, req: Request) {
   const nonceAttr = nonce ? ` nonce="${escapeHtml(nonce)}"` : "";
   return output.replace(
     "</head>",
-    `    <script type="application/ld+json" data-seo="true"${nonceAttr}>${safeJsonForScript(buildStructuredData(canonicalUrl))}</script>\n  </head>`
+    `    <script type="application/ld+json" data-seo="true"${nonceAttr}>${safeJsonForScript(buildStructuredData(canonicalUrl, seo))}</script>\n  </head>`
   );
 }
 
@@ -770,8 +886,24 @@ function shouldIncludeSitemapPath(pathname: string) {
     !isPrivatePath(pathname) &&
     pathname !== "/404" &&
     !pathname.startsWith("/api/") &&
-    !pathname.includes(":")
+    !pathname.includes(":") &&
+    !decodePath(pathname).includes("테스트")
   );
+}
+
+function toInternalSitePath(href: string) {
+  const trimmed = href.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("/") && !trimmed.startsWith("//")) {
+    return normalizePath(trimmed);
+  }
+
+  try {
+    const url = new URL(trimmed);
+    return isSiteHostname(url.hostname) ? normalizePath(url.pathname) : null;
+  } catch {
+    return null;
+  }
 }
 
 function collectMenuRoutes(
@@ -780,13 +912,14 @@ function collectMenuRoutes(
   const routes: SeoRoute[] = [];
 
   for (const menu of menus) {
+    const menuPath = menu.href ? toInternalSitePath(menu.href) : null;
     if (
-      menu.href &&
-      isSafeHref(menu.href) &&
-      shouldIncludeSitemapPath(menu.href)
+      menuPath &&
+      isSafeHref(menuPath) &&
+      shouldIncludeSitemapPath(menuPath)
     ) {
       routes.push({
-        path: menu.href,
+        path: menuPath,
         title: `${menu.label} | ${SITE_NAME}`,
         description: `${SITE_NAME} ${menu.label} 페이지입니다.`,
         priority: "0.8",
@@ -794,13 +927,14 @@ function collectMenuRoutes(
     }
 
     for (const item of menu.items ?? []) {
+      const itemPath = item.href ? toInternalSitePath(item.href) : null;
       if (
-        item.href &&
-        isSafeHref(item.href) &&
-        shouldIncludeSitemapPath(item.href)
+        itemPath &&
+        isSafeHref(itemPath) &&
+        shouldIncludeSitemapPath(itemPath)
       ) {
         routes.push({
-          path: item.href,
+          path: itemPath,
           title: `${item.label} | ${SITE_NAME}`,
           description: `${SITE_NAME} ${item.label} 페이지입니다.`,
           priority: "0.7",
@@ -808,13 +942,16 @@ function collectMenuRoutes(
       }
 
       for (const subItem of item.subItems ?? []) {
+        const subItemPath = subItem.href
+          ? toInternalSitePath(subItem.href)
+          : null;
         if (
-          subItem.href &&
-          isSafeHref(subItem.href) &&
-          shouldIncludeSitemapPath(subItem.href)
+          subItemPath &&
+          isSafeHref(subItemPath) &&
+          shouldIncludeSitemapPath(subItemPath)
         ) {
           routes.push({
-            path: subItem.href,
+            path: subItemPath,
             title: `${subItem.label} | ${SITE_NAME}`,
             description: `${SITE_NAME} ${subItem.label} 페이지입니다.`,
             priority: "0.6",
@@ -827,9 +964,183 @@ function collectMenuRoutes(
   return routes;
 }
 
+const DETAIL_SECTIONS = {
+  bulletin: {
+    basePath: "/worship/bulletin",
+    menuPaths: [
+      "/worship/bulletin",
+      "/page/행정지원-주보-주보보기",
+      "/page/행정지원-주보보기",
+    ],
+  },
+  mission: {
+    basePath: "/mission",
+    menuPaths: [
+      "/mission",
+      "/page/커뮤니티-선교소식",
+      "/page/커뮤니티-선교-소식",
+      "/page/사역선교-선교소식",
+      "/page/사역선교-선교-소식",
+      "/page/선교-선교소식",
+      "/page/선교-선교-소식",
+    ],
+  },
+  testimony: {
+    basePath: "/community/testimony",
+    menuPaths: [
+      "/community/testimony",
+      "/page/커뮤니티-생선간증",
+      "/page/커뮤니티-생선-간증",
+      "/page/커뮤니티-은혜의간증",
+      "/page/커뮤니티-은혜의-간증",
+    ],
+  },
+  pastorBooks: {
+    basePath: "/about/pastor/books",
+    menuPaths: [
+      "/about/pastor/books",
+      "/page/교회소개-담임목사-저서",
+      "/page/교회소개-담임목사-소개-담임목사저서",
+      "/page/교회소개-담임목사-소개-담임목사-저서",
+      "/page/교회소개-담임목사소개-담임목사저서",
+      "/page/교회소개-담임목사소개-담임목사-저서",
+    ],
+  },
+} as const;
+
+type DetailSectionKey = keyof typeof DETAIL_SECTIONS;
+
+function collectVisibleMenuPaths(
+  menus: Awaited<ReturnType<typeof getVisibleMenus>>
+) {
+  const paths = new Set<string>();
+  const addHref = (href: string | null | undefined) => {
+    if (!href) return;
+    const pathname = toInternalSitePath(href);
+    if (pathname) paths.add(pathname);
+  };
+
+  for (const menu of menus) {
+    addHref(menu.href);
+    for (const item of menu.items ?? []) {
+      addHref(item.href);
+      for (const subItem of item.subItems ?? []) addHref(subItem.href);
+    }
+  }
+  return paths;
+}
+
+function resolvePublicDetailSections(
+  menus: Awaited<ReturnType<typeof getVisibleMenus>>
+) {
+  const publicMenuPaths = collectVisibleMenuPaths(menus);
+  const sections = new Set<DetailSectionKey>();
+
+  for (const [key, section] of Object.entries(DETAIL_SECTIONS) as Array<
+    [DetailSectionKey, (typeof DETAIL_SECTIONS)[DetailSectionKey]]
+  >) {
+    if (
+      section.menuPaths.some(path =>
+        publicMenuPaths.has(normalizePath(path))
+      )
+    ) {
+      sections.add(key);
+    }
+  }
+  return sections;
+}
+
+async function collectPublicDetailRoutes(
+  publicSections: ReadonlySet<DetailSectionKey>
+): Promise<SeoRoute[]> {
+  const tasks: Array<{
+    key: DetailSectionKey;
+    load: () => Promise<SeoRoute[]>;
+  }> = [];
+
+  if (publicSections.has("bulletin")) {
+    tasks.push({
+      key: "bulletin",
+      load: async () =>
+        (await listPublishedBulletinSeoRows()).map(bulletin => ({
+          path: `/worship/bulletin/${bulletin.id}`,
+          title: `${bulletin.title} | 기쁨의교회 주보`,
+          description: `${bulletin.bulletinDate} 기쁨의교회 주보입니다.`,
+          priority: "0.6",
+          lastModified: bulletin.updatedAt,
+        })),
+    });
+  }
+
+  if (publicSections.has("mission")) {
+    tasks.push({
+      key: "mission",
+      load: async () =>
+        (await listPublishedMissionReportSeoRows()).map(report => ({
+          path: `/mission/${report.id}`,
+          title: `${report.title} | 기쁨의교회 선교보고`,
+          description: "기쁨의교회 선교보고입니다.",
+          priority: "0.6",
+          lastModified: report.updatedAt,
+        })),
+    });
+  }
+
+  if (publicSections.has("testimony")) {
+    tasks.push({
+      key: "testimony",
+      load: async () =>
+        (await listPublishedTestimonySeoRows()).map(post => ({
+          path: `/community/testimony/${post.id}`,
+          title: `${post.title} | 기쁨의교회 생선 간증`,
+          description: "기쁨의교회 생선 간증입니다.",
+          priority: "0.6",
+          lastModified: post.updatedAt,
+        })),
+    });
+  }
+
+  if (publicSections.has("pastorBooks")) {
+    tasks.push({
+      key: "pastorBooks",
+      load: async () =>
+        (await listVisiblePastorBookSeoRows()).map(book => ({
+          path: `/about/pastor/books/${book.id}`,
+          title: `${book.title} | 기쁨의교회 담임목사 저서`,
+          description: "기쁨의교회 담임목사 저서입니다.",
+          priority: "0.5",
+          lastModified: book.updatedAt,
+        })),
+    });
+  }
+
+  const results = await Promise.allSettled(tasks.map(task => task.load()));
+  const routes: SeoRoute[] = [];
+  results.forEach((result, index) => {
+    if (result.status === "fulfilled") {
+      routes.push(...result.value);
+      return;
+    }
+    console.warn(
+      `[SEO] ${tasks[index]?.key ?? "unknown"} 상세 사이트맵 조회 실패:`,
+      result.reason
+    );
+  });
+  return routes;
+}
+
+function formatSitemapLastModified(value: Date | string | null | undefined) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
 async function buildSitemapXml(req: Request) {
   const origin = getPublicOrigin(req);
   const routeMap = new Map<string, SeoRoute>();
+  let publicDetailSections = new Set<DetailSectionKey>();
+  let menuVisibilityResolved = false;
 
   for (const route of EXTRA_SITEMAP_ROUTES) {
     if (shouldIncludeSitemapPath(route.path))
@@ -837,24 +1148,57 @@ async function buildSitemapXml(req: Request) {
   }
 
   try {
-    const menuRoutes = collectMenuRoutes(await getVisibleMenus());
-    for (const route of menuRoutes) {
-      routeMap.set(normalizePath(route.path), route);
+    const visibleMenus = await getVisibleMenus("guest");
+    if (visibleMenus.length > 0) {
+      const menuRoutes = collectMenuRoutes(visibleMenus);
+      for (const route of menuRoutes) {
+        routeMap.set(normalizePath(route.path), route);
+      }
+      publicDetailSections = resolvePublicDetailSections(visibleMenus);
+      menuVisibilityResolved = true;
+    } else {
+      console.warn(
+        "[SEO] 공개 메뉴가 비어 있어 상세 사이트맵 생성을 건너뜁니다."
+      );
     }
-  } catch {
+  } catch (error) {
+    console.warn("[SEO] 공개 메뉴 사이트맵 조회 실패:", error);
     // DB가 잠시 불안정해도 정적 핵심 경로는 유지합니다.
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  for (const [key, section] of Object.entries(DETAIL_SECTIONS) as Array<
+    [DetailSectionKey, (typeof DETAIL_SECTIONS)[DetailSectionKey]]
+  >) {
+    if (menuVisibilityResolved && !publicDetailSections.has(key)) {
+      routeMap.delete(normalizePath(section.basePath));
+    }
+    for (const menuPath of section.menuPaths) {
+      if (normalizePath(menuPath) !== normalizePath(section.basePath)) {
+        routeMap.delete(normalizePath(menuPath));
+      }
+    }
+  }
+
+  for (const route of await collectPublicDetailRoutes(publicDetailSections)) {
+    routeMap.set(normalizePath(route.path), route);
+  }
+
+  CANONICAL_PATH_ALIASES.forEach((canonical, alias) => {
+    if (routeMap.has(canonical)) routeMap.delete(alias);
+  });
+
   const urls = Array.from(routeMap.values())
     .sort((a, b) => a.path.localeCompare(b.path, "ko"))
     .map(route => {
       const loc = escapeXml(buildUrl(normalizePath(route.path), origin));
       const priority = route.priority ?? "0.5";
+      const lastModified = formatSitemapLastModified(route.lastModified);
       return [
         "  <url>",
         `    <loc>${loc}</loc>`,
-        `    <lastmod>${today}</lastmod>`,
+        ...(lastModified
+          ? [`    <lastmod>${escapeXml(lastModified)}</lastmod>`]
+          : []),
         "    <changefreq>weekly</changefreq>",
         `    <priority>${priority}</priority>`,
         "  </url>",
@@ -863,6 +1207,36 @@ async function buildSitemapXml(req: Request) {
     .join("\n");
 
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+}
+
+const SITEMAP_CACHE_TTL_MS = 5 * 60 * 1000;
+const sitemapCache = new Map<
+  string,
+  { xml: string; expiresAt: number }
+>();
+const sitemapBuilds = new Map<string, Promise<string>>();
+
+async function getCachedSitemapXml(req: Request) {
+  const cacheKey = getPublicOrigin(req);
+  const cached = sitemapCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.xml;
+
+  const existingBuild = sitemapBuilds.get(cacheKey);
+  if (existingBuild) return existingBuild;
+
+  const build = buildSitemapXml(req)
+    .then(xml => {
+      sitemapCache.set(cacheKey, {
+        xml,
+        expiresAt: Date.now() + SITEMAP_CACHE_TTL_MS,
+      });
+      return xml;
+    })
+    .finally(() => {
+      sitemapBuilds.delete(cacheKey);
+    });
+  sitemapBuilds.set(cacheKey, build);
+  return build;
 }
 
 function buildRobotsTxt(req: Request) {
@@ -890,7 +1264,7 @@ export function registerSeoUtilityRoutes(app: Express) {
   });
 
   app.get("/sitemap.xml", async (req: Request, res: Response) => {
-    const xml = await buildSitemapXml(req);
+    const xml = await getCachedSitemapXml(req);
     res
       .status(200)
       .type("application/xml")
