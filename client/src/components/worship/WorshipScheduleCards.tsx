@@ -150,7 +150,7 @@ export function WorshipScheduleCards({
           }`}
         >
           <i className="fas fa-info-circle mt-1 shrink-0" aria-hidden="true" />
-          <span className="break-keep">{content.notice}</span>
+          <span className="whitespace-pre-line break-keep">{content.notice}</span>
         </div>
       ) : null}
     </div>

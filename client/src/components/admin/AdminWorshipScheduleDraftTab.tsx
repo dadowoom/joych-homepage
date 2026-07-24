@@ -1025,8 +1025,8 @@ export default function AdminWorshipScheduleDraftTab({
                 }))
               }
               maxLength={WORSHIP_SCHEDULE_LIMITS.notice}
-              rows={3}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm leading-6 focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/15"
+              rows={7}
+              className="min-h-44 w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-sm leading-6 focus:border-[#1B5E20] focus:outline-none focus:ring-2 focus:ring-[#1B5E20]/15"
             />
             <span className="mt-1 block text-right text-xs text-gray-400">
               {content.notice.length}/{WORSHIP_SCHEDULE_LIMITS.notice}자
