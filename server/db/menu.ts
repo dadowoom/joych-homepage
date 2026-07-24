@@ -176,21 +176,34 @@ const WORSHIP_GUIDE_HREFS = new Set([
   "/page/\uAD50\uD68C\uC18C\uAC1C-\uC608\uBC30\uC548\uB0B4",
 ]);
 
-function getCanonicalPublicMenuHref(label: string | null | undefined, href: string | null | undefined) {
+export function getCanonicalPublicMenuHref(
+  label: string | null | undefined,
+  href: string | null | undefined,
+  parentLabel?: string | null
+) {
   const normalizedHref = href
     ? normalizeSameOriginHref(decodeHrefCandidate(href.trim()))
     : "";
+  const isChurchIntroWorshipGuide =
+    normalizeMenuLabel(parentLabel) === CHURCH_INTRO_LABEL &&
+    normalizeMenuLabel(label) === WORSHIP_GUIDE_LABEL;
   if (
-    normalizeMenuLabel(label) === WORSHIP_GUIDE_LABEL &&
-    WORSHIP_GUIDE_HREFS.has(normalizedHref)
+    isChurchIntroWorshipGuide ||
+    (
+      normalizeMenuLabel(label) === WORSHIP_GUIDE_LABEL &&
+      WORSHIP_GUIDE_HREFS.has(normalizedHref)
+    )
   ) {
     return WORSHIP_SCHEDULE_HREF;
   }
   return href ?? null;
 }
 
-function canonicalizePublicMenuNode<T extends { label: string; href: string | null }>(node: T): T {
-  const href = getCanonicalPublicMenuHref(node.label, node.href);
+function canonicalizePublicMenuNode<T extends { label: string; href: string | null }>(
+  node: T,
+  parentLabel?: string | null
+): T {
+  const href = getCanonicalPublicMenuHref(node.label, node.href, parentLabel);
   return href === node.href ? node : { ...node, href };
 }
 
@@ -294,7 +307,7 @@ export async function getVisibleMenus(access: MenuReadAccess = "guest") {
 
     const list = itemsByMenuId.get(item.menuId) ?? [];
     list.push({
-      ...canonicalizePublicMenuNode(item),
+      ...canonicalizePublicMenuNode(item, parentMenu.label),
       canRead: true,
       subItems: visibleSubItemsWithAccess,
     });
@@ -352,8 +365,8 @@ export async function getNavigationMenus() {
 
     const list = itemsByMenuId.get(item.menuId) ?? [];
     list.push({
-      ...canonicalizePublicMenuNode(item),
-      subItems: subItems.map(canonicalizePublicMenuNode),
+      ...canonicalizePublicMenuNode(item, parentMenu.label),
+      subItems: subItems.map((subItem) => canonicalizePublicMenuNode(subItem)),
     });
     itemsByMenuId.set(item.menuId, list);
   }
@@ -388,10 +401,12 @@ export async function getAllMenus() {
     Array<(typeof itemList)[number] & { subItems: typeof subItemList }>
   >();
   for (const item of itemList) {
+    const parentMenu = menuList.find((menu) => menu.id === item.menuId);
     const list = itemsByMenuId.get(item.menuId) ?? [];
     list.push({
-      ...canonicalizePublicMenuNode(item),
-      subItems: (subItemsByItemId.get(item.id) ?? []).map(canonicalizePublicMenuNode),
+      ...canonicalizePublicMenuNode(item, parentMenu?.label),
+      subItems: (subItemsByItemId.get(item.id) ?? [])
+        .map((subItem) => canonicalizePublicMenuNode(subItem)),
     });
     itemsByMenuId.set(item.menuId, list);
   }
