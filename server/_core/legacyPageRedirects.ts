@@ -3,6 +3,7 @@ import { PRIMARY_SITE_ORIGIN } from "../../shared/siteHosts";
 
 export const WORSHIP_GUIDE_PATH = "/worship/schedule";
 export const SUNDAY_WORSHIP_PATH = "/page/조이풀tv-주일예배";
+export const ASSOCIATE_STAFF_PATH = "/about/staff/associate";
 export const BULLETIN_PATH = "/worship/bulletin";
 export const HEBRON_WORSHIP_PATH = "/worship/tv/hebron";
 export const FRIDAY_WORSHIP_PATH = "/page/조이풀tv-금요-경배와-용사들";
@@ -21,6 +22,7 @@ export const PRAISE_REBUILD_PATH =
 export const PRAISE_SPECIAL_PATH = "/page/조이풀tv-찬양-특송";
 
 const LEGACY_PAGE_CODE_REDIRECTS: Readonly<Record<string, string>> = {
+  "2": SUNDAY_WORSHIP_PATH,
   "29": WORSHIP_GUIDE_PATH,
   "137": BULLETIN_PATH,
   "181": PRAISE_JOYANCE_PATH,
@@ -33,6 +35,8 @@ const LEGACY_PAGE_CODE_REDIRECTS: Readonly<Record<string, string>> = {
   "319": PRAISE_DISCIPLES_PATH,
   "320": PRAISE_CHARIS_PATH,
   "359": TESTIMONY_PATH,
+  "364": ASSOCIATE_STAFF_PATH,
+  "372": WORSHIP_GUIDE_PATH,
   "423": HEBRON_WORSHIP_PATH,
   "424": FRIDAY_WORSHIP_PATH,
   "425": SUNDAY_WORSHIP_PATH,

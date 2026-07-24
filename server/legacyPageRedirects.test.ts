@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { NextFunction, Request, Response } from "express";
 import {
+  ASSOCIATE_STAFF_PATH,
   BULLETIN_PATH,
   FRIDAY_WORSHIP_PATH,
   HAYOUNGIN_PATH,
@@ -35,6 +36,34 @@ describe("legacy page redirects", () => {
   it("maps the old pageCode=137 bulletin URL to the current page", () => {
     expect(resolveLegacyPageRedirect("137")).toBe(BULLETIN_PATH);
     expect(resolveLegacyPageRedirect(" 137 ")).toBe(BULLETIN_PATH);
+  });
+
+  it.each([
+    ["372", WORSHIP_GUIDE_PATH],
+    ["2", SUNDAY_WORSHIP_PATH],
+    ["364", ASSOCIATE_STAFF_PATH],
+  ])("maps requested old pageCode=%s to the exact current page", (pageCode, target) => {
+    expect(resolveLegacyPageRedirect(pageCode)).toBe(target);
+    expect(resolveLegacyPageRedirect(` ${pageCode} `)).toBe(target);
+  });
+
+  it.each([
+    ["372", WORSHIP_GUIDE_PATH],
+    ["2", SUNDAY_WORSHIP_PATH],
+    ["364", ASSOCIATE_STAFF_PATH],
+  ])("permanently redirects requested pageCode=%s to the exact current page", (pageCode, target) => {
+    const req = { query: { pageCode } } as unknown as Request;
+    const redirect = vi.fn();
+    const res = { redirect } as unknown as Response;
+    const next = vi.fn() as unknown as NextFunction;
+
+    legacyPageRedirectHandler(req, res, next);
+
+    expect(redirect).toHaveBeenCalledWith(
+      301,
+      new URL(target, "https://www.joych.org").toString()
+    );
+    expect(next).not.toHaveBeenCalled();
   });
 
   it("does not intercept unrelated or ambiguous legacy page URLs", () => {
