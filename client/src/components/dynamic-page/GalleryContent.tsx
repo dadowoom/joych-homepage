@@ -101,7 +101,6 @@ function normalizeViewMode(
 
 const MAX_GALLERY_UPLOAD_SIZE = 1 * 1024 * 1024;
 const MAX_GALLERY_UPLOAD_COUNT = 100;
-const DETAIL_GALLERY_BATCH_SIZE = 18;
 const ALLOWED_GALLERY_IMAGE_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -667,19 +666,12 @@ export function GalleryContent({
   const [isAddingDetailPhotos, setIsAddingDetailPhotos] = useState(false);
   const [mediaPhotoInput, setMediaPhotoInput] = useState("");
   const [isAddingMediaPhotos, setIsAddingMediaPhotos] = useState(false);
-  const [visibleDetailImageCount, setVisibleDetailImageCount] = useState(
-    DETAIL_GALLERY_BATCH_SIZE
-  );
   const newAlbumKeyToEditRef = useRef<string | null>(null);
   const [deletingAlbumKey, setDeletingAlbumKey] = useState<string | null>(null);
 
   useEffect(() => {
     setViewMode(normalizeViewMode(defaultViewMode));
   }, [defaultViewMode]);
-
-  useEffect(() => {
-    setVisibleDetailImageCount(DETAIL_GALLERY_BATCH_SIZE);
-  }, [detailGroup?.key]);
 
   useEffect(() => {
     if (!detailGroup) {
@@ -1432,12 +1424,6 @@ export function GalleryContent({
   if (detailGroup) {
     const listHref = buildGalleryHref(location, searchString);
     const detailVisibility = getGalleryGroupVisibility(detailGroup);
-    const visibleDetailImages = detailGroup.images.slice(
-      0,
-      visibleDetailImageCount
-    );
-    const hasMoreDetailImages =
-      visibleDetailImageCount < detailGroup.images.length;
 
     return (
       <>
@@ -1688,11 +1674,7 @@ export function GalleryContent({
               }`}
             >
               <div
-                className={
-                  isDetailEditing
-                    ? "space-y-5"
-                    : "grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
-                }
+                className="space-y-5"
               >
                 {detailGroup.images.length === 0 && (
                   <div className="col-span-full flex min-h-64 flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50 px-5 py-12 text-center">
@@ -1716,7 +1698,7 @@ export function GalleryContent({
                     )}
                   </div>
                 )}
-                {visibleDetailImages.map((image, imageIndex) => {
+                {detailGroup.images.map((image, imageIndex) => {
                   const photoStory = getPhotoStory(
                     image.caption,
                     detailGroup.title,
@@ -1728,27 +1710,21 @@ export function GalleryContent({
                   return (
                     <figure
                       key={image.id}
-                      className={`w-full max-w-none ${
-                        isDetailEditing
-                          ? ""
-                          : "overflow-hidden border border-gray-200 bg-white shadow-sm"
-                      }`}
+                      className="w-full max-w-none"
                     >
                       <button
                         type="button"
                         onClick={() =>
                           setLightbox({ groupKey: detailGroup.key, imageIndex })
                         }
-                        className="group relative block aspect-[4/3] w-full overflow-hidden bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B5E20]"
+                        className="group relative block w-full overflow-hidden bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B5E20]"
                         aria-label={`${detailGroup.title} ${imageIndex + 1}번째 사진 크게 보기`}
                       >
                         <img
                           src={image.imageUrl}
                           alt={`${detailGroup.title} ${imageIndex + 1}`}
                           loading={imageIndex === 0 ? "eager" : "lazy"}
-                          className={`h-full w-full ${
-                            isDetailEditing ? "object-contain" : "object-cover"
-                          }`}
+                          className="mx-auto h-auto w-full object-contain"
                         />
                         <span className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-[#1B5E20] opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
                           <ZoomIn className="h-4 w-4" />
@@ -1760,11 +1736,7 @@ export function GalleryContent({
                           </span>
                         )}
                       </button>
-                      <figcaption
-                        className={`flex items-center justify-between text-xs text-gray-400 ${
-                          isDetailEditing ? "mt-2" : "px-3 py-2"
-                        }`}
-                      >
+                      <figcaption className="mt-2 flex items-center justify-between text-xs text-gray-400">
                         <span>
                           {imageIndex + 1} / {detailGroup.images.length}
                         </span>
@@ -1775,11 +1747,7 @@ export function GalleryContent({
                       {photoStory && (
                         <RichTextViewer
                           html={photoStory}
-                          className={
-                            isDetailEditing
-                              ? "mx-auto mb-12 mt-10 max-w-3xl text-center text-base leading-8 text-gray-700"
-                              : "border-t border-gray-100 px-3 py-3 text-sm leading-6 text-gray-700"
-                          }
+                          className="mx-auto mb-12 mt-10 max-w-3xl text-center text-base leading-8 text-gray-700"
                         />
                       )}
                       {canManage && isDetailEditing && (
@@ -1864,36 +1832,6 @@ export function GalleryContent({
                     </figure>
                   );
                 })}
-                {hasMoreDetailImages && (
-                  <div
-                    className={
-                      isDetailEditing
-                        ? "flex justify-center pt-2"
-                        : "col-span-full flex justify-center pt-2"
-                    }
-                  >
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setVisibleDetailImageCount(current =>
-                          Math.min(
-                            current + DETAIL_GALLERY_BATCH_SIZE,
-                            detailGroup.images.length
-                          )
-                        )
-                      }
-                      className="inline-flex min-h-11 items-center justify-center border border-[#1B5E20] bg-white px-6 text-sm font-semibold text-[#1B5E20] hover:bg-[#F1F8E9]"
-                    >
-                      사진{" "}
-                      {Math.min(
-                        DETAIL_GALLERY_BATCH_SIZE,
-                        detailGroup.images.length - visibleDetailImageCount
-                      )}
-                      장 더 보기 ({visibleDetailImageCount} /{" "}
-                      {detailGroup.images.length})
-                    </button>
-                  </div>
-                )}
               </div>
 
               {canManage && isDetailEditing && (
