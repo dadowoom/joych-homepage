@@ -158,23 +158,44 @@ function ResilientGalleryImage({
     "initial"
   );
   const [hasError, setHasError] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
     setRetryToken("");
     setRetryStage("initial");
     setHasError(false);
+    setHasLoaded(false);
   }, [src]);
+
+  useEffect(() => {
+    if (
+      retryStage !== "direct" ||
+      !directChurchPhotoUrl ||
+      hasError ||
+      hasLoaded
+    ) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setHasError(true);
+    }, 5000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [directChurchPhotoUrl, hasError, hasLoaded, retryStage]);
 
   const handleError = () => {
     if (!isProxiedChurchPhoto) return;
 
     if (retryStage === "initial") {
+      setHasLoaded(false);
       setRetryStage("proxy");
       setRetryToken(`${Date.now()}-auto`);
       return;
     }
 
     if (retryStage === "proxy" && directChurchPhotoUrl) {
+      setHasLoaded(false);
       setRetryStage("direct");
       setRetryToken("");
       return;
@@ -185,6 +206,7 @@ function ResilientGalleryImage({
 
   const retryManually = () => {
     setHasError(false);
+    setHasLoaded(false);
     setRetryStage("proxy");
     setRetryToken(`${Date.now()}-manual`);
   };
@@ -236,7 +258,11 @@ function ResilientGalleryImage({
       className={className}
       loading={loading}
       onError={isProxiedChurchPhoto ? handleError : undefined}
-      onLoad={() => setHasError(false)}
+      onLoad={() => {
+        if (!isProxiedChurchPhoto) return;
+        setHasLoaded(true);
+        setHasError(false);
+      }}
       referrerPolicy={retryStage === "direct" ? "no-referrer" : undefined}
     />
   );

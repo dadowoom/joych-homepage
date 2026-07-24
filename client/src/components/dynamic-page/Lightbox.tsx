@@ -72,6 +72,7 @@ export function Lightbox({
     "initial"
   );
   const [hasImageError, setHasImageError] = useState(false);
+  const [hasImageLoaded, setHasImageLoaded] = useState(false);
 
   const applyTransform = useCallback(
     (nextScale: number, nextPosition: { x: number; y: number }) => {
@@ -132,18 +133,38 @@ export function Lightbox({
     setRetryToken("");
     setRetryStage("initial");
     setHasImageError(false);
+    setHasImageLoaded(false);
   }, [imageUrl, resetZoom]);
+
+  useEffect(() => {
+    if (
+      retryStage !== "direct" ||
+      !directChurchPhotoUrl ||
+      hasImageError ||
+      hasImageLoaded
+    ) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setHasImageError(true);
+    }, 5000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [directChurchPhotoUrl, hasImageError, hasImageLoaded, retryStage]);
 
   const handleImageError = () => {
     if (!isProxiedChurchPhoto) return;
 
     if (retryStage === "initial") {
+      setHasImageLoaded(false);
       setRetryStage("proxy");
       setRetryToken(`${Date.now()}-auto`);
       return;
     }
 
     if (retryStage === "proxy" && directChurchPhotoUrl) {
+      setHasImageLoaded(false);
       setRetryStage("direct");
       setRetryToken("");
       return;
@@ -154,6 +175,7 @@ export function Lightbox({
 
   const retryImageManually = () => {
     setHasImageError(false);
+    setHasImageLoaded(false);
     setRetryStage("proxy");
     setRetryToken(`${Date.now()}-manual`);
   };
@@ -344,7 +366,11 @@ export function Lightbox({
             className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] select-none rounded-lg object-contain shadow-2xl will-change-transform"
             draggable={false}
             onError={isProxiedChurchPhoto ? handleImageError : undefined}
-            onLoad={() => setHasImageError(false)}
+            onLoad={() => {
+              if (!isProxiedChurchPhoto) return;
+              setHasImageLoaded(true);
+              setHasImageError(false);
+            }}
             referrerPolicy={retryStage === "direct" ? "no-referrer" : undefined}
           />
         )}
