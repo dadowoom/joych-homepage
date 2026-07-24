@@ -109,8 +109,16 @@ export function WorshipScheduleCards({
                         </p>
                       ) : null}
                     </div>
-                    <div className="min-w-0 max-w-[52vw] text-right sm:max-w-52">
-                      <span className="block whitespace-normal break-words text-base font-bold text-gray-900 [overflow-wrap:anywhere]">
+                    <div className="shrink-0 text-right">
+                      <span
+                        className={`block whitespace-nowrap font-bold text-gray-900 ${
+                          useCompactLayout
+                            ? "text-sm"
+                            : forceDesktop
+                              ? "text-base"
+                              : "text-sm sm:text-base"
+                        }`}
+                      >
                         {entry.time || "시간"}
                       </span>
                       {entry.note && !useCompactLayout ? (
