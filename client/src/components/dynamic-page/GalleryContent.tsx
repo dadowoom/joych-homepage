@@ -25,6 +25,7 @@ import {
   ChevronDown,
   ChevronUp,
   GripVertical,
+  ImageOff,
   Images,
   LayoutGrid,
   Loader2,
@@ -107,6 +108,152 @@ const ALLOWED_GALLERY_IMAGE_TYPES = new Set([
   "image/webp",
   "image/gif",
 ]);
+
+function isChurchPhotoProxyUrl(imageUrl: string) {
+  return /\/api\/church-photo\//i.test(imageUrl);
+}
+
+function getChurchPhotoDirectUrl(imageUrl: string) {
+  const match = imageUrl.match(/\/api\/church-photo\/([^?#]+)/i);
+  return match ? `https://photo.joych.org/${match[1]}` : null;
+}
+
+function withGalleryRetryToken(imageUrl: string, retryToken: string) {
+  if (!retryToken) return imageUrl;
+
+  const hashIndex = imageUrl.indexOf("#");
+  const hash = hashIndex >= 0 ? imageUrl.slice(hashIndex) : "";
+  const urlWithoutHash =
+    hashIndex >= 0 ? imageUrl.slice(0, hashIndex) : imageUrl;
+  const separator = urlWithoutHash.includes("?") ? "&" : "?";
+
+  return `${urlWithoutHash}${separator}galleryRetry=${encodeURIComponent(retryToken)}${hash}`;
+}
+
+function ResilientGalleryImage({
+  src,
+  alt,
+  className,
+  loading,
+  fallbackClassName,
+  compact = false,
+  onActivate,
+  activateLabel,
+  interactiveClassName,
+}: {
+  src: string;
+  alt: string;
+  className: string;
+  loading?: "eager" | "lazy";
+  fallbackClassName?: string;
+  compact?: boolean;
+  onActivate?: () => void;
+  activateLabel?: string;
+  interactiveClassName?: string;
+}) {
+  const isProxiedChurchPhoto = isChurchPhotoProxyUrl(src);
+  const directChurchPhotoUrl = getChurchPhotoDirectUrl(src);
+  const [retryToken, setRetryToken] = useState("");
+  const [retryStage, setRetryStage] = useState<"initial" | "proxy" | "direct">(
+    "initial"
+  );
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setRetryToken("");
+    setRetryStage("initial");
+    setHasError(false);
+  }, [src]);
+
+  const handleError = () => {
+    if (!isProxiedChurchPhoto) return;
+
+    if (retryStage === "initial") {
+      setRetryStage("proxy");
+      setRetryToken(`${Date.now()}-auto`);
+      return;
+    }
+
+    if (retryStage === "proxy" && directChurchPhotoUrl) {
+      setRetryStage("direct");
+      setRetryToken("");
+      return;
+    }
+
+    setHasError(true);
+  };
+
+  const retryManually = () => {
+    setHasError(false);
+    setRetryStage("proxy");
+    setRetryToken(`${Date.now()}-manual`);
+  };
+
+  if (isProxiedChurchPhoto && hasError) {
+    if (compact) {
+      return (
+        <button
+          type="button"
+          onClick={retryManually}
+          className={`flex shrink-0 items-center justify-center bg-gray-100 text-gray-500 hover:bg-gray-200 ${fallbackClassName ?? ""}`}
+          aria-label={`${alt} 다시 불러오기`}
+          title="사진을 불러오지 못했습니다. 다시 시도"
+        >
+          <ImageOff className="h-4 w-4" aria-hidden="true" />
+        </button>
+      );
+    }
+
+    return (
+      <div
+        className={`flex w-full flex-col items-center justify-center gap-2 bg-gray-100 px-3 py-6 text-center text-gray-500 ${fallbackClassName ?? ""}`}
+        role="status"
+        aria-live="polite"
+      >
+        <ImageOff className="h-7 w-7 text-gray-400" aria-hidden="true" />
+        <span className="text-sm font-semibold">
+          사진을 불러오지 못했습니다.
+        </span>
+        <button
+          type="button"
+          onClick={retryManually}
+          className="rounded border border-[#1B5E20] bg-white px-3 py-1.5 text-xs font-semibold text-[#1B5E20] hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B5E20]"
+        >
+          다시 시도
+        </button>
+      </div>
+    );
+  }
+
+  const image = (
+    <img
+      src={
+        retryStage === "direct" && directChurchPhotoUrl
+          ? directChurchPhotoUrl
+          : withGalleryRetryToken(src, retryToken)
+      }
+      alt={alt}
+      className={className}
+      loading={loading}
+      onError={isProxiedChurchPhoto ? handleError : undefined}
+      onLoad={() => setHasError(false)}
+      referrerPolicy={retryStage === "direct" ? "no-referrer" : undefined}
+    />
+  );
+
+  if (!onActivate) return image;
+
+  return (
+    <button
+      type="button"
+      onClick={onActivate}
+      className={interactiveClassName}
+      aria-label={activateLabel || alt}
+    >
+      {image}
+    </button>
+  );
+}
 
 function getAlbumTitle(item: GalleryItem) {
   return item.albumTitle?.trim() || "최근 행사 사진";
@@ -412,11 +559,13 @@ function SortableGalleryOrderItem({
       >
         <GripVertical className="h-4 w-4" />
       </button>
-      <img
+      <ResilientGalleryImage
         src={item.imageUrl}
         alt={item.caption || `${title} ${index + 1}`}
         className="h-12 w-16 shrink-0 object-cover"
         loading="lazy"
+        compact
+        fallbackClassName="h-12 w-16"
       />
       <div className="min-w-0 flex-1">
         <span className="inline-flex h-5 min-w-5 items-center justify-center bg-[#1B5E20] px-1 text-white">
@@ -470,11 +619,13 @@ function SortableGalleryAlbumOrderItem({
         <GripVertical className="h-4 w-4" />
       </button>
       {thumbnail ? (
-        <img
+        <ResilientGalleryImage
           src={thumbnail.imageUrl}
           alt={group.title}
           className="h-12 w-16 shrink-0 object-cover"
           loading="lazy"
+          compact
+          fallbackClassName="h-12 w-16"
         />
       ) : (
         <span className="flex h-12 w-16 shrink-0 items-center justify-center bg-gray-100 text-gray-300">
@@ -1226,6 +1377,7 @@ export function GalleryContent({
 
     return (
       <Lightbox
+        key={activeLightboxImage.imageUrl}
         imageUrl={activeLightboxImage.imageUrl}
         alt={activeLightboxGroup.title}
         caption={activeLightboxGroup.title}
@@ -1673,9 +1825,7 @@ export function GalleryContent({
                 isDetailEditing ? "lg:grid-cols-[minmax(0,1fr)_260px]" : ""
               }`}
             >
-              <div
-                className="space-y-5"
-              >
+              <div className="space-y-5">
                 {detailGroup.images.length === 0 && (
                   <div className="col-span-full flex min-h-64 flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50 px-5 py-12 text-center">
                     <Images className="mb-3 h-10 w-10 text-gray-300" />
@@ -1708,34 +1858,33 @@ export function GalleryContent({
                     image.id === getGalleryGroupCover(detailGroup)?.id;
 
                   return (
-                    <figure
-                      key={image.id}
-                      className="w-full max-w-none"
-                    >
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setLightbox({ groupKey: detailGroup.key, imageIndex })
-                        }
-                        className="group relative block w-full overflow-hidden bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B5E20]"
-                        aria-label={`${detailGroup.title} ${imageIndex + 1}번째 사진 크게 보기`}
-                      >
-                        <img
+                    <figure key={image.id} className="w-full max-w-none">
+                      <div className="group relative block w-full overflow-hidden bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B5E20]">
+                        <ResilientGalleryImage
                           src={image.imageUrl}
                           alt={`${detailGroup.title} ${imageIndex + 1}`}
                           loading={imageIndex === 0 ? "eager" : "lazy"}
                           className="mx-auto h-auto w-full object-contain"
+                          fallbackClassName="min-h-48 sm:min-h-72"
+                          onActivate={() =>
+                            setLightbox({
+                              groupKey: detailGroup.key,
+                              imageIndex,
+                            })
+                          }
+                          activateLabel={`${detailGroup.title} ${imageIndex + 1}번째 사진 크게 보기`}
+                          interactiveClassName="block w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B5E20]"
                         />
-                        <span className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-[#1B5E20] opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
+                        <span className="pointer-events-none absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-[#1B5E20] opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
                           <ZoomIn className="h-4 w-4" />
                         </span>
                         {canManage && isCoverPhoto && (
-                          <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-[#1B5E20] px-3 py-1.5 text-xs font-semibold text-white shadow-sm">
+                          <span className="pointer-events-none absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-[#1B5E20] px-3 py-1.5 text-xs font-semibold text-white shadow-sm">
                             <Star className="h-3.5 w-3.5 fill-current" />
                             대표사진
                           </span>
                         )}
-                      </button>
+                      </div>
                       <figcaption className="mt-2 flex items-center justify-between text-xs text-gray-400">
                         <span>
                           {imageIndex + 1} / {detailGroup.images.length}
@@ -2103,21 +2252,18 @@ export function GalleryContent({
                       key={group.key}
                       className={`relative text-center ${canManage && visibility !== "visible" ? "opacity-75" : ""}`}
                     >
-                      <a
-                        href={detailHref}
-                        onClick={event => {
-                          event.preventDefault();
-                          navigate(detailHref);
-                        }}
-                        className="group block focus:outline-none"
-                      >
-                        <span className="mx-auto block overflow-hidden bg-gray-100 ring-1 ring-gray-200 transition group-hover:ring-[#86C5D8]">
+                      <div className="group block">
+                        <div className="mx-auto overflow-hidden bg-gray-100 ring-1 ring-gray-200 transition group-hover:ring-[#86C5D8]">
                           {thumbnail ? (
-                            <img
+                            <ResilientGalleryImage
                               src={thumbnail.imageUrl}
                               alt={group.title}
                               loading="lazy"
                               className="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-105"
+                              fallbackClassName="aspect-[4/3]"
+                              onActivate={() => navigate(detailHref)}
+                              activateLabel={`${group.title} 앨범 열기`}
+                              interactiveClassName="block w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B5E20]"
                             />
                           ) : (
                             <span className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-2 text-gray-300">
@@ -2125,11 +2271,18 @@ export function GalleryContent({
                               <span className="text-xs">사진 추가 대기</span>
                             </span>
                           )}
-                        </span>
-                        <span className="mt-2 block break-keep text-xs leading-5 text-gray-700 group-hover:text-[#1B5E20]">
+                        </div>
+                        <a
+                          href={detailHref}
+                          onClick={event => {
+                            event.preventDefault();
+                            navigate(detailHref);
+                          }}
+                          className="mt-2 block break-keep text-xs leading-5 text-gray-700 hover:text-[#1B5E20] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B5E20]"
+                        >
                           {group.title}
-                        </span>
-                      </a>
+                        </a>
+                      </div>
                       {canManage && visibility !== "visible" && (
                         <span className="absolute left-2 top-2 inline-flex rounded-full bg-gray-900/80 px-2 py-1 text-[11px] font-semibold text-white shadow-sm">
                           {visibility === "hidden" ? "숨김" : "부분 숨김"}
