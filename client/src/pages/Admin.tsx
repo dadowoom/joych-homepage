@@ -147,11 +147,11 @@ const TABS: TabItem[] = [
   },
   {
     id: "worshipScheduleDraft",
-    label: "예배시간(beta)",
+    label: "예배 안내",
     icon: "fa-calendar-days",
     description:
-      "관리자 전용 예배시간(beta) 메뉴에 표시할 예배 블록과 시간을 편집합니다. 기존 공개 예배시간 페이지에는 반영되지 않습니다.",
-    status: "관리자 전용",
+      "교회소개 메뉴의 예배 안내에 표시할 예배 블록과 시간을 편집합니다.",
+    status: "관리자만 수정",
   },
   {
     id: "youtube",

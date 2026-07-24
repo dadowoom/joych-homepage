@@ -21,9 +21,10 @@ import {
 } from "./_core/legacyPageRedirects";
 
 describe("legacy page redirects", () => {
-  it("maps the old pageCode=29 worship guide URL to the current page", () => {
+  it("maps the old pageCode=29 worship guide URL to the official schedule", () => {
     expect(resolveLegacyPageRedirect("29")).toBe(WORSHIP_GUIDE_PATH);
     expect(resolveLegacyPageRedirect(" 29 ")).toBe(WORSHIP_GUIDE_PATH);
+    expect(WORSHIP_GUIDE_PATH).toBe("/worship/schedule");
   });
 
   it("maps the old pageCode=425 Sunday worship URL to the current page", () => {

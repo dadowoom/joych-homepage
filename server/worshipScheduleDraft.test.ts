@@ -101,10 +101,41 @@ describe("worship schedule draft validation", () => {
     const memberCaller = appRouter.createCaller(createContext("user"));
     try {
       await memberCaller.cms.worshipSchedule.getDraft();
-      expect.fail("일반 사용자는 관리자 체험 초안을 조회할 수 없어야 합니다.");
+      expect.fail("일반 사용자는 관리자 편집 데이터를 조회할 수 없어야 합니다.");
     } catch (error) {
       expect(error).toBeInstanceOf(TRPCError);
       expect((error as TRPCError).code).toBe("FORBIDDEN");
+    }
+  });
+
+  it("allows visitors and members to read only the published schedule content", async () => {
+    const anonymousCaller = appRouter.createCaller(createContext(null));
+    const memberCaller = appRouter.createCaller(createContext("user"));
+
+    const [anonymousResult, memberResult] = await Promise.all([
+      anonymousCaller.cms.worshipSchedule.getPublished(),
+      memberCaller.cms.worshipSchedule.getPublished(),
+    ]);
+
+    expect(anonymousResult.content).toEqual(DEFAULT_WORSHIP_SCHEDULE_DRAFT);
+    expect(memberResult.content).toEqual(DEFAULT_WORSHIP_SCHEDULE_DRAFT);
+    expect(anonymousResult).not.toHaveProperty("updatedBy");
+    expect(anonymousResult).not.toHaveProperty("revision");
+  });
+
+  it("blocks non-administrators from saving the published schedule", async () => {
+    const content = cloneWorshipScheduleContent(
+      DEFAULT_WORSHIP_SCHEDULE_DRAFT,
+    );
+
+    for (const role of [null, "user"] as const) {
+      const caller = appRouter.createCaller(createContext(role));
+      await expect(
+        caller.cms.worshipSchedule.saveDraft({
+          content,
+          expectedRevision: null,
+        }),
+      ).rejects.toBeInstanceOf(TRPCError);
     }
   });
 });

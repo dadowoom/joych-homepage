@@ -1,5 +1,5 @@
-export const WORSHIP_SCHEDULE_DRAFT_HREF = "/worship/schedule";
-export const WORSHIP_SCHEDULE_BETA_HREF = "/worship/schedule-beta";
+export const WORSHIP_SCHEDULE_HREF = "/worship/schedule";
+export const WORSHIP_SCHEDULE_LEGACY_BETA_HREF = "/worship/schedule-beta";
 export const WORSHIP_SCHEDULE_SETTING_PREFIX = "worship_schedule:";
 export const WORSHIP_SCHEDULE_DRAFT_SETTING_KEY =
   `${WORSHIP_SCHEDULE_SETTING_PREFIX}draft`;
@@ -58,8 +58,8 @@ export type WorshipScheduleContent = {
 };
 
 /**
- * 관리자 체험판의 초기 예시입니다.
- * 공개 `/worship/schedule` 화면은 공식 전환 전까지 이 값을 사용하지 않습니다.
+ * 예배 안내 편집 화면의 초기 예시입니다.
+ * 아직 저장된 설정이 없을 때 공개 화면과 관리자 편집 화면에 함께 사용합니다.
  */
 export const DEFAULT_WORSHIP_SCHEDULE_DRAFT: WorshipScheduleContent = {
   sections: [

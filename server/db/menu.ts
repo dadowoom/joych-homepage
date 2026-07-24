@@ -14,6 +14,10 @@
 
 import { eq, asc, and, sql } from "drizzle-orm";
 import { SITE_HOSTNAMES, isSiteHostname } from "@shared/siteHosts";
+import {
+  WORSHIP_SCHEDULE_HREF,
+  WORSHIP_SCHEDULE_LEGACY_BETA_HREF,
+} from "@shared/worshipSchedule";
 import { menus, menuItems, menuSubItems } from "../../drizzle/schema";
 import { getDb } from "./connection";
 
@@ -164,15 +168,23 @@ function normalizeMenuLabel(label: string | null | undefined) {
 
 const CHURCH_INTRO_LABEL = "\uAD50\uD68C\uC18C\uAC1C";
 const WORSHIP_GUIDE_LABEL = "\uC608\uBC30\uC548\uB0B4";
-const WORSHIP_GUIDE_CANONICAL_HREF = "/page/\uAD50\uD68C\uC18C\uAC1C-\uC608\uBC30-\uC548\uB0B4";
+const WORSHIP_GUIDE_LEGACY_HREF = "/page/\uAD50\uD68C\uC18C\uAC1C-\uC608\uBC30-\uC548\uB0B4";
 const WORSHIP_GUIDE_HREFS = new Set([
-  WORSHIP_GUIDE_CANONICAL_HREF,
+  WORSHIP_SCHEDULE_HREF,
+  WORSHIP_SCHEDULE_LEGACY_BETA_HREF,
+  WORSHIP_GUIDE_LEGACY_HREF,
   "/page/\uAD50\uD68C\uC18C\uAC1C-\uC608\uBC30\uC548\uB0B4",
 ]);
 
 function getCanonicalPublicMenuHref(label: string | null | undefined, href: string | null | undefined) {
-  if (normalizeMenuLabel(label) === WORSHIP_GUIDE_LABEL) {
-    return WORSHIP_GUIDE_CANONICAL_HREF;
+  const normalizedHref = href
+    ? normalizeSameOriginHref(decodeHrefCandidate(href.trim()))
+    : "";
+  if (
+    normalizeMenuLabel(label) === WORSHIP_GUIDE_LABEL &&
+    WORSHIP_GUIDE_HREFS.has(normalizedHref)
+  ) {
+    return WORSHIP_SCHEDULE_HREF;
   }
   return href ?? null;
 }
@@ -959,7 +971,7 @@ export async function getMenuAccessByHref(href: string, access: MenuReadAccess =
         kind: "item" as const,
         id: item.id,
         label: item.label,
-        href: WORSHIP_GUIDE_CANONICAL_HREF,
+        href: WORSHIP_SCHEDULE_HREF,
         topMenu: {
           id: parent.id,
           label: parent.label,

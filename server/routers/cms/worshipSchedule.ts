@@ -10,7 +10,7 @@ import {
   cloneWorshipScheduleContent,
 } from "@shared/worshipSchedule";
 import { compareAndSwapSiteSetting, getSiteSetting } from "../../db";
-import { adminProcedure, router } from "../../_core/trpc";
+import { adminProcedure, publicProcedure, router } from "../../_core/trpc";
 
 const draftIdSchema = z
   .string()
@@ -110,8 +110,29 @@ function defaultDraftResponse() {
 
 export const worshipScheduleRouter = router({
   /**
-   * 최고관리자 체험용 초안입니다.
-   * 공개 `/worship/schedule`에서는 이 값을 읽지 않으므로 저장해도 공개 화면은 바뀌지 않습니다.
+   * 공개 예배 안내 화면에 필요한 내용만 반환합니다.
+   * 수정자 정보와 revision은 공개하지 않습니다.
+   */
+  getPublished: publicProcedure.query(async () => {
+    const row = await getSiteSetting(WORSHIP_SCHEDULE_DRAFT_SETTING_KEY);
+    if (!row) {
+      return {
+        content: cloneWorshipScheduleContent(DEFAULT_WORSHIP_SCHEDULE_DRAFT),
+      };
+    }
+    const stored = parseStoredDraft(row.settingValue);
+    if (!stored) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message:
+          "저장된 예배 안내의 형식을 확인할 수 없습니다. 개발 담당자에게 확인해 주세요.",
+      });
+    }
+    return { content: stored.content };
+  }),
+
+  /**
+   * 최고관리자 편집용 데이터입니다.
    */
   getDraft: adminProcedure.query(async () => {
     const row = await getSiteSetting(WORSHIP_SCHEDULE_DRAFT_SETTING_KEY);
@@ -121,7 +142,7 @@ export const worshipScheduleRouter = router({
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message:
-          "저장된 예배시간 체험 초안의 형식을 확인할 수 없습니다. 기존 자료 보호를 위해 개발 담당자에게 확인해 주세요.",
+          "저장된 예배 안내의 형식을 확인할 수 없습니다. 기존 자료 보호를 위해 개발 담당자에게 확인해 주세요.",
       });
     }
     return {
@@ -146,7 +167,7 @@ export const worshipScheduleRouter = router({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message:
-            "저장된 예배시간 체험 초안의 형식을 확인할 수 없습니다. 기존 자료 보호를 위해 저장을 중단했습니다.",
+            "저장된 예배 안내의 형식을 확인할 수 없습니다. 기존 자료 보호를 위해 저장을 중단했습니다.",
         });
       }
       const currentRevision = current?.revision ?? null;
@@ -155,7 +176,7 @@ export const worshipScheduleRouter = router({
         throw new TRPCError({
           code: "CONFLICT",
           message:
-            "다른 창이나 기기에서 초안이 먼저 수정되었습니다. 서버 초안을 다시 불러온 뒤 수정해주세요.",
+            "다른 창이나 기기에서 예배 안내가 먼저 수정되었습니다. 서버 내용을 다시 불러온 뒤 수정해주세요.",
         });
       }
 
@@ -170,7 +191,7 @@ export const worshipScheduleRouter = router({
       if (Buffer.byteLength(storedValue, "utf8") > 60_000) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "예배시간 체험 초안의 전체 내용이 너무 큽니다.",
+          message: "예배 안내의 전체 내용이 너무 큽니다.",
         });
       }
 
@@ -183,14 +204,14 @@ export const worshipScheduleRouter = router({
         throw new TRPCError({
           code: "CONFLICT",
           message:
-            "다른 창이나 기기에서 초안이 먼저 수정되었습니다. 서버 초안을 다시 불러온 뒤 수정해 주세요.",
+            "다른 창이나 기기에서 예배 안내가 먼저 수정되었습니다. 서버 내용을 다시 불러온 뒤 수정해 주세요.",
         });
       }
       if (saveResult === "unavailable") {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message:
-            "예배시간 체험 초안을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+            "예배 안내를 저장할 수 없습니다. 잠시 후 다시 시도해 주세요.",
         });
       }
       return {

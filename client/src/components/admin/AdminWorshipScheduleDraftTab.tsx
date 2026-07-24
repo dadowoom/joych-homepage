@@ -217,6 +217,7 @@ export default function AdminWorshipScheduleDraftTab({
   pageMode = false,
 }: AdminWorshipScheduleDraftTabProps) {
   const { user } = useAuth();
+  const utils = trpc.useUtils();
   const localWorkingDraftKey = `${LOCAL_WORKING_DRAFT_KEY_PREFIX}:${user?.id ?? "admin"}`;
   const [content, setContent] = useState<WorshipScheduleContent>(() =>
     cloneWorshipScheduleContent(DEFAULT_WORSHIP_SCHEDULE_DRAFT),
@@ -309,9 +310,8 @@ export default function AdminWorshipScheduleDraftTab({
     onSuccess: result => {
       clearLocalWorkingDraft(localWorkingDraftKey);
       hydrate(result, false);
-      toast.success(
-        "예배시간(beta)을 저장했습니다. 관리자 전용 beta 화면에 바로 반영됩니다.",
-      );
+      void utils.cms.worshipSchedule.getPublished.invalidate();
+      toast.success("예배 안내를 저장했습니다. 공개 화면에 바로 반영됩니다.");
     },
     onError: error => {
       toast.error(error.message);
@@ -502,7 +502,7 @@ export default function AdminWorshipScheduleDraftTab({
   const closeInlineEditing = () => {
     if (isDirty) {
       toast.error(
-        "변경사항을 먼저 저장하거나 서버 초안을 다시 불러온 뒤 편집을 닫아주세요.",
+        "변경사항을 먼저 저장하거나 서버 내용을 다시 불러온 뒤 편집을 닫아주세요.",
       );
       return;
     }
@@ -513,7 +513,7 @@ export default function AdminWorshipScheduleDraftTab({
   const reloadServerDraft = async () => {
     if (
       isDirty &&
-      !window.confirm("저장하지 않은 변경사항을 버리고 서버 초안을 다시 불러올까요?")
+      !window.confirm("저장하지 않은 변경사항을 버리고 서버 내용을 다시 불러올까요?")
     ) {
       return;
     }
@@ -521,14 +521,14 @@ export default function AdminWorshipScheduleDraftTab({
     if (result.data) {
       clearLocalWorkingDraft(localWorkingDraftKey);
       hydrate(result.data, false);
-      toast.success("서버에 저장된 체험 초안을 다시 불러왔습니다.");
+      toast.success("서버에 저장된 예배 안내를 다시 불러왔습니다.");
     }
   };
 
   const loadExample = () => {
     if (
       !window.confirm(
-        "현재 편집 내용을 현행 예배시간이 아닌 샘플 데이터로 바꿀까요?\n\n이 자료는 사용법 체험용이며, 실제 최신 예배시간과 다를 수 있습니다. 체험 초안 저장 버튼을 누르기 전까지 서버에는 반영되지 않습니다.",
+        "현재 편집 내용을 샘플 데이터로 바꿀까요?\n\n샘플은 실제 최신 예배시간과 다를 수 있습니다. 저장 버튼을 누르기 전까지 공개 화면에는 반영되지 않습니다.",
       )
     ) {
       return;
@@ -541,7 +541,7 @@ export default function AdminWorshipScheduleDraftTab({
       <div className="flex min-h-64 items-center justify-center">
         <div className="text-center">
           <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-[#1B5E20] border-t-transparent" />
-          <p className="text-sm text-gray-500">예배시간(beta)을 불러오고 있습니다.</p>
+          <p className="text-sm text-gray-500">예배 안내를 불러오고 있습니다.</p>
         </div>
       </div>
     );
@@ -550,7 +550,7 @@ export default function AdminWorshipScheduleDraftTab({
   if (query.error && !hasHydrated) {
     return (
       <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
-        <p className="font-bold">예배시간(beta)을 불러오지 못했습니다.</p>
+        <p className="font-bold">예배 안내를 불러오지 못했습니다.</p>
         <p className="mt-1">{query.error.message}</p>
         <button
           type="button"
@@ -568,19 +568,18 @@ export default function AdminWorshipScheduleDraftTab({
       <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 sm:p-5">
         <div className="flex items-start gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-amber-600 shadow-sm">
-            <i className="fas fa-flask" aria-hidden="true" />
+            <i className="fas fa-calendar-days" aria-hidden="true" />
           </span>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-bold text-gray-900">관리자 전용 예배시간(beta)</h3>
+              <h3 className="font-bold text-gray-900">예배 안내 편집</h3>
               <span className="rounded-full bg-amber-200 px-2.5 py-1 text-xs font-bold text-amber-900">
-                관리자만 노출
+                관리자만 수정
               </span>
             </div>
             <p className="mt-1 break-keep text-sm leading-6 text-amber-900">
-              관리자페이지에 저장한 내용이 이 beta 메뉴에 그대로 표시됩니다.
-              여기서 수정해 저장하면 beta 화면에는 바로 반영되며, 현재 성도에게
-              공개 중인 예배시간 안내 페이지에는 영향을 주지 않습니다.
+              여기서 저장한 내용은 교회소개 &gt; 예배 안내 공개 화면에 바로
+              반영됩니다. 일반 방문자는 내용을 볼 수 있지만 수정할 수 없습니다.
             </p>
           </div>
         </div>
@@ -596,7 +595,7 @@ export default function AdminWorshipScheduleDraftTab({
                 {lastSavedBy ? ` · ${lastSavedBy}` : ""}
               </p>
               <p className="mt-1 text-xs text-gray-500">
-                현재 beta 메뉴에 표시되는 실제 모습입니다.
+                현재 공개 예배 안내에 표시되는 실제 모습입니다.
               </p>
             </div>
             <button
@@ -625,7 +624,7 @@ export default function AdminWorshipScheduleDraftTab({
           <p className={`mt-1 text-xs font-semibold ${isDirty ? "text-amber-600" : "text-[#1B5E20]"}`}>
             {isDirty
               ? "저장하지 않은 변경사항이 있습니다. 이 브라우저에 자동 임시보관 중입니다."
-              : "서버 초안과 동일합니다."}
+              : "서버에 저장된 내용과 동일합니다."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -636,7 +635,7 @@ export default function AdminWorshipScheduleDraftTab({
             className="min-h-10 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
             <i className="fas fa-rotate mr-1.5" aria-hidden="true" />
-            서버 초안 다시 불러오기
+            서버 내용 다시 불러오기
           </button>
           {!pageMode ? (
             <button

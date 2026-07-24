@@ -12,7 +12,6 @@ import { isExternalSiteHref, normalizeSiteHref } from "@/lib/siteHref";
 import { finishDomainLogout } from "@/lib/mainHomepageDomain";
 import { getManagementPageHref } from "@/lib/managementEntry";
 import { toFallbackMenuTree } from "@shared/siteNavigation";
-import { WORSHIP_SCHEDULE_BETA_HREF } from "@shared/worshipSchedule";
 import { useLanguage, translateSiteText } from "@/contexts/LanguageContext";
 
 function getUsableHref(href?: string | null) {
@@ -135,51 +134,6 @@ type HeaderTopMenu = {
   items?: HeaderSecondLevelItem[];
 };
 
-const ADMIN_WORSHIP_BETA_MENU_ID = -2026072401;
-
-function withAdminWorshipBetaMenu(
-  menus: HeaderTopMenu[],
-  isAdmin: boolean
-): HeaderTopMenu[] {
-  if (!isAdmin) return menus;
-  if (
-    menus.some(menu =>
-      (menu.items ?? []).some(
-        item => item.href === WORSHIP_SCHEDULE_BETA_HREF
-      )
-    )
-  ) {
-    return menus;
-  }
-
-  const targetIndex = menus.findIndex(
-    menu => normalizeMenuLabel(menu.label) === "교회소개"
-  );
-  if (targetIndex < 0) return menus;
-
-  return menus.map((menu, index) => {
-    if (index !== targetIndex) return menu;
-
-    const items = [...(menu.items ?? [])];
-    const betaItem: HeaderSecondLevelItem = {
-      id: ADMIN_WORSHIP_BETA_MENU_ID,
-      label: "예배시간(beta)",
-      href: WORSHIP_SCHEDULE_BETA_HREF,
-      subItems: [],
-    };
-    const worshipGuideIndex = items.findIndex(item => {
-      const normalizedLabel = normalizeMenuLabel(item.label);
-      return normalizedLabel === "예배안내" || normalizedLabel === "예배시간";
-    });
-    if (worshipGuideIndex >= 0) {
-      items.splice(worshipGuideIndex + 1, 0, betaItem);
-    } else {
-      items.push(betaItem);
-    }
-    return { ...menu, items };
-  });
-}
-
 function normalizeComparablePath(href?: string | null) {
   const usableHref = getUsableHref(href);
   if (!usableHref || isExternalSiteHref(usableHref)) return "";
@@ -282,10 +236,7 @@ export default function SiteHeader() {
   const baseDisplayMenus = (
     Array.isArray(dbMenus) ? dbMenus : menusLoading ? [] : fallbackMenus
   ) as HeaderTopMenu[];
-  const displayMenus = withAdminWorshipBetaMenu(
-    baseDisplayMenus,
-    managementUser?.role === "admin"
-  );
+  const displayMenus = baseDisplayMenus;
   const socialLinks = [
     {
       icon: "fab fa-youtube",

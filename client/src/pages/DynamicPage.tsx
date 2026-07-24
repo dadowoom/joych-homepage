@@ -166,6 +166,8 @@ function normalizeDynamicHref(path: string | null | undefined) {
 }
 
 const CODE_BACKED_PAGE_ALIASES = new Map<string, string>([
+  ["/page/교회소개-예배-안내", "/worship/schedule"],
+  ["/page/교회소개-예배안내", "/worship/schedule"],
   ["/page/교회소개-담임목사-저서", "/about/pastor/books"],
   ["/page/교회소개-담임목사-소개-담임목사저서", "/about/pastor/books"],
   ["/page/교회소개-담임목사-소개-담임목사-저서", "/about/pastor/books"],
@@ -177,7 +179,7 @@ const CODE_BACKED_PAGE_ALIASES = new Map<string, string>([
   ["/page/교회소개-교회-연혁", "/about/history"],
 ]);
 
-function getCodeBackedPageAlias(href: string | null | undefined) {
+export function getCodeBackedPageAlias(href: string | null | undefined) {
   const value = href?.trim();
   if (!value) return null;
   const decodedValue = decodePath(value);

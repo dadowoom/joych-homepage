@@ -1,7 +1,7 @@
 import type { Express, NextFunction, Request, Response } from "express";
 import { PRIMARY_SITE_ORIGIN } from "../../shared/siteHosts";
 
-export const WORSHIP_GUIDE_PATH = "/page/교회소개-예배-안내";
+export const WORSHIP_GUIDE_PATH = "/worship/schedule";
 export const SUNDAY_WORSHIP_PATH = "/page/조이풀tv-주일예배";
 export const BULLETIN_PATH = "/worship/bulletin";
 export const HEBRON_WORSHIP_PATH = "/worship/tv/hebron";
