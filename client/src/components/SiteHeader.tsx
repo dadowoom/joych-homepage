@@ -152,19 +152,9 @@ function withAdminWorshipBetaMenu(
     return menus;
   }
 
-  let targetIndex = menus.findIndex(menu =>
-    (menu.items ?? []).some(item => item.href === "/worship/schedule")
+  const targetIndex = menus.findIndex(
+    menu => normalizeMenuLabel(menu.label) === "교회소개"
   );
-  if (targetIndex < 0) {
-    targetIndex = menus.findIndex(
-      menu => normalizeMenuLabel(menu.label) === "조이풀TV"
-    );
-  }
-  if (targetIndex < 0) {
-    targetIndex = menus.findIndex(menu =>
-      (menu.items ?? []).some(item => item.href?.startsWith("/worship/"))
-    );
-  }
   if (targetIndex < 0) return menus;
 
   return menus.map((menu, index) => {
@@ -177,11 +167,12 @@ function withAdminWorshipBetaMenu(
       href: WORSHIP_SCHEDULE_BETA_HREF,
       subItems: [],
     };
-    const scheduleIndex = items.findIndex(
-      item => item.href === "/worship/schedule"
-    );
-    if (scheduleIndex >= 0) {
-      items.splice(scheduleIndex + 1, 0, betaItem);
+    const worshipGuideIndex = items.findIndex(item => {
+      const normalizedLabel = normalizeMenuLabel(item.label);
+      return normalizedLabel === "예배안내" || normalizedLabel === "예배시간";
+    });
+    if (worshipGuideIndex >= 0) {
+      items.splice(worshipGuideIndex + 1, 0, betaItem);
     } else {
       items.push(betaItem);
     }
