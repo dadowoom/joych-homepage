@@ -46,7 +46,8 @@ function PopupActionButton({
   const [, setLocation] = useLocation();
   const normalizedHref = normalizeSiteHref(popup.linkHref);
 
-  if (!popup.linkLabel || !normalizedHref) return null;
+  if (!normalizedHref) return null;
+  const linkLabel = popup.linkLabel?.trim() || "바로가기";
 
   return (
     <a
@@ -63,7 +64,7 @@ function PopupActionButton({
       }}
       className="inline-flex min-w-0 flex-1 items-center justify-center rounded-lg bg-[#1B5E20] px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-[#2E7D32]"
     >
-      {popup.linkLabel}
+      {linkLabel}
     </a>
   );
 }

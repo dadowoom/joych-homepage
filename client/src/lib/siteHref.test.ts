@@ -29,4 +29,12 @@ describe("siteHref", () => {
       )
     ).toBe("/worship/tv?category=sunday#latest");
   });
+
+  it.each([
+    "javascript:alert(1)",
+    "data:text/html,<script>alert(1)</script>",
+  ])("blocks unsafe browser link protocols: %s", href => {
+    expect(normalizeSiteHref(href)).toBeNull();
+    expect(isExternalSiteHref(href)).toBe(false);
+  });
 });

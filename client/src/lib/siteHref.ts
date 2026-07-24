@@ -16,6 +16,13 @@ export function normalizeSiteHref(href?: string | null) {
 
   try {
     const url = new URL(value, SITE_URL_BASE);
+    if (
+      !isHttpProtocol(url.protocol) &&
+      url.protocol !== "mailto:" &&
+      url.protocol !== "tel:"
+    ) {
+      return null;
+    }
     if (isSiteHostname(url.hostname)) {
       return `${url.pathname}${url.search}${url.hash}`;
     }

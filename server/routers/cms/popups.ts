@@ -31,7 +31,24 @@ const popupOptionalImageSchema = z.union([safeAssetUrlSchema, z.null()]).optiona
 const popupOptionalButtonLabelSchema = z
   .union([z.string().trim().max(64, "64자 이하로 입력해주세요."), z.null()])
   .optional();
-const popupOptionalHrefSchema = z.union([safeHrefSchema, z.null()]).optional();
+const BARE_EXTERNAL_HOST_RE =
+  /^(?:www\.)?(?:[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?\.)+[a-z0-9-]{2,63}(?::\d{1,5})?(?:[/?#].*)?$/i;
+const DEFAULT_POPUP_LINK_LABEL = "바로가기";
+
+export function normalizePopupHrefInput(value: unknown) {
+  if (typeof value !== "string") return value;
+  const href = value.trim();
+  if (!href) return href;
+  return BARE_EXTERNAL_HOST_RE.test(href) ? `https://${href}` : href;
+}
+
+export const popupLinkHrefSchema = z.preprocess(
+  normalizePopupHrefInput,
+  safeHrefSchema,
+);
+const popupOptionalHrefSchema = z
+  .union([popupLinkHrefSchema, z.null()])
+  .optional();
 
 const popupCreateFields = {
   title: requiredTextSchema(160, "팝업 제목을 입력해주세요."),
@@ -123,6 +140,10 @@ export function normalizePopupWriteData(data: PopupWriteData | PopupUpdateData):
 
   if ("linkHref" in data) {
     normalized.linkHref = data.linkHref ?? null;
+  }
+
+  if (normalized.linkHref && !normalized.linkLabel?.trim()) {
+    normalized.linkLabel = DEFAULT_POPUP_LINK_LABEL;
   }
 
   return normalized;

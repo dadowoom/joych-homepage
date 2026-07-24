@@ -70,6 +70,17 @@ describe("팝업/공지 배너 라우터", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("프로토콜을 생략한 유튜브 팝업 링크도 저장할 수 있다", async () => {
+    const caller = appRouter.createCaller(createContext("admin"));
+
+    await expect(
+      caller.cms.popups.create({
+        title: "외부 영상 안내",
+        linkHref: "youtube.com/watch?v=dQw4w9WgXcQ",
+      })
+    ).resolves.toBeUndefined();
+  });
+
   it("버튼 문구가 있으면 링크도 필요하다", async () => {
     const caller = appRouter.createCaller(createContext("admin"));
 

@@ -190,13 +190,14 @@ function normalizePayload(form: PopupForm) {
   const sizePercent = Number.isFinite(form.sizePercent)
     ? Math.min(120, Math.max(70, Math.round(form.sizePercent)))
     : 100;
+  const linkHref = form.linkHref.trim() || null;
 
   return {
     title: form.title.trim(),
     content: "",
     imageUrl: form.imageUrl.trim() || null,
-    linkLabel: form.linkLabel.trim() || null,
-    linkHref: form.linkHref.trim() || null,
+    linkLabel: form.linkLabel.trim() || (linkHref ? "바로가기" : null),
+    linkHref,
     placement: "modal" as const,
     audience: form.audience,
     isActive: form.isActive,
@@ -511,7 +512,7 @@ export default function AdminPopupsTab() {
                   value={form.linkLabel}
                   onChange={(event) => setForm((prev) => ({ ...prev, linkLabel: event.target.value }))}
                   className={`${fieldClass} w-full`}
-                  placeholder="자세히 보기"
+                  placeholder="바로가기 (비우면 자동 입력)"
                 />
                 <p className={`mt-1 text-[11px] ${linkLabelBytes > BUTTON_LABEL_BYTE_LIMIT ? "text-red-500" : "text-gray-400"}`}>
                   {linkLabelBytes} / {BUTTON_LABEL_BYTE_LIMIT} byte
@@ -523,8 +524,11 @@ export default function AdminPopupsTab() {
                   value={form.linkHref}
                   onChange={(event) => setForm((prev) => ({ ...prev, linkHref: event.target.value }))}
                   className={`${fieldClass} w-full`}
-                  placeholder="/worship/schedule"
+                  placeholder="https://www.youtube.com/... 또는 /worship/schedule"
                 />
+                <p className="mt-1 text-[11px] leading-4 text-gray-400">
+                  외부 주소는 새 창, 교회 홈페이지 내부 주소는 현재 창에서 열립니다.
+                </p>
               </div>
             </div>
 
