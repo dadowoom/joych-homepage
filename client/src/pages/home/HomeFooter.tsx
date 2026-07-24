@@ -58,6 +58,12 @@ export default function HomeFooter({
               Copyright &copy; {new Date().getFullYear()} 기쁨의교회 All rights
               reserved.
             </p>
+            <a
+              href="/privacy-policy"
+              className="inline-flex text-xs text-gray-400 underline underline-offset-4 transition-colors hover:text-white"
+            >
+              개인정보처리방침
+            </a>
           </div>
 
           {/* socialLinks rendering intentionally hidden */}

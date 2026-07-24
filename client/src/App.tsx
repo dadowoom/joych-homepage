@@ -42,6 +42,7 @@ const MemberAccountRecovery = lazy(() => import("./pages/MemberAccountRecovery")
 const MemberPasswordReset = lazy(() => import("./pages/MemberPasswordReset"));
 const MemberMyPage = lazy(() => import("./pages/MemberMyPage"));
 const MemberSocialComplete = lazy(() => import("./pages/MemberSocialComplete"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const FacilityList = lazy(() => import("./pages/FacilityList"));
 const FacilityDetail = lazy(() => import("./pages/FacilityDetail"));
 const FacilityApply = lazy(() => import("./pages/FacilityApply"));
@@ -655,6 +656,7 @@ function Router() {
       <Route path="/member/password-reset" component={MemberPasswordReset} />
       <Route path="/member/social-complete" component={MemberSocialComplete} />
       <Route path="/member/my-page" component={MemberMyPage} />
+      <Route path="/privacy-policy" component={PrivacyPolicy} />
 
       <Route path="/facility/external/:id/apply" component={ExternalFacilityApply} />
       <Route path="/facility/external/:id" component={ExternalFacilityDetail} />

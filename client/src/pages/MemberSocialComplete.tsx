@@ -321,6 +321,12 @@ export default function MemberSocialComplete() {
               개인정보 수집 및 이용에 동의합니다.
             </span>
           </label>
+          <a
+            href="/privacy-policy"
+            className="inline-flex text-xs font-semibold text-[#1B5E20] underline underline-offset-2 hover:text-[#154a18]"
+          >
+            전체 개인정보처리방침 보기
+          </a>
           {errors.agreePrivacy && <p className="text-xs text-red-500">{errors.agreePrivacy}</p>}
 
           <button

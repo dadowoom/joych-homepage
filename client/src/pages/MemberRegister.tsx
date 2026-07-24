@@ -573,6 +573,12 @@ export default function MemberRegister() {
                   보유 기간: 회원 탈퇴 시까지<br />
                   귀하는 개인정보 수집에 동의를 거부할 권리가 있으나, 거부 시 서비스 이용이 제한됩니다.
                 </p>
+                <a
+                  href="/privacy-policy"
+                  className="mb-3 inline-flex text-xs font-semibold text-[#1B5E20] underline underline-offset-2 hover:text-[#154a18]"
+                >
+                  전체 개인정보처리방침 보기
+                </a>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
