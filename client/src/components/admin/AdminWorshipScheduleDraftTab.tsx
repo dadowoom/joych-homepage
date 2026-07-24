@@ -209,7 +209,13 @@ function validateDraft(content: WorshipScheduleContent): ValidationIssue | null 
 
 type PreviewWidth = "desktop" | "mobile";
 
-export default function AdminWorshipScheduleDraftTab() {
+type AdminWorshipScheduleDraftTabProps = {
+  pageMode?: boolean;
+};
+
+export default function AdminWorshipScheduleDraftTab({
+  pageMode = false,
+}: AdminWorshipScheduleDraftTabProps) {
   const { user } = useAuth();
   const localWorkingDraftKey = `${LOCAL_WORKING_DRAFT_KEY_PREFIX}:${user?.id ?? "admin"}`;
   const [content, setContent] = useState<WorshipScheduleContent>(() =>
@@ -221,6 +227,10 @@ export default function AdminWorshipScheduleDraftTab() {
   const [lastSavedBy, setLastSavedBy] = useState<string | null>(null);
   const [hasHydrated, setHasHydrated] = useState(false);
   const [previewWidth, setPreviewWidth] = useState<PreviewWidth>("desktop");
+  const [isEditing, setIsEditing] = useState(!pageMode);
+  const [expandedSectionIds, setExpandedSectionIds] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const query = trpc.cms.worshipSchedule.getDraft.useQuery(undefined, {
     staleTime: 0,
@@ -299,7 +309,9 @@ export default function AdminWorshipScheduleDraftTab() {
     onSuccess: result => {
       clearLocalWorkingDraft(localWorkingDraftKey);
       hydrate(result, false);
-      toast.success("예배시간 체험 초안을 저장했습니다. 공개 화면은 바뀌지 않습니다.");
+      toast.success(
+        "예배시간(beta)을 저장했습니다. 관리자 전용 beta 화면에 바로 반영됩니다.",
+      );
     },
     onError: error => {
       toast.error(error.message);
@@ -353,6 +365,7 @@ export default function AdminWorshipScheduleDraftTab() {
       ...current,
       sections: [...current.sections, section],
     }));
+    setExpandedSectionIds(current => new Set(current).add(section.id));
   };
 
   const removeSection = (section: WorshipScheduleSection) => {
@@ -365,6 +378,11 @@ export default function AdminWorshipScheduleDraftTab() {
       ...current,
       sections: current.sections.filter(item => item.id !== section.id),
     }));
+    setExpandedSectionIds(current => {
+      const next = new Set(current);
+      next.delete(section.id);
+      return next;
+    });
   };
 
   const moveSection = (sectionIndex: number, direction: -1 | 1) => {
@@ -449,6 +467,9 @@ export default function AdminWorshipScheduleDraftTab() {
   const saveDraft = () => {
     if (validationIssue) {
       toast.error(validationIssue.message);
+      setExpandedSectionIds(
+        new Set(content.sections.map(section => section.id)),
+      );
       window.requestAnimationFrame(() => {
         const field = document.getElementById(validationIssue.fieldId);
         field?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -464,6 +485,29 @@ export default function AdminWorshipScheduleDraftTab() {
       return;
     }
     saveMutation.mutate({ content, expectedRevision: revision });
+  };
+
+  const toggleSection = (sectionId: string) => {
+    setExpandedSectionIds(current => {
+      const next = new Set(current);
+      if (next.has(sectionId)) {
+        next.delete(sectionId);
+      } else {
+        next.add(sectionId);
+      }
+      return next;
+    });
+  };
+
+  const closeInlineEditing = () => {
+    if (isDirty) {
+      toast.error(
+        "변경사항을 먼저 저장하거나 서버 초안을 다시 불러온 뒤 편집을 닫아주세요.",
+      );
+      return;
+    }
+    setIsEditing(false);
+    setExpandedSectionIds(new Set());
   };
 
   const reloadServerDraft = async () => {
@@ -497,7 +541,7 @@ export default function AdminWorshipScheduleDraftTab() {
       <div className="flex min-h-64 items-center justify-center">
         <div className="text-center">
           <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-[#1B5E20] border-t-transparent" />
-          <p className="text-sm text-gray-500">예배시간 체험 초안을 불러오고 있습니다.</p>
+          <p className="text-sm text-gray-500">예배시간(beta)을 불러오고 있습니다.</p>
         </div>
       </div>
     );
@@ -506,7 +550,7 @@ export default function AdminWorshipScheduleDraftTab() {
   if (query.error && !hasHydrated) {
     return (
       <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
-        <p className="font-bold">체험 초안을 불러오지 못했습니다.</p>
+        <p className="font-bold">예배시간(beta)을 불러오지 못했습니다.</p>
         <p className="mt-1">{query.error.message}</p>
         <button
           type="button"
@@ -528,21 +572,49 @@ export default function AdminWorshipScheduleDraftTab() {
           </span>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-bold text-gray-900">관리자 전용 편집 체험판</h3>
+              <h3 className="font-bold text-gray-900">관리자 전용 예배시간(beta)</h3>
               <span className="rounded-full bg-amber-200 px-2.5 py-1 text-xs font-bold text-amber-900">
-                공개 미적용
+                관리자만 노출
               </span>
             </div>
             <p className="mt-1 break-keep text-sm leading-6 text-amber-900">
-              여기서 추가·수정·삭제하고 초안을 저장해도 현재 홈페이지
-              예배시간 페이지는 바뀌지 않습니다. 충분히 사용해 본 뒤 승인할
-              때만 공식 페이지와 연결합니다. 처음 보이는 시간은 기능 확인용
-              예시이며 아직 공식 운영 시간이 아닙니다.
+              관리자페이지에 저장한 내용이 이 beta 메뉴에 그대로 표시됩니다.
+              여기서 수정해 저장하면 beta 화면에는 바로 반영되며, 현재 성도에게
+              공개 중인 예배시간 안내 페이지에는 영향을 주지 않습니다.
             </p>
           </div>
         </div>
       </section>
 
+      {pageMode && !isEditing ? (
+        <>
+          <section className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-gray-600">
+              <p>
+                <span className="font-semibold text-gray-800">마지막 저장</span>{" "}
+                {formatSavedAt(lastSavedAt)}
+                {lastSavedBy ? ` · ${lastSavedBy}` : ""}
+              </p>
+              <p className="mt-1 text-xs text-gray-500">
+                현재 beta 메뉴에 표시되는 실제 모습입니다.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="min-h-11 rounded-lg bg-[#1B5E20] px-4 py-2 text-sm font-bold text-white hover:bg-[#2E7D32]"
+            >
+              <i className="fas fa-pen mr-1.5" aria-hidden="true" />
+              이 화면에서 수정
+            </button>
+          </section>
+          <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+            <WorshipScheduleCards content={content} />
+          </section>
+        </>
+      ) : null}
+
+      <div className={pageMode && !isEditing ? "hidden" : "contents"}>
       <section className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm text-gray-600">
           <p>
@@ -566,14 +638,26 @@ export default function AdminWorshipScheduleDraftTab() {
             <i className="fas fa-rotate mr-1.5" aria-hidden="true" />
             서버 초안 다시 불러오기
           </button>
-          <button
-            type="button"
-            onClick={loadExample}
-            className="min-h-10 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            <i className="fas fa-arrow-rotate-left mr-1.5" aria-hidden="true" />
-            샘플 데이터로 바꾸기 (현행 아님)
-          </button>
+          {!pageMode ? (
+            <button
+              type="button"
+              onClick={loadExample}
+              className="min-h-10 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              <i className="fas fa-arrow-rotate-left mr-1.5" aria-hidden="true" />
+              샘플 데이터로 바꾸기 (현행 아님)
+            </button>
+          ) : null}
+          {pageMode ? (
+            <button
+              type="button"
+              onClick={closeInlineEditing}
+              className="min-h-10 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              <i className="fas fa-xmark mr-1.5" aria-hidden="true" />
+              편집 닫기
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={saveDraft}
@@ -584,7 +668,7 @@ export default function AdminWorshipScheduleDraftTab() {
               className={`fas ${saveMutation.isPending ? "fa-spinner animate-spin" : "fa-floppy-disk"} mr-1.5`}
               aria-hidden="true"
             />
-            체험 초안 저장
+            저장
           </button>
         </div>
       </section>
@@ -605,35 +689,90 @@ export default function AdminWorshipScheduleDraftTab() {
                 블록 {content.sections.length}개 · 각 블록 안에 예배시간을 추가할 수 있습니다.
               </p>
             </div>
-            <button
-              id="worship-add-section"
-              type="button"
-              onClick={addSection}
-              disabled={
-                content.sections.length >= WORSHIP_SCHEDULE_LIMITS.sections
-              }
-              className="min-h-10 rounded-lg border border-[#1B5E20] bg-white px-4 py-2 text-sm font-bold text-[#1B5E20] hover:bg-[#F1F8F2] disabled:opacity-50"
-            >
-              <i className="fas fa-plus mr-1.5" aria-hidden="true" />
-              예배 블록 추가
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setExpandedSectionIds(
+                    expandedSectionIds.size === content.sections.length
+                      ? new Set()
+                      : new Set(content.sections.map(section => section.id)),
+                  )
+                }
+                className="min-h-10 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50"
+              >
+                <i
+                  className={`fas ${
+                    expandedSectionIds.size === content.sections.length
+                      ? "fa-angles-up"
+                      : "fa-angles-down"
+                  } mr-1.5`}
+                  aria-hidden="true"
+                />
+                {expandedSectionIds.size === content.sections.length
+                  ? "모두 접기"
+                  : "전체 펼치기"}
+              </button>
+              <button
+                id="worship-add-section"
+                type="button"
+                onClick={addSection}
+                disabled={
+                  content.sections.length >= WORSHIP_SCHEDULE_LIMITS.sections
+                }
+                className="min-h-10 rounded-lg border border-[#1B5E20] bg-white px-4 py-2 text-sm font-bold text-[#1B5E20] hover:bg-[#F1F8F2] disabled:opacity-50"
+              >
+                <i className="fas fa-plus mr-1.5" aria-hidden="true" />
+                예배 블록 추가
+              </button>
+            </div>
           </div>
 
-          {content.sections.map((section, sectionIndex) => (
-            <article
-              key={section.id}
-              className="overflow-hidden rounded-xl border border-gray-200 bg-white"
-            >
-              <header className="flex flex-col gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-2">
+          {content.sections.map((section, sectionIndex) => {
+            const isSectionExpanded = expandedSectionIds.has(section.id);
+            return (
+              <article
+                key={section.id}
+                className="overflow-hidden rounded-xl border border-gray-200 bg-white"
+              >
+              <header
+                className={`flex flex-col gap-3 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
+                  isSectionExpanded ? "border-b border-gray-100" : ""
+                }`}
+              >
+                <div className="flex min-w-0 items-center gap-2">
                   <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1B5E20] text-xs font-bold text-white">
                     {sectionIndex + 1}
                   </span>
-                  <span className="font-bold text-gray-900">
-                    {section.title || "제목 없는 예배 블록"}
-                  </span>
+                  <div className="min-w-0">
+                    <span className="block truncate font-bold text-gray-900">
+                      {section.title || "제목 없는 예배 블록"}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-gray-500">
+                      예배시간 {section.entries.length}개
+                      {section.entries[0]?.label
+                        ? ` · ${section.entries[0].label}${
+                            section.entries.length > 1 ? " 외" : ""
+                          }`
+                        : ""}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(section.id)}
+                    aria-expanded={isSectionExpanded}
+                    className="h-10 rounded-md border border-[#A5D6A7] bg-white px-3 text-xs font-bold text-[#1B5E20] hover:bg-[#F1F8F2]"
+                  >
+                    <i
+                      className={`fas ${
+                        isSectionExpanded ? "fa-chevron-up" : "fa-pen"
+                      } mr-1.5`}
+                      aria-hidden="true"
+                    />
+                    {isSectionExpanded ? "접기" : "수정"}
+                  </button>
                   <button
                     type="button"
                     onClick={() => moveSection(sectionIndex, -1)}
@@ -664,7 +803,8 @@ export default function AdminWorshipScheduleDraftTab() {
                 </div>
               </header>
 
-              <div className="space-y-5 p-4">
+              {isSectionExpanded ? (
+                <div className="space-y-5 p-4">
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="block">
                     <span className="mb-1.5 block text-xs font-bold text-gray-700">
@@ -866,9 +1006,11 @@ export default function AdminWorshipScheduleDraftTab() {
                     </div>
                   ))}
                 </section>
-              </div>
+                </div>
+              ) : null}
             </article>
-          ))}
+            );
+          })}
 
           <label className="block rounded-xl border border-gray-200 bg-white p-4">
             <span className="mb-1.5 block text-sm font-bold text-gray-900">
@@ -973,8 +1115,9 @@ export default function AdminWorshipScheduleDraftTab() {
             className={`fas ${saveMutation.isPending ? "fa-spinner animate-spin" : "fa-floppy-disk"} mr-1.5`}
             aria-hidden="true"
           />
-          체험 초안 저장
+          저장
         </button>
+      </div>
       </div>
     </div>
   );

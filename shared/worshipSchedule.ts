@@ -1,4 +1,5 @@
 export const WORSHIP_SCHEDULE_DRAFT_HREF = "/worship/schedule";
+export const WORSHIP_SCHEDULE_BETA_HREF = "/worship/schedule-beta";
 export const WORSHIP_SCHEDULE_SETTING_PREFIX = "worship_schedule:";
 export const WORSHIP_SCHEDULE_DRAFT_SETTING_KEY =
   `${WORSHIP_SCHEDULE_SETTING_PREFIX}draft`;

@@ -192,6 +192,7 @@ const JoyfulTV = lazy(() =>
 const WorshipSchedule = lazy(() =>
   import("./pages/Worship").then(module => ({ default: module.WorshipSchedule }))
 );
+const WorshipScheduleBeta = lazy(() => import("./pages/WorshipScheduleBeta"));
 const Bulletin = lazy(() =>
   import("./pages/Worship").then(module => ({ default: module.Bulletin }))
 );
@@ -569,6 +570,7 @@ function Router() {
       <Route path="/worship/tv/feature"><MenuAccessGate href="/worship/tv/feature"><SpecialFeaturePage /></MenuAccessGate></Route>
       <Route path="/worship/tv/testimony"><MenuAccessGate href="/worship/tv/testimony"><TestimonyPage /></MenuAccessGate></Route>
       <Route path="/worship/tv/praise"><MenuAccessGate href="/worship/tv/praise"><PraisePage /></MenuAccessGate></Route>
+      <Route path="/worship/schedule-beta" component={WorshipScheduleBeta} />
       <Route path="/worship/schedule"><MenuAccessGate href="/worship/schedule"><WorshipSchedule /></MenuAccessGate></Route>
       <Route path="/worship/bulletin/:id"><MenuAccessGate href="/worship/bulletin"><BulletinDetail /></MenuAccessGate></Route>
       <Route path="/worship/bulletin"><MenuAccessGate href="/worship/bulletin"><Bulletin /></MenuAccessGate></Route>
