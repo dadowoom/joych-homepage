@@ -63,6 +63,12 @@ describe("SEO meta injection", () => {
     expect(html).toContain('"name":"헤브론 수요예배 | 기쁨의교회"');
   });
 
+  it("위임목사 저서 목록에 전용 검색 제목을 적용한다", () => {
+    const html = injectSeoMeta(baseHtml, mockRequest("/about/pastor/books"));
+
+    expect(html).toContain("<title>위임목사 저서 | 기쁨의교회</title>");
+  });
+
   it("비공개 성격의 페이지에는 noindex를 적용한다", () => {
     const html = injectSeoMeta(baseHtml, mockRequest("/member/login"));
 

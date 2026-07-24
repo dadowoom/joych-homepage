@@ -53,6 +53,12 @@ const ROUTES: SeoRoute[] = [
     priority: "0.8",
   },
   {
+    path: "/about/pastor/books",
+    title: "위임목사 저서 | 기쁨의교회",
+    description: "기쁨의교회 위임목사 저서를 소개합니다.",
+    priority: "0.7",
+  },
+  {
     path: "/about/history",
     title: "교회 역사 | 기쁨의교회",
     description: "기쁨의교회가 걸어온 믿음의 발자취를 소개합니다.",
