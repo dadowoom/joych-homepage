@@ -37,6 +37,7 @@ import {
   deleteYoutubePlaylist,
   getYoutubeVideosByPlaylist,
   getVisibleYoutubeVideos,
+  getHomeJoyfulTvLatestVideos,
   createYoutubeVideo,
   updateYoutubeVideo,
   deleteYoutubeVideo,
@@ -160,6 +161,9 @@ export const youtubeRouter = router({
   getVideos: publicProcedure
     .input(z.object({ playlistId: z.number().int().positive() }))
     .query(({ input }) => getVisibleYoutubeVideos(input.playlistId)),
+
+  /** 홈 조이풀TV 영역의 주일·수요·금요 최신 공개 영상 */
+  getHomeLatest: publicProcedure.query(() => getHomeJoyfulTvLatestVideos()),
 
   /**
    * 특정 플레이리스트의 영상 목록 (관리자)

@@ -230,6 +230,7 @@ export default function YoutubeAdminTab() {
   const deletePlaylist = trpc.youtube.deletePlaylist.useMutation({
     onSuccess: () => {
       utils.youtube.getPlaylists.invalidate();
+      utils.youtube.getHomeLatest.invalidate();
       setSelectedPlaylistId(null);
       toast.success("플레이리스트가 삭제되었습니다.");
     },
@@ -240,6 +241,7 @@ export default function YoutubeAdminTab() {
     onSuccess: () => {
       utils.youtube.getVideosAdmin.invalidate();
       utils.youtube.getVideos.invalidate();
+      utils.youtube.getHomeLatest.invalidate();
       resetAddVideoForm();
       toast.success("영상이 추가되었습니다.");
     },
@@ -250,6 +252,7 @@ export default function YoutubeAdminTab() {
     onSuccess: () => {
       utils.youtube.getVideosAdmin.invalidate();
       utils.youtube.getVideos.invalidate();
+      utils.youtube.getHomeLatest.invalidate();
       resetEditVideoForm();
       toast.success("영상 정보가 수정되었습니다.");
     },
@@ -260,6 +263,7 @@ export default function YoutubeAdminTab() {
     onSuccess: (_, variables) => {
       utils.youtube.getVideosAdmin.invalidate();
       utils.youtube.getVideos.invalidate();
+      utils.youtube.getHomeLatest.invalidate();
       toast.success(variables.isVisible ? "영상이 노출되도록 변경했습니다." : "영상을 숨김 처리했습니다.");
     },
     onError: (err) => toast.error(err.message || "영상 노출 상태 변경에 실패했습니다."),
@@ -269,6 +273,7 @@ export default function YoutubeAdminTab() {
     onSuccess: () => {
       utils.youtube.getVideosAdmin.invalidate();
       utils.youtube.getVideos.invalidate();
+      utils.youtube.getHomeLatest.invalidate();
       toast.success("영상이 삭제되었습니다.");
     },
     onError: (err) => toast.error(err.message || "영상 삭제에 실패했습니다."),

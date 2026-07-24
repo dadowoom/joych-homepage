@@ -15,11 +15,18 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { adminPermissionProcedure, publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
-import { notifyCourseApplicationToDistrictManager, notifyFacilityReservation, notifyVehicleReservation } from "../_core/pushNotifications";
 import {
-  canMemberRequestFacilityReservation,
-} from "@shared/facilityReservationEligibility";
+  adminPermissionProcedure,
+  publicProcedure,
+  memberProtectedProcedure,
+  router,
+} from "../_core/trpc";
+import {
+  notifyCourseApplicationToDistrictManager,
+  notifyFacilityReservation,
+  notifyVehicleReservation,
+} from "../_core/pushNotifications";
+import { canMemberRequestFacilityReservation } from "@shared/facilityReservationEligibility";
 import {
   getEffectiveExternalReservationWindow,
   getExternalReservationWindowMessage,
@@ -45,6 +52,7 @@ import {
   getVisibleAffiliates,
   getVisibleGalleryItems,
   getVisibleGalleryAlbums,
+  getVisibleGalleryAlbumDetail,
   getVisibleHomeGalleryItems,
   getSiteSettings,
   getSiteSetting,
@@ -119,22 +127,33 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^(([01]\d|2[0-3]):[0-5]\d|24:00)$/;
 const idSchema = z.number().int().positive();
 // `monthly`는 배포 전 화면이나 기존 링크가 보내는 구형 호환 값입니다.
-const vehicleRepeatSchema = z.enum(["none", "daily", "weekly", "monthly-weekday", "monthly"]);
+const vehicleRepeatSchema = z.enum([
+  "none",
+  "daily",
+  "weekly",
+  "monthly-weekday",
+  "monthly",
+]);
 const MAX_VEHICLE_REPEAT_OCCURRENCES = 100;
 const hrefLookupSchema = z.string().trim().min(1).max(256);
-const menuBoardCategorySchema = z.string().trim().regex(/^menu-board:[a-z0-9]{1,16}$/);
-const dynamicBoardSourceSchema = z.object({
-  menuItemId: idSchema.optional(),
-  menuSubItemId: idSchema.optional(),
-}).refine(
-  value => Boolean(value.menuItemId) !== Boolean(value.menuSubItemId),
-  "2단 메뉴 또는 3단 메뉴 중 하나만 선택해주세요.",
-);
+const menuBoardCategorySchema = z
+  .string()
+  .trim()
+  .regex(/^menu-board:[a-z0-9]{1,16}$/);
+const dynamicBoardSourceSchema = z
+  .object({
+    menuItemId: idSchema.optional(),
+    menuSubItemId: idSchema.optional(),
+  })
+  .refine(
+    value => Boolean(value.menuItemId) !== Boolean(value.menuSubItemId),
+    "2단 메뉴 또는 3단 메뉴 중 하나만 선택해주세요."
+  );
 
 function getVehicleReservationDates(
   startDate: string,
   repeatMode: z.infer<typeof vehicleRepeatSchema>,
-  repeatEndDate?: string | null,
+  repeatEndDate?: string | null
 ) {
   const normalizedRepeatMode = normalizeReservationRepeatType(repeatMode);
   return buildReservationDates(
@@ -142,19 +161,22 @@ function getVehicleReservationDates(
     normalizedRepeatMode === "none"
       ? undefined
       : { type: normalizedRepeatMode, untilDate: repeatEndDate ?? undefined },
-    MAX_VEHICLE_REPEAT_OCCURRENCES,
+    MAX_VEHICLE_REPEAT_OCCURRENCES
   );
 }
 
 function describeVehicleReservationRepeat(
   repeatMode: Exclude<z.infer<typeof vehicleRepeatSchema>, "none">,
   repeatEndDate: string,
-  count: number,
+  count: number
 ) {
   const normalizedRepeatMode = normalizeReservationRepeatType(repeatMode);
   return describeReservationRepeat(
-    { type: normalizedRepeatMode as Exclude<ReservationRepeatType, "none">, untilDate: repeatEndDate },
-    count,
+    {
+      type: normalizedRepeatMode as Exclude<ReservationRepeatType, "none">,
+      untilDate: repeatEndDate,
+    },
+    count
   );
 }
 
@@ -166,15 +188,23 @@ function normalizeMenuLabel(label: string | null | undefined) {
   return (label ?? "").replace(/\s+/g, "");
 }
 
-function canReadBulletinFromVisibleMenus(menus: Awaited<ReturnType<typeof getVisibleMenus>>) {
+function canReadBulletinFromVisibleMenus(
+  menus: Awaited<ReturnType<typeof getVisibleMenus>>
+) {
   for (const menu of menus) {
     for (const item of menu.items ?? []) {
-      if (item.href === "/worship/bulletin" || normalizeMenuLabel(item.label) === "주보보기") {
+      if (
+        item.href === "/worship/bulletin" ||
+        normalizeMenuLabel(item.label) === "주보보기"
+      ) {
         return true;
       }
 
       for (const subItem of item.subItems ?? []) {
-        if (subItem.href === "/worship/bulletin" || normalizeMenuLabel(subItem.label) === "주보보기") {
+        if (
+          subItem.href === "/worship/bulletin" ||
+          normalizeMenuLabel(subItem.label) === "주보보기"
+        ) {
           return true;
         }
       }
@@ -184,7 +214,10 @@ function canReadBulletinFromVisibleMenus(menus: Awaited<ReturnType<typeof getVis
   return false;
 }
 
-async function canContextReadBulletins(ctx: { user?: AdminPermissionUser; memberId?: number | null }) {
+async function canContextReadBulletins(ctx: {
+  user?: AdminPermissionUser;
+  memberId?: number | null;
+}) {
   if (hasAdminContentPermission(ctx.user, "content:bulletins")) return true;
   const access = getMenuReadAccess(ctx);
   const [visibleMenus, menuItem, menuSubItem] = await Promise.all([
@@ -192,7 +225,9 @@ async function canContextReadBulletins(ctx: { user?: AdminPermissionUser; member
     getVisibleMenuItemByHref("/worship/bulletin", access),
     getVisibleMenuSubItemByHref("/worship/bulletin", access),
   ]);
-  return Boolean(menuItem || menuSubItem || canReadBulletinFromVisibleMenus(visibleMenus));
+  return Boolean(
+    menuItem || menuSubItem || canReadBulletinFromVisibleMenus(visibleMenus)
+  );
 }
 
 type MenuTreeNode = {
@@ -202,12 +237,17 @@ type MenuTreeNode = {
 };
 
 function isVehicleReservationHref(href: string | null | undefined) {
-  return href === "/support/vehicle" ||
+  return (
+    href === "/support/vehicle" ||
     href === "/admin/vehicle" ||
-    Boolean(href?.startsWith("/support/vehicle/"));
+    Boolean(href?.startsWith("/support/vehicle/"))
+  );
 }
 
-function filterVehicleReservationMenu<T extends MenuTreeNode>(node: T, canUseVehicleReservation: boolean): T | null {
+function filterVehicleReservationMenu<T extends MenuTreeNode>(
+  node: T,
+  canUseVehicleReservation: boolean
+): T | null {
   if (canUseVehicleReservation) return node;
   if (isVehicleReservationHref(node.href)) return null;
 
@@ -228,8 +268,10 @@ function filterVehicleReservationMenu<T extends MenuTreeNode>(node: T, canUseVeh
 type AdminPermissionUser = Parameters<typeof hasAdminContentPermission>[0];
 
 function hasFacilityReservationManagerPermission(user: AdminPermissionUser) {
-  return hasAdminContentPermission(user, "content:reservations") ||
-    hasAdminContentPermission(user, "content:facilities");
+  return (
+    hasAdminContentPermission(user, "content:reservations") ||
+    hasAdminContentPermission(user, "content:facilities")
+  );
 }
 
 function canContextViewNoticeSecret(ctx: { user?: AdminPermissionUser }) {
@@ -245,7 +287,10 @@ type SecretBoardPost = {
   attachmentUrl?: string | null;
 };
 
-function applySecretBoardMask<T extends SecretBoardPost>(post: T, canViewSecret: boolean) {
+function applySecretBoardMask<T extends SecretBoardPost>(
+  post: T,
+  canViewSecret: boolean
+) {
   if (!post.isSecret || canViewSecret) {
     return {
       ...post,
@@ -264,7 +309,10 @@ function applySecretBoardMask<T extends SecretBoardPost>(post: T, canViewSecret:
   };
 }
 
-async function canContextUseVehicleReservation(ctx: { user?: AdminPermissionUser; memberId?: number | null }) {
+async function canContextUseVehicleReservation(ctx: {
+  user?: AdminPermissionUser;
+  memberId?: number | null;
+}) {
   if (hasAdminContentPermission(ctx.user, "content:vehicles")) return true;
   if (!ctx.memberId) return false;
   const member = await getMemberById(ctx.memberId);
@@ -272,10 +320,21 @@ async function canContextUseVehicleReservation(ctx: { user?: AdminPermissionUser
 }
 
 const staticPageHrefSchema = z.string().trim().min(1).max(128).regex(/^\//);
-const staffCategorySchema = z.string().trim().min(1).max(64).regex(/^[a-z0-9][a-z0-9_-]{0,63}$/);
+const staffCategorySchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9][a-z0-9_-]{0,63}$/);
 const translationLocaleSchema = z.enum(["ja"]);
-const courseMemoSchema = z.string().trim().max(2000, "신청 메모는 2000자 이하로 입력해주세요.").optional();
-const courseCustomAnswersSchema = z.record(z.string().max(64), z.string().trim().max(1000)).default({});
+const courseMemoSchema = z
+  .string()
+  .trim()
+  .max(2000, "신청 메모는 2000자 이하로 입력해주세요.")
+  .optional();
+const courseCustomAnswersSchema = z
+  .record(z.string().max(64), z.string().trim().max(1000))
+  .default({});
 const externalFacilityRulesSettingKey = "external_facility_rules";
 
 function parseCourseApplicationFields(value: string | null | undefined) {
@@ -284,12 +343,12 @@ function parseCourseApplicationFields(value: string | null | undefined) {
     const parsed = JSON.parse(value);
     if (!Array.isArray(parsed)) return [];
     return parsed
-      .map((field) => ({
+      .map(field => ({
         id: typeof field?.id === "string" ? field.id.trim() : "",
         label: typeof field?.label === "string" ? field.label.trim() : "",
         required: Boolean(field?.required),
       }))
-      .filter((field) => field.id && field.label);
+      .filter(field => field.id && field.label);
   } catch {
     return [];
   }
@@ -297,22 +356,29 @@ function parseCourseApplicationFields(value: string | null | undefined) {
 
 function serializeCourseApplicationAnswers(
   answers: Record<string, string>,
-  fields: ReturnType<typeof parseCourseApplicationFields>,
+  fields: ReturnType<typeof parseCourseApplicationFields>
 ) {
-  const labels = new Map(fields.map((field) => [field.id, field.label]));
+  const labels = new Map(fields.map(field => [field.id, field.label]));
   return Object.fromEntries(
     Object.entries(answers).map(([fieldId, answer]) => [
       fieldId,
       { label: labels.get(fieldId) || "추가 답변", value: answer },
-    ]),
+    ])
   );
 }
 
-const reservationRepeatSchema = z.object({
-  type: z.enum(["none", "daily", "weekly", "monthly-weekday"]).default("none"),
-  count: z.number().int().min(1).max(52).optional(),
-  untilDate: z.string().regex(DATE_RE, "반복 종료일 형식이 올바르지 않습니다.").optional(),
-}).optional();
+const reservationRepeatSchema = z
+  .object({
+    type: z
+      .enum(["none", "daily", "weekly", "monthly-weekday"])
+      .default("none"),
+    count: z.number().int().min(1).max(52).optional(),
+    untilDate: z
+      .string()
+      .regex(DATE_RE, "반복 종료일 형식이 올바르지 않습니다.")
+      .optional(),
+  })
+  .optional();
 const MAX_REPEAT_OCCURRENCES = 366;
 const MAX_REPEAT_SEARCH_STEPS = 1200;
 const MIN_RESERVATION_LEAD_TIME_MS = 24 * 60 * 60 * 1000;
@@ -350,7 +416,10 @@ function getKstDateTime(dateKey: string, time: string) {
 function getReservationStartOrThrow(dateKey: string, startTime: string) {
   const startAt = getKstDateTime(dateKey, startTime);
   if (!startAt) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "예약 날짜와 시간이 올바르지 않습니다." });
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "예약 날짜와 시간이 올바르지 않습니다.",
+    });
   }
   return startAt;
 }
@@ -371,7 +440,8 @@ function assertReservationLeadTime(dateKey: string, startTime: string) {
   if (startAt.getTime() - Date.now() < MIN_RESERVATION_LEAD_TIME_MS) {
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: "시설 예약은 최소 24시간 전까지만 신청할 수 있습니다. 당일 또는 24시간 이내 예약은 교회 사무국에 문의해주세요.",
+      message:
+        "시설 예약은 최소 24시간 전까지만 신청할 수 있습니다. 당일 또는 24시간 이내 예약은 교회 사무국에 문의해주세요.",
     });
   }
 }
@@ -391,14 +461,25 @@ function parseDateKey(dateKey: string) {
 }
 
 function addUtcDays(date: Date, days: number) {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + days));
+  return new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate() + days
+    )
+  );
 }
 
 function formatDateKey(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-function nthWeekdayDate(year: number, monthIndex: number, nth: number, weekday: number) {
+function nthWeekdayDate(
+  year: number,
+  monthIndex: number,
+  nth: number,
+  weekday: number
+) {
   const first = new Date(Date.UTC(year, monthIndex, 1));
   const firstWeekday = first.getUTCDay();
   const offset = (weekday - firstWeekday + 7) % 7;
@@ -417,26 +498,38 @@ function getMonthlyWeekdayInfo(date: Date) {
 function buildReservationDates(
   startDateKey: string,
   repeat?: z.infer<typeof reservationRepeatSchema>,
-  maxOccurrences = MAX_REPEAT_OCCURRENCES,
+  maxOccurrences = MAX_REPEAT_OCCURRENCES
 ) {
   const startDate = parseDateKey(startDateKey);
   if (!startDate) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "예약 날짜 형식이 올바르지 않습니다." });
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "예약 날짜 형식이 올바르지 않습니다.",
+    });
   }
 
   const type = repeat?.type ?? "none";
   if (type === "none") return [startDateKey];
 
   if (!repeat?.untilDate) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "반복 종료일을 선택해주세요." });
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "반복 종료일을 선택해주세요.",
+    });
   }
 
   const untilDate = parseDateKey(repeat.untilDate);
   if (!untilDate) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "반복 종료일 형식이 올바르지 않습니다." });
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "반복 종료일 형식이 올바르지 않습니다.",
+    });
   }
   if (untilDate < startDate) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "반복 종료일은 시작일 이후로 선택해주세요." });
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "반복 종료일은 시작일 이후로 선택해주세요.",
+    });
   }
 
   const dates: string[] = [];
@@ -448,7 +541,9 @@ function buildReservationDates(
     if (type === "daily") candidate = addUtcDays(startDate, step);
     if (type === "weekly") candidate = addUtcDays(startDate, step * 7);
     if (type === "monthly-weekday") {
-      const monthStart = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + step, 1));
+      const monthStart = new Date(
+        Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + step, 1)
+      );
       if (monthStart > untilDate) {
         stoppedByEndDate = true;
         break;
@@ -500,7 +595,9 @@ function describeReservationRepeat(
     weekly: "매주 반복",
     "monthly-weekday": "매월 같은 주 반복",
   };
-  const suffix = repeat.untilDate ? ` · ${repeat.untilDate}까지 · 총 ${count}회` : ` · 총 ${count}회`;
+  const suffix = repeat.untilDate
+    ? ` · ${repeat.untilDate}까지 · 총 ${count}회`
+    : ` · 총 ${count}회`;
   return `${labelByType[repeat.type ?? "none"]}${suffix}`;
 }
 
@@ -516,13 +613,17 @@ export const homeRouter = router({
   /** 교회 소식 최신 5개 (공개된 것만) */
   notices: publicProcedure.query(async ({ ctx }) => {
     const canViewSecret = canContextViewNoticeSecret(ctx);
-    return (await getPublishedNotices(5)).map((post) => applySecretBoardMask(post, canViewSecret));
+    return (await getPublishedNotices(5)).map(post =>
+      applySecretBoardMask(post, canViewSecret)
+    );
   }),
 
   /** 교회 소식 게시판 전체 목록 (공개된 것만) */
   noticeBoard: publicProcedure.query(async ({ ctx }) => {
     const canViewSecret = canContextViewNoticeSecret(ctx);
-    return (await getPublishedNotices(100)).map((post) => applySecretBoardMask(post, canViewSecret));
+    return (await getPublishedNotices(100)).map(post =>
+      applySecretBoardMask(post, canViewSecret)
+    );
   }),
 
   /** 메뉴별 독립 게시판 목록 */
@@ -530,8 +631,9 @@ export const homeRouter = router({
     .input(z.object({ category: menuBoardCategorySchema }))
     .query(async ({ input, ctx }) => {
       const canViewSecret = canContextViewNoticeSecret(ctx);
-      return (await getPublishedNoticesByCategory(input.category, 100))
-        .map((post) => applySecretBoardMask(post, canViewSecret));
+      return (await getPublishedNoticesByCategory(input.category, 100)).map(
+        post => applySecretBoardMask(post, canViewSecret)
+      );
     }),
 
   /** 메뉴별 독립 게시판 목록 */
@@ -539,8 +641,9 @@ export const homeRouter = router({
     .input(dynamicBoardSourceSchema)
     .query(async ({ input, ctx }) => {
       const canViewSecret = canContextViewNoticeSecret(ctx);
-      return (await getPublishedDynamicBoardPosts(input, 100))
-        .map((post) => applySecretBoardMask(post, canViewSecret));
+      return (await getPublishedDynamicBoardPosts(input, 100)).map(post =>
+        applySecretBoardMask(post, canViewSecret)
+      );
     }),
 
   trackDynamicBoardPostView: publicProcedure
@@ -548,7 +651,8 @@ export const homeRouter = router({
     .mutation(async ({ input, ctx }) => {
       const post = await getDynamicBoardPostById(input.id);
       if (!post || !post.isPublished) return { success: true };
-      if (post.isSecret && !canContextViewNoticeSecret(ctx)) return { success: true };
+      if (post.isSecret && !canContextViewNoticeSecret(ctx))
+        return { success: true };
       await incrementDynamicBoardPostViewCount(input.id);
       return { success: true };
     }),
@@ -558,17 +662,24 @@ export const homeRouter = router({
     .mutation(async ({ input, ctx }) => {
       const notice = await getNoticeById(input.id);
       if (!notice || !notice.isPublished) return { success: true };
-      if (notice.isSecret && !canContextViewNoticeSecret(ctx)) return { success: true };
+      if (notice.isSecret && !canContextViewNoticeSecret(ctx))
+        return { success: true };
       await incrementNoticeViewCount(input.id);
       return { success: true };
     }),
 
   /** 행정자료 게시판 전체 목록 (공개된 것만) */
-  adminResourceBoard: publicProcedure.query(() => getPublishedNoticesByCategory("행정자료", 100)),
+  adminResourceBoard: publicProcedure.query(() =>
+    getPublishedNoticesByCategory("행정자료", 100)
+  ),
 
   /** 홈페이지 팝업/공지 배너 (현재 노출 가능한 것만) */
   popups: publicProcedure.query(({ ctx }) =>
-    getActiveNoticePopups(10, new Date(), ctx.user || ctx.memberId ? "member" : "guest")
+    getActiveNoticePopups(
+      10,
+      new Date(),
+      ctx.user || ctx.memberId ? "member" : "guest"
+    )
   ),
 
   /** 관련기관 목록 (공개된 것만) */
@@ -583,12 +694,25 @@ export const homeRouter = router({
     .input(z.object({ galleryScopeKey: z.string().trim().min(1).max(96) }))
     .query(({ input }) => getVisibleGalleryAlbums(input.galleryScopeKey)),
 
+  galleryAlbum: publicProcedure
+    .input(
+      z.object({
+        galleryScopeKey: z.string().trim().min(1).max(96),
+        albumKey: z.string().trim().min(1).max(96),
+      })
+    )
+    .query(({ input }) =>
+      getVisibleGalleryAlbumDetail(input.galleryScopeKey, input.albumKey)
+    ),
+
   homeGallery: publicProcedure.query(() => getVisibleHomeGalleryItems()),
 
   /** 사이트 설정 (교회명, 주소, 연락처 등) */
   settings: publicProcedure.query(() => getSiteSettings()),
 
-  getVapidPublicKey: publicProcedure.query(() => process.env.VAPID_PUBLIC_KEY ?? ""),
+  getVapidPublicKey: publicProcedure.query(
+    () => process.env.VAPID_PUBLIC_KEY ?? ""
+  ),
 
   getExternalFacilityRules: publicProcedure.query(async () => {
     const setting = await getSiteSetting(externalFacilityRulesSettingKey);
@@ -597,7 +721,9 @@ export const homeRouter = router({
 
   setExternalFacilityRules: adminPermissionProcedure("content:facilities")
     .input(z.object({ rules: z.string().max(20000) }))
-    .mutation(({ input }) => upsertSiteSetting(externalFacilityRulesSettingKey, input.rules)),
+    .mutation(({ input }) =>
+      upsertSiteSetting(externalFacilityRulesSettingKey, input.rules)
+    ),
 
   /** 교회연혁 공개 데이터 */
   history: publicProcedure.query(() => getPublicHistory()),
@@ -615,11 +741,15 @@ export const homeRouter = router({
 
   /** 공개 강좌 목록 */
   courses: publicProcedure
-    .input(z.object({ pageHref: hrefLookupSchema.nullable().optional() }).optional())
-    .query(({ input, ctx }) => getVisibleCourses({
-      pageHref: input?.pageHref ?? null,
-      audience: getMenuReadAccess(ctx),
-    })),
+    .input(
+      z.object({ pageHref: hrefLookupSchema.nullable().optional() }).optional()
+    )
+    .query(({ input, ctx }) =>
+      getVisibleCourses({
+        pageHref: input?.pageHref ?? null,
+        audience: getMenuReadAccess(ctx),
+      })
+    ),
 
   /** 담임목사 저서 목록 */
   pastorBooks: publicProcedure.query(() => getVisiblePastorBooks()),
@@ -658,65 +788,115 @@ export const homeRouter = router({
     .query(async ({ input, ctx }) => {
       const course = await getVisibleCourseById(input.id);
       if (!course) return null;
-      if (course.audience === "member" && getMenuReadAccess(ctx) !== "member") return null;
+      if (course.audience === "member" && getMenuReadAccess(ctx) !== "member")
+        return null;
       return course;
     }),
 
   /** 내 강좌 신청 내역 조회 (성도 본인 것만) */
-  myCourseApplications: memberProtectedProcedure
-    .query(({ ctx }) => getMyCourseApplications(ctx.memberId)),
+  myCourseApplications: memberProtectedProcedure.query(({ ctx }) =>
+    getMyCourseApplications(ctx.memberId)
+  ),
 
   /** 강좌 신청 (전체 공개 강좌는 비회원 허용, 성도 공개 강좌는 로그인 필요) */
   applyCourse: publicProcedure
-    .input(z.object({
-      courseId: idSchema,
-      applicantName: z.string().trim().min(1, "이름을 입력해주세요.").max(64, "이름은 64자 이하로 입력해주세요."),
-      applicantPhone: z.string().trim().max(32, "연락처는 32자 이하로 입력해주세요.").optional(),
-      applicantEmail: z.string().trim().email("올바른 이메일 형식을 입력해주세요.").max(320, "이메일은 320자 이하로 입력해주세요.").optional(),
-      memo: courseMemoSchema,
-      customAnswers: courseCustomAnswersSchema.optional(),
-      privacyAgreed: z.boolean().optional(),
-    }))
+    .input(
+      z.object({
+        courseId: idSchema,
+        applicantName: z
+          .string()
+          .trim()
+          .min(1, "이름을 입력해주세요.")
+          .max(64, "이름은 64자 이하로 입력해주세요."),
+        applicantPhone: z
+          .string()
+          .trim()
+          .max(32, "연락처는 32자 이하로 입력해주세요.")
+          .optional(),
+        applicantEmail: z
+          .string()
+          .trim()
+          .email("올바른 이메일 형식을 입력해주세요.")
+          .max(320, "이메일은 320자 이하로 입력해주세요.")
+          .optional(),
+        memo: courseMemoSchema,
+        customAnswers: courseCustomAnswersSchema.optional(),
+        privacyAgreed: z.boolean().optional(),
+      })
+    )
     .mutation(async ({ input, ctx }) => {
       const course = await getVisibleCourseById(input.courseId);
       if (!course) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "강좌를 찾을 수 없습니다." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "강좌를 찾을 수 없습니다.",
+        });
       }
       if (course.status !== "open") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "현재 신청 가능한 강좌가 아닙니다." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "현재 신청 가능한 강좌가 아닙니다.",
+        });
       }
       const today = todayKstDateKey();
       if (course.applyStartDate && today < course.applyStartDate) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "아직 신청 기간이 시작되지 않았습니다." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "아직 신청 기간이 시작되지 않았습니다.",
+        });
       }
       if (course.applyEndDate && today > course.applyEndDate) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "신청 기간이 마감되었습니다." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "신청 기간이 마감되었습니다.",
+        });
       }
       const customAnswers = input.customAnswers ?? {};
-      const applicationFields = parseCourseApplicationFields(course.applicationFields);
-      const missingRequiredField = applicationFields.find((field) =>
-        field.required && !String(customAnswers[field.id] ?? "").trim()
+      const applicationFields = parseCourseApplicationFields(
+        course.applicationFields
+      );
+      const missingRequiredField = applicationFields.find(
+        field => field.required && !String(customAnswers[field.id] ?? "").trim()
       );
       if (missingRequiredField) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `${missingRequiredField.label} 항목을 입력해주세요.` });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `${missingRequiredField.label} 항목을 입력해주세요.`,
+        });
       }
 
       const member = ctx.memberId ? await getMemberById(ctx.memberId) : null;
       if (course.audience === "member" && !member) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "성도 공개 강좌는 로그인 후 신청할 수 있습니다." });
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "성도 공개 강좌는 로그인 후 신청할 수 있습니다.",
+        });
       }
 
       const applicantName = input.applicantName || member?.name || "";
-      const applicantPhone = (input.applicantPhone || member?.phone || "").replace(/[^0-9+]/g, "");
+      const applicantPhone = (
+        input.applicantPhone ||
+        member?.phone ||
+        ""
+      ).replace(/[^0-9+]/g, "");
       const applicantEmail = input.applicantEmail || member?.email || null;
       if (!applicantPhone) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "연락처를 입력해주세요." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "연락처를 입력해주세요.",
+        });
       }
       if (!applicantEmail) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "이메일을 입력해주세요." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "이메일을 입력해주세요.",
+        });
       }
       if (!member && input.privacyAgreed !== true) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "개인정보 수집 및 이용에 동의해주세요." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "개인정보 수집 및 이용에 동의해주세요.",
+        });
       }
 
       try {
@@ -728,10 +908,15 @@ export const homeRouter = router({
           applicantEmail,
           memo: input.memo || null,
           // Preserve the question shown at submission time so later field edits do not break past exports.
-          customAnswers: JSON.stringify(serializeCourseApplicationAnswers(customAnswers, applicationFields)),
+          customAnswers: JSON.stringify(
+            serializeCourseApplicationAnswers(customAnswers, applicationFields)
+          ),
         });
         if (!id) {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "강좌 신청 저장에 실패했습니다." });
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "강좌 신청 저장에 실패했습니다.",
+          });
         }
         if (member) {
           notifyCourseApplicationToDistrictManager({
@@ -750,7 +935,10 @@ export const homeRouter = router({
           throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
         }
         if (error instanceof CourseApplicationLockError) {
-          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: error.message });
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: error.message,
+          });
         }
         throw error;
       }
@@ -762,7 +950,10 @@ export const homeRouter = router({
     .mutation(async ({ input, ctx }) => {
       const cancelled = await cancelMyCourseApplication(input.id, ctx.memberId);
       if (!cancelled) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "취소할 수 없는 신청입니다." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "취소할 수 없는 신청입니다.",
+        });
       }
       return { success: true };
     }),
@@ -785,10 +976,16 @@ export const homeRouter = router({
    * - 저장된 번역이 없으면 null을 반환하고, 프론트는 한국어 원문을 사용합니다.
    */
   staticPageTranslation: publicProcedure
-    .input(z.object({ href: staticPageHrefSchema, locale: translationLocaleSchema }))
+    .input(
+      z.object({ href: staticPageHrefSchema, locale: translationLocaleSchema })
+    )
     .query(async ({ input }) => {
       if (!getStaticPageSeed(input.href)) return null;
-      const stored = await getStoredTranslation(input.locale, "static_page", input.href);
+      const stored = await getStoredTranslation(
+        input.locale,
+        "static_page",
+        input.href
+      );
       return stored?.content ?? null;
     }),
 
@@ -806,18 +1003,25 @@ export const homeRouter = router({
   /** 2단 메뉴 단건 조회 (동적 페이지 렌더링용) */
   menuItem: publicProcedure
     .input(z.object({ id: idSchema }))
-    .query(({ input, ctx }) => getVisibleMenuItemById(input.id, getMenuReadAccess(ctx))),
+    .query(({ input, ctx }) =>
+      getVisibleMenuItemById(input.id, getMenuReadAccess(ctx))
+    ),
 
   /** 3단 메뉴 단건 조회 (동적 페이지 렌더링용) */
   menuSubItem: publicProcedure
     .input(z.object({ id: idSchema }))
-    .query(({ input, ctx }) => getVisibleMenuSubItemById(input.id, getMenuReadAccess(ctx))),
+    .query(({ input, ctx }) =>
+      getVisibleMenuSubItemById(input.id, getMenuReadAccess(ctx))
+    ),
 
   /** href(경로)로 2단 메뉴 조회 — 예배영상 페이지의 playlistId 연결에 사용 */
   menuItemByHref: publicProcedure
     .input(z.object({ href: hrefLookupSchema }))
     .query(async ({ input, ctx }) => {
-      if (isVehicleReservationHref(input.href) && !(await canContextUseVehicleReservation(ctx))) {
+      if (
+        isVehicleReservationHref(input.href) &&
+        !(await canContextUseVehicleReservation(ctx))
+      ) {
         return null;
       }
       return getVisibleMenuItemByHref(input.href, getMenuReadAccess(ctx));
@@ -827,7 +1031,10 @@ export const homeRouter = router({
   menuSubItemByHref: publicProcedure
     .input(z.object({ href: hrefLookupSchema }))
     .query(async ({ input, ctx }) => {
-      if (isVehicleReservationHref(input.href) && !(await canContextUseVehicleReservation(ctx))) {
+      if (
+        isVehicleReservationHref(input.href) &&
+        !(await canContextUseVehicleReservation(ctx))
+      ) {
         return null;
       }
       return getVisibleMenuSubItemByHref(input.href, getMenuReadAccess(ctx));
@@ -835,14 +1042,20 @@ export const homeRouter = router({
 
   menuAccessByHref: publicProcedure
     .input(z.object({ href: hrefLookupSchema }))
-    .query(({ input, ctx }) => getMenuAccessByHref(input.href, getMenuReadAccess(ctx))),
+    .query(({ input, ctx }) =>
+      getMenuAccessByHref(input.href, getMenuReadAccess(ctx))
+    ),
 
   menuAccessById: publicProcedure
-    .input(z.object({
-      kind: z.enum(["menu", "item", "subItem"]),
-      id: idSchema,
-    }))
-    .query(({ input, ctx }) => getMenuAccessById(input.kind, input.id, getMenuReadAccess(ctx))),
+    .input(
+      z.object({
+        kind: z.enum(["menu", "item", "subItem"]),
+        id: idSchema,
+      })
+    )
+    .query(({ input, ctx }) =>
+      getMenuAccessById(input.kind, input.id, getMenuReadAccess(ctx))
+    ),
 
   // ─── 시설 조회 (성도용) ─────────────────────────────────────────────────────
 
@@ -855,7 +1068,9 @@ export const homeRouter = router({
     .query(({ input }) => getVisibleFacilityById(input.id)),
 
   /** 외부인 예약에 공개된 시설 목록 */
-  externalFacilities: publicProcedure.query(() => getExternalReservableFacilities()),
+  externalFacilities: publicProcedure.query(() =>
+    getExternalReservableFacilities()
+  ),
 
   /** 외부인 예약에 공개된 시설 단건 조회 */
   externalFacility: publicProcedure
@@ -884,7 +1099,9 @@ export const homeRouter = router({
   externalFacilityHours: publicProcedure
     .input(z.object({ facilityId: idSchema }))
     .query(async ({ input }) => {
-      const facility = await getExternalReservableFacilityById(input.facilityId);
+      const facility = await getExternalReservableFacilityById(
+        input.facilityId
+      );
       if (!facility) return [];
       return getExternalFacilityHours(input.facilityId);
     }),
@@ -904,10 +1121,12 @@ export const homeRouter = router({
    * 반환: startTime, endTime, status 만 반환 (예약자 이름/전화번호/메모 등 제외)
    */
   facilityReservationsByDate: publicProcedure
-    .input(z.object({
-      facilityId: idSchema,
-      date: z.string().regex(DATE_RE, "날짜 형식이 올바르지 않습니다."),
-    }))
+    .input(
+      z.object({
+        facilityId: idSchema,
+        date: z.string().regex(DATE_RE, "날짜 형식이 올바르지 않습니다."),
+      })
+    )
     .query(async ({ input, ctx }) => {
       const facility = await getVisibleFacilityById(input.facilityId);
       if (!facility) return [];
@@ -916,7 +1135,11 @@ export const homeRouter = router({
       }
       const rows = await getReservationsByDate(input.facilityId, input.date);
       // 공개 화면에는 시간대와 상태만 반환 — 개인정보 필드 제거
-      return rows.map(({ startTime, endTime, status }) => ({ startTime, endTime, status }));
+      return rows.map(({ startTime, endTime, status }) => ({
+        startTime,
+        endTime,
+        status,
+      }));
     }),
 
   /**
@@ -925,52 +1148,111 @@ export const homeRouter = router({
    * - 시간표와 중복 방지는 성도 예약과 같은 reservations 테이블/락을 공유합니다.
    */
   createExternalReservation: publicProcedure
-    .input(z.object({
-      facilityId: idSchema,
-      reserverName: z.string().trim().min(1, "예약자 이름을 입력해주세요.").max(64, "예약자 이름은 64자 이하로 입력해주세요."),
-      reserverPhone: z.string().trim().min(1, "연락처를 입력해주세요.").max(32, "연락처는 32자 이하로 입력해주세요."),
-      reservationDate: z.string().regex(DATE_RE, "예약 날짜 형식이 올바르지 않습니다."),
-      startTime: z.string().regex(TIME_RE, "시작 시간 형식이 올바르지 않습니다."),
-      endTime: z.string().regex(TIME_RE, "종료 시간 형식이 올바르지 않습니다."),
-      purpose: z.string().trim().min(1, "사용 목적을 입력해주세요.").max(256, "사용 목적은 256자 이하로 입력해주세요."),
-      department: z.string().trim().max(128, "소속/단체는 128자 이하로 입력해주세요.").optional(),
-      attendees: z.number().int().min(1, "사용 인원은 1명 이상이어야 합니다.").default(1),
-      notes: z.string().trim().max(2000, "추가 요청사항은 2000자 이하로 입력해주세요.").optional(),
-    }))
+    .input(
+      z.object({
+        facilityId: idSchema,
+        reserverName: z
+          .string()
+          .trim()
+          .min(1, "예약자 이름을 입력해주세요.")
+          .max(64, "예약자 이름은 64자 이하로 입력해주세요."),
+        reserverPhone: z
+          .string()
+          .trim()
+          .min(1, "연락처를 입력해주세요.")
+          .max(32, "연락처는 32자 이하로 입력해주세요."),
+        reservationDate: z
+          .string()
+          .regex(DATE_RE, "예약 날짜 형식이 올바르지 않습니다."),
+        startTime: z
+          .string()
+          .regex(TIME_RE, "시작 시간 형식이 올바르지 않습니다."),
+        endTime: z
+          .string()
+          .regex(TIME_RE, "종료 시간 형식이 올바르지 않습니다."),
+        purpose: z
+          .string()
+          .trim()
+          .min(1, "사용 목적을 입력해주세요.")
+          .max(256, "사용 목적은 256자 이하로 입력해주세요."),
+        department: z
+          .string()
+          .trim()
+          .max(128, "소속/단체는 128자 이하로 입력해주세요.")
+          .optional(),
+        attendees: z
+          .number()
+          .int()
+          .min(1, "사용 인원은 1명 이상이어야 합니다.")
+          .default(1),
+        notes: z
+          .string()
+          .trim()
+          .max(2000, "추가 요청사항은 2000자 이하로 입력해주세요.")
+          .optional(),
+      })
+    )
     .mutation(async ({ input, ctx }) => {
-      const canBypassReservationRules = hasFacilityReservationManagerPermission(ctx.user);
+      const canBypassReservationRules = hasFacilityReservationManagerPermission(
+        ctx.user
+      );
       const startMinutes = toMinutes(input.startTime);
       const endMinutes = toMinutes(input.endTime);
       if (startMinutes === null || endMinutes === null) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "예약 시간 형식이 올바르지 않습니다." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "예약 시간 형식이 올바르지 않습니다.",
+        });
       }
       if (startMinutes >= endMinutes) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "시작 시간은 종료 시간보다 빨라야 합니다." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "시작 시간은 종료 시간보다 빨라야 합니다.",
+        });
       }
 
-      const facility = await getExternalReservableFacilityById(input.facilityId);
+      const facility = await getExternalReservableFacilityById(
+        input.facilityId
+      );
       if (!facility) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "외부인 예약이 가능한 시설을 찾을 수 없습니다." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "외부인 예약이 가능한 시설을 찾을 수 없습니다.",
+        });
       }
       if (input.attendees > facility.capacity && !canBypassReservationRules) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `최대 수용 인원(${facility.capacity}명)을 초과할 수 없습니다.` });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `최대 수용 인원(${facility.capacity}명)을 초과할 수 없습니다.`,
+        });
       }
 
       const todayDateKey = todayKstDateKey();
       if (input.reservationDate < todayDateKey) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "지난 날짜는 예약할 수 없습니다." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "지난 날짜는 예약할 수 없습니다.",
+        });
       }
 
       const reservationSettings = await getSiteSettings();
       const externalReservationWindow = getEffectiveExternalReservationWindow(
         todayDateKey,
         reservationSettings,
-        facility,
+        facility
       );
-      if (!canBypassReservationRules && isReservationDateAfterMax(input.reservationDate, externalReservationWindow.effectiveMaxDateKey)) {
+      if (
+        !canBypassReservationRules &&
+        isReservationDateAfterMax(
+          input.reservationDate,
+          externalReservationWindow.effectiveMaxDateKey
+        )
+      ) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: getExternalReservationWindowMessage(externalReservationWindow),
+          message: getExternalReservationWindowMessage(
+            externalReservationWindow
+          ),
         });
       }
 
@@ -983,7 +1265,10 @@ export const homeRouter = router({
       const reservationDayOfWeek = reservationDateObject?.getUTCDay() ?? 0;
       const dayHour = hours.find(h => h.dayOfWeek === reservationDayOfWeek);
       if (dayHour && !dayHour.isOpen && !canBypassReservationRules) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `${input.reservationDate}은 시설 운영일이 아닙니다.` });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `${input.reservationDate}은 시설 운영일이 아닙니다.`,
+        });
       }
 
       const openTime = dayHour?.openTime ?? facility.openTime;
@@ -991,9 +1276,16 @@ export const homeRouter = router({
       const openMinutes = toMinutes(openTime);
       const closeMinutes = toMinutes(closeTime);
       if (openMinutes === null || closeMinutes === null) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "시설 운영 시간이 올바르지 않습니다. 관리자에게 문의해주세요." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "시설 운영 시간이 올바르지 않습니다. 관리자에게 문의해주세요.",
+        });
       }
-      if ((startMinutes < openMinutes || endMinutes > closeMinutes) && !canBypassReservationRules) {
+      if (
+        (startMinutes < openMinutes || endMinutes > closeMinutes) &&
+        !canBypassReservationRules
+      ) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: `${input.reservationDate}은 운영 시간(${openTime}~${closeTime}) 내에서만 예약 가능합니다.`,
@@ -1002,15 +1294,34 @@ export const homeRouter = router({
 
       const slotMinutes = facility.slotMinutes > 0 ? facility.slotMinutes : 60;
       const durationMinutes = endMinutes - startMinutes;
-      if (!canBypassReservationRules && ((startMinutes - openMinutes) % slotMinutes !== 0 || (endMinutes - openMinutes) % slotMinutes !== 0)) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `${slotMinutes}분 단위로만 예약할 수 있습니다.` });
+      if (
+        !canBypassReservationRules &&
+        ((startMinutes - openMinutes) % slotMinutes !== 0 ||
+          (endMinutes - openMinutes) % slotMinutes !== 0)
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `${slotMinutes}분 단위로만 예약할 수 있습니다.`,
+        });
       }
 
-      if (dayHour?.breakStart && dayHour.breakEnd && !canBypassReservationRules) {
+      if (
+        dayHour?.breakStart &&
+        dayHour.breakEnd &&
+        !canBypassReservationRules
+      ) {
         const breakStart = toMinutes(dayHour.breakStart);
         const breakEnd = toMinutes(dayHour.breakEnd);
-        if (breakStart !== null && breakEnd !== null && startMinutes < breakEnd && endMinutes > breakStart) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: `${input.reservationDate} 휴게 시간(${dayHour.breakStart}~${dayHour.breakEnd})에는 예약할 수 없습니다.` });
+        if (
+          breakStart !== null &&
+          breakEnd !== null &&
+          startMinutes < breakEnd &&
+          endMinutes > breakStart
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `${input.reservationDate} 휴게 시간(${dayHour.breakStart}~${dayHour.breakEnd})에는 예약할 수 없습니다.`,
+          });
         }
       }
 
@@ -1019,9 +1330,17 @@ export const homeRouter = router({
         for (const b of blocked) {
           if (b.blockedDate !== input.reservationDate) continue;
           if (!b.isPartialBlock) {
-            throw new TRPCError({ code: "BAD_REQUEST", message: `${input.reservationDate}은 예약이 차단된 날입니다.${b.reason ? ` (${b.reason})` : ""}` });
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `${input.reservationDate}은 예약이 차단된 날입니다.${b.reason ? ` (${b.reason})` : ""}`,
+            });
           }
-          if (b.blockStart && b.blockEnd && input.startTime < b.blockEnd && input.endTime > b.blockStart) {
+          if (
+            b.blockStart &&
+            b.blockEnd &&
+            input.startTime < b.blockEnd &&
+            input.endTime > b.blockStart
+          ) {
             throw new TRPCError({
               code: "BAD_REQUEST",
               message: `${input.reservationDate} 해당 시간대(${b.blockStart}~${b.blockEnd})는 예약이 차단되어 있습니다.${b.reason ? ` (${b.reason})` : ""}`,
@@ -1030,10 +1349,16 @@ export const homeRouter = router({
         }
       }
 
-      const existing = await getReservationsByDate(input.facilityId, input.reservationDate);
-      const activeReservations = existing.filter(r => r.status !== "cancelled" && r.status !== "rejected");
+      const existing = await getReservationsByDate(
+        input.facilityId,
+        input.reservationDate
+      );
+      const activeReservations = existing.filter(
+        r => r.status !== "cancelled" && r.status !== "rejected"
+      );
       for (const r of activeReservations) {
-        const overlap = input.startTime < r.endTime && input.endTime > r.startTime;
+        const overlap =
+          input.startTime < r.endTime && input.endTime > r.startTime;
         if (overlap) {
           throw new TRPCError({
             code: "CONFLICT",
@@ -1042,7 +1367,9 @@ export const homeRouter = router({
         }
       }
 
-      const status: "approved" | "pending" = canBypassReservationRules ? "approved" : "pending";
+      const status: "approved" | "pending" = canBypassReservationRules
+        ? "approved"
+        : "pending";
 
       try {
         const id = await createReservationIfAvailable({
@@ -1055,7 +1382,10 @@ export const homeRouter = router({
           recurrenceSequence: 0,
         });
         if (!id) {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "예약 신청 저장에 실패했습니다." });
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "예약 신청 저장에 실패했습니다.",
+          });
         }
         void notifyFacilityReservation({
           reserverName: input.reserverName,
@@ -1073,7 +1403,10 @@ export const homeRouter = router({
           throw new TRPCError({ code: "CONFLICT", message: error.message });
         }
         if (error instanceof ReservationLockError) {
-          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: error.message });
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: error.message,
+          });
         }
         throw error;
       }
@@ -1088,26 +1421,44 @@ export const homeRouter = router({
    *   최소/최대 예약 시간, 차단일, 시간 순서, 중복 예약
    */
   createReservation: memberProtectedProcedure
-    .input(z.object({
-      facilityId: idSchema,
-      reserverName: z.string().min(1, "예약자 이름을 입력해주세요."),
-      reserverPhone: z.string().optional(),
-      reservationDate: z.string().regex(DATE_RE, "예약 날짜 형식이 올바르지 않습니다."),
-      startTime: z.string().regex(TIME_RE, "시작 시간 형식이 올바르지 않습니다."),
-      endTime: z.string().regex(TIME_RE, "종료 시간 형식이 올바르지 않습니다."),
-      purpose: z.string().min(1, "사용 목적을 입력해주세요."),
-      department: z.string().optional(),
-      attendees: z.number().int().min(1, "사용 인원은 1명 이상이어야 합니다.").default(1),
-      notes: z.string().optional(),
-      repeat: reservationRepeatSchema,
-    }))
+    .input(
+      z.object({
+        facilityId: idSchema,
+        reserverName: z.string().min(1, "예약자 이름을 입력해주세요."),
+        reserverPhone: z.string().optional(),
+        reservationDate: z
+          .string()
+          .regex(DATE_RE, "예약 날짜 형식이 올바르지 않습니다."),
+        startTime: z
+          .string()
+          .regex(TIME_RE, "시작 시간 형식이 올바르지 않습니다."),
+        endTime: z
+          .string()
+          .regex(TIME_RE, "종료 시간 형식이 올바르지 않습니다."),
+        purpose: z.string().min(1, "사용 목적을 입력해주세요."),
+        department: z.string().optional(),
+        attendees: z
+          .number()
+          .int()
+          .min(1, "사용 인원은 1명 이상이어야 합니다.")
+          .default(1),
+        notes: z.string().optional(),
+        repeat: reservationRepeatSchema,
+      })
+    )
     .mutation(async ({ input, ctx }) => {
       const member = await getMemberById(ctx.memberId);
-      const canManageFacilityReservations = hasFacilityReservationManagerPermission(ctx.user);
-      if (!member || (!canMemberRequestFacilityReservation(member) && !canManageFacilityReservations)) {
+      const canManageFacilityReservations =
+        hasFacilityReservationManagerPermission(ctx.user);
+      if (
+        !member ||
+        (!canMemberRequestFacilityReservation(member) &&
+          !canManageFacilityReservations)
+      ) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "시설 사용 예약은 교회 등록 성도만 신청할 수 있습니다. 관리자에게 문의해 주세요.",
+          message:
+            "시설 사용 예약은 교회 등록 성도만 신청할 수 있습니다. 관리자에게 문의해 주세요.",
         });
       }
       const canBypassReservationRules = canManageFacilityReservations;
@@ -1115,30 +1466,52 @@ export const homeRouter = router({
       const startMinutes = toMinutes(input.startTime);
       const endMinutes = toMinutes(input.endTime);
       if (startMinutes === null || endMinutes === null) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "예약 시간 형식이 올바르지 않습니다." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "예약 시간 형식이 올바르지 않습니다.",
+        });
       }
       // ① 시설 존재 여부 확인
       const facility = await getFacilityById(input.facilityId);
       if (!facility || !facility.isVisible) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "시설을 찾을 수 없습니다." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "시설을 찾을 수 없습니다.",
+        });
       }
       // ② 예약 가능 여부 확인
       if (!facility.isReservable && !canBypassReservationRules) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "현재 예약이 불가능한 시설입니다." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "현재 예약이 불가능한 시설입니다.",
+        });
       }
       if (input.attendees > facility.capacity && !canBypassReservationRules) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `최대 수용 인원(${facility.capacity}명)을 초과할 수 없습니다.` });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `최대 수용 인원(${facility.capacity}명)을 초과할 수 없습니다.`,
+        });
       }
       // ③ 시작시간 < 종료시간 확인
       if (startMinutes >= endMinutes) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "시작 시간은 종료 시간보다 빨라야 합니다." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "시작 시간은 종료 시간보다 빨라야 합니다.",
+        });
       }
 
-      const reservationDates = buildReservationDates(input.reservationDate, input.repeat);
+      const reservationDates = buildReservationDates(
+        input.reservationDate,
+        input.repeat
+      );
       const todayDateKey = todayKstDateKey();
       const reservationSettings = await getSiteSettings();
-      const reservationMaxMonths = getFacilityReservationMaxMonths(reservationSettings);
-      const reservationMaxDateKey = getReservationMaxDateKey(todayDateKey, reservationMaxMonths);
+      const reservationMaxMonths =
+        getFacilityReservationMaxMonths(reservationSettings);
+      const reservationMaxDateKey = getReservationMaxDateKey(
+        todayDateKey,
+        reservationMaxMonths
+      );
       const hours = await getFacilityHours(input.facilityId);
       const blocked = await getBlockedDates(input.facilityId);
       for (const reservationDate of reservationDates) {
@@ -1148,7 +1521,10 @@ export const homeRouter = router({
             message: "지난 날짜는 예약할 수 없습니다.",
           });
         }
-        if (!canBypassReservationRules && isReservationDateAfterMax(reservationDate, reservationMaxDateKey)) {
+        if (
+          !canBypassReservationRules &&
+          isReservationDateAfterMax(reservationDate, reservationMaxDateKey)
+        ) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: `시설 예약은 최대 ${reservationMaxMonths}개월 후(${reservationMaxDateKey})까지만 신청할 수 있습니다.`,
@@ -1164,7 +1540,10 @@ export const homeRouter = router({
         const dayHour = hours.find(h => h.dayOfWeek === reservationDayOfWeek);
         if (dayHour) {
           if (!dayHour.isOpen && !canBypassReservationRules) {
-            throw new TRPCError({ code: "BAD_REQUEST", message: `${reservationDate}은 시설 운영일이 아닙니다.` });
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `${reservationDate}은 시설 운영일이 아닙니다.`,
+            });
           }
         }
 
@@ -1173,61 +1552,102 @@ export const homeRouter = router({
         const openMinutes = toMinutes(openTime);
         const closeMinutes = toMinutes(closeTime);
         if (openMinutes === null || closeMinutes === null) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "시설 운영 시간이 올바르지 않습니다. 관리자에게 문의해주세요." });
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "시설 운영 시간이 올바르지 않습니다. 관리자에게 문의해주세요.",
+          });
         }
-        if ((startMinutes < openMinutes || endMinutes > closeMinutes) && !canBypassReservationRules) {
+        if (
+          (startMinutes < openMinutes || endMinutes > closeMinutes) &&
+          !canBypassReservationRules
+        ) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: `${reservationDate}은 운영 시간(${openTime}~${closeTime}) 내에서만 예약 가능합니다.`,
           });
         }
 
-        const slotMinutes = facility.slotMinutes > 0 ? facility.slotMinutes : 60;
+        const slotMinutes =
+          facility.slotMinutes > 0 ? facility.slotMinutes : 60;
         const durationMinutes = endMinutes - startMinutes;
-        if (!canBypassReservationRules && ((startMinutes - openMinutes) % slotMinutes !== 0 || (endMinutes - openMinutes) % slotMinutes !== 0)) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: `${slotMinutes}분 단위로만 예약할 수 있습니다.` });
+        if (
+          !canBypassReservationRules &&
+          ((startMinutes - openMinutes) % slotMinutes !== 0 ||
+            (endMinutes - openMinutes) % slotMinutes !== 0)
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `${slotMinutes}분 단위로만 예약할 수 있습니다.`,
+          });
         }
 
-        if (dayHour?.breakStart && dayHour.breakEnd && !canBypassReservationRules) {
+        if (
+          dayHour?.breakStart &&
+          dayHour.breakEnd &&
+          !canBypassReservationRules
+        ) {
           const breakStart = toMinutes(dayHour.breakStart);
           const breakEnd = toMinutes(dayHour.breakEnd);
-          if (breakStart !== null && breakEnd !== null && startMinutes < breakEnd && endMinutes > breakStart) {
-            throw new TRPCError({ code: "BAD_REQUEST", message: `${reservationDate} 휴게 시간(${dayHour.breakStart}~${dayHour.breakEnd})에는 예약할 수 없습니다.` });
+          if (
+            breakStart !== null &&
+            breakEnd !== null &&
+            startMinutes < breakEnd &&
+            endMinutes > breakStart
+          ) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `${reservationDate} 휴게 시간(${dayHour.breakStart}~${dayHour.breakEnd})에는 예약할 수 없습니다.`,
+            });
           }
         }
 
         // ⑤ 차단일 확인 (전체 차단 또는 해당 시설 차단)
         if (!canBypassReservationRules) {
-        for (const b of blocked) {
-          if (b.blockedDate !== reservationDate) continue;
-          if (!b.isPartialBlock) {
-            // 하루 전체 차단
-            throw new TRPCError({ code: "BAD_REQUEST", message: `${reservationDate}은 예약이 차단된 날입니다.${b.reason ? ` (${b.reason})` : ""}` });
-          }
-          // 부분 차단: 요청 시간대가 차단 시간대와 겹치는지 확인
-          if (b.blockStart && b.blockEnd) {
-            const overlapPartial = input.startTime < b.blockEnd && input.endTime > b.blockStart;
-            if (overlapPartial) {
+          for (const b of blocked) {
+            if (b.blockedDate !== reservationDate) continue;
+            if (!b.isPartialBlock) {
+              // 하루 전체 차단
               throw new TRPCError({
                 code: "BAD_REQUEST",
-                message: `${reservationDate} 해당 시간대(${b.blockStart}~${b.blockEnd})는 예약이 차단되어 있습니다.${b.reason ? ` (${b.reason})` : ""}`,
+                message: `${reservationDate}은 예약이 차단된 날입니다.${b.reason ? ` (${b.reason})` : ""}`,
               });
             }
+            // 부분 차단: 요청 시간대가 차단 시간대와 겹치는지 확인
+            if (b.blockStart && b.blockEnd) {
+              const overlapPartial =
+                input.startTime < b.blockEnd && input.endTime > b.blockStart;
+              if (overlapPartial) {
+                throw new TRPCError({
+                  code: "BAD_REQUEST",
+                  message: `${reservationDate} 해당 시간대(${b.blockStart}~${b.blockEnd})는 예약이 차단되어 있습니다.${b.reason ? ` (${b.reason})` : ""}`,
+                });
+              }
+            }
           }
-        }
 
-        // ⑥ 같은 시설/날짜의 시간대 겹침 확인 (중복 예약 방지)
+          // ⑥ 같은 시설/날짜의 시간대 겹침 확인 (중복 예약 방지)
         }
 
         // 예외 권한자는 날짜/운영 제한은 넘길 수 있지만,
         // 이미 잡힌 예약 시간과 겹치는 것은 누구에게도 허용하지 않는다.
-        const existing = await getReservationsByDate(input.facilityId, reservationDate);
-        const activeReservations = existing.filter(r => r.status !== "cancelled" && r.status !== "rejected");
+        const existing = await getReservationsByDate(
+          input.facilityId,
+          reservationDate
+        );
+        const activeReservations = existing.filter(
+          r => r.status !== "cancelled" && r.status !== "rejected"
+        );
         for (const r of activeReservations) {
-          const overlap = input.startTime < r.endTime && input.endTime > r.startTime;
+          const overlap =
+            input.startTime < r.endTime && input.endTime > r.startTime;
           if (overlap) {
-            const reservationTitle = [r.purpose, r.reserverName].filter(Boolean).join(" / ");
-            const reservationSuffix = reservationTitle ? ` (${reservationTitle})` : "";
+            const reservationTitle = [r.purpose, r.reserverName]
+              .filter(Boolean)
+              .join(" / ");
+            const reservationSuffix = reservationTitle
+              ? ` (${reservationTitle})`
+              : "";
             throw new TRPCError({
               code: "CONFLICT",
               message: `${reservationDate} ${r.startTime}~${r.endTime}${reservationSuffix} 예약과 시간이 겹칩니다. 중복 예약은 저장되지 않았습니다. 기존 예약을 확인한 뒤 다른 시간을 선택해 주세요.`,
@@ -1238,12 +1658,16 @@ export const homeRouter = router({
 
       // 자동 승인 시설이거나 시설/예약 관리자 권한자는 바로 approved, 그 외는 pending(관리자 검토 필요)
       const status: "approved" | "pending" =
-        facility.approvalType === "auto" || canManageFacilityReservations ? "approved" : "pending";
+        facility.approvalType === "auto" || canManageFacilityReservations
+          ? "approved"
+          : "pending";
       const { repeat, ...baseInput } = input;
-      const recurrenceGroupId = reservationDates.length > 1 ? `res_${crypto.randomUUID()}` : null;
-      const recurrenceLabel = reservationDates.length > 1 && repeat
-        ? describeReservationRepeat(repeat, reservationDates.length)
-        : null;
+      const recurrenceGroupId =
+        reservationDates.length > 1 ? `res_${crypto.randomUUID()}` : null;
+      const recurrenceLabel =
+        reservationDates.length > 1 && repeat
+          ? describeReservationRepeat(repeat, reservationDates.length)
+          : null;
       const createdIds: number[] = [];
 
       // ctx.memberId = church_members 테이블의 id (성도 로그인 기반)
@@ -1262,7 +1686,10 @@ export const homeRouter = router({
           };
           const id = await createReservationIfAvailable(reservationData);
           if (!id) {
-            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "예약 신청 저장에 실패했습니다." });
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "예약 신청 저장에 실패했습니다.",
+            });
           }
           createdIds.push(id);
         }
@@ -1274,7 +1701,10 @@ export const homeRouter = router({
           throw new TRPCError({ code: "CONFLICT", message: error.message });
         }
         if (error instanceof ReservationLockError) {
-          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: error.message });
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: error.message,
+          });
         }
         throw error;
       }
@@ -1301,8 +1731,9 @@ export const homeRouter = router({
     }),
 
   /** 내 예약 목록 조회 (성도 본인 것만) */
-  myReservations: memberProtectedProcedure
-    .query(({ ctx }) => getMyReservations(ctx.memberId)),
+  myReservations: memberProtectedProcedure.query(({ ctx }) =>
+    getMyReservations(ctx.memberId)
+  ),
 
   /**
    * 예약 취소 (성도 본인만 가능)
@@ -1313,12 +1744,21 @@ export const homeRouter = router({
     .mutation(async ({ input, ctx }) => {
       const reservation = await getReservationById(input.id);
       if (!reservation) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "예약을 찾을 수 없습니다." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "예약을 찾을 수 없습니다.",
+        });
       }
       if (reservation.userId !== ctx.memberId) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "본인의 예약만 취소할 수 있습니다." });
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "본인의 예약만 취소할 수 있습니다.",
+        });
       }
-      if (reservation.status !== "pending" && reservation.status !== "approved") {
+      if (
+        reservation.status !== "pending" &&
+        reservation.status !== "approved"
+      ) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "취소할 수 없는 예약 상태입니다.",
@@ -1335,14 +1775,25 @@ export const homeRouter = router({
     .mutation(async ({ input, ctx }) => {
       const groupReservations = await getReservationsByGroupId(input.groupId);
       if (groupReservations.length === 0) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "반복 예약 묶음을 찾을 수 없습니다." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "반복 예약 묶음을 찾을 수 없습니다.",
+        });
       }
-      if (groupReservations.some((reservation) => reservation.userId !== ctx.memberId)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "본인의 반복 예약만 일괄 취소할 수 있습니다." });
+      if (
+        groupReservations.some(
+          reservation => reservation.userId !== ctx.memberId
+        )
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "본인의 반복 예약만 일괄 취소할 수 있습니다.",
+        });
       }
 
       const cancellableCount = groupReservations.filter(
-        (reservation) => reservation.status === "pending" || reservation.status === "approved"
+        reservation =>
+          reservation.status === "pending" || reservation.status === "approved"
       ).length;
       if (cancellableCount === 0) {
         throw new TRPCError({
@@ -1355,58 +1806,75 @@ export const homeRouter = router({
       return { success: true, count: cancellableCount };
     }),
 
-  vehicleReservationAccess: publicProcedure
-    .query(async ({ ctx }) => {
-      if (hasAdminContentPermission(ctx.user, "content:vehicles")) return { canUse: true };
-      if (!ctx.memberId) return { canUse: false };
-      const member = await getMemberById(ctx.memberId);
-      return { canUse: await canMemberUseVehicleReservation(member) };
-    }),
+  vehicleReservationAccess: publicProcedure.query(async ({ ctx }) => {
+    if (hasAdminContentPermission(ctx.user, "content:vehicles"))
+      return { canUse: true };
+    if (!ctx.memberId) return { canUse: false };
+    const member = await getMemberById(ctx.memberId);
+    return { canUse: await canMemberUseVehicleReservation(member) };
+  }),
 
-  vehicles: publicProcedure
-    .query(async ({ ctx }) => {
-      if (!(await canContextUseVehicleReservation(ctx))) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "차량예약은 지정된 성도 그룹만 이용할 수 있습니다. 관리자에게 문의해 주세요.",
-        });
-      }
-      return getVehicles(true);
-    }),
+  vehicles: publicProcedure.query(async ({ ctx }) => {
+    if (!(await canContextUseVehicleReservation(ctx))) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message:
+          "차량예약은 지정된 성도 그룹만 이용할 수 있습니다. 관리자에게 문의해 주세요.",
+      });
+    }
+    return getVehicles(true);
+  }),
 
   vehicleAvailabilityTimeline: publicProcedure
-    .input(z.object({
-      reservationDate: z.string().regex(DATE_RE, "예약 날짜 형식이 올바르지 않습니다."),
-      passengers: z.number().int().min(1).default(1),
-      repeatMode: vehicleRepeatSchema.default("none"),
-      repeatEndDate: z.string().regex(DATE_RE, "반복 종료일 형식이 올바르지 않습니다.").nullable().optional(),
-      startTime: z.string().regex(TIME_RE, "시작 시간 형식이 올바르지 않습니다.").nullable().optional(),
-    }))
+    .input(
+      z.object({
+        reservationDate: z
+          .string()
+          .regex(DATE_RE, "예약 날짜 형식이 올바르지 않습니다."),
+        passengers: z.number().int().min(1).default(1),
+        repeatMode: vehicleRepeatSchema.default("none"),
+        repeatEndDate: z
+          .string()
+          .regex(DATE_RE, "반복 종료일 형식이 올바르지 않습니다.")
+          .nullable()
+          .optional(),
+        startTime: z
+          .string()
+          .regex(TIME_RE, "시작 시간 형식이 올바르지 않습니다.")
+          .nullable()
+          .optional(),
+      })
+    )
     .query(async ({ input, ctx }) => {
       if (!(await canContextUseVehicleReservation(ctx))) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "차량예약은 지정된 성도 그룹만 이용할 수 있습니다. 관리자에게 문의해 주세요.",
+          message:
+            "차량예약은 지정된 성도 그룹만 이용할 수 있습니다. 관리자에게 문의해 주세요.",
         });
       }
       const reservationDates = getVehicleReservationDates(
         input.reservationDate,
         input.repeatMode,
-        input.repeatEndDate,
+        input.repeatEndDate
       );
       const today = todayKstDateKey();
       if (input.reservationDate < today) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "지난 날짜는 예약할 수 없습니다." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "지난 날짜는 예약할 수 없습니다.",
+        });
       }
       const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000);
-      const minimumStartTime = input.reservationDate === today
-        ? `${String(nowKst.getUTCHours()).padStart(2, "0")}:${String(nowKst.getUTCMinutes()).padStart(2, "0")}`
-        : null;
+      const minimumStartTime =
+        input.reservationDate === today
+          ? `${String(nowKst.getUTCHours()).padStart(2, "0")}:${String(nowKst.getUTCMinutes()).padStart(2, "0")}`
+          : null;
       const timeline = await getVehicleAvailabilityTimeline(
         reservationDates,
         input.passengers,
         input.startTime,
-        minimumStartTime,
+        minimumStartTime
       );
       return {
         ...timeline,
@@ -1415,38 +1883,60 @@ export const homeRouter = router({
     }),
 
   availableVehicles: publicProcedure
-    .input(z.object({
-      reservationDate: z.string().regex(DATE_RE, "예약 날짜 형식이 올바르지 않습니다."),
-      startTime: z.string().regex(TIME_RE, "시작 시간 형식이 올바르지 않습니다."),
-      endTime: z.string().regex(TIME_RE, "종료 시간 형식이 올바르지 않습니다."),
-      passengers: z.number().int().min(1).default(1),
-      repeatMode: vehicleRepeatSchema.default("none"),
-      repeatEndDate: z.string().regex(DATE_RE, "반복 종료일 형식이 올바르지 않습니다.").nullable().optional(),
-    }))
+    .input(
+      z.object({
+        reservationDate: z
+          .string()
+          .regex(DATE_RE, "예약 날짜 형식이 올바르지 않습니다."),
+        startTime: z
+          .string()
+          .regex(TIME_RE, "시작 시간 형식이 올바르지 않습니다."),
+        endTime: z
+          .string()
+          .regex(TIME_RE, "종료 시간 형식이 올바르지 않습니다."),
+        passengers: z.number().int().min(1).default(1),
+        repeatMode: vehicleRepeatSchema.default("none"),
+        repeatEndDate: z
+          .string()
+          .regex(DATE_RE, "반복 종료일 형식이 올바르지 않습니다.")
+          .nullable()
+          .optional(),
+      })
+    )
     .query(async ({ input, ctx }) => {
       if (!(await canContextUseVehicleReservation(ctx))) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "차량예약은 지정된 성도 그룹만 이용할 수 있습니다. 관리자에게 문의해 주세요.",
+          message:
+            "차량예약은 지정된 성도 그룹만 이용할 수 있습니다. 관리자에게 문의해 주세요.",
         });
       }
       const startMinutes = toMinutes(input.startTime);
       const endMinutes = toMinutes(input.endTime);
-      if (startMinutes === null || endMinutes === null || startMinutes >= endMinutes) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "종료 시간은 시작 시간보다 늦어야 합니다." });
+      if (
+        startMinutes === null ||
+        endMinutes === null ||
+        startMinutes >= endMinutes
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "종료 시간은 시작 시간보다 늦어야 합니다.",
+        });
       }
 
       const reservationDates = getVehicleReservationDates(
         input.reservationDate,
         input.repeatMode,
-        input.repeatEndDate,
+        input.repeatEndDate
       );
-      reservationDates.forEach((date) => assertReservationStartsInFuture(date, input.startTime));
+      reservationDates.forEach(date =>
+        assertReservationStartsInFuture(date, input.startTime)
+      );
       const availableVehicles = await getAvailableVehiclesForSchedule(
         reservationDates,
         input.startTime,
         input.endTime,
-        input.passengers,
+        input.passengers
       );
       return {
         vehicles: availableVehicles,
@@ -1460,7 +1950,8 @@ export const homeRouter = router({
       if (!(await canContextUseVehicleReservation(ctx))) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "차량예약은 지정된 성도 그룹만 이용할 수 있습니다. 관리자에게 문의해 주세요.",
+          message:
+            "차량예약은 지정된 성도 그룹만 이용할 수 있습니다. 관리자에게 문의해 주세요.",
         });
       }
       return getVisibleVehicleById(input.id);
@@ -1476,10 +1967,12 @@ export const homeRouter = router({
     }),
 
   vehicleReservationsByDate: publicProcedure
-    .input(z.object({
-      vehicleId: idSchema,
-      date: z.string().regex(DATE_RE, "날짜 형식이 올바르지 않습니다."),
-    }))
+    .input(
+      z.object({
+        vehicleId: idSchema,
+        date: z.string().regex(DATE_RE, "날짜 형식이 올바르지 않습니다."),
+      })
+    )
     .query(async ({ input, ctx }) => {
       if (!(await canContextUseVehicleReservation(ctx))) {
         throw new TRPCError({
@@ -1490,28 +1983,53 @@ export const homeRouter = router({
       const vehicle = await getVisibleVehicleById(input.vehicleId);
       if (!vehicle) return [];
       // 차량예약은 허용된 성도 그룹만 접근하므로, 시설예약처럼 예약자 정보를 함께 보여줍니다.
-      return getAdminVehicleReservationDetailsByDate(input.vehicleId, input.date);
+      return getAdminVehicleReservationDetailsByDate(
+        input.vehicleId,
+        input.date
+      );
     }),
 
   createVehicleReservation: publicProcedure
-    .input(z.object({
-      vehicleId: idSchema,
-      reserverName: z.string().min(1, "예약자 이름을 입력해주세요."),
-      reserverPhone: z.string().optional(),
-      reservationDate: z.string().regex(DATE_RE, "예약 날짜 형식이 올바르지 않습니다."),
-      startTime: z.string().regex(TIME_RE, "시작 시간 형식이 올바르지 않습니다."),
-      endTime: z.string().regex(TIME_RE, "종료 시간 형식이 올바르지 않습니다."),
-      purpose: z.string().min(1, "사용 목적을 입력해주세요."),
-      department: z.string().optional(),
-      passengers: z.number().int().min(1, "탑승 인원은 1명 이상이어야 합니다.").default(1),
-      notes: z.string().optional(),
-      repeatMode: vehicleRepeatSchema.default("none"),
-      repeatEndDate: z.string().regex(DATE_RE, "반복 종료일 형식이 올바르지 않습니다.").nullable().optional(),
-    }))
+    .input(
+      z.object({
+        vehicleId: idSchema,
+        reserverName: z.string().min(1, "예약자 이름을 입력해주세요."),
+        reserverPhone: z.string().optional(),
+        reservationDate: z
+          .string()
+          .regex(DATE_RE, "예약 날짜 형식이 올바르지 않습니다."),
+        startTime: z
+          .string()
+          .regex(TIME_RE, "시작 시간 형식이 올바르지 않습니다."),
+        endTime: z
+          .string()
+          .regex(TIME_RE, "종료 시간 형식이 올바르지 않습니다."),
+        purpose: z.string().min(1, "사용 목적을 입력해주세요."),
+        department: z.string().optional(),
+        passengers: z
+          .number()
+          .int()
+          .min(1, "탑승 인원은 1명 이상이어야 합니다.")
+          .default(1),
+        notes: z.string().optional(),
+        repeatMode: vehicleRepeatSchema.default("none"),
+        repeatEndDate: z
+          .string()
+          .regex(DATE_RE, "반복 종료일 형식이 올바르지 않습니다.")
+          .nullable()
+          .optional(),
+      })
+    )
     .mutation(async ({ input, ctx }) => {
-      const canManageVehicleReservations = hasAdminContentPermission(ctx.user, "content:vehicles");
+      const canManageVehicleReservations = hasAdminContentPermission(
+        ctx.user,
+        "content:vehicles"
+      );
       if (!ctx.memberId && !canManageVehicleReservations) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "로그인이 필요합니다." });
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "로그인이 필요합니다.",
+        });
       }
       const member = ctx.memberId ? await getMemberById(ctx.memberId) : null;
       const canUseVehicleReservation =
@@ -1520,30 +2038,51 @@ export const homeRouter = router({
       if (!canUseVehicleReservation) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "차량예약은 지정된 성도 그룹만 신청할 수 있습니다. 관리자에게 문의해 주세요.",
+          message:
+            "차량예약은 지정된 성도 그룹만 신청할 수 있습니다. 관리자에게 문의해 주세요.",
         });
       }
 
       const vehicle = await getVehicleById(input.vehicleId);
       if (!vehicle || !vehicle.isVisible) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "차량을 찾을 수 없습니다." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "차량을 찾을 수 없습니다.",
+        });
       }
       if (!vehicle.isReservable) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "현재 예약이 불가능한 차량입니다." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "현재 예약이 불가능한 차량입니다.",
+        });
       }
 
       const startMinutes = toMinutes(input.startTime);
       const endMinutes = toMinutes(input.endTime);
       const openMinutes = toMinutes(vehicle.openTime);
       const closeMinutes = toMinutes(vehicle.closeTime);
-      if (startMinutes === null || endMinutes === null || openMinutes === null || closeMinutes === null) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "예약 시간 형식이 올바르지 않습니다." });
+      if (
+        startMinutes === null ||
+        endMinutes === null ||
+        openMinutes === null ||
+        closeMinutes === null
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "예약 시간 형식이 올바르지 않습니다.",
+        });
       }
       if (input.reservationDate < todayKstDateKey()) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "지난 날짜는 예약할 수 없습니다." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "지난 날짜는 예약할 수 없습니다.",
+        });
       }
       if (startMinutes >= endMinutes) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "시작 시간은 종료 시간보다 빨라야 합니다." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "시작 시간은 종료 시간보다 빨라야 합니다.",
+        });
       }
       if (startMinutes < openMinutes || endMinutes > closeMinutes) {
         throw new TRPCError({
@@ -1554,48 +2093,81 @@ export const homeRouter = router({
 
       const slotMinutes = vehicle.slotMinutes > 0 ? vehicle.slotMinutes : 60;
       const durationMinutes = endMinutes - startMinutes;
-      if ((startMinutes - openMinutes) % slotMinutes !== 0 || (endMinutes - openMinutes) % slotMinutes !== 0) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `${slotMinutes}분 단위로만 예약할 수 있습니다.` });
+      if (
+        (startMinutes - openMinutes) % slotMinutes !== 0 ||
+        (endMinutes - openMinutes) % slotMinutes !== 0
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `${slotMinutes}분 단위로만 예약할 수 있습니다.`,
+        });
       }
       const selectedSlots = durationMinutes / slotMinutes;
       if (selectedSlots < vehicle.minSlots) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `최소 ${vehicle.minSlots}개 시간 단위 이상 예약해야 합니다.` });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `최소 ${vehicle.minSlots}개 시간 단위 이상 예약해야 합니다.`,
+        });
       }
       if (selectedSlots > vehicle.maxSlots) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `최대 ${vehicle.maxSlots}개 시간 단위까지만 예약할 수 있습니다.` });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `최대 ${vehicle.maxSlots}개 시간 단위까지만 예약할 수 있습니다.`,
+        });
       }
       if (input.passengers > vehicle.capacity) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `최대 탑승 인원(${vehicle.capacity}명)을 초과할 수 없습니다.` });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `최대 탑승 인원(${vehicle.capacity}명)을 초과할 수 없습니다.`,
+        });
       }
 
       const status: "approved" | "pending" =
-        vehicle.approvalType === "auto" || canManageVehicleReservations ? "approved" : "pending";
+        vehicle.approvalType === "auto" || canManageVehicleReservations
+          ? "approved"
+          : "pending";
       try {
         const { repeatMode, repeatEndDate, ...reservationInput } = input;
-        const reservationDates = getVehicleReservationDates(input.reservationDate, repeatMode, repeatEndDate);
-        reservationDates.forEach((date) => assertReservationStartsInFuture(date, input.startTime));
-        const recurrenceGroupId = reservationDates.length > 1
-          ? `vehicle_${crypto.randomUUID()}`
-          : null;
-        const recurrenceLabel = recurrenceGroupId && repeatMode !== "none" && repeatEndDate
-          ? describeVehicleReservationRepeat(repeatMode, repeatEndDate, reservationDates.length)
-          : null;
-        const reservationData = reservationDates.map((reservationDate, index) => ({
-          ...reservationInput,
-          reservationDate,
-          userId: ctx.memberId ?? null,
-          status,
-          recurrenceGroupId,
-          recurrenceLabel,
-          recurrenceSequence: recurrenceGroupId ? index + 1 : 0,
-        }));
+        const reservationDates = getVehicleReservationDates(
+          input.reservationDate,
+          repeatMode,
+          repeatEndDate
+        );
+        reservationDates.forEach(date =>
+          assertReservationStartsInFuture(date, input.startTime)
+        );
+        const recurrenceGroupId =
+          reservationDates.length > 1 ? `vehicle_${crypto.randomUUID()}` : null;
+        const recurrenceLabel =
+          recurrenceGroupId && repeatMode !== "none" && repeatEndDate
+            ? describeVehicleReservationRepeat(
+                repeatMode,
+                repeatEndDate,
+                reservationDates.length
+              )
+            : null;
+        const reservationData = reservationDates.map(
+          (reservationDate, index) => ({
+            ...reservationInput,
+            reservationDate,
+            userId: ctx.memberId ?? null,
+            status,
+            recurrenceGroupId,
+            recurrenceLabel,
+            recurrenceSequence: recurrenceGroupId ? index + 1 : 0,
+          })
+        );
         // Keep the established single-reservation path for ordinary bookings.
         // Repeating bookings use the transactional bulk path so they succeed or fail together.
-        const ids = reservationData.length === 1
-          ? [await createVehicleReservationIfAvailable(reservationData[0])]
-          : await createVehicleReservationsIfAvailable(reservationData);
-        if (ids.length !== reservationDates.length || ids.some((id) => !id)) {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "차량 예약 신청 저장에 실패했습니다." });
+        const ids =
+          reservationData.length === 1
+            ? [await createVehicleReservationIfAvailable(reservationData[0])]
+            : await createVehicleReservationsIfAvailable(reservationData);
+        if (ids.length !== reservationDates.length || ids.some(id => !id)) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "차량 예약 신청 저장에 실패했습니다.",
+          });
         }
         // 반복예약도 하나의 신청이므로 관리자 푸시는 묶음당 한 번만 보냅니다.
         // 첫 예약 ID를 대표값으로 사용하고 나머지 회차 수는 알림 본문에 표시합니다.
@@ -1621,27 +2193,43 @@ export const homeRouter = router({
           throw new TRPCError({ code: "CONFLICT", message: error.message });
         }
         if (error instanceof VehicleReservationLockError) {
-          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: error.message });
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: error.message,
+          });
         }
         throw error;
       }
     }),
 
-  myVehicleReservations: memberProtectedProcedure
-    .query(({ ctx }) => getMyVehicleReservations(ctx.memberId)),
+  myVehicleReservations: memberProtectedProcedure.query(({ ctx }) =>
+    getMyVehicleReservations(ctx.memberId)
+  ),
 
   cancelVehicleReservation: memberProtectedProcedure
     .input(z.object({ id: idSchema }))
     .mutation(async ({ input, ctx }) => {
       const reservation = await getVehicleReservationById(input.id);
       if (!reservation) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "차량 예약을 찾을 수 없습니다." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "차량 예약을 찾을 수 없습니다.",
+        });
       }
       if (reservation.userId !== ctx.memberId) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "본인의 차량 예약만 취소할 수 있습니다." });
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "본인의 차량 예약만 취소할 수 있습니다.",
+        });
       }
-      if (reservation.status !== "pending" && reservation.status !== "approved") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "취소할 수 없는 예약 상태입니다." });
+      if (
+        reservation.status !== "pending" &&
+        reservation.status !== "approved"
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "취소할 수 없는 예약 상태입니다.",
+        });
       }
       await updateVehicleReservationStatus(input.id, "cancelled");
       return { success: true };
@@ -1655,12 +2243,18 @@ export const homeRouter = router({
    * - menuItemId 또는 menuSubItemId로 해당 페이지의 블록을 조회
    */
   pageBlocks: publicProcedure
-    .input(z.object({
-      menuItemId: idSchema.optional(),
-      menuSubItemId: idSchema.optional(),
-    }).refine(
-      value => (value.menuItemId !== undefined) !== (value.menuSubItemId !== undefined),
-      "menuItemId 또는 menuSubItemId 중 하나만 입력해주세요.",
-    ))
+    .input(
+      z
+        .object({
+          menuItemId: idSchema.optional(),
+          menuSubItemId: idSchema.optional(),
+        })
+        .refine(
+          value =>
+            (value.menuItemId !== undefined) !==
+            (value.menuSubItemId !== undefined),
+          "menuItemId 또는 menuSubItemId 중 하나만 입력해주세요."
+        )
+    )
     .query(({ input }) => getPageBlocks(input)),
 });

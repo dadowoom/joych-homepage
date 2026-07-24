@@ -37,6 +37,7 @@ import {
   clearAllHeroSlideCustomButtons,
   getAllGalleryItems,
   getAllGalleryAlbums,
+  getAllGalleryAlbumDetail,
   getAllHomeGalleryItems,
   updateGalleryItem,
   updateGalleryAlbumItems,
@@ -98,7 +99,8 @@ const SETTING_KEYS = [
   "member_register_field_config",
 ] as const;
 
-const iconClassSchema = z.string()
+const iconClassSchema = z
+  .string()
   .trim()
   .min(1, "아이콘을 선택해주세요.")
   .max(64, "아이콘 클래스는 64자 이하로 입력해주세요.")
@@ -110,10 +112,12 @@ const gridSpanSchema = z.enum([
   "col-span-1 row-span-2",
   "col-span-2 row-span-2",
 ]);
-const gridSpanValueSchema = z.string().refine(
-  value => gridSpanSchema.safeParse(value).success,
-  "갤러리 그리드 형식이 올바르지 않습니다.",
-);
+const gridSpanValueSchema = z
+  .string()
+  .refine(
+    value => gridSpanSchema.safeParse(value).success,
+    "갤러리 그리드 형식이 올바르지 않습니다."
+  );
 
 const sortOrderSchema = z.number().int().min(0).max(10000).optional();
 
@@ -122,22 +126,28 @@ const heroButtonSchema = z.object({
   href: safeHrefSchema,
 });
 
-const heroButtonsSchema = z.array(heroButtonSchema).max(4, "히어로 버튼은 최대 4개까지 등록할 수 있습니다.");
+const heroButtonsSchema = z
+  .array(heroButtonSchema)
+  .max(4, "히어로 버튼은 최대 4개까지 등록할 수 있습니다.");
 
-function serializeHeroButtons(buttons: z.infer<typeof heroButtonsSchema> | null | undefined) {
+function serializeHeroButtons(
+  buttons: z.infer<typeof heroButtonsSchema> | null | undefined
+) {
   if (buttons === undefined) return undefined;
   if (buttons === null) return null;
   const normalized = buttons
-    .map((button) => ({
+    .map(button => ({
       label: button.label.trim(),
       href: button.href.trim(),
     }))
-    .filter((button) => button.label && button.href)
+    .filter(button => button.label && button.href)
     .slice(0, 4);
   return JSON.stringify(normalized);
 }
 const staticPageHrefSchema = z.string().trim().min(1).max(128).regex(/^\//);
-const staticPageJsonSchema = z.string().max(60000, "페이지 콘텐츠는 60000자 이하로 입력해주세요.");
+const staticPageJsonSchema = z
+  .string()
+  .max(60000, "페이지 콘텐츠는 60000자 이하로 입력해주세요.");
 const translationLocaleSchema = z.enum(["ja"]);
 
 const ministryContentSchema = z.object({
@@ -145,23 +155,38 @@ const ministryContentSchema = z.object({
   vision: optionalTextSchema(160),
   description: requiredTextSchema(12000, "본문 설명을 입력해주세요."),
   image: safeAssetUrlSchema.optional(),
-  activities: z.array(z.object({
-    title: requiredTextSchema(120, "활동 제목을 입력해주세요."),
-    desc: requiredTextSchema(500, "활동 설명을 입력해주세요."),
-    icon: optionalTextSchema(64),
-  })).max(100).optional(),
-  contact: z.array(z.object({
-    label: requiredTextSchema(80, "연락처 라벨을 입력해주세요."),
-    value: requiredTextSchema(300, "연락처 값을 입력해주세요."),
-  })).max(20).optional(),
-  leader: z.object({
-    name: requiredTextSchema(100, "담당자 이름을 입력해주세요."),
-    title: requiredTextSchema(100, "담당자 직책을 입력해주세요."),
-    photo: safeAssetUrlSchema.optional(),
-  }).optional(),
+  activities: z
+    .array(
+      z.object({
+        title: requiredTextSchema(120, "활동 제목을 입력해주세요."),
+        desc: requiredTextSchema(500, "활동 설명을 입력해주세요."),
+        icon: optionalTextSchema(64),
+      })
+    )
+    .max(100)
+    .optional(),
+  contact: z
+    .array(
+      z.object({
+        label: requiredTextSchema(80, "연락처 라벨을 입력해주세요."),
+        value: requiredTextSchema(300, "연락처 값을 입력해주세요."),
+      })
+    )
+    .max(20)
+    .optional(),
+  leader: z
+    .object({
+      name: requiredTextSchema(100, "담당자 이름을 입력해주세요."),
+      title: requiredTextSchema(100, "담당자 직책을 입력해주세요."),
+      photo: safeAssetUrlSchema.optional(),
+    })
+    .optional(),
 });
 
-function validateStaticPageContent(template: StaticPageTemplate, content: unknown) {
+function validateStaticPageContent(
+  template: StaticPageTemplate,
+  content: unknown
+) {
   if (template === "ministry") {
     return ministryContentSchema.parse(content);
   }
@@ -173,14 +198,20 @@ function parseStaticPageJson(template: StaticPageTemplate, content: string) {
   try {
     parsed = JSON.parse(content);
   } catch {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "페이지 콘텐츠 JSON 형식이 올바르지 않습니다." });
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "페이지 콘텐츠 JSON 형식이 올바르지 않습니다.",
+    });
   }
   try {
     return validateStaticPageContent(template, parsed);
   } catch (error) {
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: error instanceof Error ? error.message : "페이지 콘텐츠 입력값이 올바르지 않습니다.",
+      message:
+        error instanceof Error
+          ? error.message
+          : "페이지 콘텐츠 입력값이 올바르지 않습니다.",
     });
   }
 }
@@ -190,21 +221,25 @@ export const contentRouter = router({
   affiliates: router({
     list: adminProcedure.query(() => getAllAffiliates()),
     create: adminProcedure
-      .input(z.object({
-        icon: iconClassSchema,
-        label: requiredTextSchema(64, "이름을 입력해주세요."),
-        href: safeHrefSchema.optional(),
-      }))
+      .input(
+        z.object({
+          icon: iconClassSchema,
+          label: requiredTextSchema(64, "이름을 입력해주세요."),
+          href: safeHrefSchema.optional(),
+        })
+      )
       .mutation(({ input }) => createAffiliate(input)),
     update: adminProcedure
-      .input(z.object({
-        id: z.number().int().positive(),
-        label: requiredTextSchema(64, "이름을 입력해주세요.").optional(),
-        href: safeHrefSchema.optional(),
-        icon: iconClassSchema.optional(),
-        sortOrder: sortOrderSchema,
-        isVisible: z.boolean().optional(),
-      }))
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+          label: requiredTextSchema(64, "이름을 입력해주세요.").optional(),
+          href: safeHrefSchema.optional(),
+          icon: iconClassSchema.optional(),
+          sortOrder: sortOrderSchema,
+          isVisible: z.boolean().optional(),
+        })
+      )
       .mutation(({ input }) => {
         const { id, ...data } = input;
         return updateAffiliate(id, data);
@@ -218,19 +253,21 @@ export const contentRouter = router({
   heroSlides: router({
     list: adminProcedure.query(() => getAllHeroSlides()),
     create: adminProcedure
-      .input(z.object({
-        videoUrl: safeAssetUrlSchema.optional(),
-        posterUrl: safeAssetUrlSchema.optional(),
-        yearLabel: optionalTextSchema(64),
-        mainTitle: optionalTextSchema(5000),
-        subTitle: optionalTextSchema(5000),
-        bibleRef: optionalTextSchema(128),
-        btn1Text: optionalTextSchema(64),
-        btn1Href: safeHrefSchema.optional(),
-        btn2Text: optionalTextSchema(64),
-        btn2Href: safeHrefSchema.optional(),
-        buttonsJson: heroButtonsSchema.nullable().optional(),
-      }))
+      .input(
+        z.object({
+          videoUrl: safeAssetUrlSchema.optional(),
+          posterUrl: safeAssetUrlSchema.optional(),
+          yearLabel: optionalTextSchema(64),
+          mainTitle: optionalTextSchema(5000),
+          subTitle: optionalTextSchema(5000),
+          bibleRef: optionalTextSchema(128),
+          btn1Text: optionalTextSchema(64),
+          btn1Href: safeHrefSchema.optional(),
+          btn2Text: optionalTextSchema(64),
+          btn2Href: safeHrefSchema.optional(),
+          buttonsJson: heroButtonsSchema.nullable().optional(),
+        })
+      )
       .mutation(({ input }) => {
         const { buttonsJson, ...data } = input;
         return createHeroSlide({
@@ -239,29 +276,35 @@ export const contentRouter = router({
         });
       }),
     update: adminProcedure
-      .input(z.object({
-        id: z.number().int().positive(),
-        yearLabel: optionalTextSchema(64),
-        mainTitle: optionalTextSchema(5000),
-        subTitle: optionalTextSchema(5000),
-        bibleRef: optionalTextSchema(128),
-        btn1Text: optionalTextSchema(64),
-        btn1Href: safeHrefSchema.optional(),
-        btn2Text: optionalTextSchema(64),
-        btn2Href: safeHrefSchema.optional(),
-        videoUrl: safeAssetUrlSchema.optional(),
-        posterUrl: safeAssetUrlSchema.optional(),
-        isVisible: z.boolean().optional(),
-        buttonsJson: heroButtonsSchema.nullable().optional(),
-      }))
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+          yearLabel: optionalTextSchema(64),
+          mainTitle: optionalTextSchema(5000),
+          subTitle: optionalTextSchema(5000),
+          bibleRef: optionalTextSchema(128),
+          btn1Text: optionalTextSchema(64),
+          btn1Href: safeHrefSchema.optional(),
+          btn2Text: optionalTextSchema(64),
+          btn2Href: safeHrefSchema.optional(),
+          videoUrl: safeAssetUrlSchema.optional(),
+          posterUrl: safeAssetUrlSchema.optional(),
+          isVisible: z.boolean().optional(),
+          buttonsJson: heroButtonsSchema.nullable().optional(),
+        })
+      )
       .mutation(({ input }) => {
         const { id, buttonsJson, ...data } = input;
         return updateHeroSlide(id, {
           ...data,
-          ...(buttonsJson !== undefined ? { buttonsJson: serializeHeroButtons(buttonsJson) } : {}),
+          ...(buttonsJson !== undefined
+            ? { buttonsJson: serializeHeroButtons(buttonsJson) }
+            : {}),
         });
       }),
-    useCommonButtonsForAll: adminProcedure.mutation(() => clearAllHeroSlideCustomButtons()),
+    useCommonButtonsForAll: adminProcedure.mutation(() =>
+      clearAllHeroSlideCustomButtons()
+    ),
     delete: adminProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(({ input }) => deleteHeroSlide(input.id)),
@@ -271,33 +314,56 @@ export const contentRouter = router({
   gallery: router({
     /** 갤러리 전체 목록 (관리자용, 숨김 포함) */
     list: contentProcedure
-      .input(z.object({ galleryScopeKey: z.string().trim().min(1).max(96) }).optional())
+      .input(
+        z
+          .object({ galleryScopeKey: z.string().trim().min(1).max(96) })
+          .optional()
+      )
       .query(({ input }) => getAllGalleryItems(input?.galleryScopeKey)),
     listAlbums: contentProcedure
-      .input(z.object({
-        galleryScopeKey: z.string().trim().min(1).max(96),
-      }))
+      .input(
+        z.object({
+          galleryScopeKey: z.string().trim().min(1).max(96),
+        })
+      )
       .query(({ input }) => getAllGalleryAlbums(input.galleryScopeKey)),
+    getAlbum: contentProcedure
+      .input(
+        z.object({
+          galleryScopeKey: z.string().trim().min(1).max(96),
+          albumKey: z.string().trim().min(1).max(96),
+        })
+      )
+      .query(({ input }) =>
+        getAllGalleryAlbumDetail(input.galleryScopeKey, input.albumKey)
+      ),
     createAlbum: contentProcedure
-      .input(z.object({
-        galleryScopeKey: z.string().trim().min(1).max(96),
-        albumKey: z.string().trim().min(1).max(96),
-        title: requiredTextSchema(160, "앨범 제목을 입력해주세요."),
-        description: optionalTextSchema(20000),
-        albumSortOrder: z.number().int().min(0).max(2147483647).optional(),
-        isVisible: z.boolean().optional(),
-        createdAt: z.coerce.date().optional(),
-      }))
+      .input(
+        z.object({
+          galleryScopeKey: z.string().trim().min(1).max(96),
+          albumKey: z.string().trim().min(1).max(96),
+          title: requiredTextSchema(160, "앨범 제목을 입력해주세요."),
+          description: optionalTextSchema(20000),
+          albumSortOrder: z.number().int().min(0).max(2147483647).optional(),
+          isVisible: z.boolean().optional(),
+          createdAt: z.coerce.date().optional(),
+        })
+      )
       .mutation(({ input }) => createGalleryAlbumRecord(input)),
     updateAlbumRecord: contentProcedure
-      .input(z.object({
-        galleryScopeKey: z.string().trim().min(1).max(96),
-        albumKey: z.string().trim().min(1).max(96),
-        title: requiredTextSchema(160, "앨범 제목을 입력해주세요.").optional(),
-        description: optionalTextSchema(20000),
-        isVisible: z.boolean().optional(),
-        createdAt: z.coerce.date().optional(),
-      }))
+      .input(
+        z.object({
+          galleryScopeKey: z.string().trim().min(1).max(96),
+          albumKey: z.string().trim().min(1).max(96),
+          title: requiredTextSchema(
+            160,
+            "앨범 제목을 입력해주세요."
+          ).optional(),
+          description: optionalTextSchema(20000),
+          isVisible: z.boolean().optional(),
+          createdAt: z.coerce.date().optional(),
+        })
+      )
       .mutation(async ({ input }) => {
         const updated = await updateGalleryAlbumRecord(input);
         if (!updated) {
@@ -309,14 +375,16 @@ export const contentRouter = router({
         return true;
       }),
     deleteAlbumRecord: contentProcedure
-      .input(z.object({
-        galleryScopeKey: z.string().trim().min(1).max(96),
-        albumKey: z.string().trim().min(1).max(96),
-      }))
+      .input(
+        z.object({
+          galleryScopeKey: z.string().trim().min(1).max(96),
+          albumKey: z.string().trim().min(1).max(96),
+        })
+      )
       .mutation(async ({ input }) => {
         const deleted = await deleteGalleryAlbumRecord(
           input.galleryScopeKey,
-          input.albumKey,
+          input.albumKey
         );
         if (!deleted) {
           throw new TRPCError({
@@ -327,16 +395,18 @@ export const contentRouter = router({
         return true;
       }),
     setAlbumCover: contentProcedure
-      .input(z.object({
-        galleryScopeKey: z.string().trim().min(1).max(96),
-        albumKey: z.string().trim().min(1).max(96),
-        photoId: z.number().int().positive(),
-      }))
+      .input(
+        z.object({
+          galleryScopeKey: z.string().trim().min(1).max(96),
+          albumKey: z.string().trim().min(1).max(96),
+          photoId: z.number().int().positive(),
+        })
+      )
       .mutation(async ({ input }) => {
         const updated = await setGalleryAlbumCover(
           input.galleryScopeKey,
           input.albumKey,
-          input.photoId,
+          input.photoId
         );
         if (!updated) {
           throw new TRPCError({
@@ -347,24 +417,31 @@ export const contentRouter = router({
         return true;
       }),
     createMany: contentProcedure
-      .input(z.object({
-        galleryScopeKey: z.string().trim().min(1).max(96),
-        albumKey: z.string().trim().min(1).max(96),
-        items: z.array(z.object({
-          imageUrl: safeAssetUrlSchema.refine(
-            value => value.length > 0,
-            "이미지 주소를 입력해주세요.",
-          ),
-          caption: optionalTextSchema(20000),
-          gridSpan: gridSpanValueSchema.optional(),
-          sortOrder: sortOrderSchema.optional(),
-        })).min(1).max(100),
-      }))
+      .input(
+        z.object({
+          galleryScopeKey: z.string().trim().min(1).max(96),
+          albumKey: z.string().trim().min(1).max(96),
+          items: z
+            .array(
+              z.object({
+                imageUrl: safeAssetUrlSchema.refine(
+                  value => value.length > 0,
+                  "이미지 주소를 입력해주세요."
+                ),
+                caption: optionalTextSchema(20000),
+                gridSpan: gridSpanValueSchema.optional(),
+                sortOrder: sortOrderSchema.optional(),
+              })
+            )
+            .min(1)
+            .max(100),
+        })
+      )
       .mutation(async ({ input }) => {
         const insertedIds = await createGalleryItemsForAlbum(
           input.galleryScopeKey,
           input.albumKey,
-          input.items,
+          input.items
         );
         if (insertedIds.length === 0) {
           throw new TRPCError({
@@ -375,131 +452,184 @@ export const contentRouter = router({
         return insertedIds;
       }),
     reorderAlbumRecords: contentProcedure
-      .input(z.object({
-        galleryScopeKey: z.string().trim().min(1).max(96),
-        items: z.array(z.object({
-          albumKey: z.string().trim().min(1).max(96),
-          albumSortOrder: z.number().int().min(0).max(2147483647),
-        })).max(200),
-      }))
+      .input(
+        z.object({
+          galleryScopeKey: z.string().trim().min(1).max(96),
+          items: z
+            .array(
+              z.object({
+                albumKey: z.string().trim().min(1).max(96),
+                albumSortOrder: z.number().int().min(0).max(2147483647),
+              })
+            )
+            .max(200),
+        })
+      )
       .mutation(({ input }) =>
-        reorderGalleryAlbumRecords(input.galleryScopeKey, input.items)),
+        reorderGalleryAlbumRecords(input.galleryScopeKey, input.items)
+      ),
     listHome: contentProcedure.query(() => getAllHomeGalleryItems()),
     /** 갤러리 사진 추가 */
     create: contentProcedure
-      .input(z.object({
-        imageUrl: safeAssetUrlSchema.refine(value => value.length > 0, "이미지를 선택해주세요."),
-        albumKey: optionalTextSchema(96),
-        albumTitle: optionalTextSchema(160),
-        albumDescription: optionalTextSchema(20000),
-        albumSortOrder: z.number().int().min(0).max(2147483647).optional(),
-        caption: optionalTextSchema(20000),
-        gridSpan: gridSpanValueSchema.optional(),
-        sortOrder: sortOrderSchema.optional(),
-        isHomeGallery: z.boolean().optional(),
-        createdAt: z.coerce.date().optional(),
-        galleryScopeKey: z.string().trim().min(1).max(96).optional(),
-      }))
+      .input(
+        z.object({
+          imageUrl: safeAssetUrlSchema.refine(
+            value => value.length > 0,
+            "이미지를 선택해주세요."
+          ),
+          albumKey: optionalTextSchema(96),
+          albumTitle: optionalTextSchema(160),
+          albumDescription: optionalTextSchema(20000),
+          albumSortOrder: z.number().int().min(0).max(2147483647).optional(),
+          caption: optionalTextSchema(20000),
+          gridSpan: gridSpanValueSchema.optional(),
+          sortOrder: sortOrderSchema.optional(),
+          isHomeGallery: z.boolean().optional(),
+          createdAt: z.coerce.date().optional(),
+          galleryScopeKey: z.string().trim().min(1).max(96).optional(),
+        })
+      )
       .mutation(({ input }) => createGalleryItem(input)),
     /** 갤러리 항목 수정 (캡션, 순서, 공개 여부, 그리드 크기) */
     update: contentProcedure
-      .input(z.object({
-        id: z.number().int().positive(),
-        albumKey: optionalTextSchema(96),
-        albumTitle: optionalTextSchema(160),
-        albumDescription: optionalTextSchema(20000),
-        albumSortOrder: z.number().int().min(0).max(2147483647).optional(),
-        caption: optionalTextSchema(20000),
-        imageUrl: safeAssetUrlSchema.optional(),
-        sortOrder: sortOrderSchema.optional(),
-        isVisible: z.boolean().optional(),
-        gridSpan: gridSpanValueSchema.optional(),
-        createdAt: z.coerce.date().optional(),
-        galleryScopeKey: z.string().trim().min(1).max(96).optional(),
-      }))
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+          albumKey: optionalTextSchema(96),
+          albumTitle: optionalTextSchema(160),
+          albumDescription: optionalTextSchema(20000),
+          albumSortOrder: z.number().int().min(0).max(2147483647).optional(),
+          caption: optionalTextSchema(20000),
+          imageUrl: safeAssetUrlSchema.optional(),
+          sortOrder: sortOrderSchema.optional(),
+          isVisible: z.boolean().optional(),
+          gridSpan: gridSpanValueSchema.optional(),
+          createdAt: z.coerce.date().optional(),
+          galleryScopeKey: z.string().trim().min(1).max(96).optional(),
+        })
+      )
       .mutation(({ input }) => {
         const { id, galleryScopeKey, ...data } = input;
         return updateGalleryItem(id, data, galleryScopeKey);
       }),
     /** 갤러리 앨범 제목/설명 일괄 수정 */
     updateAlbum: contentProcedure
-      .input(z.object({
-        ids: z.array(z.number().int().positive()).min(1).max(500),
-        albumTitle: optionalTextSchema(160),
-        albumDescription: optionalTextSchema(20000),
-        isVisible: z.boolean().optional(),
-        createdAt: z.coerce.date().optional(),
-        galleryScopeKey: z.string().trim().min(1).max(96).optional(),
-      }))
+      .input(
+        z.object({
+          ids: z.array(z.number().int().positive()).min(1).max(500),
+          albumTitle: optionalTextSchema(160),
+          albumDescription: optionalTextSchema(20000),
+          isVisible: z.boolean().optional(),
+          createdAt: z.coerce.date().optional(),
+          galleryScopeKey: z.string().trim().min(1).max(96).optional(),
+        })
+      )
       .mutation(({ input }) => {
         const { ids, galleryScopeKey, ...data } = input;
         return updateGalleryAlbumItems(ids, data, galleryScopeKey);
       }),
     /** 갤러리 항목 삭제 */
     delete: contentProcedure
-      .input(z.object({
-        id: z.number().int().positive(),
-        galleryScopeKey: z.string().trim().min(1).max(96).optional(),
-      }))
-      .mutation(({ input }) => deleteGalleryItem(input.id, input.galleryScopeKey)),
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+          galleryScopeKey: z.string().trim().min(1).max(96).optional(),
+        })
+      )
+      .mutation(({ input }) =>
+        deleteGalleryItem(input.id, input.galleryScopeKey)
+      ),
     deleteAlbum: contentProcedure
-      .input(z.object({
-        ids: z.array(z.number().int().positive()).min(1).max(500),
-        galleryScopeKey: z.string().trim().min(1).max(96).optional(),
-      }))
-      .mutation(({ input }) => deleteGalleryItems(input.ids, input.galleryScopeKey)),
+      .input(
+        z.object({
+          ids: z.array(z.number().int().positive()).min(1).max(500),
+          galleryScopeKey: z.string().trim().min(1).max(96).optional(),
+        })
+      )
+      .mutation(({ input }) =>
+        deleteGalleryItems(input.ids, input.galleryScopeKey)
+      ),
     /** 갤러리 순서 일괄 변경 */
     reorder: contentProcedure
-      .input(z.union([
-        z.array(z.object({
-          id: z.number().int().positive(),
-          sortOrder: z.number().int().min(0).max(10000),
-        })).max(500),
-        z.object({
-          galleryScopeKey: z.string().trim().min(1).max(96),
-          items: z.array(z.object({
-            id: z.number().int().positive(),
-            sortOrder: z.number().int().min(0).max(10000),
-          })).max(500),
-        }),
-      ]))
+      .input(
+        z.union([
+          z
+            .array(
+              z.object({
+                id: z.number().int().positive(),
+                sortOrder: z.number().int().min(0).max(10000),
+              })
+            )
+            .max(500),
+          z.object({
+            galleryScopeKey: z.string().trim().min(1).max(96),
+            items: z
+              .array(
+                z.object({
+                  id: z.number().int().positive(),
+                  sortOrder: z.number().int().min(0).max(10000),
+                })
+              )
+              .max(500),
+          }),
+        ])
+      )
       .mutation(({ input }) =>
         Array.isArray(input)
           ? reorderGalleryItems(input)
-          : reorderGalleryItems(input.items, input.galleryScopeKey)),
+          : reorderGalleryItems(input.items, input.galleryScopeKey)
+      ),
     /** 갤러리 앨범 순서 일괄 변경 */
     reorderAlbums: contentProcedure
-      .input(z.union([
-        z.array(z.object({
-          albumKey: optionalTextSchema(96),
-          albumTitle: optionalTextSchema(160),
-          albumSortOrder: z.number().int().min(0).max(2147483647),
-        })).max(200),
-        z.object({
-          galleryScopeKey: z.string().trim().min(1).max(96),
-          items: z.array(z.object({
-            albumKey: optionalTextSchema(96),
-            albumTitle: optionalTextSchema(160),
-            albumSortOrder: z.number().int().min(0).max(2147483647),
-          })).max(200),
-        }),
-      ]))
+      .input(
+        z.union([
+          z
+            .array(
+              z.object({
+                albumKey: optionalTextSchema(96),
+                albumTitle: optionalTextSchema(160),
+                albumSortOrder: z.number().int().min(0).max(2147483647),
+              })
+            )
+            .max(200),
+          z.object({
+            galleryScopeKey: z.string().trim().min(1).max(96),
+            items: z
+              .array(
+                z.object({
+                  albumKey: optionalTextSchema(96),
+                  albumTitle: optionalTextSchema(160),
+                  albumSortOrder: z.number().int().min(0).max(2147483647),
+                })
+              )
+              .max(200),
+          }),
+        ])
+      )
       .mutation(({ input }) =>
         Array.isArray(input)
           ? reorderGalleryAlbums(input)
-          : reorderGalleryAlbums(input.items, input.galleryScopeKey)),
+          : reorderGalleryAlbums(input.items, input.galleryScopeKey)
+      ),
   }),
 
   // ─── 사이트 설정 관리 ───────────────────────────────────────────────────────
   settings: router({
     update: adminProcedure
-      .input(z.object({
-        key: z.string().refine(
-          value => (SETTING_KEYS as readonly string[]).includes(value),
-          "허용되지 않는 설정 키입니다.",
-        ),
-        value: z.string().trim().max(5000, "설정값은 5000자 이하로 입력해주세요."),
-      }))
+      .input(
+        z.object({
+          key: z
+            .string()
+            .refine(
+              value => (SETTING_KEYS as readonly string[]).includes(value),
+              "허용되지 않는 설정 키입니다."
+            ),
+          value: z
+            .string()
+            .trim()
+            .max(5000, "설정값은 5000자 이하로 입력해주세요."),
+        })
+      )
       .mutation(({ input }) => {
         const value = input.key.endsWith("_url")
           ? safeHrefSchema.parse(input.value)
@@ -513,7 +643,7 @@ export const contentRouter = router({
     list: adminProcedure.query(async () => {
       const storedRows = await getAllStaticPageContents();
       const storedByHref = new Map(storedRows.map(row => [row.href, row]));
-      return STATIC_PAGE_SEEDS.map((page) => {
+      return STATIC_PAGE_SEEDS.map(page => {
         const stored = storedByHref.get(page.href);
         const fallbackContent = JSON.stringify(page.content, null, 2);
         return {
@@ -529,14 +659,19 @@ export const contentRouter = router({
       });
     }),
     update: adminProcedure
-      .input(z.object({
-        href: staticPageHrefSchema,
-        content: staticPageJsonSchema,
-      }))
+      .input(
+        z.object({
+          href: staticPageHrefSchema,
+          content: staticPageJsonSchema,
+        })
+      )
       .mutation(({ input }) => {
         const page = getStaticPageSeed(input.href);
         if (!page) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "관리 대상 페이지가 아닙니다." });
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "관리 대상 페이지가 아닙니다.",
+          });
         }
         const content = parseStaticPageJson(page.template, input.content);
         return upsertStaticPageContent(input.href, content);
@@ -546,7 +681,10 @@ export const contentRouter = router({
       .mutation(({ input }) => {
         const page = getStaticPageSeed(input.href);
         if (!page) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "관리 대상 페이지가 아닙니다." });
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "관리 대상 페이지가 아닙니다.",
+          });
         }
         return upsertStaticPageContent(input.href, page.content);
       }),
@@ -555,16 +693,25 @@ export const contentRouter = router({
   // ─── 정적 페이지 번역 관리 ────────────────────────────────────────────────
   staticPageTranslations: router({
     get: adminProcedure
-      .input(z.object({
-        href: staticPageHrefSchema,
-        locale: translationLocaleSchema,
-      }))
+      .input(
+        z.object({
+          href: staticPageHrefSchema,
+          locale: translationLocaleSchema,
+        })
+      )
       .query(async ({ input }) => {
         const page = getStaticPageSeed(input.href);
         if (!page) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "관리 대상 페이지가 아닙니다." });
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "관리 대상 페이지가 아닙니다.",
+          });
         }
-        const stored = await getStoredTranslation(input.locale, "static_page", input.href);
+        const stored = await getStoredTranslation(
+          input.locale,
+          "static_page",
+          input.href
+        );
         if (!stored) return null;
         return {
           content: JSON.stringify(stored.content, null, 2),
@@ -572,31 +719,49 @@ export const contentRouter = router({
         };
       }),
     update: adminProcedure
-      .input(z.object({
-        href: staticPageHrefSchema,
-        locale: translationLocaleSchema,
-        content: staticPageJsonSchema,
-      }))
+      .input(
+        z.object({
+          href: staticPageHrefSchema,
+          locale: translationLocaleSchema,
+          content: staticPageJsonSchema,
+        })
+      )
       .mutation(({ input }) => {
         const page = getStaticPageSeed(input.href);
         if (!page) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "관리 대상 페이지가 아닙니다." });
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "관리 대상 페이지가 아닙니다.",
+          });
         }
         const content = parseStaticPageJson(page.template, input.content);
-        return upsertStoredTranslation(input.locale, "static_page", input.href, content);
+        return upsertStoredTranslation(
+          input.locale,
+          "static_page",
+          input.href,
+          content
+        );
       }),
     generateDraft: adminProcedure
-      .input(z.object({
-        href: staticPageHrefSchema,
-        locale: translationLocaleSchema,
-        sourceContent: staticPageJsonSchema,
-      }))
+      .input(
+        z.object({
+          href: staticPageHrefSchema,
+          locale: translationLocaleSchema,
+          sourceContent: staticPageJsonSchema,
+        })
+      )
       .mutation(async ({ input }) => {
         const page = getStaticPageSeed(input.href);
         if (!page) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "관리 대상 페이지가 아닙니다." });
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "관리 대상 페이지가 아닙니다.",
+          });
         }
-        const sourceContent = parseStaticPageJson(page.template, input.sourceContent);
+        const sourceContent = parseStaticPageJson(
+          page.template,
+          input.sourceContent
+        );
         const translated = await translateJsonContentToLocale({
           content: sourceContent,
           targetLocale: input.locale,
@@ -610,21 +775,25 @@ export const contentRouter = router({
   quickMenus: router({
     list: adminProcedure.query(() => getAllQuickMenus()),
     create: adminProcedure
-      .input(z.object({
-        icon: iconClassSchema,
-        label: requiredTextSchema(64, "이름을 입력해주세요."),
-        href: safeHrefSchema.optional(),
-      }))
+      .input(
+        z.object({
+          icon: iconClassSchema,
+          label: requiredTextSchema(64, "이름을 입력해주세요."),
+          href: safeHrefSchema.optional(),
+        })
+      )
       .mutation(({ input }) => createQuickMenu(input)),
     update: adminProcedure
-      .input(z.object({
-        id: z.number().int().positive(),
-        icon: iconClassSchema.optional(),
-        label: requiredTextSchema(64, "이름을 입력해주세요.").optional(),
-        href: safeHrefSchema.nullable().optional(),
-        sortOrder: sortOrderSchema,
-        isVisible: z.boolean().optional(),
-      }))
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+          icon: iconClassSchema.optional(),
+          label: requiredTextSchema(64, "이름을 입력해주세요.").optional(),
+          href: safeHrefSchema.nullable().optional(),
+          sortOrder: sortOrderSchema,
+          isVisible: z.boolean().optional(),
+        })
+      )
       .mutation(({ input }) => {
         const { id, ...data } = input;
         return updateQuickMenu(id, data);
@@ -634,10 +803,16 @@ export const contentRouter = router({
       .mutation(({ input }) => deleteQuickMenu(input.id)),
     /** 퀵메뉴 순서 일괄 변경 */
     reorder: adminProcedure
-      .input(z.array(z.object({
-        id: z.number().int().positive(),
-        sortOrder: z.number().int().min(0).max(10000),
-      })).max(500))
+      .input(
+        z
+          .array(
+            z.object({
+              id: z.number().int().positive(),
+              sortOrder: z.number().int().min(0).max(10000),
+            })
+          )
+          .max(500)
+      )
       .mutation(({ input }) => reorderQuickMenus(input)),
   }),
 });

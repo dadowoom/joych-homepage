@@ -76,11 +76,45 @@ function createTransactionDb(selectResults: unknown[][]) {
 
   return {
     db: {
-      transaction: async <T>(callback: (transaction: typeof tx) => Promise<T>) =>
-        callback(tx),
+      transaction: async <T>(
+        callback: (transaction: typeof tx) => Promise<T>
+      ) => callback(tx),
     },
     updateSets,
     deleted,
+  };
+}
+
+function createGalleryDetailDb(selectResults: unknown[][]) {
+  const whereCalls: unknown[] = [];
+  const limit = vi.fn();
+  const orderBy = vi.fn();
+
+  return {
+    db: {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn((condition: unknown) => {
+            whereCalls.push(condition);
+            const result = selectResults.shift() ?? [];
+
+            return {
+              limit: async (value: number) => {
+                limit(value);
+                return result;
+              },
+              orderBy: async (...values: unknown[]) => {
+                orderBy(...values);
+                return result;
+              },
+            };
+          }),
+        })),
+      })),
+    },
+    whereCalls,
+    limit,
+    orderBy,
   };
 }
 
@@ -100,29 +134,31 @@ describe("gallery album cover behavior", () => {
     expect(chooseGalleryCoverId(items, 10)).toBe(10);
     expect(chooseGalleryCoverId(items, 11)).toBe(12);
     expect(chooseGalleryCoverId(items)).toBe(12);
-    expect(chooseGalleryCoverId(items.map(item => ({ ...item, isVisible: false })))).toBeNull();
+    expect(
+      chooseGalleryCoverId(items.map(item => ({ ...item, isVisible: false })))
+    ).toBeNull();
   });
 
   it("rejects a cover photo that is not in the requested album", async () => {
-    const fake = createTransactionDb([
-      [{ id: 1 }],
-      [],
-    ]);
+    const fake = createTransactionDb([[{ id: 1 }], []]);
     connectionMocks.getDb.mockResolvedValue(fake.db);
 
-    await expect(setGalleryAlbumCover("event-gallery", "album-a", 99))
-      .resolves.toBe(false);
+    await expect(
+      setGalleryAlbumCover("event-gallery", "album-a", 99)
+    ).resolves.toBe(false);
     expect(fake.updateSets).toHaveLength(0);
   });
 
   it("replaces a deleted explicit cover with the first remaining visible photo", async () => {
     const fake = createTransactionDb([
-      [{
-        id: 7,
-        galleryScopeKey: "event-gallery",
-        albumKey: "album-a",
-        isHomeGallery: false,
-      }],
+      [
+        {
+          id: 7,
+          galleryScopeKey: "event-gallery",
+          albumKey: "album-a",
+          isHomeGallery: false,
+        },
+      ],
       [{ coverImageId: 7 }],
       [
         { id: 8, isVisible: true, sortOrder: 3, createdAt: "2026-07-01" },
@@ -139,12 +175,14 @@ describe("gallery album cover behavior", () => {
 
   it("keeps an empty album and clears its cover when its last photo is deleted", async () => {
     const fake = createTransactionDb([
-      [{
-        id: 7,
-        galleryScopeKey: "event-gallery",
-        albumKey: "album-a",
-        isHomeGallery: false,
-      }],
+      [
+        {
+          id: 7,
+          galleryScopeKey: "event-gallery",
+          albumKey: "album-a",
+          isHomeGallery: false,
+        },
+      ],
       [{ coverImageId: 7 }],
       [],
     ]);
@@ -166,9 +204,82 @@ describe("gallery album API boundaries", () => {
   it("keeps album management behind gallery-content permission", async () => {
     const caller = appRouter.createCaller(createContext("user"));
 
-    await expect(caller.cms.content.gallery.listAlbums({
+    await expect(
+      caller.cms.content.gallery.listAlbums({
+        galleryScopeKey: "event-gallery",
+      })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    await expect(
+      caller.cms.content.gallery.getAlbum({
+        galleryScopeKey: "event-gallery",
+        albumKey: "album-a",
+      })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("loads one public album and only its targeted photo collection", async () => {
+    const album = {
+      id: 3,
       galleryScopeKey: "event-gallery",
-    })).rejects.toMatchObject({ code: "FORBIDDEN" });
+      albumKey: "album-a",
+      title: "최근 행사 사진",
+      isVisible: true,
+    };
+    const items = [
+      {
+        id: 11,
+        galleryScopeKey: "event-gallery",
+        albumKey: "album-a",
+        imageUrl: "/api/church-photo/photo/2026/0101/1.jpg",
+        isVisible: true,
+      },
+      {
+        id: 12,
+        galleryScopeKey: "event-gallery",
+        albumKey: "album-a",
+        imageUrl: "/api/church-photo/photo/2026/0101/2.jpg",
+        isVisible: true,
+      },
+    ];
+    const fake = createGalleryDetailDb([[album], items]);
+    connectionMocks.getDb.mockResolvedValue(fake.db);
+    const caller = appRouter.createCaller(createContext(null));
+
+    await expect(
+      caller.home.galleryAlbum({
+        galleryScopeKey: "event-gallery",
+        albumKey: "album-a",
+      })
+    ).resolves.toEqual({ album, items });
+
+    expect(fake.whereCalls).toHaveLength(2);
+    expect(fake.limit).toHaveBeenCalledWith(1);
+    expect(fake.orderBy).toHaveBeenCalledOnce();
+  });
+
+  it("returns an empty admin album without falling back to the full gallery", async () => {
+    const album = {
+      id: 4,
+      galleryScopeKey: "event-gallery",
+      albumKey: "album-empty",
+      title: "빈 앨범",
+      isVisible: false,
+    };
+    const fake = createGalleryDetailDb([[album], []]);
+    connectionMocks.getDb.mockResolvedValue(fake.db);
+    const caller = appRouter.createCaller(createContext("admin"));
+
+    await expect(
+      caller.cms.content.gallery.getAlbum({
+        galleryScopeKey: "event-gallery",
+        albumKey: "album-empty",
+      })
+    ).resolves.toEqual({ album, items: [] });
+
+    expect(fake.whereCalls).toHaveLength(2);
+    expect(fake.limit).toHaveBeenCalledWith(1);
+    expect(fake.orderBy).toHaveBeenCalledOnce();
   });
 
   it("limits one bulk photo request to 100 items", async () => {
@@ -177,11 +288,13 @@ describe("gallery album API boundaries", () => {
       imageUrl: `/uploads/gallery-${index}.jpg`,
     }));
 
-    await expect(caller.cms.content.gallery.createMany({
-      galleryScopeKey: "event-gallery",
-      albumKey: "album-a",
-      items,
-    })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      caller.cms.content.gallery.createMany({
+        galleryScopeKey: "event-gallery",
+        albumKey: "album-a",
+        items,
+      })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   it("does not report success when an album mutation has no target", async () => {
@@ -191,30 +304,46 @@ describe("gallery album API boundaries", () => {
       albumKey: "missing-album",
     };
 
-    await expect(caller.cms.content.gallery.updateAlbumRecord({
-      ...albumIdentity,
-      title: "수정 제목",
-    })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      caller.cms.content.gallery.updateAlbumRecord({
+        ...albumIdentity,
+        title: "수정 제목",
+      })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
 
-    await expect(caller.cms.content.gallery.deleteAlbumRecord(albumIdentity))
-      .rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      caller.cms.content.gallery.deleteAlbumRecord(albumIdentity)
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
 
-    await expect(caller.cms.content.gallery.setAlbumCover({
-      ...albumIdentity,
-      photoId: 1,
-    })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      caller.cms.content.gallery.setAlbumCover({
+        ...albumIdentity,
+        photoId: 1,
+      })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
-    await expect(caller.cms.content.gallery.createMany({
-      ...albumIdentity,
-      items: [{ imageUrl: "/uploads/gallery.jpg" }],
-    })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      caller.cms.content.gallery.createMany({
+        ...albumIdentity,
+        items: [{ imageUrl: "/uploads/gallery.jpg" }],
+      })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it("publishes an empty list when the database is unavailable", async () => {
     const caller = appRouter.createCaller(createContext(null));
 
-    await expect(caller.home.galleryAlbums({
-      galleryScopeKey: "event-gallery",
-    })).resolves.toEqual([]);
+    await expect(
+      caller.home.galleryAlbums({
+        galleryScopeKey: "event-gallery",
+      })
+    ).resolves.toEqual([]);
+
+    await expect(
+      caller.home.galleryAlbum({
+        galleryScopeKey: "event-gallery",
+        albumKey: "album-a",
+      })
+    ).resolves.toBeNull();
   });
 });

@@ -167,6 +167,7 @@ export default function YoutubeEditPanel({
     if (!selectedPlaylistId) return;
     utils.youtube.getVideosAdmin.invalidate({ playlistId: selectedPlaylistId });
     utils.youtube.getVideos.invalidate({ playlistId: selectedPlaylistId });
+    utils.youtube.getHomeLatest.invalidate();
   };
 
   // Mutations
@@ -182,6 +183,7 @@ export default function YoutubeEditPanel({
   const deletePlaylist = trpc.youtube.deletePlaylist.useMutation({
     onSuccess: () => {
       utils.youtube.getPlaylists.invalidate();
+      utils.youtube.getHomeLatest.invalidate();
       setSelectedPlaylistId(null);
       toast.success("플레이리스트가 삭제됩니다.");;
     },

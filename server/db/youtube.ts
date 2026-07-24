@@ -18,6 +18,10 @@ import {
   matchesJoyfulTvPlaylistMenuLabel,
 } from "../_core/youtubePlaylistMenu";
 import { getDb } from "./connection";
+import {
+  getVisibleMenuItemByHref,
+  getVisibleMenuSubItemByHref,
+} from "./menu";
 
 const JOYFUL_TV_MENU_LABEL = "조이풀TV";
 const CHOIR_PLAYLIST_IDS = new Set<number>([
@@ -26,6 +30,23 @@ const CHOIR_PLAYLIST_IDS = new Set<number>([
   90009,
 ]);
 const YOUTUBE_PUBLIC_MIN_SERMON_DATE = "2010-01-01";
+export const HOME_JOYFUL_TV_TARGETS = [
+  {
+    key: "sunday",
+    badge: "주일예배",
+    href: "/page/조이풀tv-주일예배",
+  },
+  {
+    key: "wednesday",
+    badge: "수요예배",
+    href: "/worship/tv/hebron",
+  },
+  {
+    key: "friday",
+    badge: "금요예배",
+    href: "/worship/tv/shekhinah",
+  },
+] as const;
 
 function isChoirPlaylist(playlistId: number) {
   return CHOIR_PLAYLIST_IDS.has(playlistId);
@@ -119,6 +140,61 @@ export async function getVisibleYoutubeVideos(playlistId: number) {
       ...getVisibleChoirVideoConditions(playlistId),
     ))
     .orderBy(...getYoutubeVideoOrderBy(playlistId));
+}
+
+/**
+ * 홈 조이풀TV 카드에 표시할 세 예배의 최신 공개 영상입니다.
+ * 재생목록 이름을 하드코딩하지 않고 실제 메뉴 href에 연결된 playlistId를 사용하므로,
+ * 관리자가 재생목록 이름을 바꿔도 홈과 상세 페이지가 같은 영상을 가리킵니다.
+ */
+export async function getHomeJoyfulTvLatestVideos() {
+  const db = await getDb();
+  if (!db) {
+    return HOME_JOYFUL_TV_TARGETS.map(target => ({
+      ...target,
+      playlistId: null,
+      video: null,
+    }));
+  }
+
+  return Promise.all(HOME_JOYFUL_TV_TARGETS.map(async target => {
+    const [subItem, menuItem] = await Promise.all([
+      getVisibleMenuSubItemByHref(target.href, "guest"),
+      getVisibleMenuItemByHref(target.href, "guest"),
+    ]);
+    // 상세 영상 페이지와 동일하게 3단 메뉴 연결을 먼저 사용합니다.
+    const playlistId = subItem?.playlistId ?? menuItem?.playlistId ?? null;
+    const [video] = playlistId
+      ? await db
+          .select({
+            id: youtubeVideos.id,
+            playlistId: youtubeVideos.playlistId,
+            videoId: youtubeVideos.videoId,
+            videoUrl: youtubeVideos.videoUrl,
+            title: youtubeVideos.title,
+            preacher: youtubeVideos.preacher,
+            scripture: youtubeVideos.scripture,
+            sermonDate: youtubeVideos.sermonDate,
+            thumbnailUrl: youtubeVideos.thumbnailUrl,
+          })
+          .from(youtubeVideos)
+          .where(
+            and(
+              eq(youtubeVideos.playlistId, playlistId),
+              eq(youtubeVideos.isVisible, true),
+              ...getVisibleChoirVideoConditions(playlistId)
+            )
+          )
+          .orderBy(...getYoutubeVideoOrderBy(playlistId))
+          .limit(1)
+      : [];
+
+    return {
+      ...target,
+      playlistId,
+      video: video ?? null,
+    };
+  }));
 }
 
 /**

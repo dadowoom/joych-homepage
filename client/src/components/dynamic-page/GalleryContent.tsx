@@ -24,8 +24,6 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   ChevronDown,
   ChevronUp,
-  Download,
-  FileImage,
   GripVertical,
   Images,
   LayoutGrid,
@@ -103,6 +101,7 @@ function normalizeViewMode(
 
 const MAX_GALLERY_UPLOAD_SIZE = 1 * 1024 * 1024;
 const MAX_GALLERY_UPLOAD_COUNT = 100;
+const DETAIL_GALLERY_BATCH_SIZE = 18;
 const ALLOWED_GALLERY_IMAGE_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -314,23 +313,27 @@ function buildGalleryGroups(items: GalleryItem[], albums: GalleryAlbum[] = []) {
     });
   });
 
-  return Array.from(groups.values()).map(group => ({
-    ...group,
-    images: [...group.images].sort((a, b) =>
-      getItemSortOrder(a, 0) - getItemSortOrder(b, 0)
-    ),
-  })).sort((a, b) => {
-    if (a.albumSortOrder !== b.albumSortOrder)
-      return b.albumSortOrder - a.albumSortOrder;
-    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
-    return toTime(b.createdAt) - toTime(a.createdAt);
-  });
+  return Array.from(groups.values())
+    .map(group => ({
+      ...group,
+      images: [...group.images].sort(
+        (a, b) => getItemSortOrder(a, 0) - getItemSortOrder(b, 0)
+      ),
+    }))
+    .sort((a, b) => {
+      if (a.albumSortOrder !== b.albumSortOrder)
+        return b.albumSortOrder - a.albumSortOrder;
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+      return toTime(b.createdAt) - toTime(a.createdAt);
+    });
 }
 
 function getGalleryGroupCover(group: GalleryGroup) {
-  return group.images.find(image => image.id === group.coverImageId)
-    ?? group.images[0]
-    ?? null;
+  return (
+    group.images.find(image => image.id === group.coverImageId) ??
+    group.images[0] ??
+    null
+  );
 }
 
 function getGalleryGroupVisibility(group: GalleryGroup) {
@@ -502,28 +505,72 @@ export function GalleryContent({
   const utils = trpc.useUtils();
   const normalizedScopeKey = galleryScopeKey?.trim() ?? "";
   const canLoadGallery = normalizedScopeKey.length > 0;
-  const publicGalleryQuery = trpc.home.gallery.useQuery({
-    galleryScopeKey: normalizedScopeKey,
-  }, {
-    enabled: !canManage && canLoadGallery,
-  });
-  const publicGalleryAlbumsQuery = trpc.home.galleryAlbums.useQuery({
-    galleryScopeKey: normalizedScopeKey,
-  }, {
-    enabled: !canManage && canLoadGallery,
-  });
-  const adminGalleryQuery = trpc.cms.content.gallery.list.useQuery({
-    galleryScopeKey: normalizedScopeKey,
-  }, {
-    enabled: canManage && canLoadGallery,
-  });
-  const adminGalleryAlbumsQuery = trpc.cms.content.gallery.listAlbums.useQuery({
-    galleryScopeKey: normalizedScopeKey,
-  }, {
-    enabled: canManage && canLoadGallery,
-  });
   const [location, navigate] = useLocation();
   const searchString = useSearch();
+  const requestedDetailKey = useMemo(
+    () => getGalleryDetailKey(searchString),
+    [searchString]
+  );
+  const requestedAlbumKey = useMemo(() => {
+    const rawKey = requestedDetailKey?.trim();
+    if (!rawKey) return "";
+    if (rawKey.startsWith("album:"))
+      return rawKey.slice("album:".length).trim();
+    if (rawKey.startsWith("album-title:") || rawKey.startsWith("legacy:"))
+      return "";
+    return rawKey;
+  }, [requestedDetailKey]);
+  const canLoadAlbumDetail = canLoadGallery && requestedAlbumKey.length > 0;
+  const publicGalleryQuery = trpc.home.gallery.useQuery(
+    {
+      galleryScopeKey: normalizedScopeKey,
+    },
+    {
+      enabled: !canManage && canLoadGallery && !canLoadAlbumDetail,
+    }
+  );
+  const publicGalleryAlbumsQuery = trpc.home.galleryAlbums.useQuery(
+    {
+      galleryScopeKey: normalizedScopeKey,
+    },
+    {
+      enabled: !canManage && canLoadGallery && !canLoadAlbumDetail,
+    }
+  );
+  const publicGalleryAlbumQuery = trpc.home.galleryAlbum.useQuery(
+    {
+      galleryScopeKey: normalizedScopeKey,
+      albumKey: requestedAlbumKey,
+    },
+    {
+      enabled: !canManage && canLoadAlbumDetail,
+    }
+  );
+  const adminGalleryQuery = trpc.cms.content.gallery.list.useQuery(
+    {
+      galleryScopeKey: normalizedScopeKey,
+    },
+    {
+      enabled: canManage && canLoadGallery && !canLoadAlbumDetail,
+    }
+  );
+  const adminGalleryAlbumsQuery = trpc.cms.content.gallery.listAlbums.useQuery(
+    {
+      galleryScopeKey: normalizedScopeKey,
+    },
+    {
+      enabled: canManage && canLoadGallery && !canLoadAlbumDetail,
+    }
+  );
+  const adminGalleryAlbumQuery = trpc.cms.content.gallery.getAlbum.useQuery(
+    {
+      galleryScopeKey: normalizedScopeKey,
+      albumKey: requestedAlbumKey,
+    },
+    {
+      enabled: canManage && canLoadAlbumDetail,
+    }
+  );
   const [lightbox, setLightbox] = useState<{
     groupKey: string;
     imageIndex: number;
@@ -541,13 +588,28 @@ export function GalleryContent({
   const [localOrder, setLocalOrder] = useState<GalleryItem[] | null>(null);
   const detailFileInputRef = useRef<HTMLInputElement>(null);
 
-  const items = canManage ? adminGalleryQuery.data : publicGalleryQuery.data;
-  const albums = canManage
-    ? adminGalleryAlbumsQuery.data
-    : publicGalleryAlbumsQuery.data;
-  const isLoading = canManage
-    ? adminGalleryQuery.isLoading || adminGalleryAlbumsQuery.isLoading
-    : publicGalleryQuery.isLoading || publicGalleryAlbumsQuery.isLoading;
+  const albumDetail = canManage
+    ? adminGalleryAlbumQuery.data
+    : publicGalleryAlbumQuery.data;
+  const items = canLoadAlbumDetail
+    ? albumDetail?.items
+    : canManage
+      ? adminGalleryQuery.data
+      : publicGalleryQuery.data;
+  const albums = canLoadAlbumDetail
+    ? albumDetail?.album
+      ? [albumDetail.album]
+      : []
+    : canManage
+      ? adminGalleryAlbumsQuery.data
+      : publicGalleryAlbumsQuery.data;
+  const isLoading = canLoadAlbumDetail
+    ? canManage
+      ? adminGalleryAlbumQuery.isLoading
+      : publicGalleryAlbumQuery.isLoading
+    : canManage
+      ? adminGalleryQuery.isLoading || adminGalleryAlbumsQuery.isLoading
+      : publicGalleryQuery.isLoading || publicGalleryAlbumsQuery.isLoading;
   const galleryItems = (localOrder ?? items ?? []) as GalleryItem[];
   const galleryAlbums = (albums ?? []) as GalleryAlbum[];
   const galleryGroups = useMemo(
@@ -568,10 +630,6 @@ export function GalleryContent({
   const visibleGroups = filteredGroups.slice(
     (activePage - 1) * pageSize,
     activePage * pageSize
-  );
-  const requestedDetailKey = useMemo(
-    () => getGalleryDetailKey(searchString),
-    [searchString]
   );
   const detailGroupKey = useMemo(
     () => resolveGalleryDetailKey(requestedDetailKey, galleryGroups),
@@ -602,17 +660,26 @@ export function GalleryContent({
     Record<number, string>
   >({});
   const [editingPhotoId, setEditingPhotoId] = useState<number | null>(null);
-  const [settingCoverPhotoId, setSettingCoverPhotoId] = useState<number | null>(null);
+  const [settingCoverPhotoId, setSettingCoverPhotoId] = useState<number | null>(
+    null
+  );
   const [isSavingDetail, setIsSavingDetail] = useState(false);
   const [isAddingDetailPhotos, setIsAddingDetailPhotos] = useState(false);
   const [mediaPhotoInput, setMediaPhotoInput] = useState("");
   const [isAddingMediaPhotos, setIsAddingMediaPhotos] = useState(false);
+  const [visibleDetailImageCount, setVisibleDetailImageCount] = useState(
+    DETAIL_GALLERY_BATCH_SIZE
+  );
   const newAlbumKeyToEditRef = useRef<string | null>(null);
   const [deletingAlbumKey, setDeletingAlbumKey] = useState<string | null>(null);
 
   useEffect(() => {
     setViewMode(normalizeViewMode(defaultViewMode));
   }, [defaultViewMode]);
+
+  useEffect(() => {
+    setVisibleDetailImageCount(DETAIL_GALLERY_BATCH_SIZE);
+  }, [detailGroup?.key]);
 
   useEffect(() => {
     if (!detailGroup) {
@@ -665,8 +732,10 @@ export function GalleryContent({
         setLocalOrder(null);
         utils.home.gallery.invalidate();
         utils.home.galleryAlbums.invalidate();
+        utils.home.galleryAlbum.invalidate();
         utils.cms.content.gallery.list.invalidate();
         utils.cms.content.gallery.listAlbums.invalidate();
+        utils.cms.content.gallery.getAlbum.invalidate();
         toast.success("앨범 순서가 저장되었습니다.");
       },
       onError: error => {
@@ -678,7 +747,9 @@ export function GalleryContent({
     onSuccess: () => {
       setLocalOrder(null);
       utils.home.gallery.invalidate();
+      utils.home.galleryAlbum.invalidate();
       utils.cms.content.gallery.list.invalidate();
+      utils.cms.content.gallery.getAlbum.invalidate();
       toast.success("사진 순서가 저장되었습니다.");
     },
     onError: error => {
@@ -734,8 +805,10 @@ export function GalleryContent({
     await Promise.all([
       utils.home.gallery.invalidate(),
       utils.home.galleryAlbums.invalidate(),
+      utils.home.galleryAlbum.invalidate(),
       utils.cms.content.gallery.list.invalidate(),
       utils.cms.content.gallery.listAlbums.invalidate(),
+      utils.cms.content.gallery.getAlbum.invalidate(),
     ]);
   };
 
@@ -770,7 +843,9 @@ export function GalleryContent({
     if (!detailGroup) return;
     const albumKey = detailGroup.albumKey?.trim();
     if (!albumKey) {
-      toast.error("앨범 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.");
+      toast.error(
+        "앨범 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요."
+      );
       return;
     }
 
@@ -827,7 +902,9 @@ export function GalleryContent({
     if (!detailGroup) return;
     const albumKey = detailGroup.albumKey?.trim();
     if (!albumKey) {
-      toast.error("앨범 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.");
+      toast.error(
+        "앨범 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요."
+      );
       event.target.value = "";
       return;
     }
@@ -885,7 +962,9 @@ export function GalleryContent({
     if (!detailGroup) return;
     const albumKey = detailGroup.albumKey?.trim();
     if (!albumKey) {
-      toast.error("앨범 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.");
+      toast.error(
+        "앨범 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요."
+      );
       return;
     }
 
@@ -897,7 +976,9 @@ export function GalleryContent({
       return;
     }
 
-    const existingUrls = new Set(detailGroup.images.map(image => image.imageUrl));
+    const existingUrls = new Set(
+      detailGroup.images.map(image => image.imageUrl)
+    );
     const uniqueUrls = Array.from(new Set(parsedUrls)).filter(
       url => !existingUrls.has(url)
     );
@@ -945,7 +1026,9 @@ export function GalleryContent({
     if (!detailGroup) return;
     const albumKey = detailGroup.albumKey?.trim();
     if (!albumKey) {
-      toast.error("앨범 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.");
+      toast.error(
+        "앨범 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요."
+      );
       return;
     }
 
@@ -1032,7 +1115,9 @@ export function GalleryContent({
     if (!canManage) return;
     const albumKey = group.albumKey?.trim();
     if (!albumKey) {
-      toast.error("앨범 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.");
+      toast.error(
+        "앨범 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요."
+      );
       return;
     }
 
@@ -1067,7 +1152,9 @@ export function GalleryContent({
     if (!canManage) return;
     const albumKey = group.albumKey?.trim();
     if (!albumKey) {
-      toast.error("앨범 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.");
+      toast.error(
+        "앨범 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요."
+      );
       return;
     }
 
@@ -1194,8 +1281,8 @@ export function GalleryContent({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold text-[#1B5E20]">새 행사사진 앨범</p>
           <p className="mt-1 text-xs text-gray-500">
-            먼저 빈 앨범을 만든 뒤 앨범 안에서 사진을 추가하고 대표사진을
-            선택할 수 있습니다.
+            먼저 빈 앨범을 만든 뒤 앨범 안에서 사진을 추가하고 대표사진을 선택할
+            수 있습니다.
           </p>
           <label
             className="mt-3 block text-xs font-semibold text-gray-600"
@@ -1306,7 +1393,7 @@ export function GalleryContent({
     );
   }
 
-  if (galleryGroups.length === 0) {
+  if (galleryGroups.length === 0 && !requestedDetailKey) {
     return (
       <div className="space-y-5">
         {adminGalleryTools}
@@ -1319,7 +1406,7 @@ export function GalleryContent({
     );
   }
 
-  if (detailGroupKey && !detailGroup) {
+  if (requestedDetailKey && !detailGroup) {
     const listHref = buildGalleryHref(location, searchString);
 
     return (
@@ -1345,6 +1432,12 @@ export function GalleryContent({
   if (detailGroup) {
     const listHref = buildGalleryHref(location, searchString);
     const detailVisibility = getGalleryGroupVisibility(detailGroup);
+    const visibleDetailImages = detailGroup.images.slice(
+      0,
+      visibleDetailImageCount
+    );
+    const hasMoreDetailImages =
+      visibleDetailImageCount < detailGroup.images.length;
 
     return (
       <>
@@ -1551,7 +1644,9 @@ export function GalleryContent({
                       value={mediaPhotoInput}
                       onChange={event => setMediaPhotoInput(event.target.value)}
                       className="min-h-28 flex-1 resize-y border border-gray-300 px-3 py-2 font-mono text-xs leading-5 outline-none focus:border-[#1B5E20]"
-                      placeholder={"https://photo.joych.org/photo/2026/0621/11.jpg\nhttps://photo.joych.org/photo/2026/0621/12.jpg"}
+                      placeholder={
+                        "https://photo.joych.org/photo/2026/0621/11.jpg\nhttps://photo.joych.org/photo/2026/0621/12.jpg"
+                      }
                     />
                     <button
                       type="button"
@@ -1582,10 +1677,25 @@ export function GalleryContent({
                 />
               </section>
             )}
-            <div className="grid gap-6 px-4 py-6 lg:grid-cols-[minmax(0,1fr)_260px]">
-              <div className="space-y-5">
+            {!isDetailEditing && detailGroup.images.length > 0 && (
+              <p className="px-4 pt-5 text-sm text-gray-500">
+                사진을 누르면 크게 보고 좌우로 이동할 수 있습니다.
+              </p>
+            )}
+            <div
+              className={`grid gap-6 px-4 py-6 ${
+                isDetailEditing ? "lg:grid-cols-[minmax(0,1fr)_260px]" : ""
+              }`}
+            >
+              <div
+                className={
+                  isDetailEditing
+                    ? "space-y-5"
+                    : "grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+                }
+              >
                 {detailGroup.images.length === 0 && (
-                  <div className="flex min-h-64 flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50 px-5 py-12 text-center">
+                  <div className="col-span-full flex min-h-64 flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50 px-5 py-12 text-center">
                     <Images className="mb-3 h-10 w-10 text-gray-300" />
                     <p className="text-sm font-semibold text-gray-600">
                       아직 등록된 사진이 없습니다.
@@ -1606,7 +1716,7 @@ export function GalleryContent({
                     )}
                   </div>
                 )}
-                {detailGroup.images.map((image, imageIndex) => {
+                {visibleDetailImages.map((image, imageIndex) => {
                   const photoStory = getPhotoStory(
                     image.caption,
                     detailGroup.title,
@@ -1616,20 +1726,29 @@ export function GalleryContent({
                     image.id === getGalleryGroupCover(detailGroup)?.id;
 
                   return (
-                    <figure key={image.id} className="w-full max-w-none">
+                    <figure
+                      key={image.id}
+                      className={`w-full max-w-none ${
+                        isDetailEditing
+                          ? ""
+                          : "overflow-hidden border border-gray-200 bg-white shadow-sm"
+                      }`}
+                    >
                       <button
                         type="button"
                         onClick={() =>
                           setLightbox({ groupKey: detailGroup.key, imageIndex })
                         }
-                        className="group relative block w-full overflow-hidden bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B5E20]"
+                        className="group relative block aspect-[4/3] w-full overflow-hidden bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B5E20]"
                         aria-label={`${detailGroup.title} ${imageIndex + 1}번째 사진 크게 보기`}
                       >
                         <img
                           src={image.imageUrl}
                           alt={`${detailGroup.title} ${imageIndex + 1}`}
                           loading={imageIndex === 0 ? "eager" : "lazy"}
-                          className="mx-auto w-full object-contain"
+                          className={`h-full w-full ${
+                            isDetailEditing ? "object-contain" : "object-cover"
+                          }`}
                         />
                         <span className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-[#1B5E20] opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
                           <ZoomIn className="h-4 w-4" />
@@ -1641,7 +1760,11 @@ export function GalleryContent({
                           </span>
                         )}
                       </button>
-                      <figcaption className="mt-2 flex items-center justify-between text-xs text-gray-400">
+                      <figcaption
+                        className={`flex items-center justify-between text-xs text-gray-400 ${
+                          isDetailEditing ? "mt-2" : "px-3 py-2"
+                        }`}
+                      >
                         <span>
                           {imageIndex + 1} / {detailGroup.images.length}
                         </span>
@@ -1652,7 +1775,11 @@ export function GalleryContent({
                       {photoStory && (
                         <RichTextViewer
                           html={photoStory}
-                          className="mx-auto mb-12 mt-10 max-w-3xl text-center text-base leading-8 text-gray-700"
+                          className={
+                            isDetailEditing
+                              ? "mx-auto mb-12 mt-10 max-w-3xl text-center text-base leading-8 text-gray-700"
+                              : "border-t border-gray-100 px-3 py-3 text-sm leading-6 text-gray-700"
+                          }
                         />
                       )}
                       {canManage && isDetailEditing && (
@@ -1695,7 +1822,9 @@ export function GalleryContent({
                                   className={`h-3.5 w-3.5 ${isCoverPhoto ? "fill-current" : ""}`}
                                 />
                               )}
-                              {isCoverPhoto ? "현재 대표사진" : "대표사진으로 선택"}
+                              {isCoverPhoto
+                                ? "현재 대표사진"
+                                : "대표사진으로 선택"}
                             </button>
                             <label className="inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 border border-[#1B5E20] bg-white px-3 text-xs font-semibold text-[#1B5E20] hover:bg-[#F1F8E9]">
                               {editingPhotoId === image.id ? (
@@ -1735,71 +1864,77 @@ export function GalleryContent({
                     </figure>
                   );
                 })}
+                {hasMoreDetailImages && (
+                  <div
+                    className={
+                      isDetailEditing
+                        ? "flex justify-center pt-2"
+                        : "col-span-full flex justify-center pt-2"
+                    }
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVisibleDetailImageCount(current =>
+                          Math.min(
+                            current + DETAIL_GALLERY_BATCH_SIZE,
+                            detailGroup.images.length
+                          )
+                        )
+                      }
+                      className="inline-flex min-h-11 items-center justify-center border border-[#1B5E20] bg-white px-6 text-sm font-semibold text-[#1B5E20] hover:bg-[#F1F8E9]"
+                    >
+                      사진{" "}
+                      {Math.min(
+                        DETAIL_GALLERY_BATCH_SIZE,
+                        detailGroup.images.length - visibleDetailImageCount
+                      )}
+                      장 더 보기 ({visibleDetailImageCount} /{" "}
+                      {detailGroup.images.length})
+                    </button>
+                  </div>
+                )}
               </div>
 
-              <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-                {canManage && detailGroup.images.length > 1 && (
-                  <section className="border border-[#D8E8DA] bg-[#F8FCF8] p-4">
-                    <h3 className="text-sm font-bold text-[#1B5E20]">
-                      사진 순서 변경
-                    </h3>
-                    <p className="mt-1 text-xs text-gray-500">
-                      드래그하면 이 앨범 안의 표시 순서가 바뀝니다.
-                    </p>
-                    <div className="mt-3">
-                      <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={event =>
-                          handleGroupDragEnd(detailGroup, event)
-                        }
-                      >
-                        <SortableContext
-                          items={detailGroup.images.map(item => item.id)}
-                          strategy={rectSortingStrategy}
+              {canManage && isDetailEditing && (
+                <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+                  {detailGroup.images.length > 1 && (
+                    <section className="border border-[#D8E8DA] bg-[#F8FCF8] p-4">
+                      <h3 className="text-sm font-bold text-[#1B5E20]">
+                        사진 순서 변경
+                      </h3>
+                      <p className="mt-1 text-xs text-gray-500">
+                        드래그하면 이 앨범 안의 표시 순서가 바뀝니다.
+                      </p>
+                      <div className="mt-3 max-h-[min(60vh,36rem)] overflow-y-auto overscroll-contain pr-1">
+                        <DndContext
+                          sensors={sensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={event =>
+                            handleGroupDragEnd(detailGroup, event)
+                          }
                         >
-                          <div className="space-y-2">
-                            {detailGroup.images.map((image, imageIndex) => (
-                              <SortableGalleryOrderItem
-                                key={image.id}
-                                item={image}
-                                index={imageIndex}
-                                title={detailGroup.title}
-                              />
-                            ))}
-                          </div>
-                        </SortableContext>
-                      </DndContext>
-                    </div>
-                  </section>
-                )}
-
-                <section className="border border-gray-100 p-4">
-                  <h3 className="mb-4 text-sm font-bold text-gray-900">
-                    첨부 이미지
-                  </h3>
-                  <div className="space-y-3">
-                    {detailGroup.images.map((image, imageIndex) => (
-                      <a
-                        key={image.id}
-                        href={image.imageUrl}
-                        className="flex items-start gap-2 border border-dashed border-gray-200 p-3 text-xs text-gray-600 hover:border-[#86C5D8] hover:text-[#1B5E20]"
-                      >
-                        <FileImage className="mt-0.5 h-4 w-4 shrink-0 text-[#1B5E20]" />
-                        <span className="min-w-0 flex-1">
-                          <span className="block font-semibold">
-                            {imageIndex + 1}페이지
-                          </span>
-                          <span className="block truncate">
-                            {detailGroup.title}
-                          </span>
-                        </span>
-                        <Download className="h-4 w-4 shrink-0" />
-                      </a>
-                    ))}
-                  </div>
-                </section>
-              </aside>
+                          <SortableContext
+                            items={detailGroup.images.map(item => item.id)}
+                            strategy={rectSortingStrategy}
+                          >
+                            <div className="space-y-2">
+                              {detailGroup.images.map((image, imageIndex) => (
+                                <SortableGalleryOrderItem
+                                  key={image.id}
+                                  item={image}
+                                  index={imageIndex}
+                                  title={detailGroup.title}
+                                />
+                              ))}
+                            </div>
+                          </SortableContext>
+                        </DndContext>
+                      </div>
+                    </section>
+                  )}
+                </aside>
+              )}
             </div>
           </article>
         </div>

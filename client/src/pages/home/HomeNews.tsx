@@ -1,26 +1,43 @@
 import { Link } from "wouter";
+import DirectVideoPlayer from "@/components/DirectVideoPlayer";
+import { trpc } from "@/lib/trpc";
 import { FadeIn } from "./_helpers";
 
-const SERMONS = [
+const FALLBACK_SERMONS = [
   {
+    key: "sunday",
     badge: "주일예배",
     title: "주일예배 말씀 영상",
     date: "조이풀TV",
     href: "/page/조이풀tv-주일예배",
   },
   {
+    key: "wednesday",
     badge: "수요예배",
-    title: "수요예배 영상",
+    title: "헤브론 수요예배",
     date: "조이풀TV",
     href: "/worship/tv/hebron",
   },
   {
-    badge: "새벽기도",
-    title: "새벽기도회 영상",
+    key: "friday",
+    badge: "금요예배",
+    title: "금요 경배의 용사들",
     date: "조이풀TV",
-    href: "/worship/tv/gloria",
+    href: "/worship/tv/shekhinah",
   },
 ];
+
+function formatSermonDate(value?: string | null) {
+  const trimmed = value?.trim();
+  if (!trimmed) return "조이풀TV";
+  const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[1]}.${match[2]}.${match[3]}` : trimmed;
+}
+
+function buildSermonHref(href: string, videoId?: number | null) {
+  if (!videoId) return href;
+  return `${href}${href.includes("?") ? "&" : "?"}video=${videoId}`;
+}
 
 const BADGE_COLORS: Record<string, string> = {
   공지: "bg-blue-100 text-blue-700",
@@ -40,6 +57,36 @@ type HomeNewsProps = {
 };
 
 export default function HomeNews({ dbNotices }: HomeNewsProps) {
+  const {
+    data: latestSermons,
+    isLoading: latestSermonsLoading,
+  } = trpc.youtube.getHomeLatest.useQuery(undefined, {
+    staleTime: 60_000,
+  });
+  const fallbackByKey = new Map(
+    FALLBACK_SERMONS.map(sermon => [sermon.key, sermon])
+  );
+  const sermons =
+    latestSermons?.map(item => {
+      const fallback = fallbackByKey.get(item.key);
+      return {
+        key: item.key,
+        badge: item.badge,
+        title: item.video?.title || fallback?.title || `${item.badge} 최신 영상`,
+        date: formatSermonDate(item.video?.sermonDate),
+        href: buildSermonHref(item.href, item.video?.id),
+        videoId: item.video?.videoId ?? null,
+        videoUrl: item.video?.videoUrl ?? null,
+      };
+    }) ??
+    FALLBACK_SERMONS.map(sermon => ({
+      ...sermon,
+      videoId: null,
+      videoUrl: null,
+    }));
+  const featuredSermon =
+    sermons.find(sermon => sermon.key === "sunday") ?? sermons[0];
+
   return (
     <section className="py-16 bg-white">
       <div className="container">
@@ -62,24 +109,56 @@ export default function HomeNews({ dbNotices }: HomeNewsProps) {
               </div>
               <div className="relative mb-4 rounded-lg overflow-hidden bg-gray-900">
                 <div className="aspect-video">
-                  <iframe
-                    className="w-full h-full"
-                    src="https://www.youtube.com/embed/WmFzWf5uEzI?rel=0"
-                    title="조이풀TV 최신 설교 영상"
-                    loading="lazy"
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
+                  {latestSermonsLoading ? (
+                    <div
+                      className="h-full w-full animate-pulse bg-gray-800"
+                      aria-label="최신 설교 영상을 불러오는 중"
+                    />
+                  ) : featuredSermon?.videoId ? (
+                    <iframe
+                      className="h-full w-full"
+                      src={`https://www.youtube.com/embed/${featuredSermon.videoId}?rel=0`}
+                      title={featuredSermon.title}
+                      loading="lazy"
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  ) : featuredSermon?.videoUrl ? (
+                    <DirectVideoPlayer
+                      src={featuredSermon.videoUrl}
+                      title={featuredSermon.title}
+                      className="h-full w-full"
+                    />
+                  ) : (
+                    <Link
+                      href={featuredSermon?.href ?? FALLBACK_SERMONS[0].href}
+                      className="flex h-full w-full flex-col items-center justify-center gap-3 text-white"
+                    >
+                      <i className="fas fa-play-circle text-5xl text-white/80" />
+                      <span className="text-sm font-medium">
+                        최신 영상 준비 중
+                      </span>
+                    </Link>
+                  )}
                 </div>
-                <div className="absolute top-3 left-3 bg-red-600 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
-                  <i className="fab fa-youtube"></i> 최신 설교
-                </div>
+                {!latestSermonsLoading && (featuredSermon?.videoId || featuredSermon?.videoUrl) && (
+                  <div className="absolute top-3 left-3 bg-red-600 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
+                    <i
+                      className={
+                        featuredSermon.videoId
+                          ? "fab fa-youtube"
+                          : "fas fa-play-circle"
+                      }
+                    />
+                    최신 설교
+                  </div>
+                )}
               </div>
               <div className="divide-y divide-gray-50">
-                {SERMONS.map((s, i) => (
+                {sermons.map(s => (
                   <Link
-                    key={i}
+                    key={s.key}
                     href={s.href}
                     className="flex items-center gap-3 py-3 hover:text-[#1B5E20] transition-colors group"
                   >

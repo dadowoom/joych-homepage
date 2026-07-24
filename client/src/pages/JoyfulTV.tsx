@@ -193,6 +193,7 @@ function WorshipVideoPage({ href, title }: { href: string; title: string }) {
   const playlistId = subItem?.playlistId ?? menuItem?.playlistId ?? null;
   const activeItemId = subItem?.menuItemId ?? menuItem?.id;
   const activeSubItemId = subItem?.id;
+  const displayTitle = subItem?.label ?? menuItem?.label ?? title;
   const sideMenuItems = getVideoSideMenuItems(
     menuTree,
     href,
@@ -203,7 +204,7 @@ function WorshipVideoPage({ href, title }: { href: string; title: string }) {
 
   if (isLoading) {
     return (
-      <VideoPageShell title={title} sideMenuItems={sideMenuItems}>
+      <VideoPageShell title={displayTitle} sideMenuItems={sideMenuItems}>
         <div className="min-h-[320px] flex items-center justify-center">
           <div className="text-center text-gray-400">
             <div className="w-10 h-10 border-4 border-[#1B5E20] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
@@ -217,7 +218,7 @@ function WorshipVideoPage({ href, title }: { href: string; title: string }) {
   if (!playlistId && (accessMatch && isMemberOnlyMenuNode(accessMatch.node) || accessInfo && isMemberOnlyMenuNode(accessInfo))) {
     return (
       <MemberOnlyVideoPage
-        title={title}
+        title={displayTitle}
         href={href}
         sideMenuItems={sideMenuItems}
       />
@@ -227,7 +228,7 @@ function WorshipVideoPage({ href, title }: { href: string; title: string }) {
   if (!playlistId && accessInfo && !accessInfo.isReadable) {
     return (
       <EmptyVideoPage
-        title={title}
+        title={displayTitle}
         message="페이지를 찾을 수 없습니다."
         sideMenuItems={sideMenuItems}
       />
@@ -237,7 +238,7 @@ function WorshipVideoPage({ href, title }: { href: string; title: string }) {
   if (!playlistId) {
     return (
       <EmptyVideoPage
-        title={title}
+        title={displayTitle}
         message="현재 등록된 영상이 없습니다."
         sideMenuItems={sideMenuItems}
       />
@@ -245,8 +246,8 @@ function WorshipVideoPage({ href, title }: { href: string; title: string }) {
   }
 
   return (
-    <VideoPageShell title={title} sideMenuItems={sideMenuItems}>
-      <YoutubeListPage playlistId={playlistId} title={title} />
+    <VideoPageShell title={displayTitle} sideMenuItems={sideMenuItems}>
+      <YoutubeListPage playlistId={playlistId} title={displayTitle} />
     </VideoPageShell>
   );
 }
