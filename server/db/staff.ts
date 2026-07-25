@@ -76,6 +76,7 @@ function normalizeTitleLabel(label: string) {
 const GROUPED_STAFF_SORT_CATEGORIES = new Set<StaffCategory>(["elder", "cooperation", "other"]);
 const FIXED_STAFF_CATEGORY_TITLES: Readonly<Record<string, string>> = {
   education: "교회학교 교역자",
+  office: "교회직원",
 };
 
 function isGroupedStaffSortCategory(category: StaffCategory) {
