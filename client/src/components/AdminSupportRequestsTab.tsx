@@ -10,7 +10,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { hasContentPermission } from "@/lib/contentPermissions";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Inbox, Paperclip, Save, Search } from "lucide-react";
+import { Inbox, Paperclip, Save, Search, Trash2 } from "lucide-react";
 import {
   SUPPORT_REQUEST_PERMISSION_KEYS,
   SUPPORT_REQUEST_ROOT_PERMISSION_KEY,
@@ -246,8 +246,12 @@ export default function AdminSupportRequestsTab({
     trpc.cms.supportRequests.listNewMembers.useQuery(undefined, { enabled: canManageNewMembers });
 
   const updateBulletinAd = trpc.cms.supportRequests.updateBulletinAdStatus.useMutation({
-    onSuccess: () => {
-      toast.success("주보 광고신청이 저장되었습니다.");
+    onSuccess: (_result, variables) => {
+      toast.success(
+        variables.status === "archived"
+          ? "주보 광고신청을 보관 삭제했습니다."
+          : "주보 광고신청이 저장되었습니다."
+      );
       utils.cms.supportRequests.listBulletinAds.invalidate();
       utils.support.listBulletinAds.invalidate();
     },
@@ -255,8 +259,12 @@ export default function AdminSupportRequestsTab({
   });
 
   const updateSubtitle = trpc.cms.supportRequests.updateSubtitleStatus.useMutation({
-    onSuccess: () => {
-      toast.success("자막 신청이 저장되었습니다.");
+    onSuccess: (_result, variables) => {
+      toast.success(
+        variables.status === "archived"
+          ? "자막 신청을 보관 삭제했습니다."
+          : "자막 신청이 저장되었습니다."
+      );
       utils.cms.supportRequests.listSubtitles.invalidate();
       utils.support.listSubtitles.invalidate();
     },
@@ -264,8 +272,12 @@ export default function AdminSupportRequestsTab({
   });
 
   const updateVisit = trpc.cms.supportRequests.updateVisitStatus.useMutation({
-    onSuccess: () => {
-      toast.success("탐방신청이 저장되었습니다.");
+    onSuccess: (_result, variables) => {
+      toast.success(
+        variables.status === "archived"
+          ? "탐방신청을 보관 삭제했습니다."
+          : "탐방신청이 저장되었습니다."
+      );
       utils.cms.supportRequests.listVisits.invalidate();
     },
     onError: (error) => toast.error(error.message),
@@ -512,6 +524,14 @@ export default function AdminSupportRequestsTab({
     });
   }
 
+  function archiveItem(item: AdminRequestItem) {
+    if (item.status === "archived") return;
+    if (!window.confirm(
+      `"${item.title}" 접수를 보관 삭제하시겠습니까? 공개 목록에서는 사라지지만 관리자 이력에는 남습니다.`
+    )) return;
+    saveItem(item, "archived");
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -741,7 +761,17 @@ export default function AdminSupportRequestsTab({
                   </div>
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-2">
+                  {selectedItem.status !== "archived" && (
+                    <button
+                      type="button"
+                      onClick={() => archiveItem(selectedItem)}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 text-sm font-semibold text-red-600 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      삭제
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => saveItem(selectedItem)}
