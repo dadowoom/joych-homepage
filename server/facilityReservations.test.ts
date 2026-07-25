@@ -17,6 +17,7 @@ const dbMocks = vi.hoisted(() => ({
   getMemberById: vi.fn(),
   getSiteSettings: vi.fn(),
   updateReservationDetails: vi.fn(),
+  updateReservationGroupDetails: vi.fn(),
 }));
 
 const joseMocks = vi.hoisted(() => ({
@@ -64,6 +65,7 @@ vi.mock("./db", async (importOriginal) => {
     deleteReservationById: dbMocks.deleteReservationById,
     getSiteSettings: dbMocks.getSiteSettings,
     updateReservationDetails: dbMocks.updateReservationDetails,
+    updateReservationGroupDetails: dbMocks.updateReservationGroupDetails,
   };
 });
 
@@ -201,6 +203,11 @@ describe("facility reservation lead-time guard", () => {
     dbMocks.deleteReservationById.mockResolvedValue(true);
     dbMocks.getSiteSettings.mockResolvedValue({});
     dbMocks.updateReservationDetails.mockResolvedValue(true);
+    dbMocks.updateReservationGroupDetails.mockResolvedValue({
+      totalCount: 4,
+      updatedCount: 3,
+      skippedPastCount: 1,
+    });
   });
 
   it("keeps public facility reservation lookups free of private fields", async () => {
@@ -676,6 +683,42 @@ describe("facility reservation lead-time guard", () => {
       reservationDate: "2026-06-15",
       startTime: "16:00",
       endTime: "17:00",
+    });
+  });
+
+  it("updates only future occurrences when a reservation manager changes a recurring schedule time", async () => {
+    const caller = appRouter.createCaller(createContext(createUserWithReservationPermission()));
+
+    await expect(caller.cms.reservations.updateGroupTime({
+      groupId: "facility-repeat-1",
+      startTime: "16:00",
+      endTime: "17:00",
+    })).resolves.toEqual({
+      success: true,
+      count: 3,
+      skippedPastCount: 1,
+    });
+    expect(dbMocks.updateReservationGroupDetails).toHaveBeenCalledWith(
+      "facility-repeat-1",
+      { startTime: "16:00", endTime: "17:00" },
+    );
+  });
+
+  it("explains when a recurring schedule has no future occurrence left to change", async () => {
+    dbMocks.updateReservationGroupDetails.mockResolvedValueOnce({
+      totalCount: 3,
+      updatedCount: 0,
+      skippedPastCount: 3,
+    });
+    const caller = appRouter.createCaller(createContext(createUserWithReservationPermission()));
+
+    await expect(caller.cms.reservations.updateGroupTime({
+      groupId: "facility-repeat-complete",
+      startTime: "16:00",
+      endTime: "17:00",
+    })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "앞으로 남은 반복 예약이 없어 시간을 변경할 수 없습니다.",
     });
   });
 

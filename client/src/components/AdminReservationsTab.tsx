@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, Clock, AlertCircle, Calendar, List, ChevronDown, Trash2, Search, X, Ban } from "lucide-react";
 import { getKstDateKey } from "@/lib/facilityReservationTime";
 import { formatKoreanDateKey, formatKoreanDateTime, formatKoreanDateTimeText, formatKoreanNumericDateKey } from "@/lib/koreanDate";
+import { isUpcomingReservationOccurrence } from "@shared/reservationSchedule";
 
 type StatusFilter = "all" | "pending" | "checking" | "approved" | "rejected" | "cancelled";
 type ViewMode = "list" | "calendar";
@@ -372,10 +373,14 @@ export default function AdminReservationsTab() {
   });
 
   const updateGroupTimeMutation = trpc.cms.reservations.updateGroupTime.useMutation({
-    onSuccess: () => {
+    onSuccess: (result) => {
       utils.cms.reservations.list.invalidate();
       setEditingKey(null);
-      toast.success("반복 예약 시간이 수정되었습니다.");
+      toast.success(
+        result.skippedPastCount > 0
+          ? `남은 ${result.count}회 예약 시간만 수정되었습니다.`
+          : `반복 예약 ${result.count}회 시간이 수정되었습니다.`
+      );
     },
     onError: (error) => toast.error(error.message || "반복 예약 시간 수정에 실패했습니다."),
   });
@@ -566,6 +571,15 @@ export default function AdminReservationsTab() {
   };
 
   const startEditTime = (group: ReservationGroup) => {
+    if (
+      group.isRecurring &&
+      !group.reservations.some(reservation =>
+        isUpcomingReservationOccurrence(reservation)
+      )
+    ) {
+      toast.error("앞으로 남은 반복 예약이 없어 시간을 변경할 수 없습니다.");
+      return;
+    }
     setRejectingKey(null);
     setExpandedKey(group.key);
     setEditingKey(group.key);
@@ -759,6 +773,14 @@ export default function AdminReservationsTab() {
               const r = group.first;
               const st = STATUS_LABELS[group.status] ?? STATUS_LABELS.pending;
               const isExpanded = expandedKey === group.key;
+              const upcomingOccurrenceCount = group.isRecurring
+                ? group.reservations.filter(reservation =>
+                    isUpcomingReservationOccurrence(reservation)
+                  ).length
+                : 0;
+              const editingRecurringReservation = group.reservations.find(
+                reservation => editingKey === `reservation:${reservation.id}`
+              );
               const dateSummary = group.isRecurring
                 ? `${formatShortDate(group.startDate)} ~ ${formatShortDate(group.endDate)} · ${group.count}회`
                 : formatDate(r.reservationDate);
@@ -854,9 +876,10 @@ export default function AdminReservationsTab() {
                         variant="outline"
                         className="min-h-11 px-2.5 text-xs sm:h-7 sm:min-h-0"
                         onClick={e => { e.stopPropagation(); startEditTime(group); }}
-                        disabled={isMutating}
+                        disabled={isMutating || (group.isRecurring && upcomingOccurrenceCount === 0)}
+                        title={group.isRecurring && upcomingOccurrenceCount === 0 ? "앞으로 남은 회차가 없습니다." : undefined}
                       >
-                        시간 수정
+                        {group.isRecurring ? "남은 일정 시간 수정" : "시간 수정"}
                       </Button>
                       <Button
                         size="sm"
@@ -956,9 +979,52 @@ export default function AdminReservationsTab() {
                       </div>
                       {group.isRecurring && (
                         <p className="mt-2 text-xs text-green-700">
-                          반복 예약은 날짜는 유지하고 모든 회차의 시간만 한 번에 수정합니다.
+                          지난 일정과 진행 중인 회차는 유지하고, 앞으로 남은 {upcomingOccurrenceCount}회만 한 번에 수정합니다.
                         </p>
                       )}
+                    </div>
+                  )}
+
+                  {editingRecurringReservation && (
+                    <div className="border-t border-blue-100 bg-blue-50 px-4 pb-4">
+                      <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-end">
+                        <div className="text-sm text-blue-900">
+                          <span className="mb-1 block text-xs font-medium text-blue-800">선택한 회차</span>
+                          <p className="font-semibold">{formatDate(editingRecurringReservation.reservationDate)}</p>
+                        </div>
+                        <label className="block">
+                          <span className="mb-1 block text-xs font-medium text-blue-800">시작 시간</span>
+                          <input
+                            type="time"
+                            value={timeEditForm.startTime}
+                            onChange={e => setTimeEditForm(prev => ({ ...prev, startTime: e.target.value }))}
+                            className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="mb-1 block text-xs font-medium text-blue-800">종료 시간</span>
+                          <input
+                            type="time"
+                            value={timeEditForm.endTime}
+                            onChange={e => setTimeEditForm(prev => ({ ...prev, endTime: e.target.value }))}
+                            className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                          />
+                        </label>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="bg-blue-700 text-white hover:bg-blue-800"
+                            onClick={() => saveSingleReservationTime(editingRecurringReservation)}
+                            disabled={isMutating}
+                          >
+                            이 회차만 저장
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setEditingKey(null)}>
+                            취소
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="mt-2 text-xs text-blue-700">선택한 한 회차의 시간만 수정합니다. 날짜와 다른 회차는 바뀌지 않습니다.</p>
                     </div>
                   )}
 
@@ -976,11 +1042,26 @@ export default function AdminReservationsTab() {
                             <span className="text-gray-500 text-xs">반복 예약</span>
                             <p className="font-medium text-blue-700">{r.recurrenceLabel ?? `${group.count}회 반복 예약`}</p>
                             <div className="mt-2 max-h-32 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-1 pr-1">
-                              {group.reservations.map((reservation, index) => (
-                                <span key={reservation.id} className="text-xs text-gray-600 bg-white border border-gray-100 rounded px-2 py-1">
-                                  {index + 1}. {formatDate(reservation.reservationDate)} {reservation.startTime}~{reservation.endTime}
-                                </span>
-                              ))}
+                              {group.reservations.map((reservation, index) => {
+                                const canEditOccurrence = isUpcomingReservationOccurrence(reservation);
+                                return (
+                                  <button
+                                    key={reservation.id}
+                                    type="button"
+                                    disabled={!canEditOccurrence || isMutating}
+                                    onClick={() => startEditSingleReservationTime(reservation)}
+                                    title={canEditOccurrence ? "이 회차만 시간 수정" : "지난 일정 또는 진행 중인 회차는 여기서 수정할 수 없습니다."}
+                                    className={`rounded border px-2 py-1 text-left text-xs transition-colors ${
+                                      canEditOccurrence
+                                        ? "border-blue-200 bg-white text-blue-800 hover:border-blue-400 hover:bg-blue-50"
+                                        : "cursor-not-allowed border-gray-100 bg-gray-100 text-gray-400"
+                                    } disabled:cursor-not-allowed disabled:opacity-60`}
+                                  >
+                                    {index + 1}. {formatDate(reservation.reservationDate)} {reservation.startTime}~{reservation.endTime}
+                                    <span className="ml-1 text-[10px]">{canEditOccurrence ? "수정" : "지난 일정"}</span>
+                                  </button>
+                                );
+                              })}
                             </div>
                           </div>
                         )}

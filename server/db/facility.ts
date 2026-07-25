@@ -15,6 +15,7 @@ import {
   facilities, facilityImages, facilityHours, externalFacilityHours, facilityBlockedDates, reservations, churchMembers,
   InsertFacility, InsertFacilityImage, InsertFacilityHour, InsertExternalFacilityHour, InsertFacilityBlockedDate, InsertReservation,
 } from "../../drizzle/schema";
+import { isUpcomingReservationOccurrence } from "@shared/reservationSchedule";
 import { getDb } from "./connection";
 
 const ACTIVE_RESERVATION_STATUSES = ["pending", "checking", "approved"] as const;
@@ -736,6 +737,12 @@ export async function getReservationConflictsForDates(input: {
     .orderBy(asc(reservations.reservationDate), asc(reservations.startTime));
 }
 
+export type UpdateReservationGroupDetailsResult = {
+  totalCount: number;
+  updatedCount: number;
+  skippedPastCount: number;
+};
+
 export async function updateReservationGroupDetails(
   recurrenceGroupId: string,
   data: Omit<ReservationDetailsUpdate, "reservationDate">
@@ -750,11 +757,23 @@ export async function updateReservationGroupDetails(
 
   if (groupRows.length === 0) return false;
 
-  const groupIds = groupRows.map(row => row.id);
-  const nextStartTime = data.startTime ?? groupRows[0]!.startTime;
-  const nextEndTime = data.endTime ?? groupRows[0]!.endTime;
+  const futureRows = groupRows.filter(row =>
+    isUpcomingReservationOccurrence(row)
+  );
+  if (futureRows.length === 0) {
+    return {
+      totalCount: groupRows.length,
+      updatedCount: 0,
+      skippedPastCount: groupRows.length,
+    } satisfies UpdateReservationGroupDetailsResult;
+  }
 
-  for (const row of groupRows) {
+  const groupIds = groupRows.map(row => row.id);
+  const futureIds = futureRows.map(row => row.id);
+  const nextStartTime = data.startTime ?? futureRows[0]!.startTime;
+  const nextEndTime = data.endTime ?? futureRows[0]!.endTime;
+
+  for (const row of futureRows) {
     const overlapping = await db
       .select({ startTime: reservations.startTime, endTime: reservations.endTime })
       .from(reservations)
@@ -775,8 +794,15 @@ export async function updateReservationGroupDetails(
 
   await db.update(reservations)
     .set(toReservationUpdateValues(data))
-    .where(eq(reservations.recurrenceGroupId, recurrenceGroupId));
-  return true;
+    .where(and(
+      eq(reservations.recurrenceGroupId, recurrenceGroupId),
+      inArray(reservations.id, futureIds),
+    ));
+  return {
+    totalCount: groupRows.length,
+    updatedCount: futureRows.length,
+    skippedPastCount: groupRows.length - futureRows.length,
+  } satisfies UpdateReservationGroupDetailsResult;
 }
 
 /**

@@ -125,14 +125,24 @@ export const reservationsRouter = router({
     .mutation(async ({ input }) => {
       assertTimeOrder(input.startTime, input.endTime);
       try {
-        const updated = await updateReservationGroupDetails(input.groupId, {
+        const result = await updateReservationGroupDetails(input.groupId, {
           startTime: input.startTime,
           endTime: input.endTime,
         });
-        if (!updated) {
+        if (!result) {
           throw new TRPCError({ code: "NOT_FOUND", message: "반복 예약 묶음을 찾을 수 없습니다." });
         }
-        return { success: true };
+        if (result.updatedCount === 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "앞으로 남은 반복 예약이 없어 시간을 변경할 수 없습니다.",
+          });
+        }
+        return {
+          success: true,
+          count: result.updatedCount,
+          skippedPastCount: result.skippedPastCount,
+        };
       } catch (error) {
         if (error instanceof ReservationOverlapError) {
           throw new TRPCError({ code: "CONFLICT", message: error.message });
