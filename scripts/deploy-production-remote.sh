@@ -3070,7 +3070,9 @@ if (!databaseUrl) throw new Error("DATABASE_URL is required for migration 0108."
 const migrationId = "0108_delete_hosanna_videos_before_20140119";
 const playlistId = 90008;
 const cutoffDate = "2014-01-19";
-const expectedDeleteCount = 190;
+// The public list has 190 entries; two unpublished legacy entries are also
+// in this playlist and must be removed under the same date rule.
+const expectedDeleteCount = 192;
 const backupRoot = join(process.env.APP_DIR || ".", "backups", "data-migrations");
 const connection = await mysql.createConnection(databaseUrl);
 try {
