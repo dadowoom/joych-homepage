@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   MEMBER_APPROVAL_PERMISSION_KEY,
@@ -7,6 +7,7 @@ import {
   SUPPORT_REQUEST_ROOT_PERMISSION_KEY,
 } from "@shared/adminPermissions";
 import { adminAnyPermissionProcedure, router } from "../../_core/trpc";
+import { collapseRecurringDashboardNotificationItems } from "../../_core/adminNotificationSummary";
 import { getDb } from "../../db";
 import { hasAdminContentPermission } from "../../db/adminPermissions";
 import {
@@ -106,6 +107,10 @@ type NotificationItem = {
   tab: NotificationTab;
   createdAt: Date;
   tone: NotificationTone;
+  recurrenceGroupId?: string | null;
+  recurrenceLabel?: string | null;
+  recurrenceCount?: number | null;
+  recurrenceTarget?: string | null;
 };
 
 function currentNotificationReadCutoff() {
@@ -558,16 +563,36 @@ export const notificationsRouter = router({
         eq(reservations.status, "pending"),
         gt(reservations.createdAt, cutoffFor(groupKey, "pending"))
       );
-      const [countRow] = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(reservations)
-        .where(where);
+      const [countRows, recurringCountRows] = await Promise.all([
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(reservations)
+          .where(where),
+        db
+          .select({
+            recurrenceGroupId: reservations.recurrenceGroupId,
+            count: sql<number>`count(*)`,
+          })
+          .from(reservations)
+          .where(and(where, isNotNull(reservations.recurrenceGroupId)))
+          .groupBy(reservations.recurrenceGroupId),
+      ]);
+      const countRow = countRows[0];
+      const recurrenceCounts = new Map(
+        recurringCountRows.flatMap(row =>
+          row.recurrenceGroupId
+            ? [[row.recurrenceGroupId, toCount(row.count)] as const]
+            : []
+        )
+      );
       const rows = await db
         .select({
           id: reservations.id,
           reserverName: reservations.reserverName,
           reservationDate: reservations.reservationDate,
           startTime: reservations.startTime,
+          recurrenceGroupId: reservations.recurrenceGroupId,
+          recurrenceLabel: reservations.recurrenceLabel,
           facilityName: facilities.name,
           createdAt: reservations.createdAt,
         })
@@ -597,6 +622,12 @@ export const notificationsRouter = router({
           tab: "reservations",
           createdAt: row.createdAt,
           tone: "pending",
+          recurrenceGroupId: row.recurrenceGroupId,
+          recurrenceLabel: row.recurrenceLabel,
+          recurrenceCount: row.recurrenceGroupId
+            ? recurrenceCounts.get(row.recurrenceGroupId) ?? 1
+            : null,
+          recurrenceTarget: row.facilityName,
         }))
       );
     }
@@ -607,16 +638,36 @@ export const notificationsRouter = router({
         eq(vehicleReservations.status, "pending"),
         gt(vehicleReservations.createdAt, cutoffFor(groupKey, "pending"))
       );
-      const [countRow] = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(vehicleReservations)
-        .where(where);
+      const [countRows, recurringCountRows] = await Promise.all([
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(vehicleReservations)
+          .where(where),
+        db
+          .select({
+            recurrenceGroupId: vehicleReservations.recurrenceGroupId,
+            count: sql<number>`count(*)`,
+          })
+          .from(vehicleReservations)
+          .where(and(where, isNotNull(vehicleReservations.recurrenceGroupId)))
+          .groupBy(vehicleReservations.recurrenceGroupId),
+      ]);
+      const countRow = countRows[0];
+      const recurrenceCounts = new Map(
+        recurringCountRows.flatMap(row =>
+          row.recurrenceGroupId
+            ? [[row.recurrenceGroupId, toCount(row.count)] as const]
+            : []
+        )
+      );
       const rows = await db
         .select({
           id: vehicleReservations.id,
           reserverName: vehicleReservations.reserverName,
           reservationDate: vehicleReservations.reservationDate,
           startTime: vehicleReservations.startTime,
+          recurrenceGroupId: vehicleReservations.recurrenceGroupId,
+          recurrenceLabel: vehicleReservations.recurrenceLabel,
           vehicleName: vehicles.name,
           createdAt: vehicleReservations.createdAt,
         })
@@ -649,6 +700,12 @@ export const notificationsRouter = router({
           tab: "vehicles",
           createdAt: row.createdAt,
           tone: "pending",
+          recurrenceGroupId: row.recurrenceGroupId,
+          recurrenceLabel: row.recurrenceLabel,
+          recurrenceCount: row.recurrenceGroupId
+            ? recurrenceCounts.get(row.recurrenceGroupId) ?? 1
+            : null,
+          recurrenceTarget: row.vehicleName,
         }))
       );
     }
@@ -1132,7 +1189,7 @@ export const notificationsRouter = router({
       );
     }
 
-    const sortedItems = items
+    const sortedItems = collapseRecurringDashboardNotificationItems(items)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .slice(0, MAX_RECENT_ITEMS);
 
