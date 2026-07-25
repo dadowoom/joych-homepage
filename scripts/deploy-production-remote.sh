@@ -3056,6 +3056,112 @@ else
   exit 1
 fi
 
+MIGRATION_0108="${APP_DIR}/drizzle/0108_delete_hosanna_videos_before_20140119.sql"
+if [[ -f "${MIGRATION_0108}" ]]; then
+  echo "[deploy] data cleanup: remove Hosanna choir videos before 2014-01-19"
+  node --input-type=module <<'NODE'
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error("DATABASE_URL is required for migration 0108.");
+
+const migrationId = "0108_delete_hosanna_videos_before_20140119";
+const playlistId = 90008;
+const cutoffDate = "2014-01-19";
+const expectedDeleteCount = 190;
+const backupRoot = join(process.env.APP_DIR || ".", "backups", "data-migrations");
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB
+  `);
+
+  const [engineRows] = await connection.execute(`
+    SELECT ENGINE
+    FROM INFORMATION_SCHEMA.TABLES
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'youtube_videos'
+    LIMIT 1
+  `);
+  if (String(engineRows?.[0]?.ENGINE ?? "").toLowerCase() !== "innodb") {
+    throw new Error("Migration 0108 requires youtube_videos to use InnoDB.");
+  }
+
+  const [migrationRows] = await connection.execute(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    [migrationId],
+  );
+  if (!Array.isArray(migrationRows) || migrationRows.length === 0) {
+    await connection.beginTransaction();
+    try {
+      const [targetRows] = await connection.execute(
+        `SELECT * FROM youtube_videos
+         WHERE playlistId = ? AND sermonDate < ?
+         ORDER BY sermonDate ASC, id ASC
+         FOR UPDATE`,
+        [playlistId, cutoffDate],
+      );
+
+      if (targetRows.length !== 0 && targetRows.length !== expectedDeleteCount) {
+        throw new Error(
+          `Migration 0108 expected ${expectedDeleteCount} rows, found ${targetRows.length}. No videos were deleted.`,
+        );
+      }
+
+      if (targetRows.length > 0) {
+        await mkdir(backupRoot, { recursive: true });
+        const backupPath = join(
+          backupRoot,
+          `youtube-videos-hosanna-before-${cutoffDate}-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
+        );
+        await writeFile(
+          backupPath,
+          `${JSON.stringify({ migrationId, playlistId, cutoffDate, rowCount: targetRows.length, rows: targetRows }, null, 2)}\n`,
+          { encoding: "utf8", flag: "wx", mode: 0o600 },
+        );
+
+        const sql = await readFile("drizzle/0108_delete_hosanna_videos_before_20140119.sql", "utf8");
+        const [deleteResult] = await connection.query(sql);
+        if (Number(deleteResult?.affectedRows ?? 0) !== targetRows.length) {
+          throw new Error("Migration 0108 deleted an unexpected number of videos.");
+        }
+        console.log(`[deploy] migration 0108 backup=${backupPath}`);
+      } else {
+        console.log("[deploy] migration 0108 found no remaining target videos");
+      }
+
+      await connection.execute("INSERT INTO app_migrations (id) VALUES (?)", [migrationId]);
+      await connection.commit();
+      console.log("[deploy] migration 0108 applied");
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    }
+  } else {
+    console.log("[deploy] migration 0108 already applied");
+  }
+
+  const [remainingRows] = await connection.execute(
+    "SELECT COUNT(*) AS count FROM youtube_videos WHERE playlistId = ? AND sermonDate < ?",
+    [playlistId, cutoffDate],
+  );
+  const remaining = Number(remainingRows?.[0]?.count ?? 0);
+  if (remaining !== 0) {
+    throw new Error(`Migration 0108 invariant failed: remaining videos=${remaining}`);
+  }
+} finally {
+  await connection.end();
+}
+NODE
+else
+  echo "[deploy] missing migration file: ${MIGRATION_0108}" >&2
+  exit 1
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

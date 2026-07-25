@@ -493,10 +493,11 @@ function buildGalleryGroups(items: GalleryItem[], albums: GalleryAlbum[] = []) {
       ),
     }))
     .sort((a, b) => {
+      const createdAtDifference = toTime(b.createdAt) - toTime(a.createdAt);
+      if (createdAtDifference !== 0) return createdAtDifference;
       if (a.albumSortOrder !== b.albumSortOrder)
         return b.albumSortOrder - a.albumSortOrder;
-      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
-      return toTime(b.createdAt) - toTime(a.createdAt);
+      return a.sortOrder - b.sortOrder;
     });
 }
 
@@ -1517,8 +1518,8 @@ export function GalleryContent({
               앨범 순서 변경
             </span>
             <span className="text-xs text-gray-500">
-              {galleryGroups.length}개의 앨범이 있습니다. 펼친 뒤 드래그하면
-              공개 화면의 행사 앨범 표시 순서가 바뀝니다.
+              사진 게시판은 등록일 최신순으로 표시됩니다. 등록일이 같은 앨범은
+              펼친 뒤 드래그한 순서로 표시됩니다.
             </span>
           </span>
           <span className="inline-flex shrink-0 items-center gap-1 border border-[#CFE5D3] bg-white px-3 py-1 text-xs font-semibold text-[#1B5E20]">

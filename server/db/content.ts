@@ -201,9 +201,9 @@ export async function getVisibleGalleryItems(galleryScopeKey: string) {
       )
     )
     .orderBy(
+      desc(galleryItems.createdAt),
       desc(galleryItems.albumSortOrder),
-      asc(galleryItems.sortOrder),
-      desc(galleryItems.createdAt)
+      asc(galleryItems.sortOrder)
     );
 }
 
@@ -254,8 +254,8 @@ export async function getAllGalleryAlbums(galleryScopeKey: string) {
     .from(galleryAlbums)
     .where(eq(galleryAlbums.galleryScopeKey, scope))
     .orderBy(
-      desc(galleryAlbums.albumSortOrder),
       desc(galleryAlbums.createdAt),
+      desc(galleryAlbums.albumSortOrder),
       desc(galleryAlbums.id)
     );
 }
@@ -276,8 +276,8 @@ export async function getVisibleGalleryAlbums(galleryScopeKey: string) {
         )
       )
       .orderBy(
-        desc(galleryAlbums.albumSortOrder),
         desc(galleryAlbums.createdAt),
+        desc(galleryAlbums.albumSortOrder),
         desc(galleryAlbums.id)
       ),
     db
@@ -317,9 +317,9 @@ export async function getVisibleHomeGalleryItems() {
         )
       )
       .orderBy(
+        desc(galleryItems.createdAt),
         desc(galleryItems.albumSortOrder),
-        asc(galleryItems.sortOrder),
-        desc(galleryItems.createdAt)
+        asc(galleryItems.sortOrder)
       ),
   ]);
 
@@ -347,7 +347,14 @@ export async function getVisibleHomeGalleryItems() {
     if (cover) homeGalleryItems.push(cover);
   }
 
-  return homeGalleryItems.slice(0, 8);
+  return homeGalleryItems
+    .sort((a, b) => {
+      const createdAtDifference =
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      if (createdAtDifference !== 0) return createdAtDifference;
+      return (b.albumSortOrder ?? 0) - (a.albumSortOrder ?? 0);
+    })
+    .slice(0, 8);
 }
 
 /** 갤러리 이미지 수정 */
@@ -893,9 +900,9 @@ export async function getAllGalleryItems(galleryScopeKey?: string | null) {
       )
     )
     .orderBy(
+      desc(galleryItems.createdAt),
       desc(galleryItems.albumSortOrder),
-      asc(galleryItems.sortOrder),
-      desc(galleryItems.createdAt)
+      asc(galleryItems.sortOrder)
     );
 }
 
