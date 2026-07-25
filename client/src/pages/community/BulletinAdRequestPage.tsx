@@ -128,6 +128,15 @@ export default function BulletinAdRequestPage() {
     },
     onError: (error) => toast.error(error.message),
   });
+  const archiveBulletinAdAsManager = trpc.cms.supportRequests.updateBulletinAdStatus.useMutation({
+    onSuccess: () => {
+      toast.success("주보 광고신청을 보관 삭제했습니다.");
+      utils.support.listBulletinAds.invalidate();
+      utils.support.myBulletinAds.invalidate();
+      utils.cms.supportRequests.listBulletinAds.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
 
   const pageSize = 15;
   const normalizedKeyword = searchKeyword.trim().toLowerCase();
@@ -173,7 +182,16 @@ export default function BulletinAdRequestPage() {
   };
 
   const handleDelete = (id: number) => {
-    if (!window.confirm("이 주보 광고신청을 삭제하시겠습니까?")) return;
+    const isOwnRequest = myBulletinAdRequestIds.has(id);
+    const isManagerDeleting = canManageBulletinAds && !isOwnRequest;
+    const message = isManagerDeleting
+      ? "이 주보 광고신청을 보관 삭제하시겠습니까? 공개 목록에서는 사라지지만 관리자 이력에는 남습니다."
+      : "이 주보 광고신청을 삭제하시겠습니까?";
+    if (!window.confirm(message)) return;
+    if (isManagerDeleting) {
+      archiveBulletinAdAsManager.mutate({ id, status: "archived", adminMemo: null });
+      return;
+    }
     deleteBulletinAd.mutate({ id });
   };
 
@@ -447,6 +465,7 @@ export default function BulletinAdRequestPage() {
                     const requestNumber = filteredRequests.length - (pageStart + index);
                     const isExpanded = expandedId === request.id;
                     const isOwnRequest = myBulletinAdRequestIds.has(request.id);
+                    const canDeleteRequest = isOwnRequest || canManageBulletinAds;
                     return (
                       <Fragment key={request.id}>
                         <tr className="transition-colors hover:bg-gray-50">
@@ -493,12 +512,12 @@ export default function BulletinAdRequestPage() {
                                     </p>
                                   )}
                                 </div>
-                                {isOwnRequest && (
+                                {canDeleteRequest && (
                                   <SupportRequestOwnerActions
                                     requestId={request.id}
-                                    onEdit={handleEdit}
+                                    onEdit={isOwnRequest ? handleEdit : undefined}
                                     onDelete={handleDelete}
-                                    isBusy={deleteBulletinAd.isPending && deleteBulletinAd.variables?.id === request.id}
+                                    isBusy={(deleteBulletinAd.isPending && deleteBulletinAd.variables?.id === request.id) || (archiveBulletinAdAsManager.isPending && archiveBulletinAdAsManager.variables?.id === request.id)}
                                   />
                                 )}
                               </div>
@@ -517,6 +536,7 @@ export default function BulletinAdRequestPage() {
                 const requestNumber = filteredRequests.length - (pageStart + index);
                 const isExpanded = expandedId === request.id;
                 const isOwnRequest = myBulletinAdRequestIds.has(request.id);
+                const canDeleteRequest = isOwnRequest || canManageBulletinAds;
                 return (
                   <article key={request.id} className={viewMode === "grid" ? "border border-gray-200 bg-white p-4" : "p-4"}>
                     <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
@@ -539,12 +559,12 @@ export default function BulletinAdRequestPage() {
                       <div className="mt-4 border-l-2 border-[#1B5E20]/30 pl-3 text-sm leading-6 text-gray-700">
                         <p className="mb-2 text-xs text-gray-400">게재 희망일 {request.requestedDate || "-"}</p>
                         <p className="whitespace-pre-line">{request.content}</p>
-                        {isOwnRequest && (
+                        {canDeleteRequest && (
                           <SupportRequestOwnerActions
                             requestId={request.id}
-                            onEdit={handleEdit}
+                            onEdit={isOwnRequest ? handleEdit : undefined}
                             onDelete={handleDelete}
-                            isBusy={deleteBulletinAd.isPending && deleteBulletinAd.variables?.id === request.id}
+                            isBusy={(deleteBulletinAd.isPending && deleteBulletinAd.variables?.id === request.id) || (archiveBulletinAdAsManager.isPending && archiveBulletinAdAsManager.variables?.id === request.id)}
                             className="mt-3"
                           />
                         )}

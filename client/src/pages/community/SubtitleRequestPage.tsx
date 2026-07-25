@@ -134,6 +134,15 @@ export default function SubtitleRequestPage() {
     },
     onError: (error) => toast.error(error.message),
   });
+  const archiveSubtitleAsManager = trpc.cms.supportRequests.updateSubtitleStatus.useMutation({
+    onSuccess: () => {
+      toast.success("자막 신청을 보관 삭제했습니다.");
+      utils.support.listSubtitles.invalidate();
+      utils.support.mySubtitles.invalidate();
+      utils.cms.supportRequests.listSubtitles.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
 
   const pageSize = 15;
   const normalizedKeyword = searchKeyword.trim().toLowerCase();
@@ -182,7 +191,16 @@ export default function SubtitleRequestPage() {
   };
 
   const handleDelete = (id: number) => {
-    if (!window.confirm("이 자막 신청을 삭제하시겠습니까?")) return;
+    const isOwnRequest = mySubtitleRequestIds.has(id);
+    const isManagerDeleting = canManageSubtitles && !isOwnRequest;
+    const message = isManagerDeleting
+      ? "이 자막 신청을 보관 삭제하시겠습니까? 공개 목록에서는 사라지지만 관리자 이력에는 남습니다."
+      : "이 자막 신청을 삭제하시겠습니까?";
+    if (!window.confirm(message)) return;
+    if (isManagerDeleting) {
+      archiveSubtitleAsManager.mutate({ id, status: "archived", adminMemo: null });
+      return;
+    }
     deleteSubtitle.mutate({ id });
   };
 
@@ -475,6 +493,7 @@ export default function SubtitleRequestPage() {
                     const requestNumber = filteredRequests.length - (pageStart + index);
                     const isExpanded = expandedId === request.id;
                     const isOwnRequest = mySubtitleRequestIds.has(request.id);
+                    const canDeleteRequest = isOwnRequest || canManageSubtitles;
                     return (
                       <Fragment key={request.id}>
                         <tr className="transition-colors hover:bg-gray-50">
@@ -521,12 +540,12 @@ export default function SubtitleRequestPage() {
                                     </p>
                                   )}
                                 </div>
-                                {isOwnRequest && (
+                                {canDeleteRequest && (
                                   <SupportRequestOwnerActions
                                     requestId={request.id}
-                                    onEdit={handleEdit}
+                                    onEdit={isOwnRequest ? handleEdit : undefined}
                                     onDelete={handleDelete}
-                                    isBusy={deleteSubtitle.isPending && deleteSubtitle.variables?.id === request.id}
+                                    isBusy={(deleteSubtitle.isPending && deleteSubtitle.variables?.id === request.id) || (archiveSubtitleAsManager.isPending && archiveSubtitleAsManager.variables?.id === request.id)}
                                   />
                                 )}
                               </div>
@@ -545,6 +564,7 @@ export default function SubtitleRequestPage() {
                 const requestNumber = filteredRequests.length - (pageStart + index);
                 const isExpanded = expandedId === request.id;
                 const isOwnRequest = mySubtitleRequestIds.has(request.id);
+                const canDeleteRequest = isOwnRequest || canManageSubtitles;
                 return (
                   <article key={request.id} className={viewMode === "grid" ? "border border-gray-200 bg-white p-4" : "p-4"}>
                     <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
@@ -567,12 +587,12 @@ export default function SubtitleRequestPage() {
                       <div className="mt-4 border-l-2 border-[#1B5E20]/30 pl-3 text-sm leading-6 text-gray-700">
                         <p className="mb-2 text-xs text-gray-400">자막 필요일 {request.requestedDate || "-"}</p>
                         <p className="whitespace-pre-line">{request.content}</p>
-                        {isOwnRequest && (
+                        {canDeleteRequest && (
                           <SupportRequestOwnerActions
                             requestId={request.id}
-                            onEdit={handleEdit}
+                            onEdit={isOwnRequest ? handleEdit : undefined}
                             onDelete={handleDelete}
-                            isBusy={deleteSubtitle.isPending && deleteSubtitle.variables?.id === request.id}
+                            isBusy={(deleteSubtitle.isPending && deleteSubtitle.variables?.id === request.id) || (archiveSubtitleAsManager.isPending && archiveSubtitleAsManager.variables?.id === request.id)}
                             className="mt-3"
                           />
                         )}

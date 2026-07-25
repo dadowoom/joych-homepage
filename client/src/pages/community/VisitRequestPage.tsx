@@ -135,6 +135,15 @@ function VisitRequestBoardPage() {
     },
     onError: (error) => toast.error(error.message),
   });
+  const archiveVisitAsManager = trpc.cms.supportRequests.updateVisitStatus.useMutation({
+    onSuccess: () => {
+      toast.success("탐방신청을 보관 삭제했습니다.");
+      utils.support.listVisits.invalidate();
+      utils.support.myVisits.invalidate();
+      utils.cms.supportRequests.listVisits.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
 
   const pageSize = 15;
   const normalizedKeyword = searchKeyword.trim().toLowerCase();
@@ -184,7 +193,16 @@ function VisitRequestBoardPage() {
   };
 
   const handleDelete = (id: number) => {
-    if (!window.confirm("이 탐방신청을 삭제하시겠습니까?")) return;
+    const isOwnRequest = myVisitRequestIds.has(id);
+    const isManagerDeleting = canManageVisits && !isOwnRequest;
+    const message = isManagerDeleting
+      ? "이 탐방신청을 보관 삭제하시겠습니까? 공개 목록에서는 사라지지만 관리자 이력에는 남습니다."
+      : "이 탐방신청을 삭제하시겠습니까?";
+    if (!window.confirm(message)) return;
+    if (isManagerDeleting) {
+      archiveVisitAsManager.mutate({ id, status: "archived", adminMemo: null });
+      return;
+    }
     deleteVisit.mutate({
       id,
       manageToken: findVisitManagementToken(managementTokens, id),
@@ -507,6 +525,7 @@ function VisitRequestBoardPage() {
                     const requestNumber = filteredRequests.length - (pageStart + index);
                     const isExpanded = expandedId === request.id;
                     const isOwnRequest = myVisitRequestIds.has(request.id);
+                    const canDeleteRequest = isOwnRequest || canManageVisits;
                     return (
                       <Fragment key={request.id}>
                         <tr className="transition-colors hover:bg-gray-50">
@@ -535,12 +554,12 @@ function VisitRequestBoardPage() {
                                   <span className="mx-2 text-gray-300">|</span>
                                   상태 {VISIT_STATUS_LABELS[request.status] ?? "접수"}
                                 </div>
-                                {isOwnRequest && (
+                                {canDeleteRequest && (
                                   <SupportRequestOwnerActions
                                     requestId={request.id}
-                                    onEdit={handleEdit}
+                                    onEdit={isOwnRequest ? handleEdit : undefined}
                                     onDelete={handleDelete}
-                                    isBusy={deleteVisit.isPending && deleteVisit.variables?.id === request.id}
+                                    isBusy={(deleteVisit.isPending && deleteVisit.variables?.id === request.id) || (archiveVisitAsManager.isPending && archiveVisitAsManager.variables?.id === request.id)}
                                   />
                                 )}
                               </div>
@@ -559,6 +578,7 @@ function VisitRequestBoardPage() {
                 const requestNumber = filteredRequests.length - (pageStart + index);
                 const isExpanded = expandedId === request.id;
                 const isOwnRequest = myVisitRequestIds.has(request.id);
+                const canDeleteRequest = isOwnRequest || canManageVisits;
                 return (
                   <article key={request.id} className={viewMode === "grid" ? "border border-gray-200 bg-white p-4" : "p-4"}>
                     <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
@@ -578,12 +598,12 @@ function VisitRequestBoardPage() {
                         <p className="mb-2 text-xs text-gray-400">
                           {request.region || "지역 미입력"} · {VISITOR_TYPE_LABELS[request.visitorType] ?? request.visitorType} · {request.headcount}명
                         </p>
-                        {isOwnRequest && (
+                        {canDeleteRequest && (
                           <SupportRequestOwnerActions
                             requestId={request.id}
-                            onEdit={handleEdit}
+                            onEdit={isOwnRequest ? handleEdit : undefined}
                             onDelete={handleDelete}
-                            isBusy={deleteVisit.isPending && deleteVisit.variables?.id === request.id}
+                            isBusy={(deleteVisit.isPending && deleteVisit.variables?.id === request.id) || (archiveVisitAsManager.isPending && archiveVisitAsManager.variables?.id === request.id)}
                             className="mt-3"
                           />
                         )}

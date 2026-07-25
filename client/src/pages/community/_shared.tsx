@@ -106,21 +106,23 @@ export function SupportRequestOwnerActions({
   className = "",
 }: {
   requestId: number;
-  onEdit: (id: number) => void;
+  onEdit?: (id: number) => void;
   onDelete: (id: number) => void;
   isBusy?: boolean;
   className?: string;
 }) {
   return (
     <div className={`flex shrink-0 flex-wrap items-center justify-end gap-2 ${className}`}>
-      <button
-        type="button"
-        onClick={() => onEdit(requestId)}
-        disabled={isBusy}
-        className="inline-flex h-8 items-center gap-1 border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 hover:border-[#1B5E20] hover:text-[#1B5E20] disabled:opacity-50"
-      >
-        <Pencil className="h-3.5 w-3.5" /> 수정
-      </button>
+      {onEdit && (
+        <button
+          type="button"
+          onClick={() => onEdit(requestId)}
+          disabled={isBusy}
+          className="inline-flex h-8 items-center gap-1 border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 hover:border-[#1B5E20] hover:text-[#1B5E20] disabled:opacity-50"
+        >
+          <Pencil className="h-3.5 w-3.5" /> 수정
+        </button>
+      )}
       <button
         type="button"
         onClick={() => onDelete(requestId)}
