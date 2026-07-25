@@ -2952,6 +2952,58 @@ else
   exit 1
 fi
 
+MIGRATION_0106="${APP_DIR}/drizzle/0106_normalize_education_staff_titles.sql"
+if [[ -f "${MIGRATION_0106}" ]]; then
+  echo "[deploy] database cleanup: normalize church-school staff titles"
+  node --input-type=module <<'NODE'
+import fs from "node:fs/promises";
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error("DATABASE_URL is required for migration 0106.");
+
+const migrationId = "0106_normalize_education_staff_titles";
+const expectedTitle = "교회학교 교역자";
+const connection = await mysql.createConnection({ uri: databaseUrl, multipleStatements: true });
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  const [migrationRows] = await connection.execute(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    [migrationId],
+  );
+
+  if (!Array.isArray(migrationRows) || migrationRows.length === 0) {
+    const sql = await fs.readFile("drizzle/0106_normalize_education_staff_titles.sql", "utf8");
+    await connection.query(sql);
+    await connection.execute("INSERT INTO app_migrations (id) VALUES (?)", [migrationId]);
+    console.log("[deploy] migration 0106 applied");
+  } else {
+    console.log("[deploy] migration 0106 already applied");
+  }
+
+  const [remainingRows] = await connection.execute(
+    "SELECT COUNT(*) AS count FROM church_staff WHERE category = 'education' AND title <> ?",
+    [expectedTitle],
+  );
+  const remaining = Number(remainingRows?.[0]?.count ?? 0);
+  if (remaining !== 0) {
+    throw new Error(`Migration 0106 invariant failed: education title mismatches=${remaining}`);
+  }
+} finally {
+  await connection.end();
+}
+NODE
+else
+  echo "[deploy] missing migration file: ${MIGRATION_0106}" >&2
+  exit 1
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

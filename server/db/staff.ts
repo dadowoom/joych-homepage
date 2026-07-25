@@ -74,9 +74,16 @@ function normalizeTitleLabel(label: string) {
 }
 
 const GROUPED_STAFF_SORT_CATEGORIES = new Set<StaffCategory>(["elder", "cooperation", "other"]);
+const FIXED_STAFF_CATEGORY_TITLES: Readonly<Record<string, string>> = {
+  education: "교회학교 교역자",
+};
 
 function isGroupedStaffSortCategory(category: StaffCategory) {
   return GROUPED_STAFF_SORT_CATEGORIES.has(category);
+}
+
+function getFixedStaffCategoryTitle(category: StaffCategory) {
+  return FIXED_STAFF_CATEGORY_TITLES[category];
 }
 
 function normalizeStaffSortTitle(title?: string | null) {
@@ -513,17 +520,19 @@ export async function createStaffMember(data: InsertChurchStaff) {
   if (!db) return null;
   return db.transaction(async (tx) => {
     const category = data.category ?? "associate";
+    const fixedTitle = getFixedStaffCategoryTitle(category);
     const [result] = await tx.insert(churchStaff)
       .values({
         ...data,
         category,
+        title: fixedTitle ?? data.title,
         sortOrder: normalizeSortOrder(data.sortOrder, 0),
       })
       .$returningId();
     const id = result?.id ?? null;
     if (!id) return null;
 
-    await renumberStaffCategory(tx, category, id, data.sortOrder, data.title);
+    await renumberStaffCategory(tx, category, id, data.sortOrder, fixedTitle ?? data.title);
     return id;
   });
 }
@@ -538,8 +547,10 @@ export async function updateStaffMember(id: number, data: Partial<InsertChurchSt
     const previousCategory = existing.category as StaffCategory;
     const previousTitle = existing.title;
     const nextCategory = (data.category ?? previousCategory) as StaffCategory;
-    const nextTitle = data.title ?? previousTitle;
-    await tx.update(churchStaff).set(data).where(eq(churchStaff.id, id));
+    const fixedTitle = getFixedStaffCategoryTitle(nextCategory);
+    const nextTitle = fixedTitle ?? data.title ?? previousTitle;
+    const nextData = fixedTitle ? { ...data, title: fixedTitle } : data;
+    await tx.update(churchStaff).set(nextData).where(eq(churchStaff.id, id));
 
     if (didStaffSortGroupChange(previousCategory, previousTitle, nextCategory, nextTitle)) {
       await renumberStaffCategory(tx, previousCategory, undefined, undefined, previousTitle);
