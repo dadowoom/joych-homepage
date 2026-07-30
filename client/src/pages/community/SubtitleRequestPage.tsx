@@ -5,6 +5,7 @@ import { hasContentPermission } from "@/lib/contentPermissions";
 import { SUPPORT_REQUEST_PERMISSION_KEYS, SUPPORT_REQUEST_ROOT_PERMISSION_KEY } from "@shared/adminPermissions";
 import {
   Building,
+  Download,
   FileText,
   MapPin,
   MessageCircle,
@@ -35,6 +36,39 @@ function getProcessingStatusLabel(status: string) {
   if (status === "new") return "신규";
   if (status === "completed") return "처리완료";
   return "보류";
+}
+
+function formatAttachmentSize(size: number | null | undefined) {
+  if (!size || size < 1) return null;
+  if (size < 1024) return `${size}B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)}KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+function OwnAttachmentDownload({
+  name,
+  url,
+  size,
+}: {
+  name: string | null | undefined;
+  url: string | null | undefined;
+  size: number | null | undefined;
+}) {
+  if (!url) return null;
+
+  return (
+    <a
+      href={url}
+      download={name || true}
+      className="mt-3 inline-flex max-w-full items-center gap-2 rounded-md border border-[#1B5E20]/25 bg-[#F8FCF8] px-3 py-2 text-xs font-medium text-[#1B5E20] transition-colors hover:bg-[#EAF6EA]"
+    >
+      <Paperclip className="h-3.5 w-3.5 shrink-0" />
+      <span className="truncate">첨부파일: {name || "첨부파일"}</span>
+      {formatAttachmentSize(size) && <span className="shrink-0 text-[#5E8660]">{formatAttachmentSize(size)}</span>}
+      <Download className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      <span className="sr-only">내려받기</span>
+    </a>
+  );
 }
 
 export default function SubtitleRequestPage() {
@@ -76,6 +110,10 @@ export default function SubtitleRequestPage() {
   );
   const mySubtitleRequestIds = useMemo(
     () => new Set(mySubtitleRequests.map((request) => request.id)),
+    [mySubtitleRequests],
+  );
+  const mySubtitleRequestsById = useMemo(
+    () => new Map(mySubtitleRequests.map((request) => [request.id, request])),
     [mySubtitleRequests],
   );
   const canManageSubtitles =
@@ -493,6 +531,7 @@ export default function SubtitleRequestPage() {
                     const requestNumber = filteredRequests.length - (pageStart + index);
                     const isExpanded = expandedId === request.id;
                     const isOwnRequest = mySubtitleRequestIds.has(request.id);
+                    const ownRequest = isOwnRequest ? mySubtitleRequestsById.get(request.id) : undefined;
                     const canDeleteRequest = isOwnRequest || canManageSubtitles;
                     return (
                       <Fragment key={request.id}>
@@ -535,9 +574,17 @@ export default function SubtitleRequestPage() {
                                     </div>
                                   )}
                                   {request.attachmentName && (
-                                    <p className="mt-3 text-xs text-[#0F607A]">
-                                      첨부파일은 관리자 확인용으로 접수되었습니다.
-                                    </p>
+                                    ownRequest?.attachmentUrl ? (
+                                      <OwnAttachmentDownload
+                                        name={ownRequest.attachmentName}
+                                        url={ownRequest.attachmentUrl}
+                                        size={ownRequest.attachmentSize}
+                                      />
+                                    ) : (
+                                      <p className="mt-3 text-xs text-[#0F607A]">
+                                        첨부파일은 작성자 본인과 관리자만 확인할 수 있습니다.
+                                      </p>
+                                    )
                                   )}
                                 </div>
                                 {canDeleteRequest && (
@@ -564,6 +611,7 @@ export default function SubtitleRequestPage() {
                 const requestNumber = filteredRequests.length - (pageStart + index);
                 const isExpanded = expandedId === request.id;
                 const isOwnRequest = mySubtitleRequestIds.has(request.id);
+                const ownRequest = isOwnRequest ? mySubtitleRequestsById.get(request.id) : undefined;
                 const canDeleteRequest = isOwnRequest || canManageSubtitles;
                 return (
                   <article key={request.id} className={viewMode === "grid" ? "border border-gray-200 bg-white p-4" : "p-4"}>
@@ -603,7 +651,15 @@ export default function SubtitleRequestPage() {
                           </div>
                         )}
                         {request.attachmentName && (
-                          <p className="mt-3 text-xs text-[#0F607A]">첨부파일은 관리자 확인용으로 접수되었습니다.</p>
+                          ownRequest?.attachmentUrl ? (
+                            <OwnAttachmentDownload
+                              name={ownRequest.attachmentName}
+                              url={ownRequest.attachmentUrl}
+                              size={ownRequest.attachmentSize}
+                            />
+                          ) : (
+                            <p className="mt-3 text-xs text-[#0F607A]">첨부파일은 작성자 본인과 관리자만 확인할 수 있습니다.</p>
+                          )
                         )}
                       </div>
                     )}
