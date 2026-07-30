@@ -67,14 +67,14 @@ const visitStatusLabels: Record<string, string> = {
   contacted: "연락 완료",
   scheduled: "일정 확정",
   completed: "탐방 완료",
-  archived: "보관",
+  archived: "보류",
 };
 
 const requestStatusLabels: Record<string, string> = {
   new: "신규",
   reviewed: "확인 완료",
   completed: "처리 완료",
-  archived: "보관",
+  archived: "보류",
 };
 
 // 신청 게시판은 운영자가 같은 세 단계로 처리합니다. 예전 상태값은 보류로
@@ -249,7 +249,7 @@ export default function AdminSupportRequestsTab({
     onSuccess: (_result, variables) => {
       toast.success(
         variables.status === "archived"
-          ? "주보 광고신청을 보관 삭제했습니다."
+          ? "주보 광고신청을 보류로 이동했습니다."
           : "주보 광고신청이 저장되었습니다."
       );
       utils.cms.supportRequests.listBulletinAds.invalidate();
@@ -262,7 +262,7 @@ export default function AdminSupportRequestsTab({
     onSuccess: (_result, variables) => {
       toast.success(
         variables.status === "archived"
-          ? "자막 신청을 보관 삭제했습니다."
+          ? "자막 신청을 보류로 이동했습니다."
           : "자막 신청이 저장되었습니다."
       );
       utils.cms.supportRequests.listSubtitles.invalidate();
@@ -275,7 +275,7 @@ export default function AdminSupportRequestsTab({
     onSuccess: (_result, variables) => {
       toast.success(
         variables.status === "archived"
-          ? "탐방신청을 보관 삭제했습니다."
+          ? "탐방신청을 보류로 이동했습니다."
           : "탐방신청이 저장되었습니다."
       );
       utils.cms.supportRequests.listVisits.invalidate();
@@ -527,7 +527,7 @@ export default function AdminSupportRequestsTab({
   function archiveItem(item: AdminRequestItem) {
     if (item.status === "archived") return;
     if (!window.confirm(
-      `"${item.title}" 접수를 보관 삭제하시겠습니까? 공개 목록에서는 사라지지만 관리자 이력에는 남습니다.`
+      `"${item.title}" 접수를 삭제하시겠습니까? 실제로 삭제되지 않고 보류 목록으로 이동합니다.`
     )) return;
     saveItem(item, "archived");
   }

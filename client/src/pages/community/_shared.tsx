@@ -107,7 +107,7 @@ export function SupportRequestOwnerActions({
 }: {
   requestId: number;
   onEdit?: (id: number) => void;
-  onDelete: (id: number) => void;
+  onDelete?: (id: number) => void;
   isBusy?: boolean;
   className?: string;
 }) {
@@ -123,14 +123,16 @@ export function SupportRequestOwnerActions({
           <Pencil className="h-3.5 w-3.5" /> 수정
         </button>
       )}
-      <button
-        type="button"
-        onClick={() => onDelete(requestId)}
-        disabled={isBusy}
-        className="inline-flex h-8 items-center gap-1 border border-red-200 bg-white px-3 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
-      >
-        <Trash2 className="h-3.5 w-3.5" /> {isBusy ? "삭제 중" : "삭제"}
-      </button>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={() => onDelete(requestId)}
+          disabled={isBusy}
+          className="inline-flex h-8 items-center gap-1 border border-red-200 bg-white px-3 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+        >
+          <Trash2 className="h-3.5 w-3.5" /> {isBusy ? "처리 중" : "삭제"}
+        </button>
+      )}
     </div>
   );
 }

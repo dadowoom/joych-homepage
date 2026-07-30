@@ -3,9 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 
 const dbMocks = vi.hoisted(() => ({
-  archiveMemberBulletinAdRequest: vi.fn(),
-  archiveMemberSubtitleRequest: vi.fn(),
-  archiveOwnedVisitRequest: vi.fn(),
   createPrayerRequest: vi.fn(),
   createNewMemberRequest: vi.fn(),
   createSubtitleRequest: vi.fn(),
@@ -42,9 +39,6 @@ vi.mock("./db", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./db")>();
   return {
     ...actual,
-    archiveMemberBulletinAdRequest: dbMocks.archiveMemberBulletinAdRequest,
-    archiveMemberSubtitleRequest: dbMocks.archiveMemberSubtitleRequest,
-    archiveOwnedVisitRequest: dbMocks.archiveOwnedVisitRequest,
     createPrayerRequest: dbMocks.createPrayerRequest,
     createNewMemberRequest: dbMocks.createNewMemberRequest,
     createSubtitleRequest: dbMocks.createSubtitleRequest,
@@ -92,9 +86,6 @@ describe("공개 접수 라우터", () => {
     dbMocks.updateMemberBulletinAdRequest.mockResolvedValue(true);
     dbMocks.updateMemberSubtitleRequest.mockResolvedValue(true);
     dbMocks.updateOwnedVisitRequest.mockResolvedValue(true);
-    dbMocks.archiveMemberBulletinAdRequest.mockResolvedValue(true);
-    dbMocks.archiveMemberSubtitleRequest.mockResolvedValue(true);
-    dbMocks.archiveOwnedVisitRequest.mockResolvedValue(true);
     dbMocks.getMemberById.mockResolvedValue({
       id: 1,
       name: "홍길동",
@@ -315,7 +306,7 @@ describe("공개 접수 라우터", () => {
     expect(dbMocks.listMemberBulletinAdRequests).toHaveBeenCalledWith(1);
   });
 
-  it("lets a member update and delete only their own subtitle request", async () => {
+  it("lets a member update but not delete their own subtitle request", async () => {
     const caller = appRouter.createCaller(createContext(1));
 
     await expect(caller.support.updateMySubtitle({
@@ -325,17 +316,16 @@ describe("공개 접수 라우터", () => {
       content: "수정한 자막 내용",
       removeAttachment: true,
     })).resolves.toEqual({ ok: true });
-    await expect(caller.support.deleteMySubtitle({ id: 201 })).resolves.toEqual({ ok: true });
+    await expect(caller.support.deleteMySubtitle({ id: 201 })).rejects.toMatchObject({ code: "FORBIDDEN" });
 
     expect(dbMocks.getMemberSubtitleRequest).toHaveBeenCalledWith(201, 1);
     expect(dbMocks.updateMemberSubtitleRequest).toHaveBeenCalledWith(201, 1, expect.objectContaining({
       title: "수정한 자막 신청",
       attachment: null,
     }));
-    expect(dbMocks.archiveMemberSubtitleRequest).toHaveBeenCalledWith(201, 1);
   });
 
-  it("lets a member update and delete only their own bulletin ad request", async () => {
+  it("lets a member update but not delete their own bulletin ad request", async () => {
     const caller = appRouter.createCaller(createContext(1));
 
     await expect(caller.support.updateMyBulletinAd({
@@ -344,13 +334,12 @@ describe("공개 접수 라우터", () => {
       requestedDate: "2026-07-12",
       content: "수정한 주보 광고 내용",
     })).resolves.toEqual({ ok: true });
-    await expect(caller.support.deleteMyBulletinAd({ id: 301 })).resolves.toEqual({ ok: true });
+    await expect(caller.support.deleteMyBulletinAd({ id: 301 })).rejects.toMatchObject({ code: "FORBIDDEN" });
 
     expect(dbMocks.getMemberBulletinAdRequest).toHaveBeenCalledWith(301, 1);
     expect(dbMocks.updateMemberBulletinAdRequest).toHaveBeenCalledWith(301, 1, expect.objectContaining({
       title: "수정한 주보 광고",
     }));
-    expect(dbMocks.archiveMemberBulletinAdRequest).toHaveBeenCalledWith(301, 1);
   });
 
   it("rejects a member trying to update another member's request", async () => {
@@ -409,7 +398,7 @@ describe("공개 접수 라우터", () => {
     expect(tokenHash).toBe(dbMocks.createVisitRequest.mock.calls[0][0].manageTokenHash);
   });
 
-  it("lists and deletes an anonymous visitor's request with the management token", async () => {
+  it("lists but does not let an anonymous visitor delete a request with the management token", async () => {
     dbMocks.listOwnedVisitRequests.mockResolvedValue([{
       id: 901,
       memberId: null,
@@ -430,12 +419,7 @@ describe("공개 접수 라우터", () => {
     await expect(caller.support.deleteMyVisit({
       id: 901,
       manageToken,
-    })).resolves.toEqual({ ok: true });
-    expect(dbMocks.archiveOwnedVisitRequest).toHaveBeenCalledWith(
-      901,
-      null,
-      expect.stringMatching(/^[a-f0-9]{64}$/),
-    );
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("rejects an anonymous visit update when the management token is invalid", async () => {

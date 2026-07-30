@@ -18,7 +18,6 @@ import { trpc } from "@/lib/trpc";
 import {
   findVisitManagementToken,
   getVisitManagementTokens,
-  removeVisitManagementToken,
   saveVisitManagementToken,
 } from "@/lib/supportRequestOwnership";
 import { toast } from "sonner";
@@ -125,19 +124,9 @@ function VisitRequestBoardPage() {
     onError: (error) => toast.error(error.message),
   });
 
-  const deleteVisit = trpc.support.deleteMyVisit.useMutation({
-    onSuccess: (_result, variables) => {
-      setManagementTokens(removeVisitManagementToken(variables.id));
-      toast.success("탐방신청이 삭제되었습니다.");
-      resetForm();
-      utils.support.listVisits.invalidate();
-      utils.support.myVisits.invalidate();
-    },
-    onError: (error) => toast.error(error.message),
-  });
   const archiveVisitAsManager = trpc.cms.supportRequests.updateVisitStatus.useMutation({
     onSuccess: () => {
-      toast.success("탐방신청을 보관 삭제했습니다.");
+      toast.success("탐방신청을 보류로 이동했습니다.");
       utils.support.listVisits.invalidate();
       utils.support.myVisits.invalidate();
       utils.cms.supportRequests.listVisits.invalidate();
@@ -193,20 +182,8 @@ function VisitRequestBoardPage() {
   };
 
   const handleDelete = (id: number) => {
-    const isOwnRequest = myVisitRequestIds.has(id);
-    const isManagerDeleting = canManageVisits && !isOwnRequest;
-    const message = isManagerDeleting
-      ? "이 탐방신청을 보관 삭제하시겠습니까? 공개 목록에서는 사라지지만 관리자 이력에는 남습니다."
-      : "이 탐방신청을 삭제하시겠습니까?";
-    if (!window.confirm(message)) return;
-    if (isManagerDeleting) {
-      archiveVisitAsManager.mutate({ id, status: "archived", adminMemo: null });
-      return;
-    }
-    deleteVisit.mutate({
-      id,
-      manageToken: findVisitManagementToken(managementTokens, id),
-    });
+    if (!window.confirm("이 탐방신청을 삭제하시겠습니까? 실제로 삭제되지 않고 보류 목록으로 이동합니다.")) return;
+    archiveVisitAsManager.mutate({ id, status: "archived", adminMemo: null });
   };
 
   const handleSubmit = (event: React.FormEvent) => {
@@ -558,8 +535,8 @@ function VisitRequestBoardPage() {
                                   <SupportRequestOwnerActions
                                     requestId={request.id}
                                     onEdit={isOwnRequest ? handleEdit : undefined}
-                                    onDelete={handleDelete}
-                                    isBusy={(deleteVisit.isPending && deleteVisit.variables?.id === request.id) || (archiveVisitAsManager.isPending && archiveVisitAsManager.variables?.id === request.id)}
+                                    onDelete={canManageVisits ? handleDelete : undefined}
+                                    isBusy={archiveVisitAsManager.isPending && archiveVisitAsManager.variables?.id === request.id}
                                   />
                                 )}
                               </div>
@@ -602,8 +579,8 @@ function VisitRequestBoardPage() {
                           <SupportRequestOwnerActions
                             requestId={request.id}
                             onEdit={isOwnRequest ? handleEdit : undefined}
-                            onDelete={handleDelete}
-                            isBusy={(deleteVisit.isPending && deleteVisit.variables?.id === request.id) || (archiveVisitAsManager.isPending && archiveVisitAsManager.variables?.id === request.id)}
+                            onDelete={canManageVisits ? handleDelete : undefined}
+                            isBusy={archiveVisitAsManager.isPending && archiveVisitAsManager.variables?.id === request.id}
                             className="mt-3"
                           />
                         )}
