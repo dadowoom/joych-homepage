@@ -1,17 +1,18 @@
 import type { Express, NextFunction, Request, Response } from "express";
 import { PRIMARY_SITE_ORIGIN } from "../../shared/siteHosts";
+import { PUBLIC_MENU_PATHS } from "../../shared/publicMenuRoutes";
 
-export const WORSHIP_GUIDE_PATH = "/worship/schedule";
-export const SUNDAY_WORSHIP_PATH = "/page/조이풀tv-주일예배";
-export const ASSOCIATE_STAFF_PATH = "/about/staff/associate";
-export const BULLETIN_PATH = "/worship/bulletin";
-export const HEBRON_WORSHIP_PATH = "/worship/tv/hebron";
-export const FRIDAY_WORSHIP_PATH = "/page/조이풀tv-금요-경배와-용사들";
+export const WORSHIP_GUIDE_PATH = PUBLIC_MENU_PATHS.worshipSchedule;
+export const SUNDAY_WORSHIP_PATH = PUBLIC_MENU_PATHS.sundaySermon;
+export const ASSOCIATE_STAFF_PATH = PUBLIC_MENU_PATHS.staff;
+export const BULLETIN_PATH = PUBLIC_MENU_PATHS.bulletin;
+export const HEBRON_WORSHIP_PATH = PUBLIC_MENU_PATHS.hebronWorship;
+export const FRIDAY_WORSHIP_PATH = PUBLIC_MENU_PATHS.fridayWorship;
 export const HAYOUNGIN_PATH = "/page/조이풀tv-하영인";
 export const TESTIMONY_PATH = "/page/조이풀tv-생선-간증";
-export const PRAISE_SHALOM_PATH = "/page/조이풀tv-찬양-샬롬-성가대";
-export const PRAISE_HOSANNA_PATH = "/page/조이풀tv-찬양-호산나-찬양대";
-export const PRAISE_ZION_PATH = "/page/조이풀tv-찬양-시온-찬양대";
+export const PRAISE_SHALOM_PATH = PUBLIC_MENU_PATHS.praiseShalom;
+export const PRAISE_HOSANNA_PATH = PUBLIC_MENU_PATHS.praiseHosanna;
+export const PRAISE_ZION_PATH = PUBLIC_MENU_PATHS.praiseZion;
 export const PRAISE_JOYANCE_PATH =
   "/page/조이풀tv-찬양-주일-찬양팀-조이언스";
 export const PRAISE_DISCIPLES_PATH =
@@ -19,7 +20,7 @@ export const PRAISE_DISCIPLES_PATH =
 export const PRAISE_CHARIS_PATH = "/page/조이풀tv-찬양-금요-찬양팀-카리스";
 export const PRAISE_REBUILD_PATH =
   "/page/조이풀tv-찬양-청년부-찬양팀-리빌드";
-export const PRAISE_SPECIAL_PATH = "/page/조이풀tv-찬양-특송";
+export const PRAISE_SPECIAL_PATH = PUBLIC_MENU_PATHS.praiseSpecial;
 
 const LEGACY_PAGE_CODE_REDIRECTS: Readonly<Record<string, string>> = {
   "2": SUNDAY_WORSHIP_PATH,

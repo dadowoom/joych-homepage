@@ -205,7 +205,12 @@ function getCanonicalInternalHref(href: string | null | undefined, legacyHref: s
 function getStaffCategoryForMenuItem(item: DynamicPageItem) {
   const label = item.label.trim();
   const href = item.href?.trim();
-  if (label === "섬기는 분" || href === "/page/교회소개-섬기는-분") return "senior";
+  if (
+    label === "섬기는 분" ||
+    label === "섬기는 사람들" ||
+    href === "/page/교회소개-섬기는-분" ||
+    href === PUBLIC_MENU_PATHS.staff
+  ) return "senior";
   if (label === "부교역자" || href === "/page/교회소개-부교역자") return "associate";
   return null;
 }
