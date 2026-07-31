@@ -1070,7 +1070,13 @@ export function buildGroupedSearchResult(dataset: SearchDataset, keyword: string
   ];
 
   const groups = [
-    createGroup("youtube", "예배 영상", "유튜브 설교와 예배 영상 검색 결과입니다.", "/worship/tv", youtubeItems),
+    createGroup(
+      "youtube",
+      "예배 영상",
+      "유튜브 설교와 예배 영상 검색 결과입니다.",
+      "/page/조이풀tv-주일예배",
+      youtubeItems,
+    ),
     createGroup("notices", "공지사항", "공개 공지사항 검색 결과입니다.", NOTICE_PAGE_HREF, noticeItems),
     createGroup("resources", "자료실", "공개 자료실 검색 결과입니다.", RESOURCE_PAGE_HREF, resourceItems),
     createGroup("testimonies", "간증", "공개 간증 게시물 검색 결과입니다.", "/community/testimony", testimonyItems),

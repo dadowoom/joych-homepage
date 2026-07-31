@@ -213,7 +213,7 @@ function buildLegacyGroups(data: LegacySearchResponse): SearchResultGroup[] {
       key: "videos",
       label: "예배 영상",
       description: "예배 영상 검색 결과입니다.",
-      href: "/worship/tv",
+      href: "/page/조이풀tv-주일예배",
       items: videos,
     },
     {

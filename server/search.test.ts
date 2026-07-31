@@ -411,6 +411,7 @@ describe("grouped backend search", () => {
       href: "/worship/tv/sunday?video=1",
       linkType: "internal",
     });
+    expect(groups.get("youtube")?.href).toBe("/page/조이풀tv-주일예배");
     expect(groups.get("notices")?.items[0]?.href).toBe("/page/행정지원-공지사항?post=101");
     expect(groups.get("resources")?.items[0]?.href).toBe("/page/행정지원-자료실?post=102");
     expect(groups.get("gallery")?.items[0]?.href).toBe("/page/커뮤니티-최근-행사-사진?gallery=grace-album");
