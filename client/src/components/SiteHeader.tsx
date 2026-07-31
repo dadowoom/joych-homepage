@@ -12,6 +12,7 @@ import { isExternalSiteHref, normalizeSiteHref } from "@/lib/siteHref";
 import { finishDomainLogout } from "@/lib/mainHomepageDomain";
 import { getManagementPageHref } from "@/lib/managementEntry";
 import { toFallbackMenuTree } from "@shared/siteNavigation";
+import { PUBLIC_MENU_PATHS } from "@shared/publicMenuRoutes";
 import { useLanguage, translateSiteText } from "@/contexts/LanguageContext";
 
 function getUsableHref(href?: string | null) {
@@ -37,12 +38,12 @@ function normalizeMenuHref(href?: string | null) {
 function getSpecialMenuHref(label?: string | null, href?: string | null) {
   const normalized = normalizeMenuLabel(label ?? "");
   const normalizedHref = normalizeMenuHref(href);
-  if (normalized === "주보보기") return "/worship/bulletin";
-  if (normalized === "주보광고신청") return "/support/bulletin-ad";
-  if (normalized === "자막신청") return "/support/subtitle";
-  if (normalized === "탐방신청") return "/support/tour";
+  if (normalized === "주보보기") return PUBLIC_MENU_PATHS.bulletin;
+  if (normalized === "주보광고신청") return PUBLIC_MENU_PATHS.bulletinAd;
+  if (normalized === "자막신청") return PUBLIC_MENU_PATHS.subtitleRequest;
+  if (normalized === "탐방신청") return PUBLIC_MENU_PATHS.visitRequest;
   if (normalized === "외부인" && normalizedHref.includes("시설사용예약외부인"))
-    return "/facility/external";
+    return PUBLIC_MENU_PATHS.externalFacility;
   return null;
 }
 

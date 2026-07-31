@@ -8,6 +8,7 @@ import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
 import MemberOnlyContentNotice from "@/components/MemberOnlyContentNotice";
 import { findMenuAccessMatchByHref, isMemberOnlyMenuNode } from "@/lib/menuAccess";
+import { PUBLIC_MENU_PATHS } from "@shared/publicMenuRoutes";
 import YoutubeListPage from "./YoutubeListPage";
 
 type VideoMenuSubItem = {
@@ -256,7 +257,7 @@ export function SundayWorshipPage() {
   return <WorshipVideoPage href="/page/조이풀tv-주일예배" title="주일예배" />;
 }
 export function WednesdayWorshipPage() {
-  return <WorshipVideoPage href="/worship/tv/hebron" title="헤브론 수요예배" />;
+  return <WorshipVideoPage href={PUBLIC_MENU_PATHS.hebronWorship} title="헤브론 수요예배" />;
 }
 export function FridayPrayerPage() {
   return <WorshipVideoPage href="/worship/tv/shekhinah" title="쉐키나 금요기도회" />;

@@ -19,6 +19,12 @@ import {
   MISSION_REPORT_BOARD_DESCRIPTION_SETTING_KEY,
 } from "@shared/boardIntroductions";
 import { isSiteHostname } from "@shared/siteHosts";
+import {
+  getMissionEditPath,
+  getMissionPath,
+  getMissionWritePath,
+  PUBLIC_MENU_PATHS,
+} from "@shared/publicMenuRoutes";
 
 // 날짜 포맷 헬퍼 (YYYY-MM-DD → YYYY년 MM월 DD일)
 function formatDate(dateStr: string): string {
@@ -30,7 +36,7 @@ const MISSION_SIDE_MENU_ITEMS = [
   { id: 1, label: "국내 선교", href: "/mission-work/domestic" },
   { id: 2, label: "해외 선교", href: "/mission-work/overseas" },
   { id: 3, label: "봉사 활동", href: "/mission-work/volunteer" },
-  { id: 4, label: "선교보고", href: "/mission", isActive: true },
+  { id: 4, label: "선교보고", href: PUBLIC_MENU_PATHS.mission, isActive: true },
 ];
 
 function normalizeMenuHref(href: string | null | undefined) {
@@ -107,7 +113,7 @@ export default function MissionList() {
     retry: false,
   });
   const canWriteMissionReport = canManage || authorGrants.length > 0;
-  const menuMatch = useMemo(() => findMenuAccessMatchByHref(allMenus, "/mission"), [allMenus]);
+  const menuMatch = useMemo(() => findMenuAccessMatchByHref(allMenus, PUBLIC_MENU_PATHS.mission), [allMenus]);
   const sideMenuItems = useMemo(() => {
     if (!menuMatch) return MISSION_SIDE_MENU_ITEMS;
 
@@ -235,7 +241,7 @@ export default function MissionList() {
             </div>
             <div className="flex flex-wrap gap-2">
               {canWriteMissionReport && (
-                <Link href="/mission/write" className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-[#1B5E20] px-4 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32]">
+              <Link href={getMissionWritePath()} className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-[#1B5E20] px-4 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32]">
                   <i className="fas fa-pen text-[10px]"></i>
                   {canManage ? "선교보고서 작성" : "선교보고 작성"}
                 </Link>
@@ -345,7 +351,7 @@ export default function MissionList() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {filtered.map((report) => (
-                <Link key={report.id} href={`/mission/${report.id}`}>
+                <Link key={report.id} href={getMissionPath(report.id)}>
                   <article className={`bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer group ${canManage && report.status !== "published" ? "opacity-75 ring-1 ring-gray-200" : ""}`}>
                     <div className="relative h-52 overflow-hidden">
                       <img
@@ -411,7 +417,7 @@ export default function MissionList() {
                             onClick={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
-                              navigate(`/mission/edit/${report.id}`);
+                              navigate(getMissionEditPath(report.id));
                             }}
                             className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold text-[#1B5E20] shadow hover:bg-white"
                           >

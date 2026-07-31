@@ -28,6 +28,12 @@ import { formatKoreanDateKey, getDateKeyDayOfWeek } from "@/lib/koreanDate";
 import {
   generateReservationTimePoints,
 } from "@/lib/facilitySlotSelection";
+import {
+  getExternalFacilityApplyPath,
+  getFacilityApplyPath,
+  getFacilityPath,
+  PUBLIC_MENU_PATHS,
+} from "@shared/publicMenuRoutes";
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 const FACILITY_CONTACT_DEFAULT_TEXT_KEY = "facility_contact_default_text";
@@ -46,11 +52,12 @@ function normalizeFacilityBuilding(building: string | null | undefined): Facilit
 }
 
 function getFacilityListHref(building: FacilityBuilding, audience: FacilityAudience = "member") {
-  return audience === "external" ? `/facility/external?building=${building}` : `/facility?building=${building}`;
+  const path = audience === "external" ? PUBLIC_MENU_PATHS.externalFacility : PUBLIC_MENU_PATHS.facility;
+  return `${path}?building=${building}`;
 }
 
 function getFacilityApplyHref(facilityId: number, audience: FacilityAudience) {
-  return audience === "external" ? `/facility/external/${facilityId}/apply` : `/facility/${facilityId}/apply`;
+  return audience === "external" ? getExternalFacilityApplyPath(facilityId) : getFacilityApplyPath(facilityId);
 }
 
 function useFacilityHoursForAudience(facilityId: number, audience: FacilityAudience) {
@@ -747,7 +754,7 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
     DEFAULT_MEMBER_FACILITY_RULES_TITLE;
 
   function goToMemberLogin() {
-    const nextPath = `/facility/${facilityId}${searchString ? `?${searchString}` : ""}`;
+    const nextPath = `${getFacilityPath(facilityId)}${searchString ? `?${searchString}` : ""}`;
     const loginParams = new URLSearchParams({
       social: "facility_member_required",
       next: nextPath,
@@ -774,7 +781,7 @@ function FacilityDetail({ audience = "member" }: { audience?: FacilityAudience }
           <MemberOnlyContentNotice
             resourceLabel="시설 사용 예약"
             description="시설 사용 예약은 성도 로그인 후 이용할 수 있습니다. 성도 로그인 후 다시 확인해 주세요."
-            fallbackPath={`/facility/${facilityId}`}
+            fallbackPath={getFacilityPath(facilityId)}
           />
         </div>
       </div>

@@ -41,6 +41,12 @@ import {
   RESERVATION_REPEAT_OPTIONS,
   type ReservationRepeatType,
 } from "@shared/reservationRecurrence";
+import {
+  getExternalFacilityPath,
+  getFacilityPath,
+  getFacilityReservationsPath,
+  PUBLIC_MENU_PATHS,
+} from "@shared/publicMenuRoutes";
 
 type RepeatType = ReservationRepeatType;
 type FacilityBuilding = "hayoungin" | "welfare";
@@ -60,13 +66,13 @@ function normalizeFacilityBuilding(building: string | null | undefined): Facilit
 }
 
 function getFacilityListHref(building: FacilityBuilding, audience: FacilityAudience) {
-  return audience === "external" ? `/facility/external?building=${building}` : `/facility?building=${building}`;
+  const path = audience === "external" ? PUBLIC_MENU_PATHS.externalFacility : PUBLIC_MENU_PATHS.facility;
+  return `${path}?building=${building}`;
 }
 
 function getFacilityDetailHref(facilityId: number, building: FacilityBuilding, audience: FacilityAudience) {
-  return audience === "external"
-    ? `/facility/external/${facilityId}?building=${building}`
-    : `/facility/${facilityId}?building=${building}`;
+  const path = audience === "external" ? getExternalFacilityPath(facilityId) : getFacilityPath(facilityId);
+  return `${path}?building=${building}`;
 }
 
 // 요일 숫자 (0=일, 1=월 ... 6=토)
@@ -129,7 +135,7 @@ function SuccessScreen({ facilityName, status, count, recurrenceLabel, facilityL
           </button>
         </Link>
         {showMyReservations && (
-          <Link href="/facility/my-reservations">
+          <Link href={getFacilityReservationsPath()}>
             <button className="px-5 py-2.5 rounded-lg bg-[#1B5E20] text-white text-sm hover:bg-[#2E7D32] transition-colors">
               내 예약 현황 보기
             </button>
@@ -219,9 +225,8 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
   }, [searchString]);
 
   function goToMemberLogin() {
-    const nextPath = isExternal
-      ? `/facility/external/${facilityId}/apply${searchString ? `?${searchString}` : ""}`
-      : `/facility/${facilityId}/apply${searchString ? `?${searchString}` : ""}`;
+    const basePath = isExternal ? `${getExternalFacilityPath(facilityId)}/신청` : `${getFacilityPath(facilityId)}/신청`;
+    const nextPath = `${basePath}${searchString ? `?${searchString}` : ""}`;
     const loginParams = new URLSearchParams({
       social: "facility_member_required",
       next: nextPath,
@@ -510,9 +515,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     nextSearchParams.delete("startTime");
     nextSearchParams.delete("endTime");
     const nextSearch = nextSearchParams.toString();
-    const applyPath = isExternal
-      ? `/facility/external/${facilityId}/apply`
-      : `/facility/${facilityId}/apply`;
+    const applyPath = isExternal ? `${getExternalFacilityPath(facilityId)}/신청` : `${getFacilityPath(facilityId)}/신청`;
 
     setSubmitted(false);
     setShowDateChangePicker(true);
@@ -661,7 +664,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
           <MemberOnlyContentNotice
             resourceLabel="시설 사용 예약"
             description="시설 사용 예약 신청은 성도 로그인 후 이용할 수 있습니다. 성도 로그인 후 다시 확인해 주세요."
-            fallbackPath={`/facility/${facilityId}/apply`}
+            fallbackPath={`${getFacilityPath(facilityId)}/신청`}
           />
         </div>
       </div>

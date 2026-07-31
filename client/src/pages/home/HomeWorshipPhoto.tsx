@@ -3,6 +3,7 @@ import {
   getUsableHref,
   type HomeSectionConfig,
 } from "./_helpers";
+import { PUBLIC_MENU_PATHS } from "@shared/publicMenuRoutes";
 
 type HomeWorshipPhotoProps = {
   worshipSection: HomeSectionConfig;
@@ -57,7 +58,7 @@ export default function HomeWorshipPhoto({
                 <a
                   href={getUsableHref(
                     worshipSection.buttonHref,
-                    "/worship/schedule"
+                    PUBLIC_MENU_PATHS.worshipSchedule
                   )}
                   className="mt-5 inline-flex rounded bg-white px-5 py-2 text-sm font-semibold text-[#1B5E20] transition-colors hover:bg-[#F1F8E9]"
                 >

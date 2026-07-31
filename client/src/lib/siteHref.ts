@@ -1,4 +1,5 @@
 import { PRIMARY_SITE_ORIGIN, isSiteHostname } from "@shared/siteHosts";
+import { getCanonicalPublicMenuPath } from "@shared/publicMenuRoutes";
 
 const SITE_URL_BASE = PRIMARY_SITE_ORIGIN;
 
@@ -10,8 +11,13 @@ export function normalizeSiteHref(href?: string | null) {
   const value = href?.trim();
   if (!value || value === "#") return null;
 
+  const canonicalPublicMenuPath = getCanonicalPublicMenuPath(value);
+  if (canonicalPublicMenuPath && canonicalPublicMenuPath !== value) {
+    return canonicalPublicMenuPath;
+  }
+
   if (value.startsWith("/") && !value.startsWith("//")) {
-    return value;
+    return getCanonicalPublicMenuPath(value) ?? value;
   }
 
   try {
@@ -24,7 +30,8 @@ export function normalizeSiteHref(href?: string | null) {
       return null;
     }
     if (isSiteHostname(url.hostname)) {
-      return `${url.pathname}${url.search}${url.hash}`;
+      const path = `${url.pathname}${url.search}${url.hash}`;
+      return getCanonicalPublicMenuPath(path) ?? path;
     }
     return value;
   } catch {

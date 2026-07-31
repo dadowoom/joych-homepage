@@ -4,6 +4,10 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { canManageBoardContent, canManageFullAdmin } from "@/lib/contentPermissions";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import {
+  getMissionEditPath,
+  PUBLIC_MENU_PATHS,
+} from "@shared/publicMenuRoutes";
 
 type ImageRow = { imageUrl: string; caption?: string };
 type FileRow = {
@@ -146,7 +150,7 @@ export default function MissionReportEditor() {
     onSuccess: ({ id }) => {
       toast.success("선교보고서가 검토 요청으로 저장되었습니다.");
       utils.mission.myReports.invalidate();
-      navigate(`/mission/edit/${id}`);
+      navigate(getMissionEditPath(id));
     },
     onError: (e) => toast.error(e.message || "저장에 실패했습니다."),
   });
@@ -168,7 +172,7 @@ export default function MissionReportEditor() {
       toast.success("선교보고서가 저장되었습니다.");
       utils.cms.missionReports.reports.invalidate();
       utils.mission.reports.invalidate();
-      if (id) navigate(`/mission/edit/${id}`);
+      if (id) navigate(getMissionEditPath(id));
     },
     onError: (e) => toast.error(e.message || "저장에 실패했습니다."),
   });
@@ -311,7 +315,7 @@ export default function MissionReportEditor() {
     return (
       <CenteredMessage
         message="선교보고서 작성 권한이 없습니다. 관리자에게 문의해주세요."
-        action={<Link href="/mission" className="rounded-full bg-[#1B5E20] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#2E7D32]">목록으로</Link>}
+        action={<Link href={PUBLIC_MENU_PATHS.mission} className="rounded-full bg-[#1B5E20] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#2E7D32]">목록으로</Link>}
       />
     );
   }
@@ -320,7 +324,7 @@ export default function MissionReportEditor() {
     return (
       <CenteredMessage
         message="수정할 선교보고서를 찾을 수 없습니다."
-        action={<Link href="/mission" className="rounded-full bg-[#1B5E20] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#2E7D32]">목록으로</Link>}
+        action={<Link href={PUBLIC_MENU_PATHS.mission} className="rounded-full bg-[#1B5E20] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#2E7D32]">목록으로</Link>}
       />
     );
   }
@@ -329,7 +333,7 @@ export default function MissionReportEditor() {
     <div className="min-h-screen bg-[#F5F4EF]">
       <header className="sticky top-0 z-50 border-b border-[#E5DED0] bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-          <Link href="/mission" className="inline-flex items-center gap-2 text-sm font-semibold text-[#1B5E20] hover:text-[#2E7D32]">
+          <Link href={PUBLIC_MENU_PATHS.mission} className="inline-flex items-center gap-2 text-sm font-semibold text-[#1B5E20] hover:text-[#2E7D32]">
             <i className="fas fa-chevron-left text-xs"></i>
             선교보고 목록
           </Link>

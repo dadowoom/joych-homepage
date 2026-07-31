@@ -13,11 +13,11 @@
  */
 
 import { eq, asc, and, sql } from "drizzle-orm";
-import { SITE_HOSTNAMES, isSiteHostname } from "@shared/siteHosts";
+import { SITE_HOSTNAMES } from "@shared/siteHosts";
 import {
-  WORSHIP_SCHEDULE_HREF,
-  WORSHIP_SCHEDULE_LEGACY_BETA_HREF,
-} from "@shared/worshipSchedule";
+  getCanonicalPublicMenuHref as getCanonicalPublicMenuHrefFromRoutes,
+  getPublicMenuHrefCandidates,
+} from "@shared/publicMenuRoutes";
 import { menus, menuItems, menuSubItems } from "../../drizzle/schema";
 import { getDb } from "./connection";
 
@@ -85,118 +85,12 @@ function shouldShowMenuLeaf(row: ReadableMenuLeaf) {
   return row.allowGuest || row.allowMember;
 }
 
-const MENU_HREF_ALIASES: Record<string, string[]> = {
-  "/about/pastor/books": [
-    "/page/교회소개-담임목사-저서",
-    "/page/교회소개-담임목사-소개-담임목사저서",
-    "/page/교회소개-담임목사-소개-담임목사-저서",
-    "/page/교회소개-담임목사소개-담임목사저서",
-    "/page/교회소개-담임목사소개-담임목사-저서",
-  ],
-  "/about/history": [
-    "/page/교회소개-교회역사",
-    "/page/교회소개-교회-역사",
-    "/page/교회소개-교회연혁",
-    "/page/교회소개-교회-연혁",
-  ],
-  "/about/staff": ["/page/교회소개-섬기는-분"],
-  "/about/staff/associate": ["/page/교회소개-부교역자"],
-  "/community/testimony": [
-    "/page/커뮤니티-생선간증",
-    "/page/커뮤니티-생선-간증",
-    "/page/커뮤니티-은혜의간증",
-    "/page/커뮤니티-은혜의-간증",
-  ],
-  "/mission": [
-    "/page/커뮤니티-선교소식",
-    "/page/커뮤니티-선교-소식",
-    "/page/사역선교-선교소식",
-    "/page/사역선교-선교-소식",
-    "/page/선교-선교소식",
-    "/page/선교-선교-소식",
-  ],
-  "/worship/bulletin": [
-    "/page/행정지원-주보-주보보기",
-    "/page/행정지원-주보보기",
-  ],
-  "/support/bulletin-ad": [
-    "/page/행정지원-주보-주보광고신청",
-    "/page/행정지원-주보광고신청",
-    "/page/행정지원-주보광고",
-  ],
-  "/support/subtitle": [
-    "/page/행정지원-주보-자막신청",
-    "/page/행정지원-자막신청",
-    "/page/행정지원-자막",
-  ],
-  "/support/tour": [
-    "/page/행정지원-탐방신청",
-    "/page/행정지원-탐방",
-  ],
-  "/facility": [
-    "/page/시설사용예약",
-    "/page/시설-사용-예약",
-    "/page/시설사용-예약",
-  ],
-};
-
-function decodeHrefCandidate(href: string) {
-  try {
-    return decodeURIComponent(href);
-  } catch {
-    return href;
-  }
-}
-
-function normalizeSameOriginHref(href: string) {
-  const trimmed = href.trim();
-  if (!/^https?:\/\//i.test(trimmed)) return trimmed;
-  try {
-    const url = new URL(trimmed);
-    if (isSiteHostname(url.hostname)) {
-      return `${url.pathname}${url.search}${url.hash}`;
-    }
-  } catch {
-    return trimmed;
-  }
-  return trimmed;
-}
-
-function normalizeMenuLabel(label: string | null | undefined) {
-  return (label ?? "").replace(/\s+/g, "");
-}
-
-const CHURCH_INTRO_LABEL = "\uAD50\uD68C\uC18C\uAC1C";
-const WORSHIP_GUIDE_LABEL = "\uC608\uBC30\uC548\uB0B4";
-const WORSHIP_GUIDE_LEGACY_HREF = "/page/\uAD50\uD68C\uC18C\uAC1C-\uC608\uBC30-\uC548\uB0B4";
-const WORSHIP_GUIDE_HREFS = new Set([
-  WORSHIP_SCHEDULE_HREF,
-  WORSHIP_SCHEDULE_LEGACY_BETA_HREF,
-  WORSHIP_GUIDE_LEGACY_HREF,
-  "/page/\uAD50\uD68C\uC18C\uAC1C-\uC608\uBC30\uC548\uB0B4",
-]);
-
 export function getCanonicalPublicMenuHref(
   label: string | null | undefined,
   href: string | null | undefined,
   parentLabel?: string | null
 ) {
-  const normalizedHref = href
-    ? normalizeSameOriginHref(decodeHrefCandidate(href.trim()))
-    : "";
-  const isChurchIntroWorshipGuide =
-    normalizeMenuLabel(parentLabel) === CHURCH_INTRO_LABEL &&
-    normalizeMenuLabel(label) === WORSHIP_GUIDE_LABEL;
-  if (
-    isChurchIntroWorshipGuide ||
-    (
-      normalizeMenuLabel(label) === WORSHIP_GUIDE_LABEL &&
-      WORSHIP_GUIDE_HREFS.has(normalizedHref)
-    )
-  ) {
-    return WORSHIP_SCHEDULE_HREF;
-  }
-  return href ?? null;
+  return getCanonicalPublicMenuHrefFromRoutes(label, href, parentLabel);
 }
 
 function canonicalizePublicMenuNode<T extends { label: string; href: string | null }>(
@@ -208,52 +102,13 @@ function canonicalizePublicMenuNode<T extends { label: string; href: string | nu
 }
 
 function getMenuHrefCandidates(href: string) {
-  const decodedHref = normalizeSameOriginHref(decodeHrefCandidate(href.trim()));
-  const candidates = [
-    decodedHref,
-    ...SITE_HOSTNAMES.map(hostname => `https://${hostname}${decodedHref}`),
-    ...(MENU_HREF_ALIASES[decodedHref] ?? []),
-  ];
-  for (const [canonicalHref, aliasHrefs] of Object.entries(MENU_HREF_ALIASES)) {
-    if (canonicalHref === decodedHref || aliasHrefs.includes(decodedHref)) {
-      candidates.push(canonicalHref, ...aliasHrefs);
-    }
-  }
-  return Array.from(new Set(candidates.filter(Boolean)));
-}
-
-function isWorshipGuideHref(href: string) {
-  const decodedHref = normalizeSameOriginHref(decodeHrefCandidate(href.trim()));
-  return WORSHIP_GUIDE_HREFS.has(decodedHref);
-}
-
-async function findWorshipGuideMenuItem(visibleOnly = false) {
-  const db = await getDb();
-  if (!db) return null;
-
-  const menuList = await db.select().from(menus).orderBy(asc(menus.sortOrder));
-  const parentIds = new Set(
-    menuList
-      .filter(menu =>
-        normalizeMenuLabel(menu.label) === CHURCH_INTRO_LABEL &&
-        (!visibleOnly || menu.isVisible)
-      )
-      .map(menu => menu.id)
-  );
-  if (parentIds.size === 0) return null;
-
-  const itemList = await db.select().from(menuItems).orderBy(asc(menuItems.sortOrder));
-  const item = itemList.find(row =>
-    parentIds.has(row.menuId) &&
-    normalizeMenuLabel(row.label) === WORSHIP_GUIDE_LABEL &&
-    (!visibleOnly || row.isVisible)
-  );
-  if (!item) return null;
-
-  const parent = menuList.find(menu => menu.id === item.menuId) ?? null;
-  if (!parent) return null;
-
-  return { item, parent };
+  return Array.from(new Set(
+    getPublicMenuHrefCandidates(href).flatMap(candidate => (
+      candidate.startsWith("/")
+        ? [candidate, ...SITE_HOSTNAMES.map(hostname => `https://${hostname}${candidate}`)]
+        : [candidate]
+    ))
+  ));
 }
 
 // ─── 메뉴 조회 ────────────────────────────────────────────────────────────────
@@ -796,10 +651,6 @@ export async function getMenuItemByHref(href: string) {
     const rows = await db.select().from(menuItems).where(eq(menuItems.href, candidate)).limit(1);
     if (rows[0]) return rows[0];
   }
-  if (isWorshipGuideHref(href)) {
-    const match = await findWorshipGuideMenuItem();
-    if (match) return match.item;
-  }
   return null;
 }
 
@@ -810,7 +661,6 @@ export async function getVisibleMenuItemByHref(href: string, access: MenuReadAcc
   const db = await getDb();
   if (!db) return null;
   let item: (typeof menuItems.$inferSelect) | undefined;
-  let fallbackParent: (typeof menus.$inferSelect) | undefined;
   for (const candidate of getMenuHrefCandidates(href)) {
     const rows = await db.select().from(menuItems)
       .where(and(eq(menuItems.href, candidate), eq(menuItems.isVisible, true)))
@@ -820,16 +670,9 @@ export async function getVisibleMenuItemByHref(href: string, access: MenuReadAcc
       break;
     }
   }
-  if (!item && isWorshipGuideHref(href)) {
-    const match = await findWorshipGuideMenuItem(true);
-    if (match) {
-      item = match.item;
-      fallbackParent = match.parent;
-    }
-  }
   if (!item) return null;
 
-  const parent = fallbackParent ?? (await db.select().from(menus)
+  const parent = (await db.select().from(menus)
     .where(and(eq(menus.id, item.menuId), eq(menus.isVisible, true)))
     .limit(1))[0];
   if (!parent) return null;
@@ -969,28 +812,6 @@ export async function getMenuAccessByHref(href: string, access: MenuReadAccess =
           id: parentItem.id,
           label: parentItem.label,
           href: parentItem.href,
-        },
-        allowGuest: effectiveAccess.allowGuest,
-        allowMember: effectiveAccess.allowMember,
-        isReadable: canReadMenuLeaf(effectiveAccess, access),
-      };
-    }
-  }
-
-  if (isWorshipGuideHref(href)) {
-    const match = await findWorshipGuideMenuItem(true);
-    if (match) {
-      const { item, parent } = match;
-      const effectiveAccess = getEffectiveLeafAccess(getTopMenuAccessForChild(parent), item);
-      return {
-        kind: "item" as const,
-        id: item.id,
-        label: item.label,
-        href: WORSHIP_SCHEDULE_HREF,
-        topMenu: {
-          id: parent.id,
-          label: parent.label,
-          href: parent.href,
         },
         allowGuest: effectiveAccess.allowGuest,
         allowMember: effectiveAccess.allowMember,

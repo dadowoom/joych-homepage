@@ -16,6 +16,10 @@ import AdminBulletinsTab from "@/components/AdminBulletinsTab";
 import { ViewModeToggle, type ViewMode } from "@/components/dynamic-page/ViewModeToggle";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Download, Images, Paperclip, Upload, X, ZoomIn } from "lucide-react";
+import {
+  getBulletinPath,
+  PUBLIC_MENU_PATHS,
+} from "@shared/publicMenuRoutes";
 
 function PageHeader({ title, subtitle, breadcrumb }: { title: string; subtitle?: string; breadcrumb: string[] }) {
   return (
@@ -56,8 +60,8 @@ const WORSHIP_NAV = [
   { label: "실시간 예배", href: "/worship/tv" },
   { label: "설교 영상", href: "/page/조이풀tv-주일예배" },
   { label: "찬양 영상", href: "/worship/tv/praise" },
-  { label: "예배시간 안내", href: "/worship/schedule" },
-  { label: "주보 보기", href: "/worship/bulletin" },
+  { label: "예배시간 안내", href: PUBLIC_MENU_PATHS.worshipSchedule },
+  { label: "주보 보기", href: PUBLIC_MENU_PATHS.bulletin },
 ];
 
 type BulletinMenuNode = {
@@ -72,7 +76,7 @@ function normalizeMenuLabel(value: string | null | undefined) {
 }
 
 function isBulletinViewNode(node: BulletinMenuNode) {
-  return node.href?.trim() === "/worship/bulletin" || normalizeMenuLabel(node.label) === "주보보기";
+  return node.href?.trim() === PUBLIC_MENU_PATHS.bulletin || normalizeMenuLabel(node.label) === "주보보기";
 }
 
 function findBulletinViewMenuNode(menus: Array<{ items?: BulletinMenuNode[] }> | undefined) {
@@ -555,7 +559,7 @@ export function BulletinDetail() {
   const [lightboxPageIndex, setLightboxPageIndex] = useState<number | null>(null);
   const lightboxTouchStartXRef = useRef<number | null>(null);
   const viewedBulletinIdsRef = useRef<Set<number>>(new Set());
-  const { parentLabel, sideMenuItems } = getSupportSideMenuItems(allMenus, "/worship/bulletin");
+  const { parentLabel, sideMenuItems } = getSupportSideMenuItems(allMenus, PUBLIC_MENU_PATHS.bulletin);
   const bulletin = Number.isFinite(bulletinId)
     ? bulletins.find((item) => item.id === bulletinId) ?? null
     : null;
@@ -600,7 +604,7 @@ export function BulletinDetail() {
     >
       <div className="max-w-5xl">
         <div className="mb-5 flex items-center justify-between gap-3 border-b border-gray-100 pb-4">
-          <Link href="/worship/bulletin" className="text-sm font-semibold text-[#1B5E20] hover:underline">
+          <Link href={PUBLIC_MENU_PATHS.bulletin} className="text-sm font-semibold text-[#1B5E20] hover:underline">
             ← 주보 목록
           </Link>
           {bulletin && (
@@ -614,7 +618,7 @@ export function BulletinDetail() {
           <MemberOnlyContentNotice
             resourceLabel="주보 보기"
             description="주보 보기는 성도 이상 읽기 권한이 필요한 자료입니다. 성도 로그인 후 다시 확인해 주세요."
-            fallbackPath="/worship/bulletin"
+            fallbackPath={PUBLIC_MENU_PATHS.bulletin}
           />
         ) : isLoading ? (
           <div className="text-center py-16 text-gray-400">불러오는 중...</div>
@@ -831,7 +835,7 @@ export function Bulletin() {
   const [pageSize, setPageSize] = useState<(typeof BULLETIN_PAGE_SIZE_OPTIONS)[number]>(20);
   const [page, setPage] = useState(1);
   const touchStartXRef = useRef<number | null>(null);
-  const { parentLabel, sideMenuItems } = getSupportSideMenuItems(allMenus, "/worship/bulletin");
+  const { parentLabel, sideMenuItems } = getSupportSideMenuItems(allMenus, PUBLIC_MENU_PATHS.bulletin);
   const normalizedSearchKeyword = normalizeBulletinSearchValue(searchKeyword.trim());
   const filteredBulletins = normalizedSearchKeyword
     ? bulletins.filter((bulletin) =>
@@ -894,7 +898,7 @@ export function Bulletin() {
           <MemberOnlyContentNotice
             resourceLabel="주보 보기"
             description="주보 보기는 성도 이상 읽기 권한이 필요한 자료입니다. 성도 로그인 후 다시 확인해 주세요."
-            fallbackPath="/worship/bulletin"
+            fallbackPath={PUBLIC_MENU_PATHS.bulletin}
           />
         ) : (
           <>
@@ -912,7 +916,7 @@ export function Bulletin() {
             </div>
             <button
               type="button"
-              onClick={() => setLocation(isManageView ? "/worship/bulletin" : "/worship/bulletin?manage=1")}
+              onClick={() => setLocation(isManageView ? PUBLIC_MENU_PATHS.bulletin : `${PUBLIC_MENU_PATHS.bulletin}?manage=1`)}
               className={`inline-flex h-10 items-center justify-center px-4 text-sm font-semibold ${
                 isManageView
                   ? "border border-[#1B5E20] bg-white text-[#1B5E20] hover:bg-[#F1F8E9]"
@@ -1013,7 +1017,7 @@ export function Bulletin() {
                     <td className="px-3 py-3 text-center text-gray-500">{filteredBulletins.length - (pageStart + index)}</td>
                     <td className="px-3 py-3">
                       <Link
-                        href={`/worship/bulletin/${bulletin.id}`}
+                        href={getBulletinPath(bulletin.id)}
                         className="block max-w-full truncate text-left text-gray-800 hover:text-[#1B5E20]"
                       >
                         {bulletin.title}
@@ -1047,7 +1051,7 @@ export function Bulletin() {
                       <span>번호 {filteredBulletins.length - (pageStart + index)}</span>
                       <span>{formatBulletinDate(bulletin.bulletinDate)}</span>
                     </div>
-                    <Link href={`/worship/bulletin/${bulletin.id}`} className="mb-2 block">
+                    <Link href={getBulletinPath(bulletin.id)} className="mb-2 block">
                       <div className="relative overflow-hidden border border-gray-200 bg-gray-50">
                         <div className="relative aspect-[3/4] w-full">
                           {hasCoverImage && coverPage ? (
@@ -1065,7 +1069,7 @@ export function Bulletin() {
                       </div>
                     </Link>
                     <Link
-                      href={`/worship/bulletin/${bulletin.id}`}
+                      href={getBulletinPath(bulletin.id)}
                       className="block w-full text-left text-sm font-bold leading-5 text-gray-900"
                     >
                       {bulletin.title}
@@ -1073,7 +1077,7 @@ export function Bulletin() {
                     <p className="mt-1 text-xs font-medium text-[#1B5E20]">관리자 · 첨부 {pages.length}장 · 조회수 {bulletin.viewCount ?? 0}</p>
                   </>
                 ) : (
-                  <Link href={`/worship/bulletin/${bulletin.id}`} className="flex items-center gap-3 text-left">
+                  <Link href={getBulletinPath(bulletin.id)} className="flex items-center gap-3 text-left">
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-50 text-xs font-semibold text-gray-500">
                       {filteredBulletins.length - (pageStart + index)}
                     </span>

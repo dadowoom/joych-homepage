@@ -20,15 +20,15 @@ const SUPPORT_FALLBACK_SIDE_ITEMS: PublicMenuItem[] = [
   {
     id: -2,
     label: "주보",
-    href: "/worship/bulletin",
+    href: PUBLIC_MENU_PATHS.bulletin,
     subItems: [
-      { id: -21, label: "주보보기", href: "/worship/bulletin" },
-      { id: -22, label: "주보 광고신청", href: "/support/bulletin-ad" },
+      { id: -21, label: "주보보기", href: PUBLIC_MENU_PATHS.bulletin },
+      { id: -22, label: "주보 광고신청", href: PUBLIC_MENU_PATHS.bulletinAd },
     ],
   },
-  { id: -3, label: "자막 신청", href: "/support/subtitle" },
-  { id: -4, label: "탐방신청", href: "/support/tour" },
-  { id: -5, label: "기부금 영수증", href: "/support/donation" },
+  { id: -3, label: "자막 신청", href: PUBLIC_MENU_PATHS.subtitleRequest },
+  { id: -4, label: "탐방신청", href: PUBLIC_MENU_PATHS.visitRequest },
+  { id: -5, label: "기부금 영수증", href: PUBLIC_MENU_PATHS.donationReceipt },
   { id: -6, label: "자료실", href: null },
 ];
 
@@ -43,11 +43,11 @@ function normalizeHref(value: string | null | undefined) {
 function getSpecialSupportHref(label: string, href?: string | null) {
   const normalized = normalizeMenuText(label);
   if (normalized === "공지사항" || normalized === "공지") return "/page/행정지원-공지사항";
-  if (normalized === "주보" || normalized === "주보보기") return "/worship/bulletin";
-  if (normalized === "주보광고신청") return "/support/bulletin-ad";
-  if (normalized === "자막신청") return "/support/subtitle";
-  if (normalized === "탐방신청") return "/support/tour";
-  if (normalized === "기부금영수증") return "/support/donation";
+  if (normalized === "주보" || normalized === "주보보기") return PUBLIC_MENU_PATHS.bulletin;
+  if (normalized === "주보광고신청") return PUBLIC_MENU_PATHS.bulletinAd;
+  if (normalized === "자막신청") return PUBLIC_MENU_PATHS.subtitleRequest;
+  if (normalized === "탐방신청") return PUBLIC_MENU_PATHS.visitRequest;
+  if (normalized === "기부금영수증") return PUBLIC_MENU_PATHS.donationReceipt;
   return normalizeHref(href) || null;
 }
 
@@ -92,3 +92,4 @@ export function getSupportSideMenuItems(menus: PublicMenu[] | undefined, activeH
     }),
   };
 }
+import { PUBLIC_MENU_PATHS } from "@shared/publicMenuRoutes";

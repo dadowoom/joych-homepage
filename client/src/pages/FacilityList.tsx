@@ -12,6 +12,12 @@ import type { Facility, FacilityImage } from "../../../drizzle/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Users, Clock, MapPin, CalendarCheck, Phone, Building2, Settings } from "lucide-react";
+import {
+  getExternalFacilityPath,
+  getFacilityPath,
+  getFacilityReservationsPath,
+  PUBLIC_MENU_PATHS,
+} from "@shared/publicMenuRoutes";
 
 const FACILITY_BUILDINGS = [
   { value: "hayoungin", label: "하영인관" },
@@ -78,13 +84,13 @@ function getFacilityBuildingFromSearch(searchString: string) {
 }
 
 function getFacilityListHref(building: FacilityBuilding, audience: FacilityAudience = "member") {
-  return audience === "external" ? `/facility/external?building=${building}` : `/facility?building=${building}`;
+  const path = audience === "external" ? PUBLIC_MENU_PATHS.externalFacility : PUBLIC_MENU_PATHS.facility;
+  return `${path}?building=${building}`;
 }
 
 function getFacilityDetailHref(facilityId: number, building: FacilityBuilding, audience: FacilityAudience = "member") {
-  return audience === "external"
-    ? `/facility/external/${facilityId}?building=${building}`
-    : `/facility/${facilityId}?building=${building}`;
+  const path = audience === "external" ? getExternalFacilityPath(facilityId) : getFacilityPath(facilityId);
+  return `${path}?building=${building}`;
 }
 
 // ── 상단 배너 ──────────────────────────────────────────────
@@ -293,7 +299,7 @@ function FacilityList({ audience = "member" }: { audience?: FacilityAudience }) 
           <MemberOnlyContentNotice
             resourceLabel="시설 사용 예약"
             description="시설 사용 예약은 성도 로그인 후 이용할 수 있습니다. 성도 로그인 후 다시 확인해 주세요."
-            fallbackPath="/facility"
+            fallbackPath={PUBLIC_MENU_PATHS.facility}
           />
         </div>
       </div>
@@ -309,7 +315,7 @@ function FacilityList({ audience = "member" }: { audience?: FacilityAudience }) 
         <div className="container">
           {!isExternal && (
             <div className="mb-6 flex justify-end gap-2">
-              <Link href="/facility/my-reservations">
+              <Link href={getFacilityReservationsPath()}>
                 <Button variant="outline" className="border-[#1B5E20] text-[#1B5E20] hover:bg-green-50">
                   <CalendarCheck size={16} className="mr-2" />
                   내 예약 현황

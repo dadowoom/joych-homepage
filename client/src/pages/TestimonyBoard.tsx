@@ -15,6 +15,12 @@ import {
   TESTIMONY_BOARD_DESCRIPTION_DEFAULT,
   TESTIMONY_BOARD_DESCRIPTION_SETTING_KEY,
 } from "@shared/boardIntroductions";
+import {
+  getTestimonyEditPath,
+  getTestimonyPath,
+  getTestimonyWritePath,
+  PUBLIC_MENU_PATHS,
+} from "@shared/publicMenuRoutes";
 
 type ImageRow = { imageUrl: string; caption?: string };
 
@@ -64,8 +70,8 @@ function getCommunitySideMenuItems(menus: PublicMenu[] | undefined, activeHref: 
   const communityMenu = menus?.find((menu) => normalizeMenuText(menu.label) === "커뮤니티");
   const sourceItems = communityMenu?.items ?? [
     { id: -1, label: "행사 사진", href: "/community/photo" },
-    { id: -2, label: "은혜의 간증", href: "/community/testimony" },
-    { id: -3, label: "선교 소식", href: "/mission" },
+    { id: -2, label: "은혜의 간증", href: PUBLIC_MENU_PATHS.testimony },
+    { id: -3, label: "선교 소식", href: PUBLIC_MENU_PATHS.mission },
     { id: -4, label: "자유게시판", href: "/community/joytalk" },
   ];
 
@@ -97,7 +103,7 @@ export default function TestimonyList() {
   const { user } = useAuth();
   const { data: allMenus } = trpc.home.menus.useQuery();
   const { parentLabel, sideMenuItems } = useMemo(
-    () => getCommunitySideMenuItems(allMenus, "/community/testimony"),
+    () => getCommunitySideMenuItems(allMenus, PUBLIC_MENU_PATHS.testimony),
     [allMenus],
   );
   const pageTitle = sideMenuItems.find((item) => item.isActive)?.label ?? "은혜의 간증";
@@ -217,12 +223,12 @@ export default function TestimonyList() {
               )}
             </div>
             {canWrite ? (
-              <Link href="/community/testimony/write" className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-[#1B5E20] px-4 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32]">
+              <Link href={getTestimonyWritePath()} className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-[#1B5E20] px-4 text-sm font-medium text-white transition-colors hover:bg-[#2E7D32]">
                 <i className="fas fa-pen text-[10px]"></i>
                 간증 작성
               </Link>
             ) : (
-              <Link href="/member/login?next=/community/testimony/write" className="inline-flex h-10 items-center justify-center rounded-full border border-[#1B5E20]/15 px-4 text-sm font-medium text-[#1B5E20] transition-colors hover:bg-[#F1F8E9]">
+              <Link href={`/member/login?next=${encodeURIComponent(getTestimonyWritePath())}`} className="inline-flex h-10 items-center justify-center rounded-full border border-[#1B5E20]/15 px-4 text-sm font-medium text-[#1B5E20] transition-colors hover:bg-[#F1F8E9]">
                 로그인 후 작성
               </Link>
             )}
@@ -314,7 +320,7 @@ export default function TestimonyList() {
                                 onClick={(event) => {
                                   event.preventDefault();
                                   event.stopPropagation();
-                                  navigate(`/community/testimony/edit/${post.id}`);
+                                  navigate(getTestimonyEditPath(post.id));
                                 }}
                                 className="inline-flex items-center rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-[#1B5E20]/25 hover:text-[#1B5E20]"
                               >
@@ -347,7 +353,7 @@ export default function TestimonyList() {
                 );
 
                 return (
-                  <Link key={post.id} href={`/community/testimony/${post.id}`}>
+                  <Link key={post.id} href={getTestimonyPath(post.id)}>
                     {article}
                   </Link>
                 );
@@ -408,7 +414,7 @@ export function TestimonyDetail() {
     onSuccess: async () => {
       toast.success("간증 글이 삭제됐습니다.");
       await utils.testimony.posts.invalidate();
-      navigate("/community/testimony");
+      navigate(PUBLIC_MENU_PATHS.testimony);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -416,7 +422,7 @@ export function TestimonyDetail() {
     onSuccess: async () => {
       toast.success("간증 글 상태가 변경됐습니다.");
       await utils.testimony.posts.invalidate();
-      navigate("/community/testimony");
+      navigate(PUBLIC_MENU_PATHS.testimony);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -434,7 +440,7 @@ export function TestimonyDetail() {
       <div className="min-h-screen bg-[#F7F7F5] flex items-center justify-center px-4">
         <div className="text-center">
           <p className="text-gray-500 mb-5">간증 글을 찾을 수 없습니다.</p>
-          <Link href="/community/testimony" className="bg-[#1B5E20] text-white px-6 py-2.5 rounded-full text-sm font-medium">
+          <Link href={PUBLIC_MENU_PATHS.testimony} className="bg-[#1B5E20] text-white px-6 py-2.5 rounded-full text-sm font-medium">
             목록으로
           </Link>
         </div>
@@ -448,14 +454,14 @@ export function TestimonyDetail() {
     <div className="min-h-screen bg-[#F7F7F5]">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/community/testimony" className="flex items-center gap-2 text-[#1B5E20] hover:opacity-80 transition-opacity">
+          <Link href={PUBLIC_MENU_PATHS.testimony} className="flex items-center gap-2 text-[#1B5E20] hover:opacity-80 transition-opacity">
             <i className="fas fa-chevron-left text-sm"></i>
             <span className="font-medium text-sm">생선 간증 목록</span>
           </Link>
           {(isAuthor || canManage) && (
             <div className="flex items-center gap-2">
               {(isAuthor || canManage) && (
-                <Link href={`/community/testimony/edit/${post.id}`} className="text-xs border border-gray-200 px-3 py-1.5 rounded-full text-gray-600 hover:text-[#1B5E20]">
+                <Link href={getTestimonyEditPath(post.id)} className="text-xs border border-gray-200 px-3 py-1.5 rounded-full text-gray-600 hover:text-[#1B5E20]">
                   수정
                 </Link>
               )}
@@ -562,7 +568,7 @@ export function TestimonyDetail() {
           ) : (
             <div className="mb-6 rounded-xl bg-[#F7F7F5] px-4 py-4 text-sm text-gray-500 flex flex-wrap items-center justify-between gap-3">
               <span>댓글은 로그인한 성도와 간증 관리 권한자만 작성할 수 있습니다.</span>
-              <Link href={`/member/login?next=/community/testimony/${post.id}`} className="text-[#1B5E20] font-medium hover:underline">
+              <Link href={`/member/login?next=${encodeURIComponent(getTestimonyPath(post.id))}`} className="text-[#1B5E20] font-medium hover:underline">
                 로그인하기
               </Link>
             </div>
@@ -685,7 +691,7 @@ export function TestimonyEditor() {
     onSuccess: async ({ id }) => {
       toast.success("간증이 등록됐습니다.");
       await utils.testimony.posts.invalidate();
-      navigate(`/community/testimony/${id}`);
+      navigate(getTestimonyPath(id));
     },
     onError: (e) => toast.error(e.message),
   });
@@ -696,7 +702,7 @@ export function TestimonyEditor() {
       await utils.testimony.posts.invalidate();
       if (editId) {
         await utils.testimony.post.invalidate({ id: editId });
-        navigate(`/community/testimony/${editId}`);
+        navigate(getTestimonyPath(editId));
       }
     },
     onError: (e) => toast.error(e.message),
@@ -710,7 +716,7 @@ export function TestimonyEditor() {
       if (editId) {
         await utils.testimony.post.invalidate({ id: editId });
         await utils.cms.testimonies.post.invalidate({ id: editId });
-        navigate(`/community/testimony/${editId}`);
+        navigate(getTestimonyPath(editId));
       }
     },
     onError: (e) => toast.error(e.message),
@@ -782,7 +788,7 @@ export function TestimonyEditor() {
       <div className="min-h-screen bg-[#F7F7F5] flex items-center justify-center px-4">
         <div className="text-center">
           <p className="text-gray-500 mb-5">간증 작성은 로그인한 성도와 간증 관리 권한자만 이용할 수 있습니다.</p>
-          <Link href="/member/login?next=/community/testimony/write" className="bg-[#1B5E20] text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-[#2E7D32]">
+          <Link href={`/member/login?next=${encodeURIComponent(getTestimonyWritePath())}`} className="bg-[#1B5E20] text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-[#2E7D32]">
             로그인하기
           </Link>
         </div>
@@ -795,7 +801,7 @@ export function TestimonyEditor() {
       <div className="min-h-screen bg-[#F7F7F5] flex items-center justify-center px-4">
         <div className="text-center">
           <p className="text-gray-500 mb-5">수정할 간증 글을 찾을 수 없습니다.</p>
-          <Link href="/community/testimony" className="bg-[#1B5E20] text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-[#2E7D32]">
+          <Link href={PUBLIC_MENU_PATHS.testimony} className="bg-[#1B5E20] text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-[#2E7D32]">
             목록으로
           </Link>
         </div>
@@ -807,7 +813,7 @@ export function TestimonyEditor() {
     <div className="min-h-screen bg-[#F7F7F5]">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href={editId ? `/community/testimony/${editId}` : "/community/testimony"} className="flex items-center gap-2 text-[#1B5E20] hover:opacity-80 transition-opacity">
+          <Link href={editId ? getTestimonyPath(editId) : PUBLIC_MENU_PATHS.testimony} className="flex items-center gap-2 text-[#1B5E20] hover:opacity-80 transition-opacity">
             <i className="fas fa-chevron-left text-sm"></i>
             <span className="font-medium text-sm">생선 간증</span>
           </Link>
@@ -900,7 +906,7 @@ export function TestimonyEditor() {
           </div>
 
           <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
-            <Link href="/community/testimony" className="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-500 hover:bg-gray-50">
+        <Link href={PUBLIC_MENU_PATHS.testimony} className="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-500 hover:bg-gray-50">
               취소
             </Link>
             <button

@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { hasContentPermission } from "@/lib/contentPermissions";
 import { SUPPORT_REQUEST_PERMISSION_KEYS, SUPPORT_REQUEST_ROOT_PERMISSION_KEY } from "@shared/adminPermissions";
+import { PUBLIC_MENU_PATHS } from "@shared/publicMenuRoutes";
 import {
   Building,
   Download,
@@ -74,7 +75,7 @@ function OwnAttachmentDownload({
 export default function SubtitleRequestPage() {
   const utils = trpc.useUtils();
   const { user } = useAuth();
-  const href = "/support/subtitle";
+  const href = PUBLIC_MENU_PATHS.subtitleRequest;
   const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, {
     retry: false,
     refetchOnWindowFocus: false,
@@ -204,7 +205,7 @@ export default function SubtitleRequestPage() {
 
   const handleWriteClick = () => {
     if (!memberLoading && !memberMe) {
-      window.location.href = `/member/login?next=${encodeURIComponent("/support/subtitle")}`;
+      window.location.href = `/member/login?next=${encodeURIComponent(PUBLIC_MENU_PATHS.subtitleRequest)}`;
       return;
     }
     setShowForm((value) => !value);
@@ -242,7 +243,7 @@ export default function SubtitleRequestPage() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!memberMe) {
-      window.location.href = `/member/login?next=${encodeURIComponent("/support/subtitle")}`;
+      window.location.href = `/member/login?next=${encodeURIComponent(PUBLIC_MENU_PATHS.subtitleRequest)}`;
       return;
     }
 
@@ -284,7 +285,7 @@ export default function SubtitleRequestPage() {
   const isSaving = submitSubtitle.isPending || updateSubtitle.isPending;
 
   return (
-    <SupportPageWrapper title="자막 신청" activeHref="/support/subtitle">
+    <SupportPageWrapper title="자막 신청" activeHref={PUBLIC_MENU_PATHS.subtitleRequest}>
       <div className="space-y-5">
         <div className="border-b border-gray-100 pb-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">

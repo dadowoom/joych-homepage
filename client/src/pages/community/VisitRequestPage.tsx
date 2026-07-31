@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { hasContentPermission } from "@/lib/contentPermissions";
 import { SUPPORT_REQUEST_PERMISSION_KEYS, SUPPORT_REQUEST_ROOT_PERMISSION_KEY } from "@shared/adminPermissions";
+import { PUBLIC_MENU_PATHS } from "@shared/publicMenuRoutes";
 import {
   Building,
   FileText,
@@ -60,7 +61,7 @@ const VISIT_STATUS_LABELS: Record<string, string> = {
 function VisitRequestBoardPage() {
   const utils = trpc.useUtils();
   const { user } = useAuth();
-  const href = "/support/tour";
+  const href = PUBLIC_MENU_PATHS.visitRequest;
   const { data: requests = [], isLoading } = trpc.support.listVisits.useQuery();
   const [managementTokens, setManagementTokens] = useState(getVisitManagementTokens);
   const { data: myVisitRequests = [] } = trpc.support.myVisits.useQuery({
@@ -239,7 +240,7 @@ function VisitRequestBoardPage() {
   };
 
   return (
-    <SupportPageWrapper title="탐방 신청" activeHref="/support/tour">
+    <SupportPageWrapper title="탐방 신청" activeHref={PUBLIC_MENU_PATHS.visitRequest}>
       <div className="space-y-5">
         <div className="border-b border-gray-100 pb-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">

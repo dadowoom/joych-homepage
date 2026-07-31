@@ -8,8 +8,8 @@ describe("home link helpers", () => {
     "https://m.joych.org/about/history",
     "https://newjoych.co.kr/about/history",
     "https://www.newjoych.co.kr/about/history",
-  ])("normalizes a DB-saved internal absolute URL: %s", href => {
-    expect(getUsableHref(href, "/")).toBe("/about/history");
+  ])("normalizes a DB-saved internal absolute URL to the Korean menu URL: %s", href => {
+    expect(getUsableHref(href, "/")).toBe("/page/교회소개-교회-연혁");
     expect(isExternalHref(href)).toBe(false);
   });
 
@@ -22,6 +22,6 @@ describe("home link helpers", () => {
   it("uses a normalized fallback for an empty or placeholder URL", () => {
     expect(
       getUsableHref("#", "https://newjoych.co.kr/worship/schedule")
-    ).toBe("/worship/schedule");
+    ).toBe("/page/교회소개-예배-안내");
   });
 });

@@ -8,6 +8,23 @@ import MenuAccessGate from "@/components/MenuAccessGate";
 import { trpc } from "@/lib/trpc";
 import { findCourseRoomBySlug } from "@/lib/courseRoutes";
 import {
+  getAcademyApplicationsPath,
+  getBulletinPath,
+  getExternalFacilityApplyPath,
+  getExternalFacilityPath,
+  getFacilityApplyPath,
+  getFacilityPath,
+  getFacilityReservationsPath,
+  getMissionEditPath,
+  getMissionPath,
+  getMissionWritePath,
+  getPastorBookPath,
+  getTestimonyEditPath,
+  getTestimonyPath,
+  getTestimonyWritePath,
+  PUBLIC_MENU_PATHS,
+} from "@shared/publicMenuRoutes";
+import {
   DOMAIN_SESSION_PROBE_STORAGE_KEY,
   DOMAIN_SESSION_PROBE_STORAGE_VALUE,
   LEGACY_SESSION_SITE_ORIGIN,
@@ -107,10 +124,54 @@ const DynamicMenuHrefPage = lazy(() =>
 
 function GuardedPastorBookDetailPage(props: RouteComponentProps<{ id: string }>) {
   return (
-    <MenuAccessGate href="/about/pastor/books">
+    <MenuAccessGate href={PUBLIC_MENU_PATHS.pastorBooks}>
       <PastorBookDetailPage {...props} />
     </MenuAccessGate>
   );
+}
+
+function LegacyPastorBookDetailRedirect(props: RouteComponentProps<{ id: string }>) {
+  return <LegacyRedirect to={getPastorBookPath(props.params.id)} />;
+}
+
+function LegacyTestimonyDetailRedirect(props: RouteComponentProps<{ id: string }>) {
+  return <LegacyRedirect to={getTestimonyPath(props.params.id)} />;
+}
+
+function LegacyTestimonyEditRedirect(props: RouteComponentProps<{ id: string }>) {
+  return <LegacyRedirect to={getTestimonyEditPath(props.params.id)} />;
+}
+
+function LegacyMissionDetailRedirect(props: RouteComponentProps<{ id: string }>) {
+  return <LegacyRedirect to={getMissionPath(props.params.id)} />;
+}
+
+function LegacyMissionEditRedirect(props: RouteComponentProps<{ id: string }>) {
+  return <LegacyRedirect to={getMissionEditPath(props.params.id)} />;
+}
+
+function LegacyBulletinDetailRedirect(props: RouteComponentProps<{ id: string }>) {
+  return <LegacyRedirect to={getBulletinPath(props.params.id)} />;
+}
+
+function LegacyAcademyCourseRedirect(props: RouteComponentProps<{ slug: string }>) {
+  return <LegacyRedirect to={`${PUBLIC_MENU_PATHS.academy}/${encodeURIComponent(props.params.slug)}`} />;
+}
+
+function LegacyFacilityDetailRedirect(props: RouteComponentProps<{ id: string }>) {
+  return <LegacyRedirect to={getFacilityPath(props.params.id)} />;
+}
+
+function LegacyFacilityApplyRedirect(props: RouteComponentProps<{ id: string }>) {
+  return <LegacyRedirect to={getFacilityApplyPath(props.params.id)} />;
+}
+
+function LegacyExternalFacilityDetailRedirect(props: RouteComponentProps<{ id: string }>) {
+  return <LegacyRedirect to={getExternalFacilityPath(props.params.id)} />;
+}
+
+function LegacyExternalFacilityApplyRedirect(props: RouteComponentProps<{ id: string }>) {
+  return <LegacyRedirect to={getExternalFacilityApplyPath(props.params.id)} />;
 }
 
 function CourseRoomPage(props: RouteComponentProps<{ slug: string }>) {
@@ -349,7 +410,8 @@ function LegacyRedirect({ to }: { to: string }) {
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    setLocation(to, { replace: true });
+    const search = typeof window === "undefined" ? "" : window.location.search;
+    setLocation(`${to}${search}`, { replace: true });
   }, [setLocation, to]);
 
   return null;
@@ -542,11 +604,11 @@ function Router() {
       <Route path="/legacy-vod/:pageCode/:num/:vodType" component={LegacyVodPage} />
 
       {/* 교회소개 */}
-      <Route path="/about/pastor"><MenuAccessGate href="/about/pastor"><PastorGreeting /></MenuAccessGate></Route>
-      <Route path="/about/history"><MenuAccessGate href="/about/history"><ChurchHistory /></MenuAccessGate></Route>
-      <Route path="/about/vision"><MenuAccessGate href="/about/vision"><ChurchVision /></MenuAccessGate></Route>
-      <Route path="/about/pastor/books/:id" component={GuardedPastorBookDetailPage} />
-      <Route path="/about/pastor/books"><MenuAccessGate href="/about/pastor/books"><PastorBooksPage /></MenuAccessGate></Route>
+      <Route path="/about/pastor"><LegacyRedirect to={PUBLIC_MENU_PATHS.pastorGreeting} /></Route>
+      <Route path="/about/history"><LegacyRedirect to={PUBLIC_MENU_PATHS.churchHistory} /></Route>
+      <Route path="/about/vision"><LegacyRedirect to="/page/교회소개-3대-비전-9대-전략" /></Route>
+      <Route path="/about/pastor/books/:id" component={LegacyPastorBookDetailRedirect} />
+      <Route path="/about/pastor/books"><LegacyRedirect to={PUBLIC_MENU_PATHS.pastorBooks} /></Route>
       <Route path="/about/staff/associate"><MenuAccessGate href="/about/staff/associate"><StaffPage /></MenuAccessGate></Route>
       <Route path="/about/staff"><MenuAccessGate href="/about/staff"><StaffPage /></MenuAccessGate></Route>
       <Route path="/about/whitebook" component={WhiteBookPage} />
@@ -558,7 +620,7 @@ function Router() {
       {/* 조이풀TV */}
       <Route path="/worship/tv"><MenuAccessGate href="/worship/tv"><JoyfulTV /></MenuAccessGate></Route>
       <Route path="/worship/tv/sunday"><MenuAccessGate href="/worship/tv/sunday"><SundayWorshipPage /></MenuAccessGate></Route>
-      <Route path="/worship/tv/hebron"><MenuAccessGate href="/worship/tv/hebron"><WednesdayWorshipPage /></MenuAccessGate></Route>
+      <Route path="/worship/tv/hebron"><LegacyRedirect to={PUBLIC_MENU_PATHS.hebronWorship} /></Route>
       <Route path="/worship/tv/shekhinah"><MenuAccessGate href="/worship/tv/shekhinah"><FridayPrayerPage /></MenuAccessGate></Route>
       <Route path="/worship/tv/gloria"><MenuAccessGate href="/worship/tv/gloria"><DawnBiblePage /></MenuAccessGate></Route>
       <Route path="/worship/tv/pastor-series"><MenuAccessGate href="/worship/tv/pastor-series"><PastorSeriesPage /></MenuAccessGate></Route>
@@ -568,23 +630,21 @@ function Router() {
       <Route path="/worship/tv/testimony"><MenuAccessGate href="/worship/tv/testimony"><TestimonyPage /></MenuAccessGate></Route>
       <Route path="/worship/tv/praise"><MenuAccessGate href="/worship/tv/praise"><PraisePage /></MenuAccessGate></Route>
       <Route path="/worship/schedule-beta">
-        <LegacyRedirect to="/worship/schedule" />
+        <LegacyRedirect to={PUBLIC_MENU_PATHS.worshipSchedule} />
       </Route>
       <Route path="/worship/schedule">
-        <MenuAccessGate href="/worship/schedule">
-          <WorshipSchedulePage />
-        </MenuAccessGate>
+        <LegacyRedirect to={PUBLIC_MENU_PATHS.worshipSchedule} />
       </Route>
-      <Route path="/worship/bulletin/:id"><MenuAccessGate href="/worship/bulletin"><BulletinDetail /></MenuAccessGate></Route>
-      <Route path="/worship/bulletin"><MenuAccessGate href="/worship/bulletin"><Bulletin /></MenuAccessGate></Route>
+      <Route path="/worship/bulletin/:id" component={LegacyBulletinDetailRedirect} />
+      <Route path="/worship/bulletin"><LegacyRedirect to={PUBLIC_MENU_PATHS.bulletin} /></Route>
 
       {/* 양육/훈련 */}
       <Route path="/education/new-member" component={NewMember} />
       <Route path="/education/disciple" component={DiscipleTraining} />
       <Route path="/education/bible" component={BibleStudy} />
-      <Route path="/education/my-courses" component={MyCourseApplications} />
-      <Route path="/education/courses/:slug" component={CourseRoomPage} />
-      <Route path="/education/courses"><MenuAccessGate href="/education/courses"><CourseList showHero={false} /></MenuAccessGate></Route>
+      <Route path="/education/my-courses"><LegacyRedirect to={getAcademyApplicationsPath()} /></Route>
+      <Route path="/education/courses/:slug" component={LegacyAcademyCourseRedirect} />
+      <Route path="/education/courses"><LegacyRedirect to={PUBLIC_MENU_PATHS.academy} /></Route>
       <Route path="/education/hesed" component={HesedAsiaPage} />
       <Route path="/education/disciple2" component={DiscipleTrainingPage} />
       <Route path="/education/elder" component={ElderTrainingPage} />
@@ -604,10 +664,10 @@ function Router() {
       <Route path="/mission-work/domestic"><MenuAccessGate href="/mission"><DomesticMission /></MenuAccessGate></Route>
       <Route path="/mission-work/overseas"><MenuAccessGate href="/mission"><OverseasMission /></MenuAccessGate></Route>
       <Route path="/mission-work/volunteer"><MenuAccessGate href="/mission"><Volunteer /></MenuAccessGate></Route>
-      <Route path="/mission/write"><MenuAccessGate href="/mission"><MissionReportEditor /></MenuAccessGate></Route>
-      <Route path="/mission/edit/:id"><MenuAccessGate href="/mission"><MissionReportEditor /></MenuAccessGate></Route>
-      <Route path="/mission/:id"><MenuAccessGate href="/mission"><MissionDetail /></MenuAccessGate></Route>
-      <Route path="/mission"><MenuAccessGate href="/mission"><MissionList /></MenuAccessGate></Route>
+      <Route path="/mission/write"><LegacyRedirect to={getMissionWritePath()} /></Route>
+      <Route path="/mission/edit/:id" component={LegacyMissionEditRedirect} />
+      <Route path="/mission/:id" component={LegacyMissionDetailRedirect} />
+      <Route path="/mission"><LegacyRedirect to={PUBLIC_MENU_PATHS.mission} /></Route>
 
       {/* 커뮤니티 */}
       <Route path="/community/news">
@@ -620,10 +680,10 @@ function Router() {
       <Route path="/community/photo">
         <LegacyRedirect to="/page/커뮤니티-최근-행사-사진" />
       </Route>
-      <Route path="/community/testimony/write"><MenuAccessGate href="/community/testimony"><TestimonyEditor /></MenuAccessGate></Route>
-      <Route path="/community/testimony/edit/:id"><MenuAccessGate href="/community/testimony"><TestimonyEditor /></MenuAccessGate></Route>
-      <Route path="/community/testimony/:id"><MenuAccessGate href="/community/testimony"><TestimonyDetail /></MenuAccessGate></Route>
-      <Route path="/community/testimony"><MenuAccessGate href="/community/testimony"><TestimonyList /></MenuAccessGate></Route>
+      <Route path="/community/testimony/write"><LegacyRedirect to={getTestimonyWritePath()} /></Route>
+      <Route path="/community/testimony/edit/:id" component={LegacyTestimonyEditRedirect} />
+      <Route path="/community/testimony/:id" component={LegacyTestimonyDetailRedirect} />
+      <Route path="/community/testimony"><LegacyRedirect to={PUBLIC_MENU_PATHS.testimony} /></Route>
       <Route path="/community/joytalk">
         <LegacyRedirect to="/page/커뮤니티-자유게시판" />
       </Route>
@@ -636,11 +696,11 @@ function Router() {
       <Route path="/support/vehicle"><MenuAccessGate href="/support/vehicle"><VehicleReservationList /></MenuAccessGate></Route>
       <Route path="/support/new-member"><MenuAccessGate href="/support/new-member"><NewMemberGuide /></MenuAccessGate></Route>
       <Route path="/support/store"><MenuAccessGate href="/support/store"><JoyfulStore /></MenuAccessGate></Route>
-      <Route path="/support/bulletin-ad"><MenuAccessGate href="/support/bulletin-ad"><BulletinAdRequestPage /></MenuAccessGate></Route>
-      <Route path="/support/subtitle"><MenuAccessGate href="/support/subtitle"><SubtitleRequestPage /></MenuAccessGate></Route>
+      <Route path="/support/bulletin-ad"><LegacyRedirect to={PUBLIC_MENU_PATHS.bulletinAd} /></Route>
+      <Route path="/support/subtitle"><LegacyRedirect to={PUBLIC_MENU_PATHS.subtitleRequest} /></Route>
       <Route path="/support/office"><MenuAccessGate href="/support/office"><OnlineOfficePage /></MenuAccessGate></Route>
-      <Route path="/support/tour"><MenuAccessGate href="/support/tour"><VisitRequestPage /></MenuAccessGate></Route>
-      <Route path="/support/donation"><MenuAccessGate href="/support/donation"><DonationReceiptPage /></MenuAccessGate></Route>
+      <Route path="/support/tour"><LegacyRedirect to={PUBLIC_MENU_PATHS.visitRequest} /></Route>
+      <Route path="/support/donation"><LegacyRedirect to={PUBLIC_MENU_PATHS.donationReceipt} /></Route>
 
       {/* 행정지원 - 기존 공개 URL 호환 */}
       <Route path="/admin/offering"><MenuAccessGate href="/support/offering"><Offering /></MenuAccessGate></Route>
@@ -663,16 +723,110 @@ function Router() {
       <Route path="/member/my-page" component={MemberMyPage} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
 
-      <Route path="/facility/external/:id/apply" component={ExternalFacilityApply} />
-      <Route path="/facility/external/:id" component={ExternalFacilityDetail} />
-      <Route path="/facility/external" component={ExternalFacilityList} />
-      <Route path="/facility"><MenuAccessGate href="/facility"><FacilityList /></MenuAccessGate></Route>
-      <Route path="/facility/my-reservations"><MenuAccessGate href="/facility"><MyReservations /></MenuAccessGate></Route>
-      <Route path="/facility/:id/apply"><MenuAccessGate href="/facility"><FacilityApply /></MenuAccessGate></Route>
-      <Route path="/facility/:id"><MenuAccessGate href="/facility"><FacilityDetail /></MenuAccessGate></Route>
+      <Route path="/facility/external/:id/apply" component={LegacyExternalFacilityApplyRedirect} />
+      <Route path="/facility/external/:id" component={LegacyExternalFacilityDetailRedirect} />
+      <Route path="/facility/external"><LegacyRedirect to={PUBLIC_MENU_PATHS.externalFacility} /></Route>
+      <Route path="/facility"><LegacyRedirect to={PUBLIC_MENU_PATHS.facility} /></Route>
+      <Route path="/facility/my-reservations"><LegacyRedirect to={getFacilityReservationsPath()} /></Route>
+      <Route path="/facility/:id/apply" component={LegacyFacilityApplyRedirect} />
+      <Route path="/facility/:id" component={LegacyFacilityDetailRedirect} />
 
       {/* 사이트맵 */}
-      <Route path="/sitemap"><MenuAccessGate href="/sitemap"><Sitemap /></MenuAccessGate></Route>
+      <Route path="/sitemap"><LegacyRedirect to={PUBLIC_MENU_PATHS.sitemap} /></Route>
+
+      {/* 공개 메뉴 한글 기준 주소 */}
+      <Route path={PUBLIC_MENU_PATHS.pastorGreeting}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.pastorGreeting}><PastorGreeting /></MenuAccessGate>
+      </Route>
+      <Route path={`${PUBLIC_MENU_PATHS.pastorBooks}/:id`} component={GuardedPastorBookDetailPage} />
+      <Route path={PUBLIC_MENU_PATHS.pastorBooks}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.pastorBooks}><PastorBooksPage /></MenuAccessGate>
+      </Route>
+      <Route path={PUBLIC_MENU_PATHS.churchHistory}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.churchHistory}><ChurchHistory /></MenuAccessGate>
+      </Route>
+      <Route path={PUBLIC_MENU_PATHS.worshipSchedule}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.worshipSchedule}><WorshipSchedulePage /></MenuAccessGate>
+      </Route>
+      <Route path={PUBLIC_MENU_PATHS.hebronWorship}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.hebronWorship}><WednesdayWorshipPage /></MenuAccessGate>
+      </Route>
+
+      <Route path={getTestimonyWritePath()}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.testimony}><TestimonyEditor /></MenuAccessGate>
+      </Route>
+      <Route path={`${PUBLIC_MENU_PATHS.testimony}/:id/수정`}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.testimony}><TestimonyEditor /></MenuAccessGate>
+      </Route>
+      <Route path={`${PUBLIC_MENU_PATHS.testimony}/:id`}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.testimony}><TestimonyDetail /></MenuAccessGate>
+      </Route>
+      <Route path={PUBLIC_MENU_PATHS.testimony}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.testimony}><TestimonyList /></MenuAccessGate>
+      </Route>
+
+      <Route path={getMissionWritePath()}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.mission}><MissionReportEditor /></MenuAccessGate>
+      </Route>
+      <Route path={`${PUBLIC_MENU_PATHS.mission}/:id/수정`}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.mission}><MissionReportEditor /></MenuAccessGate>
+      </Route>
+      <Route path={`${PUBLIC_MENU_PATHS.mission}/:id`}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.mission}><MissionDetail /></MenuAccessGate>
+      </Route>
+      <Route path={PUBLIC_MENU_PATHS.mission}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.mission}><MissionList /></MenuAccessGate>
+      </Route>
+
+      <Route path={`${PUBLIC_MENU_PATHS.bulletin}/:id`}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.bulletin}><BulletinDetail /></MenuAccessGate>
+      </Route>
+      <Route path={PUBLIC_MENU_PATHS.bulletin}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.bulletin}><Bulletin /></MenuAccessGate>
+      </Route>
+      <Route path={PUBLIC_MENU_PATHS.bulletinAd}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.bulletinAd}><BulletinAdRequestPage /></MenuAccessGate>
+      </Route>
+      <Route path={PUBLIC_MENU_PATHS.subtitleRequest}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.subtitleRequest}><SubtitleRequestPage /></MenuAccessGate>
+      </Route>
+      <Route path={PUBLIC_MENU_PATHS.visitRequest}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.visitRequest}><VisitRequestPage /></MenuAccessGate>
+      </Route>
+      <Route path={PUBLIC_MENU_PATHS.donationReceipt}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.donationReceipt}><DonationReceiptPage /></MenuAccessGate>
+      </Route>
+
+      <Route path={getAcademyApplicationsPath()} component={MyCourseApplications} />
+      <Route path={`${PUBLIC_MENU_PATHS.academy}/:slug`} component={CourseRoomPage} />
+      <Route path={PUBLIC_MENU_PATHS.academy}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.academy}><CourseList showHero={false} /></MenuAccessGate>
+      </Route>
+
+      <Route path={`${PUBLIC_MENU_PATHS.externalFacility}/:id/신청`}>
+        <ExternalFacilityApply />
+      </Route>
+      <Route path={`${PUBLIC_MENU_PATHS.externalFacility}/:id`}>
+        <ExternalFacilityDetail />
+      </Route>
+      <Route path={PUBLIC_MENU_PATHS.externalFacility}>
+        <ExternalFacilityList />
+      </Route>
+      <Route path={getFacilityReservationsPath()}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.facility}><MyReservations /></MenuAccessGate>
+      </Route>
+      <Route path={`${PUBLIC_MENU_PATHS.facility}/:id/신청`}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.facility}><FacilityApply /></MenuAccessGate>
+      </Route>
+      <Route path={`${PUBLIC_MENU_PATHS.facility}/:id`}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.facility}><FacilityDetail /></MenuAccessGate>
+      </Route>
+      <Route path={PUBLIC_MENU_PATHS.facility}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.facility}><FacilityList /></MenuAccessGate>
+      </Route>
+      <Route path={PUBLIC_MENU_PATHS.sitemap}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.sitemap}><Sitemap /></MenuAccessGate>
+      </Route>
 
       {/* 동적 메뉴 페이지 (pageType에 따라 다른 UI 표시) */}
       <Route path="/page/item/:id" component={DynamicMenuItemPage} />

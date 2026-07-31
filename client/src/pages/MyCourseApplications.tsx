@@ -6,6 +6,10 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import MemberOnlyContentNotice from "@/components/MemberOnlyContentNotice";
 import {
+  getAcademyApplicationsPath,
+  PUBLIC_MENU_PATHS,
+} from "@shared/publicMenuRoutes";
+import {
   Ban,
   BookOpen,
   Calendar,
@@ -134,7 +138,7 @@ export default function MyCourseApplications() {
     return (
       <div className="min-h-screen bg-[#F7F7F5] px-4 py-8 sm:py-12">
         <div className="mx-auto max-w-5xl">
-          <MemberOnlyContentNotice resourceLabel={copy.pageTitle} description={copy.memberOnly} fallbackPath="/education/my-courses" />
+          <MemberOnlyContentNotice resourceLabel={copy.pageTitle} description={copy.memberOnly} fallbackPath={getAcademyApplicationsPath()} />
         </div>
       </div>
     );
@@ -147,7 +151,7 @@ export default function MyCourseApplications() {
           <nav className="mb-3 flex flex-wrap items-center gap-2 text-xs text-green-200">
             <Link href="/" className="transition-colors hover:text-white">{copy.home}</Link>
             <ChevronRight className="h-3 w-3" />
-            <Link href="/education/courses" className="transition-colors hover:text-white">{copy.courseApplication}</Link>
+            <Link href={PUBLIC_MENU_PATHS.academy} className="transition-colors hover:text-white">{copy.courseApplication}</Link>
             <ChevronRight className="h-3 w-3" />
             <span className="text-white">{copy.pageTitle}</span>
           </nav>
@@ -156,7 +160,7 @@ export default function MyCourseApplications() {
               <h1 className="text-2xl font-bold md:text-3xl" style={{ fontFamily: "'Noto Serif KR', serif" }}>{copy.pageTitle}</h1>
               <p className="mt-1 text-sm text-green-200">{member?.name} {copy.courseApplication}</p>
             </div>
-            <Link href="/education/courses" className="rounded-lg border border-green-200 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-white/10">
+            <Link href={PUBLIC_MENU_PATHS.academy} className="rounded-lg border border-green-200 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-white/10">
               {copy.courseApplication}
             </Link>
           </div>
@@ -184,7 +188,7 @@ export default function MyCourseApplications() {
             <div className="rounded-xl border border-gray-100 bg-white py-20 text-center shadow-sm">
               <BookOpen className="mx-auto mb-4 h-12 w-12 text-gray-200" />
               <p className="text-base font-medium text-gray-500">{copy.noApplications}</p>
-              <Link href="/education/courses" className="mt-5 inline-flex rounded-lg bg-[#1B5E20] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#2E7D32]">{copy.courseApplication}</Link>
+              <Link href={PUBLIC_MENU_PATHS.academy} className="mt-5 inline-flex rounded-lg bg-[#1B5E20] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#2E7D32]">{copy.courseApplication}</Link>
             </div>
           ) : (
             <div className="space-y-3">

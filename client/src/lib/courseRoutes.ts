@@ -1,3 +1,8 @@
+import {
+  getAcademyCoursePath,
+  PUBLIC_MENU_PATHS,
+} from "@shared/publicMenuRoutes";
+
 type CourseMenuSubItem = {
   id: number;
   label: string;
@@ -15,7 +20,7 @@ type CourseMenu = {
   items?: CourseMenuItem[];
 };
 
-export const COURSE_ROOT_HREF = "/education/courses";
+export const COURSE_ROOT_HREF = PUBLIC_MENU_PATHS.academy;
 
 function normalizeLabel(value: string | null | undefined) {
   return (value ?? "").replace(/\s+/g, "").trim();
@@ -34,7 +39,8 @@ function normalizeHref(path: string | null | undefined) {
 }
 
 export function isCourseTopMenuLabel(label: string | null | undefined) {
-  return normalizeLabel(label) === "강좌";
+  const normalized = normalizeLabel(label);
+  return normalized === "강좌" || normalized === "교육·신청";
 }
 
 export function isCourseLegacyHref(href: string | null | undefined) {
@@ -54,7 +60,7 @@ export function getCanonicalCourseHref(label: string | null | undefined, href?: 
   if (!slug || normalizeLabel(label) === "조이아카데미") {
     return COURSE_ROOT_HREF;
   }
-  return `${COURSE_ROOT_HREF}/${encodeURIComponent(slug)}`;
+  return getAcademyCoursePath(slug);
 }
 
 export function findCourseRoomBySlug(

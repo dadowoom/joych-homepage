@@ -14,6 +14,8 @@ import { toast } from "sonner";
 import SubPageLayout from "@/components/SubPageLayout";
 import CourseRoomManagerPanel from "@/components/CourseRoomManagerPanel";
 import { getSideLayoutByHref } from "@/lib/menuSideLayout";
+import { COURSE_ROOT_HREF } from "@/lib/courseRoutes";
+import { getAcademyApplicationsPath } from "@shared/publicMenuRoutes";
 import {
   Ban,
   BookOpen,
@@ -178,7 +180,7 @@ export default function CourseList({ pageHref, title, embedded = false, showHero
     refetchOnWindowFocus: false,
   });
   const isAuthenticated = Boolean(memberMe);
-  const currentPageHref = pageHref || "/education/courses";
+  const currentPageHref = pageHref || COURSE_ROOT_HREF;
   const sideLayout = useMemo(
     () => getSideLayoutByHref(allMenus, currentPageHref, title ?? "교육/강좌 신청"),
     [allMenus, currentPageHref, title],
@@ -291,7 +293,7 @@ export default function CourseList({ pageHref, title, embedded = false, showHero
         <div className="container max-w-5xl mx-auto">
           <div className="mb-5 flex justify-end">
             <Link
-              href="/education/my-courses"
+              href={getAcademyApplicationsPath()}
               className="inline-flex items-center gap-2 rounded-lg border border-[#1B5E20] bg-white px-4 py-2.5 text-sm font-bold text-[#1B5E20] shadow-sm transition-colors hover:bg-green-50"
             >
               <CalendarCheck className="h-4 w-4" /> 내 강좌 현황

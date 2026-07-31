@@ -12,6 +12,7 @@ import HomeAdminDock from "@/components/HomeAdminDock";
 import PwaInstallCard from "@/components/PwaInstallCard";
 import { getLoginUrl } from "@/const";
 import { finishDomainLogout } from "@/lib/mainHomepageDomain";
+import { PUBLIC_MENU_PATHS } from "@shared/publicMenuRoutes";
 import HomeAffiliates from "./home/HomeAffiliates";
 import HomeFeatureCards from "./home/HomeFeatureCards";
 import HomeFooter from "./home/HomeFooter";
@@ -54,7 +55,7 @@ const FALLBACK_HERO_SLIDES = [
     btn1Text: "새가족 등록",
     btn1Href: "/support/new-member",
     btn2Text: "예배 안내",
-    btn2Href: "/worship/schedule",
+    btn2Href: PUBLIC_MENU_PATHS.worshipSchedule,
   },
 ];
 const WORSHIP_IMAGE =
@@ -65,23 +66,23 @@ const FALLBACK_QUICK_MENUS = [
   {
     icon: "fa-user-tie",
     label: "담임목사 인사",
-    href: "/page/교회소개-담임목사-소개",
+    href: PUBLIC_MENU_PATHS.pastorGreeting,
   },
-  { icon: "fa-hands-praying", label: "선교보고서", href: "/mission" },
-  { icon: "fa-newspaper", label: "주보 보기", href: "/worship/bulletin" },
-  { icon: "fa-clock", label: "예배시간 안내", href: "/worship/schedule" },
-  { icon: "fa-building", label: "시설사용예약", href: "/facility" },
+  { icon: "fa-hands-praying", label: "선교보고서", href: PUBLIC_MENU_PATHS.mission },
+  { icon: "fa-newspaper", label: "주보 보기", href: PUBLIC_MENU_PATHS.bulletin },
+  { icon: "fa-clock", label: "예배시간 안내", href: PUBLIC_MENU_PATHS.worshipSchedule },
+  { icon: "fa-building", label: "시설사용예약", href: PUBLIC_MENU_PATHS.facility },
   { icon: "fa-store", label: "조이플스토어", href: "/support/store" },
   { icon: "fa-user-plus", label: "새가족 안내", href: "/support/new-member" },
   { icon: "fa-bus", label: "차량운행 안내", href: "/support/vehicle" },
-  { icon: "fa-map-marker-alt", label: "오시는 길", href: "/about/directions" },
+  { icon: "fa-map-marker-alt", label: "오시는 길", href: "/page/교회소개-오시는길" },
 ];
 
 const FALLBACK_AFFILIATES = [
   { icon: "fa-hands-helping", label: "기쁨의복지재단", href: null },
   { icon: "fa-building", label: "창포종합사회복지관", href: null },
   { icon: "fa-tree", label: "조이플빌리지", href: null },
-  { icon: "fa-graduation-cap", label: "조이아카데미 문화강좌", href: "/education/courses" },
+  { icon: "fa-graduation-cap", label: "조이아카데미 문화강좌", href: PUBLIC_MENU_PATHS.academy },
   {
     icon: "fa-heart",
     label: "기쁨이 있는 곳",
@@ -105,7 +106,7 @@ type HeroButtonSource = {
 
 const DEFAULT_HERO_BUTTONS: HeroButtonConfig[] = [
   { label: "새가족 등록", href: "/support/new-member" },
-  { label: "예배 안내", href: "/worship/schedule" },
+  { label: "예배 안내", href: PUBLIC_MENU_PATHS.worshipSchedule },
 ];
 
 const HERO_BUTTON_COLOR_CLASSES: Record<string, string> = {
@@ -176,7 +177,7 @@ const FALLBACK_FEATURE_CARDS: HomeFeatureCard[] = [
     description: "교회 구성원들이 나누는 실제 신앙 간증과 영감의 메시지를 소개합니다.",
     buttonText: "자세히 보기",
     imageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-worship-praise_d34c61eb.webp",
-    href: "/community/testimony",
+    href: PUBLIC_MENU_PATHS.testimony,
   },
   {
     badge: "MISSION REPORT",
@@ -184,7 +185,7 @@ const FALLBACK_FEATURE_CARDS: HomeFeatureCard[] = [
     description: "전도와 구제를 위한 선교 활동 현황을 주보와 함께 확인할 수 있습니다.",
     buttonText: "자세히 보기",
     imageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663470178900/KASTcRBzh5rwhJEekrJN6E/church-worship-sunday_f599f896.jpg",
-    href: "/mission",
+    href: PUBLIC_MENU_PATHS.mission,
   },
   {
     badge: "PLAY GROUND",
@@ -202,7 +203,7 @@ const FALLBACK_CHURCH_INTRO_SECTION: HomeSectionConfig = {
   description:
     "우리는 예수 그리스도의 사랑 안에서 한마음으로 예배하고, 성장을 통해 서로를 세우며, 이웃에게 사랑을 실천합니다.",
   buttonText: "교회 소개 보기",
-  buttonHref: "/about/vision",
+  buttonHref: "/page/교회소개-3대-비전-9대-전략",
   backgroundImage: VISION_IMAGE,
 };
 
@@ -212,7 +213,7 @@ const FALLBACK_WORSHIP_SECTION: HomeSectionConfig = {
   subtitle: "매주 토요일 저녁",
   description: "모든 성도님들이 함께 참여할 수 있는 예배를 준비합니다.",
   buttonText: "예배 시간표 보기",
-  buttonHref: "/worship/schedule",
+  buttonHref: PUBLIC_MENU_PATHS.worshipSchedule,
   backgroundImage: WORSHIP_IMAGE,
 };
 

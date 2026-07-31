@@ -10,6 +10,11 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { canManageBoardContent } from "@/lib/contentPermissions";
 import { trpc } from "@/lib/trpc";
 import { CONTINENT_LABELS } from "@/lib/missionData";
+import {
+  getMissionEditPath,
+  getMissionPath,
+  PUBLIC_MENU_PATHS,
+} from "@shared/publicMenuRoutes";
 import { toast } from "sonner";
 
 function formatDate(dateStr: string): string {
@@ -43,7 +48,7 @@ export default function MissionDetail() {
   const deleteReport = trpc.cms.missionReports.deleteReport.useMutation({
     onSuccess: () => {
       toast.success("선교보고가 삭제되었습니다.");
-      navigate("/mission");
+      navigate(PUBLIC_MENU_PATHS.mission);
     },
     onError: (error) => toast.error(error.message || "선교보고 삭제에 실패했습니다."),
   });
@@ -67,7 +72,7 @@ export default function MissionDetail() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#F7F7F5]">
         <i className="fas fa-exclamation-circle text-5xl text-gray-300 mb-4"></i>
         <p className="text-gray-500 mb-6">선교보고를 찾을 수 없습니다.</p>
-        <Link href="/mission" className="bg-[#1B5E20] text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-[#2E7D32] transition-colors">
+          <Link href={PUBLIC_MENU_PATHS.mission} className="bg-[#1B5E20] text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-[#2E7D32] transition-colors">
           목록으로 돌아가기
         </Link>
       </div>
@@ -79,14 +84,14 @@ export default function MissionDetail() {
       {/* ── 상단 헤더 ── */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/mission" className="flex items-center gap-2 text-[#1B5E20] hover:opacity-80 transition-opacity">
+          <Link href={PUBLIC_MENU_PATHS.mission} className="flex items-center gap-2 text-[#1B5E20] hover:opacity-80 transition-opacity">
             <i className="fas fa-chevron-left text-sm"></i>
             <span className="font-medium text-sm">선교보고 목록</span>
           </Link>
           {canManage ? (
             <div className="flex items-center gap-2">
               <Link
-                href={`/mission/edit/${report.id}`}
+                    href={getMissionEditPath(report.id)}
                 className="inline-flex items-center rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-[#1B5E20] hover:text-[#1B5E20]"
               >
                 수정
@@ -211,7 +216,7 @@ export default function MissionDetail() {
                 <p className="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wider">다른 선교보고</p>
                 {relatedReports
                   .map(r => (
-                    <Link key={r.id} href={`/mission/${r.id}`} className="block mb-2 text-sm text-gray-600 hover:text-[#1B5E20] transition-colors leading-snug">
+                  <Link key={r.id} href={getMissionPath(r.id)} className="block mb-2 text-sm text-gray-600 hover:text-[#1B5E20] transition-colors leading-snug">
                       <i className="fas fa-file-alt text-xs mr-1.5 text-gray-300"></i>
                       {r.title.length > 28 ? r.title.slice(0, 28) + "…" : r.title}
                     </Link>
@@ -315,7 +320,7 @@ export default function MissionDetail() {
             {/* 이전/다음 보고 */}
             <div className="grid grid-cols-2 gap-4">
               {nextReport ? (
-                <Link href={`/mission/${nextReport.id}`} className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow group">
+                <Link href={getMissionPath(nextReport.id)} className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow group">
                   <p className="text-xs text-gray-400 mb-1.5 flex items-center gap-1">
                     <i className="fas fa-chevron-left text-xs"></i> 이전 보고
                   </p>
@@ -325,7 +330,7 @@ export default function MissionDetail() {
                 </Link>
               ) : <div></div>}
               {prevReport ? (
-                <Link href={`/mission/${prevReport.id}`} className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow group text-right">
+                <Link href={getMissionPath(prevReport.id)} className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow group text-right">
                   <p className="text-xs text-gray-400 mb-1.5 flex items-center justify-end gap-1">
                     다음 보고 <i className="fas fa-chevron-right text-xs"></i>
                   </p>
@@ -338,7 +343,7 @@ export default function MissionDetail() {
 
             {/* 목록으로 */}
             <div className="text-center pt-4">
-              <Link href="/mission" className="inline-flex items-center gap-2 bg-[#1B5E20] text-white px-8 py-3 rounded-full font-medium hover:bg-[#2E7D32] transition-colors">
+          <Link href={PUBLIC_MENU_PATHS.mission} className="inline-flex items-center gap-2 bg-[#1B5E20] text-white px-8 py-3 rounded-full font-medium hover:bg-[#2E7D32] transition-colors">
                 <i className="fas fa-list text-sm"></i>
                 선교보고 목록으로
               </Link>

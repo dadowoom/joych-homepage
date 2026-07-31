@@ -8,6 +8,10 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
+import {
+  getFacilityReservationsPath,
+  PUBLIC_MENU_PATHS,
+} from "@shared/publicMenuRoutes";
 import { toast } from "sonner";
 import { formatKoreanDateKey } from "@/lib/koreanDate";
 import MemberOnlyContentNotice from "@/components/MemberOnlyContentNotice";
@@ -184,7 +188,7 @@ export default function MyReservations() {
           <MemberOnlyContentNotice
             resourceLabel="내 예약 현황"
             description="예약 현황은 성도 로그인 후 확인할 수 있습니다. 성도 로그인 후 다시 확인해 주세요."
-            fallbackPath="/facility/my-reservations"
+            fallbackPath={getFacilityReservationsPath()}
           />
         </div>
       </div>
@@ -198,7 +202,7 @@ export default function MyReservations() {
           <nav className="mb-3 flex flex-wrap items-center gap-2 text-xs text-green-200">
             <Link href="/" className="transition-colors hover:text-white">홈</Link>
             <ChevronRight className="h-3 w-3" />
-            <Link href="/facility" className="transition-colors hover:text-white">시설 사용 예약</Link>
+            <Link href={PUBLIC_MENU_PATHS.facility} className="transition-colors hover:text-white">시설 사용 예약</Link>
             <ChevronRight className="h-3 w-3" />
             <span className="text-white">내 예약 현황</span>
           </nav>
@@ -304,7 +308,7 @@ export default function MyReservations() {
               <p className="font-medium text-gray-500">
                 {filter === "all" ? "예약 내역이 없습니다." : `${FILTER_OPTIONS.find((o) => o.value === filter)?.label} 예약이 없습니다.`}
               </p>
-              <Link href="/facility" className="mt-4 inline-block text-sm font-medium text-[#1B5E20] hover:underline">
+              <Link href={PUBLIC_MENU_PATHS.facility} className="mt-4 inline-block text-sm font-medium text-[#1B5E20] hover:underline">
                 시설 예약하러 가기 →
               </Link>
             </div>

@@ -14,6 +14,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { ViewModeToggle, type ViewMode } from "@/components/dynamic-page/ViewModeToggle";
+import { PUBLIC_MENU_PATHS } from "@shared/publicMenuRoutes";
 import {
   PageWrapper,
   SupportPageWrapper,
@@ -27,7 +28,7 @@ import {
 
 export default function DonationReceiptPage() {
   return (
-    <SupportPageWrapper title="기부금 영수증" activeHref="/support/donation">
+    <SupportPageWrapper title="기부금 영수증" activeHref={PUBLIC_MENU_PATHS.donationReceipt}>
       <div className="max-w-2xl">
         <div className="bg-[#d8f3dc] rounded-xl p-6 mb-8">
           <h2 className="font-bold text-[#1b4332] mb-2 flex items-center gap-2">

@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { hasContentPermission } from "@/lib/contentPermissions";
 import { SUPPORT_REQUEST_PERMISSION_KEYS, SUPPORT_REQUEST_ROOT_PERMISSION_KEY } from "@shared/adminPermissions";
+import { PUBLIC_MENU_PATHS } from "@shared/publicMenuRoutes";
 import {
   Building,
   FileText,
@@ -40,7 +41,7 @@ function getProcessingStatusLabel(status: string) {
 export default function BulletinAdRequestPage() {
   const utils = trpc.useUtils();
   const { user } = useAuth();
-  const href = "/support/bulletin-ad";
+  const href = PUBLIC_MENU_PATHS.bulletinAd;
   const { data: memberMe, isLoading: memberLoading } = trpc.members.me.useQuery(undefined, {
     retry: false,
     refetchOnWindowFocus: false,
@@ -160,7 +161,7 @@ export default function BulletinAdRequestPage() {
 
   const handleWriteClick = () => {
     if (!memberLoading && !memberMe) {
-      window.location.href = `/member/login?next=${encodeURIComponent("/support/bulletin-ad")}`;
+      window.location.href = `/member/login?next=${encodeURIComponent(PUBLIC_MENU_PATHS.bulletinAd)}`;
       return;
     }
     setShowForm((value) => !value);
@@ -195,7 +196,7 @@ export default function BulletinAdRequestPage() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!memberMe) {
-      window.location.href = `/member/login?next=${encodeURIComponent("/support/bulletin-ad")}`;
+      window.location.href = `/member/login?next=${encodeURIComponent(PUBLIC_MENU_PATHS.bulletinAd)}`;
       return;
     }
 
@@ -236,7 +237,7 @@ export default function BulletinAdRequestPage() {
   const isSaving = submitBulletinAd.isPending || updateBulletinAd.isPending;
 
   return (
-    <SupportPageWrapper title="주보 광고신청" activeHref="/support/bulletin-ad">
+    <SupportPageWrapper title="주보 광고신청" activeHref={PUBLIC_MENU_PATHS.bulletinAd}>
       <div className="space-y-5">
         <div className="border-b border-gray-100 pb-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">

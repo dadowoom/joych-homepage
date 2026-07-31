@@ -36,6 +36,10 @@ import { EditorContent } from "@/components/dynamic-page/EditorContent";
 import { StaffPage } from "./ChurchIntro";
 import CourseList from "./CourseList";
 import { getCanonicalCourseHref, isCourseMenuItemWithinTopMenu } from "@/lib/courseRoutes";
+import {
+  getCanonicalPublicMenuPath,
+  PUBLIC_MENU_PATHS,
+} from "@shared/publicMenuRoutes";
 import KakaoDirectionsMap from "@/components/KakaoDirectionsMap";
 import {
   findMenuAccessMatchByHref,
@@ -166,17 +170,14 @@ function normalizeDynamicHref(path: string | null | undefined) {
 }
 
 const CODE_BACKED_PAGE_ALIASES = new Map<string, string>([
-  ["/page/교회소개-예배-안내", "/worship/schedule"],
-  ["/page/교회소개-예배안내", "/worship/schedule"],
-  ["/page/교회소개-담임목사-저서", "/about/pastor/books"],
-  ["/page/교회소개-담임목사-소개-담임목사저서", "/about/pastor/books"],
-  ["/page/교회소개-담임목사-소개-담임목사-저서", "/about/pastor/books"],
-  ["/page/교회소개-담임목사소개-담임목사저서", "/about/pastor/books"],
-  ["/page/교회소개-담임목사소개-담임목사-저서", "/about/pastor/books"],
-  ["/page/교회소개-교회역사", "/about/history"],
-  ["/page/교회소개-교회-역사", "/about/history"],
-  ["/page/교회소개-교회연혁", "/about/history"],
-  ["/page/교회소개-교회-연혁", "/about/history"],
+  ["/page/교회소개-예배안내", PUBLIC_MENU_PATHS.worshipSchedule],
+  ["/page/교회소개-담임목사-저서", PUBLIC_MENU_PATHS.pastorBooks],
+  ["/page/교회소개-담임목사-소개-담임목사-저서", PUBLIC_MENU_PATHS.pastorBooks],
+  ["/page/교회소개-담임목사소개-담임목사저서", PUBLIC_MENU_PATHS.pastorBooks],
+  ["/page/교회소개-담임목사소개-담임목사-저서", PUBLIC_MENU_PATHS.pastorBooks],
+  ["/page/교회소개-교회역사", PUBLIC_MENU_PATHS.churchHistory],
+  ["/page/교회소개-교회-역사", PUBLIC_MENU_PATHS.churchHistory],
+  ["/page/교회소개-교회연혁", PUBLIC_MENU_PATHS.churchHistory],
 ]);
 
 export function getCodeBackedPageAlias(href: string | null | undefined) {
@@ -185,9 +186,8 @@ export function getCodeBackedPageAlias(href: string | null | undefined) {
   const decodedValue = decodePath(value);
   const directAlias = CODE_BACKED_PAGE_ALIASES.get(decodedValue);
   if (directAlias) return directAlias;
-  if (normalizeDynamicHref(decodedValue).includes("/page/시설사용예약외부인")) {
-    return "/facility/external";
-  }
+  const canonicalPublicPath = getCanonicalPublicMenuPath(decodedValue);
+  if (canonicalPublicPath && canonicalPublicPath !== decodedValue) return canonicalPublicPath;
   return null;
 }
 
@@ -445,23 +445,23 @@ function MenuItemPageContent({
 
   useEffect(() => {
     if (shouldRedirectToBulletinView) {
-      setLocation("/worship/bulletin");
+      setLocation(PUBLIC_MENU_PATHS.bulletin);
       return;
     }
     if (shouldRedirectToBulletinAd) {
-      setLocation("/support/bulletin-ad");
+      setLocation(PUBLIC_MENU_PATHS.bulletinAd);
       return;
     }
     if (shouldRedirectToSubtitle) {
-      setLocation("/support/subtitle");
+      setLocation(PUBLIC_MENU_PATHS.subtitleRequest);
       return;
     }
     if (shouldRedirectToVisitRequest) {
-      setLocation("/support/tour");
+      setLocation(PUBLIC_MENU_PATHS.visitRequest);
       return;
     }
     if (shouldRedirectToExternalFacility) {
-      setLocation("/facility/external");
+      setLocation(PUBLIC_MENU_PATHS.externalFacility);
       return;
     }
     if (shouldRedirectToFirstSubItem && firstSubItemHref) {
@@ -583,23 +583,23 @@ function MenuSubItemPageContent({
 
   useEffect(() => {
     if (shouldRedirectToBulletinView) {
-      setLocation("/worship/bulletin");
+      setLocation(PUBLIC_MENU_PATHS.bulletin);
       return;
     }
     if (shouldRedirectToBulletinAd) {
-      setLocation("/support/bulletin-ad");
+      setLocation(PUBLIC_MENU_PATHS.bulletinAd);
       return;
     }
     if (shouldRedirectToSubtitle) {
-      setLocation("/support/subtitle");
+      setLocation(PUBLIC_MENU_PATHS.subtitleRequest);
       return;
     }
     if (shouldRedirectToVisitRequest) {
-      setLocation("/support/tour");
+      setLocation(PUBLIC_MENU_PATHS.visitRequest);
       return;
     }
     if (shouldRedirectToExternalFacility) {
-      setLocation("/facility/external");
+      setLocation(PUBLIC_MENU_PATHS.externalFacility);
     }
   }, [setLocation, shouldRedirectToBulletinAd, shouldRedirectToBulletinView, shouldRedirectToSubtitle, shouldRedirectToVisitRequest, shouldRedirectToExternalFacility]);
 

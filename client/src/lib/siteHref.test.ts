@@ -11,8 +11,8 @@ describe("siteHref", () => {
     "https://m.joych.org/about/history",
     "https://newjoych.co.kr/about/history",
     "https://www.newjoych.co.kr/about/history",
-  ])("normalizes known production hosts as internal: %s", href => {
-    expect(normalizeSiteHref(href)).toBe("/about/history");
+  ])("normalizes known production hosts to the Korean menu URL: %s", href => {
+    expect(normalizeSiteHref(href)).toBe("/page/교회소개-교회-연혁");
     expect(isExternalSiteHref(href)).toBe(false);
   });
 

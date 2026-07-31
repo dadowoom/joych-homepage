@@ -23,6 +23,7 @@ import {
   parseCourseFacilityCustomDates,
   parseCourseFacilityRepeatDays,
 } from "@shared/courseFacilitySchedule";
+import { getPublicMenuHrefCandidates } from "@shared/publicMenuRoutes";
 import {
   churchMembers,
   Course,
@@ -373,8 +374,11 @@ export async function getCoursesForAdmin(pageHref?: string) {
   const configuredChecklistCourseIds = new Set(checklistRows.map(row => row.courseId));
 
   const normalizedHref = pageHref?.trim() || null;
+  const hrefCandidates = new Set(
+    normalizedHref ? getPublicMenuHrefCandidates(normalizedHref) : [],
+  );
   return courseRows
-    .filter((course) => !normalizedHref || (course.pageHref ?? "/education/courses") === normalizedHref)
+    .filter((course) => !normalizedHref || hrefCandidates.has(course.pageHref ?? "/education/courses"))
     .map((course) => ({
       ...course,
       ...(counts.get(course.id) ?? {
@@ -400,11 +404,14 @@ export async function getVisibleCourses(options: { pageHref?: string | null; aud
     .where(eq(courses.isVisible, true))
     .orderBy(asc(courses.sortOrder), desc(courses.createdAt));
   const normalizedHref = options.pageHref?.trim() || null;
+  const hrefCandidates = new Set(
+    normalizedHref ? getPublicMenuHrefCandidates(normalizedHref) : [],
+  );
   const visibleRows = courseRows.filter(course => {
     if (course.status !== "open" && course.status !== "closed") return false;
     if (course.audience === "member" && options.audience !== "member") return false;
     if (!normalizedHref) return true;
-    return (course.pageHref ?? "/education/courses") === normalizedHref;
+    return hrefCandidates.has(course.pageHref ?? "/education/courses");
   });
   if (visibleRows.length === 0) return [];
 
@@ -599,11 +606,13 @@ export async function getCourseRoomManagers() {
 export async function hasCourseRoomManagementAccess(memberId: number, pageHref: string) {
   const db = await getDb();
   if (!db) return false;
+  const pageHrefCandidates = getPublicMenuHrefCandidates(pageHref);
+  if (pageHrefCandidates.length === 0) return false;
   const [row] = await db.select({ id: courseRoomManagers.id })
     .from(courseRoomManagers)
     .where(and(
       eq(courseRoomManagers.memberId, memberId),
-      eq(courseRoomManagers.pageHref, pageHref),
+      inArray(courseRoomManagers.pageHref, pageHrefCandidates),
       eq(courseRoomManagers.canManage, true),
     ))
     .limit(1);

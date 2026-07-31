@@ -29,6 +29,10 @@ import { PastorBookEditorDialog } from "@/components/AdminPastorBooksTab";
 import { RichTextViewer } from "@/components/ui/rich-text-editor";
 import { canManageBoardContent } from "@/lib/contentPermissions";
 import SubPageLayout from "@/components/SubPageLayout";
+import {
+  getPastorBookPath,
+  PUBLIC_MENU_PATHS,
+} from "@shared/publicMenuRoutes";
 
 function PageWrapper({ title, breadcrumb, children }: { title: string; breadcrumb: string[]; children: React.ReactNode }) {
   return (
@@ -112,8 +116,8 @@ type StaffPageProps = {
   initialCategory?: StaffCategoryFilter;
 } & Partial<RouteComponentProps<Record<string, string | undefined>>>;
 
-const PASTOR_GREETING_HREF = "/page/교회소개-담임목사-소개";
-const PASTOR_BOOKS_HREF = "/page/교회소개-담임목사-저서";
+const PASTOR_GREETING_HREF = PUBLIC_MENU_PATHS.pastorGreeting;
+const PASTOR_BOOKS_HREF = PUBLIC_MENU_PATHS.pastorBooks;
 
 type StaffSideMenuItem = {
   id: number;
@@ -135,7 +139,7 @@ const STAFF_SIDE_MENU_ITEMS: StaffSideMenuItem[] = [
   },
   { id: 2, label: "섬기는 분", href: "/page/교회소개-섬기는-분" },
   { id: 3, label: "부교역자", href: "/page/교회소개-부교역자" },
-  { id: 4, label: "교회 역사", href: "/about/history" },
+  { id: 4, label: "교회 역사", href: PUBLIC_MENU_PATHS.churchHistory },
   { id: 5, label: "교회 비전", href: "/page/교회소개-3대-비전" },
   { id: 6, label: "오시는 길", href: "/about/directions" },
 ];
@@ -552,7 +556,7 @@ type PastorBookPublicItem = {
 };
 
 function getPastorBookDetailUrl(id: number) {
-  return `/about/pastor/books/${id}`;
+  return getPastorBookPath(id);
 }
 
 function SortablePastorBookCard({
@@ -1025,7 +1029,7 @@ export function PastorBookDetailPage({ params }: RouteComponentProps<{ id: strin
       sideMenuItems={sideMenuItems}
     >
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4">
-        <Link href="/about/pastor/books" className="inline-flex items-center gap-2 text-sm font-semibold text-[#1B5E20] hover:underline">
+        <Link href={PUBLIC_MENU_PATHS.pastorBooks} className="inline-flex items-center gap-2 text-sm font-semibold text-[#1B5E20] hover:underline">
           <ArrowLeft className="h-4 w-4" />
           목록으로
         </Link>

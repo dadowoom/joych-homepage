@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { PUBLIC_MENU_PATHS } from "@shared/publicMenuRoutes";
 import DirectVideoPlayer from "@/components/DirectVideoPlayer";
 import { trpc } from "@/lib/trpc";
 import { FadeIn } from "./_helpers";
@@ -16,7 +17,7 @@ const FALLBACK_SERMONS = [
     badge: "수요예배",
     title: "헤브론 수요예배",
     date: "조이풀TV",
-    href: "/worship/tv/hebron",
+    href: PUBLIC_MENU_PATHS.hebronWorship,
   },
   {
     key: "friday",

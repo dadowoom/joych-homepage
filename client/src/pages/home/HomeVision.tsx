@@ -48,7 +48,7 @@ export default function HomeVision({
               <a
                 href={getUsableHref(
                   churchIntroSection.buttonHref,
-                  "/about/vision"
+                  "/page/교회소개-3대-비전-9대-전략"
                 )}
                 className="inline-block px-7 py-3 bg-[#1B5E20] hover:bg-[#2E7D32] text-white text-sm font-medium rounded transition-colors"
               >
@@ -75,7 +75,7 @@ export default function HomeVision({
                 통해 그리스도의 몸을 이루어 가고 있습니다.
               </p>
               <Link
-                href="/about/vision"
+                href="/page/교회소개-3대-비전-9대-전략"
                 className="inline-block px-7 py-3 bg-[#1B5E20] hover:bg-[#2E7D32] text-white text-sm font-medium rounded transition-colors"
               >
                 교회 소개 보기
