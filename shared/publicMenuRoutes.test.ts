@@ -44,6 +44,7 @@ describe("public menu Korean canonical routes", () => {
     ["/page/강좌-리더십반", PUBLIC_MENU_PATHS.leadershipCourse],
     ["/page/강좌-생선컨퍼런스", PUBLIC_MENU_PATHS.saengseonConference],
     ["/page/시설-사용-예약", PUBLIC_MENU_PATHS.facility],
+    ["/page/행정지원-기부금-영수증", PUBLIC_MENU_PATHS.donationReceipt],
   ])("maps an old menu address %s to %s", (oldPath, expectedPath) => {
     expect(getCanonicalPublicMenuPath(oldPath)).toBe(expectedPath);
   });

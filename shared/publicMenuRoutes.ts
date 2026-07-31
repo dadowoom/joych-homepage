@@ -31,7 +31,7 @@ export const PUBLIC_MENU_PATHS = {
   subtitleRequest: "/page/행정지원-자막신청",
   visitRequest: "/page/행정지원-탐방신청",
   onlineOffering: "/page/행정지원-온라인-헌금",
-  donationReceipt: "/page/행정지원-기부금-영수증",
+  donationReceipt: "https://joychdonate.dimode.co.kr/support/donation_01.asp",
   academy: "/page/교육-신청-조이아카데미",
   discipleCourse: "/page/교육신청-제자반",
   leadershipCourse: "/page/교육신청-리더십반",
@@ -213,7 +213,7 @@ export const PUBLIC_MENU_ROUTE_ALIASES: Record<string, readonly string[]> = {
   ],
   [PUBLIC_MENU_PATHS.donationReceipt]: [
     "/support/donation",
-    "https://joychdonate.dimode.co.kr/support/donation_01.asp",
+    "/page/행정지원-기부금-영수증",
   ],
   [PUBLIC_MENU_PATHS.academy]: ["/education/courses"],
   [PUBLIC_MENU_PATHS.discipleCourse]: ["/page/강좌-제자반", "/page/교육-신청-제자반"],

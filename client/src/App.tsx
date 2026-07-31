@@ -387,7 +387,6 @@ const SubtitleRequestPage = lazy(() => import("./pages/community/SubtitleRequest
 const BulletinAdRequestPage = lazy(() => import("./pages/community/BulletinAdRequestPage"));
 const OnlineOfficePage = lazy(() => import("./pages/community/OnlineOfficePage"));
 const VisitRequestPage = lazy(() => import("./pages/community/VisitRequestPage"));
-const DonationReceiptPage = lazy(() => import("./pages/community/DonationReceiptPage"));
 
 const DomesticMission = lazy(() =>
   import("./pages/Mission").then(module => ({
@@ -410,6 +409,15 @@ function LegacyRedirect({ to }: { to: string }) {
     const search = typeof window === "undefined" ? "" : window.location.search;
     setLocation(`${to}${search}`, { replace: true });
   }, [setLocation, to]);
+
+  return null;
+}
+
+function ExternalRedirect({ to }: { to: string }) {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.location.replace(to);
+  }, [to]);
 
   return null;
 }
@@ -697,7 +705,7 @@ function Router() {
       <Route path="/support/subtitle"><LegacyRedirect to={PUBLIC_MENU_PATHS.subtitleRequest} /></Route>
       <Route path="/support/office"><MenuAccessGate href="/support/office"><OnlineOfficePage /></MenuAccessGate></Route>
       <Route path="/support/tour"><LegacyRedirect to={PUBLIC_MENU_PATHS.visitRequest} /></Route>
-      <Route path="/support/donation"><LegacyRedirect to={PUBLIC_MENU_PATHS.donationReceipt} /></Route>
+      <Route path="/support/donation"><ExternalRedirect to={PUBLIC_MENU_PATHS.donationReceipt} /></Route>
 
       {/* 행정지원 - 기존 공개 URL 호환 */}
       <Route path="/admin/offering"><MenuAccessGate href="/support/offering"><Offering /></MenuAccessGate></Route>
@@ -708,7 +716,7 @@ function Router() {
       <Route path="/admin/subtitle"><MenuAccessGate href="/support/subtitle"><SubtitleRequestPage /></MenuAccessGate></Route>
       <Route path="/admin/office"><MenuAccessGate href="/support/office"><OnlineOfficePage /></MenuAccessGate></Route>
       <Route path="/admin/tour"><MenuAccessGate href="/support/tour"><VisitRequestPage /></MenuAccessGate></Route>
-      <Route path="/admin/donation"><MenuAccessGate href="/support/donation"><DonationReceiptPage /></MenuAccessGate></Route>
+      <Route path="/admin/donation"><ExternalRedirect to={PUBLIC_MENU_PATHS.donationReceipt} /></Route>
 
       {/* 시설 예약 */}
       {/* 교회 회원 시스템 */}
@@ -789,9 +797,7 @@ function Router() {
       <Route path={PUBLIC_MENU_PATHS.visitRequest}>
         <MenuAccessGate href={PUBLIC_MENU_PATHS.visitRequest}><VisitRequestPage /></MenuAccessGate>
       </Route>
-      <Route path={PUBLIC_MENU_PATHS.donationReceipt}>
-        <MenuAccessGate href={PUBLIC_MENU_PATHS.donationReceipt}><DonationReceiptPage /></MenuAccessGate>
-      </Route>
+      <Route path="/page/행정지원-기부금-영수증"><ExternalRedirect to={PUBLIC_MENU_PATHS.donationReceipt} /></Route>
 
       <Route path={getAcademyApplicationsPath()} component={MyCourseApplications} />
       <Route path={`${PUBLIC_MENU_PATHS.academy}/:slug`} component={CourseRoomPage} />
