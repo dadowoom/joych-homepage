@@ -119,9 +119,19 @@ export default function BulletinAdRequestPage() {
     onError: (error) => toast.error(error.message),
   });
 
-  const archiveBulletinAdAsManager = trpc.cms.supportRequests.updateBulletinAdStatus.useMutation({
+  const deleteBulletinAd = trpc.support.deleteMyBulletinAd.useMutation({
     onSuccess: () => {
-      toast.success("주보 광고신청을 보류로 이동했습니다.");
+      toast.success("주보 광고신청이 삭제되었습니다.");
+      resetForm();
+      utils.support.listBulletinAds.invalidate();
+      utils.support.myBulletinAds.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const deleteBulletinAdAsManager = trpc.cms.supportRequests.deleteBulletinAd.useMutation({
+    onSuccess: () => {
+      toast.success("주보 광고신청을 삭제했습니다.");
       utils.support.listBulletinAds.invalidate();
       utils.support.myBulletinAds.invalidate();
       utils.cms.supportRequests.listBulletinAds.invalidate();
@@ -173,8 +183,13 @@ export default function BulletinAdRequestPage() {
   };
 
   const handleDelete = (id: number) => {
-    if (!window.confirm("이 주보 광고신청을 삭제하시겠습니까? 실제로 삭제되지 않고 보류 목록으로 이동합니다.")) return;
-    archiveBulletinAdAsManager.mutate({ id, status: "archived", adminMemo: null });
+    if (!window.confirm("이 주보 광고신청을 삭제하시겠습니까? 삭제한 내용은 복구할 수 없습니다.")) return;
+    deleteBulletinAd.mutate({ id });
+  };
+
+  const handleManagerDelete = (id: number) => {
+    if (!window.confirm("이 주보 광고신청을 삭제하시겠습니까? 삭제한 내용은 복구할 수 없습니다.")) return;
+    deleteBulletinAdAsManager.mutate({ id });
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -498,8 +513,8 @@ export default function BulletinAdRequestPage() {
                                   <SupportRequestOwnerActions
                                     requestId={request.id}
                                     onEdit={isOwnRequest ? handleEdit : undefined}
-                                    onDelete={canManageBulletinAds ? handleDelete : undefined}
-                                    isBusy={archiveBulletinAdAsManager.isPending && archiveBulletinAdAsManager.variables?.id === request.id}
+                                    onDelete={isOwnRequest ? handleDelete : canManageBulletinAds ? handleManagerDelete : undefined}
+                                    isBusy={(deleteBulletinAd.isPending && deleteBulletinAd.variables?.id === request.id) || (deleteBulletinAdAsManager.isPending && deleteBulletinAdAsManager.variables?.id === request.id)}
                                   />
                                 )}
                               </div>
@@ -545,8 +560,8 @@ export default function BulletinAdRequestPage() {
                           <SupportRequestOwnerActions
                             requestId={request.id}
                             onEdit={isOwnRequest ? handleEdit : undefined}
-                            onDelete={canManageBulletinAds ? handleDelete : undefined}
-                            isBusy={archiveBulletinAdAsManager.isPending && archiveBulletinAdAsManager.variables?.id === request.id}
+                            onDelete={isOwnRequest ? handleDelete : canManageBulletinAds ? handleManagerDelete : undefined}
+                            isBusy={(deleteBulletinAd.isPending && deleteBulletinAd.variables?.id === request.id) || (deleteBulletinAdAsManager.isPending && deleteBulletinAdAsManager.variables?.id === request.id)}
                             className="mt-3"
                           />
                         )}

@@ -16,6 +16,9 @@ import {
 import { hasAdminContentPermission } from "../../db/adminPermissions";
 import { adminAnyPermissionProcedure, router } from "../../_core/trpc";
 import {
+  deleteBulletinAdRequest,
+  deleteSubtitleRequest,
+  deleteVisitRequest,
   listBulletinAdRequests,
   listNewMemberRequests,
   listPrayerRequests,
@@ -75,6 +78,27 @@ export const supportRequestsRouter = router({
   listVisits: supportRequestProcedure("visits").query(() => listVisitRequests()),
   listSubtitles: supportRequestProcedure("subtitles").query(() => listSubtitleRequests()),
   listBulletinAds: supportRequestProcedure("bulletinAds").query(() => listBulletinAdRequests()),
+
+  deleteVisit: supportRequestProcedure("visits")
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      await deleteVisitRequest(input.id);
+      return { ok: true };
+    }),
+
+  deleteSubtitle: supportRequestProcedure("subtitles")
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      await deleteSubtitleRequest(input.id);
+      return { ok: true };
+    }),
+
+  deleteBulletinAd: supportRequestProcedure("bulletinAds")
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      await deleteBulletinAdRequest(input.id);
+      return { ok: true };
+    }),
 
   updatePrayerStatus: supportRequestRootProcedure
     .input(

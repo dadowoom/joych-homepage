@@ -10,6 +10,9 @@ import { TRPCError } from "@trpc/server";
 import { memberProtectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { storagePut } from "../storage";
 import {
+  deleteMemberBulletinAdRequest,
+  deleteMemberSubtitleRequest,
+  deleteOwnedVisitRequest,
   createBulletinAdRequest,
   createNewMemberRequest,
   createPrayerRequest,
@@ -342,11 +345,16 @@ export const supportRouter = router({
       id: z.number().int().positive(),
       manageToken: manageTokenSchema.optional(),
     }))
-    .mutation(async () => {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: "탐방신청은 작성자가 삭제할 수 없습니다. 수정이 필요하면 신청 내용을 수정해 주세요.",
-      });
+    .mutation(async ({ input, ctx }) => {
+      const deleted = await deleteOwnedVisitRequest(
+        input.id,
+        ctx.memberId,
+        input.manageToken ? hashManageToken(input.manageToken) : null,
+      );
+      if (!deleted) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "본인이 신청한 탐방신청만 삭제할 수 있습니다." });
+      }
+      return { ok: true };
     }),
 
   submitSubtitle: memberProtectedProcedure
@@ -411,11 +419,12 @@ export const supportRouter = router({
 
   deleteMySubtitle: memberProtectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
-    .mutation(async () => {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: "자막 신청은 작성자가 삭제할 수 없습니다. 수정이 필요하면 신청 내용을 수정해 주세요.",
-      });
+    .mutation(async ({ input, ctx }) => {
+      const deleted = await deleteMemberSubtitleRequest(input.id, ctx.memberId);
+      if (!deleted) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "본인이 신청한 자막 신청만 삭제할 수 있습니다." });
+      }
+      return { ok: true };
     }),
 
   submitBulletinAd: memberProtectedProcedure
@@ -480,10 +489,11 @@ export const supportRouter = router({
 
   deleteMyBulletinAd: memberProtectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
-    .mutation(async () => {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: "주보 광고신청은 작성자가 삭제할 수 없습니다. 수정이 필요하면 신청 내용을 수정해 주세요.",
-      });
+    .mutation(async ({ input, ctx }) => {
+      const deleted = await deleteMemberBulletinAdRequest(input.id, ctx.memberId);
+      if (!deleted) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "본인이 신청한 주보 광고신청만 삭제할 수 있습니다." });
+      }
+      return { ok: true };
     }),
 });

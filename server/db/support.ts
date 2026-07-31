@@ -286,7 +286,7 @@ export async function updateOwnedVisitRequest(
   return (result as unknown as ResultSetHeader).affectedRows > 0;
 }
 
-export async function archiveOwnedVisitRequest(
+export async function deleteOwnedVisitRequest(
   id: number,
   memberId: number | null | undefined,
   manageTokenHash: string | null | undefined,
@@ -295,11 +295,9 @@ export async function archiveOwnedVisitRequest(
   const ownership = getVisitOwnershipCondition(memberId, manageTokenHash);
   if (!ownership) return false;
   const result = await db
-    .update(visitRequests)
-    .set({ status: "archived", adminMemo: null })
+    .delete(visitRequests)
     .where(and(
       eq(visitRequests.id, id),
-      ne(visitRequests.status, "archived"),
       ownership,
     ));
   return (result as unknown as ResultSetHeader).affectedRows > 0;
@@ -376,6 +374,17 @@ export async function updateSubtitleRequest(
 export async function deleteSubtitleRequest(id: number) {
   const db = await requireDb();
   await db.delete(subtitleRequests).where(eq(subtitleRequests.id, id));
+}
+
+export async function deleteMemberSubtitleRequest(id: number, memberId: number) {
+  const db = await requireDb();
+  const result = await db
+    .delete(subtitleRequests)
+    .where(and(
+      eq(subtitleRequests.id, id),
+      eq(subtitleRequests.memberId, memberId),
+    ));
+  return (result as unknown as ResultSetHeader).affectedRows > 0;
 }
 
 export async function listMemberSubtitleRequests(memberId: number) {
@@ -529,6 +538,17 @@ export async function updateBulletinAdRequest(
 export async function deleteBulletinAdRequest(id: number) {
   const db = await requireDb();
   await db.delete(bulletinAdRequests).where(eq(bulletinAdRequests.id, id));
+}
+
+export async function deleteMemberBulletinAdRequest(id: number, memberId: number) {
+  const db = await requireDb();
+  const result = await db
+    .delete(bulletinAdRequests)
+    .where(and(
+      eq(bulletinAdRequests.id, id),
+      eq(bulletinAdRequests.memberId, memberId),
+    ));
+  return (result as unknown as ResultSetHeader).affectedRows > 0;
 }
 
 export async function listMemberBulletinAdRequests(memberId: number) {

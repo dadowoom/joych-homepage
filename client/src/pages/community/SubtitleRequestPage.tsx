@@ -163,9 +163,19 @@ export default function SubtitleRequestPage() {
     onError: (error) => toast.error(error.message),
   });
 
-  const archiveSubtitleAsManager = trpc.cms.supportRequests.updateSubtitleStatus.useMutation({
+  const deleteSubtitle = trpc.support.deleteMySubtitle.useMutation({
     onSuccess: () => {
-      toast.success("자막 신청을 보류로 이동했습니다.");
+      toast.success("자막 신청이 삭제되었습니다.");
+      resetForm();
+      utils.support.listSubtitles.invalidate();
+      utils.support.mySubtitles.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const deleteSubtitleAsManager = trpc.cms.supportRequests.deleteSubtitle.useMutation({
+    onSuccess: () => {
+      toast.success("자막 신청을 삭제했습니다.");
       utils.support.listSubtitles.invalidate();
       utils.support.mySubtitles.invalidate();
       utils.cms.supportRequests.listSubtitles.invalidate();
@@ -220,8 +230,13 @@ export default function SubtitleRequestPage() {
   };
 
   const handleDelete = (id: number) => {
-    if (!window.confirm("이 자막 신청을 삭제하시겠습니까? 실제로 삭제되지 않고 보류 목록으로 이동합니다.")) return;
-    archiveSubtitleAsManager.mutate({ id, status: "archived", adminMemo: null });
+    if (!window.confirm("이 자막 신청을 삭제하시겠습니까? 삭제한 내용은 복구할 수 없습니다.")) return;
+    deleteSubtitle.mutate({ id });
+  };
+
+  const handleManagerDelete = (id: number) => {
+    if (!window.confirm("이 자막 신청을 삭제하시겠습니까? 삭제한 내용은 복구할 수 없습니다.")) return;
+    deleteSubtitleAsManager.mutate({ id });
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -573,8 +588,8 @@ export default function SubtitleRequestPage() {
                                   <SupportRequestOwnerActions
                                     requestId={request.id}
                                     onEdit={isOwnRequest ? handleEdit : undefined}
-                                    onDelete={canManageSubtitles ? handleDelete : undefined}
-                                    isBusy={archiveSubtitleAsManager.isPending && archiveSubtitleAsManager.variables?.id === request.id}
+                                    onDelete={isOwnRequest ? handleDelete : canManageSubtitles ? handleManagerDelete : undefined}
+                                    isBusy={(deleteSubtitle.isPending && deleteSubtitle.variables?.id === request.id) || (deleteSubtitleAsManager.isPending && deleteSubtitleAsManager.variables?.id === request.id)}
                                   />
                                 )}
                               </div>
@@ -621,8 +636,8 @@ export default function SubtitleRequestPage() {
                           <SupportRequestOwnerActions
                             requestId={request.id}
                             onEdit={isOwnRequest ? handleEdit : undefined}
-                            onDelete={canManageSubtitles ? handleDelete : undefined}
-                            isBusy={archiveSubtitleAsManager.isPending && archiveSubtitleAsManager.variables?.id === request.id}
+                            onDelete={isOwnRequest ? handleDelete : canManageSubtitles ? handleManagerDelete : undefined}
+                            isBusy={(deleteSubtitle.isPending && deleteSubtitle.variables?.id === request.id) || (deleteSubtitleAsManager.isPending && deleteSubtitleAsManager.variables?.id === request.id)}
                             className="mt-3"
                           />
                         )}
