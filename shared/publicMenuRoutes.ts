@@ -37,7 +37,7 @@ export const PUBLIC_MENU_PATHS = {
   leadershipCourse: "/page/교육신청-리더십반",
   saengseonConference: "/page/교육신청-생선컨퍼런스",
   facility: "/page/시설사용-예약-성도",
-  externalFacility: "/page/시설-사용-예약-외부인",
+  externalFacility: "/page/시설사용-예약-외부인",
   vehicleReservation: "/page/차량예약",
   sitemap: "/page/사이트맵",
 } as const;
@@ -226,7 +226,10 @@ export const PUBLIC_MENU_ROUTE_ALIASES: Record<string, readonly string[]> = {
     "/page/시설사용예약",
     "/page/시설사용-예약",
   ],
-  [PUBLIC_MENU_PATHS.externalFacility]: ["/facility/external"],
+  [PUBLIC_MENU_PATHS.externalFacility]: [
+    "/facility/external",
+    "/page/시설-사용-예약-외부인",
+  ],
   [PUBLIC_MENU_PATHS.vehicleReservation]: ["/support/vehicle", "/admin/vehicle"],
   [PUBLIC_MENU_PATHS.sitemap]: ["/sitemap"],
 };
