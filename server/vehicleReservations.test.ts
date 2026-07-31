@@ -838,6 +838,68 @@ describe("vehicle reservations", () => {
     );
   });
 
+  it("lets vehicle admins inspect and create past schedules", async () => {
+    const caller = appRouter.createCaller(createContext(createAdminUser(), false));
+
+    await expect(caller.home.vehicleAvailabilityTimeline({
+      reservationDate: "2026-06-15",
+      passengers: 1,
+      repeatMode: "none",
+    })).resolves.toMatchObject({ occurrenceCount: 1 });
+    expect(dbMocks.getVehicleAvailabilityTimeline).toHaveBeenCalledWith(
+      ["2026-06-15"],
+      1,
+      undefined,
+      null,
+    );
+
+    await expect(caller.home.availableVehicles({
+      reservationDate: "2026-06-15",
+      startTime: "10:00",
+      endTime: "11:00",
+      passengers: 1,
+      repeatMode: "none",
+    })).resolves.toMatchObject({ occurrenceCount: 1 });
+
+    await expect(caller.home.createVehicleReservation(vehicleReservationInput({
+      reservationDate: "2026-06-15",
+      startTime: "10:00",
+      endTime: "11:00",
+    }))).resolves.toMatchObject({
+      id: 200,
+      status: "approved",
+    });
+    expect(dbMocks.createVehicleReservationIfAvailable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reservationDate: "2026-06-15",
+        status: "approved",
+      }),
+    );
+  });
+
+  it("keeps past schedule creation blocked for regular members", async () => {
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(caller.home.vehicleAvailabilityTimeline({
+      reservationDate: "2026-06-15",
+      passengers: 1,
+      repeatMode: "none",
+    })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(caller.home.availableVehicles({
+      reservationDate: "2026-06-15",
+      startTime: "10:00",
+      endTime: "11:00",
+      passengers: 1,
+      repeatMode: "none",
+    })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(caller.home.createVehicleReservation(vehicleReservationInput({
+      reservationDate: "2026-06-15",
+    }))).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(dbMocks.getVehicleAvailabilityTimeline).not.toHaveBeenCalled();
+    expect(dbMocks.getAvailableVehiclesForSchedule).not.toHaveBeenCalled();
+    expect(dbMocks.createVehicleReservationIfAvailable).not.toHaveBeenCalled();
+  });
+
   it("lets vehicle managers update a past reservation", async () => {
     const caller = appRouter.createCaller(createContext(createAdminUser(), false));
 

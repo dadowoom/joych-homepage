@@ -1853,13 +1853,17 @@ export const homeRouter = router({
             "차량예약은 지정된 성도 그룹만 이용할 수 있습니다. 관리자에게 문의해 주세요.",
         });
       }
+      const canManageVehicleReservations = hasAdminContentPermission(
+        ctx.user,
+        "content:vehicles",
+      );
       const reservationDates = getVehicleReservationDates(
         input.reservationDate,
         input.repeatMode,
         input.repeatEndDate
       );
       const today = todayKstDateKey();
-      if (input.reservationDate < today) {
+      if (!canManageVehicleReservations && reservationDates.some(date => date < today)) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "지난 날짜는 예약할 수 없습니다.",
@@ -1867,7 +1871,7 @@ export const homeRouter = router({
       }
       const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000);
       const minimumStartTime =
-        input.reservationDate === today
+        !canManageVehicleReservations && input.reservationDate === today
           ? `${String(nowKst.getUTCHours()).padStart(2, "0")}:${String(nowKst.getUTCMinutes()).padStart(2, "0")}`
           : null;
       const timeline = await getVehicleAvailabilityTimeline(
@@ -1911,6 +1915,10 @@ export const homeRouter = router({
             "차량예약은 지정된 성도 그룹만 이용할 수 있습니다. 관리자에게 문의해 주세요.",
         });
       }
+      const canManageVehicleReservations = hasAdminContentPermission(
+        ctx.user,
+        "content:vehicles",
+      );
       const startMinutes = toMinutes(input.startTime);
       const endMinutes = toMinutes(input.endTime);
       if (
@@ -1929,9 +1937,11 @@ export const homeRouter = router({
         input.repeatMode,
         input.repeatEndDate
       );
-      reservationDates.forEach(date =>
-        assertReservationStartsInFuture(date, input.startTime)
-      );
+      if (!canManageVehicleReservations) {
+        reservationDates.forEach(date =>
+          assertReservationStartsInFuture(date, input.startTime)
+        );
+      }
       const availableVehicles = await getAvailableVehiclesForSchedule(
         reservationDates,
         input.startTime,
@@ -2072,7 +2082,7 @@ export const homeRouter = router({
           message: "예약 시간 형식이 올바르지 않습니다.",
         });
       }
-      if (input.reservationDate < todayKstDateKey()) {
+      if (!canManageVehicleReservations && input.reservationDate < todayKstDateKey()) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "지난 날짜는 예약할 수 없습니다.",
@@ -2133,9 +2143,11 @@ export const homeRouter = router({
           repeatMode,
           repeatEndDate
         );
-        reservationDates.forEach(date =>
-          assertReservationStartsInFuture(date, input.startTime)
-        );
+        if (!canManageVehicleReservations) {
+          reservationDates.forEach(date =>
+            assertReservationStartsInFuture(date, input.startTime)
+          );
+        }
         const recurrenceGroupId =
           reservationDates.length > 1 ? `vehicle_${crypto.randomUUID()}` : null;
         const recurrenceLabel =

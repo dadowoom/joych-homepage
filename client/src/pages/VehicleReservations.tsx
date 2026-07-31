@@ -317,9 +317,11 @@ function VehicleInquiryCard() {
 function VehicleReservationCalendar({
   selectedDate,
   onSelectDate,
+  allowPast = false,
 }: {
   selectedDate: string;
   onSelectDate: (date: string) => void;
+  allowPast?: boolean;
 }) {
   const initialSelectedDate = /^\d{4}-\d{2}-\d{2}$/.test(selectedDate)
     ? selectedDate.split("-").map(Number)
@@ -395,17 +397,18 @@ function VehicleReservationCalendar({
           if (!day) return <div key={`empty-${index}`} />;
           const dateKey = toDateKey(day);
           const isPast = dateKey < todayKey;
+          const isDisabled = isPast && !allowPast;
           const isSelected = selectedDate === dateKey;
           return (
             <button
               key={dateKey}
               type="button"
-              disabled={isPast}
+              disabled={isDisabled}
               onClick={() => onSelectDate(dateKey)}
               className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full font-medium transition-colors ${
                 isSelected
                   ? "bg-[#1B5E20] text-white"
-                  : isPast
+                  : isDisabled
                   ? "cursor-not-allowed text-gray-300"
                   : "border border-green-200 bg-green-50 text-green-700 hover:bg-green-200"
               }`}
@@ -826,6 +829,8 @@ function VehicleTimeSlotPanel({
 export function VehicleReservationList() {
   const [, navigate] = useLocation();
   const searchString = useSearch();
+  const { user: adminUser } = useAuth();
+  const canManageVehicleReservations = hasContentPermission(adminUser, "content:vehicles");
   const initialParams = useMemo(() => new URLSearchParams(searchString), [searchString]);
   const initialRepeatMode = normalizeReservationRepeatType(initialParams.get("repeatMode"));
   const [selectedDate, setSelectedDate] = useState(initialParams.get("date") ?? "");
@@ -876,7 +881,7 @@ export function VehicleReservationList() {
     },
   );
   const timelineData = timelineQuery.data as VehicleAvailabilityTimelineData | undefined;
-  const selectedStartIsFuture = Boolean(
+  const selectedStartIsFuture = canManageVehicleReservations || Boolean(
     selectedDate && startTime && (
       selectedDate > todayKey ||
       (selectedDate === todayKey && toMinutes(startTime) > currentKstMinutes)
@@ -980,7 +985,11 @@ export function VehicleReservationList() {
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#1B5E20] text-xs text-white">1</span>
                     날짜 선택
                   </div>
-                  <VehicleReservationCalendar selectedDate={selectedDate} onSelectDate={handleSelectDate} />
+                  <VehicleReservationCalendar
+                    selectedDate={selectedDate}
+                    onSelectDate={handleSelectDate}
+                    allowPast={canManageVehicleReservations}
+                  />
                 </div>
 
                 <div className="min-w-0">
@@ -1193,11 +1202,11 @@ function LegacyVehicleReservationDetail() {
     const disabled = new Map<string, string>();
     if (!selectedDate) return disabled;
     const today = getKstDateKey();
-    if (selectedDate < today) {
+    if (selectedDate < today && !canManageVehicleReservations) {
       allTimeSlots.forEach(slot => disabled.set(slot, "지난 날짜는 예약할 수 없습니다."));
       return disabled;
     }
-    if (selectedDate === today) {
+    if (selectedDate === today && !canManageVehicleReservations) {
       const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
       const currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
       allTimeSlots.forEach(slot => {
@@ -1205,7 +1214,7 @@ function LegacyVehicleReservationDetail() {
       });
     }
     return disabled;
-  }, [allTimeSlots, selectedDate]);
+  }, [allTimeSlots, canManageVehicleReservations, selectedDate]);
 
   function handleSelectDate(date: string) {
     setSelectedDate(date);
@@ -1328,7 +1337,11 @@ function LegacyVehicleReservationDetail() {
             </div>
 
             <div className="space-y-5">
-              <VehicleReservationCalendar selectedDate={selectedDate} onSelectDate={handleSelectDate} />
+              <VehicleReservationCalendar
+                selectedDate={selectedDate}
+                onSelectDate={handleSelectDate}
+                allowPast={canManageVehicleReservations}
+              />
 
               {selectedDate && (
                 <VehicleTimeSlotPanel
@@ -1474,11 +1487,11 @@ export function VehicleReservationApply() {
     const disabled = new Map<string, string>();
     if (!form.date) return disabled;
     const today = getKstDateKey();
-    if (form.date < today) {
+    if (form.date < today && !canManageVehicleReservations) {
       allTimeSlots.forEach(slot => disabled.set(slot, "지난 날짜는 예약할 수 없습니다."));
       return disabled;
     }
-    if (form.date === today) {
+    if (form.date === today && !canManageVehicleReservations) {
       const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
       const currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
       allTimeSlots.forEach(slot => {
@@ -1486,7 +1499,7 @@ export function VehicleReservationApply() {
       });
     }
     return disabled;
-  }, [allTimeSlots, form.date]);
+  }, [allTimeSlots, canManageVehicleReservations, form.date]);
 
   function updateForm(key: keyof typeof form, value: string | boolean) {
     setForm(prev => ({
@@ -1511,7 +1524,7 @@ export function VehicleReservationApply() {
     if (!form.reserverPhone.trim()) return "연락처를 입력해주세요.";
     if (!form.purpose.trim()) return "사용 목적을 입력해 주세요.";
     if (!form.date) return "사용 날짜를 선택해주세요.";
-    if (form.date < getKstDateKey()) return "지난 날짜는 예약할 수 없습니다.";
+    if (!canManageVehicleReservations && form.date < getKstDateKey()) return "지난 날짜는 예약할 수 없습니다.";
     if (form.repeatMode !== "none") {
       if (!form.repeatEndDate) return "반복 예약의 종료일을 선택해주세요.";
       if (form.repeatEndDate < form.date) return "반복 종료일은 시작일 이후여야 합니다.";
