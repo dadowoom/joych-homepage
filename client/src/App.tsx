@@ -204,9 +204,6 @@ const DynamicMenuSubItemPage = lazy(() =>
   }))
 );
 
-const PastorGreeting = lazy(() =>
-  import("./pages/About").then(module => ({ default: module.PastorGreeting }))
-);
 const ChurchHistory = lazy(() => import("./pages/ChurchHistory"));
 const ChurchVision = lazy(() =>
   import("./pages/About").then(module => ({ default: module.ChurchVision }))
@@ -735,9 +732,8 @@ function Router() {
       <Route path="/sitemap"><LegacyRedirect to={PUBLIC_MENU_PATHS.sitemap} /></Route>
 
       {/* 공개 메뉴 한글 기준 주소 */}
-      <Route path={PUBLIC_MENU_PATHS.pastorGreeting}>
-        <MenuAccessGate href={PUBLIC_MENU_PATHS.pastorGreeting}><PastorGreeting /></MenuAccessGate>
-      </Route>
+      {/* The Korean pastor-greeting URL is a CMS image page.  Let the dynamic
+          page route below render the image currently registered by the church. */}
       <Route path={`${PUBLIC_MENU_PATHS.pastorBooks}/:id`} component={GuardedPastorBookDetailPage} />
       <Route path={PUBLIC_MENU_PATHS.pastorBooks}>
         <MenuAccessGate href={PUBLIC_MENU_PATHS.pastorBooks}><PastorBooksPage /></MenuAccessGate>
