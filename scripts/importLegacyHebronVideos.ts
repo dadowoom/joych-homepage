@@ -15,6 +15,7 @@ export type LegacyArchiveKey =
   | "friday"
   | "hayoungin"
   | "testimony"
+  | "youth-haram"
   | "praise-shalom"
   | "praise-hosanna"
   | "praise-zion"
@@ -265,6 +266,26 @@ export const LEGACY_ARCHIVE_CONFIGS: Record<LegacyArchiveKey, LegacyArchiveConfi
         title: "주일 2부 간증",
       },
     },
+    videoUrlOverrides: {},
+  },
+  "youth-haram": {
+    key: "youth-haram",
+    label: "Youth Haram Sunday sermons",
+    pageCode: "244",
+    vodType: "41",
+    playlistId: 90020,
+    expectedListCount: 563,
+    expectedVideoCount: 563,
+    newestDate: "2026-07-12",
+    oldestDate: "2014-02-02",
+    migrationId: "0109_import_legacy_youth_haram_sermons_20140202_20260712",
+    namedLock: "joych:import-legacy-youth-haram-sermons:90020",
+    sourceConcurrency: 5,
+    fastVerification: "exact-range",
+    allowedMp4Url: JOYCH_MP4_URL,
+    fastUrlLikePatterns: JOYCH_FAST_URL_PATTERNS,
+    requiredSourceNums: ["12587", "3293"],
+    excludedSources: {},
     videoUrlOverrides: {},
   },
   "praise-shalom": {
@@ -527,6 +548,8 @@ const ARCHIVE_ALIASES: Readonly<Record<string, LegacyArchiveKey>> = {
   charis: "praise-charis",
   rebuild: "praise-rebuild",
   special: "praise-special",
+  youth: "youth-haram",
+  "youth-haram": "youth-haram",
 };
 
 export function parseArchiveKey(args: readonly string[]): LegacyArchiveKey {

@@ -2829,6 +2829,7 @@ if [[ -f "${MIGRATION_0093}" ]]; then
   echo "[deploy] database migration: import legacy Shekinah Friday-prayer videos"
   node "${MIGRATION_0093}" --friday --apply
   for legacy_archive in \
+    youth-haram \
     praise-shalom \
     praise-hosanna \
     praise-zion \

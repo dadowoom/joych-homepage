@@ -40,6 +40,7 @@ describe("legacy video archive CLI", () => {
   it("accepts the HaYoungIn and testimony archives", () => {
     expect(parseArchiveKey(["--archive=hayoungin"])).toBe("hayoungin");
     expect(parseArchiveKey(["--archive=testimony"])).toBe("testimony");
+    expect(parseArchiveKey(["--archive=youth"])).toBe("youth-haram");
   });
 
   it("rejects conflicting, empty, and unknown archive options", () => {
@@ -280,5 +281,30 @@ describe("legacy HaYoungIn and testimony archive invariants", () => {
       { num: "1", sermonDate: "2026-01-01" },
     ] as LegacyVideo[];
     expect(oldestFirstInsertOrder(videos).map(video => video.num)).toEqual(["1", "2", "3"]);
+  });
+});
+
+describe("legacy Youth Haram sermon archive invariants", () => {
+  it("fixes the verified source range and target playlist", () => {
+    expect(LEGACY_ARCHIVE_CONFIGS["youth-haram"]).toMatchObject({
+      pageCode: "244",
+      vodType: "41",
+      playlistId: 90020,
+      expectedListCount: 563,
+      expectedVideoCount: 563,
+      newestDate: "2026-07-12",
+      oldestDate: "2014-02-02",
+      requiredSourceNums: ["12587", "3293"],
+    });
+  });
+
+  it("accepts both the current youth directory and older root MP4 files", () => {
+    const config = LEGACY_ARCHIVE_CONFIGS["youth-haram"];
+    expect(config.allowedMp4Url.test("http://sermon.joych.org/mp4/youth/260712_youth.mp4"))
+      .toBe(true);
+    expect(config.allowedMp4Url.test("http://sermon.joych.org/mp4/20140202_youth.mp4"))
+      .toBe(true);
+    expect(config.allowedMp4Url.test("http://example.com/mp4/20140202_youth.mp4"))
+      .toBe(false);
   });
 });
