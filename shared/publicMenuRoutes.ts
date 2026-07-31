@@ -11,21 +11,21 @@ export const PUBLIC_MENU_PATHS = {
   pastorGreeting: "/page/교회소개-위임목사-소개-위임목사-인사",
   pastorBooks: "/page/교회소개-위임목사-소개-위임목사-저서",
   staff: "/page/교회소개-섬기는-사람들",
-  shuttleTimetable: "/page/교회소개-셔틀버스-차량-시간표",
+  shuttleTimetable: "/page/교회소개-셔틀버스-차량시간표",
   directions: "/page/교회소개-오시는-길",
   churchHistory: "/page/교회소개-교회-연혁",
   worshipSchedule: "/page/교회소개-예배-안내",
   sundaySermon: "/page/조이풀tv-주일설교",
   hebronWorship: "/page/조이풀tv-헤브론-수요예배",
   fridayWorship: "/page/조이풀tv-금요-경배의-용사들",
-  praiseShalom: "/page/조이풀tv-찬양-주일-1부-샬롬-찬양대",
+  praiseShalom: "/page/조이풀tv-찬양-샬롬-찬양대",
   praiseHosanna: "/page/조이풀tv-찬양-주일-2부-호산나-찬양대",
   praiseZion: "/page/조이풀tv-찬양-주일-3부-시온-찬양대",
   praiseSpecial: "/page/조이풀tv-찬양-예배특송",
-  eventPhotos: "/page/커뮤니티-행사-사진",
+  eventPhotos: "/page/커뮤니티-행사사진",
   testimony: "/page/커뮤니티-은혜의-간증",
   mission: "/page/커뮤니티-선교-소식",
-  churchNews: "/page/행정지원-교회-소식",
+  churchNews: "/page/행정지원-교회소식",
   bulletin: "/page/행정지원-주보-주보보기",
   bulletinAd: "/page/행정지원-주보-주보-광고신청",
   subtitleRequest: "/page/행정지원-자막신청",
@@ -33,11 +33,12 @@ export const PUBLIC_MENU_PATHS = {
   onlineOffering: "/page/행정지원-온라인-헌금",
   donationReceipt: "/page/행정지원-기부금-영수증",
   academy: "/page/교육-신청-조이아카데미",
-  discipleCourse: "/page/교육-신청-제자반",
-  leadershipCourse: "/page/교육-신청-리더십반",
-  saengseonConference: "/page/교육-신청-생선컨퍼런스",
-  facility: "/page/시설-사용-예약-성도",
+  discipleCourse: "/page/교육신청-제자반",
+  leadershipCourse: "/page/교육신청-리더십반",
+  saengseonConference: "/page/교육신청-생선컨퍼런스",
+  facility: "/page/시설사용-예약-성도",
   externalFacility: "/page/시설-사용-예약-외부인",
+  vehicleReservation: "/page/차량예약",
   sitemap: "/page/사이트맵",
 } as const;
 
@@ -124,6 +125,7 @@ export const PUBLIC_MENU_ROUTE_ALIASES: Record<string, readonly string[]> = {
   ],
   [PUBLIC_MENU_PATHS.shuttleTimetable]: [
     "/page/교회소개-셔틀버스-테스트1",
+    "/page/교회소개-셔틀버스-차량-시간표",
   ],
   [PUBLIC_MENU_PATHS.directions]: [
     "/about/directions",
@@ -150,6 +152,7 @@ export const PUBLIC_MENU_ROUTE_ALIASES: Record<string, readonly string[]> = {
     "/page/조이풀tv-금요-경배와-용사들",
   ],
   [PUBLIC_MENU_PATHS.praiseShalom]: [
+    "/page/조이풀tv-찬양-주일-1부-샬롬-찬양대",
     "/page/조이풀tv-찬양-샬롬-성가대",
   ],
   [PUBLIC_MENU_PATHS.praiseHosanna]: [
@@ -164,6 +167,7 @@ export const PUBLIC_MENU_ROUTE_ALIASES: Record<string, readonly string[]> = {
   [PUBLIC_MENU_PATHS.eventPhotos]: [
     "/community/photo",
     "/page/커뮤니티-최근-행사-사진",
+    "/page/커뮤니티-행사-사진",
   ],
   [PUBLIC_MENU_PATHS.testimony]: [
     "/community/testimony",
@@ -182,6 +186,7 @@ export const PUBLIC_MENU_ROUTE_ALIASES: Record<string, readonly string[]> = {
   [PUBLIC_MENU_PATHS.churchNews]: [
     "/community/news",
     "/page/행정지원-공지사항",
+    "/page/행정지원-교회-소식",
   ],
   [PUBLIC_MENU_PATHS.bulletin]: [
     "/worship/bulletin",
@@ -211,16 +216,18 @@ export const PUBLIC_MENU_ROUTE_ALIASES: Record<string, readonly string[]> = {
     "https://joychdonate.dimode.co.kr/support/donation_01.asp",
   ],
   [PUBLIC_MENU_PATHS.academy]: ["/education/courses"],
-  [PUBLIC_MENU_PATHS.discipleCourse]: ["/page/강좌-제자반"],
-  [PUBLIC_MENU_PATHS.leadershipCourse]: ["/page/강좌-리더십반"],
-  [PUBLIC_MENU_PATHS.saengseonConference]: ["/page/강좌-생선컨퍼런스"],
+  [PUBLIC_MENU_PATHS.discipleCourse]: ["/page/강좌-제자반", "/page/교육-신청-제자반"],
+  [PUBLIC_MENU_PATHS.leadershipCourse]: ["/page/강좌-리더십반", "/page/교육-신청-리더십반"],
+  [PUBLIC_MENU_PATHS.saengseonConference]: ["/page/강좌-생선컨퍼런스", "/page/교육-신청-생선컨퍼런스"],
   [PUBLIC_MENU_PATHS.facility]: [
     "/facility",
     "/page/시설-사용-예약",
+    "/page/시설-사용-예약-성도",
     "/page/시설사용예약",
     "/page/시설사용-예약",
   ],
   [PUBLIC_MENU_PATHS.externalFacility]: ["/facility/external"],
+  [PUBLIC_MENU_PATHS.vehicleReservation]: ["/support/vehicle", "/admin/vehicle"],
   [PUBLIC_MENU_PATHS.sitemap]: ["/sitemap"],
 };
 

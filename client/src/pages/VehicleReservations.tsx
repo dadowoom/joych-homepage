@@ -28,6 +28,7 @@ import {
   RESERVATION_REPEAT_OPTIONS,
   type ReservationRepeatType,
 } from "@shared/reservationRecurrence";
+import { PUBLIC_MENU_PATHS } from "@shared/publicMenuRoutes";
 import { resolveVehicleInquirySettings } from "@shared/vehicleInquiry";
 import { toast } from "sonner";
 import {
@@ -850,7 +851,7 @@ export function VehicleReservationList() {
     }
     const nextSearch = params.toString();
     if (nextSearch === searchString) return;
-    navigate(`/support/vehicle${nextSearch ? `?${nextSearch}` : ""}`, { replace: true });
+    navigate(`${PUBLIC_MENU_PATHS.vehicleReservation}${nextSearch ? `?${nextSearch}` : ""}`, { replace: true });
   }, [endTime, navigate, repeatEndDate, repeatMode, searchString, selectedDate, startTime]);
   const { data: vehicles, isLoading, error } = trpc.home.vehicles.useQuery(undefined, {
     retry: false,
@@ -948,11 +949,11 @@ export function VehicleReservationList() {
       repeatMode,
     });
     if (repeatMode !== "none" && repeatEndDate) params.set("repeatEndDate", repeatEndDate);
-    return `/support/vehicle/${vehicleId}/apply?${params.toString()}`;
+    return `${PUBLIC_MENU_PATHS.vehicleReservation}/${vehicleId}/apply?${params.toString()}`;
   }
 
   if (error) {
-    return <AccessBlocked message={error.message} next="/support/vehicle" />;
+    return <AccessBlocked message={error.message} next={PUBLIC_MENU_PATHS.vehicleReservation} />;
   }
 
   return (
@@ -965,7 +966,7 @@ export function VehicleReservationList() {
               <h2 className="text-xl font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>시간을 먼저 선택하세요</h2>
               <p className="mt-1 text-sm text-gray-500">선택한 시간 전체에 이용 가능한 차량만 보여드립니다.</p>
             </div>
-            <Link href="/support/vehicle/my-reservations">
+            <Link href={`${PUBLIC_MENU_PATHS.vehicleReservation}/my-reservations`}>
               <Button variant="outline" className="border-[#1B5E20] text-[#1B5E20] hover:bg-green-50">
                 <CalendarCheck className="mr-2 h-4 w-4" /> 내 차량예약 현황
               </Button>
@@ -1140,7 +1141,7 @@ export function VehicleReservationDetail() {
   const [, navigate] = useLocation();
 
   useEffect(() => {
-    navigate("/support/vehicle", { replace: true });
+    navigate(PUBLIC_MENU_PATHS.vehicleReservation, { replace: true });
   }, [navigate]);
 
   return (
@@ -1225,13 +1226,13 @@ function LegacyVehicleReservationDetail() {
   function handleApply() {
     if (!selectedDate) return;
     if (!memberMe && !canManageVehicleReservations) {
-      navigate(getLoginHref(`/support/vehicle/${vehicleId}`));
+      navigate(getLoginHref(`${PUBLIC_MENU_PATHS.vehicleReservation}/${vehicleId}`));
       return;
     }
     const query = new URLSearchParams({ date: selectedDate });
     if (startTime) query.set("startTime", startTime);
     if (endTime) query.set("endTime", endTime);
-    navigate(`/support/vehicle/${vehicleId}/apply?${query.toString()}`);
+    navigate(`${PUBLIC_MENU_PATHS.vehicleReservation}/${vehicleId}/apply?${query.toString()}`);
   }
 
   const applyLabel = useMemo(() => {
@@ -1242,7 +1243,7 @@ function LegacyVehicleReservationDetail() {
   }, [selectedDate, startTime, endTime]);
 
   if (error) {
-    return <AccessBlocked message={error.message} next={`/support/vehicle/${vehicleId}`} />;
+    return <AccessBlocked message={error.message} next={`${PUBLIC_MENU_PATHS.vehicleReservation}/${vehicleId}`} />;
   }
 
   if (isLoading) {
@@ -1259,7 +1260,7 @@ function LegacyVehicleReservationDetail() {
         <div className="text-center">
           <AlertCircle className="mx-auto mb-3 h-12 w-12 text-gray-300" />
           <p className="mb-4 text-gray-500">차량 정보를 찾을 수 없습니다.</p>
-          <Link href="/support/vehicle" className="font-medium text-[#1B5E20] hover:underline">차량 목록으로 돌아가기</Link>
+          <Link href={PUBLIC_MENU_PATHS.vehicleReservation} className="font-medium text-[#1B5E20] hover:underline">차량 목록으로 돌아가기</Link>
         </div>
       </div>
     );
@@ -1379,7 +1380,7 @@ function LegacyVehicleReservationDetail() {
 
               <VehicleInquiryCard />
 
-              <Link href="/support/vehicle">
+              <Link href={PUBLIC_MENU_PATHS.vehicleReservation}>
                 <Button type="button" variant="outline" className="w-full">
                   <ChevronLeft className="mr-1 h-4 w-4" /> 차량 목록으로
                 </Button>
@@ -1401,8 +1402,8 @@ export function VehicleReservationApply() {
   const canManageVehicleReservations = hasContentPermission(adminUser, "content:vehicles");
   const initialSearchParams = useMemo(() => new URLSearchParams(searchString), [searchString]);
   const selectedRepeatMode = normalizeReservationRepeatType(initialSearchParams.get("repeatMode"));
-  const scheduleSearchHref = `/support/vehicle${searchString ? `?${searchString}` : ""}`;
-  const applyReturnHref = `/support/vehicle/${vehicleId}/apply${searchString ? `?${searchString}` : ""}`;
+  const scheduleSearchHref = `${PUBLIC_MENU_PATHS.vehicleReservation}${searchString ? `?${searchString}` : ""}`;
+  const applyReturnHref = `${PUBLIC_MENU_PATHS.vehicleReservation}/${vehicleId}/apply${searchString ? `?${searchString}` : ""}`;
   const [form, setForm] = useState({
     reserverName: "",
     reserverPhone: "",
@@ -1590,7 +1591,7 @@ export function VehicleReservationApply() {
               <Clock className="mx-auto mb-4 h-12 w-12 text-[#1B5E20]" />
               <h2 className="text-xl font-bold text-gray-900">시간을 먼저 선택해 주세요</h2>
               <p className="mt-2 text-sm text-gray-500">선택한 시간에 가능한 차량을 확인한 뒤 신청할 수 있습니다.</p>
-              <Link href="/support/vehicle"><Button className="mt-6 bg-[#1B5E20] text-white hover:bg-[#2E7D32]">시간 선택으로 이동</Button></Link>
+              <Link href={PUBLIC_MENU_PATHS.vehicleReservation}><Button className="mt-6 bg-[#1B5E20] text-white hover:bg-[#2E7D32]">시간 선택으로 이동</Button></Link>
             </div>
           </div>
         </section>
@@ -1622,11 +1623,11 @@ export function VehicleReservationApply() {
                 <div className="mt-7 flex justify-center gap-2">
                   <Button
                     variant="outline"
-                    onClick={() => navigate("/support/vehicle")}
+                    onClick={() => navigate(PUBLIC_MENU_PATHS.vehicleReservation)}
                   >
                     추가 신청
                   </Button>
-                  <Link href="/support/vehicle/my-reservations"><Button className="bg-[#1B5E20] text-white hover:bg-[#2E7D32]">내 예약 현황</Button></Link>
+                  <Link href={`${PUBLIC_MENU_PATHS.vehicleReservation}/my-reservations`}><Button className="bg-[#1B5E20] text-white hover:bg-[#2E7D32]">내 예약 현황</Button></Link>
                 </div>
               </div>
             ) : (
@@ -1775,7 +1776,7 @@ export function VehicleReservationApply() {
         <div className="text-center">
           <AlertCircle className="mx-auto mb-3 h-12 w-12 text-gray-300" />
           <p className="mb-4 text-gray-500">차량 정보를 찾을 수 없습니다.</p>
-          <Link href="/support/vehicle" className="font-medium text-[#1B5E20] hover:underline">차량 목록으로 돌아가기</Link>
+          <Link href={PUBLIC_MENU_PATHS.vehicleReservation} className="font-medium text-[#1B5E20] hover:underline">차량 목록으로 돌아가기</Link>
         </div>
       </div>
     );
@@ -1801,7 +1802,7 @@ export function MyVehicleReservations() {
   );
 
   if (error) {
-    return <AccessBlocked message={error.message} next="/support/vehicle/my-reservations" />;
+    return <AccessBlocked message={error.message} next={`${PUBLIC_MENU_PATHS.vehicleReservation}/my-reservations`} />;
   }
 
   return (
@@ -1814,7 +1815,7 @@ export function MyVehicleReservations() {
               <h2 className="text-xl font-bold text-gray-900" style={{ fontFamily: "'Noto Serif KR', serif" }}>내 차량예약 현황</h2>
               <p className="mt-1 text-sm text-gray-500">신청한 차량예약의 승인 상태를 확인합니다.</p>
             </div>
-            <Link href="/support/vehicle"><Button variant="outline">차량 목록</Button></Link>
+            <Link href={PUBLIC_MENU_PATHS.vehicleReservation}><Button variant="outline">차량 목록</Button></Link>
           </div>
 
           {isLoading ? (

@@ -17,6 +17,7 @@ import { SITE_HOSTNAMES } from "@shared/siteHosts";
 import {
   getCanonicalPublicMenuHref as getCanonicalPublicMenuHrefFromRoutes,
   getPublicMenuHrefCandidates,
+  PUBLIC_MENU_PATHS,
 } from "@shared/publicMenuRoutes";
 import { menus, menuItems, menuSubItems } from "../../drizzle/schema";
 import { getDb } from "./connection";
@@ -278,7 +279,8 @@ export async function getAllMenus() {
  * - 권한값(allowGuest/allowMember)은 필터링하지 않고 그대로 내려보내 숨김 해제 후에도 유지됩니다.
  */
 function isVehicleReservationAccessHref(href: string | null | undefined) {
-  return href === "/support/vehicle" ||
+  return href === PUBLIC_MENU_PATHS.vehicleReservation ||
+    href === "/support/vehicle" ||
     href === "/admin/vehicle" ||
     Boolean(href?.startsWith("/support/vehicle/"));
 }

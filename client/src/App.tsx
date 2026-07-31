@@ -675,7 +675,7 @@ function Router() {
       <Route path="/community/organization" component={OrganizationPage} />
       <Route path="/community/club" component={ClubPage} />
       <Route path="/community/photo">
-        <LegacyRedirect to="/page/커뮤니티-최근-행사-사진" />
+        <LegacyRedirect to={PUBLIC_MENU_PATHS.eventPhotos} />
       </Route>
       <Route path="/community/testimony/write"><LegacyRedirect to={getTestimonyWritePath()} /></Route>
       <Route path="/community/testimony/edit/:id" component={LegacyTestimonyEditRedirect} />
@@ -687,10 +687,10 @@ function Router() {
 
       {/* 행정지원 */}
       <Route path="/support/offering"><MenuAccessGate href="/support/offering"><Offering /></MenuAccessGate></Route>
-      <Route path="/support/vehicle/my-reservations"><MenuAccessGate href="/support/vehicle"><MyVehicleReservations /></MenuAccessGate></Route>
-      <Route path="/support/vehicle/:id/apply"><MenuAccessGate href="/support/vehicle"><VehicleReservationApply /></MenuAccessGate></Route>
-      <Route path="/support/vehicle/:id"><MenuAccessGate href="/support/vehicle"><VehicleReservationDetail /></MenuAccessGate></Route>
-      <Route path="/support/vehicle"><MenuAccessGate href="/support/vehicle"><VehicleReservationList /></MenuAccessGate></Route>
+      <Route path="/support/vehicle/my-reservations"><MenuAccessGate href={PUBLIC_MENU_PATHS.vehicleReservation}><MyVehicleReservations /></MenuAccessGate></Route>
+      <Route path="/support/vehicle/:id/apply"><MenuAccessGate href={PUBLIC_MENU_PATHS.vehicleReservation}><VehicleReservationApply /></MenuAccessGate></Route>
+      <Route path="/support/vehicle/:id"><MenuAccessGate href={PUBLIC_MENU_PATHS.vehicleReservation}><VehicleReservationDetail /></MenuAccessGate></Route>
+      <Route path="/support/vehicle"><LegacyRedirect to={PUBLIC_MENU_PATHS.vehicleReservation} /></Route>
       <Route path="/support/new-member"><MenuAccessGate href="/support/new-member"><NewMemberGuide /></MenuAccessGate></Route>
       <Route path="/support/store"><MenuAccessGate href="/support/store"><JoyfulStore /></MenuAccessGate></Route>
       <Route path="/support/bulletin-ad"><LegacyRedirect to={PUBLIC_MENU_PATHS.bulletinAd} /></Route>
@@ -701,7 +701,7 @@ function Router() {
 
       {/* 행정지원 - 기존 공개 URL 호환 */}
       <Route path="/admin/offering"><MenuAccessGate href="/support/offering"><Offering /></MenuAccessGate></Route>
-      <Route path="/admin/vehicle"><MenuAccessGate href="/support/vehicle"><VehicleReservationList /></MenuAccessGate></Route>
+      <Route path="/admin/vehicle"><LegacyRedirect to={PUBLIC_MENU_PATHS.vehicleReservation} /></Route>
       <Route path="/admin/new-member"><MenuAccessGate href="/support/new-member"><NewMemberGuide /></MenuAccessGate></Route>
       <Route path="/admin/store"><MenuAccessGate href="/support/store"><JoyfulStore /></MenuAccessGate></Route>
       <Route path="/admin/bulletin-ad"><MenuAccessGate href="/support/bulletin-ad"><BulletinAdRequestPage /></MenuAccessGate></Route>
@@ -819,6 +819,18 @@ function Router() {
       </Route>
       <Route path={PUBLIC_MENU_PATHS.facility}>
         <MenuAccessGate href={PUBLIC_MENU_PATHS.facility}><FacilityList /></MenuAccessGate>
+      </Route>
+      <Route path={`${PUBLIC_MENU_PATHS.vehicleReservation}/my-reservations`}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.vehicleReservation}><MyVehicleReservations /></MenuAccessGate>
+      </Route>
+      <Route path={`${PUBLIC_MENU_PATHS.vehicleReservation}/:id/apply`}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.vehicleReservation}><VehicleReservationApply /></MenuAccessGate>
+      </Route>
+      <Route path={`${PUBLIC_MENU_PATHS.vehicleReservation}/:id`}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.vehicleReservation}><VehicleReservationDetail /></MenuAccessGate>
+      </Route>
+      <Route path={PUBLIC_MENU_PATHS.vehicleReservation}>
+        <MenuAccessGate href={PUBLIC_MENU_PATHS.vehicleReservation}><VehicleReservationList /></MenuAccessGate>
       </Route>
       <Route path={PUBLIC_MENU_PATHS.sitemap}>
         <MenuAccessGate href={PUBLIC_MENU_PATHS.sitemap}><Sitemap /></MenuAccessGate>

@@ -74,7 +74,7 @@ const FALLBACK_QUICK_MENUS = [
   { icon: "fa-building", label: "시설사용예약", href: PUBLIC_MENU_PATHS.facility },
   { icon: "fa-store", label: "조이플스토어", href: "/support/store" },
   { icon: "fa-user-plus", label: "새가족 안내", href: "/support/new-member" },
-  { icon: "fa-bus", label: "차량운행 안내", href: "/support/vehicle" },
+  { icon: "fa-bus", label: "차량운행 안내", href: PUBLIC_MENU_PATHS.vehicleReservation },
   { icon: "fa-map-marker-alt", label: "오시는 길", href: "/page/교회소개-오시는길" },
 ];
 

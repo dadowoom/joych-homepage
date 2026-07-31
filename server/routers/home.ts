@@ -38,6 +38,7 @@ import {
   normalizeReservationRepeatType,
   type ReservationRepeatType,
 } from "@shared/reservationRecurrence";
+import { PUBLIC_MENU_PATHS } from "@shared/publicMenuRoutes";
 import {
   getVisibleHeroSlides,
   getVisibleQuickMenus,
@@ -238,6 +239,7 @@ type MenuTreeNode = {
 
 function isVehicleReservationHref(href: string | null | undefined) {
   return (
+    href === PUBLIC_MENU_PATHS.vehicleReservation ||
     href === "/support/vehicle" ||
     href === "/admin/vehicle" ||
     Boolean(href?.startsWith("/support/vehicle/"))

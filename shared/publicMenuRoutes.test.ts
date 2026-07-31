@@ -47,4 +47,18 @@ describe("public menu Korean canonical routes", () => {
   ])("maps an old menu address %s to %s", (oldPath, expectedPath) => {
     expect(getCanonicalPublicMenuPath(oldPath)).toBe(expectedPath);
   });
+
+  it.each([
+    ["/page/교회소개-셔틀버스-차량-시간표", PUBLIC_MENU_PATHS.shuttleTimetable],
+    ["/page/조이풀tv-찬양-주일-1부-샬롬-찬양대", PUBLIC_MENU_PATHS.praiseShalom],
+    ["/page/커뮤니티-행사-사진", PUBLIC_MENU_PATHS.eventPhotos],
+    ["/page/행정지원-교회-소식", PUBLIC_MENU_PATHS.churchNews],
+    ["/page/교육-신청-제자반", PUBLIC_MENU_PATHS.discipleCourse],
+    ["/page/교육-신청-리더십반", PUBLIC_MENU_PATHS.leadershipCourse],
+    ["/page/교육-신청-생선컨퍼런스", PUBLIC_MENU_PATHS.saengseonConference],
+    ["/page/시설-사용-예약-성도", PUBLIC_MENU_PATHS.facility],
+    ["/support/vehicle", PUBLIC_MENU_PATHS.vehicleReservation],
+  ])("moves the previous canonical address %s to the requested address", (oldPath, expectedPath) => {
+    expect(getCanonicalPublicMenuPath(oldPath)).toBe(expectedPath);
+  });
 });
