@@ -16,6 +16,7 @@ const dbMocks = vi.hoisted(() => ({
   getMemberSubtitleRequest: vi.fn(),
   listMemberBulletinAdRequests: vi.fn(),
   listMemberSubtitleRequests: vi.fn(),
+  listPublicSubtitleRequests: vi.fn(),
   listOwnedVisitRequests: vi.fn(),
   updateMemberBulletinAdRequest: vi.fn(),
   updateMemberSubtitleRequest: vi.fn(),
@@ -55,6 +56,7 @@ vi.mock("./db", async (importOriginal) => {
     getMemberSubtitleRequest: dbMocks.getMemberSubtitleRequest,
     listMemberBulletinAdRequests: dbMocks.listMemberBulletinAdRequests,
     listMemberSubtitleRequests: dbMocks.listMemberSubtitleRequests,
+    listPublicSubtitleRequests: dbMocks.listPublicSubtitleRequests,
     listOwnedVisitRequests: dbMocks.listOwnedVisitRequests,
     updateMemberBulletinAdRequest: dbMocks.updateMemberBulletinAdRequest,
     updateMemberSubtitleRequest: dbMocks.updateMemberSubtitleRequest,
@@ -89,6 +91,7 @@ describe("공개 접수 라우터", () => {
     dbMocks.deleteOwnedVisitRequest.mockResolvedValue(true);
     dbMocks.listMemberBulletinAdRequests.mockResolvedValue([]);
     dbMocks.listMemberSubtitleRequests.mockResolvedValue([]);
+    dbMocks.listPublicSubtitleRequests.mockResolvedValue([]);
     dbMocks.listOwnedVisitRequests.mockResolvedValue([]);
     dbMocks.getMemberBulletinAdRequest.mockResolvedValue({ id: 301, memberId: 1 });
     dbMocks.getMemberSubtitleRequest.mockResolvedValue({ id: 201, memberId: 1 });
@@ -313,6 +316,25 @@ describe("공개 접수 라우터", () => {
     await expect(caller.support.myBulletinAds()).resolves.toEqual([{ id: 301, title: "주보 광고" }]);
     expect(dbMocks.listMemberSubtitleRequests).toHaveBeenCalledWith(1);
     expect(dbMocks.listMemberBulletinAdRequests).toHaveBeenCalledWith(1);
+  });
+
+  it("allows everyone to receive subtitle attachment download details", async () => {
+    dbMocks.listPublicSubtitleRequests.mockResolvedValue([{
+      id: 201,
+      title: "찬양 자막 신청",
+      attachmentName: "praise-lyrics.pdf",
+      attachmentUrl: "https://files.example.org/subtitle-requests/praise-lyrics.pdf",
+      attachmentSize: 1234,
+      attachmentMime: "application/pdf",
+    }]);
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(caller.support.listSubtitles()).resolves.toEqual([expect.objectContaining({
+      attachmentName: "praise-lyrics.pdf",
+      attachmentUrl: "https://files.example.org/subtitle-requests/praise-lyrics.pdf",
+      attachmentSize: 1234,
+    })]);
+    expect(dbMocks.listPublicSubtitleRequests).toHaveBeenCalledOnce();
   });
 
   it("lets a member update and delete their own subtitle request", async () => {

@@ -46,7 +46,7 @@ function formatAttachmentSize(size: number | null | undefined) {
   return `${(size / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-function OwnAttachmentDownload({
+function AttachmentDownload({
   name,
   url,
   size,
@@ -111,10 +111,6 @@ export default function SubtitleRequestPage() {
   );
   const mySubtitleRequestIds = useMemo(
     () => new Set(mySubtitleRequests.map((request) => request.id)),
-    [mySubtitleRequests],
-  );
-  const mySubtitleRequestsById = useMemo(
-    () => new Map(mySubtitleRequests.map((request) => [request.id, request])),
     [mySubtitleRequests],
   );
   const canManageSubtitles =
@@ -529,7 +525,6 @@ export default function SubtitleRequestPage() {
                     const requestNumber = filteredRequests.length - (pageStart + index);
                     const isExpanded = expandedId === request.id;
                     const isOwnRequest = mySubtitleRequestIds.has(request.id);
-                    const ownRequest = isOwnRequest ? mySubtitleRequestsById.get(request.id) : undefined;
                     const canDeleteRequest = isOwnRequest || canManageSubtitles;
                     return (
                       <Fragment key={request.id}>
@@ -572,15 +567,15 @@ export default function SubtitleRequestPage() {
                                     </div>
                                   )}
                                   {request.attachmentName && (
-                                    ownRequest?.attachmentUrl ? (
-                                      <OwnAttachmentDownload
-                                        name={ownRequest.attachmentName}
-                                        url={ownRequest.attachmentUrl}
-                                        size={ownRequest.attachmentSize}
+                                    request.attachmentUrl ? (
+                                      <AttachmentDownload
+                                        name={request.attachmentName}
+                                        url={request.attachmentUrl}
+                                        size={request.attachmentSize}
                                       />
                                     ) : (
                                       <p className="mt-3 text-xs text-[#0F607A]">
-                                        첨부파일은 작성자 본인과 관리자만 확인할 수 있습니다.
+                                        첨부파일 정보를 불러올 수 없습니다.
                                       </p>
                                     )
                                   )}
@@ -609,7 +604,6 @@ export default function SubtitleRequestPage() {
                 const requestNumber = filteredRequests.length - (pageStart + index);
                 const isExpanded = expandedId === request.id;
                 const isOwnRequest = mySubtitleRequestIds.has(request.id);
-                const ownRequest = isOwnRequest ? mySubtitleRequestsById.get(request.id) : undefined;
                 const canDeleteRequest = isOwnRequest || canManageSubtitles;
                 return (
                   <article key={request.id} className={viewMode === "grid" ? "border border-gray-200 bg-white p-4" : "p-4"}>
@@ -649,14 +643,14 @@ export default function SubtitleRequestPage() {
                           </div>
                         )}
                         {request.attachmentName && (
-                          ownRequest?.attachmentUrl ? (
-                            <OwnAttachmentDownload
-                              name={ownRequest.attachmentName}
-                              url={ownRequest.attachmentUrl}
-                              size={ownRequest.attachmentSize}
+                          request.attachmentUrl ? (
+                            <AttachmentDownload
+                              name={request.attachmentName}
+                              url={request.attachmentUrl}
+                              size={request.attachmentSize}
                             />
                           ) : (
-                            <p className="mt-3 text-xs text-[#0F607A]">첨부파일은 작성자 본인과 관리자만 확인할 수 있습니다.</p>
+                            <p className="mt-3 text-xs text-[#0F607A]">첨부파일 정보를 불러올 수 없습니다.</p>
                           )
                         )}
                       </div>
