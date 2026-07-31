@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Eye, EyeOff, LayoutGrid, List, Loader2, Pencil, Plus, Search, Trash2, Youtube } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -206,6 +206,9 @@ export default function YoutubeAdminTab() {
   const [videoScripture, setVideoScripture] = useState("");
   const [videoSermonDate, setVideoSermonDate] = useState("");
   const [videoDescription, setVideoDescription] = useState("");
+  const [metadataNotice, setMetadataNotice] = useState("");
+  const metadataRequestVersion = useRef(0);
+  const lastMetadataVideoId = useRef<string | null>(null);
 
   const [editingVideoId, setEditingVideoId] = useState<number | null>(null);
   const [editVideoUrl, setEditVideoUrl] = useState("");
@@ -248,6 +251,8 @@ export default function YoutubeAdminTab() {
     onError: (err) => toast.error(err.message || "영상 추가에 실패했습니다."),
   });
 
+  const lookupVideoMetadata = trpc.youtube.lookupVideoMetadata.useMutation();
+
   const updateVideo = trpc.youtube.updateVideo.useMutation({
     onSuccess: () => {
       utils.youtube.getVideosAdmin.invalidate();
@@ -280,13 +285,52 @@ export default function YoutubeAdminTab() {
   });
 
   function resetAddVideoForm() {
+    metadataRequestVersion.current += 1;
+    lastMetadataVideoId.current = null;
     setVideoUrl("");
     setVideoTitle("");
     setVideoPreacher("");
     setVideoScripture("");
     setVideoSermonDate("");
     setVideoDescription("");
+    setMetadataNotice("");
     setAddingVideo(false);
+  }
+
+  async function fillVideoMetadata(url: string, force = false) {
+    const videoId = extractVideoId(url.trim());
+    if (!videoId || (!force && lastMetadataVideoId.current === videoId)) return;
+
+    const requestVersion = ++metadataRequestVersion.current;
+    lastMetadataVideoId.current = videoId;
+    setMetadataNotice("유튜브 영상 정보를 가져오는 중입니다.");
+    try {
+      const metadata = await lookupVideoMetadata.mutateAsync({ videoUrl: url });
+      if (requestVersion !== metadataRequestVersion.current) return;
+
+      setVideoTitle((previous) => previous.trim() || metadata.title);
+      setVideoSermonDate((previous) => previous.trim() || metadata.publishedDate || "");
+      setVideoDescription((previous) => previous.trim() || metadata.description || "");
+      setMetadataNotice(
+        `${metadata.channelTitle ? `${metadata.channelTitle} · ` : ""}제목${metadata.publishedDate ? "·업로드일·설명" : "·설명"}을 불러왔습니다. 업로드일은 예배일과 다를 수 있으니 확인해 주세요.`
+      );
+    } catch (error) {
+      if (requestVersion !== metadataRequestVersion.current) return;
+      lastMetadataVideoId.current = null;
+      setMetadataNotice("");
+      toast.error(error instanceof Error ? error.message : "유튜브 영상 정보를 가져오지 못했습니다.");
+    }
+  }
+
+  function handleVideoUrlChange(url: string) {
+    setVideoUrl(url);
+    if (extractVideoId(url.trim())) {
+      void fillVideoMetadata(url);
+      return;
+    }
+    metadataRequestVersion.current += 1;
+    lastMetadataVideoId.current = null;
+    setMetadataNotice("");
   }
 
   function resetEditVideoForm() {
@@ -516,10 +560,24 @@ export default function YoutubeAdminTab() {
                     <label className="mb-1 block text-xs text-gray-500">유튜브 링크, MP4 주소, 옛 홈페이지 영상 상세주소</label>
                     <Input
                       value={videoUrl}
-                      onChange={(e) => setVideoUrl(e.target.value)}
+                      onChange={(e) => handleVideoUrlChange(e.target.value)}
                       placeholder="http://admin.joych.org/core/module/vod/skin_001/vodIframe.html?pageCode=423&num=12484&vodType=237"
                       className="h-8 text-sm"
                     />
+                    {metadataNotice && (
+                      <div className="mt-2 flex items-start justify-between gap-2 text-[11px] leading-relaxed text-[#1B5E20]">
+                        <p>{metadataNotice}</p>
+                        {extractVideoId(videoUrl.trim()) && !lookupVideoMetadata.isPending && (
+                          <button
+                            type="button"
+                            className="shrink-0 font-semibold underline"
+                            onClick={() => void fillVideoMetadata(videoUrl, true)}
+                          >
+                            다시 불러오기
+                          </button>
+                        )}
+                      </div>
+                    )}
                     <p className="mt-1 text-[11px] leading-relaxed text-gray-400">
                       pageCode만 있는 옛 목록주소가 아니라 num과 vodType이 포함된 상세주소를 입력해주세요.
                     </p>
@@ -583,7 +641,7 @@ export default function YoutubeAdminTab() {
                     <Button
                       size="sm"
                       onClick={handleAddVideo}
-                      disabled={addVideo.isPending || !videoUrl.trim()}
+                      disabled={addVideo.isPending || lookupVideoMetadata.isPending || !videoUrl.trim()}
                       className="h-7 bg-[#1B5E20] text-xs hover:bg-[#2E7D32]"
                     >
                       {addVideo.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "추가"}

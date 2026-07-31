@@ -30,6 +30,7 @@ import {
   safeAssetUrlSchema,
 } from "../_core/contentValidation";
 import { resolveLegacyVodInfoFromPageUrl } from "../_core/legacyVod";
+import { fetchYoutubeVideoMetadata, YoutubeMetadataLookupError } from "../_core/youtubeMetadata";
 import {
   getAllYoutubePlaylists,
   createYoutubePlaylist,
@@ -172,6 +173,20 @@ export const youtubeRouter = router({
   getVideosAdmin: youtubeAdminProcedure
     .input(z.object({ playlistId: z.number().int().positive() }))
     .query(({ input }) => getYoutubeVideosByPlaylist(input.playlistId)),
+
+  /** 공개된 유튜브 링크에서 등록에 쓸 제목·업로드일·설명 정보를 조회한다. */
+  lookupVideoMetadata: youtubeAdminProcedure
+    .input(z.object({ videoUrl: z.string().trim().min(1).max(2048) }))
+    .mutation(async ({ input }) => {
+      try {
+        return await fetchYoutubeVideoMetadata(input.videoUrl);
+      } catch (error) {
+        if (error instanceof YoutubeMetadataLookupError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+        }
+        throw error;
+      }
+    }),
 
   /**
    * 유튜브 영상 추가 (관리자)
