@@ -3165,6 +3165,109 @@ else
   exit 1
 fi
 
+MIGRATION_0109="${APP_DIR}/drizzle/0109_backfill_sunday_sermon_20251026_metadata.sql"
+if [[ -f "${MIGRATION_0109}" ]]; then
+  echo "[deploy] data repair: backfill verified Sunday sermon metadata"
+  node --input-type=module <<'NODE'
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import mysql from "mysql2/promise";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error("DATABASE_URL is required for migration 0109.");
+
+const migrationId = "0109_backfill_sunday_sermon_20251026_metadata";
+const expected = {
+  id: 97588,
+  playlistId: 60004,
+  videoId: "72UhzpTPkXI",
+  missingTitle: "제목 없음",
+  title: "씨를 뿌린 대로 거둡니다",
+  preacher: "박진석 담임목사",
+  scripture: "시편 126:5-6 / 마가복음 4:14-20",
+  sermonDate: "2025-10-26",
+};
+const backupRoot = join(process.env.APP_DIR || ".", "backups", "data-migrations");
+const connection = await mysql.createConnection(databaseUrl);
+try {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id varchar(100) PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB
+  `);
+
+  const [migrationRows] = await connection.execute(
+    "SELECT id FROM app_migrations WHERE id = ? LIMIT 1",
+    [migrationId],
+  );
+  if (!Array.isArray(migrationRows) || migrationRows.length === 0) {
+    await connection.beginTransaction();
+    try {
+      const [targetRows] = await connection.execute(
+        `SELECT id, playlistId, videoId, title, preacher, scripture, sermonDate
+         FROM youtube_videos
+         WHERE id = ? AND playlistId = ? AND videoId = ?
+         FOR UPDATE`,
+        [expected.id, expected.playlistId, expected.videoId],
+      );
+      if (!Array.isArray(targetRows) || targetRows.length !== 1) {
+        throw new Error("Migration 0109 could not find exactly one verified target video.");
+      }
+
+      const target = targetRows[0];
+      if (target.title !== expected.missingTitle || target.sermonDate !== null) {
+        throw new Error("Migration 0109 target metadata is no longer in the expected missing state.");
+      }
+
+      await mkdir(backupRoot, { recursive: true });
+      const backupPath = join(
+        backupRoot,
+        `youtube-video-${expected.id}-before-metadata-backfill-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
+      );
+      await writeFile(
+        backupPath,
+        `${JSON.stringify({ migrationId, source: "legacy pageCode=422,num=12024,vodType=235", row: target }, null, 2)}\n`,
+        { encoding: "utf8", flag: "wx", mode: 0o600 },
+      );
+
+      const sql = await readFile("drizzle/0109_backfill_sunday_sermon_20251026_metadata.sql", "utf8");
+      const [updateResult] = await connection.query(sql);
+      if (Number(updateResult?.affectedRows ?? 0) !== 1) {
+        throw new Error("Migration 0109 updated an unexpected number of videos.");
+      }
+
+      await connection.execute("INSERT INTO app_migrations (id) VALUES (?)", [migrationId]);
+      await connection.commit();
+      console.log(`[deploy] migration 0109 backup=${backupPath}`);
+      console.log("[deploy] migration 0109 applied");
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    }
+  } else {
+    console.log("[deploy] migration 0109 already applied");
+  }
+
+  const [verifiedRows] = await connection.execute(
+    `SELECT title, preacher, scripture, sermonDate
+     FROM youtube_videos
+     WHERE id = ? AND playlistId = ? AND videoId = ?`,
+    [expected.id, expected.playlistId, expected.videoId],
+  );
+  const actual = Array.isArray(verifiedRows) ? verifiedRows[0] : null;
+  if (!actual || actual.title !== expected.title || actual.preacher !== expected.preacher || actual.scripture !== expected.scripture || actual.sermonDate !== expected.sermonDate) {
+    throw new Error("Migration 0109 invariant failed: sermon metadata does not match the verified legacy source.");
+  }
+} finally {
+  await connection.end();
+}
+NODE
+else
+  echo "[deploy] missing migration file: ${MIGRATION_0109}" >&2
+  exit 1
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4
