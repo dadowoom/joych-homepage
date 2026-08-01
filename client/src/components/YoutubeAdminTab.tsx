@@ -52,6 +52,14 @@ function optionalValue(value: string) {
   return trimmed ? trimmed : null;
 }
 
+/** 브라우저의 오늘 날짜를 date 입력값(YYYY-MM-DD)으로 반환합니다. */
+function getTodayDateInputValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function getThumbnailUrl(video: VideoListItem) {
   return video.thumbnailUrl || (video.videoId ? `https://img.youtube.com/vi/${video.videoId}/default.jpg` : null);
 }
@@ -217,7 +225,7 @@ export default function YoutubeAdminTab() {
   const [videoTitle, setVideoTitle] = useState("");
   const [videoPreacher, setVideoPreacher] = useState("");
   const [videoScripture, setVideoScripture] = useState("");
-  const [videoSermonDate, setVideoSermonDate] = useState("");
+  const [videoSermonDate, setVideoSermonDate] = useState(() => getTodayDateInputValue());
   const [videoDescription, setVideoDescription] = useState("");
   const [metadataNotice, setMetadataNotice] = useState("");
   const metadataRequestVersion = useRef(0);
@@ -304,7 +312,7 @@ export default function YoutubeAdminTab() {
     setVideoTitle("");
     setVideoPreacher("");
     setVideoScripture("");
-    setVideoSermonDate("");
+    setVideoSermonDate(getTodayDateInputValue());
     setVideoDescription("");
     setMetadataNotice("");
     setAddingVideo(false);
