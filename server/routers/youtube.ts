@@ -33,6 +33,7 @@ import { resolveLegacyVodInfoFromPageUrl } from "../_core/legacyVod";
 import { fetchYoutubeVideoMetadata, YoutubeMetadataLookupError } from "../_core/youtubeMetadata";
 import {
   getAllYoutubePlaylists,
+  getYoutubeAdminPlaylists,
   createYoutubePlaylist,
   updateYoutubePlaylist,
   deleteYoutubePlaylist,
@@ -104,6 +105,12 @@ export const youtubeRouter = router({
 
   /** 플레이리스트 전체 목록 (공개/관리자 공통) */
   getPlaylists: publicProcedure.query(() => getAllYoutubePlaylists()),
+
+  /**
+   * 관리자용 목록. 조이풀TV 게시판의 메뉴명과 메뉴 순서로 연결된
+   * 재생목록을 먼저 반환하고, 게시판에 아직 연결되지 않은 목록은 분리한다.
+   */
+  getAdminPlaylists: youtubeAdminProcedure.query(() => getYoutubeAdminPlaylists()),
 
   /**
    * 플레이리스트 생성 (관리자)

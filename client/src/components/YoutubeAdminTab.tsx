@@ -18,6 +18,16 @@ type VideoListItem = {
   isVisible?: boolean | null;
 };
 
+type AdminPlaylist = {
+  id: number;
+  title: string;
+  description?: string | null;
+  menuLabel?: string;
+  menuPath?: string;
+  menuHref?: string | null;
+  menuVisible?: boolean;
+};
+
 type VideoViewMode = "list" | "thumbnail";
 
 function extractVideoId(url: string): string | null {
@@ -189,7 +199,10 @@ function VideoThumbnailItem({
 export default function YoutubeAdminTab() {
   const utils = trpc.useUtils();
 
-  const { data: playlists = [], isLoading: playlistsLoading } = trpc.youtube.getPlaylists.useQuery();
+  const { data: playlistGroups, isLoading: playlistsLoading } = trpc.youtube.getAdminPlaylists.useQuery();
+  const linkedPlaylists: AdminPlaylist[] = playlistGroups?.linked ?? [];
+  const unlinkedPlaylists: AdminPlaylist[] = playlistGroups?.unlinked ?? [];
+  const playlists: AdminPlaylist[] = [...linkedPlaylists, ...unlinkedPlaylists];
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<number | null>(null);
   const [newPlaylistTitle, setNewPlaylistTitle] = useState("");
   const [showNewPlaylist, setShowNewPlaylist] = useState(false);
@@ -222,7 +235,7 @@ export default function YoutubeAdminTab() {
 
   const createPlaylist = trpc.youtube.createPlaylist.useMutation({
     onSuccess: () => {
-      utils.youtube.getPlaylists.invalidate();
+      utils.youtube.getAdminPlaylists.invalidate();
       setNewPlaylistTitle("");
       setShowNewPlaylist(false);
       toast.success("플레이리스트가 생성되었습니다.");
@@ -232,7 +245,7 @@ export default function YoutubeAdminTab() {
 
   const deletePlaylist = trpc.youtube.deletePlaylist.useMutation({
     onSuccess: () => {
-      utils.youtube.getPlaylists.invalidate();
+      utils.youtube.getAdminPlaylists.invalidate();
       utils.youtube.getHomeLatest.invalidate();
       setSelectedPlaylistId(null);
       toast.success("플레이리스트가 삭제되었습니다.");
@@ -449,7 +462,7 @@ export default function YoutubeAdminTab() {
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm font-semibold text-gray-700">플레이리스트</span>
+            <span className="text-sm font-semibold text-gray-700">조이풀TV 게시판</span>
             <button
               onClick={() => setShowNewPlaylist(!showNewPlaylist)}
               className="flex items-center gap-1 text-xs text-[#1B5E20] hover:underline"
@@ -496,7 +509,7 @@ export default function YoutubeAdminTab() {
             </div>
           ) : (
             <div className="space-y-1">
-              {playlists.map((pl) => (
+              {linkedPlaylists.map((pl) => (
                 <div
                   key={pl.id}
                   className={`group flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 transition-colors ${
@@ -510,7 +523,16 @@ export default function YoutubeAdminTab() {
                     resetEditVideoForm();
                   }}
                 >
-                  <span className="truncate text-sm font-medium">{pl.title}</span>
+                  <div className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{pl.menuLabel ?? pl.title}</span>
+                    {pl.menuPath && (
+                      <span className={`block truncate text-[11px] ${
+                        selectedPlaylistId === pl.id ? "text-white/70" : "text-gray-400"
+                      }`}>
+                        {pl.menuPath}{pl.menuVisible === false ? " · 메뉴 숨김" : ""}
+                      </span>
+                    )}
+                  </div>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -527,6 +549,54 @@ export default function YoutubeAdminTab() {
                   </button>
                 </div>
               ))}
+              {unlinkedPlaylists.length > 0 && (
+                <details className="mt-3 rounded-lg border border-dashed border-gray-200 bg-amber-50/50 p-2">
+                  <summary className="cursor-pointer text-xs font-medium text-amber-800">
+                    조이풀TV에 연결되지 않은 보관 목록 ({unlinkedPlaylists.length})
+                  </summary>
+                  <p className="mt-1 text-[11px] leading-relaxed text-amber-700">
+                    공개 조이풀TV에는 보이지 않습니다. 기존 영상을 안전하게 관리하기 위한 목록입니다.
+                  </p>
+                  <div className="mt-2 space-y-1">
+                    {unlinkedPlaylists.map((pl) => (
+                      <div
+                        key={pl.id}
+                        className={`group flex w-full items-center rounded text-xs transition-colors ${
+                          selectedPlaylistId === pl.id
+                            ? "bg-amber-700 text-white"
+                            : "bg-white text-gray-600 hover:bg-amber-100"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPlaylistId(pl.id);
+                            resetAddVideoForm();
+                            resetEditVideoForm();
+                          }}
+                          className="min-w-0 flex-1 px-2 py-1.5 text-left"
+                        >
+                          <span className="block truncate">{pl.title}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(`\"${pl.title}\" 플레이리스트를 삭제할까요? 영상도 모두 삭제됩니다.`)) {
+                              deletePlaylist.mutate({ id: pl.id });
+                            }
+                          }}
+                          className={`mr-1 shrink-0 p-1 opacity-0 transition-opacity group-hover:opacity-100 ${
+                            selectedPlaylistId === pl.id ? "text-white/70 hover:text-white" : "text-gray-400 hover:text-red-500"
+                          }`}
+                          title="플레이리스트 삭제"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
             </div>
           )}
         </div>
@@ -540,7 +610,7 @@ export default function YoutubeAdminTab() {
             <>
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-sm font-semibold text-gray-700">
-                  {selectedPlaylist?.title} 영상 목록
+                  {selectedPlaylist?.menuLabel ?? selectedPlaylist?.title} 영상 목록
                 </span>
                 <button
                   onClick={() => {

@@ -95,6 +95,90 @@ export async function getAllYoutubePlaylists() {
   return db.select().from(youtubePlaylists).orderBy(asc(youtubePlaylists.id));
 }
 
+/**
+ * 관리자 예배영상 목록을 실제 조이풀TV 게시판 구조에 맞춰 반환합니다.
+ *
+ * 공개 조이풀TV는 메뉴의 playlistId를 기준으로 영상을 보여주는데, 기존
+ * 관리자 화면은 재생목록 테이블만 바로 보여주고 있었습니다. 따라서
+ * "주일설교" / "주일예배"처럼 메뉴명과 재생목록명이 다른 경우와
+ * 찬양의 하위 메뉴가 관리자에서 서로 맞지 않아 보였습니다.
+ *
+ * 메뉴에 연결된 목록은 조이풀TV의 실제 순서와 이름으로, 연결되지 않은
+ * 목록은 별도로 반환해 기존 데이터도 관리할 수 있게 합니다.
+ */
+export async function getYoutubeAdminPlaylists() {
+  const db = await getDb();
+  if (!db) return { linked: [], unlinked: [] };
+
+  const [playlists, menuList, itemList, subItemList] = await Promise.all([
+    getAllYoutubePlaylists(),
+    db.select().from(menus).orderBy(asc(menus.sortOrder)),
+    db.select().from(menuItems).orderBy(asc(menuItems.sortOrder)),
+    db.select().from(menuSubItems).orderBy(asc(menuSubItems.sortOrder)),
+  ]);
+
+  const joyfulTvMenu = menuList.find(menu => isJoyfulTvMenuLabel(menu.label));
+  const playlistsById = new Map(playlists.map(playlist => [playlist.id, playlist]));
+  const linked: Array<typeof playlists[number] & {
+    menuLabel: string;
+    menuPath: string;
+    menuHref: string | null;
+    menuVisible: boolean;
+  }> = [];
+  const linkedIds = new Set<number>();
+
+  const addLinkedPlaylist = (
+    playlistId: number | null,
+    menuLabel: string,
+    menuPath: string,
+    menuHref: string | null,
+    menuVisible: boolean,
+  ) => {
+    if (!playlistId || linkedIds.has(playlistId)) return;
+    const playlist = playlistsById.get(playlistId);
+    if (!playlist) return;
+    linkedIds.add(playlistId);
+    linked.push({ ...playlist, menuLabel, menuPath, menuHref, menuVisible });
+  };
+
+  if (joyfulTvMenu) {
+    const joyfulItems = itemList
+      .filter(item => item.menuId === joyfulTvMenu.id)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
+
+    for (const item of joyfulItems) {
+      if (item.pageType === "youtube") {
+        addLinkedPlaylist(
+          item.playlistId,
+          item.label,
+          `${joyfulTvMenu.label} > ${item.label}`,
+          item.href,
+          Boolean(joyfulTvMenu.isVisible && item.isVisible),
+        );
+      }
+
+      const childItems = subItemList
+        .filter(subItem => subItem.menuItemId === item.id)
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
+      for (const subItem of childItems) {
+        if (subItem.pageType !== "youtube") continue;
+        addLinkedPlaylist(
+          subItem.playlistId,
+          subItem.label,
+          `${joyfulTvMenu.label} > ${item.label} > ${subItem.label}`,
+          subItem.href,
+          Boolean(joyfulTvMenu.isVisible && item.isVisible && subItem.isVisible),
+        );
+      }
+    }
+  }
+
+  return {
+    linked,
+    unlinked: playlists.filter(playlist => !linkedIds.has(playlist.id)),
+  };
+}
+
 /** 플레이리스트 생성 */
 export async function createYoutubePlaylist(data: { title: string; description?: string }) {
   const db = await getDb();
