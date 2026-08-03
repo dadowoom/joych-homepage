@@ -18,6 +18,9 @@ type SignupContext = {
   providerLabel: string;
   email: string | null;
   displayName: string | null;
+  phone: string | null;
+  birthDate: string | null;
+  gender: "남" | "여" | null;
 };
 
 const EMAIL_MAX_LENGTH = 128;
@@ -54,6 +57,9 @@ export default function MemberSocialComplete() {
         setForm((prev) => ({
           ...prev,
           name: data.displayName ?? "",
+          phone: data.phone ?? "",
+          birthDate: data.birthDate ?? "",
+          gender: data.gender ?? "",
           email: data.email ?? "",
         }));
       })

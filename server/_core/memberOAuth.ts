@@ -1,6 +1,10 @@
 import crypto from "node:crypto";
 import type { Express, Request, Response } from "express";
-import { MEMBER_PHONE_ERROR_MESSAGE, normalizeMemberPhone } from "@shared/memberPhone";
+import {
+  MEMBER_PHONE_ERROR_MESSAGE,
+  normalizeLegacyMemberPhone,
+  normalizeMemberPhone,
+} from "@shared/memberPhone";
 import { SignJWT, jwtVerify } from "jose";
 import { getSessionCookieOptions } from "./cookies";
 import { getJwtSecretKey } from "./jwtSecret";
@@ -50,7 +54,7 @@ const providers = {
     authorizeUrl: "https://kauth.kakao.com/oauth/authorize",
     tokenUrl: "https://kauth.kakao.com/oauth/token",
     userInfoUrl: "https://kapi.kakao.com/v2/user/me",
-    scopes: [],
+    scopes: ["account_email", "name", "phone_number", "birthyear", "birthday", "gender"],
     clientSecretRequired: false,
   },
 } as const;
@@ -65,6 +69,9 @@ type NormalizedSocialProfile = {
   emailVerified: boolean | null;
   displayName: string | null;
   profileImageUrl: string | null;
+  phone: string | null;
+  birthDate: string | null;
+  gender: "남" | "여" | null;
 };
 
 type OAuthStatePayload = {
@@ -82,6 +89,9 @@ type SocialSignupPayload = {
   emailVerified: boolean | null;
   displayName: string | null;
   profileImageUrl: string | null;
+  phone: string | null;
+  birthDate: string | null;
+  gender: "남" | "여" | null;
 };
 
 type ProviderConfig = (typeof providers)[MemberOAuthProvider] & {
@@ -211,6 +221,9 @@ async function createSocialSignupState(profile: NormalizedSocialProfile) {
     emailVerified: profile.emailVerified,
     displayName: profile.displayName,
     profileImageUrl: profile.profileImageUrl,
+    phone: profile.phone,
+    birthDate: profile.birthDate,
+    gender: profile.gender,
   } satisfies SocialSignupPayload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -243,6 +256,9 @@ async function verifySocialSignupState(req: Request) {
     emailVerified: typeof payload.emailVerified === "boolean" ? payload.emailVerified : null,
     displayName: typeof payload.displayName === "string" ? payload.displayName : null,
     profileImageUrl: typeof payload.profileImageUrl === "string" ? payload.profileImageUrl : null,
+    phone: typeof payload.phone === "string" ? payload.phone : null,
+    birthDate: typeof payload.birthDate === "string" ? payload.birthDate : null,
+    gender: isMemberGender(payload.gender) ? payload.gender : null,
   } satisfies SocialSignupPayload;
 }
 
@@ -312,6 +328,28 @@ function sanitizeBirthDate(value: unknown) {
 
 function isMemberGender(value: unknown): value is "남" | "여" {
   return value === "남" || value === "여";
+}
+
+function normalizeKakaoPhone(value: unknown) {
+  return typeof value === "string" ? normalizeLegacyMemberPhone(value) : null;
+}
+
+function normalizeKakaoBirthDate(birthyear: unknown, birthday: unknown) {
+  const year = typeof birthyear === "string" ? birthyear.trim() : "";
+  const monthDay = typeof birthday === "string" ? birthday.trim() : "";
+  if (!/^\d{4}$/.test(year) || !/^\d{4}$/.test(monthDay)) return null;
+
+  const month = Number(monthDay.slice(0, 2));
+  const day = Number(monthDay.slice(2));
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+  return `${year}-${monthDay.slice(0, 2)}-${monthDay.slice(2)}`;
+}
+
+function normalizeKakaoGender(value: unknown): "남" | "여" | null {
+  if (value === "male") return "남";
+  if (value === "female") return "여";
+  return null;
 }
 
 async function postForm<T>(url: string, params: URLSearchParams): Promise<T> {
@@ -401,6 +439,9 @@ export function normalizeGoogleProfile(profile: unknown): NormalizedSocialProfil
     emailVerified,
     displayName: typeof data.name === "string" ? data.name : null,
     profileImageUrl: typeof data.picture === "string" ? data.picture : null,
+    phone: null,
+    birthDate: null,
+    gender: null,
   };
 }
 
@@ -444,6 +485,9 @@ export function normalizeKakaoProfile(profile: unknown): NormalizedSocialProfile
         : typeof properties.profile_image === "string"
           ? properties.profile_image
           : null,
+    phone: normalizeKakaoPhone(kakaoAccount.phone_number),
+    birthDate: normalizeKakaoBirthDate(kakaoAccount.birthyear, kakaoAccount.birthday),
+    gender: normalizeKakaoGender(kakaoAccount.gender),
   };
 }
 
@@ -623,6 +667,9 @@ export function registerMemberOAuthRoutes(app: Express) {
         providerLabel: providers[signup.provider].label,
         email: signup.email,
         displayName: signup.displayName,
+        phone: signup.phone,
+        birthDate: signup.birthDate,
+        gender: signup.gender,
       });
     } catch {
       return res.status(401).json({ message: "간편가입 정보가 만료되었습니다. 다시 시도해주세요." });
@@ -753,7 +800,7 @@ export function registerMemberOAuthRoutes(app: Express) {
     authUrl.searchParams.set("client_id", config.clientId);
     authUrl.searchParams.set("redirect_uri", getMemberOAuthRedirectUri(req, providerParam));
     if (config.scopes.length > 0) {
-      authUrl.searchParams.set("scope", config.scopes.join(" "));
+      authUrl.searchParams.set("scope", config.scopes.join(providerParam === "kakao" ? "," : " "));
     }
     authUrl.searchParams.set("state", state);
 

@@ -70,8 +70,15 @@ describe("member OAuth helpers", () => {
     expect(getMemberOAuthProviderStatus().google).toBe(true);
   });
 
-  it("does not request explicit Kakao consent scopes", () => {
-    expect(getMemberOAuthProviderScopes("kakao")).toEqual([]);
+  it("requests the Kakao consent scopes required to prefill the membership form", () => {
+    expect(getMemberOAuthProviderScopes("kakao")).toEqual([
+      "account_email",
+      "name",
+      "phone_number",
+      "birthyear",
+      "birthday",
+      "gender",
+    ]);
     expect(getMemberOAuthProviderScopes("google")).toEqual(["openid", "email", "profile"]);
   });
 
@@ -89,6 +96,9 @@ describe("member OAuth helpers", () => {
       emailVerified: true,
       displayName: "홍길동",
       profileImageUrl: "https://example.com/profile.png",
+      phone: null,
+      birthDate: null,
+      gender: null,
     });
   });
 
@@ -136,6 +146,24 @@ describe("member OAuth helpers", () => {
       },
     })).toMatchObject({
       displayName: "홍길동",
+    });
+  });
+
+  it("normalizes approved Kakao signup details for the membership form", () => {
+    expect(normalizeKakaoProfile({
+      id: "kakao-user-details",
+      kakao_account: {
+        name: "홍길동",
+        phone_number: "+82 10-1234-5678",
+        birthyear: "1990",
+        birthday: "0315",
+        gender: "male",
+      },
+    })).toMatchObject({
+      displayName: "홍길동",
+      phone: "010-1234-5678",
+      birthDate: "1990-03-15",
+      gender: "남",
     });
   });
 
