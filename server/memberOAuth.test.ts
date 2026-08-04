@@ -70,15 +70,8 @@ describe("member OAuth helpers", () => {
     expect(getMemberOAuthProviderStatus().google).toBe(true);
   });
 
-  it("requests the Kakao consent scopes required to prefill the membership form", () => {
-    expect(getMemberOAuthProviderScopes("kakao")).toEqual([
-      "account_email",
-      "name",
-      "phone_number",
-      "birthyear",
-      "birthday",
-      "gender",
-    ]);
+  it("uses the consent items configured in Kakao Developers", () => {
+    expect(getMemberOAuthProviderScopes("kakao")).toEqual([]);
     expect(getMemberOAuthProviderScopes("google")).toEqual(["openid", "email", "profile"]);
   });
 

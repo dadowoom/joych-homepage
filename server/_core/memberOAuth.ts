@@ -54,7 +54,7 @@ const providers = {
     authorizeUrl: "https://kauth.kakao.com/oauth/authorize",
     tokenUrl: "https://kauth.kakao.com/oauth/token",
     userInfoUrl: "https://kapi.kakao.com/v2/user/me",
-    scopes: ["account_email", "name", "phone_number", "birthyear", "birthday", "gender"],
+    scopes: [],
     clientSecretRequired: false,
   },
 } as const;
@@ -800,7 +800,7 @@ export function registerMemberOAuthRoutes(app: Express) {
     authUrl.searchParams.set("client_id", config.clientId);
     authUrl.searchParams.set("redirect_uri", getMemberOAuthRedirectUri(req, providerParam));
     if (config.scopes.length > 0) {
-      authUrl.searchParams.set("scope", config.scopes.join(providerParam === "kakao" ? "," : " "));
+      authUrl.searchParams.set("scope", config.scopes.join(" "));
     }
     authUrl.searchParams.set("state", state);
 
