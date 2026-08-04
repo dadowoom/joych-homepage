@@ -127,15 +127,22 @@ if [[ ! -d "${APP_DIR}/dist" || ! -d "${APP_DIR}/patches" || \
 fi
 
 BACKUP_ROOT="${APP_DIR}/backups"
-if [[ -e "${BACKUP_ROOT}" && ( ! -d "${BACKUP_ROOT}" || -L "${BACKUP_ROOT}" ) ]]; then
+if [[ -e "${BACKUP_ROOT}" && ! -d "${BACKUP_ROOT}" ]]; then
   echo "[deploy] refusing unsafe backup root: ${BACKUP_ROOT}" >&2
   exit 1
 fi
 mkdir -p "${BACKUP_ROOT}"
-if [[ "$(cd -- "${BACKUP_ROOT}" && pwd -P)" != "${APP_DIR}/backups" ]]; then
-  echo "[deploy] backup root resolves outside APP_DIR: ${BACKUP_ROOT}" >&2
+BACKUP_ROOT="$(cd -- "${BACKUP_ROOT}" && pwd -P)"
+if [[ "${BACKUP_ROOT}" == "/" || "${BACKUP_ROOT}" == "${APP_DIR}" ]]; then
+  echo "[deploy] refusing broad backup root: ${BACKUP_ROOT}" >&2
   exit 1
 fi
+case "${APP_DIR}/" in
+  "${BACKUP_ROOT}/"*)
+    echo "[deploy] refusing backup root that contains APP_DIR: ${BACKUP_ROOT}" >&2
+    exit 1
+    ;;
+esac
 
 if [[ ! -f "${ARTIFACT}" ]]; then
   echo "[deploy] artifact does not exist: ${ARTIFACT}" >&2
