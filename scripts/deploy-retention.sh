@@ -85,9 +85,8 @@ deploy_retention_remove_backup() {
 }
 
 deploy_retention_prune_backups() {
-  local app_dir="${1%/}"
+  local backup_root="${1%/}"
   local current_backup="$2"
-  local backup_root="${app_dir}/backups"
   local protected_start candidate index
   local -a backups remaining
 
@@ -194,8 +193,8 @@ deploy_retention_copy_fallback_assets() {
 
 deploy_retention_preserve_assets() {
   local app_dir="${1%/}"
-  local current_backup="$2"
-  local backup_root="${app_dir}/backups"
+  local backup_root="${2%/}"
+  local current_backup="$3"
   local target_dir="${app_dir}/dist/public/assets"
   local candidate index
   local release_count=0

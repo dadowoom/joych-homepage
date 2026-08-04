@@ -143,6 +143,12 @@ case "${APP_DIR}/" in
     exit 1
     ;;
 esac
+case "${BACKUP_ROOT}/" in
+  "${APP_DIR}/dist/"*|"${APP_DIR}/patches/"*)
+    echo "[deploy] refusing backup root inside a replaced runtime path: ${BACKUP_ROOT}" >&2
+    exit 1
+    ;;
+esac
 
 if [[ ! -f "${ARTIFACT}" ]]; then
   echo "[deploy] artifact does not exist: ${ARTIFACT}" >&2
@@ -208,7 +214,7 @@ deploy_retention_require_integer "HEALTHCHECK_CONNECT_TIMEOUT_SECONDS" "${HEALTH
 deploy_retention_require_integer "HEALTHCHECK_MAX_TIME_SECONDS" "${HEALTHCHECK_MAX_TIME_SECONDS}" 1
 
 echo "[deploy] preserve bounded browser asset generations"
-deploy_retention_preserve_assets "${APP_DIR}" "${BACKUP_DIR}"
+deploy_retention_preserve_assets "${APP_DIR}" "${BACKUP_ROOT}" "${BACKUP_DIR}"
 
 echo "[deploy] install production dependencies"
 install_production_dependencies
@@ -3407,7 +3413,7 @@ node "${APP_DIR}/scripts/verify-pwa-domain-bridge.mjs"
 
 rm -f "${ARTIFACT}"
 
-if ! deploy_retention_prune_backups "${APP_DIR}" "${BACKUP_DIR}"; then
+if ! deploy_retention_prune_backups "${BACKUP_ROOT}" "${BACKUP_DIR}"; then
   echo "[deploy] warning: backup retention cleanup failed; keeping the healthy release" >&2
 fi
 

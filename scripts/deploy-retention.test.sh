@@ -62,7 +62,7 @@ touch -d "45 days ago" \
   "${backup_app}/backups/${backup_names[1]}"
 
 current_backup="${backup_app}/backups/${backup_names[7]}"
-deploy_retention_prune_backups "${backup_app}" "${current_backup}"
+deploy_retention_prune_backups "${backup_app}/backups" "${current_backup}"
 
 assert_missing "${backup_app}/backups/${backup_names[0]}"
 assert_missing "${backup_app}/backups/${backup_names[1]}"
@@ -97,7 +97,7 @@ echo too-old.js > "${prior_old}/.deploy-assets-manifest"
 echo old > "${prior_old}/dist/public/assets/too-old.js"
 touch -d "45 days ago" "${prior_old}"
 
-deploy_retention_preserve_assets "${asset_app}" "${prior_one}"
+deploy_retention_preserve_assets "${asset_app}" "${asset_app}/backups" "${prior_one}"
 
 assert_exists "${asset_root}/current-hash.js"
 assert_exists "${asset_root}/prior-entry.js"
@@ -114,7 +114,7 @@ fallback_backup="${fallback_app}/backups/deploy_20260204_000001"
 mkdir -p "${fallback_assets}" "${fallback_backup}/dist/public/assets"
 echo current > "${fallback_assets}/current.js"
 echo previous > "${fallback_backup}/dist/public/assets/previous.js"
-deploy_retention_preserve_assets "${fallback_app}" "${fallback_backup}"
+deploy_retention_preserve_assets "${fallback_app}" "${fallback_app}/backups" "${fallback_backup}"
 assert_exists "${fallback_assets}/previous.js"
 [[ "$(cat "${fallback_app}/.deploy-assets-manifest")" == "current.js" ]] || \
   fail "fallback assets leaked into the current release manifest"
@@ -136,7 +136,7 @@ deploy_retention_remove_backup() {
   return 1
 }
 if deploy_retention_prune_backups \
-  "${failure_app}" \
+  "${failure_app}/backups" \
   "${failure_app}/backups/deploy_20260306_000001"; then
   fail "backup prune should propagate a removal failure"
 fi
