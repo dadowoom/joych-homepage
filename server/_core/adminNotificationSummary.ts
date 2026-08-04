@@ -69,3 +69,15 @@ export function collapseRecurringDashboardNotificationItems<
 
   return result;
 }
+
+/**
+ * Collapse recurring reservations before applying the dashboard detail-list
+ * limit so one series cannot push unrelated notifications out of the list.
+ */
+export function selectLatestDashboardNotificationItems<
+  T extends AdminNotificationSummaryItem,
+>(items: T[], limit: number): T[] {
+  return collapseRecurringDashboardNotificationItems(items)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, Math.max(0, limit));
+}

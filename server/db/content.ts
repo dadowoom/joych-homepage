@@ -10,7 +10,17 @@
  */
 
 import { createHash } from "node:crypto";
-import { and, eq, asc, desc, inArray, isNull, like, not } from "drizzle-orm";
+import {
+  and,
+  eq,
+  asc,
+  desc,
+  inArray,
+  isNull,
+  like,
+  not,
+  sql,
+} from "drizzle-orm";
 import type { ResultSetHeader } from "mysql2";
 import {
   heroSlides,
@@ -105,6 +115,7 @@ export async function deleteHeroSlide(id: number) {
 /** 홈 화면에 표시할 갤러리 이미지 목록 (isVisible=true) */
 const EVENT_GALLERY_HREF =
   "/page/%EC%BB%A4%EB%AE%A4%EB%8B%88%ED%8B%B0-%EC%B5%9C%EA%B7%BC-%ED%96%89%EC%82%AC-%EC%82%AC%EC%A7%84";
+const HOME_GALLERY_LIMIT = 8;
 
 function galleryScopeCondition(galleryScopeKey?: string | null) {
   const normalized = galleryScopeKey?.trim();
@@ -304,57 +315,156 @@ export async function getVisibleHomeGalleryItems() {
   const db = await getDb();
   const eventGalleryScopeKey = await getEventGalleryScopeKey();
   if (!db || !eventGalleryScopeKey) return [];
-  const [albums, items] = await Promise.all([
-    getVisibleGalleryAlbums(eventGalleryScopeKey),
-    db
-      .select()
-      .from(galleryItems)
-      .where(
-        and(
-          eq(galleryItems.isVisible, true),
-          eq(galleryItems.isHomeGallery, false),
-          eq(galleryItems.galleryScopeKey, eventGalleryScopeKey)
+
+  // Determine one cover for every normalized or legacy album inside MySQL, sort
+  // by the selected cover (the long-standing home behavior), and return only
+  // the eight ids needed by the page. MySQL 8 window functions keep this bounded
+  // without dropping legacy gallery_items rows that have no gallery_albums row.
+  const [coverIdRows] = (await db.execute(sql`
+    WITH visible_item_base AS (
+      SELECT
+        item.id,
+        item.albumKey,
+        item.albumTitle,
+        item.albumSortOrder,
+        item.sortOrder,
+        item.createdAt,
+        CASE
+          WHEN NULLIF(TRIM(item.albumKey), '') IS NOT NULL
+            THEN TRIM(item.albumKey)
+          WHEN NULLIF(TRIM(item.albumTitle), '') IS NOT NULL
+            THEN TRIM(item.albumTitle)
+          ELSE CONCAT('single:', item.id)
+        END AS homeAlbumKey
+      FROM gallery_items AS item
+      WHERE item.galleryScopeKey = ${eventGalleryScopeKey}
+        AND item.isVisible = true
+        AND item.isHomeGallery = false
+    ),
+    visible_items AS (
+      SELECT
+        item.*,
+        ROW_NUMBER() OVER (
+          ORDER BY
+            item.createdAt DESC,
+            item.albumSortOrder DESC,
+            item.sortOrder ASC
+        ) AS itemListOrder
+      FROM visible_item_base AS item
+    ),
+    visible_albums AS (
+      SELECT
+        album.id,
+        album.albumKey,
+        album.albumSortOrder,
+        album.coverImageId,
+        album.createdAt,
+        ROW_NUMBER() OVER (
+          ORDER BY
+            album.createdAt DESC,
+            album.albumSortOrder DESC,
+            album.id DESC
+        ) AS albumListOrder
+      FROM gallery_albums AS album
+      WHERE album.galleryScopeKey = ${eventGalleryScopeKey}
+        AND album.isVisible = true
+        AND EXISTS (
+          SELECT 1
+          FROM visible_items AS photo
+          WHERE CAST(NULLIF(TRIM(photo.albumKey), '') AS BINARY) =
+            CAST(album.albumKey AS BINARY)
         )
+    ),
+    normalized_ranked AS (
+      SELECT
+        photo.id AS coverId,
+        photo.createdAt AS coverCreatedAt,
+        photo.albumSortOrder AS coverAlbumSortOrder,
+        album.albumListOrder AS sourceOrder,
+        ROW_NUMBER() OVER (
+          PARTITION BY album.id
+          ORDER BY
+            CASE WHEN photo.id = album.coverImageId THEN 0 ELSE 1 END,
+            photo.sortOrder ASC,
+            photo.createdAt DESC,
+            photo.id ASC
+        ) AS coverRank
+      FROM visible_albums AS album
+      INNER JOIN visible_items AS photo
+        ON CAST(photo.homeAlbumKey AS BINARY) = CAST(album.albumKey AS BINARY)
+    ),
+    legacy_ranked AS (
+      SELECT
+        photo.id AS coverId,
+        photo.createdAt AS coverCreatedAt,
+        photo.albumSortOrder AS coverAlbumSortOrder,
+        MIN(photo.itemListOrder) OVER (
+          PARTITION BY CAST(photo.homeAlbumKey AS BINARY)
+        ) AS sourceOrder,
+        ROW_NUMBER() OVER (
+          PARTITION BY CAST(photo.homeAlbumKey AS BINARY)
+          ORDER BY
+            photo.sortOrder ASC,
+            photo.createdAt DESC,
+            photo.id ASC
+        ) AS coverRank
+      FROM visible_items AS photo
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM visible_albums AS album
+        WHERE CAST(album.albumKey AS BINARY) = CAST(photo.homeAlbumKey AS BINARY)
       )
-      .orderBy(
-        desc(galleryItems.createdAt),
-        desc(galleryItems.albumSortOrder),
-        asc(galleryItems.sortOrder)
-      ),
-  ]);
+    ),
+    selected_covers AS (
+      SELECT
+        coverId,
+        coverCreatedAt,
+        coverAlbumSortOrder,
+        0 AS sourceKind,
+        sourceOrder
+      FROM normalized_ranked
+      WHERE coverRank = 1
 
-  const itemsByAlbum = new Map<string, typeof items>();
-  for (const item of items) {
-    const albumKey =
-      item.albumKey?.trim() || item.albumTitle?.trim() || `single:${item.id}`;
-    const albumItems = itemsByAlbum.get(albumKey) ?? [];
-    albumItems.push(item);
-    itemsByAlbum.set(albumKey, albumItems);
-  }
+      UNION ALL
 
-  const homeGalleryItems = albums.flatMap(album => {
-    const albumItems = itemsByAlbum.get(album.albumKey) ?? [];
-    const coverId = chooseGalleryCoverId(albumItems, album.coverImageId);
-    const cover = albumItems.find(item => item.id === coverId);
+      SELECT
+        coverId,
+        coverCreatedAt,
+        coverAlbumSortOrder,
+        1 AS sourceKind,
+        sourceOrder
+      FROM legacy_ranked
+      WHERE coverRank = 1
+    )
+    SELECT coverId
+    FROM selected_covers
+    ORDER BY
+      coverCreatedAt DESC,
+      coverAlbumSortOrder DESC,
+      sourceKind ASC,
+      sourceOrder ASC
+    LIMIT ${HOME_GALLERY_LIMIT}
+  `)) as unknown as [{ coverId: number }[], unknown];
+
+  const coverIds = coverIdRows.map(row => Number(row.coverId));
+  if (coverIds.length === 0) return [];
+
+  const covers = await db
+    .select()
+    .from(galleryItems)
+    .where(
+      and(
+        inArray(galleryItems.id, coverIds),
+        eq(galleryItems.galleryScopeKey, eventGalleryScopeKey),
+        eq(galleryItems.isVisible, true),
+        eq(galleryItems.isHomeGallery, false)
+      )
+    );
+  const coversById = new Map(covers.map(item => [item.id, item] as const));
+  return coverIds.flatMap(id => {
+    const cover = coversById.get(id);
     return cover ? [cover] : [];
   });
-
-  const knownAlbumKeys = new Set(albums.map(album => album.albumKey));
-  for (const [albumKey, albumItems] of Array.from(itemsByAlbum.entries())) {
-    if (knownAlbumKeys.has(albumKey)) continue;
-    const coverId = chooseGalleryCoverId(albumItems);
-    const cover = albumItems.find(item => item.id === coverId);
-    if (cover) homeGalleryItems.push(cover);
-  }
-
-  return homeGalleryItems
-    .sort((a, b) => {
-      const createdAtDifference =
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      if (createdAtDifference !== 0) return createdAtDifference;
-      return (b.albumSortOrder ?? 0) - (a.albumSortOrder ?? 0);
-    })
-    .slice(0, 8);
 }
 
 /** 갤러리 이미지 수정 */

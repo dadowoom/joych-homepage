@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { collapseRecurringDashboardNotificationItems } from "./_core/adminNotificationSummary";
+import {
+  collapseRecurringDashboardNotificationItems,
+  selectLatestDashboardNotificationItems,
+} from "./_core/adminNotificationSummary";
 
 describe("dashboard recurring reservation notifications", () => {
   it("keeps a recurring facility reservation as one detail-list item", () => {
@@ -80,5 +83,39 @@ describe("dashboard recurring reservation notifications", () => {
       "반복 시설 예약",
       "반복 차량 예약",
     ]);
+  });
+
+  it("applies the list limit after recurring reservations are collapsed", () => {
+    const repeated = Array.from({ length: 8 }, (_, index) => ({
+      id: `reservation:${index + 1}`,
+      groupKey: "reservationPending",
+      label: "시설 예약",
+      title: `본당 2026-08-${String(index + 1).padStart(2, "0")} 10:00`,
+      meta: "홍길동",
+      createdAt: new Date(`2026-07-26T03:00:0${index}.000Z`),
+      recurrenceGroupId: "facility-series-1",
+      recurrenceCount: 8,
+      recurrenceTarget: "본당",
+    }));
+    const singles = Array.from({ length: 8 }, (_, index) => ({
+      id: `reservation:${index + 101}`,
+      groupKey: "reservationPending",
+      label: "시설 예약",
+      title: `교육관 ${index + 1}`,
+      meta: "김성도",
+      createdAt: new Date(`2026-07-26T02:00:0${index}.000Z`),
+    }));
+
+    const items = selectLatestDashboardNotificationItems(
+      [...repeated, ...singles],
+      8
+    );
+
+    expect(items).toHaveLength(8);
+    expect(
+      items.filter(item => item.id.includes(":recurrence:"))
+    ).toHaveLength(1);
+    expect(items.some(item => item.id === "reservation:107")).toBe(true);
+    expect(items.some(item => item.id === "reservation:101")).toBe(false);
   });
 });

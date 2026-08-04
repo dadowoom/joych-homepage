@@ -4,6 +4,7 @@
 
 import fs from "fs";
 import path from "path";
+import { randomUUID } from "crypto";
 import { PRIMARY_SITE_ORIGIN, isSiteHostname } from "@shared/siteHosts";
 
 // 업로드 디렉토리: 환경변수 UPLOAD_DIR 또는 기본값
@@ -69,11 +70,25 @@ export async function storagePut(
 ): Promise<{ key: string; url: string }> {
   const key = path.normalize(relKey.replace(/^\/+/, "")).replace(/\\/g, "/");
   const filePath = await ensureUploadDir(key);
+  const tempFilePath = path.join(
+    path.dirname(filePath),
+    `.upload-${randomUUID()}.tmp`
+  );
 
-  if (typeof data === "string") {
-    await fs.promises.writeFile(filePath, data, "utf-8");
-  } else {
-    await fs.promises.writeFile(filePath, Buffer.from(data));
+  try {
+    if (typeof data === "string") {
+      await fs.promises.writeFile(tempFilePath, data, { encoding: "utf-8", flag: "wx" });
+    } else {
+      await fs.promises.writeFile(tempFilePath, Buffer.from(data), { flag: "wx" });
+    }
+    await fs.promises.rename(tempFilePath, filePath);
+  } catch (error) {
+    try {
+      await fs.promises.unlink(tempFilePath);
+    } catch {
+      // Best-effort cleanup: keep the original write/rename error.
+    }
+    throw error;
   }
 
   const url = `${getStoragePublicUrlBase()}/uploads/${key}`;

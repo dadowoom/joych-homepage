@@ -4,7 +4,10 @@ import { and, eq, inArray, or, type SQL } from "drizzle-orm";
 import { MEMBER_APPROVAL_PERMISSION_KEY } from "@shared/adminPermissions";
 import { adminContentPermissions, churchMembers, memberDistricts, pushSubscriptions, users } from "../../drizzle/schema";
 import { getDb, getMembersAssignedToDistrict } from "../db";
-import { selectUniquePushSubscriptions } from "./pushSubscriptionPolicy";
+import {
+  selectUniquePushSubscriptions,
+  settleWithConcurrency,
+} from "./pushSubscriptionPolicy";
 
 let initialized = false;
 let warnedMissingVapid = false;
@@ -49,6 +52,9 @@ export type PushPayload = {
 
 type PushSendOutcome = "sent" | "expired" | "failed";
 
+const PUSH_DELIVERY_CONCURRENCY = 25;
+const PUSH_DELIVERY_TIMEOUT_MS = 10_000;
+
 export type PushDispatchResult = {
   subscriptionCount: number;
   sentCount: number;
@@ -83,38 +89,43 @@ async function dispatchPushSubscriptions(
   }
 
   const payloadJson = JSON.stringify(payload);
-  const results = await Promise.allSettled(uniqueSubscriptions.map(async (subscription): Promise<PushSendOutcome> => {
-    try {
-      await webpush.sendNotification(
-        {
-          endpoint: subscription.endpoint,
-          keys: {
-            p256dh: subscription.p256dh,
-            auth: subscription.auth,
+  const results = await settleWithConcurrency(
+    uniqueSubscriptions,
+    PUSH_DELIVERY_CONCURRENCY,
+    async (subscription): Promise<PushSendOutcome> => {
+      try {
+        await webpush.sendNotification(
+          {
+            endpoint: subscription.endpoint,
+            keys: {
+              p256dh: subscription.p256dh,
+              auth: subscription.auth,
+            },
           },
-        },
-        payloadJson,
-      );
-      return "sent";
-    } catch (error: unknown) {
-      const statusCode = typeof error === "object" && error !== null && "statusCode" in error
-        ? Number((error as { statusCode?: unknown }).statusCode)
-        : null;
-      if (statusCode === 404 || statusCode === 410) {
-        console.warn(`[push] Expired subscription id=${subscription.id} status=${statusCode} endpoint=${endpointPreview(subscription.endpoint)} vapid=${vapidPublicKeyFingerprint}; deleting`);
-        try {
-          await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, subscription.id));
-        } catch (deleteError) {
-          console.warn("[push] Failed to delete expired subscription", deleteError);
+          payloadJson,
+          { timeout: PUSH_DELIVERY_TIMEOUT_MS },
+        );
+        return "sent";
+      } catch (error: unknown) {
+        const statusCode = typeof error === "object" && error !== null && "statusCode" in error
+          ? Number((error as { statusCode?: unknown }).statusCode)
+          : null;
+        if (statusCode === 404 || statusCode === 410) {
+          console.warn(`[push] Expired subscription id=${subscription.id} status=${statusCode} endpoint=${endpointPreview(subscription.endpoint)} vapid=${vapidPublicKeyFingerprint}; deleting`);
+          try {
+            await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, subscription.id));
+          } catch (deleteError) {
+            console.warn("[push] Failed to delete expired subscription", deleteError);
+          }
+          return "expired";
         }
-        return "expired";
-      }
 
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`[push] Failed to send subscription id=${subscription.id} endpoint=${endpointPreview(subscription.endpoint)}: ${statusCode ?? message}`);
-      return "failed";
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`[push] Failed to send subscription id=${subscription.id} endpoint=${endpointPreview(subscription.endpoint)}: ${statusCode ?? message}`);
+        return "failed";
+      }
     }
-  }));
+  );
 
   const outcomes = results.map((result): PushSendOutcome =>
     result.status === "fulfilled" ? result.value : "failed",

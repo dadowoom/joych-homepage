@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray, isNotNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   MEMBER_APPROVAL_PERMISSION_KEY,
@@ -7,7 +7,7 @@ import {
   SUPPORT_REQUEST_ROOT_PERMISSION_KEY,
 } from "@shared/adminPermissions";
 import { adminAnyPermissionProcedure, router } from "../../_core/trpc";
-import { collapseRecurringDashboardNotificationItems } from "../../_core/adminNotificationSummary";
+import { selectLatestDashboardNotificationItems } from "../../_core/adminNotificationSummary";
 import { getDb } from "../../db";
 import { hasAdminContentPermission } from "../../db/adminPermissions";
 import {
@@ -119,6 +119,12 @@ function currentNotificationReadCutoff() {
 
 function toCount(value: unknown) {
   return Number(value ?? 0);
+}
+
+function hasRecurrenceGroupId(
+  value: string | null | undefined
+): value is string {
+  return Boolean(value?.trim());
 }
 
 function parseDateSetting(value: string | null | undefined) {
@@ -563,7 +569,15 @@ export const notificationsRouter = router({
         eq(reservations.status, "pending"),
         gt(reservations.createdAt, cutoffFor(groupKey, "pending"))
       );
-      const [countRows, recurringCountRows] = await Promise.all([
+      const notificationGroupKey = sql<string>`case
+        when ${reservations.recurrenceGroupId} is null
+          or trim(${reservations.recurrenceGroupId}) = ''
+          then concat('single:', ${reservations.id})
+        else concat('recurrence:', ${reservations.recurrenceGroupId})
+      end`;
+      const latestCreatedAt = sql<Date>`max(${reservations.createdAt})`;
+      const latestId = sql<number>`max(${reservations.id})`;
+      const [countRows, notificationGroupRows] = await Promise.all([
         db
           .select({ count: sql<number>`count(*)` })
           .from(reservations)
@@ -571,36 +585,58 @@ export const notificationsRouter = router({
         db
           .select({
             recurrenceGroupId: reservations.recurrenceGroupId,
+            latestId,
             count: sql<number>`count(*)`,
           })
           .from(reservations)
-          .where(and(where, isNotNull(reservations.recurrenceGroupId)))
-          .groupBy(reservations.recurrenceGroupId),
+          .where(where)
+          .groupBy(notificationGroupKey, reservations.recurrenceGroupId)
+          .orderBy(desc(latestCreatedAt), desc(latestId))
+          .limit(MAX_GROUP_ITEMS),
       ]);
       const countRow = countRows[0];
       const recurrenceCounts = new Map(
-        recurringCountRows.flatMap(row =>
-          row.recurrenceGroupId
+        notificationGroupRows.flatMap(row =>
+          hasRecurrenceGroupId(row.recurrenceGroupId)
             ? [[row.recurrenceGroupId, toCount(row.count)] as const]
             : []
         )
       );
-      const rows = await db
-        .select({
-          id: reservations.id,
-          reserverName: reservations.reserverName,
-          reservationDate: reservations.reservationDate,
-          startTime: reservations.startTime,
-          recurrenceGroupId: reservations.recurrenceGroupId,
-          recurrenceLabel: reservations.recurrenceLabel,
-          facilityName: facilities.name,
-          createdAt: reservations.createdAt,
-        })
-        .from(reservations)
-        .leftJoin(facilities, eq(reservations.facilityId, facilities.id))
-        .where(where)
-        .orderBy(desc(reservations.createdAt), desc(reservations.id))
-        .limit(MAX_GROUP_ITEMS);
+      const selectedRecurrenceGroupIds = notificationGroupRows.flatMap(row =>
+        hasRecurrenceGroupId(row.recurrenceGroupId)
+          ? [row.recurrenceGroupId]
+          : []
+      );
+      const selectedSingleIds = notificationGroupRows.flatMap(row =>
+        hasRecurrenceGroupId(row.recurrenceGroupId)
+          ? []
+          : [toCount(row.latestId)]
+      );
+      const selectedReservationsWhere = or(
+        selectedRecurrenceGroupIds.length
+          ? inArray(reservations.recurrenceGroupId, selectedRecurrenceGroupIds)
+          : undefined,
+        selectedSingleIds.length
+          ? inArray(reservations.id, selectedSingleIds)
+          : undefined
+      );
+      const rows = selectedReservationsWhere
+        ? await db
+            .select({
+              id: reservations.id,
+              reserverName: reservations.reserverName,
+              reservationDate: reservations.reservationDate,
+              startTime: reservations.startTime,
+              recurrenceGroupId: reservations.recurrenceGroupId,
+              recurrenceLabel: reservations.recurrenceLabel,
+              facilityName: facilities.name,
+              createdAt: reservations.createdAt,
+            })
+            .from(reservations)
+            .leftJoin(facilities, eq(reservations.facilityId, facilities.id))
+            .where(and(where, selectedReservationsWhere))
+            .orderBy(desc(reservations.createdAt), desc(reservations.id))
+        : [];
 
       addGroup(
         groups,
@@ -624,7 +660,7 @@ export const notificationsRouter = router({
           tone: "pending",
           recurrenceGroupId: row.recurrenceGroupId,
           recurrenceLabel: row.recurrenceLabel,
-          recurrenceCount: row.recurrenceGroupId
+          recurrenceCount: hasRecurrenceGroupId(row.recurrenceGroupId)
             ? recurrenceCounts.get(row.recurrenceGroupId) ?? 1
             : null,
           recurrenceTarget: row.facilityName,
@@ -638,7 +674,15 @@ export const notificationsRouter = router({
         eq(vehicleReservations.status, "pending"),
         gt(vehicleReservations.createdAt, cutoffFor(groupKey, "pending"))
       );
-      const [countRows, recurringCountRows] = await Promise.all([
+      const notificationGroupKey = sql<string>`case
+        when ${vehicleReservations.recurrenceGroupId} is null
+          or trim(${vehicleReservations.recurrenceGroupId}) = ''
+          then concat('single:', ${vehicleReservations.id})
+        else concat('recurrence:', ${vehicleReservations.recurrenceGroupId})
+      end`;
+      const latestCreatedAt = sql<Date>`max(${vehicleReservations.createdAt})`;
+      const latestId = sql<number>`max(${vehicleReservations.id})`;
+      const [countRows, notificationGroupRows] = await Promise.all([
         db
           .select({ count: sql<number>`count(*)` })
           .from(vehicleReservations)
@@ -646,39 +690,64 @@ export const notificationsRouter = router({
         db
           .select({
             recurrenceGroupId: vehicleReservations.recurrenceGroupId,
+            latestId,
             count: sql<number>`count(*)`,
           })
           .from(vehicleReservations)
-          .where(and(where, isNotNull(vehicleReservations.recurrenceGroupId)))
-          .groupBy(vehicleReservations.recurrenceGroupId),
+          .where(where)
+          .groupBy(notificationGroupKey, vehicleReservations.recurrenceGroupId)
+          .orderBy(desc(latestCreatedAt), desc(latestId))
+          .limit(MAX_GROUP_ITEMS),
       ]);
       const countRow = countRows[0];
       const recurrenceCounts = new Map(
-        recurringCountRows.flatMap(row =>
-          row.recurrenceGroupId
+        notificationGroupRows.flatMap(row =>
+          hasRecurrenceGroupId(row.recurrenceGroupId)
             ? [[row.recurrenceGroupId, toCount(row.count)] as const]
             : []
         )
       );
-      const rows = await db
-        .select({
-          id: vehicleReservations.id,
-          reserverName: vehicleReservations.reserverName,
-          reservationDate: vehicleReservations.reservationDate,
-          startTime: vehicleReservations.startTime,
-          recurrenceGroupId: vehicleReservations.recurrenceGroupId,
-          recurrenceLabel: vehicleReservations.recurrenceLabel,
-          vehicleName: vehicles.name,
-          createdAt: vehicleReservations.createdAt,
-        })
-        .from(vehicleReservations)
-        .leftJoin(vehicles, eq(vehicleReservations.vehicleId, vehicles.id))
-        .where(where)
-        .orderBy(
-          desc(vehicleReservations.createdAt),
-          desc(vehicleReservations.id)
-        )
-        .limit(MAX_GROUP_ITEMS);
+      const selectedRecurrenceGroupIds = notificationGroupRows.flatMap(row =>
+        hasRecurrenceGroupId(row.recurrenceGroupId)
+          ? [row.recurrenceGroupId]
+          : []
+      );
+      const selectedSingleIds = notificationGroupRows.flatMap(row =>
+        hasRecurrenceGroupId(row.recurrenceGroupId)
+          ? []
+          : [toCount(row.latestId)]
+      );
+      const selectedVehicleReservationsWhere = or(
+        selectedRecurrenceGroupIds.length
+          ? inArray(
+              vehicleReservations.recurrenceGroupId,
+              selectedRecurrenceGroupIds
+            )
+          : undefined,
+        selectedSingleIds.length
+          ? inArray(vehicleReservations.id, selectedSingleIds)
+          : undefined
+      );
+      const rows = selectedVehicleReservationsWhere
+        ? await db
+            .select({
+              id: vehicleReservations.id,
+              reserverName: vehicleReservations.reserverName,
+              reservationDate: vehicleReservations.reservationDate,
+              startTime: vehicleReservations.startTime,
+              recurrenceGroupId: vehicleReservations.recurrenceGroupId,
+              recurrenceLabel: vehicleReservations.recurrenceLabel,
+              vehicleName: vehicles.name,
+              createdAt: vehicleReservations.createdAt,
+            })
+            .from(vehicleReservations)
+            .leftJoin(vehicles, eq(vehicleReservations.vehicleId, vehicles.id))
+            .where(and(where, selectedVehicleReservationsWhere))
+            .orderBy(
+              desc(vehicleReservations.createdAt),
+              desc(vehicleReservations.id)
+            )
+        : [];
 
       addGroup(
         groups,
@@ -702,7 +771,7 @@ export const notificationsRouter = router({
           tone: "pending",
           recurrenceGroupId: row.recurrenceGroupId,
           recurrenceLabel: row.recurrenceLabel,
-          recurrenceCount: row.recurrenceGroupId
+          recurrenceCount: hasRecurrenceGroupId(row.recurrenceGroupId)
             ? recurrenceCounts.get(row.recurrenceGroupId) ?? 1
             : null,
           recurrenceTarget: row.vehicleName,
@@ -1189,9 +1258,10 @@ export const notificationsRouter = router({
       );
     }
 
-    const sortedItems = collapseRecurringDashboardNotificationItems(items)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .slice(0, MAX_RECENT_ITEMS);
+    const sortedItems = selectLatestDashboardNotificationItems(
+      items,
+      MAX_RECENT_ITEMS
+    );
 
     return {
       recentDays: RECENT_DAYS,

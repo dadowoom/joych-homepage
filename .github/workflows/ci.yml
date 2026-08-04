@@ -57,7 +57,9 @@ jobs:
         run: pnpm check
 
       - name: Test
-        run: pnpm test
+        run: |
+          pnpm test
+          pnpm test:audit-uploads
 
       - name: Build
         run: pnpm build

@@ -72,7 +72,7 @@ describe("login limiter cleanup", () => {
     const now = Date.now();
     recordFailure(`account:cleanup-${now}@example.test`);
     expect(
-      cleanupLoginRateLimitStore(now + LOGIN_ATTEMPT_WINDOW_MS + 1)
+      cleanupLoginRateLimitStore(now + LOGIN_ATTEMPT_WINDOW_MS + 1_000)
     ).toBeGreaterThanOrEqual(1);
   });
 });

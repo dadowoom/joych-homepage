@@ -11,6 +11,7 @@ import { publicProcedure, router } from "../_core/trpc";
 import { hasAdminContentPermission } from "../db/adminPermissions";
 import {
   createMissionReportWithDetails,
+  getAdjacentPublishedMissionReports,
   getMissionAuthorGrantsForMember,
   getMissionReportById,
   getMissionReportsByAuthor,
@@ -108,14 +109,15 @@ export const missionRouter = router({
     .query(async ({ input }) => {
       const report = await getPublishedMissionReportById(input.id);
       if (!report) return null;
-      const related = await getOtherPublishedReportsByMissionary(report.missionaryId, report.id, 2);
-      const all = await getPublishedMissionReports();
-      const index = all.findIndex(item => item.id === report.id);
+      const [related, adjacent] = await Promise.all([
+        getOtherPublishedReportsByMissionary(report.missionaryId, report.id, 2),
+        getAdjacentPublishedMissionReports(report),
+      ]);
       return {
         report,
         related,
-        prevReport: index > 0 ? all[index - 1] : null,
-        nextReport: index >= 0 && index < all.length - 1 ? all[index + 1] : null,
+        prevReport: adjacent.prevReport,
+        nextReport: adjacent.nextReport,
       };
     }),
 
