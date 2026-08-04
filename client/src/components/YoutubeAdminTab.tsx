@@ -639,7 +639,6 @@ export default function YoutubeAdminTab() {
                     <Input
                       value={videoTitle}
                       onChange={(e) => setVideoTitle(e.target.value)}
-                      placeholder="옛 홈페이지 주소는 비워두면 자동 입력됩니다"
                       className="h-8 text-sm"
                     />
                   </div>
@@ -649,7 +648,6 @@ export default function YoutubeAdminTab() {
                       <Input
                         value={videoPreacher}
                         onChange={(e) => setVideoPreacher(e.target.value)}
-                        placeholder="예: 박진석 위임목사"
                         className="h-8 text-sm"
                       />
                     </div>
@@ -668,16 +666,14 @@ export default function YoutubeAdminTab() {
                     <Input
                       value={videoScripture}
                       onChange={(e) => setVideoScripture(e.target.value)}
-                      placeholder="예: 창세기 45:10-11 / 출애굽기 8:22-23"
                       className="h-8 text-sm"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs text-gray-500">유튜브 링크, MP4 주소, 옛 홈페이지 영상 상세주소</label>
+                    <label className="mb-1 block text-xs text-gray-500">영상 링크</label>
                     <Input
                       value={videoUrl}
                       onChange={(e) => handleVideoUrlChange(e.target.value)}
-                      placeholder="http://admin.joych.org/core/module/vod/skin_001/vodIframe.html?pageCode=423&num=12484&vodType=237"
                       className="h-8 text-sm"
                     />
                     {metadataNotice && (
@@ -694,16 +690,12 @@ export default function YoutubeAdminTab() {
                         )}
                       </div>
                     )}
-                    <p className="mt-1 text-[11px] leading-relaxed text-gray-400">
-                      pageCode만 있는 옛 목록주소가 아니라 num과 vodType이 포함된 상세주소를 입력해주세요.
-                    </p>
                   </div>
                   <div>
                     <label className="mb-1 block text-xs text-gray-500">설명</label>
                     <Input
                       value={videoDescription}
                       onChange={(e) => setVideoDescription(e.target.value)}
-                      placeholder="필요한 경우 짧은 설명을 입력하세요"
                       className="h-8 text-sm"
                     />
                   </div>
