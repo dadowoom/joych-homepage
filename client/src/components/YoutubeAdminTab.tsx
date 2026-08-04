@@ -29,6 +29,8 @@ type AdminPlaylist = {
 };
 
 type VideoViewMode = "list" | "thumbnail";
+const VIDEO_PAGE_SIZES = [20, 50, 100] as const;
+type VideoPageSize = (typeof VIDEO_PAGE_SIZES)[number];
 
 function extractVideoId(url: string): string | null {
   const patterns = [
@@ -240,6 +242,8 @@ export default function YoutubeAdminTab() {
   const [editVideoDescription, setEditVideoDescription] = useState("");
   const [videoSearchTerm, setVideoSearchTerm] = useState("");
   const [videoViewMode, setVideoViewMode] = useState<VideoViewMode>("list");
+  const [videoPageSize, setVideoPageSize] = useState<VideoPageSize>(20);
+  const [videoPage, setVideoPage] = useState(1);
 
   const createPlaylist = trpc.youtube.createPlaylist.useMutation({
     onSuccess: () => {
@@ -267,6 +271,7 @@ export default function YoutubeAdminTab() {
       utils.youtube.getVideos.invalidate();
       utils.youtube.getHomeLatest.invalidate();
       resetAddVideoForm();
+      setVideoPage(1);
       toast.success("영상이 추가되었습니다.");
     },
     onError: (err) => toast.error(err.message || "영상 추가에 실패했습니다."),
@@ -456,6 +461,17 @@ export default function YoutubeAdminTab() {
       video.videoUrl,
     ].some(value => (value ?? "").toLowerCase().includes(search)));
   }, [videoSearchTerm, videos]);
+  const videoPageCount = Math.max(1, Math.ceil(filteredVideos.length / videoPageSize));
+  const activeVideoPage = Math.min(videoPage, videoPageCount);
+  const videoPageStart = (activeVideoPage - 1) * videoPageSize;
+  const paginatedVideos = filteredVideos.slice(videoPageStart, videoPageStart + videoPageSize);
+  const videoPageNumbers = Array.from(new Set([
+    1,
+    videoPageCount,
+    ...Array.from({ length: 5 }, (_, index) => activeVideoPage - 2 + index),
+  ]))
+    .filter((page) => page >= 1 && page <= videoPageCount)
+    .sort((a, b) => a - b);
 
   return (
     <div>
@@ -527,6 +543,7 @@ export default function YoutubeAdminTab() {
                   }`}
                   onClick={() => {
                     setSelectedPlaylistId(pl.id);
+                    setVideoPage(1);
                     resetAddVideoForm();
                     resetEditVideoForm();
                   }}
@@ -579,6 +596,7 @@ export default function YoutubeAdminTab() {
                           type="button"
                           onClick={() => {
                             setSelectedPlaylistId(pl.id);
+                            setVideoPage(1);
                             resetAddVideoForm();
                             resetEditVideoForm();
                           }}
@@ -805,7 +823,10 @@ export default function YoutubeAdminTab() {
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
                   <Input
                     value={videoSearchTerm}
-                    onChange={(event) => setVideoSearchTerm(event.target.value)}
+                    onChange={(event) => {
+                      setVideoSearchTerm(event.target.value);
+                      setVideoPage(1);
+                    }}
                     placeholder="설교제목, 날짜, 설교자, 본문 검색"
                     className="h-8 bg-white pl-8 text-sm"
                   />
@@ -846,8 +867,9 @@ export default function YoutubeAdminTab() {
                   <p className="mt-1 text-xs text-gray-400">설교제목, 날짜, 설교자, 본문을 다시 확인해 주세요.</p>
                 </div>
               ) : (
-                <div className={videoViewMode === "thumbnail" ? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3" : "space-y-2"}>
-                  {filteredVideos.map((video) => {
+                <>
+                  <div className={videoViewMode === "thumbnail" ? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3" : "space-y-2"}>
+                  {paginatedVideos.map((video) => {
                     const commonProps = {
                       video,
                       onEdit: startEditVideo,
@@ -870,7 +892,60 @@ export default function YoutubeAdminTab() {
                       <VideoItem key={video.id} {...commonProps} />
                     );
                   })}
-                </div>
+                  </div>
+                  <div className="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="text-xs text-gray-500">
+                    {videoPageStart + 1}-{Math.min(videoPageStart + videoPageSize, filteredVideos.length)} / {filteredVideos.length}개
+                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <label className="flex items-center gap-1 text-xs text-gray-500">
+                      노출
+                      <select
+                        value={videoPageSize}
+                        onChange={(event) => {
+                          setVideoPageSize(Number(event.target.value) as VideoPageSize);
+                          setVideoPage(1);
+                        }}
+                        className="h-7 rounded border border-gray-200 bg-white px-1.5 text-xs text-gray-700"
+                        aria-label="영상 목록 노출 개수"
+                      >
+                        {VIDEO_PAGE_SIZES.map((size) => <option key={size} value={size}>{size}개</option>)}
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setVideoPage(activeVideoPage - 1)}
+                      disabled={activeVideoPage === 1}
+                      className="h-7 rounded border border-gray-200 px-2 text-xs text-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      이전
+                    </button>
+                    {videoPageNumbers.map((page, index) => (
+                      <span key={page} className="contents">
+                        {index > 0 && page - videoPageNumbers[index - 1] > 1 && <span className="px-0.5 text-xs text-gray-400">…</span>}
+                        <button
+                          type="button"
+                          onClick={() => setVideoPage(page)}
+                          className={`h-7 min-w-7 rounded px-1.5 text-xs ${
+                            page === activeVideoPage ? "bg-[#1B5E20] text-white" : "border border-gray-200 text-gray-600"
+                          }`}
+                          aria-current={page === activeVideoPage ? "page" : undefined}
+                        >
+                          {page}
+                        </button>
+                      </span>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setVideoPage(activeVideoPage + 1)}
+                      disabled={activeVideoPage === videoPageCount}
+                      className="h-7 rounded border border-gray-200 px-2 text-xs text-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      다음
+                    </button>
+                  </div>
+                  </div>
+                </>
               )}
             </>
           )}
