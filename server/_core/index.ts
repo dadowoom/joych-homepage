@@ -9,51 +9,29 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerMemberOAuthRoutes } from "./memberOAuth";
 import { appRouter } from "../routers";
-import { createContext } from "./context";
+import { createContext, getOrCreateTrpcContext } from "./context";
+import {
+  CONTENT_UPLOAD_BODY_LIMIT_BYTES,
+  STANDARD_BODY_LIMIT_BYTES,
+  VIDEO_UPLOAD_BODY_LIMIT_BYTES,
+  getTrpcBodyLimitBytes,
+  isTrpcLargeBodyRequestUrl,
+} from "./requestBodyLimits";
 import { serveStatic, setupVite } from "./vite";
 import { canonicalHostRedirect, registerSeoUtilityRoutes } from "./seo";
 import { registerLegacyVodRoutes } from "./legacyVod";
 import { registerChurchPhotoRoutes } from "./churchPhoto";
 import { registerLegacyPageRedirects } from "./legacyPageRedirects";
 import { registerDomainSessionBridgeRoutes } from "./domainSessionBridge";
+import { createReadinessHandler } from "./readiness";
 
-const MB = 1024 * 1024;
-const STANDARD_BODY_LIMIT_BYTES = 5 * MB;
-const UPLOAD_BODY_LIMIT_BYTES = 150 * MB;
 const GENERAL_JSON_LIMIT = "2mb";
 const GENERAL_FORM_LIMIT = "512kb";
-const TRPC_UPLOAD_PROCEDURES = [
-  "cms.upload.video",
-  "cms.upload.image",
-  "cms.upload.attachment",
-  "cms.upload.galleryImage",
-  "cms.upload.pageImage",
-  "cms.blocks.uploadImage",
-  "cms.facilities.images.upload",
-  "cms.pastorBooks.images.upload",
-  "cms.bulletins.create",
-  "cms.bulletins.update",
-  "mission.uploadImage",
-  "testimony.uploadImage",
-  "support.submitSubtitle",
-  "support.submitBulletinAd",
-];
 
 function getContentLength(req: express.Request) {
   const value = req.headers["content-length"];
   if (Array.isArray(value)) return Number(value[0]);
   return value ? Number(value) : null;
-}
-
-function isTrpcUploadRequest(req: express.Request) {
-  const rawPath = (req.originalUrl || req.url).split("?")[0] ?? "";
-  let path = rawPath;
-  try {
-    path = decodeURIComponent(rawPath);
-  } catch {
-    path = rawPath;
-  }
-  return TRPC_UPLOAD_PROCEDURES.some(procedure => path.includes(procedure));
 }
 
 function requestBodyLimitGuard(
@@ -66,36 +44,46 @@ function requestBodyLimitGuard(
     return;
   }
 
-  const contentLength = getContentLength(req);
-  if (!contentLength || Number.isNaN(contentLength)) {
-    next();
-    return;
-  }
-
   const isTrpcRequest =
     req.path === "/api/trpc" || req.path.startsWith("/api/trpc/");
-  const limit =
-    isTrpcRequest && isTrpcUploadRequest(req)
-      ? UPLOAD_BODY_LIMIT_BYTES
-      : STANDARD_BODY_LIMIT_BYTES;
+  const requestUrl = req.originalUrl || req.url;
 
-  if (contentLength > limit) {
-    if (isTrpcRequest) {
-      res.status(413).json({
-        error: {
-          message: isTrpcUploadRequest(req)
-            ? "업로드 요청이 너무 큽니다."
-            : "요청 본문이 너무 큽니다.",
-          code: "PAYLOAD_TOO_LARGE",
-        },
-      });
-    } else {
-      res.status(413).type("text/plain").send("Payload too large");
+  void (async () => {
+    let principal = null;
+    if (isTrpcRequest && isTrpcLargeBodyRequestUrl(requestUrl)) {
+      const ctx = await getOrCreateTrpcContext(req, res);
+      principal = ctx.user;
     }
-    return;
-  }
 
-  next();
+    const limit = isTrpcRequest
+      ? getTrpcBodyLimitBytes(requestUrl, principal)
+      : STANDARD_BODY_LIMIT_BYTES;
+    res.locals.trpcBodyLimitBytes = limit;
+
+    const contentLength = getContentLength(req);
+    if (
+      contentLength !== null &&
+      Number.isFinite(contentLength) &&
+      contentLength > limit
+    ) {
+      if (isTrpcRequest) {
+        res.status(413).json({
+          error: {
+            message:
+              limit > STANDARD_BODY_LIMIT_BYTES
+                ? "업로드 요청이 너무 큽니다."
+                : "요청 본문이 너무 큽니다.",
+            code: "PAYLOAD_TOO_LARGE",
+          },
+        });
+      } else {
+        res.status(413).type("text/plain").send("Payload too large");
+      }
+      return;
+    }
+
+    next();
+  })().catch(next);
 }
 
 function skipTrpcBodyParser(
@@ -252,6 +240,7 @@ async function startServer() {
   });
   // ─────────────────────────────────────────────────────────────────────
 
+  app.get("/api/readyz", createReadinessHandler());
   app.get("/api/public-config", (_req, res) => {
     res.setHeader("Cache-Control", "public, max-age=300");
     res.json({
@@ -263,6 +252,7 @@ async function startServer() {
   registerLegacyVodRoutes(app);
   registerChurchPhotoRoutes(app);
 
+  app.use(cookieParser());
   app.use(requestBodyLimitGuard);
   app.use(skipTrpcBodyParser(express.json({ limit: GENERAL_JSON_LIMIT })));
   app.use(
@@ -270,9 +260,6 @@ async function startServer() {
       express.urlencoded({ limit: GENERAL_FORM_LIMIT, extended: true })
     )
   );
-  // 쿠키 파싱 미들웨어 (req.cookies 사용 가능하게)
-  app.use(cookieParser());
-
   // 구주소의 host-only 로그인 쿠키를 검증한 뒤 대표 도메인에 1회 이전합니다.
   registerDomainSessionBridgeRoutes(app);
   // Bridge endpoints must see the legacy Host before bare/m aliases are sent to
@@ -288,18 +275,26 @@ async function startServer() {
     createContext,
     maxBodySize: STANDARD_BODY_LIMIT_BYTES,
   });
-  const uploadTrpcMiddleware = createExpressMiddleware({
+  const contentUploadTrpcMiddleware = createExpressMiddleware({
     router: appRouter,
     createContext,
-    maxBodySize: UPLOAD_BODY_LIMIT_BYTES,
+    maxBodySize: CONTENT_UPLOAD_BODY_LIMIT_BYTES,
+  });
+  const videoUploadTrpcMiddleware = createExpressMiddleware({
+    router: appRouter,
+    createContext,
+    maxBodySize: VIDEO_UPLOAD_BODY_LIMIT_BYTES,
   });
 
   // tRPC API
   // Content-Length가 없는 chunked 요청도 tRPC 파서 단계에서 한 번 더 제한합니다.
   app.use("/api/trpc", (req, res, next) => {
-    const middleware = isTrpcUploadRequest(req)
-      ? uploadTrpcMiddleware
-      : standardTrpcMiddleware;
+    const limit = res.locals.trpcBodyLimitBytes;
+    const middleware = limit === VIDEO_UPLOAD_BODY_LIMIT_BYTES
+      ? videoUploadTrpcMiddleware
+      : limit === CONTENT_UPLOAD_BODY_LIMIT_BYTES
+        ? contentUploadTrpcMiddleware
+        : standardTrpcMiddleware;
     return middleware(req, res, next);
   });
 

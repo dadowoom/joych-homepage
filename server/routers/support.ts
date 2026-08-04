@@ -8,6 +8,7 @@ import crypto from "node:crypto";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { memberProtectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { enforcePublicRateLimit } from "../_core/publicRateLimits";
 import { storagePut } from "../storage";
 import {
   deleteMemberBulletinAdRequest,
@@ -270,7 +271,8 @@ export const supportRouter = router({
         content: requiredText(2000, "기도 내용을 입력해 주세요."),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      enforcePublicRateLimit("prayerSubmission", ctx);
       await createPrayerRequest(input);
       return { ok: true };
     }),
@@ -285,7 +287,8 @@ export const supportRouter = router({
         how: z.string().trim().max(64).optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      enforcePublicRateLimit("newMemberSubmission", ctx);
       await createNewMemberRequest({
         ...input,
         address: input.address || null,
@@ -297,6 +300,7 @@ export const supportRouter = router({
   submitVisit: publicProcedure
     .input(newVisitRequestSchema)
     .mutation(async ({ input, ctx }) => {
+      enforcePublicRateLimit("visitSubmission", ctx);
       const manageToken = crypto.randomBytes(32).toString("base64url");
       const requestId = await createVisitRequest({
         ...input,

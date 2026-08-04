@@ -37,7 +37,7 @@ vi.mock("./_core/sdk", () => ({
   },
 }));
 
-import { createContext } from "./_core/context";
+import { createContext, getOrCreateTrpcContext } from "./_core/context";
 
 const MEMBER_ID = 81;
 
@@ -68,6 +68,29 @@ describe("member session context invalidation", () => {
       status: "approved",
       sessionVersion: 0,
     });
+  });
+
+  it("reuses the authenticated context between the body guard and tRPC", async () => {
+    joseMocks.jwtVerify.mockResolvedValue({
+      payload: { type: "church_member", memberId: MEMBER_ID, name: "세션성도" },
+    });
+    sdkMocks.authenticateRequest.mockResolvedValue({
+      id: 7,
+      openId: "admin-open-id",
+      name: "관리자",
+      email: "admin@example.com",
+      role: "admin",
+    });
+    const options = createOptions();
+
+    const [guardContext, trpcContext] = await Promise.all([
+      getOrCreateTrpcContext(options.req, options.res),
+      createContext(options),
+    ]);
+
+    expect(guardContext).toBe(trpcContext);
+    expect(sdkMocks.authenticateRequest).toHaveBeenCalledTimes(1);
+    expect(dbMocks.getMemberById).toHaveBeenCalledTimes(1);
   });
 
   it("버전이 0인 기존 회원은 claim 없는 레거시 토큰으로 인증된다", async () => {

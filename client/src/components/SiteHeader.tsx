@@ -13,6 +13,7 @@ import { finishDomainLogout } from "@/lib/mainHomepageDomain";
 import { getManagementPageHref } from "@/lib/managementEntry";
 import { toFallbackMenuTree } from "@shared/siteNavigation";
 import { PUBLIC_MENU_PATHS } from "@shared/publicMenuRoutes";
+import { isValidGlobalSearchQuery } from "@shared/globalSearch";
 import { useLanguage, translateSiteText } from "@/contexts/LanguageContext";
 
 function getUsableHref(href?: string | null) {
@@ -203,6 +204,7 @@ export default function SiteHeader() {
     null
   );
   const [location, setLocation] = useLocation();
+  const canSubmitSearch = isValidGlobalSearchQuery(searchName);
   const searchString = useSearch();
   const { language, toggleLanguage, t } = useLanguage();
   const utils = trpc.useUtils();
@@ -297,7 +299,7 @@ export default function SiteHeader() {
   const handleSearch = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const trimmed = searchName.trim();
-    if (!trimmed) return;
+    if (!isValidGlobalSearchQuery(trimmed)) return;
     setMobileSearchOpen(false);
     setLocation(`/search?q=${encodeURIComponent(trimmed)}`);
   };
@@ -415,12 +417,14 @@ export default function SiteHeader() {
                 type="text"
                 value={searchName}
                 onChange={e => setSearchName(e.target.value)}
-                placeholder="통합 검색"
+                placeholder="통합 검색 (2자 이상)"
                 className="w-full h-10 pl-4 pr-10 text-sm rounded-full border border-gray-200 bg-[#F7F7F5] text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#1B5E20] focus:ring-1 focus:ring-[#1B5E20] transition-all duration-200"
               />
               <button
                 type="submit"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#1B5E20] transition-colors"
+                disabled={!canSubmitSearch}
+                aria-label="통합 검색"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-[#1B5E20] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <i className="fas fa-search text-sm"></i>
               </button>
@@ -691,20 +695,21 @@ export default function SiteHeader() {
                   type="text"
                   value={searchName}
                   onChange={e => setSearchName(e.target.value)}
-                  placeholder="통합 검색"
+                  placeholder="통합 검색 (2자 이상)"
                   autoFocus
                   className="w-full h-11 pl-4 pr-4 text-base rounded-full border-2 border-[#1B5E20]/40 bg-white text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#1B5E20] transition-all duration-200"
                 />
               </div>
               <button
                 type="submit"
-                className="h-11 px-5 rounded-full bg-[#1B5E20] text-white text-sm font-medium hover:bg-[#2E7D32] transition-colors shrink-0"
+                disabled={!canSubmitSearch}
+                className="h-11 px-5 rounded-full bg-[#1B5E20] text-white text-sm font-medium hover:bg-[#2E7D32] transition-colors shrink-0 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {t("검색")}
               </button>
             </form>
             <p className="text-xs text-gray-400 mt-2 pl-1">
-              설교/영상과 게시물을 한 번에 검색합니다.
+              검색어를 2자 이상 입력해 주세요.
             </p>
           </div>
         )}

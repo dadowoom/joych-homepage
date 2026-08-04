@@ -6,7 +6,19 @@ set -Eeuo pipefail
 : "${PM2_APP:?PM2_APP is required}"
 
 HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://127.0.0.1:3000/api/public-config}"
+READINESS_URL="${READINESS_URL:-http://127.0.0.1:3000/api/readyz}"
+HEALTHCHECK_ATTEMPTS="${HEALTHCHECK_ATTEMPTS:-10}"
+HEALTHCHECK_DELAY_SECONDS="${HEALTHCHECK_DELAY_SECONDS:-3}"
+HEALTHCHECK_CONNECT_TIMEOUT_SECONDS="${HEALTHCHECK_CONNECT_TIMEOUT_SECONDS:-2}"
+HEALTHCHECK_MAX_TIME_SECONDS="${HEALTHCHECK_MAX_TIME_SECONDS:-10}"
+DEPLOY_BACKUP_MIN_COUNT="${DEPLOY_BACKUP_MIN_COUNT:-7}"
+DEPLOY_BACKUP_MAX_COUNT="${DEPLOY_BACKUP_MAX_COUNT:-14}"
+DEPLOY_BACKUP_MAX_AGE_DAYS="${DEPLOY_BACKUP_MAX_AGE_DAYS:-30}"
+ASSET_PRIOR_RELEASE_MIN_COUNT="${ASSET_PRIOR_RELEASE_MIN_COUNT:-2}"
+ASSET_PRIOR_RELEASE_MAX_COUNT="${ASSET_PRIOR_RELEASE_MAX_COUNT:-7}"
+ASSET_PRIOR_RELEASE_MAX_AGE_DAYS="${ASSET_PRIOR_RELEASE_MAX_AGE_DAYS:-14}"
 BACKUP_DIR=""
+BACKUP_READY=0
 
 restart_pm2() {
   if [[ -x /usr/local/bin/joych-pm2-restart ]]; then
@@ -16,9 +28,17 @@ restart_pm2() {
   fi
 }
 
+install_production_dependencies() {
+  if command -v pnpm >/dev/null 2>&1; then
+    CI=true pnpm install --prod --frozen-lockfile
+  else
+    CI=true corepack pnpm install --prod --frozen-lockfile
+  fi
+}
+
 rollback() {
-  if [[ -z "${BACKUP_DIR}" || ! -d "${BACKUP_DIR}" ]]; then
-    echo "[deploy] rollback skipped: backup directory was not created"
+  if [[ "${BACKUP_READY}" -ne 1 || -z "${BACKUP_DIR}" || ! -d "${BACKUP_DIR}" ]]; then
+    echo "[deploy] rollback skipped: a complete backup is not available"
     return
   fi
 
@@ -33,6 +53,30 @@ rollback() {
   if [[ -f "${BACKUP_DIR}/pnpm-lock.yaml" ]]; then
     cp "${BACKUP_DIR}/pnpm-lock.yaml" "${APP_DIR}/pnpm-lock.yaml"
   fi
+  if [[ -f "${BACKUP_DIR}/pnpm-workspace.yaml" ]]; then
+    cp "${BACKUP_DIR}/pnpm-workspace.yaml" "${APP_DIR}/pnpm-workspace.yaml"
+  else
+    rm -f "${APP_DIR}/pnpm-workspace.yaml"
+  fi
+  if [[ -d "${BACKUP_DIR}/patches" ]]; then
+    rm -rf "${APP_DIR}/patches"
+    cp -a "${BACKUP_DIR}/patches" "${APP_DIR}/patches"
+  else
+    rm -rf "${APP_DIR}/patches"
+  fi
+  if declare -F deploy_retention_restore_asset_manifest >/dev/null 2>&1; then
+    deploy_retention_restore_asset_manifest "${APP_DIR}" "${BACKUP_DIR}"
+  elif [[ -f "${BACKUP_DIR}/.deploy-assets-manifest" ]]; then
+    cp "${BACKUP_DIR}/.deploy-assets-manifest" "${APP_DIR}/.deploy-assets-manifest"
+  else
+    rm -f "${APP_DIR}/.deploy-assets-manifest"
+  fi
+
+  echo "[deploy] rollback: restore production dependencies"
+  (
+    cd "${APP_DIR}"
+    install_production_dependencies
+  ) || echo "[deploy] warning: rollback dependency restore failed" >&2
 
   restart_pm2 || true
 }
@@ -49,6 +93,47 @@ trap on_error ERR
 
 if [[ ! -d "${APP_DIR}" ]]; then
   echo "[deploy] APP_DIR does not exist: ${APP_DIR}" >&2
+  exit 1
+fi
+
+APP_DIR="$(cd -- "${APP_DIR}" && pwd -P)"
+if [[ "${APP_DIR}" == "/" ]]; then
+  echo "[deploy] refusing unsafe APP_DIR: ${APP_DIR}" >&2
+  exit 1
+fi
+
+if ! command -v pnpm >/dev/null 2>&1 && ! command -v corepack >/dev/null 2>&1; then
+  echo "[deploy] pnpm or corepack is required so patched production dependencies are preserved" >&2
+  exit 1
+fi
+if [[ ! -f "${APP_DIR}/package.json" || -L "${APP_DIR}/package.json" ]] || \
+  ! node --input-type=module -e \
+    'import fs from "node:fs"; const pkg = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.exit(pkg.name === "joych-homepage" ? 0 : 1);' \
+    "${APP_DIR}/package.json"; then
+  echo "[deploy] APP_DIR is not the joych-homepage runtime: ${APP_DIR}" >&2
+  exit 1
+fi
+for required_path in dist patches pnpm-lock.yaml pnpm-workspace.yaml patches/wouter@3.7.1.patch; do
+  if [[ ! -e "${APP_DIR}/${required_path}" || -L "${APP_DIR}/${required_path}" ]]; then
+    echo "[deploy] required runtime path is missing or unsafe: ${APP_DIR}/${required_path}" >&2
+    exit 1
+  fi
+done
+if [[ ! -d "${APP_DIR}/dist" || ! -d "${APP_DIR}/patches" || \
+  ! -f "${APP_DIR}/pnpm-lock.yaml" || ! -f "${APP_DIR}/pnpm-workspace.yaml" || \
+  ! -f "${APP_DIR}/patches/wouter@3.7.1.patch" ]]; then
+  echo "[deploy] APP_DIR runtime layout is incomplete: ${APP_DIR}" >&2
+  exit 1
+fi
+
+BACKUP_ROOT="${APP_DIR}/backups"
+if [[ -e "${BACKUP_ROOT}" && ( ! -d "${BACKUP_ROOT}" || -L "${BACKUP_ROOT}" ) ]]; then
+  echo "[deploy] refusing unsafe backup root: ${BACKUP_ROOT}" >&2
+  exit 1
+fi
+mkdir -p "${BACKUP_ROOT}"
+if [[ "$(cd -- "${BACKUP_ROOT}" && pwd -P)" != "${APP_DIR}/backups" ]]; then
+  echo "[deploy] backup root resolves outside APP_DIR: ${BACKUP_ROOT}" >&2
   exit 1
 fi
 
@@ -84,35 +169,42 @@ if (missing.length > 0) {
 NODE
 
 TS="$(date +%Y%m%d_%H%M%S)"
-BACKUP_DIR="${APP_DIR}/backups/deploy_${TS}"
+BACKUP_DIR="${BACKUP_ROOT}/deploy_${TS}"
 
 echo "[deploy] backup current runtime files"
-mkdir -p "${BACKUP_DIR}"
-if [[ -d "${APP_DIR}/dist" ]]; then
-  cp -a "${APP_DIR}/dist" "${BACKUP_DIR}/dist"
+mkdir "${BACKUP_DIR}"
+cp -a "${APP_DIR}/dist" "${BACKUP_DIR}/dist"
+cp "${APP_DIR}/package.json" "${BACKUP_DIR}/package.json"
+cp "${APP_DIR}/pnpm-lock.yaml" "${BACKUP_DIR}/pnpm-lock.yaml"
+cp "${APP_DIR}/pnpm-workspace.yaml" "${BACKUP_DIR}/pnpm-workspace.yaml"
+cp -a "${APP_DIR}/patches" "${BACKUP_DIR}/patches"
+if [[ -f "${APP_DIR}/.deploy-assets-manifest" && ! -L "${APP_DIR}/.deploy-assets-manifest" ]]; then
+  cp "${APP_DIR}/.deploy-assets-manifest" "${BACKUP_DIR}/.deploy-assets-manifest"
 fi
-if [[ -f "${APP_DIR}/package.json" ]]; then
-  cp "${APP_DIR}/package.json" "${BACKUP_DIR}/package.json"
-fi
-if [[ -f "${APP_DIR}/pnpm-lock.yaml" ]]; then
-  cp "${APP_DIR}/pnpm-lock.yaml" "${BACKUP_DIR}/pnpm-lock.yaml"
-fi
+BACKUP_READY=1
 
 echo "[deploy] extract artifact"
 rm -rf "${APP_DIR}/dist"
 tar -xzf "${ARTIFACT}" -C "${APP_DIR}"
-if [[ -d "${BACKUP_DIR}/dist/public/assets" ]]; then
-  echo "[deploy] preserve previous browser asset chunks"
-  mkdir -p "${APP_DIR}/dist/public/assets"
-  find "${BACKUP_DIR}/dist/public/assets" -maxdepth 1 -type f -exec cp -n {} "${APP_DIR}/dist/public/assets/" \;
+
+RETENTION_HELPER="${APP_DIR}/scripts/deploy-retention.sh"
+if [[ ! -f "${RETENTION_HELPER}" ]]; then
+  echo "[deploy] missing retention helper: ${RETENTION_HELPER}" >&2
+  false
 fi
+# shellcheck disable=SC1090
+. "${RETENTION_HELPER}"
+deploy_retention_validate_config
+deploy_retention_require_integer "HEALTHCHECK_ATTEMPTS" "${HEALTHCHECK_ATTEMPTS}" 1
+deploy_retention_require_integer "HEALTHCHECK_DELAY_SECONDS" "${HEALTHCHECK_DELAY_SECONDS}" 0
+deploy_retention_require_integer "HEALTHCHECK_CONNECT_TIMEOUT_SECONDS" "${HEALTHCHECK_CONNECT_TIMEOUT_SECONDS}" 1
+deploy_retention_require_integer "HEALTHCHECK_MAX_TIME_SECONDS" "${HEALTHCHECK_MAX_TIME_SECONDS}" 1
+
+echo "[deploy] preserve bounded browser asset generations"
+deploy_retention_preserve_assets "${APP_DIR}" "${BACKUP_DIR}"
 
 echo "[deploy] install production dependencies"
-if command -v pnpm >/dev/null 2>&1; then
-  CI=true pnpm install --prod --frozen-lockfile
-else
-  CI=true npm install --omit=dev
-fi
+install_production_dependencies
 
 MIGRATION_0041="${APP_DIR}/drizzle/0041_facility_reservation_member_gate.sql"
 if [[ -f "${MIGRATION_0041}" ]]; then
@@ -3272,13 +3364,45 @@ echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4
 
-echo "[deploy] healthcheck: ${HEALTHCHECK_URL}"
-curl -fsS "${HEALTHCHECK_URL}" >/dev/null
+wait_for_deploy_check() {
+  local label="$1"
+  local url="$2"
+  local attempt
+
+  echo "[deploy] ${label}: ${url}"
+  for (( attempt = 1; attempt <= HEALTHCHECK_ATTEMPTS; attempt++ )); do
+    if curl -fsS \
+      --connect-timeout "${HEALTHCHECK_CONNECT_TIMEOUT_SECONDS}" \
+      --max-time "${HEALTHCHECK_MAX_TIME_SECONDS}" \
+      "${url}" >/dev/null; then
+      return 0
+    fi
+
+    echo "[deploy] ${label} attempt ${attempt}/${HEALTHCHECK_ATTEMPTS} failed" >&2
+    if (( attempt < HEALTHCHECK_ATTEMPTS )); then
+      sleep "${HEALTHCHECK_DELAY_SECONDS}"
+    fi
+  done
+
+  echo "[deploy] ${label} failed after ${HEALTHCHECK_ATTEMPTS} attempt(s)" >&2
+  return 1
+}
+
+# Readiness is always checked independently so a legacy HEALTHCHECK_URL that
+# still points at public-config cannot bypass the database connectivity probe.
+wait_for_deploy_check "readiness check" "${READINESS_URL}"
+if [[ "${HEALTHCHECK_URL}" != "${READINESS_URL}" ]]; then
+  wait_for_deploy_check "compatibility healthcheck" "${HEALTHCHECK_URL}"
+fi
 
 echo "[deploy] verify Newjoych/Joych PWA notification bridge"
 node "${APP_DIR}/scripts/verify-pwa-domain-bridge.mjs"
 
 rm -f "${ARTIFACT}"
+
+if ! deploy_retention_prune_backups "${APP_DIR}" "${BACKUP_DIR}"; then
+  echo "[deploy] warning: backup retention cleanup failed; keeping the healthy release" >&2
+fi
 
 trap - ERR
 echo "[deploy] ok backup=${BACKUP_DIR}"

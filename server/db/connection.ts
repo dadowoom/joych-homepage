@@ -14,6 +14,28 @@ import mysql from "mysql2/promise";
 /** 캐시된 DB 인스턴스 */
 let _db: ReturnType<typeof drizzle> | null = null;
 
+export function getSafeDatabaseErrorMetadata(error: unknown) {
+  const knownNames = new Set([
+    "Error",
+    "TypeError",
+    "RangeError",
+    "SyntaxError",
+    "URIError",
+    "EvalError",
+    "AggregateError",
+  ]);
+  const candidateName = error instanceof Error ? error.name : "Error";
+  const name = knownNames.has(candidateName) ? candidateName : "Error";
+  const candidateCode = typeof error === "object" && error !== null && "code" in error
+    ? String((error as { code?: unknown }).code ?? "")
+    : "";
+  const code = /^[A-Z][A-Z0-9_]{0,63}$/.test(candidateCode)
+    ? candidateCode
+    : "UNKNOWN";
+
+  return { name, code };
+}
+
 /**
  * DB 인스턴스를 반환합니다.
  * DATABASE_URL 환경변수가 없으면 null을 반환합니다.
@@ -27,7 +49,8 @@ export async function getDb() {
       });
       _db = drizzle(pool) as unknown as ReturnType<typeof drizzle>;
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      const { name, code } = getSafeDatabaseErrorMetadata(error);
+      console.warn(`[Database] Failed to initialize connection (name=${name}, code=${code})`);
       _db = null;
     }
   }

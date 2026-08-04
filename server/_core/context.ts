@@ -25,6 +25,11 @@ export type TrpcContext = {
   memberName: string | null;
 };
 
+const contextPromiseKey = Symbol("trpcContextPromise");
+type ContextRequest = CreateExpressContextOptions["req"] & {
+  [contextPromiseKey]?: Promise<TrpcContext>;
+};
+
 async function attachContentPermissions(user: User): Promise<TrpcUser> {
   if (user.role === "admin") {
     return { ...user, contentPermissions: [] };
@@ -131,17 +136,18 @@ async function refreshAdminSessionCookieIfNeeded(
   }
 }
 
-export async function createContext(
-  opts: CreateExpressContextOptions
+async function buildContext(
+  req: CreateExpressContextOptions["req"],
+  res: CreateExpressContextOptions["res"]
 ): Promise<TrpcContext> {
   let user: TrpcUser | null = null;
-  const memberSession = await authenticateApprovedMember(opts.req, opts.res);
+  const memberSession = await authenticateApprovedMember(req, res);
 
   try {
-    const sdkUser = await sdk.authenticateRequest(opts.req);
+    const sdkUser = await sdk.authenticateRequest(req);
     user = sdkUser ? await attachContentPermissions(sdkUser) : null;
     if (user) {
-      await refreshAdminSessionCookieIfNeeded(opts.req, opts.res, user);
+      await refreshAdminSessionCookieIfNeeded(req, res, user);
     }
   } catch (error) {
     // Authentication is optional for public procedures.
@@ -149,14 +155,27 @@ export async function createContext(
   }
 
   if (!user) {
-    user = await authenticateMemberContentManager(opts.req);
+    user = await authenticateMemberContentManager(req);
   }
 
   return {
-    req: opts.req,
-    res: opts.res,
+    req,
+    res,
     user,
     memberId: memberSession?.memberId ?? user?.memberId ?? null,
     memberName: memberSession?.memberName ?? null,
   };
+}
+
+export function getOrCreateTrpcContext(
+  req: CreateExpressContextOptions["req"],
+  res: CreateExpressContextOptions["res"]
+) {
+  const contextRequest = req as ContextRequest;
+  contextRequest[contextPromiseKey] ??= buildContext(req, res);
+  return contextRequest[contextPromiseKey];
+}
+
+export function createContext(opts: CreateExpressContextOptions) {
+  return getOrCreateTrpcContext(opts.req, opts.res);
 }

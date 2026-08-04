@@ -18,6 +18,17 @@ env:
   JOYCH_APP_DIR: ${{ vars.JOYCH_APP_DIR || '/var/www/joych-homepage' }}
   JOYCH_PM2_APP: ${{ vars.JOYCH_PM2_APP || 'joych-homepage' }}
   JOYCH_HEALTHCHECK_URL: ${{ vars.JOYCH_HEALTHCHECK_URL || 'http://127.0.0.1:3000/api/public-config' }}
+  JOYCH_READINESS_URL: ${{ vars.JOYCH_READINESS_URL || 'http://127.0.0.1:3000/api/readyz' }}
+  JOYCH_HEALTHCHECK_ATTEMPTS: ${{ vars.JOYCH_HEALTHCHECK_ATTEMPTS || '10' }}
+  JOYCH_HEALTHCHECK_DELAY_SECONDS: ${{ vars.JOYCH_HEALTHCHECK_DELAY_SECONDS || '3' }}
+  JOYCH_HEALTHCHECK_CONNECT_TIMEOUT_SECONDS: ${{ vars.JOYCH_HEALTHCHECK_CONNECT_TIMEOUT_SECONDS || '2' }}
+  JOYCH_HEALTHCHECK_MAX_TIME_SECONDS: ${{ vars.JOYCH_HEALTHCHECK_MAX_TIME_SECONDS || '10' }}
+  JOYCH_DEPLOY_BACKUP_MIN_COUNT: ${{ vars.JOYCH_DEPLOY_BACKUP_MIN_COUNT || '7' }}
+  JOYCH_DEPLOY_BACKUP_MAX_COUNT: ${{ vars.JOYCH_DEPLOY_BACKUP_MAX_COUNT || '14' }}
+  JOYCH_DEPLOY_BACKUP_MAX_AGE_DAYS: ${{ vars.JOYCH_DEPLOY_BACKUP_MAX_AGE_DAYS || '30' }}
+  JOYCH_ASSET_PRIOR_RELEASE_MIN_COUNT: ${{ vars.JOYCH_ASSET_PRIOR_RELEASE_MIN_COUNT || '2' }}
+  JOYCH_ASSET_PRIOR_RELEASE_MAX_COUNT: ${{ vars.JOYCH_ASSET_PRIOR_RELEASE_MAX_COUNT || '7' }}
+  JOYCH_ASSET_PRIOR_RELEASE_MAX_AGE_DAYS: ${{ vars.JOYCH_ASSET_PRIOR_RELEASE_MAX_AGE_DAYS || '14' }}
   JOYCH_SSH_PORT: ${{ secrets.JOYCH_SSH_PORT || '22' }}
   JOYCH_SSH_HOST: ${{ secrets.JOYCH_SSH_HOST }}
   JOYCH_SSH_USER: ${{ secrets.JOYCH_SSH_USER }}
@@ -50,6 +61,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Validate deploy scripts
+        run: |
+          bash -n scripts/deploy-production-remote.sh
+          bash -n scripts/deploy-retention.sh
+          bash -n scripts/deploy-retention.test.sh
+          bash scripts/deploy-retention.test.sh
+
       - name: Typecheck
         run: pnpm check
 
@@ -62,7 +80,7 @@ jobs:
       - name: Create deploy artifact
         run: |
           ARTIFACT="joych-homepage-${GITHUB_SHA}.tar.gz"
-          tar -czf "${ARTIFACT}" dist package.json pnpm-lock.yaml pnpm-workspace.yaml patches drizzle/*.sql scripts/verify-pwa-domain-bridge.mjs
+          tar -czf "${ARTIFACT}" dist package.json pnpm-lock.yaml pnpm-workspace.yaml patches drizzle/*.sql scripts/deploy-retention.sh scripts/verify-pwa-domain-bridge.mjs
           echo "ARTIFACT=${ARTIFACT}" >> "${GITHUB_ENV}"
 
       - name: Prepare SSH
@@ -123,13 +141,13 @@ jobs:
             ssh -i ~/.ssh/joych_deploy_key \
               -p "${JOYCH_SSH_PORT}" \
               "${SSH_USER}@${SSH_HOST}" \
-              "APP_DIR='${JOYCH_APP_DIR}' PM2_APP='${JOYCH_PM2_APP}' ARTIFACT='/tmp/${ARTIFACT}' HEALTHCHECK_URL='${JOYCH_HEALTHCHECK_URL}' bash -s" \
+              "APP_DIR='${JOYCH_APP_DIR}' PM2_APP='${JOYCH_PM2_APP}' ARTIFACT='/tmp/${ARTIFACT}' HEALTHCHECK_URL='${JOYCH_HEALTHCHECK_URL}' READINESS_URL='${JOYCH_READINESS_URL}' HEALTHCHECK_ATTEMPTS='${JOYCH_HEALTHCHECK_ATTEMPTS}' HEALTHCHECK_DELAY_SECONDS='${JOYCH_HEALTHCHECK_DELAY_SECONDS}' HEALTHCHECK_CONNECT_TIMEOUT_SECONDS='${JOYCH_HEALTHCHECK_CONNECT_TIMEOUT_SECONDS}' HEALTHCHECK_MAX_TIME_SECONDS='${JOYCH_HEALTHCHECK_MAX_TIME_SECONDS}' DEPLOY_BACKUP_MIN_COUNT='${JOYCH_DEPLOY_BACKUP_MIN_COUNT}' DEPLOY_BACKUP_MAX_COUNT='${JOYCH_DEPLOY_BACKUP_MAX_COUNT}' DEPLOY_BACKUP_MAX_AGE_DAYS='${JOYCH_DEPLOY_BACKUP_MAX_AGE_DAYS}' ASSET_PRIOR_RELEASE_MIN_COUNT='${JOYCH_ASSET_PRIOR_RELEASE_MIN_COUNT}' ASSET_PRIOR_RELEASE_MAX_COUNT='${JOYCH_ASSET_PRIOR_RELEASE_MAX_COUNT}' ASSET_PRIOR_RELEASE_MAX_AGE_DAYS='${JOYCH_ASSET_PRIOR_RELEASE_MAX_AGE_DAYS}' bash -s" \
               < scripts/deploy-production-remote.sh
           elif [[ -n "${SSH_PASSWORD}" ]]; then
             sshpass -p "${SSH_PASSWORD}" \
               ssh -p "${JOYCH_SSH_PORT}" \
               "${SSH_USER}@${SSH_HOST}" \
-              "APP_DIR='${JOYCH_APP_DIR}' PM2_APP='${JOYCH_PM2_APP}' ARTIFACT='/tmp/${ARTIFACT}' HEALTHCHECK_URL='${JOYCH_HEALTHCHECK_URL}' bash -s" \
+              "APP_DIR='${JOYCH_APP_DIR}' PM2_APP='${JOYCH_PM2_APP}' ARTIFACT='/tmp/${ARTIFACT}' HEALTHCHECK_URL='${JOYCH_HEALTHCHECK_URL}' READINESS_URL='${JOYCH_READINESS_URL}' HEALTHCHECK_ATTEMPTS='${JOYCH_HEALTHCHECK_ATTEMPTS}' HEALTHCHECK_DELAY_SECONDS='${JOYCH_HEALTHCHECK_DELAY_SECONDS}' HEALTHCHECK_CONNECT_TIMEOUT_SECONDS='${JOYCH_HEALTHCHECK_CONNECT_TIMEOUT_SECONDS}' HEALTHCHECK_MAX_TIME_SECONDS='${JOYCH_HEALTHCHECK_MAX_TIME_SECONDS}' DEPLOY_BACKUP_MIN_COUNT='${JOYCH_DEPLOY_BACKUP_MIN_COUNT}' DEPLOY_BACKUP_MAX_COUNT='${JOYCH_DEPLOY_BACKUP_MAX_COUNT}' DEPLOY_BACKUP_MAX_AGE_DAYS='${JOYCH_DEPLOY_BACKUP_MAX_AGE_DAYS}' ASSET_PRIOR_RELEASE_MIN_COUNT='${JOYCH_ASSET_PRIOR_RELEASE_MIN_COUNT}' ASSET_PRIOR_RELEASE_MAX_COUNT='${JOYCH_ASSET_PRIOR_RELEASE_MAX_COUNT}' ASSET_PRIOR_RELEASE_MAX_AGE_DAYS='${JOYCH_ASSET_PRIOR_RELEASE_MAX_AGE_DAYS}' bash -s" \
               < scripts/deploy-production-remote.sh
           else
             echo "Missing SSH authentication: set JOYCH_SSH_PRIVATE_KEY or JOYCH_SSH_PASSWORD." >&2

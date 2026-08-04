@@ -1,3 +1,5 @@
+import { TRPCError } from "@trpc/server";
+
 /**
  * 로그인 실패 횟수 제한 (Rate Limiter)
  * ─────────────────────────────────────────────────────────────────────────────
@@ -12,6 +14,7 @@ export const LOGIN_ACCOUNT_LOCKOUT_MS = 5 * 60 * 1000;
 export const LOGIN_IP_MAX_ATTEMPTS = 40;
 export const LOGIN_IP_LOCKOUT_MS = 10 * 60 * 1000;
 export const LOGIN_ATTEMPT_WINDOW_MS = 30 * 60 * 1000;
+export const RATE_LIMIT_MAX_TRACKED_KEYS = 20_000;
 
 type RateLimitPolicy = {
   maxAttempts: number;
@@ -43,18 +46,37 @@ interface AttemptRecord {
 // 메모리 저장소: key = "ip:xxx" 또는 "account:xxx"
 const store = new Map<string, AttemptRecord>();
 
-/** 오래된 기록 정리 (메모리 누수 방지) — 1시간마다 실행 */
-setInterval(() => {
-  const now = Date.now();
+/** 오래된 로그인 기록 정리 (메모리 누수 방지) */
+export function cleanupLoginRateLimitStore(now = Date.now()) {
+  let deleted = 0;
   store.forEach((record, key) => {
     if (
       (record.lockedUntil && record.lockedUntil < now) ||
       (!record.lockedUntil && now - record.firstAttemptAt > LOGIN_ATTEMPT_WINDOW_MS)
     ) {
       store.delete(key);
+      deleted += 1;
     }
   });
-}, 60 * 60 * 1000);
+  return deleted;
+}
+
+function ensureLoginStoreCapacity(now: number) {
+  if (store.size < RATE_LIMIT_MAX_TRACKED_KEYS) return;
+  cleanupLoginRateLimitStore(now);
+  while (store.size >= RATE_LIMIT_MAX_TRACKED_KEYS) {
+    const oldestKey = store.keys().next().value as string | undefined;
+    if (oldestKey === undefined) break;
+    store.delete(oldestKey);
+  }
+}
+
+/** 오래된 기록 정리 — 1시간마다 실행하며 프로세스 종료를 막지 않습니다. */
+const loginCleanupTimer = setInterval(
+  () => cleanupLoginRateLimitStore(),
+  60 * 60 * 1000
+);
+loginCleanupTimer.unref();
 
 /**
  * 로그인 시도 전 차단 여부 확인
@@ -88,6 +110,7 @@ export function checkRateLimit(key: string): void {
 export function recordFailure(key: string): void {
   const now = Date.now();
   const existing = store.get(key);
+  if (!existing) ensureLoginStoreCapacity(now);
   const policy = getLoginPolicy(key);
   const record =
     !existing ||
@@ -134,70 +157,138 @@ export function getClientIp(req: { ip?: string; headers: Record<string, string |
   return "unknown";
 }
 
+export type BoundedFixedWindowRateLimiterOptions = {
+  limit: number;
+  windowMs: number;
+  maxKeys: number;
+  message: string;
+  cleanupIntervalMs?: number;
+};
+
+type FixedWindowRecord = {
+  count: number;
+  expiresAt: number;
+};
+
+/**
+ * A process-local fixed-window limiter with opportunistic TTL cleanup and a
+ * hard key cap. The cap keeps spoofed/high-cardinality client identifiers from
+ * growing the process heap without bound.
+ */
+export class BoundedFixedWindowRateLimiter {
+  private readonly records = new Map<string, FixedWindowRecord>();
+  private readonly cleanupIntervalMs: number;
+  private nextCleanupAt = 0;
+
+  constructor(private readonly options: BoundedFixedWindowRateLimiterOptions) {
+    if (!Number.isInteger(options.limit) || options.limit < 1) {
+      throw new Error("Rate-limit limit must be a positive integer.");
+    }
+    if (!Number.isFinite(options.windowMs) || options.windowMs < 1) {
+      throw new Error("Rate-limit windowMs must be positive.");
+    }
+    if (!Number.isInteger(options.maxKeys) || options.maxKeys < 1) {
+      throw new Error("Rate-limit maxKeys must be a positive integer.");
+    }
+    this.cleanupIntervalMs = Math.max(
+      1,
+      options.cleanupIntervalMs ?? Math.min(options.windowMs, 60_000)
+    );
+  }
+
+  get size() {
+    return this.records.size;
+  }
+
+  consume(key: string, now = Date.now()) {
+    if (now >= this.nextCleanupAt) {
+      this.cleanupExpired(now);
+      this.nextCleanupAt = now + this.cleanupIntervalMs;
+    }
+
+    const normalizedKey = key.trim() || "unknown";
+    const existing = this.records.get(normalizedKey);
+    if (!existing || existing.expiresAt < now) {
+      if (existing) this.records.delete(normalizedKey);
+      this.ensureCapacity(now);
+      this.records.set(normalizedKey, {
+        count: 1,
+        expiresAt: now + this.options.windowMs,
+      });
+      return;
+    }
+
+    if (existing.count >= this.options.limit) {
+      throw new TRPCError({
+        code: "TOO_MANY_REQUESTS",
+        message: this.options.message,
+      });
+    }
+    existing.count += 1;
+  }
+
+  cleanupExpired(now = Date.now()) {
+    let deleted = 0;
+    this.records.forEach((record, key) => {
+      if (record.expiresAt < now) {
+        this.records.delete(key);
+        deleted += 1;
+      }
+    });
+    return deleted;
+  }
+
+  private ensureCapacity(now: number) {
+    if (this.records.size < this.options.maxKeys) return;
+    this.cleanupExpired(now);
+    while (this.records.size >= this.options.maxKeys) {
+      const oldestKey = this.records.keys().next().value as string | undefined;
+      if (oldestKey === undefined) break;
+      this.records.delete(oldestKey);
+    }
+  }
+}
+
 // ─── 검색 API Rate Limiter (내부 주소록 남용 방지) ────────────────────────────
 const SEARCH_MAX_PER_MIN = 30;   // 분당 최대 30회
 const SEARCH_WINDOW_MS = 60 * 1000; // 1분 윈도우
-
-interface SearchRecord {
-  count: number;
-  windowStart: number;
-}
-const searchStore = new Map<string, SearchRecord>();
+const searchLimiter = new BoundedFixedWindowRateLimiter({
+  limit: SEARCH_MAX_PER_MIN,
+  windowMs: SEARCH_WINDOW_MS,
+  maxKeys: RATE_LIMIT_MAX_TRACKED_KEYS,
+  message: "검색 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+});
 
 /** 검색 API 호출 전 rate limit 확인 */
 export function checkSearchRateLimit(key: string): void {
-  const now = Date.now();
-  const record = searchStore.get(key);
-  if (!record || now - record.windowStart > SEARCH_WINDOW_MS) {
-    searchStore.set(key, { count: 1, windowStart: now });
-    return;
-  }
-  record.count += 1;
-  if (record.count > SEARCH_MAX_PER_MIN) {
-    throw Object.assign(new Error("검색 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."), {
-      code: "TOO_MANY_REQUESTS",
-    });
-  }
+  searchLimiter.consume(key);
 }
 
 // ─── 회원가입 API Rate Limiter (가입 신청 스팸 방지) ────────────────────────
 const REGISTER_MAX_PER_HOUR = 5;
 const REGISTER_WINDOW_MS = 60 * 60 * 1000;
-const registerStore = new Map<string, SearchRecord>();
+const registerLimiter = new BoundedFixedWindowRateLimiter({
+  limit: REGISTER_MAX_PER_HOUR,
+  windowMs: REGISTER_WINDOW_MS,
+  maxKeys: RATE_LIMIT_MAX_TRACKED_KEYS,
+  message: "회원가입 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+});
 
 /** 회원가입 호출 전 rate limit 확인 */
 export function checkRegisterRateLimit(key: string): void {
-  const now = Date.now();
-  const record = registerStore.get(key);
-  if (!record || now - record.windowStart > REGISTER_WINDOW_MS) {
-    registerStore.set(key, { count: 1, windowStart: now });
-    return;
-  }
-  record.count += 1;
-  if (record.count > REGISTER_MAX_PER_HOUR) {
-    throw Object.assign(new Error("회원가입 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."), {
-      code: "TOO_MANY_REQUESTS",
-    });
-  }
+  registerLimiter.consume(key);
 }
 
 // ─── 계정 찾기/재설정 요청 Rate Limiter ──────────────────────────────────────
 const ACCOUNT_RECOVERY_MAX_PER_HOUR = 5;
-const accountRecoveryStore = new Map<string, SearchRecord>();
+const accountRecoveryLimiter = new BoundedFixedWindowRateLimiter({
+  limit: ACCOUNT_RECOVERY_MAX_PER_HOUR,
+  windowMs: REGISTER_WINDOW_MS,
+  maxKeys: RATE_LIMIT_MAX_TRACKED_KEYS,
+  message: "계정 찾기 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+});
 
 /** 개인정보 대조와 재설정 요청은 IP·동작별로 시간당 5회까지만 허용합니다. */
 export function checkAccountRecoveryRateLimit(key: string): void {
-  const now = Date.now();
-  const record = accountRecoveryStore.get(key);
-  if (!record || now - record.windowStart > REGISTER_WINDOW_MS) {
-    accountRecoveryStore.set(key, { count: 1, windowStart: now });
-    return;
-  }
-
-  record.count += 1;
-  if (record.count > ACCOUNT_RECOVERY_MAX_PER_HOUR) {
-    throw Object.assign(new Error("계정 찾기 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."), {
-      code: "TOO_MANY_REQUESTS",
-    });
-  }
+  accountRecoveryLimiter.consume(key);
 }

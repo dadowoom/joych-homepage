@@ -48,12 +48,10 @@ function resolveUploadFilePath(relKey: string): string {
   return filePath;
 }
 
-function ensureUploadDir(relKey: string): string {
+async function ensureUploadDir(relKey: string): Promise<string> {
   const filePath = resolveUploadFilePath(relKey);
   const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
+  await fs.promises.mkdir(dir, { recursive: true });
   return filePath;
 }
 
@@ -70,12 +68,12 @@ export async function storagePut(
   contentType = "application/octet-stream"
 ): Promise<{ key: string; url: string }> {
   const key = path.normalize(relKey.replace(/^\/+/, "")).replace(/\\/g, "/");
-  const filePath = ensureUploadDir(key);
+  const filePath = await ensureUploadDir(key);
 
   if (typeof data === "string") {
-    fs.writeFileSync(filePath, data, "utf-8");
+    await fs.promises.writeFile(filePath, data, "utf-8");
   } else {
-    fs.writeFileSync(filePath, Buffer.from(data));
+    await fs.promises.writeFile(filePath, Buffer.from(data));
   }
 
   const url = `${getStoragePublicUrlBase()}/uploads/${key}`;

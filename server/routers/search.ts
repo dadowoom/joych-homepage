@@ -1,7 +1,12 @@
 import { z } from "zod";
 import { and, desc, eq, inArray, like, or } from "drizzle-orm";
 import { isSiteHostname } from "@shared/siteHosts";
+import {
+  MIN_GLOBAL_SEARCH_CHARACTERS,
+  isValidGlobalSearchQuery,
+} from "@shared/globalSearch";
 import { publicProcedure, router } from "../_core/trpc";
+import { enforcePublicRateLimit } from "../_core/publicRateLimits";
 import { getDb } from "../db/connection";
 import { getVisibleMenus } from "../db/menu";
 import {
@@ -31,8 +36,16 @@ import {
 } from "../../drizzle/schema";
 import { ADMIN_RESOURCE_CATEGORY } from "../../shared/noticeCategories";
 
-const searchInput = z.object({
-  q: z.string().trim().min(1).max(80),
+export const searchInput = z.object({
+  q: z
+    .string()
+    .trim()
+    .min(1)
+    .max(80)
+    .refine(
+      isValidGlobalSearchQuery,
+      `검색어를 ${MIN_GLOBAL_SEARCH_CHARACTERS}자 이상 입력해 주세요.`
+    ),
 });
 
 const GROUP_LIMIT = 30;
@@ -1637,7 +1650,8 @@ async function loadSearchDataset(keyword: string): Promise<SearchDataset | null>
 }
 
 export const searchRouter = router({
-  global: publicProcedure.input(searchInput).query(async ({ input }) => {
+  global: publicProcedure.input(searchInput).query(async ({ input, ctx }) => {
+    enforcePublicRateLimit("globalSearch", ctx);
     const dataset = await loadSearchDataset(input.q);
     if (!dataset) return emptyGroupedSearchResult(input.q);
     return buildGroupedSearchResult(dataset, input.q);

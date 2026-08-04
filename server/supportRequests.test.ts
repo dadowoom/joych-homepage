@@ -16,6 +16,7 @@ const dbMocks = vi.hoisted(() => ({
   getMemberSubtitleRequest: vi.fn(),
   listMemberBulletinAdRequests: vi.fn(),
   listMemberSubtitleRequests: vi.fn(),
+  listPublicBulletinAdRequests: vi.fn(),
   listPublicSubtitleRequests: vi.fn(),
   listOwnedVisitRequests: vi.fn(),
   updateMemberBulletinAdRequest: vi.fn(),
@@ -56,6 +57,7 @@ vi.mock("./db", async (importOriginal) => {
     getMemberSubtitleRequest: dbMocks.getMemberSubtitleRequest,
     listMemberBulletinAdRequests: dbMocks.listMemberBulletinAdRequests,
     listMemberSubtitleRequests: dbMocks.listMemberSubtitleRequests,
+    listPublicBulletinAdRequests: dbMocks.listPublicBulletinAdRequests,
     listPublicSubtitleRequests: dbMocks.listPublicSubtitleRequests,
     listOwnedVisitRequests: dbMocks.listOwnedVisitRequests,
     updateMemberBulletinAdRequest: dbMocks.updateMemberBulletinAdRequest,
@@ -91,6 +93,7 @@ describe("공개 접수 라우터", () => {
     dbMocks.deleteOwnedVisitRequest.mockResolvedValue(true);
     dbMocks.listMemberBulletinAdRequests.mockResolvedValue([]);
     dbMocks.listMemberSubtitleRequests.mockResolvedValue([]);
+    dbMocks.listPublicBulletinAdRequests.mockResolvedValue([]);
     dbMocks.listPublicSubtitleRequests.mockResolvedValue([]);
     dbMocks.listOwnedVisitRequests.mockResolvedValue([]);
     dbMocks.getMemberBulletinAdRequest.mockResolvedValue({ id: 301, memberId: 1 });
@@ -326,15 +329,35 @@ describe("공개 접수 라우터", () => {
       attachmentUrl: "https://files.example.org/subtitle-requests/praise-lyrics.pdf",
       attachmentSize: 1234,
       attachmentMime: "application/pdf",
+      adminMemo: "확인 후 연락드리겠습니다.",
     }]);
     const caller = appRouter.createCaller(createContext());
 
-    await expect(caller.support.listSubtitles()).resolves.toEqual([expect.objectContaining({
+    const result = await caller.support.listSubtitles();
+    expect(result).toEqual([expect.objectContaining({
       attachmentName: "praise-lyrics.pdf",
       attachmentUrl: "https://files.example.org/subtitle-requests/praise-lyrics.pdf",
       attachmentSize: 1234,
     })]);
+    expect(result[0]).toHaveProperty("adminMemo", "확인 후 연락드리겠습니다.");
     expect(dbMocks.listPublicSubtitleRequests).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the administrator's public reply in the bulletin-ad DTO", async () => {
+    dbMocks.listPublicBulletinAdRequests.mockResolvedValue([{
+      id: 301,
+      title: "주보 광고 신청",
+      adminMemo: "다음 주 주보에 반영하겠습니다.",
+    }]);
+    const caller = appRouter.createCaller(createContext());
+
+    const result = await caller.support.listBulletinAds();
+
+    expect(result).toEqual([{
+      id: 301,
+      title: "주보 광고 신청",
+      adminMemo: "다음 주 주보에 반영하겠습니다.",
+    }]);
   });
 
   it("lets a member update and delete their own subtitle request", async () => {

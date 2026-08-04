@@ -15,6 +15,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { enforcePublicRateLimit } from "../_core/publicRateLimits";
 import {
   adminPermissionProcedure,
   publicProcedure,
@@ -827,6 +828,7 @@ export const homeRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      enforcePublicRateLimit("guestCourseApplication", ctx);
       const course = await getVisibleCourseById(input.courseId);
       if (!course) {
         throw new TRPCError({
@@ -1198,6 +1200,9 @@ export const homeRouter = router({
       const canBypassReservationRules = hasFacilityReservationManagerPermission(
         ctx.user
       );
+      if (!canBypassReservationRules) {
+        enforcePublicRateLimit("externalFacilityReservation", ctx);
+      }
       const startMinutes = toMinutes(input.startTime);
       const endMinutes = toMinutes(input.endTime);
       if (startMinutes === null || endMinutes === null) {

@@ -15,6 +15,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { splitSearchHighlightParts } from "@/lib/searchHighlight";
 import { isExternalSiteHref, normalizeSiteHref } from "@/lib/siteHref";
+import { isValidGlobalSearchQuery } from "@shared/globalSearch";
 
 const GROUP_DISPLAY_LIMIT = 3;
 const GALLERY_PAGE_HREF =
@@ -468,12 +469,13 @@ function SearchGroupCard({
 export default function SearchPage() {
   const searchString = useSearch();
   const keyword = parseSearchKeyword(searchString);
+  const hasValidKeyword = isValidGlobalSearchQuery(keyword);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
     {}
   );
   const { data, isLoading } = trpc.search.global.useQuery(
     { q: keyword },
-    { enabled: keyword.length > 0, retry: false }
+    { enabled: hasValidKeyword, retry: false }
   );
 
   useEffect(() => {
@@ -510,6 +512,10 @@ export default function SearchPage() {
         {!keyword ? (
           <div className="rounded-lg border border-dashed border-gray-200 bg-white px-6 py-16 text-center text-sm text-gray-400">
             상단 검색창에서 찾고 싶은 단어를 입력해 주세요.
+          </div>
+        ) : !hasValidKeyword ? (
+          <div className="rounded-lg border border-dashed border-gray-200 bg-white px-6 py-16 text-center text-sm text-gray-400">
+            검색어를 2자 이상 입력해 주세요.
           </div>
         ) : isLoading ? (
           <div className="flex items-center justify-center rounded-lg border border-gray-100 bg-white py-20">

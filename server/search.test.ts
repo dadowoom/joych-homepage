@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildGroupedSearchResult } from "./routers/search";
+import { buildGroupedSearchResult, searchInput } from "./routers/search";
 import { ADMIN_RESOURCE_CATEGORY } from "../shared/noticeCategories";
 
 type SearchDataset = Parameters<typeof buildGroupedSearchResult>[0];
@@ -535,4 +535,20 @@ describe("grouped backend search", () => {
 
     expect(groups.has("free-board")).toBe(false);
   });
+});
+
+describe("global search input", () => {
+  it.each(["ab", "가나", "가a", "église", "2026", "0726", "8월"])(
+    "accepts two or more Unicode letters/numbers: %s",
+    q => {
+      expect(searchInput.safeParse({ q }).success).toBe(true);
+    }
+  );
+
+  it.each(["a", "가", "1", "ㄱ", "   ", "! @ #"])(
+    "rejects queries with fewer than two Unicode letters/numbers: %s",
+    q => {
+      expect(searchInput.safeParse({ q }).success).toBe(false);
+    }
+  );
 });
