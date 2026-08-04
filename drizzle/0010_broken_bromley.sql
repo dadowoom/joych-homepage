@@ -12,5 +12,5 @@ CREATE TABLE `member_social_accounts` (
 	CONSTRAINT `member_social_provider_user_unique` UNIQUE(`provider`,`provider_user_id`),
 	CONSTRAINT `member_social_member_provider_unique` UNIQUE(`member_id`,`provider`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE INDEX `member_social_member_id_idx` ON `member_social_accounts` (`member_id`);

@@ -8,7 +8,7 @@ CREATE TABLE `mission_report_authors` (
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `mission_report_authors_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `mission_report_images` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`reportId` int NOT NULL,
@@ -18,7 +18,7 @@ CREATE TABLE `mission_report_images` (
 	`createdAt` timestamp NOT NULL DEFAULT (now()),
 	CONSTRAINT `mission_report_images_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `mission_report_prayer_topics` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`reportId` int NOT NULL,
@@ -27,7 +27,7 @@ CREATE TABLE `mission_report_prayer_topics` (
 	`createdAt` timestamp NOT NULL DEFAULT (now()),
 	CONSTRAINT `mission_report_prayer_topics_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `mission_reports` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`missionaryId` int NOT NULL,
@@ -46,7 +46,7 @@ CREATE TABLE `mission_reports` (
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `mission_reports_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `missionaries` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`name` varchar(128) NOT NULL,

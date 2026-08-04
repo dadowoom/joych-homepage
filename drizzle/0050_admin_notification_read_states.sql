@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS `admin_notification_read_states` (
   UNIQUE KEY `admin_notification_read_states_user_group_unique` (`user_id`, `group_key`),
   KEY `admin_notification_read_states_user_id_idx` (`user_id`)
 );
-
+-- --> statement-breakpoint
 INSERT INTO `site_settings` (`settingKey`, `settingValue`, `description`)
 VALUES (
   'admin_notification_baseline_at',

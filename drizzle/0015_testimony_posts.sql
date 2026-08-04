@@ -8,7 +8,7 @@ CREATE TABLE `testimony_comments` (
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `testimony_comments_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `testimony_post_images` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`post_id` int NOT NULL,
@@ -18,7 +18,7 @@ CREATE TABLE `testimony_post_images` (
 	`created_at` timestamp NOT NULL DEFAULT (now()),
 	CONSTRAINT `testimony_post_images_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `testimony_posts` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`author_member_id` int NOT NULL,
@@ -32,9 +32,13 @@ CREATE TABLE `testimony_posts` (
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `testimony_posts_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
-CREATE INDEX `testimony_comments_post_status_idx` ON `testimony_comments` (`post_id`,`status`);--> statement-breakpoint
-CREATE INDEX `testimony_comments_author_idx` ON `testimony_comments` (`author_member_id`);--> statement-breakpoint
-CREATE INDEX `testimony_post_images_post_idx` ON `testimony_post_images` (`post_id`);--> statement-breakpoint
-CREATE INDEX `testimony_posts_status_created_idx` ON `testimony_posts` (`status`,`created_at`);--> statement-breakpoint
+-- --> statement-breakpoint
+CREATE INDEX `testimony_comments_post_status_idx` ON `testimony_comments` (`post_id`,`status`);
+-- --> statement-breakpoint
+CREATE INDEX `testimony_comments_author_idx` ON `testimony_comments` (`author_member_id`);
+-- --> statement-breakpoint
+CREATE INDEX `testimony_post_images_post_idx` ON `testimony_post_images` (`post_id`);
+-- --> statement-breakpoint
+CREATE INDEX `testimony_posts_status_created_idx` ON `testimony_posts` (`status`,`created_at`);
+-- --> statement-breakpoint
 CREATE INDEX `testimony_posts_author_idx` ON `testimony_posts` (`author_member_id`);

@@ -1,6 +1,6 @@
 ALTER TABLE facilities
   ADD COLUMN externalNotice TEXT DEFAULT NULL;
-
+-- --> statement-breakpoint
 INSERT INTO site_settings (settingKey, settingValue, description)
 VALUES (
   'external_facility_rules',

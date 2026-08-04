@@ -6,7 +6,7 @@ WHERE NOT EXISTS (
   WHERE `field_type` = 'district'
     AND `label` = '교육부공동체'
 );
-
+-- --> statement-breakpoint
 UPDATE `member_field_options`
 SET
   `sort_order` = CASE `label`

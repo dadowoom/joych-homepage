@@ -38,7 +38,7 @@ SELECT
 WHERE NOT EXISTS (
   SELECT 1 FROM `vehicles` WHERE `name` = '스타리아' LIMIT 1
 );
-
+-- --> statement-breakpoint
 SET @staria_vehicle_id := (
   SELECT `id`
   FROM `vehicles`
@@ -46,7 +46,7 @@ SET @staria_vehicle_id := (
   ORDER BY `id`
   LIMIT 1
 );
-
+-- --> statement-breakpoint
 UPDATE `vehicles`
 SET
   `description` = COALESCE(NULLIF(`description`, ''), '교회 행사와 사역 이동을 위한 현대 STARIA 차량입니다.'),
@@ -65,7 +65,7 @@ SET
   `close_time` = '24:00',
   `sort_order` = CASE WHEN `sort_order` = 0 THEN 1 ELSE `sort_order` END
 WHERE `id` = @staria_vehicle_id;
-
+-- --> statement-breakpoint
 INSERT INTO `vehicle_images` (
   `vehicle_id`,
   `image_url`,
@@ -89,12 +89,12 @@ WHERE @staria_vehicle_id IS NOT NULL
       AND `image_url` = 'https://www.hyundai.com/content/dam/hyundai/ww/en/images/find-a-car/pip/mpv/staria-full-page/highlights/staria-us4-highlights-kv-pc.jpg'
     LIMIT 1
   );
-
+-- --> statement-breakpoint
 UPDATE `vehicle_images`
 SET `is_thumbnail` = false
 WHERE `vehicle_id` = @staria_vehicle_id
   AND `image_url` <> 'https://www.hyundai.com/content/dam/hyundai/ww/en/images/find-a-car/pip/mpv/staria-full-page/highlights/staria-us4-highlights-kv-pc.jpg';
-
+-- --> statement-breakpoint
 UPDATE `vehicle_images`
 SET
   `is_thumbnail` = true,

@@ -18,6 +18,7 @@ CREATE TABLE `notice_popups` (
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `notice_popups_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
-CREATE INDEX `notice_popups_active_schedule_idx` ON `notice_popups` (`is_active`,`start_at`,`end_at`);--> statement-breakpoint
+-- --> statement-breakpoint
+CREATE INDEX `notice_popups_active_schedule_idx` ON `notice_popups` (`is_active`,`start_at`,`end_at`);
+-- --> statement-breakpoint
 CREATE INDEX `notice_popups_priority_idx` ON `notice_popups` (`priority`,`created_at`);

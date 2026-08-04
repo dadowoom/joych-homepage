@@ -28,7 +28,7 @@ WHERE m.`label` = '행정지원'
     WHERE existing.`menuId` = m.`id`
       AND (existing.`href` = '/facility' OR existing.`label` = '시설 사용 예약')
   );
-
+-- --> statement-breakpoint
 UPDATE `menu_items` mi
 JOIN `menus` m ON m.`id` = mi.`menuId`
 SET mi.`allowGuest` = 1,

@@ -6,7 +6,7 @@ WHERE NOT EXISTS (
   WHERE `field_type` = 'district'
     AND `label` = '새가족'
 );
-
+-- --> statement-breakpoint
 INSERT INTO `member_field_options` (`field_type`, `label`, `sort_order`, `is_active`)
 SELECT 'district', '청년부', 8, true
 WHERE NOT EXISTS (
@@ -15,7 +15,7 @@ WHERE NOT EXISTS (
   WHERE `field_type` = 'district'
     AND `label` = '청년부'
 );
-
+-- --> statement-breakpoint
 INSERT INTO `member_field_options` (`field_type`, `label`, `sort_order`, `is_active`)
 SELECT 'district', '교육부', 9, true
 WHERE NOT EXISTS (
@@ -24,7 +24,7 @@ WHERE NOT EXISTS (
   WHERE `field_type` = 'district'
     AND `label` = '교육부'
 );
-
+-- --> statement-breakpoint
 UPDATE `church_members`
 SET `district` = CASE `district`
   WHEN '새가족공동체' THEN '새가족'
@@ -33,7 +33,7 @@ SET `district` = CASE `district`
   ELSE `district`
 END
 WHERE `district` IN ('새가족공동체', '청년공동체', '교육부공동체');
-
+-- --> statement-breakpoint
 DELETE old_districts
 FROM `member_districts` old_districts
 JOIN `member_districts` existing_districts
@@ -44,7 +44,7 @@ JOIN `member_districts` existing_districts
     WHEN '교육부공동체' THEN '교육부'
   END
 WHERE old_districts.`district` IN ('새가족공동체', '청년공동체', '교육부공동체');
-
+-- --> statement-breakpoint
 UPDATE `member_districts`
 SET `district` = CASE `district`
   WHEN '새가족공동체' THEN '새가족'
@@ -53,12 +53,12 @@ SET `district` = CASE `district`
   ELSE `district`
 END
 WHERE `district` IN ('새가족공동체', '청년공동체', '교육부공동체');
-
+-- --> statement-breakpoint
 UPDATE `member_field_options`
 SET `is_active` = false
 WHERE `field_type` = 'district'
   AND `label` IN ('새가족공동체', '청년공동체', '교육부공동체');
-
+-- --> statement-breakpoint
 UPDATE `member_field_options`
 SET
   `sort_order` = CASE `label`

@@ -9,7 +9,7 @@ CREATE TABLE `bulletin_images` (
 	`created_at` timestamp NOT NULL DEFAULT (now()),
 	CONSTRAINT `bulletin_images_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE INDEX `bulletin_images_bulletin_order_idx` ON `bulletin_images` (`bulletin_id`,`sort_order`);
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE INDEX `bulletin_images_created_idx` ON `bulletin_images` (`created_at`);

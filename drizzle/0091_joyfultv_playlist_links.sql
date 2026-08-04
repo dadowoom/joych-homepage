@@ -11,7 +11,7 @@ VALUES
 ON DUPLICATE KEY UPDATE
   `title` = VALUES(`title`),
   `updatedAt` = CURRENT_TIMESTAMP;
-
+-- --> statement-breakpoint
 UPDATE `menu_sub_items` AS sub
 INNER JOIN `menu_items` AS item ON item.`id` = sub.`menuItemId`
 INNER JOIN `menus` AS menu ON menu.`id` = item.`menuId`

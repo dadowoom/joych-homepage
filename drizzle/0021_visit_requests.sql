@@ -16,6 +16,7 @@ CREATE TABLE `visit_requests` (
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `visit_requests_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
-CREATE INDEX `visit_requests_status_created_idx` ON `visit_requests` (`status`,`created_at`);--> statement-breakpoint
+-- --> statement-breakpoint
+CREATE INDEX `visit_requests_status_created_idx` ON `visit_requests` (`status`,`created_at`);
+-- --> statement-breakpoint
 CREATE INDEX `visit_requests_date_idx` ON `visit_requests` (`visit_date`);

@@ -1,6 +1,6 @@
 ALTER TABLE facilities
   ADD COLUMN externalAdvanceDaysOverride INT NULL;
-
+-- --> statement-breakpoint
 INSERT INTO site_settings (settingKey, settingValue, description)
 VALUES (
   'external_reservation_advance_days_default',

@@ -9,7 +9,7 @@ CREATE TABLE `affiliates` (
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `affiliates_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `gallery_items` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`imageUrl` text NOT NULL,
@@ -21,7 +21,7 @@ CREATE TABLE `gallery_items` (
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `gallery_items_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `hero_slides` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`videoUrl` text,
@@ -40,7 +40,7 @@ CREATE TABLE `hero_slides` (
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `hero_slides_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `menu_items` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`menuId` int NOT NULL,
@@ -52,7 +52,7 @@ CREATE TABLE `menu_items` (
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `menu_items_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `menus` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`label` varchar(64) NOT NULL,
@@ -63,7 +63,7 @@ CREATE TABLE `menus` (
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `menus_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `notices` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`category` varchar(32) NOT NULL DEFAULT '공지',
@@ -77,7 +77,7 @@ CREATE TABLE `notices` (
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `notices_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `quick_menus` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`icon` varchar(64) NOT NULL,
@@ -89,7 +89,7 @@ CREATE TABLE `quick_menus` (
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `quick_menus_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `sections` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`type` varchar(64) NOT NULL,
@@ -100,7 +100,7 @@ CREATE TABLE `sections` (
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `sections_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `sermons` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`category` varchar(32) NOT NULL,
@@ -112,7 +112,7 @@ CREATE TABLE `sermons` (
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `sermons_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `site_settings` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`settingKey` varchar(128) NOT NULL,

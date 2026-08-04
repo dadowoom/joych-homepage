@@ -22,7 +22,7 @@ CREATE TABLE `courses` (
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `courses_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `course_applications` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`courseId` int NOT NULL,
@@ -40,8 +40,11 @@ CREATE TABLE `course_applications` (
 	CONSTRAINT `course_applications_id` PRIMARY KEY(`id`),
 	CONSTRAINT `course_applications_course_member_unique` UNIQUE(`courseId`,`memberId`)
 );
---> statement-breakpoint
-CREATE INDEX `courses_status_visible_sort_idx` ON `courses` (`status`,`isVisible`,`sortOrder`);--> statement-breakpoint
-CREATE INDEX `courses_apply_window_idx` ON `courses` (`applyStartDate`,`applyEndDate`);--> statement-breakpoint
-CREATE INDEX `course_applications_course_status_idx` ON `course_applications` (`courseId`,`status`,`createdAt`);--> statement-breakpoint
+-- --> statement-breakpoint
+CREATE INDEX `courses_status_visible_sort_idx` ON `courses` (`status`,`isVisible`,`sortOrder`);
+-- --> statement-breakpoint
+CREATE INDEX `courses_apply_window_idx` ON `courses` (`applyStartDate`,`applyEndDate`);
+-- --> statement-breakpoint
+CREATE INDEX `course_applications_course_status_idx` ON `course_applications` (`courseId`,`status`,`createdAt`);
+-- --> statement-breakpoint
 CREATE INDEX `course_applications_member_created_idx` ON `course_applications` (`memberId`,`createdAt`);

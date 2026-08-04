@@ -13,10 +13,11 @@ CREATE TABLE IF NOT EXISTS `pastor_books` (
   CONSTRAINT `pastor_books_id` PRIMARY KEY(`id`),
   CONSTRAINT `pastor_books_legacy_num_unique` UNIQUE(`legacy_num`)
 );
-
+-- --> statement-breakpoint
 CREATE INDEX `pastor_books_visible_sort_idx` ON `pastor_books` (`is_visible`, `sort_order`);
+-- --> statement-breakpoint
 CREATE INDEX `pastor_books_published_idx` ON `pastor_books` (`published_at`);
-
+-- --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS `pastor_book_images` (
   `id` int AUTO_INCREMENT NOT NULL,
   `book_id` int NOT NULL,
@@ -28,9 +29,9 @@ CREATE TABLE IF NOT EXISTS `pastor_book_images` (
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT `pastor_book_images_id` PRIMARY KEY(`id`)
 );
-
+-- --> statement-breakpoint
 CREATE INDEX `pastor_book_images_book_order_idx` ON `pastor_book_images` (`book_id`, `is_thumbnail`, `sort_order`);
-
+-- --> statement-breakpoint
 INSERT IGNORE INTO `pastor_books` (`legacy_num`, `title`, `published_at`, `external_url`, `sort_order`, `is_visible`) VALUES
 ('48406', '생선 아카데미 인간론⑧ 『하나님과 화목하라』 : 하나님의 주권과 인간의 자유의지', '2023.05.18', 'http://www.joych.org/main/sub.html?Mode=view&boardID=www12&num=48406&page=0&keyfield=&key=&bCate=', 10, true),
 ('48405', '생선 아카데미 인간론⑦ 『고난을 이기는 법』 : 고난은 축복의 밑거름입니다', '2023.05.18', 'http://www.joych.org/main/sub.html?Mode=view&boardID=www12&num=48405&page=0&keyfield=&key=&bCate=', 20, true),
@@ -47,7 +48,7 @@ INSERT IGNORE INTO `pastor_books` (`legacy_num`, `title`, `published_at`, `exter
 ('475', '받은 복을 세어 보아라', '2011.06.03', 'http://www.joych.org/main/sub.html?Mode=view&boardID=www12&num=475&page=0&keyfield=&key=&bCate=', 130, true),
 ('474', '기독교 교육과 리더십', '2010.04.04', 'http://www.joych.org/main/sub.html?Mode=view&boardID=www12&num=474&page=0&keyfield=&key=&bCate=', 140, true),
 ('473', '리더십 바톤터치', '2009.03.01', 'http://www.joych.org/main/sub.html?Mode=view&boardID=www12&num=473&page=0&keyfield=&key=&bCate=', 150, true);
-
+-- --> statement-breakpoint
 INSERT INTO `pastor_book_images` (`book_id`, `image_url`, `is_thumbnail`, `sort_order`)
 SELECT b.`id`, CONCAT('/pastor-books/', seed.`image_file`), true, 0
 FROM `pastor_books` b

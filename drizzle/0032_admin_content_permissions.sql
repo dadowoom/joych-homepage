@@ -7,6 +7,7 @@ CREATE TABLE `admin_content_permissions` (
   CONSTRAINT `admin_content_permissions_id` PRIMARY KEY(`id`),
   CONSTRAINT `admin_content_permissions_user_key_unique` UNIQUE(`user_id`,`permission_key`)
 );
-
+-- --> statement-breakpoint
 CREATE INDEX `admin_content_permissions_user_id_idx` ON `admin_content_permissions` (`user_id`);
+-- --> statement-breakpoint
 CREATE INDEX `admin_content_permissions_permission_key_idx` ON `admin_content_permissions` (`permission_key`);

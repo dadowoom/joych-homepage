@@ -10,6 +10,7 @@
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run",
+    "verify:migrations": "node --test scripts/verify-drizzle-migrations.test.mjs scripts/migrate-drizzle-safely.test.mjs && node scripts/verify-drizzle-migrations.mjs",
     "verify:pwa-bridge": "node scripts/verify-pwa-domain-bridge.mjs",
     "migrate:public-site-urls": "tsx scripts/migratePublicSiteUrls.ts",
     "import:legacy-hebron": "tsx scripts/importLegacyHebronVideos.ts",
@@ -17,7 +18,8 @@
     "import:legacy-hayoungin": "tsx scripts/importLegacyHebronVideos.ts --archive=hayoungin",
     "import:legacy-testimony": "tsx scripts/importLegacyHebronVideos.ts --archive=testimony",
     "import:legacy-youth-haram": "tsx scripts/importLegacyHebronVideos.ts --archive=youth-haram",
-    "db:push": "drizzle-kit generate && drizzle-kit migrate",
+    "db:migrate:safe": "node scripts/migrate-drizzle-safely.mjs",
+    "db:push": "drizzle-kit generate && node scripts/normalize-drizzle-breakpoints.mjs --write && node scripts/migrate-drizzle-safely.mjs",
     "cms:normalize-menu-hrefs": "tsx scripts/normalize-cms-menu-hrefs.ts",
     "cms:seed-static-pages": "tsx scripts/seed-static-page-content.ts"
   },

@@ -18,7 +18,7 @@ CREATE TABLE `facilities` (
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `facilities_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `facility_blocked_dates` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`facilityId` int,
@@ -30,7 +30,7 @@ CREATE TABLE `facility_blocked_dates` (
 	`createdAt` timestamp NOT NULL DEFAULT (now()),
 	CONSTRAINT `facility_blocked_dates_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `facility_hours` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`facilityId` int NOT NULL,
@@ -44,7 +44,7 @@ CREATE TABLE `facility_hours` (
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `facility_hours_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `facility_images` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`facilityId` int NOT NULL,
@@ -56,7 +56,7 @@ CREATE TABLE `facility_images` (
 	`createdAt` timestamp NOT NULL DEFAULT (now()),
 	CONSTRAINT `facility_images_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `reservations` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`facilityId` int NOT NULL,

@@ -9,10 +9,10 @@ CREATE TABLE IF NOT EXISTS `history_decades` (
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT `history_decades_id` PRIMARY KEY(`id`)
 );
-
+-- --> statement-breakpoint
 CREATE INDEX `history_decades_visible_sort_idx`
   ON `history_decades` (`is_visible`, `sort_order`, `start_year`);
-
+-- --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS `history_items` (
   `id` int AUTO_INCREMENT NOT NULL,
   `decade_id` int NOT NULL,
@@ -25,6 +25,6 @@ CREATE TABLE IF NOT EXISTS `history_items` (
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT `history_items_id` PRIMARY KEY(`id`)
 );
-
+-- --> statement-breakpoint
 CREATE INDEX `history_items_decade_visible_sort_idx`
   ON `history_items` (`decade_id`, `is_visible`, `sort_order`, `year`, `month`);

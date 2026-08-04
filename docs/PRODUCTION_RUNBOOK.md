@@ -36,6 +36,10 @@ node scripts/backup-joych-production.mjs
 
 백업 결과는 `/var/backups/joych-homepage/joych-YYYYMMDD.../` 아래에 저장됩니다.
 
+## 운영 DB 마이그레이션 안전 규칙
+
+운영 DB에서는 `drizzle-kit migrate`, `pnpm exec drizzle-kit migrate`, `pnpm db:push`를 직접 실행하지 않습니다. 기존 운영 DB는 과거 SQL이 별도 배포 기록으로 이미 반영되어 있어, 검증 없이 일반 Drizzle 마이그레이션을 실행하면 같은 변경이 다시 적용될 수 있습니다. 안전 래퍼도 빈 신규 DB이거나, 현재 스키마가 기준 마이그레이션까지 반영되었음을 별도로 검증한 뒤 Drizzle의 시간과 해시가 일치하는 baseline이 승인·기록된 DB에서만 실행을 허용하며 baseline을 자동으로 만들지 않습니다.
+
 ## 파일 권한
 
 - `/var/www/joych-homepage/.env`: `600`

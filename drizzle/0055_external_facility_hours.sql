@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS `external_facility_hours` (
   CONSTRAINT `external_facility_hours_id` PRIMARY KEY(`id`),
   CONSTRAINT `external_facility_hours_facility_day_unique` UNIQUE(`facilityId`, `dayOfWeek`)
 );
-
+-- --> statement-breakpoint
 INSERT INTO `external_facility_hours` (
   `facilityId`,
   `dayOfWeek`,

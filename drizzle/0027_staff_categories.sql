@@ -10,9 +10,9 @@ CREATE TABLE `church_staff_categories` (
   CONSTRAINT `church_staff_categories_id` PRIMARY KEY(`id`),
   CONSTRAINT `church_staff_categories_category_key_unique` UNIQUE(`category_key`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE INDEX `church_staff_categories_visible_sort_idx` ON `church_staff_categories` (`is_visible`,`sort_order`);
---> statement-breakpoint
+-- --> statement-breakpoint
 INSERT INTO `church_staff_categories` (`category_key`, `label`, `sort_order`, `is_builtin`, `is_visible`) VALUES
 ('senior', '담임목사', 1, true, true),
 ('associate', '부교역자', 2, true, true),
@@ -26,6 +26,6 @@ ON DUPLICATE KEY UPDATE
   `sort_order` = VALUES(`sort_order`),
   `is_builtin` = true,
   `is_visible` = true;
---> statement-breakpoint
+-- --> statement-breakpoint
 ALTER TABLE `church_staff`
   MODIFY COLUMN `category` varchar(64) NOT NULL DEFAULT 'associate';

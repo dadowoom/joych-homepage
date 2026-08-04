@@ -43,6 +43,20 @@ jobs:
     # Migration markers make subsequent deployments return quickly.
     timeout-minutes: 60
 
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: joych_test_root
+          MYSQL_DATABASE: joych_migration_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -pjoych_test_root"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -61,8 +75,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Validate migration ledger
+        run: pnpm verify:migrations
+
+      - name: Verify migrations on fresh MySQL
+        env:
+          DATABASE_URL: mysql://root:joych_test_root@127.0.0.1:3306/joych_migration_test
+        run: pnpm db:migrate:safe
+
       - name: Validate deploy scripts
         run: |
+          node --check scripts/backup-joych-production.mjs
           bash -n scripts/deploy-production-remote.sh
           bash -n scripts/deploy-retention.sh
           bash -n scripts/deploy-retention.test.sh
@@ -80,7 +103,7 @@ jobs:
       - name: Create deploy artifact
         run: |
           ARTIFACT="joych-homepage-${GITHUB_SHA}.tar.gz"
-          tar -czf "${ARTIFACT}" dist package.json pnpm-lock.yaml pnpm-workspace.yaml patches drizzle/*.sql scripts/deploy-retention.sh scripts/verify-pwa-domain-bridge.mjs
+          tar -czf "${ARTIFACT}" dist package.json pnpm-lock.yaml pnpm-workspace.yaml patches drizzle/*.sql scripts/backup-joych-production.mjs scripts/deploy-retention.sh scripts/verify-pwa-domain-bridge.mjs
           echo "ARTIFACT=${ARTIFACT}" >> "${GITHUB_ENV}"
 
       - name: Prepare SSH

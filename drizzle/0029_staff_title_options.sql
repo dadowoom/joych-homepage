@@ -10,9 +10,9 @@ CREATE TABLE IF NOT EXISTS `church_staff_title_options` (
   CONSTRAINT `church_staff_title_options_id` PRIMARY KEY(`id`),
   CONSTRAINT `church_staff_title_options_category_label_unique` UNIQUE(`category_key`, `label`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE INDEX `church_staff_title_options_category_sort_idx` ON `church_staff_title_options` (`category_key`, `is_visible`, `sort_order`);
---> statement-breakpoint
+-- --> statement-breakpoint
 INSERT INTO `church_staff_title_options` (`category_key`, `label`, `sort_order`, `is_builtin`, `is_visible`) VALUES
   ('elder', '시무장로', 1, true, true),
   ('elder', '휴무장로', 2, true, true),

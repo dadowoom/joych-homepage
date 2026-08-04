@@ -13,6 +13,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: joych_test_root
+          MYSQL_DATABASE: joych_migration_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -pjoych_test_root"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,6 +44,14 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Validate migration ledger
+        run: pnpm verify:migrations
+
+      - name: Verify migrations on fresh MySQL
+        env:
+          DATABASE_URL: mysql://root:joych_test_root@127.0.0.1:3306/joych_migration_test
+        run: pnpm db:migrate:safe
 
       - name: Typecheck
         run: pnpm check

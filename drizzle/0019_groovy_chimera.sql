@@ -8,6 +8,7 @@ CREATE TABLE `free_board_posts` (
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `free_board_posts_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
-CREATE INDEX `free_board_posts_status_created_idx` ON `free_board_posts` (`status`,`created_at`);--> statement-breakpoint
+-- --> statement-breakpoint
+CREATE INDEX `free_board_posts_status_created_idx` ON `free_board_posts` (`status`,`created_at`);
+-- --> statement-breakpoint
 CREATE INDEX `free_board_posts_author_idx` ON `free_board_posts` (`author_member_id`);

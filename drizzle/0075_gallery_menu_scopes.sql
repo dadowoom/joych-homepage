@@ -1,17 +1,19 @@
 ALTER TABLE `menu_items` ADD COLUMN `galleryScopeKey` varchar(96) NULL;
+-- --> statement-breakpoint
 ALTER TABLE `menu_sub_items` ADD COLUMN `galleryScopeKey` varchar(96) NULL;
+-- --> statement-breakpoint
 ALTER TABLE `gallery_items` ADD COLUMN `galleryScopeKey` varchar(96) NULL;
-
+-- --> statement-breakpoint
 UPDATE `menu_items`
 SET `galleryScopeKey` = CONCAT('menu-item-', `id`)
 WHERE `pageType` = 'gallery'
   AND (`galleryScopeKey` IS NULL OR `galleryScopeKey` = '');
-
+-- --> statement-breakpoint
 UPDATE `menu_sub_items`
 SET `galleryScopeKey` = CONCAT('menu-sub-item-', `id`)
 WHERE `pageType` = 'gallery'
   AND (`galleryScopeKey` IS NULL OR `galleryScopeKey` = '');
-
+-- --> statement-breakpoint
 UPDATE `gallery_items` AS `gallery`
 JOIN (
   SELECT `galleryScopeKey`
@@ -33,6 +35,6 @@ JOIN (
 SET `gallery`.`galleryScopeKey` = `event_gallery`.`galleryScopeKey`
 WHERE `gallery`.`isHomeGallery` = 0
   AND (`gallery`.`galleryScopeKey` IS NULL OR `gallery`.`galleryScopeKey` = '');
-
+-- --> statement-breakpoint
 CREATE INDEX `gallery_items_scope_visible_idx`
 ON `gallery_items` (`galleryScopeKey`, `isVisible`, `albumSortOrder`);

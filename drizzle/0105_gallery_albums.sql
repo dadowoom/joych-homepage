@@ -18,8 +18,7 @@ CREATE TABLE IF NOT EXISTS `gallery_albums` (
     FOREIGN KEY (`coverImageId`) REFERENCES `gallery_items` (`id`)
     ON DELETE SET NULL
 );
---> statement-breakpoint
-
+-- --> statement-breakpoint
 UPDATE `gallery_items`
 SET `albumKey` = CASE
   WHEN NULLIF(TRIM(`albumTitle`), '') IS NOT NULL THEN
@@ -43,8 +42,7 @@ END
 WHERE `isHomeGallery` = false
   AND NULLIF(TRIM(`galleryScopeKey`), '') IS NOT NULL
   AND NULLIF(TRIM(`albumKey`), '') IS NULL;
---> statement-breakpoint
-
+-- --> statement-breakpoint
 INSERT INTO `gallery_albums` (
   `galleryScopeKey`,
   `albumKey`,

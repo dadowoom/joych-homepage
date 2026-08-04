@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS `course_application_checklist_items` (
   UNIQUE KEY `course_checklist_items_course_key_unique` (`courseId`, `itemKey`),
   KEY `course_checklist_items_course_sort_idx` (`courseId`, `isActive`, `sortOrder`)
 );
-
+-- --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS `course_application_checklist_values` (
   `id` int NOT NULL AUTO_INCREMENT,
   `applicationId` int NOT NULL,

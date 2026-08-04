@@ -11,7 +11,7 @@ CREATE TABLE `new_member_requests` (
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `new_member_requests_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE TABLE `prayer_requests` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`name` varchar(64) NOT NULL,
@@ -23,6 +23,7 @@ CREATE TABLE `prayer_requests` (
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `prayer_requests_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
-CREATE INDEX `new_member_requests_status_created_idx` ON `new_member_requests` (`status`,`created_at`);--> statement-breakpoint
+-- --> statement-breakpoint
+CREATE INDEX `new_member_requests_status_created_idx` ON `new_member_requests` (`status`,`created_at`);
+-- --> statement-breakpoint
 CREATE INDEX `prayer_requests_status_created_idx` ON `prayer_requests` (`status`,`created_at`);

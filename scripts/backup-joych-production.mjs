@@ -111,18 +111,23 @@ async function main() {
     MYSQL_PWD: decodeURIComponent(parsed.password),
   });
   const dbArchive = await gzipFile(dbSql);
+  const dbArchiveStat = await fs.stat(dbArchive);
+  if (!dbArchiveStat.isFile() || dbArchiveStat.size === 0) {
+    throw new Error("Database backup archive is empty.");
+  }
 
   const uploadsDir = path.join(appDir, "uploads");
-  let uploadsArchive = null;
-  try {
-    const stat = await fs.stat(uploadsDir);
-    if (stat.isDirectory()) {
-      uploadsArchive = path.join(backupDir, "uploads.tar.gz");
-      await run("tar", ["-czf", uploadsArchive, "-C", appDir, "uploads"]);
-      await fs.chmod(uploadsArchive, 0o600);
-    }
-  } catch {
-    uploadsArchive = null;
+  const uploadsStat = await fs.stat(uploadsDir);
+  if (!uploadsStat.isDirectory()) {
+    throw new Error(`${uploadsDir} is not an uploads directory.`);
+  }
+
+  const uploadsArchive = path.join(backupDir, "uploads.tar.gz");
+  await run("tar", ["-czf", uploadsArchive, "-C", appDir, "uploads"]);
+  await fs.chmod(uploadsArchive, 0o600);
+  const uploadsArchiveStat = await fs.stat(uploadsArchive);
+  if (!uploadsArchiveStat.isFile() || uploadsArchiveStat.size === 0) {
+    throw new Error("Uploads backup archive is empty.");
   }
 
   const removed = await pruneOldBackups();
@@ -136,7 +141,7 @@ async function main() {
       name: dbName,
       archive: path.basename(dbArchive),
     },
-    uploadsArchive: uploadsArchive ? path.basename(uploadsArchive) : null,
+    uploadsArchive: path.basename(uploadsArchive),
     keepDays,
     prunedBackups: removed,
   };

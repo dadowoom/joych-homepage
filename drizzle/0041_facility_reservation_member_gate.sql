@@ -1,5 +1,5 @@
 ALTER TABLE `church_members` ADD `can_reserve_facility` boolean NOT NULL DEFAULT false;
-
+-- --> statement-breakpoint
 UPDATE `church_members`
 SET `can_reserve_facility` = true
 WHERE `status` = 'approved'

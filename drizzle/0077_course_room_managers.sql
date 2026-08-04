@@ -9,5 +9,5 @@ CREATE TABLE `course_room_managers` (
   CONSTRAINT `course_room_managers_id` PRIMARY KEY(`id`),
   CONSTRAINT `course_room_managers_member_page_unique` UNIQUE(`memberId`,`pageHref`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE INDEX `course_room_managers_page_access_idx` ON `course_room_managers` (`pageHref`,`canManage`);

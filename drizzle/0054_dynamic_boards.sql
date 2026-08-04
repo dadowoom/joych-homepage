@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS `dynamic_boards` (
   CONSTRAINT `dynamic_boards_menu_item_idx` UNIQUE(`menu_item_id`),
   CONSTRAINT `dynamic_boards_menu_sub_item_idx` UNIQUE(`menu_sub_item_id`)
 );
-
+-- --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS `dynamic_board_posts` (
   `id` int AUTO_INCREMENT NOT NULL,
   `board_id` int NOT NULL,
@@ -24,6 +24,6 @@ CREATE TABLE IF NOT EXISTS `dynamic_board_posts` (
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT `dynamic_board_posts_id` PRIMARY KEY(`id`)
 );
-
+-- --> statement-breakpoint
 CREATE INDEX `dynamic_board_posts_board_visible_idx`
   ON `dynamic_board_posts` (`board_id`, `is_published`, `created_at`);

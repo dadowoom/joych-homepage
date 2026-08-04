@@ -13,9 +13,9 @@ CREATE TABLE `church_staff` (
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `church_staff_id` PRIMARY KEY(`id`)
 );
---> statement-breakpoint
+-- --> statement-breakpoint
 CREATE INDEX `church_staff_category_visible_sort_idx` ON `church_staff` (`category`,`is_visible`,`sort_order`);
---> statement-breakpoint
+-- --> statement-breakpoint
 INSERT INTO `church_staff` (`category`, `name`, `title`, `department`, `description`, `profile`, `image_url`, `sort_order`, `is_visible`)
 VALUES (
 	'associate',

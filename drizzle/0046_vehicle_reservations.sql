@@ -21,9 +21,9 @@ CREATE TABLE `vehicles` (
   `updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT `vehicles_id` PRIMARY KEY(`id`)
 );
-
+-- --> statement-breakpoint
 CREATE INDEX `vehicles_visible_sort_idx` ON `vehicles` (`is_visible`,`sort_order`);
-
+-- --> statement-breakpoint
 CREATE TABLE `vehicle_images` (
   `id` int AUTO_INCREMENT NOT NULL,
   `vehicle_id` int NOT NULL,
@@ -35,9 +35,9 @@ CREATE TABLE `vehicle_images` (
   `created_at` timestamp NOT NULL DEFAULT (now()),
   CONSTRAINT `vehicle_images_id` PRIMARY KEY(`id`)
 );
-
+-- --> statement-breakpoint
 CREATE INDEX `vehicle_images_vehicle_order_idx` ON `vehicle_images` (`vehicle_id`,`is_thumbnail`,`sort_order`);
-
+-- --> statement-breakpoint
 CREATE TABLE `vehicle_reservations` (
   `id` int AUTO_INCREMENT NOT NULL,
   `vehicle_id` int NOT NULL,
@@ -59,11 +59,13 @@ CREATE TABLE `vehicle_reservations` (
   `updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT `vehicle_reservations_id` PRIMARY KEY(`id`)
 );
-
+-- --> statement-breakpoint
 CREATE INDEX `vehicle_reservations_vehicle_date_idx` ON `vehicle_reservations` (`vehicle_id`,`reservation_date`);
+-- --> statement-breakpoint
 CREATE INDEX `vehicle_reservations_status_created_idx` ON `vehicle_reservations` (`status`,`created_at`);
+-- --> statement-breakpoint
 CREATE INDEX `vehicle_reservations_user_created_idx` ON `vehicle_reservations` (`user_id`,`created_at`);
-
+-- --> statement-breakpoint
 CREATE TABLE `vehicle_reservation_access_rules` (
   `id` int AUTO_INCREMENT NOT NULL,
   `field_type` varchar(32) NOT NULL,
@@ -75,5 +77,5 @@ CREATE TABLE `vehicle_reservation_access_rules` (
   CONSTRAINT `vehicle_reservation_access_rules_id` PRIMARY KEY(`id`),
   CONSTRAINT `vehicle_access_field_value_unique` UNIQUE(`field_type`,`field_value`)
 );
-
+-- --> statement-breakpoint
 CREATE INDEX `vehicle_access_active_idx` ON `vehicle_reservation_access_rules` (`is_active`,`sort_order`);
