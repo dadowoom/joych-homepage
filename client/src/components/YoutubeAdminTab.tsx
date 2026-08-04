@@ -635,32 +635,6 @@ export default function YoutubeAdminTab() {
               {addingVideo && (
                 <div className="mb-3 space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
                   <div>
-                    <label className="mb-1 block text-xs text-gray-500">유튜브 링크, MP4 주소, 옛 홈페이지 영상 상세주소</label>
-                    <Input
-                      value={videoUrl}
-                      onChange={(e) => handleVideoUrlChange(e.target.value)}
-                      placeholder="http://admin.joych.org/core/module/vod/skin_001/vodIframe.html?pageCode=423&num=12484&vodType=237"
-                      className="h-8 text-sm"
-                    />
-                    {metadataNotice && (
-                      <div className="mt-2 flex items-start justify-between gap-2 text-[11px] leading-relaxed text-[#1B5E20]">
-                        <p>{metadataNotice}</p>
-                        {extractVideoId(videoUrl.trim()) && !lookupVideoMetadata.isPending && (
-                          <button
-                            type="button"
-                            className="shrink-0 font-semibold underline"
-                            onClick={() => void fillVideoMetadata(videoUrl, true)}
-                          >
-                            다시 불러오기
-                          </button>
-                        )}
-                      </div>
-                    )}
-                    <p className="mt-1 text-[11px] leading-relaxed text-gray-400">
-                      pageCode만 있는 옛 목록주소가 아니라 num과 vodType이 포함된 상세주소를 입력해주세요.
-                    </p>
-                  </div>
-                  <div>
                     <label className="mb-1 block text-xs text-gray-500">제목</label>
                     <Input
                       value={videoTitle}
@@ -697,6 +671,32 @@ export default function YoutubeAdminTab() {
                       placeholder="예: 창세기 45:10-11 / 출애굽기 8:22-23"
                       className="h-8 text-sm"
                     />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-gray-500">유튜브 링크, MP4 주소, 옛 홈페이지 영상 상세주소</label>
+                    <Input
+                      value={videoUrl}
+                      onChange={(e) => handleVideoUrlChange(e.target.value)}
+                      placeholder="http://admin.joych.org/core/module/vod/skin_001/vodIframe.html?pageCode=423&num=12484&vodType=237"
+                      className="h-8 text-sm"
+                    />
+                    {metadataNotice && (
+                      <div className="mt-2 flex items-start justify-between gap-2 text-[11px] leading-relaxed text-[#1B5E20]">
+                        <p>{metadataNotice}</p>
+                        {extractVideoId(videoUrl.trim()) && !lookupVideoMetadata.isPending && (
+                          <button
+                            type="button"
+                            className="shrink-0 font-semibold underline"
+                            onClick={() => void fillVideoMetadata(videoUrl, true)}
+                          >
+                            다시 불러오기
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    <p className="mt-1 text-[11px] leading-relaxed text-gray-400">
+                      pageCode만 있는 옛 목록주소가 아니라 num과 vodType이 포함된 상세주소를 입력해주세요.
+                    </p>
                   </div>
                   <div>
                     <label className="mb-1 block text-xs text-gray-500">설명</label>
