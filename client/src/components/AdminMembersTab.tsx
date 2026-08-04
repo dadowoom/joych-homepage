@@ -17,6 +17,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { canManageAdminTab } from "@/lib/contentPermissions";
 import { formatPhoneNumber } from "@/lib/phoneNumber";
+import { formatBirthDateWithFullAge, getFullAge } from "@/lib/memberAge";
 import { PRIMARY_SITE_ORIGIN } from "@/lib/mainHomepageDomain";
 import { toast } from "sonner";
 import MemberEditModal from "./MemberEditModal";
@@ -49,6 +50,28 @@ type PasswordResetDelivery = {
   pushSentCount: number;
 };
 
+function csvCell(value: string | number | null | undefined) {
+  const text = String(value ?? "");
+  // Excel에서 사용자 입력값을 수식으로 해석하지 않도록 보호합니다.
+  const safeText = /^[=+\-@]/.test(text) ? `'${text}` : text;
+  return `"${safeText.replace(/"/g, '""')}"`;
+}
+
+function formatExportDate(value: Date | string | null | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const part = (type: "year" | "month" | "day") => parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
 function MemberSummary({ member, number }: { member: Member; number: number }) {
   const status = STATUS_LABELS[member.status ?? "pending"] ?? STATUS_LABELS.pending;
   const phone = formatPhoneNumber(member.phone);
@@ -73,7 +96,9 @@ function MemberSummary({ member, number }: { member: Member; number: number }) {
       </dd>
       <dt className="text-gray-400">생년월일</dt>
       <dd className="text-gray-600">
-        {member.birthDate || <span className="font-medium text-red-500">미입력</span>}
+        {member.birthDate
+          ? formatBirthDateWithFullAge(member.birthDate)
+          : <span className="font-medium text-red-500">미입력</span>}
       </dd>
     </dl>
   );
@@ -227,6 +252,62 @@ export default function AdminMembersTab() {
     });
   }, [filtered, viewMode]);
 
+  const exportCurrentMembers = () => {
+    const headers = [
+      "번호",
+      "이름",
+      "상태",
+      "직분",
+      "소속 부서",
+      "구역/셀",
+      "성별",
+      "생년월일",
+      "만 나이",
+      "연락처",
+      "이메일",
+      "주소",
+      "긴급 연락처",
+      "교회 등록일",
+      "세례 구분",
+      "세례일",
+      "담당 교역자",
+      "가입일",
+    ];
+    const rows = sortedFiltered.map((member, index) => [
+      index + 1,
+      member.name,
+      STATUS_LABELS[member.status ?? "pending"]?.text ?? "",
+      member.position,
+      member.department,
+      member.district,
+      member.gender,
+      member.birthDate,
+      getFullAge(member.birthDate) ?? "",
+      formatPhoneNumber(member.phone),
+      member.email,
+      member.address,
+      formatPhoneNumber(member.emergencyPhone),
+      member.registeredAt,
+      member.baptismType,
+      member.baptismDate,
+      member.pastor,
+      formatExportDate(member.createdAt),
+    ]);
+    const csv = `\uFEFF${[headers, ...rows]
+      .map((row) => row.map((value) => csvCell(value)).join(","))
+      .join("\r\n")}`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `교적부_성도목록_${formatExportDate(new Date())}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    toast.success(`현재 목록 ${sortedFiltered.length}명을 엑셀 파일로 내보냈습니다.`);
+  };
+
   // 페이징 계산
   const totalPages = Math.max(1, Math.ceil(sortedFiltered.length / pageSize));
   const safePage   = Math.min(page, totalPages);
@@ -377,6 +458,17 @@ export default function AdminMembersTab() {
               : "가입 승인 권한으로 전체 교적부를 조회·수정하고 신규 가입 승인 또는 탈퇴 보관을 처리합니다."}
           </p>
         </div>
+        {canManageMemberRegistry && (
+          <button
+            type="button"
+            onClick={exportCurrentMembers}
+            disabled={sortedFiltered.length === 0}
+            className="shrink-0 rounded-lg border border-[#1B5E20] bg-white px-3 py-2 text-sm font-semibold text-[#1B5E20] transition-colors hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <i className="fas fa-file-excel mr-1.5" aria-hidden="true" />
+            엑셀 내보내기
+          </button>
+        )}
       </div>
 
       {isFullAdmin && passwordResetDelivery && (
@@ -617,7 +709,7 @@ export default function AdminMembersTab() {
                   <th className="w-12 px-2 py-2 text-left font-semibold">성별</th>
                   <th className="w-28 px-2 py-2 text-left font-semibold">직분</th>
                   <th className="w-36 px-2 py-2 text-left font-semibold">연락처</th>
-                  <th className="w-28 px-2 py-2 text-left font-semibold">생년월일</th>
+                  <th className="w-40 px-2 py-2 text-left font-semibold">생년월일 (나이)</th>
                   <th className="w-[180px] px-2 py-2 text-right font-semibold">관리</th>
                 </tr>
               </thead>
@@ -641,7 +733,9 @@ export default function AdminMembersTab() {
                         {formatPhoneNumber(member.phone) || <span className="text-xs text-red-500 font-medium">미입력</span>}
                       </td>
                       <td className="whitespace-nowrap px-2 py-2 text-gray-600">
-                        {member.birthDate || <span className="text-xs text-red-500 font-medium">미입력</span>}
+                        {member.birthDate
+                          ? formatBirthDateWithFullAge(member.birthDate)
+                          : <span className="text-xs text-red-500 font-medium">미입력</span>}
                       </td>
                       <td className="px-2 py-2">
                         {renderMemberActions(member)}
