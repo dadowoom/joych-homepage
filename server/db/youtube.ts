@@ -10,7 +10,7 @@
  *   - 메뉴 자동 연결: syncPlaylistToMenu, syncAllPlaylistsToMenus
  */
 
-import { and, asc, desc, eq, gte, like } from "drizzle-orm";
+import { and, asc, desc, eq, gte, like, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import { youtubePlaylists, youtubeVideos, menus, menuItems, menuSubItems } from "../../drizzle/schema";
 import { makeUniqueMenuPageHref, type MenuHrefCandidate } from "../_core/menuHref";
 import {
@@ -30,6 +30,7 @@ const CHOIR_PLAYLIST_IDS = new Set<number>([
   90009,
 ]);
 const YOUTUBE_PUBLIC_MIN_SERMON_DATE = "2010-01-01";
+const YOUTUBE_VIDEO_PAGE_SIZES = [20, 50, 100] as const;
 export const HOME_JOYFUL_TV_TARGETS = [
   {
     key: "sunday",
@@ -224,6 +225,171 @@ export async function getVisibleYoutubeVideos(playlistId: number) {
       ...getVisibleChoirVideoConditions(playlistId),
     ))
     .orderBy(...getYoutubeVideoOrderBy(playlistId));
+}
+
+export type YoutubeVideoPageInput = {
+  playlistId: number;
+  page: number;
+  pageSize: number;
+  search?: string;
+};
+
+export function resolveYoutubeVideoPageBounds(
+  total: number,
+  requestedPage: number,
+  requestedPageSize: number,
+) {
+  const pageSize = YOUTUBE_VIDEO_PAGE_SIZES.includes(
+    requestedPageSize as (typeof YOUTUBE_VIDEO_PAGE_SIZES)[number],
+  ) ? requestedPageSize : YOUTUBE_VIDEO_PAGE_SIZES[0];
+  const totalPages = Math.max(1, Math.ceil(Math.max(0, total) / pageSize));
+  const page = Math.min(Math.max(1, Math.trunc(requestedPage) || 1), totalPages);
+
+  return {
+    page,
+    pageSize,
+    totalPages,
+    offset: (page - 1) * pageSize,
+  };
+}
+
+export function normalizeYoutubeVideoSearch(search: string) {
+  const keyword = search.trim().toLowerCase();
+  return {
+    keyword,
+    normalizedDateKeyword: keyword.replace(/\./g, "-"),
+  };
+}
+
+function getYoutubeVideoSearchCondition(search: string, includeVideoId: boolean) {
+  const { keyword, normalizedDateKeyword } = normalizeYoutubeVideoSearch(search);
+  if (!keyword) return null;
+
+  const contains = (column: SQLWrapper, value = keyword) =>
+    sql<boolean>`locate(${value}, lower(coalesce(${column}, ''))) > 0`;
+  const conditions: SQL[] = [
+    contains(youtubeVideos.title),
+    contains(youtubeVideos.preacher),
+    contains(youtubeVideos.scripture),
+    contains(youtubeVideos.sermonDate),
+    contains(youtubeVideos.description),
+    contains(youtubeVideos.videoUrl),
+  ];
+  if (includeVideoId) conditions.push(contains(youtubeVideos.videoId));
+
+  // 공개 화면은 날짜를 2026.08.04 형식으로도 표시하고 검색해 왔습니다.
+  if (normalizedDateKeyword !== keyword) {
+    conditions.push(contains(youtubeVideos.sermonDate, normalizedDateKeyword));
+  }
+
+  return or(...conditions) ?? null;
+}
+
+async function getYoutubeVideosPage(
+  input: YoutubeVideoPageInput,
+  options: { visibleOnly: boolean },
+) {
+  const db = await getDb();
+  const emptyBounds = resolveYoutubeVideoPageBounds(0, input.page, input.pageSize);
+  if (!db) {
+    return {
+      items: [],
+      total: 0,
+      unfilteredTotal: 0,
+      playlistId: input.playlistId,
+      search: input.search?.trim() ?? "",
+      requestedPage: input.page,
+      requestedPageSize: input.pageSize,
+      ...emptyBounds,
+    };
+  }
+
+  const baseConditions: SQL[] = [eq(youtubeVideos.playlistId, input.playlistId)];
+  if (options.visibleOnly) {
+    baseConditions.push(
+      eq(youtubeVideos.isVisible, true),
+      ...getVisibleChoirVideoConditions(input.playlistId),
+    );
+  }
+  const searchCondition = getYoutubeVideoSearchCondition(
+    input.search ?? "",
+    !options.visibleOnly,
+  );
+  const filteredConditions = searchCondition
+    ? [...baseConditions, searchCondition]
+    : baseConditions;
+  const baseWhere = and(...baseConditions)!;
+  const filteredWhere = and(...filteredConditions)!;
+
+  const countRows = async (where: SQL) => {
+    const [row] = await db
+      .select({ total: sql<number>`count(*)` })
+      .from(youtubeVideos)
+      .where(where);
+    return Number(row?.total ?? 0);
+  };
+
+  const [total, unfilteredTotal] = searchCondition
+    ? await Promise.all([countRows(filteredWhere), countRows(baseWhere)])
+    : await countRows(filteredWhere).then((count) => [count, count] as const);
+  const bounds = resolveYoutubeVideoPageBounds(total, input.page, input.pageSize);
+  const items = await db
+    .select()
+    .from(youtubeVideos)
+    .where(filteredWhere)
+    .orderBy(...getYoutubeVideoOrderBy(input.playlistId))
+    .limit(bounds.pageSize)
+    .offset(bounds.offset);
+
+  return {
+    items,
+    total,
+    unfilteredTotal,
+    playlistId: input.playlistId,
+    search: input.search?.trim() ?? "",
+    requestedPage: input.page,
+    requestedPageSize: input.pageSize,
+    ...bounds,
+  };
+}
+
+/** 관리자 예배 영상 목록의 검색·페이지 단위 조회입니다. */
+export function getYoutubeVideosPageByPlaylist(input: YoutubeVideoPageInput) {
+  return getYoutubeVideosPage(input, { visibleOnly: false });
+}
+
+/** 공개 조이풀TV 영상 목록의 검색·페이지 단위 조회입니다. */
+export function getVisibleYoutubeVideosPage(input: YoutubeVideoPageInput) {
+  return getYoutubeVideosPage(input, { visibleOnly: true });
+}
+
+/**
+ * 공개 목록의 현재 페이지 밖에서 선택된 영상 한 건을 조회합니다.
+ * 목록과 동일한 공개 여부·찬양대 날짜·검색 조건을 적용합니다.
+ */
+export async function getVisibleYoutubeVideoById(input: {
+  playlistId: number;
+  id: number;
+  search?: string;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const conditions: SQL[] = [
+    eq(youtubeVideos.playlistId, input.playlistId),
+    eq(youtubeVideos.id, input.id),
+    eq(youtubeVideos.isVisible, true),
+    ...getVisibleChoirVideoConditions(input.playlistId),
+  ];
+  const searchCondition = getYoutubeVideoSearchCondition(input.search ?? "", false);
+  if (searchCondition) conditions.push(searchCondition);
+
+  const [video] = await db
+    .select()
+    .from(youtubeVideos)
+    .where(and(...conditions))
+    .limit(1);
+  return video ?? null;
 }
 
 /**

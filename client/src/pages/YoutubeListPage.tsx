@@ -4,7 +4,7 @@
  * - 나머지 영상: 아래 카드 슬라이드 (좌우 버튼으로 이동)
  * - 카드 클릭 시 메인 플레이어 영상 전환
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { ChevronLeft, ChevronRight, LayoutGrid, List, PlayCircle, Search, Settings, X } from "lucide-react";
@@ -19,6 +19,18 @@ interface YoutubeListPageProps {
 }
 
 const LIST_PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
+
+type YoutubeVideoListItem = {
+  id: number;
+  videoId: string | null;
+  videoUrl: string | null;
+  title: string;
+  preacher: string | null;
+  scripture: string | null;
+  sermonDate: string | null;
+  thumbnailUrl: string | null;
+  description: string | null;
+};
 
 export function paginateVideoList<T>(videos: readonly T[], pageSize: number, requestedPage: number) {
   const totalPages = Math.max(1, Math.ceil(videos.length / pageSize));
@@ -35,6 +47,23 @@ export function paginateVideoList<T>(videos: readonly T[], pageSize: number, req
 
 export function getNextSlideOffset(currentOffset: number, visibleItemCount: number, cardsPerView: number) {
   return Math.min(Math.max(0, visibleItemCount - cardsPerView), currentOffset + 1);
+}
+
+export function resolveActiveYoutubeVideo<T extends { id: number }>(
+  activeVideoId: number | null,
+  pageVideos: readonly T[],
+  focusedVideo: T | null | undefined,
+) {
+  if (activeVideoId === null) return null;
+  return pageVideos.find((video) => video.id === activeVideoId) ??
+    (focusedVideo?.id === activeVideoId ? focusedVideo : null);
+}
+
+export function shouldFetchFocusedYoutubeVideo<T extends { id: number }>(
+  selectedVideoId: number | null,
+  pageVideos: readonly T[],
+) {
+  return selectedVideoId !== null && !pageVideos.some((video) => video.id === selectedVideoId);
 }
 
 function formatSermonDate(value?: string | null) {
@@ -66,11 +95,10 @@ function VideoThumbnail({ title, src }: { title: string; src: string | null }) {
 }
 
 export default function YoutubeListPage({ playlistId, title }: YoutubeListPageProps) {
-  const { data: videos = [], isLoading } = trpc.youtube.getVideos.useQuery({ playlistId });
   const searchString = useSearch();
   const { user } = useAuth();
   const canManage = canManageBoardContent(user, "content:youtube");
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeVideoId, setActiveVideoId] = useState<number | null>(null);
   const [slideOffset, setSlideOffset] = useState(0);
   const [isEditPanelOpen, setIsEditPanelOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -83,27 +111,82 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
   const selectedVideoId = useMemo(() => {
     const raw = new URLSearchParams(searchString).get("video");
     const parsed = raw ? Number(raw) : NaN;
-    return Number.isFinite(parsed) ? parsed : null;
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
   }, [searchString]);
-  const filteredVideos = useMemo(() => {
-    const keyword = searchTerm.trim().toLowerCase();
-    if (!keyword) return videos;
-    return videos.filter((video) => [
-      video.title,
-      video.preacher,
-      video.scripture,
-      video.sermonDate,
-      formatSermonDate(video.sermonDate),
-      video.description,
-      video.videoUrl,
-    ].some((value) => (value ?? "").toLowerCase().includes(keyword)));
-  }, [searchTerm, videos]);
+  const useUrlFocusRef = useRef(true);
+  const previousSelectedVideoIdRef = useRef(selectedVideoId);
+  const didRunResetEffectRef = useRef(false);
+  const deferredSearchTerm = useDeferredValue(searchTerm.trim());
+  const requestedFocusVideoId = activeVideoId ?? (useUrlFocusRef.current ? selectedVideoId : null);
+  const { data: videoPageData, isLoading: pageLoading } = trpc.youtube.getVideosPage.useQuery({
+    playlistId,
+    page: listPage,
+    pageSize: listPageSize,
+    search: deferredSearchTerm || undefined,
+  });
+  const queryMatches = Boolean(
+    videoPageData &&
+    videoPageData.playlistId === playlistId &&
+    videoPageData.search === deferredSearchTerm &&
+    videoPageData.requestedPage === listPage &&
+    videoPageData.requestedPageSize === listPageSize,
+  );
+  const videos = queryMatches ? videoPageData?.items ?? [] : [];
+  const totalVideos = queryMatches ? videoPageData?.total ?? 0 : 0;
+  const unfilteredTotalVideos = queryMatches ? videoPageData?.unfilteredTotal ?? 0 : 0;
+  const isLoading = pageLoading || !queryMatches;
+  const needsFocusedVideo = queryMatches && shouldFetchFocusedYoutubeVideo(
+    requestedFocusVideoId,
+    videos,
+  );
+  const focusedVideoQuery = trpc.youtube.getVisibleVideo.useQuery(
+    {
+      playlistId,
+      id: requestedFocusVideoId!,
+      search: deferredSearchTerm || undefined,
+    },
+    { enabled: needsFocusedVideo },
+  );
+  const focusedVideo = needsFocusedVideo ? focusedVideoQuery.data : null;
+  const activeVideo = queryMatches
+    ? resolveActiveYoutubeVideo(activeVideoId, videos, focusedVideo)
+    : null;
 
   useEffect(() => {
-    setActiveIndex(0);
+    if (!didRunResetEffectRef.current) {
+      didRunResetEffectRef.current = true;
+      return;
+    }
+    useUrlFocusRef.current = false;
+    setActiveVideoId(null);
     setSlideOffset(0);
     setListPage(1);
-  }, [playlistId, searchTerm, viewMode]);
+  }, [playlistId, deferredSearchTerm, viewMode]);
+
+  useEffect(() => {
+    if (previousSelectedVideoIdRef.current === selectedVideoId) return;
+    previousSelectedVideoIdRef.current = selectedVideoId;
+    useUrlFocusRef.current = true;
+    setActiveVideoId(null);
+  }, [selectedVideoId]);
+
+  useEffect(() => {
+    if (!queryMatches) return;
+    if (activeVideoId !== null) {
+      if (needsFocusedVideo && !focusedVideoQuery.isFetched) return;
+      if (!activeVideo) setActiveVideoId(videos[0]?.id ?? null);
+      return;
+    }
+
+    if (requestedFocusVideoId && needsFocusedVideo && !focusedVideoQuery.isFetched) return;
+    const initialVideo = requestedFocusVideoId && focusedVideo?.id === requestedFocusVideoId
+      ? focusedVideo
+      : requestedFocusVideoId
+        ? videos.find((video) => video.id === requestedFocusVideoId) ?? videos[0] ?? null
+      : videos[0] ?? null;
+    useUrlFocusRef.current = false;
+    setActiveVideoId(initialVideo?.id ?? null);
+  }, [activeVideo, activeVideoId, focusedVideo, focusedVideoQuery.isFetched, needsFocusedVideo, queryMatches, requestedFocusVideoId, videos]);
 
   useEffect(() => {
     if (!isEditPanelOpen) return;
@@ -127,14 +210,17 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
     </button>
   ) : null;
 
-  const activeVideo = filteredVideos[activeIndex];
-  const {
-    totalPages: totalListPages,
-    activePage: activeListPage,
-    pageStart: listPageStart,
-    pageVideos: listViewVideos,
-  } = paginateVideoList(filteredVideos, listPageSize, listPage);
-  const listPageNumbers = Array.from({ length: totalListPages }, (_, index) => index + 1);
+  const totalListPages = queryMatches ? videoPageData?.totalPages ?? 1 : 1;
+  const activeListPage = queryMatches ? videoPageData?.page ?? 1 : 1;
+  const listPageStart = queryMatches ? videoPageData?.offset ?? 0 : 0;
+  const listViewVideos = videos;
+  const listPageNumbers = Array.from(new Set([
+    1,
+    totalListPages,
+    ...Array.from({ length: 5 }, (_, index) => activeListPage - 2 + index),
+  ]))
+    .filter((page) => page >= 1 && page <= totalListPages)
+    .sort((a, b) => a - b);
   const CARDS_PER_VIEW = 4; // 한 번에 보이는 카드 수
 
   useEffect(() => {
@@ -145,15 +231,6 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
   useEffect(() => {
     if (listPage > totalListPages) setListPage(totalListPages);
   }, [listPage, totalListPages]);
-
-  useEffect(() => {
-    if (!selectedVideoId || filteredVideos.length === 0) return;
-    const nextIndex = filteredVideos.findIndex((video) => video.id === selectedVideoId);
-    if (nextIndex < 0) return;
-
-    setActiveIndex(nextIndex);
-    setSlideOffset(Math.min(nextIndex, Math.max(0, filteredVideos.length - CARDS_PER_VIEW)));
-  }, [selectedVideoId, filteredVideos, CARDS_PER_VIEW]);
 
   const sermonInfoRows = activeVideo
     ? [
@@ -172,15 +249,15 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
     setSlideOffset((prev) => getNextSlideOffset(prev, listViewVideos.length, CARDS_PER_VIEW));
   };
 
-  const handleVideoClick = (index: number) => {
-    setActiveIndex(index);
+  const handleVideoClick = (video: YoutubeVideoListItem) => {
+    setActiveVideoId(video.id);
     window.requestAnimationFrame(() => {
       playerSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   };
 
-  const handleThumbnailClick = (videoIndex: number, pageIndex: number) => {
-    handleVideoClick(videoIndex);
+  const handleThumbnailClick = (video: YoutubeVideoListItem, pageIndex: number) => {
+    handleVideoClick(video);
     // 현재 페이지 안에서 선택한 카드가 보이도록 슬라이드를 조정합니다.
     if (pageIndex < slideOffset) setSlideOffset(pageIndex);
     else if (pageIndex >= slideOffset + CARDS_PER_VIEW) {
@@ -237,7 +314,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
     );
   }
 
-  if (videos.length === 0) {
+  if (unfilteredTotalVideos === 0) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-8">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -275,6 +352,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
             <input
               type="search"
               value={searchTerm}
+              maxLength={256}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="설교제목, 날짜 검색"
               className="h-10 w-full rounded-md border border-gray-300 bg-white pl-9 pr-3 text-sm outline-none focus:border-[#1B5E20]"
@@ -308,7 +386,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
       {managementPanel}
 
       {/* 메인 플레이어 */}
-      {filteredVideos.length === 0 && (
+      {totalVideos === 0 && (
         <div className="min-h-[260px] rounded-xl border border-dashed border-gray-200 bg-white p-10 text-center text-gray-400">
           <PlayCircle className="mx-auto mb-3 h-12 w-12 opacity-30" />
           <p className="text-base font-medium">검색 결과가 없습니다.</p>
@@ -359,11 +437,11 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
       )}
 
       {/* 영상 카드 슬라이드 (2개 이상일 때만 표시) */}
-      {viewMode === "list" && filteredVideos.length > 0 && (
+      {viewMode === "list" && totalVideos > 0 && (
         <div ref={listSectionRef} className="scroll-mt-24 md:scroll-mt-32">
           <div className="mb-3 flex items-center justify-between gap-3">
             <p className="text-xs text-gray-500">
-              전체 {filteredVideos.length}개 중 {listPageStart + 1}–{Math.min(listPageStart + listPageSize, filteredVideos.length)}개
+              전체 {totalVideos}개 중 {listPageStart + 1}–{listPageStart + listViewVideos.length}개
             </p>
             <label className="flex shrink-0 items-center gap-2 text-xs text-gray-500">
               <span>목록 수</span>
@@ -380,15 +458,14 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
             </label>
           </div>
           <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-            {listViewVideos.map((video, pageIndex) => {
-              const videoIndex = listPageStart + pageIndex;
+            {listViewVideos.map((video) => {
               return (
                 <button
                   key={video.id}
                   type="button"
-                  onClick={() => handleVideoClick(videoIndex)}
+                  onClick={() => handleVideoClick(video)}
                   className={`flex w-full items-center gap-3 border-b border-gray-100 p-3 text-left last:border-b-0 ${
-                    videoIndex === activeIndex ? "bg-[#F1F8E9]" : "hover:bg-gray-50"
+                    video.id === activeVideo?.id ? "bg-[#F1F8E9]" : "hover:bg-gray-50"
                   }`}
                 >
                   <div className="h-16 w-28 shrink-0 overflow-hidden rounded bg-gray-100">
@@ -415,21 +492,25 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              {listPageNumbers.map((pageNumber) => (
-                <button
-                  key={pageNumber}
-                  type="button"
-                  onClick={() => handleListPageChange(pageNumber)}
-                  className={`inline-flex h-9 min-w-9 items-center justify-center rounded-md border px-2 text-sm ${
-                    activeListPage === pageNumber
-                      ? "border-[#1B5E20] bg-[#1B5E20] font-semibold text-white"
-                      : "border-gray-200 text-gray-500 hover:border-[#1B5E20]/40 hover:text-[#1B5E20]"
-                  }`}
-                  aria-current={activeListPage === pageNumber ? "page" : undefined}
-                  aria-label={`${pageNumber}페이지`}
-                >
-                  {pageNumber}
-                </button>
+              {listPageNumbers.map((pageNumber, index) => (
+                <span key={pageNumber} className="contents">
+                  {index > 0 && pageNumber - listPageNumbers[index - 1] > 1 && (
+                    <span className="px-1 text-sm text-gray-400">…</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleListPageChange(pageNumber)}
+                    className={`inline-flex h-9 min-w-9 items-center justify-center rounded-md border px-2 text-sm ${
+                      activeListPage === pageNumber
+                        ? "border-[#1B5E20] bg-[#1B5E20] font-semibold text-white"
+                        : "border-gray-200 text-gray-500 hover:border-[#1B5E20]/40 hover:text-[#1B5E20]"
+                    }`}
+                    aria-current={activeListPage === pageNumber ? "page" : undefined}
+                    aria-label={`${pageNumber}페이지`}
+                  >
+                    {pageNumber}
+                  </button>
+                </span>
               ))}
               <button
                 type="button"
@@ -445,11 +526,11 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
         </div>
       )}
 
-      {viewMode === "thumbnail" && filteredVideos.length > 1 && (
+      {viewMode === "thumbnail" && totalVideos > 1 && (
         <div ref={listSectionRef} className="scroll-mt-24 md:scroll-mt-32">
           <div className="mb-3 flex items-center justify-between gap-3">
             <p className="text-xs text-gray-500">
-              전체 {filteredVideos.length}개 중 {listPageStart + 1}–{Math.min(listPageStart + listPageSize, filteredVideos.length)}개
+              전체 {totalVideos}개 중 {listPageStart + 1}–{listPageStart + listViewVideos.length}개
             </p>
             <label className="flex shrink-0 items-center gap-2 text-xs text-gray-500">
               <span>목록 수</span>
@@ -482,13 +563,12 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
                 style={{ transform: `translateX(calc(-${slideOffset} * (100% / ${CARDS_PER_VIEW} + 0.75rem)))` }}
               >
                 {listViewVideos.map((video, pageIndex) => {
-                  const videoIndex = listPageStart + pageIndex;
                   return (
                     <button
                       key={video.id}
-                      onClick={() => handleThumbnailClick(videoIndex, pageIndex)}
+                      onClick={() => handleThumbnailClick(video, pageIndex)}
                       className={`flex-shrink-0 w-[calc(25%-0.5625rem)] rounded-lg overflow-hidden border-2 transition-all text-left ${
-                        videoIndex === activeIndex
+                        video.id === activeVideo?.id
                           ? "border-[#1B5E20] shadow-md"
                           : "border-transparent hover:border-gray-300"
                       }`}
@@ -496,7 +576,7 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
                       {/* 썸네일 */}
                       <div className="relative aspect-video bg-gray-100">
                         <VideoThumbnail title={video.title} src={getThumbnailUrl(video)} />
-                        {videoIndex === activeIndex && (
+                        {video.id === activeVideo?.id && (
                           <div className="absolute inset-0 bg-[#1B5E20]/20 flex items-center justify-center">
                             <PlayCircle className="w-8 h-8 text-white drop-shadow" />
                           </div>
@@ -532,21 +612,25 @@ export default function YoutubeListPage({ playlistId, title }: YoutubeListPagePr
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              {listPageNumbers.map((pageNumber) => (
-                <button
-                  key={pageNumber}
-                  type="button"
-                  onClick={() => handleListPageChange(pageNumber)}
-                  className={`inline-flex h-9 min-w-9 items-center justify-center rounded-md border px-2 text-sm ${
-                    activeListPage === pageNumber
-                      ? "border-[#1B5E20] bg-[#1B5E20] font-semibold text-white"
-                      : "border-gray-200 text-gray-500 hover:border-[#1B5E20]/40 hover:text-[#1B5E20]"
-                  }`}
-                  aria-current={activeListPage === pageNumber ? "page" : undefined}
-                  aria-label={`${pageNumber}페이지`}
-                >
-                  {pageNumber}
-                </button>
+              {listPageNumbers.map((pageNumber, index) => (
+                <span key={pageNumber} className="contents">
+                  {index > 0 && pageNumber - listPageNumbers[index - 1] > 1 && (
+                    <span className="px-1 text-sm text-gray-400">…</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleListPageChange(pageNumber)}
+                    className={`inline-flex h-9 min-w-9 items-center justify-center rounded-md border px-2 text-sm ${
+                      activeListPage === pageNumber
+                        ? "border-[#1B5E20] bg-[#1B5E20] font-semibold text-white"
+                        : "border-gray-200 text-gray-500 hover:border-[#1B5E20]/40 hover:text-[#1B5E20]"
+                    }`}
+                    aria-current={activeListPage === pageNumber ? "page" : undefined}
+                    aria-label={`${pageNumber}페이지`}
+                  >
+                    {pageNumber}
+                  </button>
+                </span>
               ))}
               <button
                 type="button"

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useDeferredValue, useRef, useState } from "react";
 import { Eye, EyeOff, LayoutGrid, List, Loader2, Pencil, Plus, Search, Trash2, Youtube } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -217,11 +217,6 @@ export default function YoutubeAdminTab() {
   const [newPlaylistTitle, setNewPlaylistTitle] = useState("");
   const [showNewPlaylist, setShowNewPlaylist] = useState(false);
 
-  const { data: videos = [], isLoading: videosLoading } = trpc.youtube.getVideosAdmin.useQuery(
-    { playlistId: selectedPlaylistId! },
-    { enabled: selectedPlaylistId !== null },
-  );
-
   const [addingVideo, setAddingVideo] = useState(false);
   const [videoUrl, setVideoUrl] = useState("");
   const [videoTitle, setVideoTitle] = useState("");
@@ -235,6 +230,7 @@ export default function YoutubeAdminTab() {
 
   const [editingVideoId, setEditingVideoId] = useState<number | null>(null);
   const [editVideoUrl, setEditVideoUrl] = useState("");
+  const [editVideoOriginalSource, setEditVideoOriginalSource] = useState("");
   const [editVideoTitle, setEditVideoTitle] = useState("");
   const [editVideoPreacher, setEditVideoPreacher] = useState("");
   const [editVideoScripture, setEditVideoScripture] = useState("");
@@ -244,6 +240,27 @@ export default function YoutubeAdminTab() {
   const [videoViewMode, setVideoViewMode] = useState<VideoViewMode>("list");
   const [videoPageSize, setVideoPageSize] = useState<VideoPageSize>(20);
   const [videoPage, setVideoPage] = useState(1);
+  const deferredVideoSearchTerm = useDeferredValue(videoSearchTerm.trim());
+  const { data: videoPageData, isLoading: videoPageLoading } = trpc.youtube.getVideosAdminPage.useQuery(
+    {
+      playlistId: selectedPlaylistId!,
+      page: videoPage,
+      pageSize: videoPageSize,
+      search: deferredVideoSearchTerm || undefined,
+    },
+    { enabled: selectedPlaylistId !== null },
+  );
+  const videoQueryMatches = Boolean(
+    videoPageData &&
+    videoPageData.playlistId === selectedPlaylistId &&
+    videoPageData.search === deferredVideoSearchTerm &&
+    videoPageData.requestedPage === videoPage &&
+    videoPageData.requestedPageSize === videoPageSize,
+  );
+  const videos = videoQueryMatches ? videoPageData?.items ?? [] : [];
+  const videoTotal = videoQueryMatches ? videoPageData?.total ?? 0 : 0;
+  const videoUnfilteredTotal = videoQueryMatches ? videoPageData?.unfilteredTotal ?? 0 : 0;
+  const videosLoading = videoPageLoading || (selectedPlaylistId !== null && !videoQueryMatches);
 
   const createPlaylist = trpc.youtube.createPlaylist.useMutation({
     onSuccess: () => {
@@ -258,6 +275,9 @@ export default function YoutubeAdminTab() {
   const deletePlaylist = trpc.youtube.deletePlaylist.useMutation({
     onSuccess: () => {
       utils.youtube.getAdminPlaylists.invalidate();
+      utils.youtube.getVideosAdminPage.invalidate();
+      utils.youtube.getVideosPage.invalidate();
+      utils.youtube.getVisibleVideo.invalidate();
       utils.youtube.getHomeLatest.invalidate();
       setSelectedPlaylistId(null);
       toast.success("플레이리스트가 삭제되었습니다.");
@@ -268,7 +288,10 @@ export default function YoutubeAdminTab() {
   const addVideo = trpc.youtube.addVideo.useMutation({
     onSuccess: () => {
       utils.youtube.getVideosAdmin.invalidate();
+      utils.youtube.getVideosAdminPage.invalidate();
       utils.youtube.getVideos.invalidate();
+      utils.youtube.getVideosPage.invalidate();
+      utils.youtube.getVisibleVideo.invalidate();
       utils.youtube.getHomeLatest.invalidate();
       resetAddVideoForm();
       setVideoPage(1);
@@ -282,7 +305,10 @@ export default function YoutubeAdminTab() {
   const updateVideo = trpc.youtube.updateVideo.useMutation({
     onSuccess: () => {
       utils.youtube.getVideosAdmin.invalidate();
+      utils.youtube.getVideosAdminPage.invalidate();
       utils.youtube.getVideos.invalidate();
+      utils.youtube.getVideosPage.invalidate();
+      utils.youtube.getVisibleVideo.invalidate();
       utils.youtube.getHomeLatest.invalidate();
       resetEditVideoForm();
       toast.success("영상 정보가 수정되었습니다.");
@@ -293,7 +319,10 @@ export default function YoutubeAdminTab() {
   const toggleVideoVisibility = trpc.youtube.updateVideo.useMutation({
     onSuccess: (_, variables) => {
       utils.youtube.getVideosAdmin.invalidate();
+      utils.youtube.getVideosAdminPage.invalidate();
       utils.youtube.getVideos.invalidate();
+      utils.youtube.getVideosPage.invalidate();
+      utils.youtube.getVisibleVideo.invalidate();
       utils.youtube.getHomeLatest.invalidate();
       toast.success(variables.isVisible ? "영상이 노출되도록 변경했습니다." : "영상을 숨김 처리했습니다.");
     },
@@ -303,7 +332,10 @@ export default function YoutubeAdminTab() {
   const deleteVideo = trpc.youtube.deleteVideo.useMutation({
     onSuccess: () => {
       utils.youtube.getVideosAdmin.invalidate();
+      utils.youtube.getVideosAdminPage.invalidate();
       utils.youtube.getVideos.invalidate();
+      utils.youtube.getVideosPage.invalidate();
+      utils.youtube.getVisibleVideo.invalidate();
       utils.youtube.getHomeLatest.invalidate();
       toast.success("영상이 삭제되었습니다.");
     },
@@ -362,6 +394,7 @@ export default function YoutubeAdminTab() {
   function resetEditVideoForm() {
     setEditingVideoId(null);
     setEditVideoUrl("");
+    setEditVideoOriginalSource("");
     setEditVideoTitle("");
     setEditVideoPreacher("");
     setEditVideoScripture("");
@@ -383,7 +416,7 @@ export default function YoutubeAdminTab() {
       scripture: optionalValue(videoScripture),
       sermonDate: optionalValue(videoSermonDate),
       description: optionalValue(videoDescription),
-      sortOrder: videos.length,
+      sortOrder: videoUnfilteredTotal,
     };
 
     if (videoId) {
@@ -406,7 +439,9 @@ export default function YoutubeAdminTab() {
   function startEditVideo(video: VideoListItem) {
     setAddingVideo(false);
     setEditingVideoId(video.id);
-    setEditVideoUrl(video.videoUrl ?? video.videoId ?? "");
+    const originalSource = video.videoUrl ?? video.videoId ?? "";
+    setEditVideoUrl(originalSource);
+    setEditVideoOriginalSource(originalSource.trim());
     setEditVideoTitle(video.title ?? "");
     setEditVideoPreacher(video.preacher ?? "");
     setEditVideoScripture(video.scripture ?? "");
@@ -421,10 +456,8 @@ export default function YoutubeAdminTab() {
     const title = editVideoTitle.trim();
     if (!title) return toast.error("영상 제목을 입력해주세요.");
 
-    const currentVideo = videos.find((video) => video.id === editingVideoId);
-    const originalSource = (currentVideo?.videoUrl ?? currentVideo?.videoId ?? "").trim();
     let source: { videoId: string | null; videoUrl: string | null } | undefined;
-    if (trimmedUrl !== originalSource) {
+    if (trimmedUrl !== editVideoOriginalSource) {
       const nextVideoId = extractVideoId(trimmedUrl);
       source = nextVideoId
         ? { videoId: nextVideoId, videoUrl: null }
@@ -448,23 +481,10 @@ export default function YoutubeAdminTab() {
   }
 
   const selectedPlaylist = playlists.find((p) => p.id === selectedPlaylistId);
-  const filteredVideos = useMemo(() => {
-    const search = videoSearchTerm.trim().toLowerCase();
-    if (!search) return videos;
-    return videos.filter(video => [
-      video.title,
-      video.preacher,
-      video.scripture,
-      video.sermonDate,
-      video.description,
-      video.videoId,
-      video.videoUrl,
-    ].some(value => (value ?? "").toLowerCase().includes(search)));
-  }, [videoSearchTerm, videos]);
-  const videoPageCount = Math.max(1, Math.ceil(filteredVideos.length / videoPageSize));
-  const activeVideoPage = Math.min(videoPage, videoPageCount);
+  const videoPageCount = videoQueryMatches ? videoPageData?.totalPages ?? 1 : 1;
+  const activeVideoPage = videoQueryMatches ? videoPageData?.page ?? 1 : 1;
   const videoPageStart = (activeVideoPage - 1) * videoPageSize;
-  const paginatedVideos = filteredVideos.slice(videoPageStart, videoPageStart + videoPageSize);
+  const paginatedVideos = videos;
   const videoPageNumbers = Array.from(new Set([
     1,
     videoPageCount,
@@ -823,6 +843,7 @@ export default function YoutubeAdminTab() {
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
                   <Input
                     value={videoSearchTerm}
+                    maxLength={256}
                     onChange={(event) => {
                       setVideoSearchTerm(event.target.value);
                       setVideoPage(1);
@@ -856,12 +877,12 @@ export default function YoutubeAdminTab() {
 
               {videosLoading ? (
                 <p className="py-4 text-center text-xs text-gray-400">불러오는 중...</p>
-              ) : videos.length === 0 ? (
+              ) : videoUnfilteredTotal === 0 ? (
                 <div className="rounded-lg border border-dashed border-gray-200 py-8 text-center">
                   <p className="text-sm text-gray-400">등록된 영상이 없습니다.</p>
                   <p className="mt-1 text-xs text-gray-400">위에서 영상을 추가해보세요.</p>
                 </div>
-              ) : filteredVideos.length === 0 ? (
+              ) : videoTotal === 0 ? (
                 <div className="rounded-lg border border-dashed border-gray-200 py-8 text-center">
                   <p className="text-sm text-gray-400">검색 결과가 없습니다.</p>
                   <p className="mt-1 text-xs text-gray-400">설교제목, 날짜, 설교자, 본문을 다시 확인해 주세요.</p>
@@ -895,7 +916,7 @@ export default function YoutubeAdminTab() {
                   </div>
                   <div className="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
                   <span className="text-xs text-gray-500">
-                    {videoPageStart + 1}-{Math.min(videoPageStart + videoPageSize, filteredVideos.length)} / {filteredVideos.length}개
+                    {videoPageStart + 1}-{videoPageStart + videos.length} / {videoTotal}개
                   </span>
                   <div className="flex flex-wrap items-center gap-1.5">
                     <label className="flex items-center gap-1 text-xs text-gray-500">

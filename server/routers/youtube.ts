@@ -38,7 +38,10 @@ import {
   updateYoutubePlaylist,
   deleteYoutubePlaylist,
   getYoutubeVideosByPlaylist,
+  getYoutubeVideosPageByPlaylist,
   getVisibleYoutubeVideos,
+  getVisibleYoutubeVideoById,
+  getVisibleYoutubeVideosPage,
   getHomeJoyfulTvLatestVideos,
   createYoutubeVideo,
   updateYoutubeVideo,
@@ -99,6 +102,12 @@ function optionalInputValue(value?: string | null) {
 }
 
 const youtubeAdminProcedure = adminPermissionProcedure("content:youtube");
+const youtubeVideoPageInput = z.object({
+  playlistId: z.number().int().positive(),
+  page: z.number().int().positive().default(1),
+  pageSize: z.union([z.literal(20), z.literal(50), z.literal(100)]).default(20),
+  search: z.string().trim().max(256).optional(),
+});
 
 export const youtubeRouter = router({
   // ─── 플레이리스트 관리 ───────────────────────────────────────────────────────
@@ -170,6 +179,20 @@ export const youtubeRouter = router({
     .input(z.object({ playlistId: z.number().int().positive() }))
     .query(({ input }) => getVisibleYoutubeVideos(input.playlistId)),
 
+  /** 공개 영상 목록의 서버 검색·페이지 단위 조회 */
+  getVideosPage: publicProcedure
+    .input(youtubeVideoPageInput)
+    .query(({ input }) => getVisibleYoutubeVideosPage(input)),
+
+  /** 현재 공개 페이지 밖에서 선택된 영상 한 건의 경량 조회 */
+  getVisibleVideo: publicProcedure
+    .input(z.object({
+      playlistId: z.number().int().positive(),
+      id: z.number().int().positive(),
+      search: z.string().trim().max(256).optional(),
+    }))
+    .query(({ input }) => getVisibleYoutubeVideoById(input)),
+
   /** 홈 조이풀TV 영역의 주일·수요·금요 최신 공개 영상 */
   getHomeLatest: publicProcedure.query(() => getHomeJoyfulTvLatestVideos()),
 
@@ -180,6 +203,11 @@ export const youtubeRouter = router({
   getVideosAdmin: youtubeAdminProcedure
     .input(z.object({ playlistId: z.number().int().positive() }))
     .query(({ input }) => getYoutubeVideosByPlaylist(input.playlistId)),
+
+  /** 관리자 영상 목록의 서버 검색·페이지 단위 조회 (숨김 포함) */
+  getVideosAdminPage: youtubeAdminProcedure
+    .input(youtubeVideoPageInput)
+    .query(({ input }) => getYoutubeVideosPageByPlaylist(input)),
 
   /** 공개된 유튜브 링크에서 등록에 쓸 제목·업로드일·설명 정보를 조회한다. */
   lookupVideoMetadata: youtubeAdminProcedure

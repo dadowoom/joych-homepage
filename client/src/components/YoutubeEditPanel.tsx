@@ -166,7 +166,10 @@ export default function YoutubeEditPanel({
   const refreshSelectedPlaylistVideos = () => {
     if (!selectedPlaylistId) return;
     utils.youtube.getVideosAdmin.invalidate({ playlistId: selectedPlaylistId });
+    utils.youtube.getVideosAdminPage.invalidate();
     utils.youtube.getVideos.invalidate({ playlistId: selectedPlaylistId });
+    utils.youtube.getVideosPage.invalidate();
+    utils.youtube.getVisibleVideo.invalidate();
     utils.youtube.getHomeLatest.invalidate();
   };
 
