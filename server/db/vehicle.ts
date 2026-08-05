@@ -18,7 +18,8 @@ import {
   vehicleReservations,
   vehicles,
 } from "../../drizzle/schema";
-import { getDb } from "./connection";
+import { getDb, getRawDbPool } from "./connection";
+import { withNamedLocksTransaction } from "./namedLockTransaction";
 
 export class VehicleReservationOverlapError extends Error {
   constructor(public readonly startTime: string, public readonly endTime: string) {
@@ -49,13 +50,6 @@ type MemberLike = {
   district?: string | null;
   baptismType?: string | null;
 };
-
-function extractMysqlScalar(result: unknown) {
-  const rows = Array.isArray(result) ? result[0] : result;
-  const firstRow = Array.isArray(rows) ? rows[0] : rows;
-  if (!firstRow || typeof firstRow !== "object") return null;
-  return Object.values(firstRow as Record<string, unknown>)[0] ?? null;
-}
 
 function getMemberFieldValue(member: MemberLike, fieldType: string) {
   if (fieldType === "position") return member.position ?? "";
@@ -740,23 +734,18 @@ export async function getAvailableVehiclesForSchedule(
 export async function createVehicleReservationsIfAvailable(
   dataList: InsertVehicleReservationData[],
 ) {
-  const db = await getDb();
-  if (!db || dataList.length === 0) return [];
+  if (dataList.length === 0) return [];
+  const pool = await getRawDbPool();
+  if (!pool) return [];
   const lockKeys = Array.from(new Set(dataList
     .map(data => `vehicle-reservation:${data.vehicleId}:${data.reservationDate}`)
   )).sort();
 
-  return db.transaction(async (tx) => {
-    const acquiredLocks: string[] = [];
-    try {
-      for (const lockKey of lockKeys) {
-        const lockResult = await tx.execute(sql`SELECT GET_LOCK(${lockKey}, 5) AS locked`);
-        if (Number(extractMysqlScalar(lockResult)) !== 1) {
-          throw new VehicleReservationLockError();
-        }
-        acquiredLocks.push(lockKey);
-      }
-
+  return withNamedLocksTransaction(
+    pool,
+    lockKeys,
+    () => new VehicleReservationLockError(),
+    async (tx) => {
       const ids: number[] = [];
       for (const data of dataList) {
         const overlapping = await tx
@@ -786,12 +775,8 @@ export async function createVehicleReservationsIfAvailable(
         ids.push(result.id);
       }
       return ids;
-    } finally {
-      for (const lockKey of acquiredLocks.reverse()) {
-        await tx.execute(sql`SELECT RELEASE_LOCK(${lockKey})`);
-      }
     }
-  });
+  );
 }
 
 export type VehicleReservationDetailsUpdate = {
@@ -808,31 +793,68 @@ export async function updateVehicleReservationDetails(id: number, data: VehicleR
   if (!reservation) return false;
 
   const nextReservationDate = data.reservationDate ?? reservation.reservationDate;
-  const nextStartTime = data.startTime ?? reservation.startTime;
-  const nextEndTime = data.endTime ?? reservation.endTime;
+  const pool = await getRawDbPool();
+  if (!pool) return false;
+  const lockKeys = [
+    `vehicle-reservation-record:${id}`,
+    `vehicle-reservation:${reservation.vehicleId}:${reservation.reservationDate}`,
+    `vehicle-reservation:${reservation.vehicleId}:${nextReservationDate}`,
+  ];
+  const lockKeySet = new Set(lockKeys);
 
-  const overlapping = await db
-    .select({ startTime: vehicleReservations.startTime, endTime: vehicleReservations.endTime })
-    .from(vehicleReservations)
-    .where(and(
-      eq(vehicleReservations.vehicleId, reservation.vehicleId),
-      eq(vehicleReservations.reservationDate, nextReservationDate),
-      ne(vehicleReservations.id, id),
-      or(
-        eq(vehicleReservations.status, "pending"),
-        eq(vehicleReservations.status, "approved"),
-      ),
-      lt(vehicleReservations.startTime, nextEndTime),
-      gt(vehicleReservations.endTime, nextStartTime),
-    ))
-    .limit(1);
+  return withNamedLocksTransaction(
+    pool,
+    lockKeys,
+    () => new VehicleReservationLockError(),
+    async (tx) => {
+      await tx.execute(sql`
+        SELECT ${vehicleReservations.id}
+        FROM ${vehicleReservations}
+        WHERE ${vehicleReservations.id} = ${id}
+        FOR UPDATE
+      `);
+      const lockedRows = await tx
+        .select()
+        .from(vehicleReservations)
+        .where(eq(vehicleReservations.id, id))
+        .limit(1);
+      const lockedReservation = lockedRows[0];
+      if (!lockedReservation) return false;
 
-  if (overlapping[0]) {
-    throw new VehicleReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime);
-  }
+      const lockedNextReservationDate = data.reservationDate ?? lockedReservation.reservationDate;
+      const currentScheduleKey =
+        `vehicle-reservation:${lockedReservation.vehicleId}:${lockedReservation.reservationDate}`;
+      const nextScheduleKey =
+        `vehicle-reservation:${lockedReservation.vehicleId}:${lockedNextReservationDate}`;
+      if (!lockKeySet.has(currentScheduleKey) || !lockKeySet.has(nextScheduleKey)) {
+        throw new VehicleReservationLockError();
+      }
+      const nextStartTime = data.startTime ?? lockedReservation.startTime;
+      const nextEndTime = data.endTime ?? lockedReservation.endTime;
+      const overlapping = await tx
+        .select({ startTime: vehicleReservations.startTime, endTime: vehicleReservations.endTime })
+        .from(vehicleReservations)
+        .where(and(
+          eq(vehicleReservations.vehicleId, lockedReservation.vehicleId),
+          eq(vehicleReservations.reservationDate, lockedNextReservationDate),
+          ne(vehicleReservations.id, id),
+          or(
+            eq(vehicleReservations.status, "pending"),
+            eq(vehicleReservations.status, "approved"),
+          ),
+          lt(vehicleReservations.startTime, nextEndTime),
+          gt(vehicleReservations.endTime, nextStartTime),
+        ))
+        .limit(1);
 
-  await db.update(vehicleReservations).set(data).where(eq(vehicleReservations.id, id));
-  return true;
+      if (overlapping[0]) {
+        throw new VehicleReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime);
+      }
+
+      await tx.update(vehicleReservations).set(data).where(eq(vehicleReservations.id, id));
+      return true;
+    },
+  );
 }
 
 export async function getVehicleReservationsByGroupId(recurrenceGroupId: string) {
@@ -893,7 +915,26 @@ export async function updateVehicleReservationGroupDetails(
     throw new VehicleReservationGroupValidationError("시작 시간은 종료 시간보다 빨라야 합니다.");
   }
 
-  return db.transaction(async (tx) => {
+  const initialRows = await db
+    .select({
+      vehicleId: vehicleReservations.vehicleId,
+      reservationDate: vehicleReservations.reservationDate,
+    })
+    .from(vehicleReservations)
+    .where(eq(vehicleReservations.recurrenceGroupId, recurrenceGroupId));
+  if (initialRows.length === 0) return 0;
+  const pool = await getRawDbPool();
+  if (!pool) return 0;
+  const lockKeys = initialRows.map((row) =>
+    `vehicle-reservation:${row.vehicleId}:${row.reservationDate}`
+  );
+  const lockKeySet = new Set(lockKeys);
+
+  return withNamedLocksTransaction(
+    pool,
+    lockKeys,
+    () => new VehicleReservationLockError(),
+    async (tx) => {
     await tx.execute(sql`
       SELECT ${vehicleReservations.id}
       FROM ${vehicleReservations}
@@ -919,22 +960,13 @@ export async function updateVehicleReservationGroupDetails(
       .orderBy(asc(vehicleReservations.reservationDate), asc(vehicleReservations.id));
 
     if (rows.length === 0) return 0;
+    if (rows.some((row) =>
+      !lockKeySet.has(`vehicle-reservation:${row.vehicleId}:${row.reservationDate}`)
+    )) {
+      throw new VehicleReservationLockError();
+    }
 
     const groupIds = rows.map((row) => row.id);
-    const lockKeys = Array.from(new Set(rows.map((row) =>
-      `vehicle-reservation:${row.vehicleId}:${row.reservationDate}`
-    ))).sort();
-    const acquiredLocks: string[] = [];
-
-    try {
-      for (const lockKey of lockKeys) {
-        const lockResult = await tx.execute(sql`SELECT GET_LOCK(${lockKey}, 5) AS locked`);
-        if (Number(extractMysqlScalar(lockResult)) !== 1) {
-          throw new VehicleReservationLockError();
-        }
-        acquiredLocks.push(lockKey);
-      }
-
       for (const row of rows) {
         if (
           !row.openTime ||
@@ -1010,12 +1042,8 @@ export async function updateVehicleReservationGroupDetails(
         .set({ startTime: data.startTime, endTime: data.endTime })
         .where(eq(vehicleReservations.recurrenceGroupId, recurrenceGroupId));
       return rows.length;
-    } finally {
-      for (const lockKey of acquiredLocks.reverse()) {
-        await tx.execute(sql`SELECT RELEASE_LOCK(${lockKey})`);
-      }
-    }
-  });
+    },
+  );
 }
 
 export type UpdateVehicleReservationGroupStatusResult =

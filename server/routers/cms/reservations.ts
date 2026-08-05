@@ -21,6 +21,7 @@ import {
   getAllReservations,
   getReservationById,
   getReservationsByGroupId,
+  ReservationLockError,
   ReservationOverlapError,
   updateReservationDetails,
   updateReservationGroupDetails,
@@ -112,6 +113,9 @@ export const reservationsRouter = router({
         if (error instanceof ReservationOverlapError) {
           throw new TRPCError({ code: "CONFLICT", message: error.message });
         }
+        if (error instanceof ReservationLockError) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: error.message });
+        }
         throw error;
       }
     }),
@@ -146,6 +150,9 @@ export const reservationsRouter = router({
       } catch (error) {
         if (error instanceof ReservationOverlapError) {
           throw new TRPCError({ code: "CONFLICT", message: error.message });
+        }
+        if (error instanceof ReservationLockError) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: error.message });
         }
         throw error;
       }

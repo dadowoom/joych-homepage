@@ -13,6 +13,7 @@ import mysql from "mysql2/promise";
 
 /** 캐시된 DB 인스턴스 */
 let _db: ReturnType<typeof drizzle> | null = null;
+let _pool: mysql.Pool | null = null;
 
 export function getSafeDatabaseErrorMetadata(error: unknown) {
   const knownNames = new Set([
@@ -47,12 +48,27 @@ export async function getDb() {
         uri: process.env.DATABASE_URL,
         timezone: "+09:00",
       });
+      _pool = pool;
       _db = drizzle(pool) as unknown as ReturnType<typeof drizzle>;
     } catch (error) {
       const { name, code } = getSafeDatabaseErrorMetadata(error);
       console.warn(`[Database] Failed to initialize connection (name=${name}, code=${code})`);
+      _pool = null;
       _db = null;
     }
   }
   return _db;
+}
+
+/**
+ * Returns the same mysql2 pool used by the Drizzle singleton.
+ *
+ * Reservation advisory locks must stay on one physical connection until the
+ * surrounding transaction has committed or rolled back. Callers use this
+ * accessor instead of creating a second pool, which would otherwise multiply
+ * the production connection count.
+ */
+export async function getRawDbPool() {
+  await getDb();
+  return _pool;
 }

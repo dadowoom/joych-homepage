@@ -16,7 +16,8 @@ import {
   InsertFacility, InsertFacilityImage, InsertFacilityHour, InsertExternalFacilityHour, InsertFacilityBlockedDate, InsertReservation,
 } from "../../drizzle/schema";
 import { isUpcomingReservationOccurrence } from "@shared/reservationSchedule";
-import { getDb } from "./connection";
+import { getDb, getRawDbPool } from "./connection";
+import { withNamedLocksTransaction } from "./namedLockTransaction";
 
 const ACTIVE_RESERVATION_STATUSES = ["pending", "checking", "approved"] as const;
 
@@ -35,13 +36,6 @@ export class ReservationLockError extends Error {
   constructor() {
     super("예약 처리 중입니다. 잠시 후 다시 시도해주세요.");
   }
-}
-
-function extractMysqlScalar(result: unknown) {
-  const rows = Array.isArray(result) ? result[0] : result;
-  const firstRow = Array.isArray(rows) ? rows[0] : rows;
-  if (!firstRow || typeof firstRow !== "object") return null;
-  return Object.values(firstRow as Record<string, unknown>)[0] ?? null;
 }
 
 // ─── 시설 CRUD ────────────────────────────────────────────────────────────────
@@ -488,18 +482,16 @@ export async function createReservation(data: Omit<InsertReservation, 'id' | 'cr
 
 /** 예약 생성: 같은 시설/날짜에 대한 동시 신청을 DB advisory lock으로 직렬화 */
 export async function createReservationIfAvailable(data: Omit<InsertReservation, 'id' | 'createdAt' | 'updatedAt'>) {
-  const db = await getDb();
-  if (!db) return null;
+  const pool = await getRawDbPool();
+  if (!pool) return null;
 
   const lockKey = `reservation:${data.facilityId}:${data.reservationDate}`;
 
-  return db.transaction(async (tx) => {
-    const lockResult = await tx.execute(sql`SELECT GET_LOCK(${lockKey}, 5) AS locked`);
-    if (Number(extractMysqlScalar(lockResult)) !== 1) {
-      throw new ReservationLockError();
-    }
-
-    try {
+  return withNamedLocksTransaction(
+    pool,
+    [lockKey],
+    () => new ReservationLockError(),
+    async (tx) => {
       const overlapping = await tx
         .select({
           startTime: reservations.startTime,
@@ -521,10 +513,8 @@ export async function createReservationIfAvailable(data: Omit<InsertReservation,
 
       const [result] = await tx.insert(reservations).values(data).$returningId();
       return result?.id ?? null;
-    } finally {
-      await tx.execute(sql`SELECT RELEASE_LOCK(${lockKey})`);
     }
-  });
+  );
 }
 
 /** 예약 생성 실패 시 같은 요청에서 생성된 예약들을 되돌립니다. */
@@ -594,23 +584,45 @@ export async function updateReservationDetails(id: number, data: ReservationDeta
   if (!reservation) return false;
 
   const nextReservationDate = data.reservationDate ?? reservation.reservationDate;
-  const nextStartTime = data.startTime ?? reservation.startTime;
-  const nextEndTime = data.endTime ?? reservation.endTime;
-  const lockKey = `reservation:${reservation.facilityId}:${nextReservationDate}`;
+  const pool = await getRawDbPool();
+  if (!pool) return false;
+  const lockKeys = [
+    `reservation-record:${id}`,
+    `reservation:${reservation.facilityId}:${reservation.reservationDate}`,
+    `reservation:${reservation.facilityId}:${nextReservationDate}`,
+  ];
+  const lockKeySet = new Set(lockKeys);
 
-  return db.transaction(async (tx) => {
-    const lockResult = await tx.execute(sql`SELECT GET_LOCK(${lockKey}, 5) AS locked`);
-    if (Number(extractMysqlScalar(lockResult)) !== 1) {
-      throw new ReservationLockError();
-    }
-
-    try {
+  return withNamedLocksTransaction(
+    pool,
+    lockKeys,
+    () => new ReservationLockError(),
+    async (tx) => {
+      await tx.execute(sql`
+        SELECT ${reservations.id}
+        FROM ${reservations}
+        WHERE ${reservations.id} = ${id}
+        FOR UPDATE
+      `);
+      const lockedRows = await tx.select().from(reservations).where(eq(reservations.id, id)).limit(1);
+      const lockedReservation = lockedRows[0];
+      if (!lockedReservation) return false;
+      const lockedNextReservationDate = data.reservationDate ?? lockedReservation.reservationDate;
+      const lockedCurrentScheduleKey =
+        `reservation:${lockedReservation.facilityId}:${lockedReservation.reservationDate}`;
+      const lockedNextScheduleKey =
+        `reservation:${lockedReservation.facilityId}:${lockedNextReservationDate}`;
+      if (!lockKeySet.has(lockedCurrentScheduleKey) || !lockKeySet.has(lockedNextScheduleKey)) {
+        throw new ReservationLockError();
+      }
+      const nextStartTime = data.startTime ?? lockedReservation.startTime;
+      const nextEndTime = data.endTime ?? lockedReservation.endTime;
       const overlapping = await tx
         .select({ startTime: reservations.startTime, endTime: reservations.endTime })
         .from(reservations)
         .where(and(
-          eq(reservations.facilityId, reservation.facilityId),
-          eq(reservations.reservationDate, nextReservationDate),
+          eq(reservations.facilityId, lockedReservation.facilityId),
+          eq(reservations.reservationDate, lockedNextReservationDate),
           ne(reservations.id, id),
           inArray(reservations.status, ACTIVE_RESERVATION_STATUSES),
           lt(reservations.startTime, nextEndTime),
@@ -619,17 +631,15 @@ export async function updateReservationDetails(id: number, data: ReservationDeta
         .limit(1);
 
       if (overlapping[0]) {
-        throw new ReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime, nextReservationDate);
+        throw new ReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime, lockedNextReservationDate);
       }
 
       await tx.update(reservations)
         .set(toReservationUpdateValues(data))
         .where(eq(reservations.id, id));
       return true;
-    } finally {
-      await tx.execute(sql`SELECT RELEASE_LOCK(${lockKey})`);
     }
-  });
+  );
 }
 
 /**
@@ -656,15 +666,13 @@ export async function replaceReservationsIfAvailable(
     `reservation:${data.facilityId}:${data.reservationDate}`
   ))).sort();
 
-  return db.transaction(async (tx) => {
-    const acquiredLocks: string[] = [];
-    try {
-      for (const lockKey of lockKeys) {
-        const lockResult = await tx.execute(sql`SELECT GET_LOCK(${lockKey}, 5) AS locked`);
-        if (Number(extractMysqlScalar(lockResult)) !== 1) throw new ReservationLockError();
-        acquiredLocks.push(lockKey);
-      }
-
+  const pool = await getRawDbPool();
+  if (!pool) return [];
+  return withNamedLocksTransaction(
+    pool,
+    lockKeys,
+    () => new ReservationLockError(),
+    async (tx) => {
       for (const data of dataList) {
         const overlapConditions = [
           eq(reservations.facilityId, data.facilityId),
@@ -689,7 +697,10 @@ export async function replaceReservationsIfAvailable(
       const createdIds: number[] = [];
       for (const data of dataList) {
         const [result] = await tx.insert(reservations).values(data).$returningId();
-        if (result?.id) createdIds.push(result.id);
+        if (!result?.id) {
+          throw new Error("Reservation insert did not return an id.");
+        }
+        createdIds.push(result.id);
       }
       if (replaceReservationIds.length > 0) {
         await tx.update(reservations)
@@ -697,12 +708,15 @@ export async function replaceReservationsIfAvailable(
           .where(inArray(reservations.id, replaceReservationIds));
       }
       return createdIds;
-    } finally {
-      for (const lockKey of acquiredLocks.reverse()) {
-        await tx.execute(sql`SELECT RELEASE_LOCK(${lockKey})`);
-      }
     }
-  });
+  );
+}
+
+/** Creates a reservation series as one all-or-nothing transaction. */
+export async function createReservationsIfAvailable(
+  dataList: Array<Omit<InsertReservation, "id" | "createdAt" | "updatedAt">>,
+) {
+  return replaceReservationsIfAvailable(dataList);
 }
 
 export async function getReservationConflictsForDates(input: {
@@ -749,60 +763,101 @@ export async function updateReservationGroupDetails(
 ) {
   const db = await getDb();
   if (!db) return false;
-  const groupRows = await db
+  const initialGroupRows = await db
     .select()
     .from(reservations)
     .where(eq(reservations.recurrenceGroupId, recurrenceGroupId))
     .orderBy(asc(reservations.reservationDate), asc(reservations.startTime), asc(reservations.id));
 
-  if (groupRows.length === 0) return false;
-
-  const futureRows = groupRows.filter(row =>
+  if (initialGroupRows.length === 0) return false;
+  const initialFutureRows = initialGroupRows.filter(row =>
     isUpcomingReservationOccurrence(row)
   );
-  if (futureRows.length === 0) {
+  if (initialFutureRows.length === 0) {
     return {
-      totalCount: groupRows.length,
+      totalCount: initialGroupRows.length,
       updatedCount: 0,
-      skippedPastCount: groupRows.length,
+      skippedPastCount: initialGroupRows.length,
     } satisfies UpdateReservationGroupDetailsResult;
   }
+  const pool = await getRawDbPool();
+  if (!pool) return false;
+  const lockKeys = initialFutureRows.map(row =>
+    `reservation:${row.facilityId}:${row.reservationDate}`
+  );
+  const lockKeySet = new Set(lockKeys);
 
-  const groupIds = groupRows.map(row => row.id);
-  const futureIds = futureRows.map(row => row.id);
-  const nextStartTime = data.startTime ?? futureRows[0]!.startTime;
-  const nextEndTime = data.endTime ?? futureRows[0]!.endTime;
+  return withNamedLocksTransaction(
+    pool,
+    lockKeys,
+    () => new ReservationLockError(),
+    async (tx) => {
+      await tx.execute(sql`
+        SELECT ${reservations.id}
+        FROM ${reservations}
+        WHERE ${reservations.recurrenceGroupId} = ${recurrenceGroupId}
+        FOR UPDATE
+      `);
+      const groupRows = await tx
+        .select()
+        .from(reservations)
+        .where(eq(reservations.recurrenceGroupId, recurrenceGroupId))
+        .orderBy(asc(reservations.reservationDate), asc(reservations.startTime), asc(reservations.id));
 
-  for (const row of futureRows) {
-    const overlapping = await db
-      .select({ startTime: reservations.startTime, endTime: reservations.endTime })
-      .from(reservations)
-      .where(and(
-        eq(reservations.facilityId, row.facilityId),
-        eq(reservations.reservationDate, row.reservationDate),
-        notInArray(reservations.id, groupIds),
-        inArray(reservations.status, ACTIVE_RESERVATION_STATUSES),
-        lt(reservations.startTime, nextEndTime),
-        gt(reservations.endTime, nextStartTime),
-      ))
-      .limit(1);
+      if (groupRows.length === 0) return false;
+      const futureRows = groupRows.filter(row =>
+        isUpcomingReservationOccurrence(row)
+      );
+      if (futureRows.length === 0) {
+        return {
+          totalCount: groupRows.length,
+          updatedCount: 0,
+          skippedPastCount: groupRows.length,
+        } satisfies UpdateReservationGroupDetailsResult;
+      }
+      if (futureRows.some(row =>
+        !lockKeySet.has(`reservation:${row.facilityId}:${row.reservationDate}`)
+      )) {
+        throw new ReservationLockError();
+      }
 
-    if (overlapping[0]) {
-      throw new ReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime, row.reservationDate);
-    }
-  }
+      const groupIds = groupRows.map(row => row.id);
+      const futureIds = futureRows.map(row => row.id);
+      const nextStartTime = data.startTime ?? futureRows[0]!.startTime;
+      const nextEndTime = data.endTime ?? futureRows[0]!.endTime;
 
-  await db.update(reservations)
-    .set(toReservationUpdateValues(data))
-    .where(and(
-      eq(reservations.recurrenceGroupId, recurrenceGroupId),
-      inArray(reservations.id, futureIds),
-    ));
-  return {
-    totalCount: groupRows.length,
-    updatedCount: futureRows.length,
-    skippedPastCount: groupRows.length - futureRows.length,
-  } satisfies UpdateReservationGroupDetailsResult;
+      for (const row of futureRows) {
+        const overlapping = await tx
+          .select({ startTime: reservations.startTime, endTime: reservations.endTime })
+          .from(reservations)
+          .where(and(
+            eq(reservations.facilityId, row.facilityId),
+            eq(reservations.reservationDate, row.reservationDate),
+            notInArray(reservations.id, groupIds),
+            inArray(reservations.status, ACTIVE_RESERVATION_STATUSES),
+            lt(reservations.startTime, nextEndTime),
+            gt(reservations.endTime, nextStartTime),
+          ))
+          .limit(1);
+
+        if (overlapping[0]) {
+          throw new ReservationOverlapError(overlapping[0].startTime, overlapping[0].endTime, row.reservationDate);
+        }
+      }
+
+      await tx.update(reservations)
+        .set(toReservationUpdateValues(data))
+        .where(and(
+          eq(reservations.recurrenceGroupId, recurrenceGroupId),
+          inArray(reservations.id, futureIds),
+        ));
+      return {
+        totalCount: groupRows.length,
+        updatedCount: futureRows.length,
+        skippedPastCount: groupRows.length - futureRows.length,
+      } satisfies UpdateReservationGroupDetailsResult;
+    },
+  );
 }
 
 /**

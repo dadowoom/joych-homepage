@@ -18,7 +18,7 @@
 예시:
 
 ```bash
-cd /var/www/joych-homepage-src
+cd /var/www/joych-homepage
 set -a
 . /var/www/joych-homepage/.env
 set +a
@@ -31,10 +31,19 @@ node scripts/backup-joych-production.mjs
 권장 크론:
 
 ```cron
-27 4 * * * cd /var/www/joych-homepage-src && set -a && . /var/www/joych-homepage/.env && set +a && JOYCH_APP_DIR=/var/www/joych-homepage JOYCH_BACKUP_DIR=/var/backups/joych-homepage JOYCH_BACKUP_KEEP_DAYS=30 node scripts/backup-joych-production.mjs >> /var/log/joych-homepage-backup.log 2>&1
+27 4 * * * cd /var/www/joych-homepage && set -a && . /var/www/joych-homepage/.env && set +a && JOYCH_APP_DIR=/var/www/joych-homepage JOYCH_BACKUP_DIR=/var/backups/joych-homepage JOYCH_BACKUP_KEEP_DAYS=30 node scripts/backup-joych-production.mjs >> /var/log/joych-homepage-backup.log 2>&1
 ```
 
 백업 결과는 `/var/backups/joych-homepage/joych-YYYYMMDD.../` 아래에 저장됩니다.
+
+백업은 MySQL 연결 기반 전용 잠금과 파일 잠금으로 중복 실행을 이중 차단하고, 디스크 여유 검사를 거친 뒤 `.partial-*` 디렉터리에서 만듭니다. DB·업로드·manifest가 모두 완성된 경우에만 최종 디렉터리로 전환합니다. 서버나 프로세스가 비정상 종료되면 MySQL 잠금은 연결 종료와 함께 자동 해제되며, 이 잠금을 획득한 단 하나의 백업만 오래된 파일 잠금을 복구할 수 있습니다. 새 환경변수의 기본값과 의미는 다음과 같습니다.
+
+- `UPLOAD_DIR=uploads`: 실제 업로드 루트입니다. 상대 경로는 웹 서버와 동일하게 실행 작업 디렉터리(`process.cwd()`) 기준으로 해석합니다. 운영에서는 혼동을 막기 위해 절대 경로 사용을 권장합니다.
+- `JOYCH_BACKUP_MIN_SAFE_COUNT=2`: 공간 정리 중에도 남겨 둘 완전한 기존 백업의 최소 개수입니다.
+- `JOYCH_BACKUP_MIN_FREE_BYTES=1073741824`: 백업을 시작한 뒤에도 남겨 둘 디스크 여유 공간(기본 1 GiB)입니다.
+- `JOYCH_BACKUP_ALLOW_SPACE_PRUNE=0`: 기본값은 보존 기간이 지난 백업만 정리합니다. 공간 부족 시 보존 기간 안의 오래된 완전 백업까지 정리하려면 명시적으로 `1`을 설정해야 하며, 어느 경우에도 위의 최소 안전 개수 아래로 삭제하지 않습니다.
+- `JOYCH_BACKUP_LOCK_STALE_HOURS=36`: 실행 중인 백업은 잠금에 주기적으로 생존 표시를 남깁니다. 같은 서버에서 잠금 소유 프로세스가 종료된 것이 확인되면 즉시, 그 밖의 경우에는 이 표시가 기본 36시간 이상 멈췄을 때만 오래된 잠금으로 복구합니다.
+- `JOYCH_BACKUP_ABORT_EXIT_SECONDS=30`: 백업 도중 DB 전용 잠금 연결이 끊긴 뒤 정리가 이 시간 안에 끝나지 않으면, 홈페이지 서버가 아닌 해당 백업 프로세스만 종료해 멈춘 파일 작업과 잠금이 다음 실행을 영구 차단하지 않게 합니다.
 
 ## 운영 DB 마이그레이션 안전 규칙
 

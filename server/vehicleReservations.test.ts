@@ -73,7 +73,7 @@ vi.mock("./db", async (importOriginal) => {
   };
 });
 
-import { VehicleReservationOverlapError } from "./db";
+import { VehicleReservationLockError, VehicleReservationOverlapError } from "./db";
 import { appRouter } from "./routers";
 
 const approvedVehicleMember = {
@@ -914,6 +914,18 @@ describe("vehicle reservations", () => {
       startTime: "12:00",
       endTime: "13:00",
     });
+  });
+
+  it("returns a retryable response when a single vehicle schedule is being changed concurrently", async () => {
+    dbMocks.updateVehicleReservationDetails.mockRejectedValueOnce(new VehicleReservationLockError());
+    const caller = appRouter.createCaller(createContext(createAdminUser(), false));
+
+    await expect(caller.cms.vehicleReservations.updateTime({
+      id: 10,
+      reservationDate: "2026-06-15",
+      startTime: "16:00",
+      endTime: "17:00",
+    })).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
   });
 
   it("lets vehicle managers delete a past reservation", async () => {

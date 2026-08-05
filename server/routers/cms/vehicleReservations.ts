@@ -160,6 +160,9 @@ export const vehicleReservationsRouter = router({
         if (error instanceof VehicleReservationOverlapError) {
           throw new TRPCError({ code: "CONFLICT", message: error.message });
         }
+        if (error instanceof VehicleReservationLockError) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: error.message });
+        }
         throw error;
       }
     }),

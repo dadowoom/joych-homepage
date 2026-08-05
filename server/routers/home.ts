@@ -78,7 +78,7 @@ import {
   getReservationsByDate,
   getAdminReservationDetailsByDate,
   createReservationIfAvailable,
-  deleteReservationsByIds,
+  createReservationsIfAvailable,
   getMyReservations,
   getReservationById,
   getReservationsByGroupId,
@@ -1675,13 +1675,9 @@ export const homeRouter = router({
         reservationDates.length > 1 && repeat
           ? describeReservationRepeat(repeat, reservationDates.length)
           : null;
-      const createdIds: number[] = [];
-
-      // ctx.memberId = church_members 테이블의 id (성도 로그인 기반)
       try {
-        for (let index = 0; index < reservationDates.length; index++) {
-          const reservationDate = reservationDates[index];
-          const reservationData = {
+        const reservationData = reservationDates.map(
+          (reservationDate, index) => ({
             ...baseInput,
             reservationDate,
             userId: ctx.memberId,
@@ -1690,20 +1686,43 @@ export const homeRouter = router({
             recurrenceGroupId,
             recurrenceLabel,
             recurrenceSequence: recurrenceGroupId ? index + 1 : 0,
-          };
-          const id = await createReservationIfAvailable(reservationData);
-          if (!id) {
-            throw new TRPCError({
-              code: "INTERNAL_SERVER_ERROR",
-              message: "예약 신청 저장에 실패했습니다.",
-            });
-          }
-          createdIds.push(id);
+          })
+        );
+        const createdIds =
+          reservationData.length === 1
+            ? [await createReservationIfAvailable(reservationData[0])]
+            : await createReservationsIfAvailable(reservationData);
+        if (
+          createdIds.length !== reservationDates.length ||
+          createdIds.some(id => !id)
+        ) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "예약 신청 저장에 실패했습니다.",
+          });
         }
+
+        if (createdIds[0]) {
+          void notifyFacilityReservation({
+            reserverName: input.reserverName,
+            facilityName: facility.name,
+            date: input.reservationDate,
+            startTime: input.startTime,
+            endTime: input.endTime,
+            reservationType: "member",
+            reservationId: createdIds[0],
+            status,
+            extraCount: Math.max(0, createdIds.length - 1),
+          });
+        }
+        return {
+          id: createdIds[0],
+          ids: createdIds,
+          status,
+          count: createdIds.length,
+          recurrenceLabel,
+        };
       } catch (error) {
-        if (createdIds.length > 0) {
-          await deleteReservationsByIds(createdIds);
-        }
         if (error instanceof ReservationOverlapError) {
           throw new TRPCError({ code: "CONFLICT", message: error.message });
         }
@@ -1715,26 +1734,6 @@ export const homeRouter = router({
         }
         throw error;
       }
-      if (createdIds[0]) {
-        void notifyFacilityReservation({
-          reserverName: input.reserverName,
-          facilityName: facility.name,
-          date: input.reservationDate,
-          startTime: input.startTime,
-          endTime: input.endTime,
-          reservationType: "member",
-          reservationId: createdIds[0],
-          status,
-          extraCount: Math.max(0, createdIds.length - 1),
-        });
-      }
-      return {
-        id: createdIds[0],
-        ids: createdIds,
-        status,
-        count: createdIds.length,
-        recurrenceLabel,
-      };
     }),
 
   /** 내 예약 목록 조회 (성도 본인 것만) */

@@ -13,6 +13,7 @@ const dbMocks = vi.hoisted(() => ({
   getAdminReservationDetailsByDate: vi.fn(),
   createReservation: vi.fn(),
   createReservationIfAvailable: vi.fn(),
+  createReservationsIfAvailable: vi.fn(),
   deleteReservationById: vi.fn(),
   getMemberById: vi.fn(),
   getSiteSettings: vi.fn(),
@@ -62,6 +63,7 @@ vi.mock("./db", async (importOriginal) => {
     getAdminReservationDetailsByDate: dbMocks.getAdminReservationDetailsByDate,
     createReservation: dbMocks.createReservation,
     createReservationIfAvailable: dbMocks.createReservationIfAvailable,
+    createReservationsIfAvailable: dbMocks.createReservationsIfAvailable,
     deleteReservationById: dbMocks.deleteReservationById,
     getSiteSettings: dbMocks.getSiteSettings,
     updateReservationDetails: dbMocks.updateReservationDetails,
@@ -69,6 +71,7 @@ vi.mock("./db", async (importOriginal) => {
   };
 });
 
+import { ReservationLockError } from "./db";
 import { appRouter } from "./routers";
 
 const approvedMember = {
@@ -200,6 +203,9 @@ describe("facility reservation lead-time guard", () => {
     dbMocks.getAdminReservationDetailsByDate.mockResolvedValue([]);
     dbMocks.createReservation.mockResolvedValue(100);
     dbMocks.createReservationIfAvailable.mockResolvedValue(100);
+    dbMocks.createReservationsIfAvailable.mockImplementation(async (rows: unknown[]) =>
+      rows.map((_, index) => 100 + index)
+    );
     dbMocks.deleteReservationById.mockResolvedValue(true);
     dbMocks.getSiteSettings.mockResolvedValue({});
     dbMocks.updateReservationDetails.mockResolvedValue(true);
@@ -549,12 +555,40 @@ describe("facility reservation lead-time guard", () => {
       recurrenceLabel: "매월 같은 주 반복 · 2026-09-30까지 · 총 4회",
     });
 
-    expect(dbMocks.createReservationIfAvailable.mock.calls.map(([input]) => input.reservationDate)).toEqual([
+    expect(dbMocks.createReservationIfAvailable).not.toHaveBeenCalled();
+    expect(dbMocks.createReservationsIfAvailable).toHaveBeenCalledTimes(1);
+    expect(dbMocks.createReservationsIfAvailable.mock.calls[0]?.[0].map(
+      (input: { reservationDate: string }) => input.reservationDate
+    )).toEqual([
       "2026-06-17",
       "2026-07-15",
       "2026-08-19",
       "2026-09-16",
     ]);
+  });
+
+  it("does not fall back to partial single inserts when a recurring reservation transaction fails", async () => {
+    const transactionFailure = new Error("transaction rolled back");
+    dbMocks.getSiteSettings.mockResolvedValue({ facility_reservation_max_months: "4" });
+    dbMocks.createReservationsIfAvailable.mockRejectedValueOnce(transactionFailure);
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(caller.home.createReservation(reservationInput({
+      reservationDate: "2026-06-17",
+      startTime: "15:00",
+      endTime: "16:00",
+      repeat: {
+        type: "monthly-weekday",
+        untilDate: "2026-09-30",
+      },
+    }))).rejects.toMatchObject({
+      code: "INTERNAL_SERVER_ERROR",
+      message: transactionFailure.message,
+    });
+
+    expect(dbMocks.createReservationsIfAvailable).toHaveBeenCalledTimes(1);
+    expect(dbMocks.createReservationIfAvailable).not.toHaveBeenCalled();
+    expect(pushMocks.notifyFacilityReservation).not.toHaveBeenCalled();
   });
 
   it("sends push notifications for auto-approved facility reservations", async () => {
@@ -702,6 +736,17 @@ describe("facility reservation lead-time guard", () => {
       "facility-repeat-1",
       { startTime: "16:00", endTime: "17:00" },
     );
+  });
+
+  it("returns a retryable response when a recurring schedule is being changed concurrently", async () => {
+    dbMocks.updateReservationGroupDetails.mockRejectedValueOnce(new ReservationLockError());
+    const caller = appRouter.createCaller(createContext(createUserWithReservationPermission()));
+
+    await expect(caller.cms.reservations.updateGroupTime({
+      groupId: "facility-repeat-1",
+      startTime: "16:00",
+      endTime: "17:00",
+    })).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
   });
 
   it("explains when a recurring schedule has no future occurrence left to change", async () => {

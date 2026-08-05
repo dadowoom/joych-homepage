@@ -86,7 +86,9 @@ jobs:
       - name: Validate deploy scripts
         run: |
           node --check scripts/backup-joych-production.mjs
+          node --check scripts/backup-joych-safety.mjs
           node --check scripts/audit-upload-inventory.mjs
+          node --check scripts/apply-0110-db-growth-indexes.mjs
           bash -n scripts/deploy-production-remote.sh
           bash -n scripts/deploy-retention.sh
           bash -n scripts/deploy-retention.test.sh
@@ -99,6 +101,7 @@ jobs:
         run: |
           pnpm test
           pnpm test:audit-uploads
+          pnpm test:backup
 
       - name: Build
         run: pnpm build
@@ -106,7 +109,7 @@ jobs:
       - name: Create deploy artifact
         run: |
           ARTIFACT="joych-homepage-${GITHUB_SHA}.tar.gz"
-          tar -czf "${ARTIFACT}" dist package.json pnpm-lock.yaml pnpm-workspace.yaml patches drizzle/*.sql scripts/backup-joych-production.mjs scripts/audit-upload-inventory.mjs scripts/deploy-retention.sh scripts/verify-pwa-domain-bridge.mjs
+          tar -czf "${ARTIFACT}" dist package.json pnpm-lock.yaml pnpm-workspace.yaml patches drizzle/*.sql scripts/backup-joych-production.mjs scripts/backup-joych-safety.mjs scripts/audit-upload-inventory.mjs scripts/apply-0110-db-growth-indexes.mjs scripts/deploy-retention.sh scripts/verify-pwa-domain-bridge.mjs
           echo "ARTIFACT=${ARTIFACT}" >> "${GITHUB_ENV}"
 
       - name: Prepare SSH

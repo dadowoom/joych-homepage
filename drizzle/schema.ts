@@ -240,7 +240,14 @@ export const notices = mysqlTable("notices", {
   viewCount: int("viewCount").notNull().default(0),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [
+  index("notices_published_created_idx").on(table.isPublished, table.createdAt),
+  index("notices_category_published_created_idx").on(
+    table.category,
+    table.isPublished,
+    table.createdAt,
+  ),
+]);
 
 export type Notice = typeof notices.$inferSelect;
 export type InsertNotice = typeof notices.$inferInsert;
@@ -1028,7 +1035,12 @@ export const facilityBlockedDates = mysqlTable("facility_blocked_dates", {
   /** 부분 차단 종료 시간 */
   blockEnd: varchar("blockEnd", { length: 5 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => [
+  index("facility_blocked_dates_facility_date_idx").on(
+    table.facilityId,
+    table.blockedDate,
+  ),
+]);
 
 export type FacilityBlockedDate = typeof facilityBlockedDates.$inferSelect;
 export type InsertFacilityBlockedDate = typeof facilityBlockedDates.$inferInsert;
@@ -1079,7 +1091,19 @@ export const reservations = mysqlTable("reservations", {
   processedAt: timestamp("processedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [
+  index("reservations_facility_date_status_time_idx").on(
+    table.facilityId,
+    table.reservationDate,
+    table.status,
+    table.startTime,
+    table.endTime,
+  ),
+  index("reservations_user_created_idx").on(table.userId, table.createdAt),
+  index("reservations_status_created_idx").on(table.status, table.createdAt),
+  index("reservations_created_idx").on(table.createdAt),
+  index("reservations_recurrence_group_idx").on(table.recurrenceGroupId),
+]);
 
 export type Reservation = typeof reservations.$inferSelect;
 export type InsertReservation = typeof reservations.$inferInsert;
@@ -1764,7 +1788,19 @@ export const youtubeVideos = mysqlTable("youtube_videos", {
   isVisible: boolean("isVisible").notNull().default(true),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [
+  index("youtube_videos_playlist_date_idx").on(
+    table.playlistId,
+    table.sermonDate,
+    table.id,
+  ),
+  index("youtube_videos_playlist_visible_date_idx").on(
+    table.playlistId,
+    table.isVisible,
+    table.sermonDate,
+    table.id,
+  ),
+]);
 
 export type YoutubeVideo = typeof youtubeVideos.$inferSelect;
 export type InsertYoutubeVideo = typeof youtubeVideos.$inferInsert;

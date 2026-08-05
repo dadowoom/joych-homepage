@@ -60,6 +60,7 @@ jobs:
         run: |
           pnpm test
           pnpm test:audit-uploads
+          pnpm test:backup
 
       - name: Build
         run: pnpm build

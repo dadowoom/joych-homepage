@@ -3373,6 +3373,16 @@ else
   exit 1
 fi
 
+MIGRATION_0110="${APP_DIR}/drizzle/0110_db_growth_indexes.sql"
+MIGRATION_RUNNER_0110="${APP_DIR}/scripts/apply-0110-db-growth-indexes.mjs"
+if [[ -f "${MIGRATION_0110}" && -f "${MIGRATION_RUNNER_0110}" ]]; then
+  echo "[deploy] database migration: growth indexes"
+  node "${MIGRATION_RUNNER_0110}"
+else
+  echo "[deploy] missing migration 0110 or its safe runner" >&2
+  exit 1
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4
