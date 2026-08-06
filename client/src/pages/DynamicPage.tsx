@@ -35,7 +35,11 @@ import { YoutubeContent } from "@/components/dynamic-page/YoutubeContent";
 import { EditorContent } from "@/components/dynamic-page/EditorContent";
 import { StaffPage } from "./ChurchIntro";
 import CourseList from "./CourseList";
-import { getCanonicalCourseHref, isCourseMenuItemWithinTopMenu } from "@/lib/courseRoutes";
+import {
+  getCanonicalCourseHref,
+  isCourseMenuItemWithinTopMenu,
+  isCourseTopMenuLabel,
+} from "@/lib/courseRoutes";
 import {
   getCanonicalPublicMenuPath,
   PUBLIC_MENU_PATHS,
@@ -246,7 +250,7 @@ function isVisitRequestMenuItem(item: DynamicPageItem) {
 }
 
 function isCourseTopMenu(menu: DynamicMenuTree[number] | undefined) {
-  return menu?.label.replace(/\s+/g, "") === "강좌";
+  return isCourseTopMenuLabel(menu?.label);
 }
 
 function isExternalFacilityReservationMenuItem(item: DynamicPageItem) {
@@ -500,7 +504,7 @@ function MenuItemPageContent({
   }
 
   if (isCourseTopMenu(parentMenu)) {
-    return <CourseList pageHref={item.href ?? activeHref ?? undefined} title={item.label} embedded />;
+    return <CourseList pageHref={item.href ?? activeHref ?? undefined} title={item.label} showHero={false} />;
   }
 
   if (shouldRedirectToBulletinView || shouldRedirectToBulletinAd || shouldRedirectToSubtitle || shouldRedirectToVisitRequest || shouldRedirectToExternalFacility) {
@@ -613,7 +617,7 @@ function MenuSubItemPageContent({
   }
 
   if (isCourseRoom) {
-    return <CourseList pageHref={item.href ?? activeHref ?? undefined} title={item.label} embedded />;
+    return <CourseList pageHref={item.href ?? activeHref ?? undefined} title={item.label} showHero={false} />;
   }
 
   return (

@@ -1,5 +1,6 @@
 import {
   getAcademyCoursePath,
+  getCanonicalPublicMenuPath,
   PUBLIC_MENU_PATHS,
 } from "@shared/publicMenuRoutes";
 
@@ -22,6 +23,13 @@ type CourseMenu = {
 
 export const COURSE_ROOT_HREF = PUBLIC_MENU_PATHS.academy;
 
+const FIXED_COURSE_MENU_HREFS: Record<string, string> = {
+  "조이아카데미": PUBLIC_MENU_PATHS.academy,
+  "제자반": PUBLIC_MENU_PATHS.discipleCourse,
+  "리더십반": PUBLIC_MENU_PATHS.leadershipCourse,
+  "생선컨퍼런스": PUBLIC_MENU_PATHS.saengseonConference,
+};
+
 function normalizeLabel(value: string | null | undefined) {
   return (value ?? "").replace(/\s+/g, "").trim();
 }
@@ -36,6 +44,10 @@ function decodePath(path: string) {
 
 function normalizeHref(path: string | null | undefined) {
   return decodePath(path ?? "").trim();
+}
+
+function normalizeComparableHref(path: string | null | undefined) {
+  return normalizeHref(getCanonicalPublicMenuPath(path) ?? path);
 }
 
 export function isCourseTopMenuLabel(label: string | null | undefined) {
@@ -56,8 +68,12 @@ export function getCourseRoomSlug(label: string | null | undefined, href?: strin
 }
 
 export function getCanonicalCourseHref(label: string | null | undefined, href?: string | null) {
+  const normalizedLabel = normalizeLabel(label);
+  const fixedMenuHref = FIXED_COURSE_MENU_HREFS[normalizedLabel];
+  if (fixedMenuHref) return fixedMenuHref;
+
   const slug = getCourseRoomSlug(label, href);
-  if (!slug || normalizeLabel(label) === "조이아카데미") {
+  if (!slug) {
     return COURSE_ROOT_HREF;
   }
   return getAcademyCoursePath(slug);
@@ -88,8 +104,10 @@ export function isCourseMenuItemWithinTopMenu(
   menus: CourseMenu[] | undefined,
   href: string | null | undefined,
 ) {
-  const normalizedHref = normalizeHref(href);
+  const normalizedHref = normalizeComparableHref(href);
   const courseMenu = (menus ?? []).find((menu) => isCourseTopMenuLabel(menu.label));
   if (!courseMenu) return false;
-  return (courseMenu.items ?? []).some((item) => normalizeHref(item.href) === normalizedHref);
+  return (courseMenu.items ?? []).some(
+    (item) => normalizeComparableHref(item.href) === normalizedHref,
+  );
 }

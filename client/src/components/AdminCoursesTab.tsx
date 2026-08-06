@@ -11,6 +11,7 @@ import { useSearch } from "wouter";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
+import { isCourseTopMenuLabel } from "@/lib/courseRoutes";
 import CourseApplicationChecklist from "@/components/CourseApplicationChecklist";
 import {
   applyCourseApplicationChecklistChange,
@@ -554,7 +555,7 @@ export default function AdminCoursesTab() {
   const courseMenuOptions = useMemo(() => {
     const options: { label: string; href: string }[] = [];
     for (const menu of menus) {
-      const isCourseTopMenu = menu.label.replace(/\s+/g, "") === "강좌";
+      const isCourseTopMenu = isCourseTopMenuLabel(menu.label);
       if (!isCourseTopMenu) continue;
       for (const item of menu.items ?? []) {
         if (item.href && item.isVisible !== false) {
