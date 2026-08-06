@@ -1,6 +1,7 @@
 import {
   getAcademyCoursePath,
   getCanonicalPublicMenuPath,
+  isCourseTopMenuLabel as isSharedCourseTopMenuLabel,
   PUBLIC_MENU_PATHS,
 } from "@shared/publicMenuRoutes";
 
@@ -51,8 +52,7 @@ function normalizeComparableHref(path: string | null | undefined) {
 }
 
 export function isCourseTopMenuLabel(label: string | null | undefined) {
-  const normalized = normalizeLabel(label);
-  return normalized === "강좌" || normalized === "교육·신청";
+  return isSharedCourseTopMenuLabel(label);
 }
 
 export function isCourseLegacyHref(href: string | null | undefined) {

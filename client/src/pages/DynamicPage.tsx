@@ -24,7 +24,7 @@
  */
 
 import { useEffect, useMemo } from "react";
-import { useLocation, useParams } from "wouter";
+import { useLocation, useParams, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import SubPageLayout from "@/components/SubPageLayout";
 import MemberOnlyContentNotice from "@/components/MemberOnlyContentNotice";
@@ -193,6 +193,11 @@ export function getCodeBackedPageAlias(href: string | null | undefined) {
   const canonicalPublicPath = getCanonicalPublicMenuPath(decodedValue);
   if (canonicalPublicPath && canonicalPublicPath !== decodedValue) return canonicalPublicPath;
   return null;
+}
+
+function keepSearchParams(href: string, search: string) {
+  const normalizedSearch = search.replace(/^\?/, "");
+  return normalizedSearch ? `${href}?${normalizedSearch}` : href;
 }
 
 function getCanonicalInternalHref(href: string | null | undefined, legacyHref: string) {
@@ -728,6 +733,7 @@ export function DynamicMenuSubItemPage() {
 // ─── 깔끔한 CMS 페이지 URL (/page/상위메뉴-메뉴명) ─────────────────────────
 export function DynamicMenuHrefPage() {
   const [location, setLocation] = useLocation();
+  const search = useSearch();
   const activeHref = decodePath(location);
   const codeBackedHref = getCodeBackedPageAlias(activeHref);
   const shouldLoadDynamicPage = Boolean(activeHref) && !codeBackedHref;
@@ -752,9 +758,9 @@ export function DynamicMenuHrefPage() {
 
   useEffect(() => {
     if (codeBackedHref) {
-      setLocation(codeBackedHref, { replace: true });
+      setLocation(keepSearchParams(codeBackedHref, search), { replace: true });
     }
-  }, [codeBackedHref, setLocation]);
+  }, [codeBackedHref, search, setLocation]);
 
   if (codeBackedHref) {
     return <LoadingDynamicPage />;
@@ -767,7 +773,7 @@ export function DynamicMenuHrefPage() {
   if (item && isCourseMenuItemWithinTopMenu(allMenus, item.href)) {
     const canonicalCourseHref = getCanonicalCourseHref(item.label, item.href);
     if (decodePath(canonicalCourseHref) !== decodePath(activeHref)) {
-      setLocation(canonicalCourseHref, { replace: true });
+      setLocation(keepSearchParams(canonicalCourseHref, search), { replace: true });
       return <LoadingDynamicPage />;
     }
   }
@@ -775,7 +781,7 @@ export function DynamicMenuHrefPage() {
   if (subItem && isCourseMenuItemWithinTopMenu(allMenus, subItem.href)) {
     const canonicalCourseHref = getCanonicalCourseHref(subItem.label, subItem.href);
     if (decodePath(canonicalCourseHref) !== decodePath(activeHref)) {
-      setLocation(canonicalCourseHref, { replace: true });
+      setLocation(keepSearchParams(canonicalCourseHref, search), { replace: true });
       return <LoadingDynamicPage />;
     }
   }

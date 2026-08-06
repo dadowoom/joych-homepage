@@ -285,6 +285,11 @@ function normalizeMenuLabel(label: string | null | undefined) {
   return (label ?? "").replace(/\s+/g, "").trim();
 }
 
+export function isCourseTopMenuLabel(label: string | null | undefined) {
+  const normalized = normalizeMenuLabel(label);
+  return normalized === "강좌" || normalized === "교육·신청";
+}
+
 /** 메뉴 이름으로 영문으로 남아 있는 공개 메뉴 주소를 한글 기준 주소로 바꿉니다. */
 export function getCanonicalPublicMenuHref(
   label: string | null | undefined,

@@ -23,7 +23,10 @@ import {
   parseCourseFacilityCustomDates,
   parseCourseFacilityRepeatDays,
 } from "@shared/courseFacilitySchedule";
-import { getPublicMenuHrefCandidates } from "@shared/publicMenuRoutes";
+import {
+  getCanonicalPublicMenuPath,
+  getPublicMenuHrefCandidates,
+} from "@shared/publicMenuRoutes";
 import {
   churchMembers,
   Course,
@@ -582,7 +585,7 @@ export async function getCourseRoomManagers() {
   const db = await getDb();
   if (!db) return [];
 
-  return db.select({
+  const rows = await db.select({
     id: courseRoomManagers.id,
     memberId: courseRoomManagers.memberId,
     pageHref: courseRoomManagers.pageHref,
@@ -601,6 +604,15 @@ export async function getCourseRoomManagers() {
     .leftJoin(churchMembers, eq(courseRoomManagers.memberId, churchMembers.id))
     .where(eq(courseRoomManagers.canManage, true))
     .orderBy(asc(courseRoomManagers.pageHref), desc(courseRoomManagers.createdAt));
+
+  const seen = new Set<string>();
+  return rows.flatMap(row => {
+    const pageHref = getCanonicalPublicMenuPath(row.pageHref) ?? row.pageHref;
+    const key = `${row.memberId}:${pageHref}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{ ...row, pageHref }];
+  });
 }
 
 export async function hasCourseRoomManagementAccess(memberId: number, pageHref: string) {
@@ -631,17 +643,22 @@ export async function getCourseRoomManagementPagesForMember(memberId: number) {
     ))
     .orderBy(asc(courseRoomManagers.pageHref));
 
-  return rows.map(row => row.pageHref);
+  return Array.from(new Set(
+    rows.map(row => getCanonicalPublicMenuPath(row.pageHref) ?? row.pageHref),
+  ));
 }
 
 export async function createCourseRoomManager(data: InsertCourseRoomManager) {
   const db = await getDb();
   if (!db) return null;
 
+  const canonicalHref = getCanonicalPublicMenuPath(data.pageHref) ?? data.pageHref;
+  const pageHrefCandidates = getPublicMenuHrefCandidates(canonicalHref);
+
   const [existing] = await db.select().from(courseRoomManagers)
     .where(and(
       eq(courseRoomManagers.memberId, data.memberId),
-      eq(courseRoomManagers.pageHref, data.pageHref),
+      inArray(courseRoomManagers.pageHref, pageHrefCandidates),
     ))
     .limit(1);
   if (existing) {
@@ -651,7 +668,9 @@ export async function createCourseRoomManager(data: InsertCourseRoomManager) {
     return existing.id;
   }
 
-  const [result] = await db.insert(courseRoomManagers).values(data).$returningId();
+  const [result] = await db.insert(courseRoomManagers)
+    .values({ ...data, pageHref: canonicalHref })
+    .$returningId();
   return result?.id ?? null;
 }
 
@@ -664,7 +683,21 @@ export async function updateCourseRoomManager(id: number, data: Partial<InsertCo
 export async function deleteCourseRoomManager(id: number) {
   const db = await getDb();
   if (!db) return;
-  await db.delete(courseRoomManagers).where(eq(courseRoomManagers.id, id));
+
+  const [existing] = await db.select({
+    memberId: courseRoomManagers.memberId,
+    pageHref: courseRoomManagers.pageHref,
+  })
+    .from(courseRoomManagers)
+    .where(eq(courseRoomManagers.id, id))
+    .limit(1);
+  if (!existing) return;
+
+  const pageHrefCandidates = getPublicMenuHrefCandidates(existing.pageHref);
+  await db.delete(courseRoomManagers).where(and(
+    eq(courseRoomManagers.memberId, existing.memberId),
+    inArray(courseRoomManagers.pageHref, pageHrefCandidates),
+  ));
 }
 
 export async function getMyCourseApplications(memberId: number) {

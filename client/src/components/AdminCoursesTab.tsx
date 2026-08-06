@@ -11,7 +11,6 @@ import { useSearch } from "wouter";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
-import { isCourseTopMenuLabel } from "@/lib/courseRoutes";
 import CourseApplicationChecklist from "@/components/CourseApplicationChecklist";
 import {
   applyCourseApplicationChecklistChange,
@@ -38,6 +37,7 @@ import {
   parseCourseFacilityRepeatDays,
   type CourseFacilityRepeatMode,
 } from "@shared/courseFacilitySchedule";
+import { getCanonicalPublicMenuPath, PUBLIC_MENU_PATHS } from "@shared/publicMenuRoutes";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -129,7 +129,7 @@ const EMPTY_FORM = {
   status: "draft" as CourseStatus,
   isVisible: true,
   audience: "all" as CourseAudience,
-  pageHref: "/education/courses",
+  pageHref: PUBLIC_MENU_PATHS.academy as string,
   applicationFields: [] as ApplicationField[],
   applicationNotice: "",
   sortOrder: 0,
@@ -230,7 +230,8 @@ function formatDateRange(course: Pick<Course, "startDate" | "endDate" | "startTi
 }
 
 function normalizeCoursePageHref(value: string | null | undefined) {
-  return value?.trim() || "/education/courses";
+  const href = value?.trim() || PUBLIC_MENU_PATHS.academy;
+  return getCanonicalPublicMenuPath(href) ?? href;
 }
 
 function formatCreatedAt(value: Date | string | number) {
@@ -360,7 +361,7 @@ export default function AdminCoursesTab() {
   const applicationEndMin = form.applyStartDate > applicationStartMin
     ? form.applyStartDate
     : applicationStartMin;
-  const [selectedCourseRoomHref, setSelectedCourseRoomHref] = useState("/education/courses");
+  const [selectedCourseRoomHref, setSelectedCourseRoomHref] = useState<string>(PUBLIC_MENU_PATHS.academy);
   const [uploadingCourseImage, setUploadingCourseImage] = useState(false);
   const [facilityPickerOpen, setFacilityPickerOpen] = useState(false);
   const [facilityPickerDate, setFacilityPickerDate] = useState("");
@@ -370,13 +371,13 @@ export default function AdminCoursesTab() {
 
   const { data: courses = [], isLoading } = trpc.cms.courses.list.useQuery();
   const { data: facilities = [] } = trpc.home.facilities.useQuery();
-  const { data: menus = [] } = trpc.cms.menus.list.useQuery();
+  const { data: courseMenuOptions = [], isLoading: courseRoomsLoading } = trpc.cms.courses.roomOptions.useQuery();
   const { data: applications = [], isLoading: loadingApplications } = trpc.cms.courses.applications.useQuery(
     { courseId: expandedCourseId ?? undefined },
     { enabled: expandedCourseId !== null, refetchInterval: 30000 },
   );
   const uploadCourseImage = trpc.cms.upload.courseImage.useMutation();
-  const customSchedulePageHref = form.pageHref || "/education/courses";
+  const customSchedulePageHref = normalizeCoursePageHref(form.pageHref);
   const { data: customScheduleAccess } = trpc.courseManagement.access.useQuery(
     { pageHref: customSchedulePageHref },
     {
@@ -392,7 +393,7 @@ export default function AdminCoursesTab() {
     const params = new URLSearchParams(searchString);
     if (params.get("mode") !== "new") return;
 
-    const requestedPageHref = params.get("pageHref") || "/education/courses";
+    const requestedPageHref = normalizeCoursePageHref(params.get("pageHref"));
     setSelectedCourseRoomHref(requestedPageHref);
     setShowForm(true);
     setEditingId(null);
@@ -552,48 +553,21 @@ export default function AdminCoursesTab() {
     });
   };
 
-  const courseMenuOptions = useMemo(() => {
-    const options: { label: string; href: string }[] = [];
-    for (const menu of menus) {
-      const isCourseTopMenu = isCourseTopMenuLabel(menu.label);
-      if (!isCourseTopMenu) continue;
-      for (const item of menu.items ?? []) {
-        if (item.href && item.isVisible !== false) {
-          options.push({ label: item.label, href: item.href });
-        }
-        for (const subItem of item.subItems ?? []) {
-          if (subItem.href && subItem.isVisible !== false) {
-            options.push({ label: `${item.label} > ${subItem.label}`, href: subItem.href });
-          }
-        }
-      }
-    }
-    if (options.length === 0) {
-      options.push({ label: "강좌 전체", href: "/education/courses" });
-    }
-    const seen = new Set<string>();
-    return options.filter(option => {
-      if (seen.has(option.href)) return false;
-      seen.add(option.href);
-      return true;
-    });
-  }, [menus]);
-
   useEffect(() => {
     const params = new URLSearchParams(searchString);
     const requestedPageHref = params.get("pageHref");
     if (requestedPageHref) {
-      setSelectedCourseRoomHref(requestedPageHref);
+      setSelectedCourseRoomHref(normalizeCoursePageHref(requestedPageHref));
       return;
     }
 
     if (!courseMenuOptions.some(option => option.href === selectedCourseRoomHref)) {
-      setSelectedCourseRoomHref(courseMenuOptions[0]?.href ?? "/education/courses");
+      setSelectedCourseRoomHref(courseMenuOptions[0]?.href ?? PUBLIC_MENU_PATHS.academy);
     }
   }, [courseMenuOptions, searchString, selectedCourseRoomHref]);
 
   const selectedCourseRoom = useMemo(
-    () => courseMenuOptions.find(option => option.href === selectedCourseRoomHref) ?? courseMenuOptions[0] ?? { label: "강좌 전체", href: "/education/courses" },
+    () => courseMenuOptions.find(option => option.href === selectedCourseRoomHref) ?? courseMenuOptions[0] ?? { label: "조이아카데미", href: PUBLIC_MENU_PATHS.academy },
     [courseMenuOptions, selectedCourseRoomHref],
   );
 
@@ -950,7 +924,7 @@ export default function AdminCoursesTab() {
       status: course.status,
       isVisible: course.isVisible,
       audience: (course.audience ?? "all") as CourseAudience,
-      pageHref: course.pageHref ?? "/education/courses",
+      pageHref: normalizeCoursePageHref(course.pageHref),
       applicationFields: parseApplicationFields(course.applicationFields),
       applicationNotice: course.applicationNotice ?? "",
       sortOrder: course.sortOrder,
@@ -984,7 +958,7 @@ export default function AdminCoursesTab() {
       status: form.status,
       isVisible: form.isVisible,
       audience: form.audience,
-      pageHref: form.pageHref || "/education/courses",
+      pageHref: normalizeCoursePageHref(form.pageHref),
       applicationFields: serializeApplicationFields(form.applicationFields),
       applicationNotice: form.applicationNotice,
       sortOrder: Number(form.sortOrder) || 0,
@@ -1050,7 +1024,7 @@ export default function AdminCoursesTab() {
     }
   }
 
-  if (isLoading) {
+  if (isLoading || courseRoomsLoading) {
     return <div className="flex items-center justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-[#1B5E20]" /></div>;
   }
 

@@ -5,6 +5,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { publicProcedure, router } from "../_core/trpc";
+import { getPublicMenuHrefCandidates } from "@shared/publicMenuRoutes";
 import { hasAdminContentPermission } from "../db/adminPermissions";
 import {
   assertCourseCustomScheduleAccess,
@@ -285,7 +286,10 @@ export const courseManagementRouter = router({
     .query(async ({ input, ctx }) => {
       await assertCourseRoomAccess(ctx, input.pageHref);
       const applications = await getCourseApplications();
-      return applications.filter(application => (application.coursePageHref || "/education/courses") === input.pageHref);
+      const pageHrefCandidates = new Set(getPublicMenuHrefCandidates(input.pageHref));
+      return applications.filter(application =>
+        pageHrefCandidates.has(application.coursePageHref || "/education/courses"),
+      );
     }),
 
   create: publicProcedure

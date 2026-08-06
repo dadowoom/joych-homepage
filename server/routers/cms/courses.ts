@@ -11,6 +11,11 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { MAX_COURSE_APPLICATION_CHECKLIST_ITEMS } from "@shared/courseApplicationChecklist";
 import {
+  getCanonicalPublicMenuPath,
+  isCourseTopMenuLabel,
+  PUBLIC_MENU_PATHS,
+} from "@shared/publicMenuRoutes";
+import {
   COURSE_FACILITY_REPEAT_MODES,
   buildCourseFacilityScheduleDates,
   serializeCourseFacilityCustomDates,
@@ -25,10 +30,12 @@ import {
   deleteCourse,
   deleteCourseRoomManager,
   getAllMembers,
+  getAllMenus,
   getCourseApplications,
   getCourseById,
   getCourseFacilityScheduleConflicts,
   getCourseRoomManagers,
+  getMemberById,
   getCoursesForAdmin,
   ReservationLockError,
   ReservationOverlapError,
@@ -86,6 +93,35 @@ const applicationDetailsSchema = z.object({
   memo: optionalTextSchema(2_000),
 });
 const courseProcedure = adminPermissionProcedure("content:courses");
+
+const DEFAULT_COURSE_ROOM_OPTIONS = [
+  { label: "조이아카데미", href: PUBLIC_MENU_PATHS.academy },
+  { label: "제자반", href: PUBLIC_MENU_PATHS.discipleCourse },
+  { label: "리더십반", href: PUBLIC_MENU_PATHS.leadershipCourse },
+  { label: "생선컨퍼런스", href: PUBLIC_MENU_PATHS.saengseonConference },
+];
+
+async function getCourseRoomOptions() {
+  const menus = await getAllMenus();
+  const courseMenu = menus.find(menu => isCourseTopMenuLabel(menu.label));
+  const options = (courseMenu?.items ?? []).flatMap(item => {
+    const itemOptions = item.href && item.isVisible !== false
+      ? [{ label: item.label, href: getCanonicalPublicMenuPath(item.href) ?? item.href }]
+      : [];
+    const subItemOptions = (item.subItems ?? [])
+      .filter(subItem => subItem.href && subItem.isVisible !== false)
+      .map(subItem => ({
+        label: `${item.label} > ${subItem.label}`,
+        href: getCanonicalPublicMenuPath(subItem.href) ?? subItem.href!,
+      }));
+    return [...itemOptions, ...subItemOptions];
+  });
+
+  const uniqueOptions = options.filter((option, index) =>
+    options.findIndex(candidate => candidate.href === option.href) === index,
+  );
+  return uniqueOptions.length > 0 ? uniqueOptions : DEFAULT_COURSE_ROOM_OPTIONS;
+}
 const applicationFieldSchema = z.object({
   id: z.string().trim().min(1).max(64),
   label: z.string().trim().min(1).max(80),
@@ -351,6 +387,8 @@ export const coursesRouter = router({
     }));
   }),
 
+  roomOptions: courseProcedure.query(() => getCourseRoomOptions()),
+
   roomManagers: courseProcedure.query(() => getCourseRoomManagers()),
 
   createRoomManager: courseProcedure
@@ -358,9 +396,17 @@ export const coursesRouter = router({
       memberId: idSchema,
       pageHref: z.string().trim().min(1).max(255).startsWith("/"),
     }))
-    .mutation(({ input, ctx }) =>
-      createCourseRoomManager({ ...input, canManage: true, createdBy: ctx.user.id })
-    ),
+    .mutation(async ({ input, ctx }) => {
+      const member = await getMemberById(input.memberId);
+      if (!member || member.status !== "approved") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "승인된 성도만 강좌방 담당자로 지정할 수 있습니다.",
+        });
+      }
+      const pageHref = getCanonicalPublicMenuPath(input.pageHref) ?? input.pageHref;
+      return createCourseRoomManager({ ...input, pageHref, canManage: true, createdBy: ctx.user.id });
+    }),
 
   updateRoomManager: courseProcedure
     .input(z.object({ id: idSchema, canManage: z.boolean() }))
