@@ -73,6 +73,10 @@ describe(MIGRATION_ID, () => {
       ),
       "8.0.43-commercial"
     );
+    assert.equal(
+      assertOfficialMysql8Version("8.0.31", "Source distribution"),
+      "8.0.31"
+    );
 
     for (const [version, comment] of [
       ["10.11.8-MariaDB", "MariaDB Server"],
@@ -80,7 +84,6 @@ describe(MIGRATION_ID, () => {
       ["8.0.36-28", "Percona Server (GPL)"],
       ["8.0.mysql_aurora.3.08.0", "Source distribution"],
       ["9.0.1", community],
-      ["8.0.43", "Source distribution"],
       ["8.0.43", "(Ubuntu)"],
       ["", community],
       [null, community],

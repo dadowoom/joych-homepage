@@ -92,6 +92,7 @@ export function assertOfficialMysql8Version(value, versionComment) {
   const engineDescription = `${version} ${comment}`;
   const recognizedMysqlComment =
     /\bmysql\b/i.test(comment) ||
+    (/^source distribution$/i.test(comment) && MYSQL_8_VERSION.test(version)) ||
     (/ubuntu/i.test(version) && /ubuntu/i.test(comment));
   if (
     !MYSQL_8_VERSION.test(version) ||
