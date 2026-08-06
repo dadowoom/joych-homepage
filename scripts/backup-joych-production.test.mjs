@@ -372,6 +372,7 @@ test("database lock heartbeat times out and invalidates the recovery lease", asy
 });
 
 test("database lock acquisition timeout destroys a half-open connection", async () => {
+  const keepEventLoopAlive = setTimeout(() => {}, 1_000);
   const connection = {
     destroyed: false,
     execute: async () => new Promise(() => {}),
@@ -380,17 +381,22 @@ test("database lock acquisition timeout destroys a half-open connection", async 
     },
   };
 
-  await assert.rejects(
-    acquireDatabaseBackupLock("mysql://test/joych", {
-      createConnection: async () => connection,
-      lockQueryTimeoutMs: 5,
-    }),
-    /Timed out while acquiring the database backup lock/
-  );
-  assert.equal(connection.destroyed, true);
+  try {
+    await assert.rejects(
+      acquireDatabaseBackupLock("mysql://test/joych", {
+        createConnection: async () => connection,
+        lockQueryTimeoutMs: 5,
+      }),
+      /Timed out while acquiring the database backup lock/
+    );
+    assert.equal(connection.destroyed, true);
+  } finally {
+    clearTimeout(keepEventLoopAlive);
+  }
 });
 
 test("database lock release timeout destroys a half-open connection", async () => {
+  const keepEventLoopAlive = setTimeout(() => {}, 1_000);
   const connection = {
     ended: false,
     destroyed: false,
@@ -406,17 +412,21 @@ test("database lock release timeout destroys a half-open connection", async () =
       connection.destroyed = true;
     },
   };
-  const databaseLock = await acquireDatabaseBackupLock("mysql://test/joych", {
-    createConnection: async () => connection,
-    lockQueryTimeoutMs: 5,
-  });
+  try {
+    const databaseLock = await acquireDatabaseBackupLock("mysql://test/joych", {
+      createConnection: async () => connection,
+      lockQueryTimeoutMs: 5,
+    });
 
-  await assert.rejects(
-    databaseLock.release(),
-    /Timed out while releasing the database backup lock/
-  );
-  assert.equal(connection.destroyed, true);
-  assert.equal(connection.ended, false);
+    await assert.rejects(
+      databaseLock.release(),
+      /Timed out while releasing the database backup lock/
+    );
+    assert.equal(connection.destroyed, true);
+    assert.equal(connection.ended, false);
+  } finally {
+    clearTimeout(keepEventLoopAlive);
+  }
 });
 
 test("an unconfirmed database lock release destroys the connection", async () => {
