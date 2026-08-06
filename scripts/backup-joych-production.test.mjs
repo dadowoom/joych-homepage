@@ -308,8 +308,16 @@ test("database lock heartbeat times out and invalidates the recovery lease", asy
   const connection = new EventEmitter();
   connection.destroyed = false;
   let markHeartbeatAttempted;
-  const heartbeatAttempted = new Promise(resolve => {
-    markHeartbeatAttempted = resolve;
+  let heartbeatStartTimeout;
+  const heartbeatAttempted = new Promise((resolve, reject) => {
+    heartbeatStartTimeout = setTimeout(
+      () => reject(new Error("Database lock heartbeat did not start.")),
+      1_000
+    );
+    markHeartbeatAttempted = () => {
+      clearTimeout(heartbeatStartTimeout);
+      resolve();
+    };
   });
   connection.execute = async sql => {
     if (sql.includes("GET_LOCK")) return [[{ locked: 1 }]];
@@ -324,39 +332,43 @@ test("database lock heartbeat times out and invalidates the recovery lease", asy
     connection.destroyed = true;
   };
 
-  const databaseLock = await acquireDatabaseBackupLock("mysql://test/joych", {
-    createConnection: async () => connection,
-    heartbeatIntervalMs: 1,
-    heartbeatTimeoutMs: 5,
-  });
-  await heartbeatAttempted;
-  if (!databaseLock.signal.aborted) {
-    await new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(
-        () => reject(new Error("Heartbeat timeout did not abort the lock.")),
-        250
-      );
-      databaseLock.signal.addEventListener(
-        "abort",
-        () => {
-          clearTimeout(timeoutId);
-          resolve();
-        },
-        { once: true }
-      );
+  try {
+    const databaseLock = await acquireDatabaseBackupLock("mysql://test/joych", {
+      createConnection: async () => connection,
+      heartbeatIntervalMs: 1,
+      heartbeatTimeoutMs: 5,
     });
-  }
+    await heartbeatAttempted;
+    if (!databaseLock.signal.aborted) {
+      await new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(
+          () => reject(new Error("Heartbeat timeout did not abort the lock.")),
+          250
+        );
+        databaseLock.signal.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(timeoutId);
+            resolve();
+          },
+          { once: true }
+        );
+      });
+    }
 
-  assert.equal(databaseLock.signal.aborted, true);
-  assert.throws(
-    () => databaseLock.assertHealthy(),
-    /Database backup lock connection was lost/
-  );
-  await assert.rejects(
-    databaseLock.release(),
-    /Database backup lock connection was lost/
-  );
-  assert.equal(connection.destroyed, true);
+    assert.equal(databaseLock.signal.aborted, true);
+    assert.throws(
+      () => databaseLock.assertHealthy(),
+      /Database backup lock connection was lost/
+    );
+    await assert.rejects(
+      databaseLock.release(),
+      /Database backup lock connection was lost/
+    );
+    assert.equal(connection.destroyed, true);
+  } finally {
+    clearTimeout(heartbeatStartTimeout);
+  }
 });
 
 test("database lock acquisition timeout destroys a half-open connection", async () => {
