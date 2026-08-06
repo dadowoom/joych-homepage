@@ -776,6 +776,27 @@ function safeJsonForScript(value: string) {
     .replace(/\u2029/g, "\\u2029");
 }
 
+function buildCrawlerFallback(canonicalUrl: string, seo: SeoRoute) {
+  const publicOrigin = new URL(canonicalUrl).origin;
+  const homeUrl = buildUrl("/", publicOrigin);
+  const directionsUrl = buildUrl("/about/directions", publicOrigin);
+  const worshipUrl = buildUrl("/worship/tv", publicOrigin);
+  const sitemapUrl = buildUrl("/sitemap", publicOrigin);
+
+  // The public site is a JavaScript application. Google renders it, but this
+  // small real-content fallback also lets crawlers that do not execute the app
+  // establish the page subject, church identity and public navigation.
+  return `\n    <noscript data-seo-fallback="true">\n      <main aria-label="${escapeHtml(SITE_NAME)} 검색 안내">\n        <h1>${escapeHtml(seo.title)}</h1>\n        <p>${escapeHtml(seo.description)}</p>\n        <p>${escapeHtml(SITE_NAME)} · ${escapeHtml(CHURCH_ADDRESS.full)} · <a href="tel:${CHURCH_TELEPHONE.replace(/-/g, "")}">${escapeHtml(CHURCH_TELEPHONE)}</a></p>\n        <nav aria-label="주요 메뉴">\n          <a href="${escapeHtml(homeUrl)}">홈</a> ·\n          <a href="${escapeHtml(directionsUrl)}">오시는 길</a> ·\n          <a href="${escapeHtml(worshipUrl)}">조이풀TV</a> ·\n          <a href="${escapeHtml(sitemapUrl)}">사이트맵</a>\n        </nav>\n      </main>\n    </noscript>`;
+}
+
+function upsertCrawlerFallback(html: string, fallback: string) {
+  const withoutExistingFallback = html.replace(
+    /\s*<noscript\s+data-seo-fallback="true">[\s\S]*?<\/noscript>/i,
+    ""
+  );
+  return withoutExistingFallback.replace("</body>", `${fallback}\n  </body>`);
+}
+
 function upsertTag(html: string, pattern: RegExp, tag: string) {
   if (pattern.test(html)) return html.replace(pattern, tag);
   return html.replace("</head>", `    ${tag}\n  </head>`);
@@ -880,10 +901,11 @@ export function injectSeoMeta(html: string, req: Request) {
   );
   const nonce = (req as RequestWithCspNonce).cspNonce;
   const nonceAttr = nonce ? ` nonce="${escapeHtml(nonce)}"` : "";
-  return output.replace(
+  output = output.replace(
     "</head>",
     `    <script type="application/ld+json" data-seo="true"${nonceAttr}>${safeJsonForScript(buildStructuredData(canonicalUrl, seo))}</script>\n  </head>`
   );
+  return upsertCrawlerFallback(output, buildCrawlerFallback(canonicalUrl, seo));
 }
 
 function shouldIncludeSitemapPath(pathname: string) {

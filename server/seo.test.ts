@@ -185,6 +185,23 @@ describe("SEO meta injection", () => {
     expect(html).toContain('<meta name="robots" content="noindex, follow" />');
   });
 
+  it("자바스크립트를 실행하지 않는 검색로봇에도 실제 페이지 정보를 제공한다", () => {
+    const html = injectSeoMeta(baseHtml, mockRequest("/about/directions"));
+
+    expect(html).toContain('<noscript data-seo-fallback="true">');
+    expect(html).toContain("<h1>오시는 길 | 기쁨의교회</h1>");
+    expect(html).toContain("경상북도 포항시 북구 삼흥로 411");
+    expect(html).toContain('href="https://dadowoomtest.co.kr/sitemap"');
+  });
+
+  it("검색용 대체 본문을 한 번만 유지한다", () => {
+    const first = injectSeoMeta(baseHtml, mockRequest("/about/directions"));
+    const second = injectSeoMeta(first, mockRequest("/about/directions"));
+    const matches = second.match(/data-seo-fallback="true"/g) ?? [];
+
+    expect(matches).toHaveLength(1);
+  });
+
   it("사용자 정의 도메인의 기존 www 정리 동작은 유지한다", () => {
     withPublicUrlBase("https://church.example.com", () => {
       const req = {
