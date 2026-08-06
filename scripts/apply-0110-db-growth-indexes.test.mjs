@@ -82,6 +82,7 @@ describe(MIGRATION_ID, () => {
       ["10.11.8-MariaDB", "MariaDB Server"],
       ["5.7.25-TiDB-v8.5.0", "TiDB Server"],
       ["8.0.36-28", "Percona Server (GPL)"],
+      ["8.0.36-28", "Source distribution"],
       ["8.0.mysql_aurora.3.08.0", "Source distribution"],
       ["9.0.1", community],
       ["8.0.43", "(Ubuntu)"],

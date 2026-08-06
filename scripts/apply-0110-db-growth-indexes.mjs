@@ -67,6 +67,7 @@ export const EXPECTED_INDEXES = [
 
 const DRIZZLE_BREAKPOINT = "-- --> statement-breakpoint";
 const MYSQL_8_VERSION = /^8\.\d+\.\d+(?:[-+._~][0-9a-z+._~-]+)*$/i;
+const PLAIN_MYSQL_8_VERSION = /^8\.\d+\.\d+$/;
 const UNSUPPORTED_ENGINE_MARKER = /mariadb|tidb|percona|aurora/i;
 
 export function splitMigrationStatements(source) {
@@ -92,7 +93,8 @@ export function assertOfficialMysql8Version(value, versionComment) {
   const engineDescription = `${version} ${comment}`;
   const recognizedMysqlComment =
     /\bmysql\b/i.test(comment) ||
-    (/^source distribution$/i.test(comment) && MYSQL_8_VERSION.test(version)) ||
+    (/^source distribution$/i.test(comment) &&
+      PLAIN_MYSQL_8_VERSION.test(version)) ||
     (/ubuntu/i.test(version) && /ubuntu/i.test(comment));
   if (
     !MYSQL_8_VERSION.test(version) ||
