@@ -162,7 +162,7 @@ const TABS: TabItem[] = [
   },
   {
     id: "testimonies",
-    label: "생선 간증 관리",
+    label: "간증게시판 관리",
     icon: "fa-comments",
     description: "생명의 삶 나눔과 간증 콘텐츠의 게시 정보를 관리합니다.",
     status: "검수/게시",

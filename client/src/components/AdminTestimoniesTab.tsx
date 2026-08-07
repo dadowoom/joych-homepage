@@ -55,7 +55,7 @@ export default function AdminTestimoniesTab() {
   return (
     <div className="space-y-8">
       <div>
-        <h3 className="text-lg font-bold text-gray-800">생선 간증 관리</h3>
+        <h3 className="text-lg font-bold text-gray-800">간증게시판 관리</h3>
         <p className="text-sm text-gray-500 mt-0.5">
           성도가 작성한 간증 글과 댓글을 공개/숨김/삭제 처리합니다.
         </p>
