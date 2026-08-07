@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   Clock3,
   Loader2,
-  LockKeyhole,
   Pencil,
   RotateCcw,
   Search,
@@ -32,8 +31,6 @@ type ExternalReservationStatus = ExternalReservationRow["status"];
 type LookupCredentials = {
   reserverName: string;
   reserverPhone: string;
-  managePassword: string;
-  manageCode: string;
 };
 
 type EditDraft = {
@@ -124,8 +121,6 @@ export default function ExternalFacilityReservations() {
   const [credentials, setCredentials] = useState<LookupCredentials>({
     reserverName: "",
     reserverPhone: "",
-    managePassword: "",
-    manageCode: "",
   });
   const [reservations, setReservations] = useState<ExternalReservationRow[]>([]);
   const [hasVerified, setHasVerified] = useState(false);
@@ -151,8 +146,6 @@ export default function ExternalFacilityReservations() {
     lookup.mutate({
       reserverName: credentials.reserverName.trim(),
       reserverPhone: credentials.reserverPhone.trim(),
-      managePassword: credentials.managePassword,
-      manageCode: credentials.manageCode,
     });
   };
 
@@ -192,19 +185,9 @@ export default function ExternalFacilityReservations() {
       toast.error("예약자 이름과 연락처를 입력해 주세요.");
       return;
     }
-    if (!/^\d{6}$/.test(credentials.managePassword)) {
-      toast.error("예약 확인 비밀번호를 숫자 6자리로 입력해 주세요.");
-      return;
-    }
-    if (!/^[A-Za-z0-9_-]{22}$/.test(credentials.manageCode)) {
-      toast.error("예약 확인번호 22자를 정확히 입력해 주세요.");
-      return;
-    }
     lookup.mutate({
       reserverName,
       reserverPhone,
-      managePassword: credentials.managePassword,
-      manageCode: credentials.manageCode,
     });
   };
 
@@ -253,8 +236,6 @@ export default function ExternalFacilityReservations() {
       id: editing.id,
       reserverName: credentials.reserverName.trim(),
       reserverPhone: credentials.reserverPhone.trim(),
-      managePassword: credentials.managePassword,
-      manageCode: credentials.manageCode,
       reservationDate: editing.reservationDate,
       startTime: editing.startTime,
       endTime: editing.endTime,
@@ -270,14 +251,12 @@ export default function ExternalFacilityReservations() {
       id: row.id,
       reserverName: credentials.reserverName.trim(),
       reserverPhone: credentials.reserverPhone.trim(),
-      managePassword: credentials.managePassword,
-      manageCode: credentials.manageCode,
     });
   };
 
   const resetLookup = () => {
     lookup.reset();
-    setCredentials({ reserverName: "", reserverPhone: "", managePassword: "", manageCode: "" });
+    setCredentials({ reserverName: "", reserverPhone: "" });
     setReservations([]);
     setHasVerified(false);
     setEditing(null);
@@ -302,7 +281,7 @@ export default function ExternalFacilityReservations() {
                 내 예약 확인·변경
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-green-100">
-                신청할 때 입력한 이름, 연락처, 숫자 6자리 비밀번호와 발급받은 예약 확인번호로 예약 상태를 확인할 수 있습니다.
+                신청할 때 입력한 이름과 연락처로 예약 상태를 확인할 수 있습니다.
               </p>
             </div>
           </div>
@@ -314,10 +293,10 @@ export default function ExternalFacilityReservations() {
           <section className="mx-auto max-w-xl rounded-2xl border border-gray-100 bg-white p-5 shadow-sm sm:p-7" aria-labelledby="lookup-title">
             <div className="mb-6 flex items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-50 text-[#1B5E20]">
-                <LockKeyhole className="h-5 w-5" />
+                <Search className="h-5 w-5" aria-hidden="true" />
               </div>
               <div>
-                <h2 id="lookup-title" className="font-bold text-gray-900">예약자 확인</h2>
+                <h2 id="lookup-title" className="font-bold text-gray-900">예약 조회</h2>
                 <p className="mt-1 text-sm leading-6 text-gray-500">
                   입력 정보는 예약 확인에만 사용되며 주소나 브라우저 저장소에 보관하지 않습니다.
                 </p>
@@ -350,59 +329,6 @@ export default function ExternalFacilityReservations() {
                   required
                 />
               </Field>
-              <Field
-                label="예약 확인 비밀번호"
-                htmlFor="external-manage-password"
-                hint="시설 예약을 신청할 때 직접 정한 숫자 6자리입니다."
-              >
-                <input
-                  id="external-manage-password"
-                  type="password"
-                  value={credentials.managePassword}
-                  onChange={(event) => setCredentials(prev => ({
-                    ...prev,
-                    managePassword: event.target.value.replace(/\D/g, "").slice(0, 6),
-                  }))}
-                  inputMode="numeric"
-                  pattern="[0-9]{6}"
-                  maxLength={6}
-                  autoComplete="off"
-                  className={inputClass}
-                  placeholder="숫자 6자리"
-                  aria-describedby="external-manage-password-help"
-                  required
-                />
-                <span id="external-manage-password-help" className="sr-only">
-                  시설 예약 신청 때 직접 정한 숫자 6자리 비밀번호를 입력해 주세요.
-                </span>
-              </Field>
-              <Field
-                label="예약 확인번호"
-                htmlFor="external-manage-code"
-                hint="예약 신청 완료 화면에서 한 번만 발급된 영문·숫자 22자입니다. 대문자와 소문자를 구분합니다."
-              >
-                <input
-                  id="external-manage-code"
-                  type="text"
-                  value={credentials.manageCode}
-                  onChange={(event) => setCredentials(prev => ({
-                    ...prev,
-                    manageCode: event.target.value.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 22),
-                  }))}
-                  minLength={22}
-                  maxLength={22}
-                  autoComplete="off"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  className={`${inputClass} font-mono tracking-wide`}
-                  placeholder="예약 확인번호 22자"
-                  aria-describedby="external-manage-code-help"
-                  required
-                />
-                <p id="external-manage-code-help" className="mt-1.5 text-xs font-medium leading-5 text-amber-700">
-                  확인번호를 분실한 경우 교회 사무국(054-270-1000)으로 문의해 주세요.
-                </p>
-              </Field>
               <Button
                 type="submit"
                 disabled={lookup.isPending}
@@ -415,9 +341,6 @@ export default function ExternalFacilityReservations() {
                 )}
               </Button>
             </form>
-            <div className="mt-5 rounded-lg border border-amber-100 bg-amber-50 px-3.5 py-3 text-xs leading-5 text-amber-800">
-              확인번호가 발급되기 전에 접수한 예약, 또는 비밀번호·확인번호를 잊은 예약은 교회 사무국(054-270-1000)으로 문의해 주세요.
-            </div>
           </section>
         ) : (
           <div className="space-y-6">
@@ -425,7 +348,7 @@ export default function ExternalFacilityReservations() {
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#1B5E20]" />
                 <div>
-                  <p className="font-bold text-green-900">예약자 확인이 완료되었습니다.</p>
+                  <p className="font-bold text-green-900">예약 조회가 완료되었습니다.</p>
                   <p className="mt-0.5 text-sm text-green-700">{credentials.reserverName}님의 외부인 시설 예약 {reservations.length}건</p>
                 </div>
               </div>
@@ -600,7 +523,7 @@ export default function ExternalFacilityReservations() {
             <div className="rounded-xl border border-amber-100 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
               <p className="flex items-start gap-2">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                비밀번호나 확인번호를 잊었거나 지난 예약의 변경이 필요하면 기쁨의교회 사무국(054-270-1000)으로 문의해 주세요.
+                이미 시작했거나 지난 예약의 변경이 필요하면 기쁨의교회 사무국(054-270-1000)으로 문의해 주세요.
               </p>
             </div>
           </div>

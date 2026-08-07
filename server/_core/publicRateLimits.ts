@@ -87,6 +87,17 @@ export function enforcePublicRateLimit(
 }
 
 /**
+ * 로그인 쿠키 유무로 공개 API 제한 축이 바뀌지 않아야 하는 경로에서 사용합니다.
+ * 동일한 실제 IP는 관리자·성도·비로그인 여부와 관계없이 같은 제한을 공유합니다.
+ */
+export function enforcePublicIpRateLimit(
+  scope: PublicRateLimitScope,
+  ctx: Pick<TrpcContext, "req">,
+) {
+  publicLimiters[scope].consume(`ip:${getClientIp(ctx.req)}`);
+}
+
+/**
  * 원문 관리코드나 개인정보를 저장하지 않고, 서버에서 만든 고정 길이 해시 축으로
  * 추가 제한합니다. 호출자는 SHA-256 같은 비가역 해시만 전달해야 합니다.
  */

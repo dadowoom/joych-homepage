@@ -10,12 +10,15 @@
  *               createReservation, updateReservationStatus, getReservationById
  */
 
-import { eq, asc, desc, and, or, isNull, isNotNull, lt, gt, sql, inArray, ne, notInArray } from "drizzle-orm";
+import { eq, asc, desc, and, or, isNull, lt, gt, sql, inArray, ne, notInArray } from "drizzle-orm";
 import {
   facilities, facilityImages, facilityHours, externalFacilityHours, facilityBlockedDates, reservations, churchMembers,
   InsertFacility, InsertFacilityImage, InsertFacilityHour, InsertExternalFacilityHour, InsertFacilityBlockedDate, InsertReservation,
 } from "../../drizzle/schema";
-import { isUpcomingReservationOccurrence } from "@shared/reservationSchedule";
+import {
+  getKstScheduleNow,
+  isUpcomingReservationOccurrence,
+} from "@shared/reservationSchedule";
 import { getDb, getRawDbPool } from "./connection";
 import { withNamedLocksTransaction } from "./namedLockTransaction";
 
@@ -426,44 +429,90 @@ export async function getMyReservations(userId: number) {
     .orderBy(desc(reservations.createdAt));
 }
 
+const externalReservationSelfServiceSelection = {
+  id: reservations.id,
+  facilityId: reservations.facilityId,
+  reservationType: reservations.reservationType,
+  reserverName: reservations.reserverName,
+  reserverPhone: reservations.reserverPhone,
+  reservationDate: reservations.reservationDate,
+  startTime: reservations.startTime,
+  endTime: reservations.endTime,
+  status: reservations.status,
+  purpose: reservations.purpose,
+  department: reservations.department,
+  attendees: reservations.attendees,
+  adminComment: reservations.adminComment,
+  facilityName: facilities.name,
+};
+
 /**
- * 외부인 셀프서비스 인증 단건 조회.
+ * 외부인 셀프서비스의 소유자 조건입니다.
  *
- * 원문 관리코드는 저장하지 않고 SHA-256 lookup hash의 UNIQUE 인덱스로 정확히
- * 한 행만 찾습니다. 관리코드/비밀번호가 없는 기존 예약은 대상에 포함하지 않습니다.
+ * 0112 이전 예약에는 하이픈·공백 등이 포함된 연락처가 저장될 수 있으므로 DB 값도
+ * 숫자만 남겨 비교합니다. 공개 경로에서는 외부인 예약이면서 회원 소유자가 없는
+ * 행만 대상으로 삼습니다.
  */
-export async function getExternalReservationAuthRecordByLookupKey(
-  manageLookupKeyHash: string,
+function externalReservationIdentityCondition(
+  reserverName: string,
+  normalizedReserverPhone: string,
+  id?: number,
+) {
+  return and(
+    ...(id === undefined ? [] : [eq(reservations.id, id)]),
+    eq(reservations.reservationType, "external"),
+    isNull(reservations.userId),
+    eq(reservations.reserverName, reserverName),
+    sql`REGEXP_REPLACE(COALESCE(${reservations.reserverPhone}, ''), '[^0-9]', '') = ${normalizedReserverPhone}`,
+  );
+}
+
+/** 이름과 정규화 연락처가 일치하는 외부인 시설 예약을 최근 일정순으로 최대 50건 조회합니다. */
+export async function getExternalReservationSelfServiceRowsByIdentity(
+  reserverName: string,
+  normalizedReserverPhone: string,
+) {
+  const db = await getDb();
+  if (!db) return [];
+  const { dateKey, timeKey } = getKstScheduleNow();
+  return db
+    .select(externalReservationSelfServiceSelection)
+    .from(reservations)
+    .leftJoin(facilities, eq(reservations.facilityId, facilities.id))
+    .where(and(
+      externalReservationIdentityCondition(reserverName, normalizedReserverPhone),
+      or(
+        gt(reservations.reservationDate, dateKey),
+        and(
+          eq(reservations.reservationDate, dateKey),
+          gt(reservations.startTime, timeKey),
+        ),
+      ),
+    ))
+    .orderBy(
+      desc(reservations.reservationDate),
+      desc(reservations.startTime),
+      desc(reservations.id),
+    )
+    .limit(50);
+}
+
+/** 수정·취소 직전에 예약 ID와 이름·연락처가 모두 일치하는 외부인 예약 한 건을 조회합니다. */
+export async function getExternalReservationSelfServiceRowByIdentityAndId(
+  id: number,
+  reserverName: string,
+  normalizedReserverPhone: string,
 ) {
   const db = await getDb();
   if (!db) return null;
   const rows = await db
-    .select({
-      id: reservations.id,
-      facilityId: reservations.facilityId,
-      reservationType: reservations.reservationType,
-      reserverName: reservations.reserverName,
-      reserverPhone: reservations.reserverPhone,
-      managePasswordHash: reservations.managePasswordHash,
-      manageLookupKeyHash: reservations.manageLookupKeyHash,
-      reservationDate: reservations.reservationDate,
-      startTime: reservations.startTime,
-      endTime: reservations.endTime,
-      status: reservations.status,
-      purpose: reservations.purpose,
-      department: reservations.department,
-      attendees: reservations.attendees,
-      adminComment: reservations.adminComment,
-      facilityName: facilities.name,
-    })
+    .select(externalReservationSelfServiceSelection)
     .from(reservations)
     .leftJoin(facilities, eq(reservations.facilityId, facilities.id))
-    .where(and(
-      eq(reservations.reservationType, "external"),
-      isNull(reservations.userId),
-      eq(reservations.manageLookupKeyHash, manageLookupKeyHash),
-      isNotNull(reservations.managePasswordHash),
-      isNotNull(reservations.manageLookupKeyHash),
+    .where(externalReservationIdentityCondition(
+      reserverName,
+      normalizedReserverPhone,
+      id,
     ))
     .limit(1);
   return rows[0] ?? null;
@@ -727,18 +776,16 @@ export function getExternalReservationSelfUpdateValues(
  */
 export async function updateOwnedExternalReservationIfAvailable(
   id: number,
-  expectedManageLookupKeyHash: string,
-  expectedManagePasswordHash: string,
+  expectedReserverName: string,
+  expectedNormalizedReserverPhone: string,
   data: ExternalReservationSelfUpdate,
 ): Promise<ExternalReservationSelfMutationResult> {
   const db = await getDb();
   if (!db) return "not_found";
-  const ownership = and(
-    eq(reservations.id, id),
-    eq(reservations.reservationType, "external"),
-    isNull(reservations.userId),
-    eq(reservations.manageLookupKeyHash, expectedManageLookupKeyHash),
-    eq(reservations.managePasswordHash, expectedManagePasswordHash),
+  const ownership = externalReservationIdentityCondition(
+    expectedReserverName,
+    expectedNormalizedReserverPhone,
+    id,
   );
   const currentRows = await db.select().from(reservations).where(ownership).limit(1);
   const reservation = currentRows[0];
@@ -813,17 +860,15 @@ export async function updateOwnedExternalReservationIfAvailable(
 /** 인증된 활성 미래 외부인 예약을 삭제하지 않고 취소 상태로 전환합니다. */
 export async function cancelOwnedExternalReservation(
   id: number,
-  expectedManageLookupKeyHash: string,
-  expectedManagePasswordHash: string,
+  expectedReserverName: string,
+  expectedNormalizedReserverPhone: string,
 ): Promise<ExternalReservationSelfMutationResult> {
   const pool = await getRawDbPool();
   if (!pool) return "not_found";
-  const ownership = and(
-    eq(reservations.id, id),
-    eq(reservations.reservationType, "external"),
-    isNull(reservations.userId),
-    eq(reservations.manageLookupKeyHash, expectedManageLookupKeyHash),
-    eq(reservations.managePasswordHash, expectedManagePasswordHash),
+  const ownership = externalReservationIdentityCondition(
+    expectedReserverName,
+    expectedNormalizedReserverPhone,
+    id,
   );
 
   return withNamedLocksTransaction(

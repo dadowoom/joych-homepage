@@ -15,9 +15,9 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { compare, hash } from "bcryptjs";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import {
+  enforcePublicIpRateLimit,
   enforcePublicRateLimit,
   enforcePublicRateLimitForHashedIdentifier,
 } from "../_core/publicRateLimits";
@@ -86,7 +86,8 @@ import {
   createReservationIfAvailable,
   createReservationsIfAvailable,
   getMyReservations,
-  getExternalReservationAuthRecordByLookupKey,
+  getExternalReservationSelfServiceRowsByIdentity,
+  getExternalReservationSelfServiceRowByIdentityAndId,
   getReservationById,
   getReservationsByGroupId,
   updateOwnedExternalReservationIfAvailable,
@@ -350,9 +351,6 @@ const courseCustomAnswersSchema = z
 const externalFacilityRulesSettingKey = "external_facility_rules";
 const EXTERNAL_RESERVATION_AUTH_ERROR =
   "예약 정보를 확인할 수 없습니다. 입력 정보를 다시 확인하거나 교회 사무실에 문의해주세요.";
-const DUMMY_EXTERNAL_RESERVATION_PASSWORD_HASH =
-  "$2b$10$GJCXZsa7s8cM60XqeJiwyeZyJGO8bJldLoXWWZQX6DNrDYEXpef.m";
-
 function normalizeExternalReservationPhone(value: string) {
   if (!/^[0-9+()\-\s]+$/.test(value)) return null;
   const digits = value.replace(/\D/g, "");
@@ -374,21 +372,9 @@ const externalReservationPhoneSchema = z
     "연락처는 숫자 기준 7~15자리로 입력해주세요.",
   )
   .transform(value => normalizeExternalReservationPhone(value)!);
-const externalReservationManagePasswordSchema = z
-  .string()
-  .regex(/^\d{6}$/, "예약 관리 비밀번호는 숫자 6자리로 입력해주세요.");
-const externalReservationManageCodeSchema = z
-  .string()
-  .trim()
-  .regex(
-    /^[A-Za-z0-9_-]{22}$/,
-    "예약 관리코드는 영문·숫자 22자리 형식으로 입력해주세요.",
-  );
-const externalReservationCredentialsSchema = z.object({
+const externalReservationIdentitySchema = z.object({
   reserverName: externalReservationNameSchema,
   reserverPhone: externalReservationPhoneSchema,
-  managePassword: externalReservationManagePasswordSchema,
-  manageCode: externalReservationManageCodeSchema,
 });
 const externalReservationDetailsSchema = z.object({
   reservationDate: z
@@ -421,21 +407,35 @@ const externalReservationDetailsSchema = z.object({
     .max(2000, "추가 요청사항은 2000자 이하로 입력해주세요.")
     .optional(),
 });
-const externalReservationCreateSchema = externalReservationCredentialsSchema
-  .omit({ manageCode: true })
+const externalReservationCreateSchema = externalReservationIdentitySchema
   .extend({ facilityId: idSchema })
   .and(externalReservationDetailsSchema);
 
-function hashExternalReservationManageCode(manageCode: string) {
-  return createHash("sha256").update(manageCode, "utf8").digest("hex");
+function hashExternalReservationIdentity(identity: {
+  reserverName: string;
+  reserverPhone: string;
+}) {
+  const canonicalName = identity.reserverName
+    .normalize("NFKC")
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("ko-KR");
+  return createHash("sha256")
+    .update(JSON.stringify([canonicalName, identity.reserverPhone]), "utf8")
+    .digest("hex");
 }
 
-function issueExternalReservationManageCode() {
-  const manageCode = randomBytes(16).toString("base64url");
-  return {
-    manageCode,
-    manageLookupKeyHash: hashExternalReservationManageCode(manageCode),
-  };
+function auditExternalReservationSelfService(
+  action: "lookup" | "update" | "cancel",
+  outcome: "success" | "not_found" | "not_editable",
+  identityHash: string,
+  details: { reservationId?: number; resultCount?: number } = {},
+) {
+  console.info("[AUDIT] external_reservation_self_service", JSON.stringify({
+    action,
+    outcome,
+    identityFingerprint: identityHash.slice(0, 16),
+    ...details,
+  }));
 }
 
 function parseCourseApplicationFields(value: string | null | undefined) {
@@ -888,27 +888,6 @@ function externalReservationAuthError() {
   return new TRPCError({ code: "NOT_FOUND", message: EXTERNAL_RESERVATION_AUTH_ERROR });
 }
 
-async function authenticateExternalReservation(
-  credentials: z.infer<typeof externalReservationCredentialsSchema>,
-  manageLookupKeyHash: string,
-  expectedId?: number,
-) {
-  const row = await getExternalReservationAuthRecordByLookupKey(manageLookupKeyHash);
-  const passwordHash = row?.managePasswordHash ?? DUMMY_EXTERNAL_RESERVATION_PASSWORD_HASH;
-  const passwordMatches = await compare(credentials.managePassword, passwordHash);
-  const identityMatches = Boolean(
-    row?.managePasswordHash &&
-    row.manageLookupKeyHash === manageLookupKeyHash &&
-    row.reserverName === credentials.reserverName &&
-    row.reserverPhone === credentials.reserverPhone &&
-    (expectedId === undefined || row.id === expectedId),
-  );
-  if (!row || !identityMatches || !passwordMatches) {
-    throw externalReservationAuthError();
-  }
-  return row;
-}
-
 function assertExternalReservationSelfEditable(row: {
   status: string;
   reservationDate: string;
@@ -926,9 +905,7 @@ function assertExternalReservationSelfEditable(row: {
 }
 
 function toExternalReservationSelfServiceRow(
-  row: Awaited<ReturnType<typeof getExternalReservationAuthRecordByLookupKey>> extends infer T
-    ? NonNullable<T>
-    : never,
+  row: Awaited<ReturnType<typeof getExternalReservationSelfServiceRowsByIdentity>>[number],
 ) {
   return {
     id: row.id,
@@ -1501,9 +1478,8 @@ export const homeRouter = router({
       if (!canBypassReservationRules) {
         enforcePublicRateLimit("externalFacilityReservation", ctx);
       }
-      const { managePassword, ...reservationInput } = input;
       const facility = await validateExternalReservationRequest(
-        reservationInput,
+        input,
         { canBypassReservationRules },
       );
       const status: "approved" | "pending" = canBypassReservationRules
@@ -1511,12 +1487,8 @@ export const homeRouter = router({
         : "pending";
 
       try {
-        const { manageCode, manageLookupKeyHash } = issueExternalReservationManageCode();
-        const managePasswordHash = await hash(managePassword, 10);
         const id = await createReservationIfAvailable({
-          ...reservationInput,
-          managePasswordHash,
-          manageLookupKeyHash,
+          ...input,
           userId: null,
           reservationType: "external",
           status,
@@ -1531,16 +1503,16 @@ export const homeRouter = router({
           });
         }
         void notifyFacilityReservation({
-          reserverName: reservationInput.reserverName,
+          reserverName: input.reserverName,
           facilityName: facility.name,
-          date: reservationInput.reservationDate,
-          startTime: reservationInput.startTime,
-          endTime: reservationInput.endTime,
+          date: input.reservationDate,
+          startTime: input.startTime,
+          endTime: input.endTime,
           reservationType: "external",
           reservationId: id,
           status,
         });
-        return { id, status, count: 1, recurrenceLabel: null, manageCode };
+        return { id, status, count: 1, recurrenceLabel: null };
       } catch (error) {
         if (error instanceof ReservationOverlapError) {
           throw new TRPCError({ code: "CONFLICT", message: error.message });
@@ -1555,43 +1527,64 @@ export const homeRouter = router({
       }
     }),
 
-  /** 외부인 본인 예약 조회 — 고엔트로피 관리코드로 단건만 찾고 bcrypt도 한 번만 비교합니다. */
+  /** 외부인 본인 예약 조회 — 이름과 정규화 연락처가 일치하는 예약만 최대 50건 반환합니다. */
   externalReservationsLookup: publicProcedure
-    .input(externalReservationCredentialsSchema)
+    .input(externalReservationIdentitySchema)
     .mutation(async ({ input, ctx }) => {
-      enforcePublicRateLimit("externalFacilityReservationLookup", ctx);
-      const manageLookupKeyHash = hashExternalReservationManageCode(input.manageCode);
+      enforcePublicIpRateLimit("externalFacilityReservationLookup", ctx);
+      const identityHash = hashExternalReservationIdentity(input);
       enforcePublicRateLimitForHashedIdentifier(
         "externalFacilityReservationCredential",
-        manageLookupKeyHash,
+        identityHash,
       );
-      const authenticated = await authenticateExternalReservation(
-        input,
-        manageLookupKeyHash,
+      const rows = await getExternalReservationSelfServiceRowsByIdentity(
+        input.reserverName,
+        input.reserverPhone,
       );
-      return [toExternalReservationSelfServiceRow(authenticated)];
+      const upcomingRows = rows.filter(row => isUpcomingReservationOccurrence(row));
+      if (upcomingRows.length === 0) {
+        auditExternalReservationSelfService("lookup", "not_found", identityHash);
+        throw externalReservationAuthError();
+      }
+      auditExternalReservationSelfService("lookup", "success", identityHash, {
+        resultCount: upcomingRows.length,
+      });
+      return upcomingRows.map(toExternalReservationSelfServiceRow);
     }),
 
   /** 인증된 활성 미래 외부인 예약 수정 — 변경 후 다시 승인 대기로 전환합니다. */
   updateExternalReservation: publicProcedure
     .input(
-      externalReservationCredentialsSchema
+      externalReservationIdentitySchema
         .extend({ id: idSchema })
         .and(externalReservationDetailsSchema.omit({ notes: true })),
     )
     .mutation(async ({ input, ctx }) => {
-      enforcePublicRateLimit("externalFacilityReservationManagement", ctx);
-      const manageLookupKeyHash = hashExternalReservationManageCode(input.manageCode);
+      enforcePublicIpRateLimit("externalFacilityReservationManagement", ctx);
+      const identityHash = hashExternalReservationIdentity(input);
       enforcePublicRateLimitForHashedIdentifier(
         "externalFacilityReservationCredential",
-        manageLookupKeyHash,
+        identityHash,
       );
-      const authenticated = await authenticateExternalReservation(
-        input,
-        manageLookupKeyHash,
+      const authenticated = await getExternalReservationSelfServiceRowByIdentityAndId(
         input.id,
+        input.reserverName,
+        input.reserverPhone,
       );
-      assertExternalReservationSelfEditable(authenticated);
+      if (!authenticated) {
+        auditExternalReservationSelfService("update", "not_found", identityHash, {
+          reservationId: input.id,
+        });
+        throw externalReservationAuthError();
+      }
+      try {
+        assertExternalReservationSelfEditable(authenticated);
+      } catch (error) {
+        auditExternalReservationSelfService("update", "not_editable", identityHash, {
+          reservationId: input.id,
+        });
+        throw error;
+      }
       const facility = await validateExternalReservationRequest(
         {
           facilityId: authenticated.facilityId,
@@ -1606,8 +1599,8 @@ export const homeRouter = router({
       try {
         const result = await updateOwnedExternalReservationIfAvailable(
           input.id,
-          manageLookupKeyHash,
-          authenticated.managePasswordHash!,
+          input.reserverName,
+          input.reserverPhone,
           {
             reservationDate: input.reservationDate,
             startTime: input.startTime,
@@ -1617,8 +1610,16 @@ export const homeRouter = router({
             attendees: input.attendees,
           },
         );
-        if (result === "not_found") throw externalReservationAuthError();
+        if (result === "not_found") {
+          auditExternalReservationSelfService("update", "not_found", identityHash, {
+            reservationId: input.id,
+          });
+          throw externalReservationAuthError();
+        }
         if (result === "not_editable") {
+          auditExternalReservationSelfService("update", "not_editable", identityHash, {
+            reservationId: input.id,
+          });
           assertExternalReservationSelfEditable({
             ...authenticated,
             status: "cancelled",
@@ -1635,6 +1636,9 @@ export const homeRouter = router({
           status: "pending",
           event: "updated",
         });
+        auditExternalReservationSelfService("update", "success", identityHash, {
+          reservationId: input.id,
+        });
         return { success: true, status: "pending" as const };
       } catch (error) {
         if (error instanceof ReservationOverlapError) {
@@ -1649,33 +1653,57 @@ export const homeRouter = router({
 
   /** 인증된 활성 미래 외부인 예약 취소 — 행은 삭제하지 않고 취소 상태로 보존합니다. */
   cancelExternalReservation: publicProcedure
-    .input(externalReservationCredentialsSchema.extend({ id: idSchema }))
+    .input(externalReservationIdentitySchema.extend({ id: idSchema }))
     .mutation(async ({ input, ctx }) => {
-      enforcePublicRateLimit("externalFacilityReservationManagement", ctx);
-      const manageLookupKeyHash = hashExternalReservationManageCode(input.manageCode);
+      enforcePublicIpRateLimit("externalFacilityReservationManagement", ctx);
+      const identityHash = hashExternalReservationIdentity(input);
       enforcePublicRateLimitForHashedIdentifier(
         "externalFacilityReservationCredential",
-        manageLookupKeyHash,
+        identityHash,
       );
-      const authenticated = await authenticateExternalReservation(
-        input,
-        manageLookupKeyHash,
+      const authenticated = await getExternalReservationSelfServiceRowByIdentityAndId(
         input.id,
+        input.reserverName,
+        input.reserverPhone,
       );
-      assertExternalReservationSelfEditable(authenticated);
+      if (!authenticated) {
+        auditExternalReservationSelfService("cancel", "not_found", identityHash, {
+          reservationId: input.id,
+        });
+        throw externalReservationAuthError();
+      }
+      try {
+        assertExternalReservationSelfEditable(authenticated);
+      } catch (error) {
+        auditExternalReservationSelfService("cancel", "not_editable", identityHash, {
+          reservationId: input.id,
+        });
+        throw error;
+      }
       try {
         const result = await cancelOwnedExternalReservation(
           input.id,
-          manageLookupKeyHash,
-          authenticated.managePasswordHash!,
+          input.reserverName,
+          input.reserverPhone,
         );
-        if (result === "not_found") throw externalReservationAuthError();
+        if (result === "not_found") {
+          auditExternalReservationSelfService("cancel", "not_found", identityHash, {
+            reservationId: input.id,
+          });
+          throw externalReservationAuthError();
+        }
         if (result === "not_editable") {
+          auditExternalReservationSelfService("cancel", "not_editable", identityHash, {
+            reservationId: input.id,
+          });
           assertExternalReservationSelfEditable({
             ...authenticated,
             status: "cancelled",
           });
         }
+        auditExternalReservationSelfService("cancel", "success", identityHash, {
+          reservationId: input.id,
+        });
         return { success: true, status: "cancelled" as const };
       } catch (error) {
         if (error instanceof ReservationLockError) {

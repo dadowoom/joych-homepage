@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { TrpcContext } from "./context";
 import {
   PUBLIC_RATE_LIMIT_POLICIES,
+  enforcePublicIpRateLimit,
   enforcePublicRateLimit,
   enforcePublicRateLimitForHashedIdentifier,
 } from "./publicRateLimits";
@@ -89,6 +90,39 @@ describe("public rate limits", () => {
     ).toThrowError(expect.objectContaining({ code: "TOO_MANY_REQUESTS" }));
     expect(() =>
       enforcePublicRateLimit("externalFacilityReservationManagement", ctx)
+    ).not.toThrow();
+  });
+
+  it("keeps external reservation self-service IP limits shared across login states", () => {
+    const ip = "203.0.113.215";
+    const contexts = [
+      createContext(ip, "none"),
+      createContext(ip, "admin"),
+      createContext(ip, "member"),
+    ];
+    for (
+      let index = 0;
+      index < PUBLIC_RATE_LIMIT_POLICIES.externalFacilityReservationLookup.limit;
+      index += 1
+    ) {
+      expect(() =>
+        enforcePublicIpRateLimit(
+          "externalFacilityReservationLookup",
+          contexts[index % contexts.length],
+        )
+      ).not.toThrow();
+    }
+    expect(() =>
+      enforcePublicIpRateLimit(
+        "externalFacilityReservationLookup",
+        createContext(ip, "admin"),
+      )
+    ).toThrowError(expect.objectContaining({ code: "TOO_MANY_REQUESTS" }));
+    expect(() =>
+      enforcePublicIpRateLimit(
+        "externalFacilityReservationLookup",
+        createContext("203.0.113.216", "admin"),
+      )
     ).not.toThrow();
   });
 

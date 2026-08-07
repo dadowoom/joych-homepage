@@ -1,6 +1,4 @@
 import { TRPCError } from "@trpc/server";
-import { compare, hash } from "bcryptjs";
-import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext, TrpcUser } from "./_core/context";
 
@@ -16,7 +14,8 @@ const dbMocks = vi.hoisted(() => ({
   createReservation: vi.fn(),
   createReservationIfAvailable: vi.fn(),
   createReservationsIfAvailable: vi.fn(),
-  getExternalReservationAuthRecordByLookupKey: vi.fn(),
+  getExternalReservationSelfServiceRowsByIdentity: vi.fn(),
+  getExternalReservationSelfServiceRowByIdentityAndId: vi.fn(),
   updateOwnedExternalReservationIfAvailable: vi.fn(),
   cancelOwnedExternalReservation: vi.fn(),
   deleteReservationById: vi.fn(),
@@ -69,7 +68,8 @@ vi.mock("./db", async (importOriginal) => {
     createReservation: dbMocks.createReservation,
     createReservationIfAvailable: dbMocks.createReservationIfAvailable,
     createReservationsIfAvailable: dbMocks.createReservationsIfAvailable,
-    getExternalReservationAuthRecordByLookupKey: dbMocks.getExternalReservationAuthRecordByLookupKey,
+    getExternalReservationSelfServiceRowsByIdentity: dbMocks.getExternalReservationSelfServiceRowsByIdentity,
+    getExternalReservationSelfServiceRowByIdentityAndId: dbMocks.getExternalReservationSelfServiceRowByIdentityAndId,
     updateOwnedExternalReservationIfAvailable: dbMocks.updateOwnedExternalReservationIfAvailable,
     cancelOwnedExternalReservation: dbMocks.cancelOwnedExternalReservation,
     deleteReservationById: dbMocks.deleteReservationById,
@@ -111,11 +111,6 @@ const reservableFacility = {
   createdAt: new Date("2026-01-01T00:00:00.000Z"),
   updatedAt: new Date("2026-01-01T00:00:00.000Z"),
 };
-
-const EXTERNAL_MANAGE_CODE = "abcdefghijklmnopqrstuv";
-const EXTERNAL_MANAGE_LOOKUP_HASH = createHash("sha256")
-  .update(EXTERNAL_MANAGE_CODE)
-  .digest("hex");
 
 function createUserWithReservationPermission(): TrpcUser {
   return {
@@ -182,7 +177,6 @@ function externalReservationInput(overrides: Partial<ExternalReservationInput> =
     facilityId: 1,
     reserverName: "External Visitor",
     reserverPhone: "01099998888",
-    managePassword: "123456",
     reservationDate: "2026-06-17",
     startTime: "15:00",
     endTime: "16:00",
@@ -194,18 +188,13 @@ function externalReservationInput(overrides: Partial<ExternalReservationInput> =
   };
 }
 
-function externalReservationAuthRecord(
-  managePasswordHash: string,
-  overrides: Record<string, unknown> = {},
-) {
+function externalReservationAuthRecord(overrides: Record<string, unknown> = {}) {
   return {
     id: 100,
     facilityId: 1,
     reservationType: "external" as const,
     reserverName: "External Visitor",
     reserverPhone: "01099998888",
-    managePasswordHash,
-    manageLookupKeyHash: EXTERNAL_MANAGE_LOOKUP_HASH,
     reservationDate: "2026-06-17",
     startTime: "15:00",
     endTime: "16:00",
@@ -245,7 +234,8 @@ describe("facility reservation lead-time guard", () => {
     dbMocks.createReservationsIfAvailable.mockImplementation(async (rows: unknown[]) =>
       rows.map((_, index) => 100 + index)
     );
-    dbMocks.getExternalReservationAuthRecordByLookupKey.mockResolvedValue(null);
+    dbMocks.getExternalReservationSelfServiceRowsByIdentity.mockResolvedValue([]);
+    dbMocks.getExternalReservationSelfServiceRowByIdentityAndId.mockResolvedValue(null);
     dbMocks.updateOwnedExternalReservationIfAvailable.mockResolvedValue("updated");
     dbMocks.cancelOwnedExternalReservation.mockResolvedValue("cancelled");
     dbMocks.deleteReservationById.mockResolvedValue(true);
@@ -334,8 +324,7 @@ describe("facility reservation lead-time guard", () => {
 
     const result = await caller.home.createExternalReservation(externalReservationInput());
     expect(result).toMatchObject({ id: 100, status: "pending", count: 1 });
-    expect(result.manageCode).toMatch(/^[A-Za-z0-9_-]{22}$/);
-    expect(result).not.toHaveProperty("manageLookupKeyHash");
+    expect(result).not.toHaveProperty("manageCode");
 
     expect(dbMocks.getExternalReservableFacilityById).toHaveBeenCalledWith(1);
     expect(dbMocks.createReservationIfAvailable).toHaveBeenCalledWith(
@@ -346,9 +335,12 @@ describe("facility reservation lead-time guard", () => {
         reservationDate: "2026-06-17",
         startTime: "15:00",
         endTime: "16:00",
-        manageLookupKeyHash: createHash("sha256").update(result.manageCode).digest("hex"),
       }),
     );
+    const savedReservation = dbMocks.createReservationIfAvailable.mock.calls[0]?.[0];
+    expect(savedReservation).not.toHaveProperty("managePassword");
+    expect(savedReservation).not.toHaveProperty("managePasswordHash");
+    expect(savedReservation).not.toHaveProperty("manageLookupKeyHash");
     expect(pushMocks.notifyFacilityReservation).toHaveBeenCalledWith(
       expect.objectContaining({
         reserverName: "External Visitor",
@@ -363,102 +355,147 @@ describe("facility reservation lead-time guard", () => {
     );
   });
 
-  it("requires a six-digit external reservation management password", async () => {
+  it("normalizes the external reservation phone before saving", async () => {
     const caller = appRouter.createCaller(createContext(null));
 
     await expect(
       caller.home.createExternalReservation(
-        externalReservationInput({ managePassword: "12345" }),
+        externalReservationInput({ reserverPhone: "010-9999-8888" }),
       ),
-    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-    expect(dbMocks.createReservationIfAvailable).not.toHaveBeenCalled();
+    ).resolves.toMatchObject({ id: 100, status: "pending" });
+    expect(dbMocks.createReservationIfAvailable).toHaveBeenCalledWith(
+      expect.objectContaining({ reserverPhone: "01099998888" }),
+    );
   });
 
-  it("looks up exactly one external reservation by hashed manage code and bcrypt password", async () => {
-    const passwordHash = await hash("123456", 10);
-    dbMocks.getExternalReservationAuthRecordByLookupKey.mockResolvedValue(
-      externalReservationAuthRecord(passwordHash, {
+  it("looks up matching external reservations by normalized name and phone without exposing private fields", async () => {
+    dbMocks.getExternalReservationSelfServiceRowsByIdentity.mockResolvedValue([
+      externalReservationAuthRecord({
         status: "rejected",
         adminComment: "일정 조정이 필요합니다.",
       }),
-    );
+      externalReservationAuthRecord({ id: 101, reservationDate: "2026-06-18" }),
+    ]);
     const caller = appRouter.createCaller(createContext(null));
+    const auditSpy = vi.spyOn(console, "info").mockImplementation(() => undefined);
 
-    const result = await caller.home.externalReservationsLookup({
-      reserverName: " External Visitor ",
-      reserverPhone: "010-9999-8888",
-      managePassword: "123456",
-      manageCode: EXTERNAL_MANAGE_CODE,
-    });
+    try {
+      const result = await caller.home.externalReservationsLookup({
+        reserverName: " External Visitor ",
+        reserverPhone: "010-9999-8888",
+      });
 
-    expect(dbMocks.getExternalReservationAuthRecordByLookupKey).toHaveBeenCalledWith(
-      EXTERNAL_MANAGE_LOOKUP_HASH,
-    );
-    expect(result).toEqual([
-      expect.objectContaining({
+      expect(dbMocks.getExternalReservationSelfServiceRowsByIdentity).toHaveBeenCalledWith(
+        "External Visitor",
+        "01099998888",
+      );
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual(expect.objectContaining({
         id: 100,
         facilityName: "Meeting Room",
         adminResponse: "일정 조정이 필요합니다.",
+      }));
+      for (const row of result) {
+        expect(row).not.toHaveProperty("managePasswordHash");
+        expect(row).not.toHaveProperty("manageLookupKeyHash");
+        expect(row).not.toHaveProperty("reserverName");
+        expect(row).not.toHaveProperty("reserverPhone");
+        expect(row).not.toHaveProperty("notes");
+        expect(row).not.toHaveProperty("createdAt");
+        expect(row).not.toHaveProperty("updatedAt");
+      }
+      expect(auditSpy).toHaveBeenCalledWith(
+        "[AUDIT] external_reservation_self_service",
+        expect.stringContaining('"resultCount":2'),
+      );
+      expect(auditSpy.mock.calls[0]?.[1]).not.toContain("External Visitor");
+      expect(auditSpy.mock.calls[0]?.[1]).not.toContain("01099998888");
+    } finally {
+      auditSpy.mockRestore();
+    }
+  });
+
+  it("returns only not-yet-started KST reservations while preserving rejected and cancelled statuses", async () => {
+    dbMocks.getExternalReservationSelfServiceRowsByIdentity.mockResolvedValue([
+      externalReservationAuthRecord({
+        id: 98,
+        reservationDate: "2026-06-16",
+        startTime: "14:59",
+        status: "approved",
+      }),
+      externalReservationAuthRecord({
+        id: 99,
+        reservationDate: "2026-06-16",
+        startTime: "15:00",
+        status: "pending",
+      }),
+      externalReservationAuthRecord({
+        id: 100,
+        reservationDate: "2026-06-16",
+        startTime: "15:01",
+        status: "cancelled",
+      }),
+      externalReservationAuthRecord({
+        id: 101,
+        reservationDate: "2026-06-17",
+        startTime: "09:00",
+        status: "rejected",
       }),
     ]);
-    expect(result[0]).not.toHaveProperty("managePasswordHash");
-    expect(result[0]).not.toHaveProperty("manageLookupKeyHash");
-    expect(result[0]).not.toHaveProperty("reserverName");
-    expect(result[0]).not.toHaveProperty("reserverPhone");
-    expect(result[0]).not.toHaveProperty("notes");
-    expect(result[0]).not.toHaveProperty("createdAt");
-    expect(result[0]).not.toHaveProperty("updatedAt");
+    const caller = appRouter.createCaller(createContext(null));
+
+    const result = await caller.home.externalReservationsLookup({
+      reserverName: "External Visitor",
+      reserverPhone: "01099998888",
+    });
+
+    expect(result.map(row => ({ id: row.id, status: row.status }))).toEqual([
+      { id: 100, status: "cancelled" },
+      { id: 101, status: "rejected" },
+    ]);
   });
 
   it("does not expose a non-rejection admin comment in external lookup", async () => {
-    const passwordHash = await hash("123456", 10);
-    dbMocks.getExternalReservationAuthRecordByLookupKey.mockResolvedValue(
-      externalReservationAuthRecord(passwordHash, {
+    dbMocks.getExternalReservationSelfServiceRowsByIdentity.mockResolvedValue([
+      externalReservationAuthRecord({
         status: "pending",
         adminComment: "관리자만 보는 메모",
       }),
-    );
+    ]);
     const caller = appRouter.createCaller(createContext(null));
 
     await expect(caller.home.externalReservationsLookup({
       reserverName: "External Visitor",
       reserverPhone: "01099998888",
-      managePassword: "123456",
-      manageCode: EXTERNAL_MANAGE_CODE,
     })).resolves.toEqual([
       expect.objectContaining({ adminResponse: null }),
     ]);
   });
 
-  it("uses the same not-found response for missing and wrong external credentials", async () => {
+  it("uses the same not-found response when either external identity field does not match", async () => {
     const caller = appRouter.createCaller(createContext(null));
-    const credentials = {
-      reserverName: "External Visitor",
+    const wrongName = await caller.home.externalReservationsLookup({
+      reserverName: "Unknown Visitor",
       reserverPhone: "01099998888",
-      managePassword: "123456",
-      manageCode: EXTERNAL_MANAGE_CODE,
-    };
+    }).catch(error => error);
+    const wrongPhone = await caller.home.externalReservationsLookup({
+      reserverName: "External Visitor",
+      reserverPhone: "01011112222",
+    }).catch(error => error);
 
-    const missing = await caller.home.externalReservationsLookup(credentials).catch(error => error);
-    dbMocks.getExternalReservationAuthRecordByLookupKey.mockResolvedValue(
-      externalReservationAuthRecord(await hash("654321", 10)),
-    );
-    const wrong = await caller.home.externalReservationsLookup(credentials).catch(error => error);
-
-    expect(missing).toMatchObject({ code: "NOT_FOUND" });
-    expect(wrong).toMatchObject({
+    expect(wrongName).toMatchObject({ code: "NOT_FOUND" });
+    expect(wrongPhone).toMatchObject({
       code: "NOT_FOUND",
-      message: missing.message,
+      message: wrongName.message,
     });
   });
 
-  it("updates an authenticated future external reservation and resets it to pending", async () => {
-    const passwordHash = await hash("123456", 10);
-    dbMocks.getExternalReservationAuthRecordByLookupKey.mockResolvedValue(
-      externalReservationAuthRecord(passwordHash, { status: "approved" }),
+  it("updates an identity-owned future external reservation and resets it to pending", async () => {
+    dbMocks.getExternalReservationSelfServiceRowByIdentityAndId.mockResolvedValue(
+      externalReservationAuthRecord({ status: "approved" }),
     );
     dbMocks.getReservationsByDate.mockResolvedValue([
-      externalReservationAuthRecord(passwordHash),
+      externalReservationAuthRecord(),
     ]);
     const caller = appRouter.createCaller(createContext(null));
 
@@ -466,8 +503,6 @@ describe("facility reservation lead-time guard", () => {
       id: 100,
       reserverName: "External Visitor",
       reserverPhone: "010-9999-8888",
-      managePassword: "123456",
-      manageCode: EXTERNAL_MANAGE_CODE,
       reservationDate: "2026-06-17",
       startTime: "15:00",
       endTime: "16:00",
@@ -478,8 +513,8 @@ describe("facility reservation lead-time guard", () => {
 
     expect(dbMocks.updateOwnedExternalReservationIfAvailable).toHaveBeenCalledWith(
       100,
-      EXTERNAL_MANAGE_LOOKUP_HASH,
-      passwordHash,
+      "External Visitor",
+      "01099998888",
       {
         reservationDate: "2026-06-17",
         startTime: "15:00",
@@ -499,9 +534,8 @@ describe("facility reservation lead-time guard", () => {
   });
 
   it("revalidates external edits and blocks overlaps with another reservation", async () => {
-    const passwordHash = await hash("123456", 10);
-    dbMocks.getExternalReservationAuthRecordByLookupKey.mockResolvedValue(
-      externalReservationAuthRecord(passwordHash),
+    dbMocks.getExternalReservationSelfServiceRowByIdentityAndId.mockResolvedValue(
+      externalReservationAuthRecord(),
     );
     dbMocks.getReservationsByDate.mockResolvedValue([
       {
@@ -518,8 +552,6 @@ describe("facility reservation lead-time guard", () => {
       id: 100,
       reserverName: "External Visitor",
       reserverPhone: "01099998888",
-      managePassword: "123456",
-      manageCode: EXTERNAL_MANAGE_CODE,
       reservationDate: "2026-06-17",
       startTime: "15:00",
       endTime: "16:00",
@@ -529,10 +561,9 @@ describe("facility reservation lead-time guard", () => {
     expect(dbMocks.updateOwnedExternalReservationIfAvailable).not.toHaveBeenCalled();
   });
 
-  it("soft-cancels only an authenticated active future external reservation", async () => {
-    const passwordHash = await hash("123456", 10);
-    dbMocks.getExternalReservationAuthRecordByLookupKey.mockResolvedValue(
-      externalReservationAuthRecord(passwordHash, { status: "checking" }),
+  it("soft-cancels only an identity-owned active future external reservation", async () => {
+    dbMocks.getExternalReservationSelfServiceRowByIdentityAndId.mockResolvedValue(
+      externalReservationAuthRecord({ status: "checking" }),
     );
     const caller = appRouter.createCaller(createContext(null));
 
@@ -540,58 +571,45 @@ describe("facility reservation lead-time guard", () => {
       id: 100,
       reserverName: "External Visitor",
       reserverPhone: "01099998888",
-      managePassword: "123456",
-      manageCode: EXTERNAL_MANAGE_CODE,
     })).resolves.toEqual({ success: true, status: "cancelled" });
     expect(dbMocks.cancelOwnedExternalReservation).toHaveBeenCalledWith(
       100,
-      EXTERNAL_MANAGE_LOOKUP_HASH,
-      passwordHash,
+      "External Visitor",
+      "01099998888",
     );
     expect(dbMocks.deleteReservationById).not.toHaveBeenCalled();
   });
 
-  it("does not let a valid manage code authorize a different reservation id", async () => {
-    const alternateManageCode = "ABCDEFGHIJKLMNOPQRSTUV";
-    const alternateLookupHash = createHash("sha256")
-      .update(alternateManageCode)
-      .digest("hex");
-    const passwordHash = await hash("123456", 10);
-    dbMocks.getExternalReservationAuthRecordByLookupKey.mockResolvedValue(
-      externalReservationAuthRecord(passwordHash, {
-        id: 100,
-        manageLookupKeyHash: alternateLookupHash,
-      }),
-    );
+  it("does not let a matching name and phone authorize a different reservation id", async () => {
     const caller = appRouter.createCaller(createContext(null));
 
     await expect(caller.home.cancelExternalReservation({
       id: 101,
       reserverName: "External Visitor",
       reserverPhone: "01099998888",
-      managePassword: "123456",
-      manageCode: alternateManageCode,
     })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(dbMocks.getExternalReservationSelfServiceRowByIdentityAndId).toHaveBeenCalledWith(
+      101,
+      "External Visitor",
+      "01099998888",
+    );
     expect(dbMocks.cancelOwnedExternalReservation).not.toHaveBeenCalled();
   });
 
   it("blocks cancelled and past external reservations before self-service mutation", async () => {
-    const passwordHash = await hash("123456", 10);
     const caller = appRouter.createCaller(createContext(null));
 
-    dbMocks.getExternalReservationAuthRecordByLookupKey.mockResolvedValueOnce(
-      externalReservationAuthRecord(passwordHash, { status: "cancelled" }),
+    dbMocks.getExternalReservationSelfServiceRowByIdentityAndId.mockResolvedValueOnce(
+      externalReservationAuthRecord({ status: "cancelled" }),
     );
     await expect(caller.home.cancelExternalReservation({
       id: 100,
       reserverName: "External Visitor",
       reserverPhone: "01099998888",
-      managePassword: "123456",
-      manageCode: EXTERNAL_MANAGE_CODE,
     })).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
-    dbMocks.getExternalReservationAuthRecordByLookupKey.mockResolvedValueOnce(
-      externalReservationAuthRecord(passwordHash, {
+    dbMocks.getExternalReservationSelfServiceRowByIdentityAndId.mockResolvedValueOnce(
+      externalReservationAuthRecord({
         reservationDate: "2026-06-16",
         startTime: "12:00",
       }),
@@ -600,8 +618,6 @@ describe("facility reservation lead-time guard", () => {
       id: 100,
       reserverName: "External Visitor",
       reserverPhone: "01099998888",
-      managePassword: "123456",
-      manageCode: EXTERNAL_MANAGE_CODE,
     })).rejects.toMatchObject({ code: "BAD_REQUEST" });
     expect(dbMocks.cancelOwnedExternalReservation).not.toHaveBeenCalled();
   });
@@ -706,8 +722,8 @@ describe("facility reservation lead-time guard", () => {
     );
     const savedReservation = dbMocks.createReservationIfAvailable.mock.calls[0]?.[0];
     expect(savedReservation).not.toHaveProperty("managePassword");
-    expect(savedReservation.managePasswordHash).toMatch(/^\$2[aby]\$10\$/);
-    await expect(compare("123456", savedReservation.managePasswordHash)).resolves.toBe(true);
+    expect(savedReservation).not.toHaveProperty("managePasswordHash");
+    expect(savedReservation).not.toHaveProperty("manageLookupKeyHash");
   });
 
   it("allows external facility reservations within the default advance-day window", async () => {
