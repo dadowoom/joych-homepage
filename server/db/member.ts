@@ -9,7 +9,7 @@
  *   - 관리자 전용: adminUpdateMember, adminResetMemberPassword
  */
 
-import { and, eq, asc, desc, gte, inArray, sql } from "drizzle-orm";
+import { and, eq, asc, desc, gte, inArray, or, sql, type SQL } from "drizzle-orm";
 import type { ResultSetHeader } from "mysql2";
 import { normalizeLegacyMemberPhone, normalizeMemberPhone } from "@shared/memberPhone";
 import {
@@ -32,6 +32,24 @@ import {
 import { getDb } from "./connection";
 
 export type MemberSocialProvider = "google" | "kakao";
+
+export type AdminMemberStatusFilter = "all" | "pending" | "approved" | "rejected" | "withdrawn";
+export type AdminMemberViewMode = "list" | "position" | "district" | "department";
+
+export type AdminMemberFilters = {
+  status: AdminMemberStatusFilter;
+  district: string;
+  position: string;
+  department: string;
+  basicMissingOnly: boolean;
+  search: string;
+  viewMode: AdminMemberViewMode;
+};
+
+export type AdminMemberPageInput = AdminMemberFilters & {
+  page: number;
+  pageSize: number;
+};
 
 type MemberAlertSummaryItem = {
   id: number;
@@ -289,6 +307,142 @@ export async function getMemberSocialProviders(memberIds: number[]) {
     })
     .from(memberSocialAccounts)
     .where(inArray(memberSocialAccounts.memberId, memberIds));
+}
+
+const adminMemberListColumns = {
+  id: churchMembers.id,
+  name: churchMembers.name,
+  phone: churchMembers.phone,
+  birthDate: churchMembers.birthDate,
+  gender: churchMembers.gender,
+  position: churchMembers.position,
+  department: churchMembers.department,
+  district: churchMembers.district,
+  status: churchMembers.status,
+  createdAt: churchMembers.createdAt,
+};
+
+const adminMemberExportColumns = {
+  ...adminMemberListColumns,
+  email: churchMembers.email,
+  address: churchMembers.address,
+  emergencyPhone: churchMembers.emergencyPhone,
+  baptismType: churchMembers.baptismType,
+  baptismDate: churchMembers.baptismDate,
+  registeredAt: churchMembers.registeredAt,
+  pastor: churchMembers.pastor,
+};
+
+function buildAdminMemberWhere(filters: AdminMemberFilters) {
+  const conditions: SQL[] = [];
+
+  if (filters.status !== "all") conditions.push(eq(churchMembers.status, filters.status));
+  if (filters.district) conditions.push(eq(churchMembers.district, filters.district));
+  if (filters.position) conditions.push(eq(churchMembers.position, filters.position));
+  if (filters.department) conditions.push(eq(churchMembers.department, filters.department));
+  if (filters.basicMissingOnly) {
+    conditions.push(or(
+      sql`NULLIF(TRIM(${churchMembers.phone}), '') IS NULL`,
+      sql`NULLIF(TRIM(${churchMembers.birthDate}), '') IS NULL`,
+    )!);
+  }
+
+  const search = filters.search.trim().toLowerCase();
+  if (search) {
+    const searchDigits = search.replace(/\D/g, "");
+    const searchConditions: SQL[] = [
+      sql`LOCATE(${search}, LOWER(${churchMembers.name})) > 0`,
+      sql`LOCATE(${search}, LOWER(COALESCE(${churchMembers.phone}, ''))) > 0`,
+      sql`LOCATE(${search}, LOWER(COALESCE(${churchMembers.email}, ''))) > 0`,
+    ];
+    if (searchDigits) {
+      searchConditions.push(sql`
+        LOCATE(
+          ${searchDigits},
+          REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(${churchMembers.phone}, ''), '-', ''), ' ', ''), '(', ''), ')', ''), '+', '')
+        ) > 0
+      `);
+    }
+    conditions.push(or(...searchConditions)!);
+  }
+
+  return and(...conditions);
+}
+
+function getAdminMemberOrder(viewMode: AdminMemberViewMode) {
+  if (viewMode === "list") {
+    return [desc(churchMembers.createdAt), desc(churchMembers.id)];
+  }
+
+  const groupColumn = viewMode === "position"
+    ? churchMembers.position
+    : viewMode === "district"
+      ? churchMembers.district
+      : churchMembers.department;
+  const missingLabel = viewMode === "position"
+    ? "직분 미입력"
+    : viewMode === "district"
+      ? "구역/순 미입력"
+      : "부서 미입력";
+  const groupLabel = sql<string>`COALESCE(NULLIF(TRIM(${groupColumn}), ''), ${missingLabel})`;
+  return [asc(groupLabel), asc(churchMembers.name), desc(churchMembers.createdAt), desc(churchMembers.id)];
+}
+
+/** 관리자 교적부 목록: 필터와 페이지를 DB에서 적용하고 목록 화면에 필요한 항목만 조회합니다. */
+export async function getAdminMembersPage(input: AdminMemberPageInput) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+
+  const where = buildAdminMemberWhere(input);
+  const [countRows, summaryRows] = await Promise.all([
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(churchMembers)
+      .where(where),
+    db
+      .select({
+        overallCount: sql<number>`COUNT(*)`,
+        pendingCount: sql<number>`COALESCE(SUM(CASE WHEN ${churchMembers.status} = 'pending' THEN 1 ELSE 0 END), 0)`,
+        basicMissingCount: sql<number>`COALESCE(SUM(CASE WHEN ${churchMembers.status} <> 'withdrawn' AND (NULLIF(TRIM(${churchMembers.phone}), '') IS NULL OR NULLIF(TRIM(${churchMembers.birthDate}), '') IS NULL) THEN 1 ELSE 0 END), 0)`,
+      })
+      .from(churchMembers),
+  ]);
+
+  const total = Number(countRows[0]?.count ?? 0);
+  const totalPages = Math.max(1, Math.ceil(total / input.pageSize));
+  const page = Math.min(input.page, totalPages);
+  const items = await db
+    .select(adminMemberListColumns)
+    .from(churchMembers)
+    .where(where)
+    .orderBy(...getAdminMemberOrder(input.viewMode))
+    .limit(input.pageSize)
+    .offset((page - 1) * input.pageSize);
+
+  return {
+    items,
+    page,
+    pageSize: input.pageSize,
+    total,
+    totalPages,
+    summary: {
+      overallCount: Number(summaryRows[0]?.overallCount ?? 0),
+      pendingCount: Number(summaryRows[0]?.pendingCount ?? 0),
+      basicMissingCount: Number(summaryRows[0]?.basicMissingCount ?? 0),
+    },
+  };
+}
+
+/** 엑셀 내보내기용: 같은 필터의 전체 결과만 명시적인 개인정보 열로 조회합니다. */
+export async function getAdminMembersForExport(filters: AdminMemberFilters) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+
+  return db
+    .select(adminMemberExportColumns)
+    .from(churchMembers)
+    .where(buildAdminMemberWhere(filters))
+    .orderBy(...getAdminMemberOrder(filters.viewMode));
 }
 
 /** 전체 성도 목록 조회 (관리자용) */

@@ -100,6 +100,7 @@
     { "idx": 95, "version": "5", "when": 1784960540000, "tag": "0107_normalize_office_staff_titles", "breakpoints": true },
     { "idx": 96, "version": "5", "when": 1784962107000, "tag": "0108_delete_hosanna_videos_before_20140119", "breakpoints": true },
     { "idx": 97, "version": "5", "when": 1785483491000, "tag": "0109_backfill_sunday_sermon_20251026_metadata", "breakpoints": true },
-    { "idx": 98, "version": "5", "when": 1785912125252, "tag": "0110_db_growth_indexes", "breakpoints": true }
+    { "idx": 98, "version": "5", "when": 1785912125252, "tag": "0110_db_growth_indexes", "breakpoints": true },
+    { "idx": 99, "version": "5", "when": 1786075204853, "tag": "0111_member_admin_list_indexes", "breakpoints": true }
   ]
 }

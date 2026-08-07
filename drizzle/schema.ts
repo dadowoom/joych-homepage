@@ -655,7 +655,11 @@ export const churchMembers = mysqlTable("church_members", {
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [
+  index("church_members_created_id_idx").on(table.createdAt, table.id),
+  index("church_members_status_created_id_idx").on(table.status, table.createdAt, table.id),
+  index("church_members_name_created_id_idx").on(table.name, table.createdAt, table.id),
+]);
 
 export type ChurchMember = typeof churchMembers.$inferSelect;
 export type InsertChurchMember = typeof churchMembers.$inferInsert;

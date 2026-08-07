@@ -10,6 +10,7 @@
 
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
+import { getDatabasePoolConfig } from "./poolConfig";
 
 /** 캐시된 DB 인스턴스 */
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -47,6 +48,7 @@ export async function getDb() {
       const pool = mysql.createPool({
         uri: process.env.DATABASE_URL,
         timezone: "+09:00",
+        ...getDatabasePoolConfig(),
       });
       _pool = pool;
       _db = drizzle(pool) as unknown as ReturnType<typeof drizzle>;

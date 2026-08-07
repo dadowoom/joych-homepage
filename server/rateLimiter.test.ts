@@ -2,8 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   BoundedFixedWindowRateLimiter,
   LOGIN_ATTEMPT_WINDOW_MS,
+  MEMBER_REGISTRATION_RATE_LIMIT_POLICY,
   checkAccountRecoveryRateLimit,
-  checkRegisterRateLimit,
+  checkMemberOAuthCallbackRateLimit,
+  checkMemberOAuthSignupCompleteRateLimit,
+  checkMemberOAuthSignupContextIdentityRateLimit,
+  checkMemberOAuthSignupContextIpRateLimit,
+  checkMemberOAuthStartRateLimit,
+  checkMemberRegistrationIngressRateLimit,
+  checkMemberRegistrationRateLimit,
   checkSearchRateLimit,
   cleanupLoginRateLimitStore,
   getClientIp,
@@ -12,21 +19,29 @@ import {
 
 describe("getClientIp", () => {
   it("Express가 검증한 req.ip를 임의의 전달 헤더보다 우선한다", () => {
-    expect(getClientIp({
-      ip: "203.0.113.10",
-      headers: { "x-forwarded-for": "198.51.100.99" },
-    })).toBe("203.0.113.10");
+    expect(
+      getClientIp({
+        ip: "203.0.113.10",
+        headers: { "x-forwarded-for": "198.51.100.99" },
+      })
+    ).toBe("203.0.113.10");
   });
 
   it("req.ip가 없는 테스트 환경에서는 첫 전달 주소를 사용한다", () => {
-    expect(getClientIp({
-      headers: { "x-forwarded-for": "198.51.100.10, 127.0.0.1" },
-    })).toBe("198.51.100.10");
+    expect(
+      getClientIp({
+        headers: { "x-forwarded-for": "198.51.100.10, 127.0.0.1" },
+      })
+    ).toBe("198.51.100.10");
   });
 });
 
 describe("BoundedFixedWindowRateLimiter", () => {
-  function createLimiter(overrides: Partial<ConstructorParameters<typeof BoundedFixedWindowRateLimiter>[0]> = {}) {
+  function createLimiter(
+    overrides: Partial<
+      ConstructorParameters<typeof BoundedFixedWindowRateLimiter>[0]
+    > = {}
+  ) {
     return new BoundedFixedWindowRateLimiter({
       limit: 2,
       windowMs: 100,
@@ -77,7 +92,7 @@ describe("login limiter cleanup", () => {
   });
 });
 
-describe("legacy public limiter policies", () => {
+describe("public limiter policies", () => {
   it("keeps directory search at 30 requests per minute", () => {
     const key = `search:policy-${Date.now()}`;
     for (let index = 0; index < 30; index += 1) {
@@ -88,19 +103,236 @@ describe("legacy public limiter policies", () => {
     );
   });
 
-  it("keeps registration and account recovery at 5 requests per hour", () => {
-    const suffix = Date.now();
-    const registrationKey = `register:policy-${suffix}`;
+  it("keeps account recovery at 5 requests per hour", () => {
+    const suffix = `${Date.now()}-${Math.random()}`;
     const recoveryKey = `password-reset:policy-${suffix}`;
     for (let index = 0; index < 5; index += 1) {
-      expect(() => checkRegisterRateLimit(registrationKey)).not.toThrow();
       expect(() => checkAccountRecoveryRateLimit(recoveryKey)).not.toThrow();
     }
-    expect(() => checkRegisterRateLimit(registrationKey)).toThrowError(
-      expect.objectContaining({ code: "TOO_MANY_REQUESTS" })
-    );
     expect(() => checkAccountRecoveryRateLimit(recoveryKey)).toThrowError(
       expect.objectContaining({ code: "TOO_MANY_REQUESTS" })
     );
+  });
+});
+
+describe("member registration abuse policies", () => {
+  it("bounds registration work before configuration database reads", () => {
+    const suffix = `${Date.now()}-${Math.random()}`;
+    const clientIp = `registration-ingress-${suffix}`;
+    for (
+      let index = 0;
+      index < MEMBER_REGISTRATION_RATE_LIMIT_POLICY.registrationIngressIp.limit;
+      index += 1
+    ) {
+      expect(() => checkMemberRegistrationIngressRateLimit(clientIp)).not.toThrow();
+    }
+    expect(() => checkMemberRegistrationIngressRateLimit(clientIp)).toThrowError(
+      expect.objectContaining({ code: "TOO_MANY_REQUESTS" })
+    );
+  });
+
+  it("allows well beyond the sixth signup from one shared church IP", () => {
+    const suffix = `${Date.now()}-${Math.random()}`;
+    const sharedIp = `church-network-${suffix}`;
+
+    for (
+      let index = 0;
+      index < MEMBER_REGISTRATION_RATE_LIMIT_POLICY.ip.limit;
+      index += 1
+    ) {
+      expect(() =>
+        checkMemberRegistrationRateLimit({
+          clientIp: sharedIp,
+          identities: [
+            { kind: "phone", value: `010-0000-${suffix}-${index}` },
+            { kind: "email", value: `member-${suffix}-${index}@example.test` },
+          ],
+        })
+      ).not.toThrow();
+    }
+
+    const nextPhone = `next-${suffix}`;
+    for (
+      let index = 0;
+      index < MEMBER_REGISTRATION_RATE_LIMIT_POLICY.identity.limit;
+      index += 1
+    ) {
+      expect(() =>
+        checkMemberRegistrationRateLimit({
+          clientIp: sharedIp,
+          identities: [{ kind: "phone", value: nextPhone }],
+        })
+      ).toThrowError(expect.objectContaining({ code: "TOO_MANY_REQUESTS" }));
+    }
+
+    expect(() =>
+      checkMemberRegistrationRateLimit({
+        clientIp: `fresh-shared-ip-${suffix}`,
+        identities: [{ kind: "phone", value: nextPhone }],
+      })
+    ).not.toThrow();
+  });
+
+  it("blocks repeated use of one identity without consuming other IP quotas", () => {
+    const suffix = `${Date.now()}-${Math.random()}`;
+    const phone = `same-phone-${suffix}`;
+
+    for (
+      let index = 0;
+      index < MEMBER_REGISTRATION_RATE_LIMIT_POLICY.identity.limit;
+      index += 1
+    ) {
+      expect(() =>
+        checkMemberRegistrationRateLimit({
+          clientIp: `rotating-ip-${suffix}-${index}`,
+          identities: [{ kind: "phone", value: phone }],
+        })
+      ).not.toThrow();
+    }
+
+    expect(() =>
+      checkMemberRegistrationRateLimit({
+        clientIp: `another-ip-${suffix}`,
+        identities: [{ kind: "phone", value: phone }],
+      })
+    ).toThrowError(expect.objectContaining({ code: "TOO_MANY_REQUESTS" }));
+
+    expect(() =>
+      checkMemberRegistrationRateLimit({
+        clientIp: `another-ip-${suffix}`,
+        identities: [{ kind: "phone", value: `different-phone-${suffix}` }],
+      })
+    ).not.toThrow();
+  });
+
+  it("does not consume earlier identities when a later identity rejects the request", () => {
+    const suffix = `${Date.now()}-${Math.random()}`;
+    const blockedEmail = `blocked-${suffix}@example.test`;
+
+    for (
+      let index = 0;
+      index < MEMBER_REGISTRATION_RATE_LIMIT_POLICY.identity.limit;
+      index += 1
+    ) {
+      expect(() =>
+        checkMemberRegistrationRateLimit({
+          clientIp: `email-prime-ip-${suffix}-${index}`,
+          identities: [
+            { kind: "phone", value: `email-prime-phone-${suffix}-${index}` },
+            { kind: "email", value: blockedEmail },
+          ],
+        })
+      ).not.toThrow();
+    }
+
+    const victimPhone = `victim-phone-${suffix}`;
+    for (
+      let index = 0;
+      index < MEMBER_REGISTRATION_RATE_LIMIT_POLICY.identity.limit;
+      index += 1
+    ) {
+      expect(() =>
+        checkMemberRegistrationRateLimit({
+          clientIp: `rejected-ip-${suffix}-${index}`,
+          identities: [
+            { kind: "phone", value: victimPhone },
+            { kind: "email", value: blockedEmail },
+          ],
+        })
+      ).toThrowError(expect.objectContaining({ code: "TOO_MANY_REQUESTS" }));
+    }
+
+    expect(() =>
+      checkMemberRegistrationRateLimit({
+        clientIp: `fresh-ip-${suffix}`,
+        identities: [
+          { kind: "phone", value: victimPhone },
+          { kind: "email", value: `fresh-${suffix}@example.test` },
+        ],
+      })
+    ).not.toThrow();
+  });
+
+  it("limits OAuth start and callback work before external provider requests", () => {
+    const suffix = `${Date.now()}-${Math.random()}`;
+    const startIp = `oauth-start-${suffix}`;
+    const callbackIp = `oauth-callback-${suffix}`;
+    const completeIp = `oauth-complete-${suffix}`;
+
+    for (
+      let index = 0;
+      index < MEMBER_REGISTRATION_RATE_LIMIT_POLICY.oauthStartIp.limit;
+      index += 1
+    ) {
+      expect(() => checkMemberOAuthStartRateLimit(startIp)).not.toThrow();
+    }
+    expect(() => checkMemberOAuthStartRateLimit(startIp)).toThrowError(
+      expect.objectContaining({ code: "TOO_MANY_REQUESTS" })
+    );
+
+    for (
+      let index = 0;
+      index < MEMBER_REGISTRATION_RATE_LIMIT_POLICY.oauthCallbackIp.limit;
+      index += 1
+    ) {
+      expect(() => checkMemberOAuthCallbackRateLimit(callbackIp)).not.toThrow();
+    }
+    expect(() => checkMemberOAuthCallbackRateLimit(callbackIp)).toThrowError(
+      expect.objectContaining({ code: "TOO_MANY_REQUESTS" })
+    );
+
+    for (
+      let index = 0;
+      index < MEMBER_REGISTRATION_RATE_LIMIT_POLICY.oauthSignupCompleteIp.limit;
+      index += 1
+    ) {
+      expect(() =>
+        checkMemberOAuthSignupCompleteRateLimit(completeIp)
+      ).not.toThrow();
+    }
+    expect(() =>
+      checkMemberOAuthSignupCompleteRateLimit(completeIp)
+    ).toThrowError(expect.objectContaining({ code: "TOO_MANY_REQUESTS" }));
+  });
+
+  it("limits OAuth signup context by signed social identity as well as IP", () => {
+    const suffix = `${Date.now()}-${Math.random()}`;
+    const providerUserId = `google-user-${suffix}`;
+
+    for (
+      let index = 0;
+      index <
+      MEMBER_REGISTRATION_RATE_LIMIT_POLICY.oauthSignupContextIdentity.limit;
+      index += 1
+    ) {
+      expect(() =>
+        checkMemberOAuthSignupContextIdentityRateLimit({
+          provider: "google",
+          providerUserId,
+        })
+      ).not.toThrow();
+    }
+
+    expect(() =>
+      checkMemberOAuthSignupContextIdentityRateLimit({
+        provider: "google",
+        providerUserId,
+      })
+    ).toThrowError(expect.objectContaining({ code: "TOO_MANY_REQUESTS" }));
+
+    const sharedIp = `context-shared-ip-${suffix}`;
+    for (
+      let index = 0;
+      index < MEMBER_REGISTRATION_RATE_LIMIT_POLICY.oauthSignupContextIp.limit;
+      index += 1
+    ) {
+      expect(() =>
+        checkMemberOAuthSignupContextIpRateLimit(sharedIp)
+      ).not.toThrow();
+    }
+
+    expect(() =>
+      checkMemberOAuthSignupContextIpRateLimit(sharedIp)
+    ).toThrowError(expect.objectContaining({ code: "TOO_MANY_REQUESTS" }));
   });
 });

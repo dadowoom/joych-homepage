@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 
 /**
@@ -200,12 +201,32 @@ export class BoundedFixedWindowRateLimiter {
     return this.records.size;
   }
 
-  consume(key: string, now = Date.now()) {
+  private prepare(now: number) {
     if (now >= this.nextCleanupAt) {
       this.cleanupExpired(now);
       this.nextCleanupAt = now + this.cleanupIntervalMs;
     }
+  }
 
+  private normalizeKey(key: string) {
+    return key.trim() || "unknown";
+  }
+
+  /** Check the current window without consuming a request. */
+  assertAvailable(key: string, now = Date.now()) {
+    this.prepare(now);
+    const existing = this.records.get(this.normalizeKey(key));
+    if (existing && existing.expiresAt >= now && existing.count >= this.options.limit) {
+      throw new TRPCError({
+        code: "TOO_MANY_REQUESTS",
+        message: this.options.message,
+      });
+    }
+  }
+
+  /** Commit only after every limiter participating in one request has passed. */
+  commitAvailable(key: string, now = Date.now()) {
+    this.prepare(now);
     const normalizedKey = key.trim() || "unknown";
     const existing = this.records.get(normalizedKey);
     if (!existing || existing.expiresAt < now) {
@@ -218,6 +239,8 @@ export class BoundedFixedWindowRateLimiter {
       return;
     }
 
+    // JavaScript runs the check-and-commit sequence synchronously. Keep this
+    // guard as a fail-safe for direct callers that skip assertAvailable().
     if (existing.count >= this.options.limit) {
       throw new TRPCError({
         code: "TOO_MANY_REQUESTS",
@@ -225,6 +248,11 @@ export class BoundedFixedWindowRateLimiter {
       });
     }
     existing.count += 1;
+  }
+
+  consume(key: string, now = Date.now()) {
+    this.assertAvailable(key, now);
+    this.commitAvailable(key, now);
   }
 
   cleanupExpired(now = Date.now()) {
@@ -264,19 +292,176 @@ export function checkSearchRateLimit(key: string): void {
   searchLimiter.consume(key);
 }
 
-// ─── 회원가입 API Rate Limiter (가입 신청 스팸 방지) ────────────────────────
-const REGISTER_MAX_PER_HOUR = 5;
+// ─── 회원가입 / 간편가입 Rate Limiter ─────────────────────────────────────────
+// 교회 와이파이처럼 하나의 공인 IP를 여러 사람이 공유할 수 있으므로 IP 한도는
+// 단체가입을 수용할 만큼 넓게 두고, 이메일·전화번호·소셜 계정에는 더 작은
+// 별도 한도를 적용합니다. 신원 한도를 먼저 소비해 한 사람의 반복 요청이
+// 공유 IP 한도를 고갈시키지 않도록 합니다.
 const REGISTER_WINDOW_MS = 60 * 60 * 1000;
-const registerLimiter = new BoundedFixedWindowRateLimiter({
-  limit: REGISTER_MAX_PER_HOUR,
-  windowMs: REGISTER_WINDOW_MS,
+const OAUTH_FLOW_WINDOW_MS = 10 * 60 * 1000;
+
+export const MEMBER_REGISTRATION_RATE_LIMIT_POLICY = {
+  registrationIngressIp: { limit: 600, windowMs: OAUTH_FLOW_WINDOW_MS },
+  // Do not reject a legitimate on-site registration drive behind one Wi-Fi IP;
+  // phone/email/social identity limits remain the tighter spam control.
+  ip: { limit: 600, windowMs: REGISTER_WINDOW_MS },
+  identity: { limit: 5, windowMs: REGISTER_WINDOW_MS },
+  // A Sunday service can put hundreds of legitimate phones behind one church
+  // public IP. Keep a ceiling for obvious floods without blocking that crowd.
+  oauthStartIp: { limit: 600, windowMs: OAUTH_FLOW_WINDOW_MS },
+  oauthCallbackIp: { limit: 600, windowMs: OAUTH_FLOW_WINDOW_MS },
+  oauthSignupContextIp: { limit: 1_200, windowMs: OAUTH_FLOW_WINDOW_MS },
+  oauthSignupContextIdentity: { limit: 30, windowMs: OAUTH_FLOW_WINDOW_MS },
+  oauthSignupCompleteIp: { limit: 600, windowMs: OAUTH_FLOW_WINDOW_MS },
+} as const;
+
+export type MemberRegistrationIdentityKind =
+  | "email"
+  | "phone"
+  | "google-account"
+  | "kakao-account";
+
+export type MemberRegistrationIdentity = {
+  kind: MemberRegistrationIdentityKind;
+  value: string | null | undefined;
+};
+
+function createIdentityRateLimitKey(identity: MemberRegistrationIdentity) {
+  const value = identity.value?.trim().toLowerCase();
+  if (!value) return null;
+  const digest = createHash("sha256")
+    .update(`${identity.kind}\u0000${value}`)
+    .digest("base64url");
+  return `${identity.kind}:${digest}`;
+}
+
+const registrationIngressIpLimiter = new BoundedFixedWindowRateLimiter({
+  ...MEMBER_REGISTRATION_RATE_LIMIT_POLICY.registrationIngressIp,
   maxKeys: RATE_LIMIT_MAX_TRACKED_KEYS,
-  message: "회원가입 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+  message:
+    "현재 네트워크에서 회원가입 화면 요청이 매우 많습니다. 잠시 후 다시 시도해 주세요.",
 });
 
-/** 회원가입 호출 전 rate limit 확인 */
-export function checkRegisterRateLimit(key: string): void {
-  registerLimiter.consume(key);
+/** Limit public registration work before any configuration or member DB read. */
+export function checkMemberRegistrationIngressRateLimit(clientIp: string): void {
+  registrationIngressIpLimiter.consume(`ip:${clientIp.trim() || "unknown"}`);
+}
+
+const registrationIpLimiter = new BoundedFixedWindowRateLimiter({
+  ...MEMBER_REGISTRATION_RATE_LIMIT_POLICY.ip,
+  maxKeys: RATE_LIMIT_MAX_TRACKED_KEYS,
+  message:
+    "현재 네트워크에서 회원가입 요청이 매우 많습니다. 잠시 후 다시 시도해 주세요.",
+});
+
+const registrationIdentityLimiter = new BoundedFixedWindowRateLimiter({
+  ...MEMBER_REGISTRATION_RATE_LIMIT_POLICY.identity,
+  maxKeys: RATE_LIMIT_MAX_TRACKED_KEYS,
+  message: "같은 가입 정보로 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+});
+
+/**
+ * 일반 가입과 간편가입 완료에 공통으로 적용하는 제한입니다.
+ * 반복되는 한 신원이 다른 정상 가입자의 공유 IP 한도를 소모하지 않도록
+ * 신원별 제한을 먼저 확인합니다.
+ */
+export function checkMemberRegistrationRateLimit(input: {
+  clientIp: string;
+  identities: readonly MemberRegistrationIdentity[];
+}): void {
+  const identityKeys = new Set(
+    input.identities
+      .map(createIdentityRateLimitKey)
+      .filter((key): key is string => Boolean(key))
+  );
+
+  if (identityKeys.size === 0) {
+    throw new Error("At least one registration identity is required.");
+  }
+
+  const clientIpKey = `ip:${input.clientIp.trim() || "unknown"}`;
+  const now = Date.now();
+  const entries = [
+    ...Array.from(identityKeys).map(key => ({ limiter: registrationIdentityLimiter, key })),
+    { limiter: registrationIpLimiter, key: clientIpKey },
+  ];
+
+  // Two phases make the composite decision atomic: a request rejected by its
+  // email or IP must not silently consume the phone/account counters checked
+  // earlier in the same request.
+  entries.forEach(({ limiter, key }) => limiter.assertAvailable(key, now));
+  entries.forEach(({ limiter, key }) => limiter.commitAvailable(key, now));
+}
+
+const oauthStartIpLimiter = new BoundedFixedWindowRateLimiter({
+  ...MEMBER_REGISTRATION_RATE_LIMIT_POLICY.oauthStartIp,
+  maxKeys: RATE_LIMIT_MAX_TRACKED_KEYS,
+  message: "간편로그인 시작 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+});
+
+/** 공급자를 바꿔 제한을 우회하지 못하도록 Google/Kakao 시작 요청이 IP 한도를 공유합니다. */
+export function checkMemberOAuthStartRateLimit(clientIp: string): void {
+  oauthStartIpLimiter.consume(`ip:${clientIp.trim() || "unknown"}`);
+}
+
+const oauthCallbackIpLimiter = new BoundedFixedWindowRateLimiter({
+  ...MEMBER_REGISTRATION_RATE_LIMIT_POLICY.oauthCallbackIp,
+  maxKeys: RATE_LIMIT_MAX_TRACKED_KEYS,
+  message: "간편로그인 확인 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+});
+
+/** 외부 공급자 토큰 교환 전에 반복 콜백을 제한합니다. */
+export function checkMemberOAuthCallbackRateLimit(clientIp: string): void {
+  oauthCallbackIpLimiter.consume(`ip:${clientIp.trim() || "unknown"}`);
+}
+
+const oauthSignupContextIpLimiter = new BoundedFixedWindowRateLimiter({
+  ...MEMBER_REGISTRATION_RATE_LIMIT_POLICY.oauthSignupContextIp,
+  maxKeys: RATE_LIMIT_MAX_TRACKED_KEYS,
+  message: "간편가입 정보 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+});
+
+const oauthSignupContextIdentityLimiter = new BoundedFixedWindowRateLimiter({
+  ...MEMBER_REGISTRATION_RATE_LIMIT_POLICY.oauthSignupContextIdentity,
+  maxKeys: RATE_LIMIT_MAX_TRACKED_KEYS,
+  message:
+    "같은 간편가입 계정으로 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+});
+
+/** 쿠키 검증 전에도 비정상적인 간편가입 정보 조회가 무제한 반복되지 않게 합니다. */
+export function checkMemberOAuthSignupContextIpRateLimit(
+  clientIp: string
+): void {
+  oauthSignupContextIpLimiter.consume(`ip:${clientIp.trim() || "unknown"}`);
+}
+
+/** 검증된 간편가입 공급자 계정의 반복 조회를 별도로 제한합니다. */
+export function checkMemberOAuthSignupContextIdentityRateLimit(input: {
+  provider: "google" | "kakao";
+  providerUserId: string;
+}): void {
+  const identityKey = createIdentityRateLimitKey({
+    kind: input.provider === "google" ? "google-account" : "kakao-account",
+    value: input.providerUserId,
+  });
+  if (!identityKey) {
+    throw new Error("OAuth provider identity is required.");
+  }
+
+  oauthSignupContextIdentityLimiter.consume(identityKey);
+}
+
+const oauthSignupCompleteIpLimiter = new BoundedFixedWindowRateLimiter({
+  ...MEMBER_REGISTRATION_RATE_LIMIT_POLICY.oauthSignupCompleteIp,
+  maxKeys: RATE_LIMIT_MAX_TRACKED_KEYS,
+  message: "간편가입 완료 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+});
+
+/** 서명 쿠키 검증과 DB 조회 전에 간편가입 완료 요청의 IP 폭주를 제한합니다. */
+export function checkMemberOAuthSignupCompleteRateLimit(
+  clientIp: string
+): void {
+  oauthSignupCompleteIpLimiter.consume(`ip:${clientIp.trim() || "unknown"}`);
 }
 
 // ─── 계정 찾기/재설정 요청 Rate Limiter ──────────────────────────────────────

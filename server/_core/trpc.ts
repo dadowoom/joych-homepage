@@ -108,8 +108,29 @@ export const memberProtectedProcedure = t.procedure.use(
         throw new TRPCError({ code: 'UNAUTHORIZED', message: '유효하지 않은 로그인 정보입니다.' });
       }
 
-      // ── 성도 상태 검증: approved 성도만 접근 허용 ────────────────────────
-      const member = await getMemberById(payload.memberId as number);
+      const memberId = Number(payload.memberId);
+      if (!Number.isInteger(memberId) || memberId < 1) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: '유효하지 않은 로그인 정보입니다.' });
+      }
+
+      // createContext already validates the same member cookie and current
+      // sessionVersion once per HTTP request. Reuse that result instead of
+      // issuing a duplicate primary-key query for every protected procedure.
+      if (ctx.memberId === memberId) {
+        return next({
+          ctx: {
+            ...ctx,
+            memberId,
+            memberName: typeof payload.name === 'string' && payload.name
+              ? payload.name
+              : ctx.memberName ?? '',
+          },
+        });
+      }
+
+      // Direct callers/tests without the normal Express context still receive
+      // the complete status and session-version validation.
+      const member = await getMemberById(memberId);
       if (!member) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: '존재하지 않는 성도 계정입니다.' });
       }
@@ -132,7 +153,7 @@ export const memberProtectedProcedure = t.procedure.use(
       return next({
         ctx: {
           ...ctx,
-          memberId: payload.memberId as number,
+          memberId,
           memberName: payload.name as string,
         },
       });

@@ -9,9 +9,13 @@ const dbMocks = vi.hoisted(() => ({
   createMember: vi.fn(),
   deleteMemberFieldOption: vi.fn(),
   decidePendingMemberRegistration: vi.fn(),
+  getAdminMembersForExport: vi.fn(),
+  getAdminMembersPage: vi.fn(),
   getAllMemberFieldOptions: vi.fn(),
   getAllMembers: vi.fn(),
   getMemberByEmail: vi.fn(),
+  getMemberById: vi.fn(),
+  getMemberDistrictAssignments: vi.fn(),
   getMembersByNameAndPhone: vi.fn(),
   getMemberFieldOptions: vi.fn(),
   getPendingMembers: vi.fn(),
@@ -35,9 +39,13 @@ vi.mock("./db", async (importOriginal) => {
     createMember: dbMocks.createMember,
     deleteMemberFieldOption: dbMocks.deleteMemberFieldOption,
     decidePendingMemberRegistration: dbMocks.decidePendingMemberRegistration,
+    getAdminMembersForExport: dbMocks.getAdminMembersForExport,
+    getAdminMembersPage: dbMocks.getAdminMembersPage,
     getAllMemberFieldOptions: dbMocks.getAllMemberFieldOptions,
     getAllMembers: dbMocks.getAllMembers,
     getMemberByEmail: dbMocks.getMemberByEmail,
+    getMemberById: dbMocks.getMemberById,
+    getMemberDistrictAssignments: dbMocks.getMemberDistrictAssignments,
     getMembersByNameAndPhone: dbMocks.getMembersByNameAndPhone,
     getMemberFieldOptions: dbMocks.getMemberFieldOptions,
     getPendingMembers: dbMocks.getPendingMembers,
@@ -99,6 +107,7 @@ const pendingMember = {
   id: 31,
   email: "new-member@example.com",
   passwordHash: "must-not-leak",
+  sessionVersion: 7,
   name: "새성도",
   phone: "01012345678",
   birthDate: "1990-01-02",
@@ -127,6 +136,17 @@ describe("member registration approval delegation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dbMocks.getAllMembers.mockResolvedValue([pendingMember]);
+    dbMocks.getAdminMembersPage.mockResolvedValue({
+      items: [pendingMember],
+      page: 1,
+      pageSize: 50,
+      total: 1,
+      totalPages: 1,
+      summary: { overallCount: 1, pendingCount: 1, basicMissingCount: 0 },
+    });
+    dbMocks.getAdminMembersForExport.mockResolvedValue([pendingMember]);
+    dbMocks.getMemberById.mockResolvedValue(pendingMember);
+    dbMocks.getMemberDistrictAssignments.mockResolvedValue(["1구역"]);
     dbMocks.getPendingMembers.mockResolvedValue([pendingMember]);
     dbMocks.decidePendingMemberRegistration.mockResolvedValue(true);
     dbMocks.getMemberByEmail.mockResolvedValue(null);
@@ -169,19 +189,46 @@ describe("member registration approval delegation", () => {
       .rejects.toMatchObject({ code: "CONFLICT" });
   });
 
-  it("회원가입 승인 권한자는 전체 교적부 조회·수정·탈퇴 보관을 할 수 있다", async () => {
+  it("회원가입 승인 권한자는 페이지 목록·상세 조회·수정·탈퇴 보관을 할 수 있다", async () => {
     const caller = appRouter.createCaller(createContext(createUser([MEMBER_APPROVAL_PERMISSION_KEY])));
 
-    const members = await caller.members.adminList();
-    expect(members).toEqual([expect.objectContaining({
+    const result = await caller.members.adminList({
+      page: 1,
+      pageSize: 50,
+      status: "pending",
+      search: " 새성도 ",
+      viewMode: "list",
+    });
+    expect(result.items).toEqual([expect.objectContaining({
+      id: 31,
+      name: "새성도",
+      status: "pending",
+    })]);
+    expect(result.total).toBe(1);
+    expect(result.items[0]).not.toHaveProperty("passwordHash");
+    expect(result.items[0]).not.toHaveProperty("email");
+    expect(result.items[0]).not.toHaveProperty("address");
+    expect(dbMocks.getAdminMembersPage).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 50,
+      status: "pending",
+      district: "",
+      position: "",
+      department: "",
+      basicMissingOnly: false,
+      search: "새성도",
+      viewMode: "list",
+    });
+
+    const member = await caller.members.adminDetail({ id: 31 });
+    expect(member).toEqual(expect.objectContaining({
       id: 31,
       name: "새성도",
       address: "비공개 주소",
-      status: "pending",
-    })]);
-    expect(members[0]).not.toHaveProperty("passwordHash");
-    expect(members[0]).not.toHaveProperty("adminMemo");
-    expect(members[0]).not.toHaveProperty("assignedDistricts");
+    }));
+    expect(member).not.toHaveProperty("passwordHash");
+    expect(member).not.toHaveProperty("adminMemo");
+    expect(member).not.toHaveProperty("assignedDistricts");
 
     await expect(caller.members.directoryUpdate({
       id: 31,
@@ -198,6 +245,62 @@ describe("member registration approval delegation", () => {
     await expect(caller.members.archiveMember({ id: 31 }))
       .resolves.toEqual({ success: true });
     expect(dbMocks.updateMemberChurchInfo).toHaveBeenCalledWith(31, { status: "withdrawn" });
+  });
+
+  it("엑셀 조회는 현재 필터의 전체 결과를 별도 권한 경로로 반환하고 비밀 필드는 제외한다", async () => {
+    const caller = appRouter.createCaller(createContext(createUser([MEMBER_APPROVAL_PERMISSION_KEY])));
+    const auditSpy = vi.spyOn(console, "info").mockImplementation(() => undefined);
+
+    try {
+      const result = await caller.members.adminExport({
+        status: "approved",
+        district: "1구역",
+        basicMissingOnly: true,
+        search: "0101234",
+        viewMode: "district",
+      });
+
+      expect(dbMocks.getAdminMembersForExport).toHaveBeenCalledWith({
+        status: "approved",
+        district: "1구역",
+        position: "",
+        department: "",
+        basicMissingOnly: true,
+        search: "0101234",
+        viewMode: "district",
+      });
+      expect(result.total).toBe(1);
+      expect(result.items[0]).toEqual(expect.objectContaining({
+        id: 31,
+        email: "new-member@example.com",
+        address: "비공개 주소",
+      }));
+      expect(result.items[0]).not.toHaveProperty("passwordHash");
+      expect(result.items[0]).not.toHaveProperty("adminMemo");
+      expect(result.items[0]).not.toHaveProperty("assignedDistricts");
+      expect(auditSpy).toHaveBeenCalledWith(
+        "[AUDIT] member_admin_export",
+        expect.stringContaining('"exportedCount":1'),
+      );
+      expect(auditSpy.mock.calls[0]?.[1]).not.toContain("0101234");
+      expect(auditSpy.mock.calls[0]?.[1]).not.toContain("1구역");
+    } finally {
+      auditSpy.mockRestore();
+    }
+  });
+
+  it("최고관리자 상세 조회에만 관리자 메모와 담당 구역을 포함하고 로그인 비밀값은 제외한다", async () => {
+    const caller = appRouter.createCaller(createContext(createAdminUser()));
+
+    const member = await caller.members.adminDetail({ id: 31 });
+
+    expect(member).toEqual(expect.objectContaining({
+      adminMemo: "내부 메모",
+      assignedDistricts: ["1구역"],
+    }));
+    expect(member).not.toHaveProperty("passwordHash");
+    expect(member).not.toHaveProperty("sessionVersion");
+    expect(dbMocks.getMemberDistrictAssignments).toHaveBeenCalledWith(31);
   });
 
   it("회원가입 승인 권한자에게 최고관리자 전용 기능은 열리지 않는다", async () => {
@@ -219,12 +322,16 @@ describe("member registration approval delegation", () => {
 
     await expect(caller.members.approvalList()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.members.adminList()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.members.adminDetail({ id: 31 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.members.adminExport()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.members.directoryUpdate({ id: 31, name: "무권한" }))
       .rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.members.archiveMember({ id: 31 }))
       .rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.members.updateApprovalStatus({ id: 31, status: "approved" }))
       .rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(dbMocks.getAdminMembersPage).not.toHaveBeenCalled();
+    expect(dbMocks.getAdminMembersForExport).not.toHaveBeenCalled();
     expect(dbMocks.decidePendingMemberRegistration).not.toHaveBeenCalled();
   });
 

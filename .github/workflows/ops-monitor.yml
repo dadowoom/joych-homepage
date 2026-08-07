@@ -1,0 +1,244 @@
+name: Production Operations Monitor
+
+on:
+  schedule:
+    # GitHub cron uses UTC. Minute 17 avoids the busiest top-of-hour window.
+    - cron: "17 * * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/ops-monitor.yml"
+      - "scripts/ops-check-public.mjs"
+      - "scripts/ops-check-public.test.mjs"
+      - "scripts/ops-check-remote.mjs"
+      - "scripts/ops-check-remote.test.mjs"
+  push:
+    branches:
+      - main
+      - "codex/**"
+    paths:
+      - ".github/workflows/ops-monitor.yml"
+      - "scripts/ops-check-public.mjs"
+      - "scripts/ops-check-public.test.mjs"
+      - "scripts/ops-check-remote.mjs"
+      - "scripts/ops-check-remote.test.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-monitor:
+    name: Verify monitor scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check syntax and tests
+        run: |
+          node --check scripts/ops-check-public.mjs
+          node --check scripts/ops-check-remote.mjs
+          node --test scripts/ops-check-public.test.mjs scripts/ops-check-remote.test.mjs
+
+  monitor-production:
+    name: Check production
+    needs: verify-monitor
+    if: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: joych-production
+      cancel-in-progress: false
+      queue: max
+    env:
+      JOYCH_PUBLIC_READINESS_URL: ${{ vars.JOYCH_PUBLIC_READINESS_URL || 'https://www.joych.org/api/readyz' }}
+      JOYCH_APP_DIR: ${{ vars.JOYCH_APP_DIR || '/var/www/joych-homepage' }}
+      JOYCH_BACKUP_DIR: ${{ vars.JOYCH_BACKUP_DIR || '/var/backups/joych-homepage' }}
+      JOYCH_PM2_APP: ${{ vars.JOYCH_PM2_APP || 'joych-homepage' }}
+      JOYCH_OPS_BACKUP_MAX_AGE_HOURS: ${{ vars.JOYCH_OPS_BACKUP_MAX_AGE_HOURS || '30' }}
+      JOYCH_OPS_MIN_DISK_FREE_PERCENT: ${{ vars.JOYCH_OPS_MIN_DISK_FREE_PERCENT || '15' }}
+      JOYCH_SSH_PORT: ${{ secrets.JOYCH_SSH_PORT || '22' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check public readiness and database
+        id: public-readiness
+        continue-on-error: true
+        run: node scripts/ops-check-public.mjs
+
+      - name: Determine remote check availability
+        id: remote
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.JOYCH_SSH_HOST }}
+          SSH_USER: ${{ secrets.JOYCH_SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.JOYCH_SSH_PRIVATE_KEY }}
+          SSH_PASSWORD: ${{ secrets.JOYCH_SSH_PASSWORD }}
+          SSH_HOST_ED25519_KEY: ${{ secrets.JOYCH_SSH_HOST_ED25519_KEY }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ -z "${SSH_HOST}" && -z "${SSH_USER}" && -z "${SSH_PRIVATE_KEY}" && -z "${SSH_PASSWORD}" && -z "${SSH_HOST_ED25519_KEY}" ]]; then
+            echo "enabled=false" >> "${GITHUB_OUTPUT}"
+            echo "### Remote production checks" >> "${GITHUB_STEP_SUMMARY}"
+            echo "Skipped: no JOYCH SSH secrets are configured. Public readiness was still checked." >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          if [[ -z "${SSH_HOST}" || -z "${SSH_USER}" ]]; then
+            echo "Partial JOYCH SSH configuration: host and user are both required." >&2
+            exit 1
+          fi
+          if [[ -z "${SSH_PRIVATE_KEY}" && -z "${SSH_PASSWORD}" ]]; then
+            echo "Partial JOYCH SSH configuration: a private key or password is required." >&2
+            exit 1
+          fi
+          if [[ -z "${SSH_HOST_ED25519_KEY}" ]]; then
+            echo "Partial JOYCH SSH configuration: the pinned ED25519 host key is required." >&2
+            exit 1
+          fi
+          if [[ ! "${SSH_HOST}" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]*$ ]]; then
+            echo "JOYCH_SSH_HOST contains unsupported characters." >&2
+            exit 1
+          fi
+          if [[ ! "${SSH_USER}" =~ ^[A-Za-z_][A-Za-z0-9._-]*$ ]]; then
+            echo "JOYCH_SSH_USER contains unsupported characters." >&2
+            exit 1
+          fi
+          if [[ ! "${JOYCH_SSH_PORT}" =~ ^[0-9]+$ ]] || (( JOYCH_SSH_PORT < 1 || JOYCH_SSH_PORT > 65535 )); then
+            echo "JOYCH_SSH_PORT must be between 1 and 65535." >&2
+            exit 1
+          fi
+          if [[ ! "${SSH_HOST_ED25519_KEY}" =~ ^[A-Za-z0-9+/]+={0,2}$ ]] || ! printf '%s' "${SSH_HOST_ED25519_KEY}" | base64 --decode >/dev/null 2>&1; then
+            echo "JOYCH_SSH_HOST_ED25519_KEY is not a valid base64 host key." >&2
+            exit 1
+          fi
+
+          echo "enabled=true" >> "${GITHUB_OUTPUT}"
+          if [[ -n "${SSH_PRIVATE_KEY}" ]]; then
+            echo "auth=key" >> "${GITHUB_OUTPUT}"
+          else
+            echo "auth=password" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Prepare SSH host verification
+        if: steps.remote.outputs.enabled == 'true'
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.JOYCH_SSH_HOST }}
+          SSH_PRIVATE_KEY: ${{ secrets.JOYCH_SSH_PRIVATE_KEY }}
+          SSH_HOST_ED25519_KEY: ${{ secrets.JOYCH_SSH_HOST_ED25519_KEY }}
+        run: |
+          set -Eeuo pipefail
+          SSH_DIR="${RUNNER_TEMP}/joych-ops-ssh"
+          mkdir -p "${SSH_DIR}"
+          chmod 700 "${SSH_DIR}"
+
+          if [[ "${{ steps.remote.outputs.auth }}" == "key" ]]; then
+            printf '%s\n' "${SSH_PRIVATE_KEY}" > "${SSH_DIR}/private_key"
+            chmod 600 "${SSH_DIR}/private_key"
+          fi
+
+          if [[ "${JOYCH_SSH_PORT}" == "22" ]]; then
+            HOST_TOKEN="${SSH_HOST}"
+          else
+            HOST_TOKEN="[${SSH_HOST}]:${JOYCH_SSH_PORT}"
+          fi
+          printf '%s ssh-ed25519 %s\n' \
+            "${HOST_TOKEN}" \
+            "${SSH_HOST_ED25519_KEY}" \
+            > "${SSH_DIR}/known_hosts"
+          chmod 600 "${SSH_DIR}/known_hosts"
+
+      - name: Install password SSH helper
+        if: steps.remote.outputs.enabled == 'true' && steps.remote.outputs.auth == 'password'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq sshpass >/dev/null
+
+      - name: Check PM2, disks, and latest complete backup
+        if: steps.remote.outputs.enabled == 'true'
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.JOYCH_SSH_HOST }}
+          SSH_USER: ${{ secrets.JOYCH_SSH_USER }}
+          SSH_PASSWORD: ${{ secrets.JOYCH_SSH_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          SSH_DIR="${RUNNER_TEMP}/joych-ops-ssh"
+          SSH_OPTIONS=(
+            -p "${JOYCH_SSH_PORT}"
+            -o ConnectTimeout=10
+            -o ConnectionAttempts=2
+            -o LogLevel=ERROR
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="${SSH_DIR}/known_hosts"
+          )
+
+          printf -v REMOTE_COMMAND \
+            'env JOYCH_APP_DIR=%q JOYCH_BACKUP_DIR=%q JOYCH_PM2_APP=%q JOYCH_OPS_BACKUP_MAX_AGE_HOURS=%q JOYCH_OPS_MIN_DISK_FREE_PERCENT=%q node --input-type=module -' \
+            "${JOYCH_APP_DIR}" \
+            "${JOYCH_BACKUP_DIR}" \
+            "${JOYCH_PM2_APP}" \
+            "${JOYCH_OPS_BACKUP_MAX_AGE_HOURS}" \
+            "${JOYCH_OPS_MIN_DISK_FREE_PERCENT}"
+
+          if [[ "${{ steps.remote.outputs.auth }}" == "key" ]]; then
+            ssh \
+              "${SSH_OPTIONS[@]}" \
+              -o BatchMode=yes \
+              -i "${SSH_DIR}/private_key" \
+              "${SSH_USER}@${SSH_HOST}" \
+              "${REMOTE_COMMAND}" \
+              < scripts/ops-check-remote.mjs
+          else
+            export SSHPASS="${SSH_PASSWORD}"
+            sshpass -e ssh \
+              "${SSH_OPTIONS[@]}" \
+              -o BatchMode=no \
+              -o PreferredAuthentications=password,keyboard-interactive \
+              "${SSH_USER}@${SSH_HOST}" \
+              "${REMOTE_COMMAND}" \
+              < scripts/ops-check-remote.mjs
+          fi
+
+      - name: Remove temporary SSH material
+        if: always()
+        run: |
+          SSH_DIR="${RUNNER_TEMP:?}/joych-ops-ssh"
+          rm -f -- "${SSH_DIR}/private_key" "${SSH_DIR}/known_hosts" "${SSH_DIR}/known_hosts.tmp"
+          rmdir -- "${SSH_DIR}" 2>/dev/null || true
+
+      - name: Enforce public readiness result
+        if: always()
+        env:
+          PUBLIC_READINESS_OUTCOME: ${{ steps.public-readiness.outcome }}
+        run: |
+          if [[ "${PUBLIC_READINESS_OUTCOME}" != "success" ]]; then
+            echo "The public readiness check failed." >&2
+            exit 1
+          fi
+
+      - name: Record successful monitor run
+        if: success()
+        run: |
+          echo "### Production operations monitor" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Public readiness and all enabled remote checks passed." >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Record failed monitor run
+        if: failure()
+        run: |
+          echo "### Production operations monitor" >> "${GITHUB_STEP_SUMMARY}"
+          echo "One or more production checks failed. Review the failed step; no secrets or PM2 environment values are printed by the checker." >> "${GITHUB_STEP_SUMMARY}"

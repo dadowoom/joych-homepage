@@ -20,6 +20,15 @@ import {
   withMemberRegistrationIdentityLock,
 } from "./memberRegistrationLock";
 import {
+  checkMemberOAuthCallbackRateLimit,
+  checkMemberOAuthSignupCompleteRateLimit,
+  checkMemberOAuthSignupContextIdentityRateLimit,
+  checkMemberOAuthSignupContextIpRateLimit,
+  checkMemberOAuthStartRateLimit,
+  checkMemberRegistrationRateLimit,
+  getClientIp,
+} from "./rateLimiter";
+import {
   createMemberSocialAccount,
   createMemberWithSocialAccount,
   getMemberFieldOptions,
@@ -294,6 +303,13 @@ function redirectToLogin(res: Response, params: Record<string, string>) {
 
 function getMode(value: unknown): MemberOAuthMode {
   return value === "register" ? "register" : "login";
+}
+
+function getRateLimitMessage(error: unknown) {
+  const candidate = error as (Error & { code?: unknown }) | null;
+  return candidate instanceof Error && candidate.code === "TOO_MANY_REQUESTS"
+    ? candidate.message
+    : null;
 }
 
 function assertString(value: unknown, message: string): string {
@@ -661,7 +677,12 @@ export async function createMemberFromSocialSignup(
 export function registerMemberOAuthRoutes(app: Express) {
   app.get("/api/member-oauth/signup-context", async (req, res) => {
     try {
+      checkMemberOAuthSignupContextIpRateLimit(getClientIp(req));
       const signup = await verifySocialSignupState(req);
+      checkMemberOAuthSignupContextIdentityRateLimit({
+        provider: signup.provider,
+        providerUserId: signup.providerUserId,
+      });
       return res.json({
         provider: signup.provider,
         providerLabel: providers[signup.provider].label,
@@ -671,13 +692,18 @@ export function registerMemberOAuthRoutes(app: Express) {
         birthDate: signup.birthDate,
         gender: signup.gender,
       });
-    } catch {
+    } catch (error) {
+      const rateLimitMessage = getRateLimitMessage(error);
+      if (rateLimitMessage) {
+        return res.status(429).json({ message: rateLimitMessage });
+      }
       return res.status(401).json({ message: "간편가입 정보가 만료되었습니다. 다시 시도해주세요." });
     }
   });
 
   app.post("/api/member-oauth/complete-signup", async (req, res) => {
     try {
+      checkMemberOAuthSignupCompleteRateLimit(getClientIp(req));
       const signup = await verifySocialSignupState(req);
       res.clearCookie(MEMBER_SESSION_COOKIE, {
         ...getSessionCookieOptions(req),
@@ -713,6 +739,18 @@ export function registerMemberOAuthRoutes(app: Express) {
           return res.status(400).json({ message: "현재 사용할 수 없는 직분입니다. 목록에서 다시 선택해주세요." });
         }
       }
+
+      checkMemberRegistrationRateLimit({
+        clientIp: getClientIp(req),
+        identities: [
+          {
+            kind: signup.provider === "google" ? "google-account" : "kakao-account",
+            value: signup.providerUserId,
+          },
+          { kind: "phone", value: phone },
+          { kind: "email", value: email },
+        ],
+      });
 
       const result = await createMemberFromSocialSignup(signup, {
         name,
@@ -750,6 +788,10 @@ export function registerMemberOAuthRoutes(app: Express) {
       clearSocialSignupCookie(req, res);
       return res.json({ ok: true });
     } catch (error) {
+      const rateLimitMessage = getRateLimitMessage(error);
+      if (rateLimitMessage) {
+        return res.status(429).json({ message: rateLimitMessage });
+      }
       if (error instanceof MemberRegistrationBusyError) {
         return res.status(429).json({ message: error.message });
       }
@@ -789,6 +831,15 @@ export function registerMemberOAuthRoutes(app: Express) {
       return res.redirect(302, canonicalStartUrl);
     }
 
+    try {
+      checkMemberOAuthStartRateLimit(getClientIp(req));
+    } catch (error) {
+      const rateLimitMessage = getRateLimitMessage(error);
+      return res.status(429).json({
+        message: rateLimitMessage || "간편로그인 시작 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+      });
+    }
+
     const state = await createOAuthState(providerParam, mode);
     res.cookie(OAUTH_STATE_COOKIE, state, {
       ...getSessionCookieOptions(req),
@@ -825,6 +876,7 @@ export function registerMemberOAuthRoutes(app: Express) {
     }
 
     try {
+      checkMemberOAuthCallbackRateLimit(getClientIp(req));
       const state = assertString(req.query.state, "OAuth state missing");
       const code = assertString(req.query.code, "OAuth code missing");
       const oauthState = await verifyOAuthState(req, providerParam, state);
@@ -871,6 +923,10 @@ export function registerMemberOAuthRoutes(app: Express) {
       return res.redirect(303, "/");
     } catch (error) {
       clearOAuthStateCookie(req, res);
+      const rateLimitMessage = getRateLimitMessage(error);
+      if (rateLimitMessage) {
+        return res.status(429).json({ message: rateLimitMessage });
+      }
       console.error("[member-oauth] callback failed", error);
       return redirectToLogin(res, { social: "error", provider: providerParam });
     }

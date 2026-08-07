@@ -5,11 +5,11 @@ on:
   push:
     branches:
       - main
-      - codex/signup-hardening
 
 concurrency:
   group: joych-production
   cancel-in-progress: false
+  queue: max
 
 permissions:
   contents: read
@@ -37,6 +37,7 @@ env:
 
 jobs:
   deploy:
+    if: ${{ github.ref == 'refs/heads/main' }}
     name: Build and Deploy
     runs-on: ubuntu-latest
     # The first legacy praise import validates and inserts more than 5,000 videos.
@@ -89,6 +90,7 @@ jobs:
           node --check scripts/backup-joych-safety.mjs
           node --check scripts/audit-upload-inventory.mjs
           node --check scripts/apply-0110-db-growth-indexes.mjs
+          node --check scripts/apply-0111-member-admin-indexes.mjs
           bash -n scripts/deploy-production-remote.sh
           bash -n scripts/deploy-retention.sh
           bash -n scripts/deploy-retention.test.sh
@@ -109,7 +111,7 @@ jobs:
       - name: Create deploy artifact
         run: |
           ARTIFACT="joych-homepage-${GITHUB_SHA}.tar.gz"
-          tar -czf "${ARTIFACT}" dist package.json pnpm-lock.yaml pnpm-workspace.yaml patches drizzle/*.sql scripts/backup-joych-production.mjs scripts/backup-joych-safety.mjs scripts/audit-upload-inventory.mjs scripts/apply-0110-db-growth-indexes.mjs scripts/deploy-retention.sh scripts/verify-pwa-domain-bridge.mjs
+          tar -czf "${ARTIFACT}" dist package.json pnpm-lock.yaml pnpm-workspace.yaml patches drizzle/*.sql scripts/backup-joych-production.mjs scripts/backup-joych-safety.mjs scripts/audit-upload-inventory.mjs scripts/apply-0110-db-growth-indexes.mjs scripts/apply-0111-member-admin-indexes.mjs scripts/deploy-retention.sh scripts/verify-pwa-domain-bridge.mjs
           echo "ARTIFACT=${ARTIFACT}" >> "${GITHUB_ENV}"
 
       - name: Prepare SSH
@@ -118,10 +120,29 @@ jobs:
           SSH_USER: ${{ secrets.JOYCH_SSH_USER }}
           SSH_PRIVATE_KEY: ${{ secrets.JOYCH_SSH_PRIVATE_KEY }}
           SSH_PASSWORD: ${{ secrets.JOYCH_SSH_PASSWORD }}
+          SSH_HOST_ED25519_KEY: ${{ secrets.JOYCH_SSH_HOST_ED25519_KEY }}
         run: |
-          if [[ -z "${SSH_HOST}" || -z "${SSH_USER}" ]]; then
+          set -Eeuo pipefail
+
+          if [[ -z "${SSH_HOST}" || -z "${SSH_USER}" || -z "${SSH_HOST_ED25519_KEY}" ]]; then
             echo "Missing required deployment secrets." >&2
-            echo "Required: JOYCH_SSH_HOST, JOYCH_SSH_USER" >&2
+            echo "Required: JOYCH_SSH_HOST, JOYCH_SSH_USER, JOYCH_SSH_HOST_ED25519_KEY" >&2
+            exit 1
+          fi
+          if [[ ! "${SSH_HOST}" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]*$ ]]; then
+            echo "JOYCH_SSH_HOST contains unsupported characters." >&2
+            exit 1
+          fi
+          if [[ ! "${SSH_USER}" =~ ^[A-Za-z_][A-Za-z0-9._-]*$ ]]; then
+            echo "JOYCH_SSH_USER contains unsupported characters." >&2
+            exit 1
+          fi
+          if [[ ! "${JOYCH_SSH_PORT}" =~ ^[0-9]+$ ]] || (( JOYCH_SSH_PORT < 1 || JOYCH_SSH_PORT > 65535 )); then
+            echo "JOYCH_SSH_PORT must be between 1 and 65535." >&2
+            exit 1
+          fi
+          if [[ ! "${SSH_HOST_ED25519_KEY}" =~ ^[A-Za-z0-9+/]+={0,2}$ ]] || ! printf '%s' "${SSH_HOST_ED25519_KEY}" | base64 --decode >/dev/null 2>&1; then
+            echo "JOYCH_SSH_HOST_ED25519_KEY is not a valid base64 host key." >&2
             exit 1
           fi
 
@@ -133,7 +154,16 @@ jobs:
             chmod 600 ~/.ssh/joych_deploy_key
           fi
 
-          ssh-keyscan -p "${JOYCH_SSH_PORT}" "${SSH_HOST}" >> ~/.ssh/known_hosts
+          if [[ "${JOYCH_SSH_PORT}" == "22" ]]; then
+            HOST_TOKEN="${SSH_HOST}"
+          else
+            HOST_TOKEN="[${SSH_HOST}]:${JOYCH_SSH_PORT}"
+          fi
+          printf '%s ssh-ed25519 %s\n' \
+            "${HOST_TOKEN}" \
+            "${SSH_HOST_ED25519_KEY}" \
+            > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Upload artifact
         env:
@@ -145,13 +175,20 @@ jobs:
           if [[ -n "${SSH_PRIVATE_KEY}" ]]; then
             scp -i ~/.ssh/joych_deploy_key \
               -P "${JOYCH_SSH_PORT}" \
+              -o LogLevel=ERROR \
+              -o StrictHostKeyChecking=yes \
+              -o "UserKnownHostsFile=${HOME}/.ssh/known_hosts" \
               "${ARTIFACT}" \
               "${SSH_USER}@${SSH_HOST}:/tmp/${ARTIFACT}"
           elif [[ -n "${SSH_PASSWORD}" ]]; then
             sudo apt-get update -y >/dev/null
             sudo apt-get install -y sshpass >/dev/null
-            sshpass -p "${SSH_PASSWORD}" \
+            export SSHPASS="${SSH_PASSWORD}"
+            sshpass -e \
               scp -P "${JOYCH_SSH_PORT}" \
+              -o LogLevel=ERROR \
+              -o StrictHostKeyChecking=yes \
+              -o "UserKnownHostsFile=${HOME}/.ssh/known_hosts" \
               "${ARTIFACT}" \
               "${SSH_USER}@${SSH_HOST}:/tmp/${ARTIFACT}"
           else
@@ -169,12 +206,19 @@ jobs:
           if [[ -n "${SSH_PRIVATE_KEY}" ]]; then
             ssh -i ~/.ssh/joych_deploy_key \
               -p "${JOYCH_SSH_PORT}" \
+              -o LogLevel=ERROR \
+              -o StrictHostKeyChecking=yes \
+              -o "UserKnownHostsFile=${HOME}/.ssh/known_hosts" \
               "${SSH_USER}@${SSH_HOST}" \
               "APP_DIR='${JOYCH_APP_DIR}' PM2_APP='${JOYCH_PM2_APP}' ARTIFACT='/tmp/${ARTIFACT}' HEALTHCHECK_URL='${JOYCH_HEALTHCHECK_URL}' READINESS_URL='${JOYCH_READINESS_URL}' HEALTHCHECK_ATTEMPTS='${JOYCH_HEALTHCHECK_ATTEMPTS}' HEALTHCHECK_DELAY_SECONDS='${JOYCH_HEALTHCHECK_DELAY_SECONDS}' HEALTHCHECK_CONNECT_TIMEOUT_SECONDS='${JOYCH_HEALTHCHECK_CONNECT_TIMEOUT_SECONDS}' HEALTHCHECK_MAX_TIME_SECONDS='${JOYCH_HEALTHCHECK_MAX_TIME_SECONDS}' DEPLOY_BACKUP_MIN_COUNT='${JOYCH_DEPLOY_BACKUP_MIN_COUNT}' DEPLOY_BACKUP_MAX_COUNT='${JOYCH_DEPLOY_BACKUP_MAX_COUNT}' DEPLOY_BACKUP_MAX_AGE_DAYS='${JOYCH_DEPLOY_BACKUP_MAX_AGE_DAYS}' ASSET_PRIOR_RELEASE_MIN_COUNT='${JOYCH_ASSET_PRIOR_RELEASE_MIN_COUNT}' ASSET_PRIOR_RELEASE_MAX_COUNT='${JOYCH_ASSET_PRIOR_RELEASE_MAX_COUNT}' ASSET_PRIOR_RELEASE_MAX_AGE_DAYS='${JOYCH_ASSET_PRIOR_RELEASE_MAX_AGE_DAYS}' bash -s" \
               < scripts/deploy-production-remote.sh
           elif [[ -n "${SSH_PASSWORD}" ]]; then
-            sshpass -p "${SSH_PASSWORD}" \
+            export SSHPASS="${SSH_PASSWORD}"
+            sshpass -e \
               ssh -p "${JOYCH_SSH_PORT}" \
+              -o LogLevel=ERROR \
+              -o StrictHostKeyChecking=yes \
+              -o "UserKnownHostsFile=${HOME}/.ssh/known_hosts" \
               "${SSH_USER}@${SSH_HOST}" \
               "APP_DIR='${JOYCH_APP_DIR}' PM2_APP='${JOYCH_PM2_APP}' ARTIFACT='/tmp/${ARTIFACT}' HEALTHCHECK_URL='${JOYCH_HEALTHCHECK_URL}' READINESS_URL='${JOYCH_READINESS_URL}' HEALTHCHECK_ATTEMPTS='${JOYCH_HEALTHCHECK_ATTEMPTS}' HEALTHCHECK_DELAY_SECONDS='${JOYCH_HEALTHCHECK_DELAY_SECONDS}' HEALTHCHECK_CONNECT_TIMEOUT_SECONDS='${JOYCH_HEALTHCHECK_CONNECT_TIMEOUT_SECONDS}' HEALTHCHECK_MAX_TIME_SECONDS='${JOYCH_HEALTHCHECK_MAX_TIME_SECONDS}' DEPLOY_BACKUP_MIN_COUNT='${JOYCH_DEPLOY_BACKUP_MIN_COUNT}' DEPLOY_BACKUP_MAX_COUNT='${JOYCH_DEPLOY_BACKUP_MAX_COUNT}' DEPLOY_BACKUP_MAX_AGE_DAYS='${JOYCH_DEPLOY_BACKUP_MAX_AGE_DAYS}' ASSET_PRIOR_RELEASE_MIN_COUNT='${JOYCH_ASSET_PRIOR_RELEASE_MIN_COUNT}' ASSET_PRIOR_RELEASE_MAX_COUNT='${JOYCH_ASSET_PRIOR_RELEASE_MAX_COUNT}' ASSET_PRIOR_RELEASE_MAX_AGE_DAYS='${JOYCH_ASSET_PRIOR_RELEASE_MAX_AGE_DAYS}' bash -s" \
               < scripts/deploy-production-remote.sh

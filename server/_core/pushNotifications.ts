@@ -8,6 +8,7 @@ import {
   selectUniquePushSubscriptions,
   settleWithConcurrency,
 } from "./pushSubscriptionPolicy";
+import { getPushDeliveryConfig } from "./pushDeliveryConfig";
 
 let initialized = false;
 let warnedMissingVapid = false;
@@ -52,8 +53,7 @@ export type PushPayload = {
 
 type PushSendOutcome = "sent" | "expired" | "failed";
 
-const PUSH_DELIVERY_CONCURRENCY = 25;
-const PUSH_DELIVERY_TIMEOUT_MS = 10_000;
+const PUSH_DELIVERY_CONFIG = getPushDeliveryConfig();
 
 export type PushDispatchResult = {
   subscriptionCount: number;
@@ -91,7 +91,7 @@ async function dispatchPushSubscriptions(
   const payloadJson = JSON.stringify(payload);
   const results = await settleWithConcurrency(
     uniqueSubscriptions,
-    PUSH_DELIVERY_CONCURRENCY,
+    PUSH_DELIVERY_CONFIG.concurrency,
     async (subscription): Promise<PushSendOutcome> => {
       try {
         await webpush.sendNotification(
@@ -103,7 +103,7 @@ async function dispatchPushSubscriptions(
             },
           },
           payloadJson,
-          { timeout: PUSH_DELIVERY_TIMEOUT_MS },
+          { timeout: PUSH_DELIVERY_CONFIG.timeoutMs },
         );
         return "sent";
       } catch (error: unknown) {

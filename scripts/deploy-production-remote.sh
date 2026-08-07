@@ -3383,6 +3383,16 @@ else
   exit 1
 fi
 
+MIGRATION_0111="${APP_DIR}/drizzle/0111_member_admin_list_indexes.sql"
+MIGRATION_RUNNER_0111="${APP_DIR}/scripts/apply-0111-member-admin-indexes.mjs"
+if [[ -f "${MIGRATION_0111}" && -f "${MIGRATION_RUNNER_0111}" ]]; then
+  echo "[deploy] database migration: member admin list indexes"
+  node "${MIGRATION_RUNNER_0111}"
+else
+  echo "[deploy] missing migration 0111 or its safe runner" >&2
+  exit 1
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

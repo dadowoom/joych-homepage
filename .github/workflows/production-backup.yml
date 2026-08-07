@@ -1,0 +1,213 @@
+name: Production Backup
+
+on:
+  schedule:
+    # 19:27 UTC is 04:27 the next day in Asia/Seoul.
+    - cron: "27 19 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Run even when a complete backup is less than 12 hours old"
+        required: false
+        default: false
+        type: boolean
+  pull_request:
+    paths:
+      - ".github/workflows/production-backup.yml"
+      - "scripts/ops-run-production-backup.mjs"
+      - "scripts/ops-run-production-backup.test.mjs"
+  push:
+    branches:
+      - main
+      - "codex/**"
+    paths:
+      - ".github/workflows/production-backup.yml"
+      - "scripts/ops-run-production-backup.mjs"
+      - "scripts/ops-run-production-backup.test.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-backup-runner:
+    name: Verify backup runner
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check syntax and tests
+        run: |
+          node --check scripts/ops-run-production-backup.mjs
+          node --test scripts/ops-run-production-backup.test.mjs
+
+  run-production-backup:
+    name: Run and verify production backup
+    needs: verify-backup-runner
+    if: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    concurrency:
+      group: joych-production
+      cancel-in-progress: false
+      queue: max
+    env:
+      JOYCH_APP_DIR: ${{ vars.JOYCH_APP_DIR || '/var/www/joych-homepage' }}
+      JOYCH_BACKUP_DIR: ${{ vars.JOYCH_BACKUP_DIR || '/var/backups/joych-homepage' }}
+      JOYCH_OPS_BACKUP_SKIP_FRESH_HOURS: ${{ vars.JOYCH_OPS_BACKUP_SKIP_FRESH_HOURS || '12' }}
+      JOYCH_OPS_BACKUP_LOCK_WAIT_MINUTES: ${{ vars.JOYCH_OPS_BACKUP_LOCK_WAIT_MINUTES || '90' }}
+      JOYCH_OPS_BACKUP_POLL_SECONDS: ${{ vars.JOYCH_OPS_BACKUP_POLL_SECONDS || '30' }}
+      JOYCH_OPS_BACKUP_COMMAND_TIMEOUT_MINUTES: ${{ vars.JOYCH_OPS_BACKUP_COMMAND_TIMEOUT_MINUTES || '105' }}
+      JOYCH_OPS_BACKUP_FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force && '1' || '0' }}
+      JOYCH_SSH_PORT: ${{ secrets.JOYCH_SSH_PORT || '22' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate SSH configuration
+        id: remote
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.JOYCH_SSH_HOST }}
+          SSH_USER: ${{ secrets.JOYCH_SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.JOYCH_SSH_PRIVATE_KEY }}
+          SSH_PASSWORD: ${{ secrets.JOYCH_SSH_PASSWORD }}
+          SSH_HOST_ED25519_KEY: ${{ secrets.JOYCH_SSH_HOST_ED25519_KEY }}
+        run: |
+          set -Eeuo pipefail
+          if [[ -z "${SSH_HOST}" || -z "${SSH_USER}" || -z "${SSH_HOST_ED25519_KEY}" ]]; then
+            echo "JOYCH_SSH_HOST, JOYCH_SSH_USER, and JOYCH_SSH_HOST_ED25519_KEY are required." >&2
+            exit 1
+          fi
+          if [[ -z "${SSH_PRIVATE_KEY}" && -z "${SSH_PASSWORD}" ]]; then
+            echo "JOYCH_SSH_PRIVATE_KEY or JOYCH_SSH_PASSWORD is required." >&2
+            exit 1
+          fi
+          if [[ ! "${SSH_HOST}" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]*$ ]]; then
+            echo "JOYCH_SSH_HOST contains unsupported characters." >&2
+            exit 1
+          fi
+          if [[ ! "${SSH_USER}" =~ ^[A-Za-z_][A-Za-z0-9._-]*$ ]]; then
+            echo "JOYCH_SSH_USER contains unsupported characters." >&2
+            exit 1
+          fi
+          if [[ ! "${JOYCH_SSH_PORT}" =~ ^[0-9]+$ ]] || (( JOYCH_SSH_PORT < 1 || JOYCH_SSH_PORT > 65535 )); then
+            echo "JOYCH_SSH_PORT must be between 1 and 65535." >&2
+            exit 1
+          fi
+          if [[ ! "${SSH_HOST_ED25519_KEY}" =~ ^[A-Za-z0-9+/]+={0,2}$ ]] || ! printf '%s' "${SSH_HOST_ED25519_KEY}" | base64 --decode >/dev/null 2>&1; then
+            echo "JOYCH_SSH_HOST_ED25519_KEY is not a valid base64 host key." >&2
+            exit 1
+          fi
+
+          if [[ -n "${SSH_PRIVATE_KEY}" ]]; then
+            echo "auth=key" >> "${GITHUB_OUTPUT}"
+          else
+            echo "auth=password" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Prepare SSH host verification
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.JOYCH_SSH_HOST }}
+          SSH_PRIVATE_KEY: ${{ secrets.JOYCH_SSH_PRIVATE_KEY }}
+          SSH_HOST_ED25519_KEY: ${{ secrets.JOYCH_SSH_HOST_ED25519_KEY }}
+        run: |
+          set -Eeuo pipefail
+          SSH_DIR="${RUNNER_TEMP}/joych-backup-ssh"
+          mkdir -p "${SSH_DIR}"
+          chmod 700 "${SSH_DIR}"
+
+          if [[ "${{ steps.remote.outputs.auth }}" == "key" ]]; then
+            printf '%s\n' "${SSH_PRIVATE_KEY}" > "${SSH_DIR}/private_key"
+            chmod 600 "${SSH_DIR}/private_key"
+          fi
+
+          if [[ "${JOYCH_SSH_PORT}" == "22" ]]; then
+            HOST_TOKEN="${SSH_HOST}"
+          else
+            HOST_TOKEN="[${SSH_HOST}]:${JOYCH_SSH_PORT}"
+          fi
+          printf '%s ssh-ed25519 %s\n' \
+            "${HOST_TOKEN}" \
+            "${SSH_HOST_ED25519_KEY}" \
+            > "${SSH_DIR}/known_hosts"
+          chmod 600 "${SSH_DIR}/known_hosts"
+
+      - name: Install password SSH helper
+        if: steps.remote.outputs.auth == 'password'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq sshpass >/dev/null
+
+      - name: Run locked production backup and verify completion
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.JOYCH_SSH_HOST }}
+          SSH_USER: ${{ secrets.JOYCH_SSH_USER }}
+          SSH_PASSWORD: ${{ secrets.JOYCH_SSH_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          SSH_DIR="${RUNNER_TEMP}/joych-backup-ssh"
+          SSH_OPTIONS=(
+            -p "${JOYCH_SSH_PORT}"
+            -o ConnectTimeout=10
+            -o ConnectionAttempts=2
+            -o LogLevel=ERROR
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="${SSH_DIR}/known_hosts"
+          )
+
+          printf -v REMOTE_COMMAND \
+            'env JOYCH_APP_DIR=%q JOYCH_BACKUP_DIR=%q JOYCH_OPS_BACKUP_FORCE=%q JOYCH_OPS_BACKUP_SKIP_FRESH_HOURS=%q JOYCH_OPS_BACKUP_LOCK_WAIT_MINUTES=%q JOYCH_OPS_BACKUP_POLL_SECONDS=%q JOYCH_OPS_BACKUP_COMMAND_TIMEOUT_MINUTES=%q node --input-type=module -' \
+            "${JOYCH_APP_DIR}" \
+            "${JOYCH_BACKUP_DIR}" \
+            "${JOYCH_OPS_BACKUP_FORCE}" \
+            "${JOYCH_OPS_BACKUP_SKIP_FRESH_HOURS}" \
+            "${JOYCH_OPS_BACKUP_LOCK_WAIT_MINUTES}" \
+            "${JOYCH_OPS_BACKUP_POLL_SECONDS}" \
+            "${JOYCH_OPS_BACKUP_COMMAND_TIMEOUT_MINUTES}"
+
+          if [[ "${{ steps.remote.outputs.auth }}" == "key" ]]; then
+            ssh \
+              "${SSH_OPTIONS[@]}" \
+              -o BatchMode=yes \
+              -i "${SSH_DIR}/private_key" \
+              "${SSH_USER}@${SSH_HOST}" \
+              "${REMOTE_COMMAND}" \
+              < scripts/ops-run-production-backup.mjs
+          else
+            export SSHPASS="${SSH_PASSWORD}"
+            sshpass -e ssh \
+              "${SSH_OPTIONS[@]}" \
+              -o BatchMode=no \
+              -o PreferredAuthentications=password,keyboard-interactive \
+              "${SSH_USER}@${SSH_HOST}" \
+              "${REMOTE_COMMAND}" \
+              < scripts/ops-run-production-backup.mjs
+          fi
+
+      - name: Remove temporary SSH material
+        if: always()
+        run: |
+          SSH_DIR="${RUNNER_TEMP:?}/joych-backup-ssh"
+          rm -f -- "${SSH_DIR}/private_key" "${SSH_DIR}/known_hosts" "${SSH_DIR}/known_hosts.tmp"
+          rmdir -- "${SSH_DIR}" 2>/dev/null || true
+
+      - name: Record successful backup
+        if: success()
+        run: |
+          echo "### Production backup" >> "${GITHUB_STEP_SUMMARY}"
+          echo "A recent structurally complete production backup was confirmed." >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Record failed backup
+        if: failure()
+        run: |
+          echo "### Production backup" >> "${GITHUB_STEP_SUMMARY}"
+          echo "The backup run or post-run structural verification failed. No environment or backup contents were printed." >> "${GITHUB_STEP_SUMMARY}"

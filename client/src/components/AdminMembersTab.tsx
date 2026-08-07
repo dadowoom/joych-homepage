@@ -10,7 +10,7 @@
  * - 탈퇴 처리된 성도 복구
  * - 수정 버튼 → MemberEditModal 모달 오픈
  */
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
@@ -42,8 +42,8 @@ const VIEW_LABELS: { key: ViewMode; label: string }[] = [
 const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 type PageSize = typeof PAGE_SIZE_OPTIONS[number];
 
-type AdminMember = inferRouterOutputs<AppRouter>["members"]["adminList"][number];
-type Member = AdminMember;
+type AdminMember = inferRouterOutputs<AppRouter>["members"]["adminDetail"];
+type Member = inferRouterOutputs<AppRouter>["members"]["adminList"]["items"][number];
 type PasswordResetDelivery = {
   resetUrl: string;
   expiresAt: Date;
@@ -117,6 +117,7 @@ export default function AdminMembersTab() {
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [basicMissingOnly, setBasicMissingOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
 
   // 페이징 상태
@@ -125,16 +126,46 @@ export default function AdminMembersTab() {
 
   // 모달 상태
   const [editingMember, setEditingMember] = useState<AdminMember | null>(null);
+  const [loadingMemberId, setLoadingMemberId] = useState<number | null>(null);
+  const detailRequestIdRef = useRef(0);
   const [editingInitialTab, setEditingInitialTab] = useState<"basic" | "account">("basic");
   const [passwordResetDelivery, setPasswordResetDelivery] = useState<PasswordResetDelivery | null>(null);
+  const [exportError, setExportError] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setDebouncedSearchQuery(searchQuery.trim()), 300);
+    return () => window.clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  const listInput = useMemo(() => ({
+    page,
+    pageSize,
+    status: statusFilter,
+    district: districtFilter,
+    position: positionFilter,
+    department: departmentFilter,
+    basicMissingOnly,
+    search: debouncedSearchQuery,
+    viewMode,
+  }), [page, pageSize, statusFilter, districtFilter, positionFilter, departmentFilter, basicMissingOnly, debouncedSearchQuery, viewMode]);
 
   // 데이터 조회
-  const adminListQuery = trpc.members.adminList.useQuery(undefined, { enabled: canManageMemberRegistry });
-  const members: Member[] = adminListQuery.data ?? [];
-  const isLoading = adminListQuery.isLoading;
+  const adminListQuery = trpc.members.adminList.useQuery(listInput, {
+    enabled: canManageMemberRegistry,
+    placeholderData: (previousData) => previousData,
+  });
+  const members: Member[] = adminListQuery.data?.items ?? [];
+  const isLoading = adminListQuery.isLoading && !adminListQuery.data;
   const passwordResetRequestsQuery = trpc.members.passwordResetRequests.useQuery(undefined, { enabled: isFullAdmin });
   const passwordResetRequests = passwordResetRequestsQuery.data ?? [];
   const { data: fieldOptions = [] } = trpc.members.fieldOptions.useQuery({});
+
+  useEffect(() => {
+    if (!adminListQuery.isPlaceholderData && adminListQuery.data && adminListQuery.data.page !== page) {
+      setPage(adminListQuery.data.page);
+    }
+  }, [adminListQuery.data, adminListQuery.isPlaceholderData, page]);
 
   const approvePasswordResetMutation = trpc.members.approvePasswordResetRequest.useMutation({
     onSuccess: (result) => {
@@ -210,26 +241,6 @@ export default function AdminMembersTab() {
     onError: (e) => toast.error(e.message),
   });
 
-  // 필터링 (필터 변경 시 페이지 1로 리셋)
-  const filtered = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    const queryDigits = query.replace(/\D/g, "");
-    return members.filter((m) => {
-      const matchStatus   = statusFilter === "all" || m.status === statusFilter;
-      const matchDistrict = !districtFilter || m.district === districtFilter;
-      const matchPosition = !positionFilter || m.position === positionFilter;
-      const matchDepartment = !departmentFilter || m.department === departmentFilter;
-      const matchBasicInfo = !basicMissingOnly || !m.phone || !m.birthDate;
-      const matchSearch   =
-        !query ||
-        m.name.toLowerCase().includes(query) ||
-        (m.phone ?? "").toLowerCase().includes(query) ||
-        (queryDigits.length > 0 && (m.phone ?? "").replace(/\D/g, "").includes(queryDigits)) ||
-        (m.email ?? "").toLowerCase().includes(query);
-      return matchStatus && matchDistrict && matchPosition && matchDepartment && matchBasicInfo && matchSearch;
-    });
-  }, [members, statusFilter, districtFilter, positionFilter, departmentFilter, basicMissingOnly, searchQuery]);
-
   // 필터 변경 시 페이지 초기화 헬퍼
   const changeFilter = <T,>(setter: (v: T) => void) => (v: T) => {
     setter(v);
@@ -243,75 +254,87 @@ export default function AdminMembersTab() {
     return "";
   };
 
-  const sortedFiltered = useMemo(() => {
-    if (viewMode === "list") return filtered;
-    return [...filtered].sort((a, b) => {
-      const groupCompare = getGroupLabel(a).localeCompare(getGroupLabel(b), "ko");
-      if (groupCompare !== 0) return groupCompare;
-      return a.name.localeCompare(b.name, "ko");
-    });
-  }, [filtered, viewMode]);
-
-  const exportCurrentMembers = () => {
-    const headers = [
-      "번호",
-      "이름",
-      "상태",
-      "직분",
-      "소속 부서",
-      "구역/셀",
-      "성별",
-      "생년월일",
-      "만 나이",
-      "연락처",
-      "이메일",
-      "주소",
-      "긴급 연락처",
-      "교회 등록일",
-      "세례 구분",
-      "세례일",
-      "담당 교역자",
-      "가입일",
-    ];
-    const rows = sortedFiltered.map((member, index) => [
-      index + 1,
-      member.name,
-      STATUS_LABELS[member.status ?? "pending"]?.text ?? "",
-      member.position,
-      member.department,
-      member.district,
-      member.gender,
-      member.birthDate,
-      getFullAge(member.birthDate) ?? "",
-      formatPhoneNumber(member.phone),
-      member.email,
-      member.address,
-      formatPhoneNumber(member.emergencyPhone),
-      member.registeredAt,
-      member.baptismType,
-      member.baptismDate,
-      member.pastor,
-      formatExportDate(member.createdAt),
-    ]);
-    const csv = `\uFEFF${[headers, ...rows]
-      .map((row) => row.map((value) => csvCell(value)).join(","))
-      .join("\r\n")}`;
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `교적부_성도목록_${formatExportDate(new Date())}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    toast.success(`현재 목록 ${sortedFiltered.length}명을 엑셀 파일로 내보냈습니다.`);
+  const exportCurrentMembers = async () => {
+    const exportInput = {
+      status: statusFilter,
+      district: districtFilter,
+      position: positionFilter,
+      department: departmentFilter,
+      basicMissingOnly,
+      search: searchQuery.trim(),
+      viewMode,
+    };
+    setExportError(false);
+    setIsExporting(true);
+    try {
+      const result = await utils.members.adminExport.fetch(exportInput);
+      const headers = [
+        "번호",
+        "이름",
+        "상태",
+        "직분",
+        "소속 부서",
+        "구역/셀",
+        "성별",
+        "생년월일",
+        "만 나이",
+        "연락처",
+        "이메일",
+        "주소",
+        "긴급 연락처",
+        "교회 등록일",
+        "세례 구분",
+        "세례일",
+        "담당 교역자",
+        "가입일",
+      ];
+      const rows = result.items.map((member, index) => [
+        index + 1,
+        member.name,
+        STATUS_LABELS[member.status ?? "pending"]?.text ?? "",
+        member.position,
+        member.department,
+        member.district,
+        member.gender,
+        member.birthDate,
+        getFullAge(member.birthDate) ?? "",
+        formatPhoneNumber(member.phone),
+        member.email,
+        member.address,
+        formatPhoneNumber(member.emergencyPhone),
+        member.registeredAt,
+        member.baptismType,
+        member.baptismDate,
+        member.pastor,
+        formatExportDate(member.createdAt),
+      ]);
+      const csv = `\uFEFF${[headers, ...rows]
+        .map((row) => row.map((value) => csvCell(value)).join(","))
+        .join("\r\n")}`;
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `교적부_성도목록_${formatExportDate(new Date())}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success(`현재 필터의 전체 ${result.total}명을 엑셀 파일로 내보냈습니다.`);
+    } catch {
+      setExportError(true);
+      toast.error("엑셀 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setIsExporting(false);
+      void utils.members.adminExport.reset(exportInput);
+    }
   };
 
-  // 페이징 계산
-  const totalPages = Math.max(1, Math.ceil(sortedFiltered.length / pageSize));
-  const safePage   = Math.min(page, totalPages);
-  const paginated  = sortedFiltered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  // 서버가 필터·정렬·페이지를 적용한 현재 페이지입니다.
+  const totalPages = adminListQuery.data?.totalPages ?? 1;
+  const safePage = adminListQuery.data?.page ?? page;
+  const visiblePageSize = adminListQuery.data?.pageSize ?? pageSize;
+  const paginated = members;
 
   const grouped = useMemo(() => {
     if (viewMode === "list") return [{ label: "", members: paginated }];
@@ -329,9 +352,25 @@ export default function AdminMembersTab() {
 
   const quickApprove = (id: number) => approvalMutation.mutate({ id, status: "approved" });
   const quickReject  = (id: number) => approvalMutation.mutate({ id, status: "rejected" });
-  const openMemberEditor = (member: AdminMember, initialTab: "basic" | "account" = "basic") => {
+  const openMemberEditor = async (member: Member, initialTab: "basic" | "account" = "basic") => {
+    const requestId = detailRequestIdRef.current + 1;
+    detailRequestIdRef.current = requestId;
     setEditingInitialTab(initialTab);
-    setEditingMember(member);
+    setLoadingMemberId(member.id);
+    try {
+      const detail = await utils.members.adminDetail.fetch({ id: member.id });
+      if (detailRequestIdRef.current === requestId) {
+        setEditingMember(detail);
+      }
+    } catch {
+      if (detailRequestIdRef.current === requestId) {
+        toast.error("성도 상세정보를 불러오지 못했습니다. 다시 시도해주세요.");
+      }
+    } finally {
+      if (detailRequestIdRef.current === requestId) {
+        setLoadingMemberId(null);
+      }
+    }
   };
   const restoreMember = (member: Member) => {
     const confirmed = window.confirm(
@@ -362,6 +401,8 @@ export default function AdminMembersTab() {
   };
 
   const isMutating = approvalMutation.isPending || adminStatusMutation.isPending || deleteMutation.isPending || hardDeleteMutation.isPending;
+  const isListTransitioning = adminListQuery.isFetching || adminListQuery.isPlaceholderData;
+  const areMemberActionsDisabled = isMutating || isListTransitioning || loadingMemberId !== null;
 
   const renderMemberActions = (member: Member) => (
     <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -369,14 +410,14 @@ export default function AdminMembersTab() {
         <>
           <button
             onClick={() => quickApprove(member.id)}
-            disabled={isMutating}
+            disabled={areMemberActionsDisabled}
             className="text-xs px-2.5 py-1 bg-green-100 text-green-700 rounded-full hover:bg-green-200 transition-colors font-medium"
           >
             승인
           </button>
           <button
             onClick={() => quickReject(member.id)}
-            disabled={isMutating}
+            disabled={areMemberActionsDisabled}
             className="text-xs px-2.5 py-1 bg-red-100 text-red-700 rounded-full hover:bg-red-200 transition-colors font-medium"
           >
             거절
@@ -385,17 +426,17 @@ export default function AdminMembersTab() {
       )}
       {canManageMemberRegistry && (
         <button
-          onClick={() => openMemberEditor(member as AdminMember)}
-          disabled={isMutating}
+          onClick={() => void openMemberEditor(member)}
+          disabled={areMemberActionsDisabled}
           className="text-xs px-3 py-1 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
         >
-          수정
+          {loadingMemberId === member.id ? "불러오는 중..." : "수정"}
         </button>
       )}
       {canManageMemberRegistry && member.status !== "withdrawn" && (
         <button
           onClick={() => deleteMember(member)}
-          disabled={isMutating}
+          disabled={areMemberActionsDisabled}
           className="text-xs px-3 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50 transition-colors"
         >
           삭제
@@ -405,14 +446,14 @@ export default function AdminMembersTab() {
         <>
           <button
             onClick={() => restoreMember(member)}
-            disabled={isMutating}
+            disabled={areMemberActionsDisabled}
             className="text-xs px-3 py-1 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
           >
             복구
           </button>
           <button
             onClick={() => hardDeleteMember(member)}
-            disabled={isMutating}
+            disabled={areMemberActionsDisabled}
             className="text-xs px-3 py-1 border border-red-300 text-red-700 rounded hover:bg-red-50 transition-colors"
           >
             완전삭제
@@ -422,10 +463,32 @@ export default function AdminMembersTab() {
     </div>
   );
 
+  if (!canManageMemberRegistry) {
+    return <p className="py-8 text-center text-sm text-gray-500">교적부를 조회할 권한이 없습니다.</p>;
+  }
+
   if (isLoading) return <p className="text-gray-500 py-8 text-center">불러오는 중...</p>;
 
-  const pendingCount = members.filter(m => m.status === "pending").length;
-  const basicMissingCount = members.filter(m => m.status !== "withdrawn" && (!m.phone || !m.birthDate)).length;
+  if (adminListQuery.isError && !adminListQuery.data) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-6 text-center">
+        <p className="text-sm font-semibold text-red-800">교적부 목록을 불러오지 못했습니다.</p>
+        <p className="mt-1 text-xs text-red-600">잠시 후 다시 시도해주세요.</p>
+        <button
+          type="button"
+          onClick={() => void adminListQuery.refetch()}
+          className="mt-3 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+        >
+          다시 시도
+        </button>
+      </div>
+    );
+  }
+
+  const overallCount = adminListQuery.data?.summary.overallCount ?? 0;
+  const filteredCount = adminListQuery.data?.total ?? 0;
+  const pendingCount = adminListQuery.data?.summary.pendingCount ?? 0;
+  const basicMissingCount = adminListQuery.data?.summary.basicMissingCount ?? 0;
 
   return (
     <div>
@@ -441,9 +504,9 @@ export default function AdminMembersTab() {
             </span>
           </div>
           <p className="text-sm text-gray-500 mt-0.5">
-            전체 {members.length}명
-            {filtered.length !== members.length && (
-              <span className="ml-1 text-[#1B5E20] font-medium">· 검색결과 {filtered.length}명</span>
+            전체 {overallCount}명
+            {filteredCount !== overallCount && (
+              <span className="ml-1 text-[#1B5E20] font-medium">· 검색결과 {filteredCount}명</span>
             )}
             {pendingCount > 0 && (
               <span className="ml-2 text-yellow-600 font-medium">· 승인 대기 {pendingCount}명</span>
@@ -461,15 +524,42 @@ export default function AdminMembersTab() {
         {canManageMemberRegistry && (
           <button
             type="button"
-            onClick={exportCurrentMembers}
-            disabled={sortedFiltered.length === 0}
+            onClick={() => void exportCurrentMembers()}
+            disabled={filteredCount === 0 || isExporting}
             className="shrink-0 rounded-lg border border-[#1B5E20] bg-white px-3 py-2 text-sm font-semibold text-[#1B5E20] transition-colors hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <i className="fas fa-file-excel mr-1.5" aria-hidden="true" />
-            엑셀 내보내기
+            {isExporting ? "전체 목록 준비 중..." : "엑셀 내보내기"}
           </button>
         )}
       </div>
+
+      {adminListQuery.isError && adminListQuery.data && (
+        <div className="mb-4 flex flex-col gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs font-medium text-red-700">새 목록을 불러오지 못해 이전 결과를 표시하고 있습니다.</p>
+          <button
+            type="button"
+            onClick={() => void adminListQuery.refetch()}
+            className="shrink-0 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+          >
+            다시 시도
+          </button>
+        </div>
+      )}
+
+      {exportError && (
+        <div className="mb-4 flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs font-medium text-amber-800">엑셀용 전체 목록을 불러오지 못했습니다.</p>
+          <button
+            type="button"
+            onClick={() => void exportCurrentMembers()}
+            disabled={isExporting}
+            className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-40"
+          >
+            다시 시도
+          </button>
+        </div>
+      )}
 
       {isFullAdmin && passwordResetDelivery && (
         <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-4">
@@ -691,6 +781,12 @@ export default function AdminMembersTab() {
         </div>
       </div>
 
+      {adminListQuery.isFetching && (
+        <p className="mb-3 text-right text-xs text-gray-500" role="status" aria-live="polite">
+          조건에 맞는 목록을 불러오는 중...
+        </p>
+      )}
+
       {/* ── 성도 목록 ── */}
       {paginated.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
@@ -719,7 +815,7 @@ export default function AdminMembersTab() {
                   return (
                     <tr key={member.id} className="hover:bg-gray-50">
                       <td className="whitespace-nowrap px-2 py-2 text-xs text-gray-400">
-                        {(safePage - 1) * pageSize + index + 1}
+                        {(safePage - 1) * visiblePageSize + index + 1}
                       </td>
                       <td className="whitespace-nowrap px-2 py-2">
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}>
@@ -752,7 +848,7 @@ export default function AdminMembersTab() {
               return (
                 <div key={member.id} className="border border-gray-200 rounded-xl overflow-hidden">
                   <div className="px-4 py-3 bg-gray-50 space-y-3">
-                    <MemberSummary member={member} number={(safePage - 1) * pageSize + index + 1} />
+                    <MemberSummary member={member} number={(safePage - 1) * visiblePageSize + index + 1} />
                     {renderMemberActions(member)}
                   </div>
                 </div>
@@ -776,7 +872,7 @@ export default function AdminMembersTab() {
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 bg-gray-50">
                       <MemberSummary
                         member={member}
-                        number={(safePage - 1) * pageSize + memberIndex + 1}
+                        number={(safePage - 1) * visiblePageSize + memberIndex + 1}
                       />
                       {renderMemberActions(member)}
                     </div>
@@ -792,7 +888,7 @@ export default function AdminMembersTab() {
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-1 mt-6">
           <button
-            onClick={() => setPage(p => Math.max(1, p - 1))}
+            onClick={() => setPage(Math.max(1, safePage - 1))}
             disabled={safePage === 1}
             className="w-8 h-8 flex items-center justify-center rounded border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-sm"
           >
@@ -825,7 +921,7 @@ export default function AdminMembersTab() {
             )}
 
           <button
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            onClick={() => setPage(Math.min(totalPages, safePage + 1))}
             disabled={safePage === totalPages}
             className="w-8 h-8 flex items-center justify-center rounded border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-sm"
           >
@@ -847,6 +943,9 @@ export default function AdminMembersTab() {
           initialTab={editingInitialTab}
           open={!!editingMember}
           onClose={() => {
+            if (editingMember) {
+              void utils.members.adminDetail.reset({ id: editingMember.id });
+            }
             setEditingMember(null);
             setEditingInitialTab("basic");
           }}

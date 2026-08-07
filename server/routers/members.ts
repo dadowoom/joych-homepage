@@ -29,7 +29,16 @@ import crypto from "node:crypto";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { adminPermissionProcedure, adminProcedure, publicProcedure, memberProtectedProcedure, router } from "../_core/trpc";
-import { checkAccountRecoveryRateLimit, checkRateLimit, recordFailure, resetFailures, getClientIp, checkSearchRateLimit, checkRegisterRateLimit } from "../_core/rateLimiter";
+import {
+  checkAccountRecoveryRateLimit,
+  checkMemberRegistrationIngressRateLimit,
+  checkMemberRegistrationRateLimit,
+  checkRateLimit,
+  checkSearchRateLimit,
+  getClientIp,
+  recordFailure,
+  resetFailures,
+} from "../_core/rateLimiter";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { createDomainLogoutIntent } from "../_core/domainSessionBridge";
 import { getJwtSecretKey } from "../_core/jwtSecret";
@@ -76,7 +85,9 @@ import {
   adminUpdateMember,
   adminResetMemberPassword,
   updateMemberPasswordHash,
-  getAllMembers,
+  getAdminMembersForExport,
+  getAdminMembersPage,
+  getMemberDistrictAssignments,
   getPendingMembers,
   getPendingMemberPasswordResetRequests,
   searchMembersByName,
@@ -100,6 +111,22 @@ function hashPasswordResetToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 const fieldTypeSchema = z.enum(["position", "department", "district", "baptism"]);
+const adminMemberStatusFilterSchema = z.enum(["all", "pending", "approved", "rejected", "withdrawn"]);
+const adminMemberViewModeSchema = z.enum(["list", "position", "district", "department"]);
+const adminMemberFiltersSchema = z.object({
+  status: adminMemberStatusFilterSchema.optional(),
+  district: z.string().trim().max(64).optional(),
+  position: z.string().trim().max(64).optional(),
+  department: z.string().trim().max(64).optional(),
+  basicMissingOnly: z.boolean().optional(),
+  search: z.string().trim().max(100).optional(),
+  viewMode: adminMemberViewModeSchema.optional(),
+});
+const adminMemberListInputSchema = adminMemberFiltersSchema.extend({
+  page: z.number().int().min(1).max(100_000).optional(),
+  pageSize: z.union([z.literal(20), z.literal(50), z.literal(100)]).optional(),
+}).optional();
+const adminMemberExportInputSchema = adminMemberFiltersSchema.optional();
 const registerOptionFieldKeys = ["position", "department", "district"] as const;
 const editableChurchDate = z.string()
   .trim()
@@ -107,6 +134,19 @@ const editableChurchDate = z.string()
   .optional();
 
 type RegisterInputWithConfigurableFields = z.infer<typeof memberRegisterInputSchema>;
+type AdminMemberFiltersInput = z.infer<typeof adminMemberFiltersSchema>;
+
+function normalizeAdminMemberFilters(input: AdminMemberFiltersInput | undefined) {
+  return {
+    status: input?.status ?? "all",
+    district: input?.district ?? "",
+    position: input?.position ?? "",
+    department: input?.department ?? "",
+    basicMissingOnly: input?.basicMissingOnly ?? false,
+    search: input?.search ?? "",
+    viewMode: input?.viewMode ?? "list",
+  };
+}
 
 function getRegisterFieldValue(input: RegisterInputWithConfigurableFields, key: MemberRegisterFieldKey) {
   return input[key];
@@ -202,15 +242,54 @@ function sanitizeMemberForAdmin<T extends Record<string, unknown>>(member: T) {
   return safeData;
 }
 
-function sanitizeMemberForDirectoryManager<T extends Record<string, unknown>>(member: T) {
-  const {
-    passwordHash: _passwordHash,
-    sessionVersion: _sessionVersion,
-    adminMemo: _adminMemo,
-    assignedDistricts: _assignedDistricts,
-    ...safeData
-  } = member;
-  return safeData;
+function sanitizeMemberForAdminList<T extends Record<string, unknown>>(member: T) {
+  return {
+    id: member.id as number,
+    name: member.name as string,
+    phone: (member.phone as string | null | undefined) ?? null,
+    birthDate: (member.birthDate as string | null | undefined) ?? null,
+    gender: (member.gender as string | null | undefined) ?? null,
+    position: (member.position as string | null | undefined) ?? null,
+    department: (member.department as string | null | undefined) ?? null,
+    district: (member.district as string | null | undefined) ?? null,
+    status: member.status as string,
+    createdAt: member.createdAt as Date,
+  };
+}
+
+function sanitizeMemberForExport<T extends Record<string, unknown>>(member: T) {
+  return {
+    ...sanitizeMemberForAdminList(member),
+    email: (member.email as string | null | undefined) ?? null,
+    address: (member.address as string | null | undefined) ?? null,
+    emergencyPhone: (member.emergencyPhone as string | null | undefined) ?? null,
+    baptismType: (member.baptismType as string | null | undefined) ?? null,
+    baptismDate: (member.baptismDate as string | null | undefined) ?? null,
+    registeredAt: (member.registeredAt as string | null | undefined) ?? null,
+    pastor: (member.pastor as string | null | undefined) ?? null,
+  };
+}
+
+function sanitizeMemberForAdminDetail<T extends Record<string, unknown>>(member: T) {
+  return {
+    id: member.id as number,
+    name: member.name as string,
+    email: (member.email as string | null | undefined) ?? null,
+    phone: (member.phone as string | null | undefined) ?? null,
+    birthDate: (member.birthDate as string | null | undefined) ?? null,
+    gender: (member.gender as string | null | undefined) ?? null,
+    address: (member.address as string | null | undefined) ?? null,
+    emergencyPhone: (member.emergencyPhone as string | null | undefined) ?? null,
+    position: (member.position as string | null | undefined) ?? null,
+    department: (member.department as string | null | undefined) ?? null,
+    district: (member.district as string | null | undefined) ?? null,
+    baptismType: (member.baptismType as string | null | undefined) ?? null,
+    baptismDate: (member.baptismDate as string | null | undefined) ?? null,
+    registeredAt: (member.registeredAt as string | null | undefined) ?? null,
+    pastor: (member.pastor as string | null | undefined) ?? null,
+    status: member.status as string,
+    faithPlusUserId: (member.faithPlusUserId as string | null | undefined) ?? null,
+  };
 }
 
 function sanitizeMemberForApproval<T extends Record<string, unknown>>(member: T) {
@@ -412,7 +491,7 @@ export const membersRouter = router({
     .mutation(async ({ input, ctx }) => {
       const clientIp = getClientIp(ctx.req);
       try {
-        checkRegisterRateLimit(`register:${clientIp}`);
+        checkMemberRegistrationIngressRateLimit(clientIp);
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : "회원가입 요청이 너무 많습니다.";
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: msg });
@@ -421,6 +500,19 @@ export const membersRouter = router({
       const fieldConfig = await getRegisterFieldConfig();
       assertRequiredRegisterFields(input, fieldConfig);
       await assertConfiguredRegisterOptions(input, fieldConfig);
+
+      try {
+        checkMemberRegistrationRateLimit({
+          clientIp,
+          identities: [
+            { kind: "phone", value: input.phone },
+            { kind: "email", value: input.email },
+          ],
+        });
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "회원가입 요청이 너무 많습니다.";
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: msg });
+      }
 
       try {
         return await withMemberRegistrationIdentityLock(input.name, input.phone, async () => {
@@ -701,13 +793,66 @@ export const membersRouter = router({
 
   // ─── 관리자 전용 API ─────────────────────────────────────────────────────────
 
-  /** 전체 성도 목록 (최고관리자 또는 회원가입 승인/교적부 권한자) */
-  adminList: memberApprovalProcedure.query(async ({ ctx }) => {
-    const members = await getAllMembers();
-    return ctx.user.role === "admin"
-      ? members.map(sanitizeMemberForAdmin)
-      : members.map(sanitizeMemberForDirectoryManager);
-  }),
+  /** 필터·페이지가 적용된 성도 목록 (최고관리자 또는 회원가입 승인/교적부 권한자) */
+  adminList: memberApprovalProcedure
+    .input(adminMemberListInputSchema)
+    .query(async ({ input }) => {
+      const filters = normalizeAdminMemberFilters(input);
+      const result = await getAdminMembersPage({
+        ...filters,
+        page: input?.page ?? 1,
+        pageSize: input?.pageSize ?? 50,
+      });
+      return {
+        ...result,
+        items: result.items.map(sanitizeMemberForAdminList),
+      };
+    }),
+
+  /** 수정 화면을 열 때 선택한 성도 한 명의 상세정보만 조회합니다. */
+  adminDetail: memberApprovalProcedure
+    .input(z.object({ id: idSchema }))
+    .query(async ({ input, ctx }) => {
+      const member = await getMemberById(input.id);
+      if (!member) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "성도 정보를 찾을 수 없습니다." });
+      }
+
+      const detail = sanitizeMemberForAdminDetail(member);
+      if (ctx.user.role === "admin") {
+        const assignedDistricts = await getMemberDistrictAssignments(member.id);
+        return {
+          ...detail,
+          adminMemo: member.adminMemo ?? null,
+          assignedDistricts,
+        };
+      }
+      return detail;
+    }),
+
+  /** 현재 필터에 맞는 전체 성도를 엑셀로 내보내기 위한 별도 권한 조회입니다. */
+  adminExport: memberApprovalProcedure
+    .input(adminMemberExportInputSchema)
+    .query(async ({ input, ctx }) => {
+      const filters = normalizeAdminMemberFilters(input);
+      const members = await getAdminMembersForExport(filters);
+      console.info("[AUDIT] member_admin_export", JSON.stringify({
+        actorUserId: ctx.user.id,
+        actorRole: ctx.user.role,
+        exportedCount: members.length,
+        status: filters.status,
+        viewMode: filters.viewMode,
+        hasDistrictFilter: Boolean(filters.district),
+        hasPositionFilter: Boolean(filters.position),
+        hasDepartmentFilter: Boolean(filters.department),
+        basicMissingOnly: filters.basicMissingOnly,
+        hasSearch: Boolean(filters.search),
+      }));
+      return {
+        items: members.map(sanitizeMemberForExport),
+        total: members.length,
+      };
+    }),
 
   /** 승인 대기 성도 목록 (관리자) */
   pendingList: adminProcedure.query(async () => (await getPendingMembers()).map(sanitizeMemberForAdmin)),
