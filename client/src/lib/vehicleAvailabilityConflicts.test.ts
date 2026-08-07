@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getBlockingVehicleConflicts,
   getOverlappingVehicleConflicts,
+  groupVehicleAvailabilityConflicts,
   type VehicleAvailabilityConflict,
 } from "./vehicleAvailabilityConflicts";
 
@@ -156,5 +157,85 @@ describe("getOverlappingVehicleConflicts", () => {
       "2026-07-19",
       "2026-07-26",
     ]);
+  });
+});
+
+describe("groupVehicleAvailabilityConflicts", () => {
+  const baseConflict: VehicleAvailabilityConflict = {
+    reservationDate: "2026-08-09",
+    startTime: "11:00",
+    endTime: "18:00",
+    vehicleId: 1,
+    vehicleName: "검정 스타리아",
+    reserverName: "이성원",
+    memberPosition: "집사",
+    purpose: "청년부 예배 셔틀",
+    status: "approved",
+    recurrenceGroupId: "weekly-youth-shuttle",
+    recurrenceLabel: "매주 반복 · 총 3회",
+    recurrenceSequence: 1,
+  };
+
+  it("groups matching recurring Sundays and keeps their chronological order", () => {
+    const groups = groupVehicleAvailabilityConflicts([
+      { ...baseConflict, reservationDate: "2026-08-23", recurrenceSequence: 3 },
+      { ...baseConflict, reservationDate: "2026-08-09", recurrenceSequence: 1 },
+      { ...baseConflict, reservationDate: "2026-08-16", recurrenceSequence: 2 },
+    ]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({
+      isRecurring: true,
+      count: 3,
+      startDate: "2026-08-09",
+      endDate: "2026-08-23",
+    });
+    expect(groups[0]?.reservations.map(row => row.reservationDate)).toEqual([
+      "2026-08-09",
+      "2026-08-16",
+      "2026-08-23",
+    ]);
+  });
+
+  it("does not guess that identical legacy reservations without a group ID are recurring", () => {
+    const groups = groupVehicleAvailabilityConflicts([
+      { ...baseConflict, recurrenceGroupId: null, recurrenceLabel: null, recurrenceSequence: null },
+      {
+        ...baseConflict,
+        reservationDate: "2026-08-16",
+        recurrenceGroupId: null,
+        recurrenceLabel: null,
+        recurrenceSequence: null,
+      },
+    ]);
+
+    expect(groups).toHaveLength(2);
+    expect(groups.every(group => !group.isRecurring && group.count === 1)).toBe(true);
+  });
+
+  it("preserves mixed vehicle and approval details inside a recurring group", () => {
+    const groups = groupVehicleAvailabilityConflicts([
+      baseConflict,
+      {
+        ...baseConflict,
+        reservationDate: "2026-08-16",
+        vehicleId: 2,
+        vehicleName: "흰색 스타리아",
+        status: "pending",
+        recurrenceSequence: 2,
+      },
+    ]);
+
+    expect(groups[0]?.reservations.map(row => [row.vehicleName, row.status])).toEqual([
+      ["검정 스타리아", "approved"],
+      ["흰색 스타리아", "pending"],
+    ]);
+  });
+
+  it("keeps a single visible occurrence marked as recurring without inventing more rows", () => {
+    const groups = groupVehicleAvailabilityConflicts([baseConflict]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ isRecurring: true, count: 1 });
   });
 });

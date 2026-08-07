@@ -190,6 +190,9 @@ describe("vehicle availability conflict details", () => {
         reserverName: "홍길동",
         memberPosition: "집사",
         purpose: "교회 행사",
+        recurrenceGroupId: "weekly-group-1",
+        recurrenceLabel: "매주 반복 · 총 2회",
+        recurrenceSequence: 1,
         reserverPhone: "010-1234-5678",
         notes: "응답에 포함되면 안 되는 메모",
       },
@@ -202,6 +205,9 @@ describe("vehicle availability conflict details", () => {
         reserverName: "김기쁨",
         memberPosition: null,
         purpose: "부서 이동",
+        recurrenceGroupId: "weekly-group-1",
+        recurrenceLabel: "매주 반복 · 총 2회",
+        recurrenceSequence: 2,
       },
       {
         vehicleId: 1,
@@ -212,6 +218,9 @@ describe("vehicle availability conflict details", () => {
         reserverName: "취소 예약자",
         memberPosition: "권사",
         purpose: "취소된 일정",
+        recurrenceGroupId: null,
+        recurrenceLabel: null,
+        recurrenceSequence: null,
       },
     ] as const;
 
@@ -229,6 +238,9 @@ describe("vehicle availability conflict details", () => {
         memberPosition: "집사",
         purpose: "교회 행사",
         status: "pending",
+        recurrenceGroupId: "weekly-group-1",
+        recurrenceLabel: "매주 반복 · 총 2회",
+        recurrenceSequence: 1,
       },
       {
         reservationDate: "2026-07-23",
@@ -240,6 +252,9 @@ describe("vehicle availability conflict details", () => {
         memberPosition: null,
         purpose: "부서 이동",
         status: "approved",
+        recurrenceGroupId: "weekly-group-1",
+        recurrenceLabel: "매주 반복 · 총 2회",
+        recurrenceSequence: 2,
       },
     ]);
   });

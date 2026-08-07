@@ -394,6 +394,9 @@ export type VehicleAvailabilityConflictSource = VehicleAvailabilityBusyRange & {
   reserverName: string;
   memberPosition: string | null;
   purpose: string;
+  recurrenceGroupId: string | null;
+  recurrenceLabel: string | null;
+  recurrenceSequence: number | null;
 };
 
 export type VehicleAvailabilityConflictDetail = {
@@ -406,6 +409,9 @@ export type VehicleAvailabilityConflictDetail = {
   memberPosition: string | null;
   purpose: string;
   status: "pending" | "approved";
+  recurrenceGroupId: string | null;
+  recurrenceLabel: string | null;
+  recurrenceSequence: number | null;
 };
 
 /**
@@ -432,6 +438,9 @@ export function buildVehicleAvailabilityConflictDetails(
       memberPosition: busyRange.memberPosition,
       purpose: busyRange.purpose,
       status: busyRange.status,
+      recurrenceGroupId: busyRange.recurrenceGroupId,
+      recurrenceLabel: busyRange.recurrenceLabel,
+      recurrenceSequence: busyRange.recurrenceSequence,
     }));
 }
 
@@ -668,6 +677,9 @@ export async function getVehicleAvailabilityTimeline(
       reserverName: vehicleReservations.reserverName,
       memberPosition: churchMembers.position,
       purpose: vehicleReservations.purpose,
+      recurrenceGroupId: vehicleReservations.recurrenceGroupId,
+      recurrenceLabel: vehicleReservations.recurrenceLabel,
+      recurrenceSequence: vehicleReservations.recurrenceSequence,
     })
     .from(vehicleReservations)
     .leftJoin(churchMembers, eq(vehicleReservations.userId, churchMembers.id))

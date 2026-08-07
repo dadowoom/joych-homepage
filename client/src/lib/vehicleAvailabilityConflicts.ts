@@ -1,3 +1,5 @@
+import { groupVehicleReservations } from "./vehicleReservationGroups";
+
 export type VehicleAvailabilityConflict = {
   reservationDate: string;
   startTime: string;
@@ -8,6 +10,9 @@ export type VehicleAvailabilityConflict = {
   memberPosition: string | null;
   purpose: string;
   status: "pending" | "approved";
+  recurrenceGroupId?: string | null;
+  recurrenceLabel?: string | null;
+  recurrenceSequence?: number | null;
 };
 
 type VehicleMinimumUseRule = {
@@ -31,6 +36,25 @@ function sortConflicts(conflicts: VehicleAvailabilityConflict[]) {
     left.reservationDate.localeCompare(right.reservationDate) ||
     left.startTime.localeCompare(right.startTime) ||
     left.vehicleName.localeCompare(right.vehicleName, "ko-KR")
+  );
+}
+
+/**
+ * 반복 예약 식별값이 명확한 충돌만 한 묶음으로 만듭니다.
+ * 과거 단건 데이터는 내용이 같더라도 추측해서 합치지 않습니다.
+ */
+export function groupVehicleAvailabilityConflicts(conflicts: readonly VehicleAvailabilityConflict[]) {
+  return groupVehicleReservations(
+    conflicts.map((conflict, index) => ({
+      ...conflict,
+      // 충돌 응답에는 실제 예약 ID를 노출하지 않고 화면 안에서만 임시 ID를 사용합니다.
+      id: index,
+    })),
+  ).sort((left, right) =>
+    left.startDate.localeCompare(right.startDate) ||
+    left.first.startTime.localeCompare(right.first.startTime) ||
+    left.first.vehicleName.localeCompare(right.first.vehicleName, "ko-KR") ||
+    left.key.localeCompare(right.key)
   );
 }
 

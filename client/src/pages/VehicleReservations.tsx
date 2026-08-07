@@ -16,11 +16,15 @@ import ReservationConflictDialog, {
 import { generateReservationTimePoints } from "@/lib/facilitySlotSelection";
 import { hasContentPermission } from "@/lib/contentPermissions";
 import {
+  groupVehicleAvailabilityConflicts,
   getBlockingVehicleConflicts,
   getOverlappingVehicleConflicts,
   type VehicleAvailabilityConflict,
 } from "@/lib/vehicleAvailabilityConflicts";
-import { groupVehicleReservations } from "@/lib/vehicleReservationGroups";
+import {
+  formatVehicleRecurrenceLabel,
+  groupVehicleReservations,
+} from "@/lib/vehicleReservationGroups";
 import { sortVehiclePlateRows } from "@/lib/vehiclePlateSort";
 import { shouldResetVehicleReservationTime } from "@/lib/vehicleReservationTimeSelection";
 import {
@@ -423,6 +427,35 @@ function VehicleReservationCalendar({
   );
 }
 
+function VehicleAvailabilityConflictCard({ conflict }: { conflict: VehicleAvailabilityConflict }) {
+  return (
+    <article className="rounded-lg border border-amber-100 bg-white p-3 text-xs text-gray-700 shadow-sm">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <p className="font-bold text-gray-900">
+          {formatDateLabel(conflict.reservationDate)} · {conflict.startTime}~{conflict.endTime}
+        </p>
+        <span className={`w-fit rounded-full px-2 py-0.5 text-[10px] font-medium ${
+          conflict.status === "approved"
+            ? "bg-green-100 text-green-700"
+            : "bg-amber-100 text-amber-700"
+        }`}>
+          {conflict.status === "approved" ? "승인 완료" : "승인 대기"}
+        </span>
+      </div>
+      <dl className="mt-2 grid grid-cols-[48px_minmax(0,1fr)] gap-x-2 gap-y-1.5">
+        <dt className="text-gray-400">차량</dt>
+        <dd className="min-w-0 break-words font-medium text-gray-900">{conflict.vehicleName}</dd>
+        <dt className="text-gray-400">예약자</dt>
+        <dd className="min-w-0 break-words">
+          {conflict.reserverName}{conflict.memberPosition ? ` (${conflict.memberPosition})` : ""}
+        </dd>
+        <dt className="text-gray-400">목적</dt>
+        <dd className="min-w-0 whitespace-pre-wrap break-words">{conflict.purpose}</dd>
+      </dl>
+    </article>
+  );
+}
+
 function VehicleAvailabilityTimeline({
   data,
   vehicles,
@@ -439,6 +472,7 @@ function VehicleAvailabilityTimeline({
   onSelect: (start: string, end: string) => void;
 }) {
   const [unavailableMessage, setUnavailableMessage] = useState("");
+  const [expandedConflictGroupKey, setExpandedConflictGroupKey] = useState<string | null>(null);
   const [inspectedUnavailableRange, setInspectedUnavailableRange] = useState<{
     start: string;
     end: string;
@@ -481,10 +515,15 @@ function VehicleAvailabilityTimeline({
   }, [data.conflicts, endTime, startTime]);
   const isInspectingUnavailableRange = inspectedUnavailableRange?.kind === "booked";
   const visibleConflicts = isInspectingUnavailableRange ? inspectedConflicts : selectedConflicts;
+  const visibleConflictGroups = useMemo(
+    () => groupVehicleAvailabilityConflicts(visibleConflicts),
+    [visibleConflicts],
+  );
 
   useEffect(() => {
     setUnavailableMessage("");
     setInspectedUnavailableRange(null);
+    setExpandedConflictGroupKey(null);
   }, [data, endTime, startTime]);
 
   function handleSegmentClick(start: string, end: string) {
@@ -670,35 +709,91 @@ function VehicleAvailabilityTimeline({
             {isInspectingUnavailableRange ? "불가 판정에 영향을 준 예약" : "선택한 시간에 예약된 차량"}
           </p>
           <div className="mt-2 grid gap-2">
-            {visibleConflicts.map((conflict, index) => (
-              <article
-                key={`${conflict.reservationDate}-${conflict.startTime}-${conflict.endTime}-${conflict.vehicleId}-${index}`}
-                className="rounded-lg border border-amber-100 bg-white p-3 text-xs text-gray-700 shadow-sm"
-              >
-                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="font-bold text-gray-900">
-                    {formatDateLabel(conflict.reservationDate)} · {conflict.startTime}~{conflict.endTime}
-                  </p>
-                  <span className={`w-fit rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                    conflict.status === "approved"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-amber-100 text-amber-700"
-                  }`}>
-                    {conflict.status === "approved" ? "승인 완료" : "승인 대기"}
-                  </span>
-                </div>
-                <dl className="mt-2 grid grid-cols-[48px_minmax(0,1fr)] gap-x-2 gap-y-1.5">
-                  <dt className="text-gray-400">차량</dt>
-                  <dd className="min-w-0 break-words font-medium text-gray-900">{conflict.vehicleName}</dd>
-                  <dt className="text-gray-400">예약자</dt>
-                  <dd className="min-w-0 break-words">
-                    {conflict.reserverName}{conflict.memberPosition ? ` (${conflict.memberPosition})` : ""}
-                  </dd>
-                  <dt className="text-gray-400">목적</dt>
-                  <dd className="min-w-0 whitespace-pre-wrap break-words">{conflict.purpose}</dd>
-                </dl>
-              </article>
-            ))}
+            {visibleConflictGroups.map(group => {
+              if (!group.isRecurring || group.count === 1) {
+                return <VehicleAvailabilityConflictCard key={group.key} conflict={group.first} />;
+              }
+
+              const isExpanded = expandedConflictGroupKey === group.key;
+              const approvedCount = group.reservations.filter(row => row.status === "approved").length;
+              const pendingCount = group.count - approvedCount;
+              const vehicleNames = Array.from(new Set(group.reservations.map(row => row.vehicleName)));
+              const reserverNames = Array.from(new Set(group.reservations.map(row =>
+                `${row.reserverName}${row.memberPosition ? ` (${row.memberPosition})` : ""}`
+              )));
+              const purposes = Array.from(new Set(group.reservations.map(row => row.purpose)));
+              const timeRanges = Array.from(new Set(group.reservations.map(row =>
+                `${row.startTime}~${row.endTime}`
+              )));
+              const recurrenceDisplayLabel = formatVehicleRecurrenceLabel(group.recurrenceLabel);
+              const detailId = `vehicle-conflict-details-${group.key.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+
+              return (
+                <article key={group.key} className="overflow-hidden rounded-lg border border-amber-200 bg-white text-xs text-gray-700 shadow-sm">
+                  <div className="p-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                          반복 일정 {group.count}건
+                        </span>
+                        {approvedCount > 0 && (
+                          <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">
+                            승인 완료 {approvedCount}
+                          </span>
+                        )}
+                        {pendingCount > 0 && (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                            승인 대기 {pendingCount}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-2 font-bold text-gray-900">
+                        {formatDateLabel(group.startDate)} ~ {formatDateLabel(group.endDate)}
+                      </p>
+                      {recurrenceDisplayLabel && (
+                        <p className="mt-1 break-words font-medium text-blue-700">{recurrenceDisplayLabel}</p>
+                      )}
+                      <dl className="mt-2 grid grid-cols-[48px_minmax(0,1fr)] gap-x-2 gap-y-1.5">
+                        <dt className="text-gray-400">시간</dt>
+                        <dd className="min-w-0 break-words">
+                          {timeRanges.length === 1 ? timeRanges[0] : "회차별 시간이 다릅니다."}
+                        </dd>
+                        <dt className="text-gray-400">차량</dt>
+                        <dd className="min-w-0 break-words font-medium text-gray-900">{vehicleNames.join(" · ")}</dd>
+                        <dt className="text-gray-400">예약자</dt>
+                        <dd className="min-w-0 break-words">{reserverNames.join(" · ")}</dd>
+                        <dt className="text-gray-400">목적</dt>
+                        <dd className="min-w-0 whitespace-pre-wrap break-words">
+                          {purposes.length === 1 ? purposes[0] : "회차별 목적이 다릅니다."}
+                        </dd>
+                      </dl>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        type="button"
+                        className="inline-flex items-center rounded-md px-2 py-1 font-bold text-blue-700 transition-colors hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                        aria-expanded={isExpanded}
+                        aria-controls={detailId}
+                        onClick={() => setExpandedConflictGroupKey(isExpanded ? null : group.key)}
+                      >
+                        {isExpanded ? "일정 접기" : `일정 ${group.count}건 보기`}
+                        <ChevronDown className={`ml-1 h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <div id={detailId} className="space-y-2 border-t border-amber-100 bg-amber-50/40 p-2" role="list">
+                      {group.reservations.map((conflict, index) => (
+                        <div key={`${group.key}-${conflict.reservationDate}-${conflict.startTime}-${index}`} role="listitem">
+                          <VehicleAvailabilityConflictCard conflict={conflict} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
           </div>
         </section>
       )}
