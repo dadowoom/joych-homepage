@@ -128,7 +128,7 @@ type VehicleReservationTimeEditForm = {
 type VehicleReservationGroupRow = VehicleReservationGroup<VehicleReservationRow>;
 
 const VEHICLE_RESERVATION_GRID =
-  "minmax(92px, 0.8fr) minmax(105px, 0.9fr) minmax(140px, 1.35fr) minmax(140px, 1.2fr) minmax(78px, 0.6fr) minmax(104px, 0.8fr)";
+  "minmax(92px, 0.8fr) minmax(105px, 0.9fr) minmax(140px, 1.35fr) minmax(140px, 1.2fr) minmax(78px, 0.6fr) minmax(196px, 1.2fr)";
 
 type AccessRuleDraft = {
   fieldType: FieldType;
@@ -1941,7 +1941,7 @@ function VehicleReservationCalendarView({
           <div className="px-4 py-8 text-center text-sm text-gray-400">이 날짜에는 차량 예약이 없습니다.</div>
         ) : (
           <div className="overflow-x-auto">
-            <div className="min-w-[735px]">
+            <div className="min-w-[835px]">
             <div
               className="grid gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500"
               style={{ gridTemplateColumns: VEHICLE_RESERVATION_GRID }}
@@ -1983,20 +1983,11 @@ function VehicleReservationCalendarView({
                       {status.icon} {status.label}
                     </span>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="min-h-10 sm:min-h-0"
-                      disabled={isMutatingReservation}
-                      onClick={() => onEdit(reservation)}
-                    >
-                      수정
-                    </Button>
+                  <div className="grid min-w-0 grid-flow-col auto-cols-fr gap-1">
                     {reservation.status !== "approved" && (
                       <Button
                         size="sm"
-                        className="min-h-10 bg-green-600 text-white hover:bg-green-700 sm:min-h-0"
+                        className="h-10 min-w-0 w-full whitespace-nowrap bg-green-600 px-1 text-[10px] text-white hover:bg-green-700 md:h-8"
                         disabled={isMutatingReservation}
                         onClick={() => onApprove(reservation)}
                       >
@@ -2007,7 +1998,7 @@ function VehicleReservationCalendarView({
                       <Button
                         size="sm"
                         variant="outline"
-                        className="min-h-10 border-red-200 text-red-600 hover:bg-red-50 sm:min-h-0"
+                        className="h-10 min-w-0 w-full whitespace-nowrap border-gray-300 px-1 text-[10px] text-gray-600 hover:bg-gray-50 md:h-8"
                         disabled={isMutatingReservation}
                         onClick={() => onCancel(reservation)}
                       >
@@ -2017,12 +2008,21 @@ function VehicleReservationCalendarView({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="min-h-10 border-red-200 text-red-600 hover:bg-red-50 sm:min-h-0"
+                      className="h-10 min-w-0 w-full whitespace-nowrap px-1 text-[10px] md:h-8"
+                      disabled={isMutatingReservation}
+                      onClick={() => onEdit(reservation)}
+                    >
+                      수정
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-10 min-w-0 w-full whitespace-nowrap border-red-200 px-1 text-[10px] text-red-600 hover:bg-red-50 md:h-8"
                       disabled={isMutatingReservation}
                       onClick={() => onDelete(reservation)}
                       title={reservation.recurrenceGroupId ? "반복 차량 예약 묶음 전체 삭제" : "차량 예약 삭제"}
                     >
-                      <Trash2 className="mr-1 h-3.5 w-3.5" /> 삭제
+                      삭제
                     </Button>
                   </div>
                 </div>
