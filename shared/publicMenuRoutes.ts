@@ -107,6 +107,14 @@ export function getExternalFacilityReservationsPath() {
 }
 
 /**
+ * 메뉴 DB의 개별 항목은 아니지만 브라우저에서 직접 열 수 있어야 하는 공개 한글
+ * 페이지입니다. 운영 서버의 /page 경로 검증에서도 이 목록만 명시적으로 허용합니다.
+ */
+export function isPublicStandalonePagePath(pathname: string) {
+  return pathname === getExternalFacilityReservationsPath();
+}
+
+/**
  * 기준 한글 주소 -> 이전 주소(영문 및 과거 한글 변형) 목록입니다.
  * 메뉴 DB에는 이전 주소가 저장된 상태여도 조회와 권한 검사가 계속 가능해야 합니다.
  */

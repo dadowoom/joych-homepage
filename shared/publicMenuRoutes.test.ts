@@ -3,6 +3,7 @@ import {
   getCanonicalPublicMenuHref,
   getCanonicalPublicMenuPath,
   getExternalFacilityReservationsPath,
+  isPublicStandalonePagePath,
   PUBLIC_MENU_PATHS,
 } from "./publicMenuRoutes";
 
@@ -29,6 +30,8 @@ describe("public menu Korean canonical routes", () => {
     expect(getExternalFacilityReservationsPath()).toBe(
       `${PUBLIC_MENU_PATHS.externalFacility}/내-예약`,
     );
+    expect(isPublicStandalonePagePath(getExternalFacilityReservationsPath())).toBe(true);
+    expect(isPublicStandalonePagePath("/page/시설사용-예약-외부인/임의주소")).toBe(false);
   });
 
   it.each([

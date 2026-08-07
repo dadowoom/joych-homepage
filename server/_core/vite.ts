@@ -10,6 +10,7 @@ import { nanoid } from "nanoid";
 import path from "path";
 import { isSafeHref } from "./contentValidation";
 import { injectSeoMeta } from "./seo";
+import { isPublicStandalonePagePath } from "@shared/publicMenuRoutes";
 import {
   getVisibleMenuItemByHref,
   getVisibleMenuItemById,
@@ -83,7 +84,7 @@ async function sendIndexHtml(
   }
 }
 
-async function publicRouteGuard(
+export async function publicRouteGuard(
   req: Request,
   res: Response,
   next: NextFunction,
@@ -131,6 +132,8 @@ async function publicRouteGuard(
   }
 
   if (normalizedPath.startsWith("/page/")) {
+    if (isPublicStandalonePagePath(normalizedPath)) return next();
+
     const [item, subItem] = await Promise.all([
       getVisibleMenuItemByHref(normalizedPath, "member"),
       getVisibleMenuSubItemByHref(normalizedPath, "member"),
