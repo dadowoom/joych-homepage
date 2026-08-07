@@ -102,6 +102,10 @@ export function getExternalFacilityApplyPath(id: string | number) {
   return `${getExternalFacilityPath(id)}/신청`;
 }
 
+export function getExternalFacilityReservationsPath() {
+  return `${PUBLIC_MENU_PATHS.externalFacility}/내-예약`;
+}
+
 /**
  * 기준 한글 주소 -> 이전 주소(영문 및 과거 한글 변형) 목록입니다.
  * 메뉴 DB에는 이전 주소가 저장된 상태여도 조회와 권한 검사가 계속 가능해야 합니다.

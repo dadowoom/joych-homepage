@@ -12,6 +12,7 @@ import {
   getBulletinPath,
   getExternalFacilityApplyPath,
   getExternalFacilityPath,
+  getExternalFacilityReservationsPath,
   getFacilityApplyPath,
   getFacilityPath,
   getFacilityReservationsPath,
@@ -78,6 +79,7 @@ const ExternalFacilityApply = lazy(() =>
     default: module.ExternalFacilityApply,
   }))
 );
+const ExternalFacilityReservations = lazy(() => import("./pages/ExternalFacilityReservations"));
 const MyReservations = lazy(() => import("./pages/MyReservations"));
 const VehicleReservationList = lazy(() =>
   import("./pages/VehicleReservations").then(module => ({
@@ -807,6 +809,9 @@ function Router() {
 
       <Route path={`${PUBLIC_MENU_PATHS.externalFacility}/:id/신청`}>
         <ExternalFacilityApply />
+      </Route>
+      <Route path={getExternalFacilityReservationsPath()}>
+        <ExternalFacilityReservations />
       </Route>
       <Route path={`${PUBLIC_MENU_PATHS.externalFacility}/:id`}>
         <ExternalFacilityDetail />

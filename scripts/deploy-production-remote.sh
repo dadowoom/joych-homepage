@@ -3393,6 +3393,16 @@ else
   exit 1
 fi
 
+MIGRATION_0112="${APP_DIR}/drizzle/0112_external_reservation_self_service.sql"
+MIGRATION_RUNNER_0112="${APP_DIR}/scripts/apply-0112-external-reservation-self-service.mjs"
+if [[ -f "${MIGRATION_0112}" && -f "${MIGRATION_RUNNER_0112}" ]]; then
+  echo "[deploy] database migration: external reservation self service"
+  node "${MIGRATION_RUNNER_0112}"
+else
+  echo "[deploy] missing migration 0112 or its safe runner" >&2
+  exit 1
+fi
+
 echo "[deploy] restart pm2 app"
 restart_pm2
 sleep 4

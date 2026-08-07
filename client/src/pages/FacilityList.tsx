@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Users, Clock, MapPin, CalendarCheck, Phone, Building2, Settings } from "lucide-react";
 import {
   getExternalFacilityPath,
+  getExternalFacilityReservationsPath,
   getFacilityPath,
   getFacilityReservationsPath,
   PUBLIC_MENU_PATHS,
@@ -313,24 +314,22 @@ function FacilityList({ audience = "member" }: { audience?: FacilityAudience }) 
 
       <section className="py-12">
         <div className="container">
-          {!isExternal && (
-            <div className="mb-6 flex justify-end gap-2">
-              <Link href={getFacilityReservationsPath()}>
-                <Button variant="outline" className="border-[#1B5E20] text-[#1B5E20] hover:bg-green-50">
-                  <CalendarCheck size={16} className="mr-2" />
-                  내 예약 현황
-                </Button>
+          <div className="mb-6 flex justify-end gap-2">
+            <Button asChild variant="outline" className="border-[#1B5E20] text-[#1B5E20] hover:bg-green-50">
+              <Link href={isExternal ? getExternalFacilityReservationsPath() : getFacilityReservationsPath()}>
+                <CalendarCheck size={16} className="mr-2" />
+                {isExternal ? "내 예약 확인·변경" : "내 예약 현황"}
               </Link>
-              {canManageReservations && (
-                <Link href="/admin_joych_2026?tab=reservations">
-                  <Button className="bg-[#1B5E20] text-white hover:bg-[#2E7D32]">
+            </Button>
+            {!isExternal && canManageReservations && (
+                <Button asChild className="bg-[#1B5E20] text-white hover:bg-[#2E7D32]">
+                  <Link href="/admin_joych_2026?tab=reservations">
                     <Settings size={16} className="mr-2" />
                     {"\uC608\uC57D \uAD00\uB9AC"}
-                  </Button>
-                </Link>
-              )}
-            </div>
-          )}
+                  </Link>
+                </Button>
+            )}
+          </div>
 
           {/* 건물 분류 */}
           {!isLoading && facilities && facilities.length > 0 && (

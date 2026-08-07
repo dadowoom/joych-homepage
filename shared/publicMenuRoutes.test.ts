@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getCanonicalPublicMenuHref,
   getCanonicalPublicMenuPath,
+  getExternalFacilityReservationsPath,
   PUBLIC_MENU_PATHS,
 } from "./publicMenuRoutes";
 
@@ -22,6 +23,12 @@ describe("public menu Korean canonical routes", () => {
     expect(getCanonicalPublicMenuPath("/about/pastor/books")).toBe(PUBLIC_MENU_PATHS.pastorBooks);
     expect(getCanonicalPublicMenuPath("/worship/schedule")).toBe(PUBLIC_MENU_PATHS.worshipSchedule);
     expect(getCanonicalPublicMenuPath("/facility/external")).toBe(PUBLIC_MENU_PATHS.externalFacility);
+  });
+
+  it("builds the external facility self-service address under the public menu path", () => {
+    expect(getExternalFacilityReservationsPath()).toBe(
+      `${PUBLIC_MENU_PATHS.externalFacility}/내-예약`,
+    );
   });
 
   it.each([

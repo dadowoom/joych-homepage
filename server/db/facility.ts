@@ -10,7 +10,7 @@
  *               createReservation, updateReservationStatus, getReservationById
  */
 
-import { eq, asc, desc, and, or, isNull, lt, gt, sql, inArray, ne, notInArray } from "drizzle-orm";
+import { eq, asc, desc, and, or, isNull, isNotNull, lt, gt, sql, inArray, ne, notInArray } from "drizzle-orm";
 import {
   facilities, facilityImages, facilityHours, externalFacilityHours, facilityBlockedDates, reservations, churchMembers,
   InsertFacility, InsertFacilityImage, InsertFacilityHour, InsertExternalFacilityHour, InsertFacilityBlockedDate, InsertReservation,
@@ -426,6 +426,49 @@ export async function getMyReservations(userId: number) {
     .orderBy(desc(reservations.createdAt));
 }
 
+/**
+ * 외부인 셀프서비스 인증 단건 조회.
+ *
+ * 원문 관리코드는 저장하지 않고 SHA-256 lookup hash의 UNIQUE 인덱스로 정확히
+ * 한 행만 찾습니다. 관리코드/비밀번호가 없는 기존 예약은 대상에 포함하지 않습니다.
+ */
+export async function getExternalReservationAuthRecordByLookupKey(
+  manageLookupKeyHash: string,
+) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select({
+      id: reservations.id,
+      facilityId: reservations.facilityId,
+      reservationType: reservations.reservationType,
+      reserverName: reservations.reserverName,
+      reserverPhone: reservations.reserverPhone,
+      managePasswordHash: reservations.managePasswordHash,
+      manageLookupKeyHash: reservations.manageLookupKeyHash,
+      reservationDate: reservations.reservationDate,
+      startTime: reservations.startTime,
+      endTime: reservations.endTime,
+      status: reservations.status,
+      purpose: reservations.purpose,
+      department: reservations.department,
+      attendees: reservations.attendees,
+      adminComment: reservations.adminComment,
+      facilityName: facilities.name,
+    })
+    .from(reservations)
+    .leftJoin(facilities, eq(reservations.facilityId, facilities.id))
+    .where(and(
+      eq(reservations.reservationType, "external"),
+      isNull(reservations.userId),
+      eq(reservations.manageLookupKeyHash, manageLookupKeyHash),
+      isNotNull(reservations.managePasswordHash),
+      isNotNull(reservations.manageLookupKeyHash),
+    ))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 /** 특정 날짜의 시설 예약 목록 조회 (예약 가능 시간 확인용) */
 export async function getReservationsByDate(facilityId: number, date: string) {
   const db = await getDb();
@@ -639,6 +682,175 @@ export async function updateReservationDetails(id: number, data: ReservationDeta
         .where(eq(reservations.id, id));
       return true;
     }
+  );
+}
+
+export type ExternalReservationSelfUpdate = {
+  reservationDate: string;
+  startTime: string;
+  endTime: string;
+  purpose: string;
+  department?: string | null;
+  attendees: number;
+  notes?: string | null;
+};
+
+export type ExternalReservationSelfMutationResult =
+  | "updated"
+  | "cancelled"
+  | "not_found"
+  | "not_editable";
+
+/** 외부인 본인 수정 시 승인 상태와 관리자 처리 정보를 안전하게 초기화합니다. */
+export function getExternalReservationSelfUpdateValues(
+  data: ExternalReservationSelfUpdate,
+): Partial<InsertReservation> {
+  return {
+    reservationDate: data.reservationDate,
+    startTime: data.startTime,
+    endTime: data.endTime,
+    purpose: data.purpose.trim(),
+    department: nullableText(data.department),
+    attendees: data.attendees,
+    ...(data.notes !== undefined ? { notes: nullableText(data.notes) } : {}),
+    status: "pending",
+    adminComment: null,
+    processedBy: null,
+    processedAt: null,
+  };
+}
+
+/**
+ * 인증된 외부인 예약을 중복 방지 잠금 안에서 수정합니다.
+ * 수정된 승인/확인중 예약은 반드시 다시 승인 대기로 돌리고 관리자 처리 흔적을
+ * 지웁니다. 이름·연락처는 조회 자격 정보이므로 이 경로에서는 변경하지 않습니다.
+ */
+export async function updateOwnedExternalReservationIfAvailable(
+  id: number,
+  expectedManageLookupKeyHash: string,
+  expectedManagePasswordHash: string,
+  data: ExternalReservationSelfUpdate,
+): Promise<ExternalReservationSelfMutationResult> {
+  const db = await getDb();
+  if (!db) return "not_found";
+  const ownership = and(
+    eq(reservations.id, id),
+    eq(reservations.reservationType, "external"),
+    isNull(reservations.userId),
+    eq(reservations.manageLookupKeyHash, expectedManageLookupKeyHash),
+    eq(reservations.managePasswordHash, expectedManagePasswordHash),
+  );
+  const currentRows = await db.select().from(reservations).where(ownership).limit(1);
+  const reservation = currentRows[0];
+  if (!reservation) return "not_found";
+
+  const pool = await getRawDbPool();
+  if (!pool) return "not_found";
+  const lockKeys = [
+    `reservation-record:${id}`,
+    `reservation:${reservation.facilityId}:${reservation.reservationDate}`,
+    `reservation:${reservation.facilityId}:${data.reservationDate}`,
+  ];
+  const lockKeySet = new Set(lockKeys);
+
+  return withNamedLocksTransaction(
+    pool,
+    lockKeys,
+    () => new ReservationLockError(),
+    async (tx) => {
+      await tx.execute(sql`
+        SELECT ${reservations.id}
+        FROM ${reservations}
+        WHERE ${reservations.id} = ${id}
+        FOR UPDATE
+      `);
+      const lockedRows = await tx.select().from(reservations).where(ownership).limit(1);
+      const lockedReservation = lockedRows[0];
+      if (!lockedReservation) return "not_found";
+      if (
+        !ACTIVE_RESERVATION_STATUSES.includes(lockedReservation.status as typeof ACTIVE_RESERVATION_STATUSES[number]) ||
+        !isUpcomingReservationOccurrence(lockedReservation)
+      ) {
+        return "not_editable";
+      }
+
+      const currentScheduleKey =
+        `reservation:${lockedReservation.facilityId}:${lockedReservation.reservationDate}`;
+      const nextScheduleKey =
+        `reservation:${lockedReservation.facilityId}:${data.reservationDate}`;
+      if (!lockKeySet.has(currentScheduleKey) || !lockKeySet.has(nextScheduleKey)) {
+        throw new ReservationLockError();
+      }
+
+      const overlapping = await tx
+        .select({ startTime: reservations.startTime, endTime: reservations.endTime })
+        .from(reservations)
+        .where(and(
+          eq(reservations.facilityId, lockedReservation.facilityId),
+          eq(reservations.reservationDate, data.reservationDate),
+          ne(reservations.id, id),
+          inArray(reservations.status, ACTIVE_RESERVATION_STATUSES),
+          lt(reservations.startTime, data.endTime),
+          gt(reservations.endTime, data.startTime),
+        ))
+        .limit(1);
+      if (overlapping[0]) {
+        throw new ReservationOverlapError(
+          overlapping[0].startTime,
+          overlapping[0].endTime,
+          data.reservationDate,
+        );
+      }
+
+      await tx.update(reservations)
+        .set(getExternalReservationSelfUpdateValues(data))
+        .where(ownership);
+      return "updated";
+    },
+  );
+}
+
+/** 인증된 활성 미래 외부인 예약을 삭제하지 않고 취소 상태로 전환합니다. */
+export async function cancelOwnedExternalReservation(
+  id: number,
+  expectedManageLookupKeyHash: string,
+  expectedManagePasswordHash: string,
+): Promise<ExternalReservationSelfMutationResult> {
+  const pool = await getRawDbPool();
+  if (!pool) return "not_found";
+  const ownership = and(
+    eq(reservations.id, id),
+    eq(reservations.reservationType, "external"),
+    isNull(reservations.userId),
+    eq(reservations.manageLookupKeyHash, expectedManageLookupKeyHash),
+    eq(reservations.managePasswordHash, expectedManagePasswordHash),
+  );
+
+  return withNamedLocksTransaction(
+    pool,
+    [`reservation-record:${id}`],
+    () => new ReservationLockError(),
+    async (tx) => {
+      await tx.execute(sql`
+        SELECT ${reservations.id}
+        FROM ${reservations}
+        WHERE ${reservations.id} = ${id}
+        FOR UPDATE
+      `);
+      const rows = await tx.select().from(reservations).where(ownership).limit(1);
+      const reservation = rows[0];
+      if (!reservation) return "not_found";
+      if (
+        !ACTIVE_RESERVATION_STATUSES.includes(reservation.status as typeof ACTIVE_RESERVATION_STATUSES[number]) ||
+        !isUpcomingReservationOccurrence(reservation)
+      ) {
+        return "not_editable";
+      }
+      await tx.update(reservations)
+        .set({ status: "cancelled" })
+        .where(ownership);
+      return "cancelled";
+    },
   );
 }
 

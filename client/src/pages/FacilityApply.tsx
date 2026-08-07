@@ -11,7 +11,7 @@ import { Link, useParams, useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import type { FacilityBlockedDate } from "../../../drizzle/schema";
 import { toast } from "sonner";
-import { Loader2, ChevronRight, Clock, Users, MapPin, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, ChevronRight, Clock, Users, MapPin, Calendar, CheckCircle2, AlertCircle, Copy, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import MemberOnlyContentNotice from "@/components/MemberOnlyContentNotice";
 import ReservationConflictDialog, {
@@ -43,6 +43,7 @@ import {
 } from "@shared/reservationRecurrence";
 import {
   getExternalFacilityPath,
+  getExternalFacilityReservationsPath,
   getFacilityPath,
   getFacilityReservationsPath,
   PUBLIC_MENU_PATHS,
@@ -81,12 +82,12 @@ function getDayOfWeek(dateStr: string): number {
 }
 
 // ── 입력 필드 공통 컴포넌트 ──────────────────────────────────
-function Field({ label, required, children, hint }: {
-  label: string; required?: boolean; children: React.ReactNode; hint?: string;
+function Field({ label, required, children, hint, htmlFor }: {
+  label: string; required?: boolean; children: React.ReactNode; hint?: string; htmlFor?: string;
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+      <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-700 mb-1.5">
         {label}
         {required && <span className="text-red-500 ml-1">*</span>}
       </label>
@@ -97,17 +98,30 @@ function Field({ label, required, children, hint }: {
 }
 
 // ── 완료 화면 ────────────────────────────────────────────────
-function SuccessScreen({ facilityName, status, count, recurrenceLabel, facilityListHref, showMyReservations = true, onReset }: {
+function SuccessScreen({ facilityName, status, count, recurrenceLabel, facilityListHref, myReservationsHref = getFacilityReservationsPath(), myReservationsLabel = "내 예약 현황 보기", showMyReservations = true, isExternalReservation = false, manageCode, onReset }: {
   facilityName: string;
   status: string;
   count: number;
   recurrenceLabel?: string | null;
   facilityListHref: string;
+  myReservationsHref?: string;
+  myReservationsLabel?: string;
   showMyReservations?: boolean;
+  isExternalReservation?: boolean;
+  manageCode?: string | null;
   onReset: () => void;
 }) {
   const isPending = status === "pending";
   const isRepeated = count > 1;
+  const copyManageCode = async () => {
+    if (!manageCode) return;
+    try {
+      await navigator.clipboard.writeText(manageCode);
+      toast.success("예약 확인번호를 복사했습니다.");
+    } catch {
+      toast.error("자동 복사에 실패했습니다. 확인번호를 길게 눌러 직접 복사해 주세요.");
+    }
+  };
   return (
     <div className="text-center py-16 px-4">
       <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5 ${isPending ? "bg-amber-50" : "bg-[#E8F5E9]"}`}>
@@ -127,18 +141,65 @@ function SuccessScreen({ facilityName, status, count, recurrenceLabel, facilityL
           {recurrenceLabel ?? `반복 예약 총 ${count}건`}이 함께 접수되었습니다.
         </p>
       )}
-      <p className="text-xs text-gray-400 mb-8">내 예약 현황에서 승인 상태를 확인하실 수 있습니다.</p>
+      {isExternalReservation && manageCode ? (
+        <section
+          className="mx-auto mb-8 mt-6 max-w-xl rounded-2xl border-2 border-amber-300 bg-amber-50 p-5 text-left shadow-sm sm:p-6"
+          aria-labelledby="external-manage-code-title"
+          role="alert"
+        >
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-800">
+              <KeyRound className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 id="external-manage-code-title" className="font-bold text-amber-950">예약 확인번호</h3>
+              <p className="mt-1 text-sm font-semibold leading-6 text-red-700">
+                이 번호는 지금 한 번만 표시됩니다. 예약 조회·수정·취소에 꼭 필요하니 반드시 복사해 보관해 주세요.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <input
+              type="text"
+              readOnly
+              value={manageCode}
+              className="min-w-0 flex-1 select-all break-all rounded-lg border border-amber-300 bg-white px-4 py-3 text-center font-mono text-base font-bold tracking-wide text-gray-950 sm:text-lg"
+              aria-label={`예약 확인번호 ${manageCode}`}
+              onFocus={(event) => event.currentTarget.select()}
+            />
+            <Button
+              type="button"
+              onClick={copyManageCode}
+              className="h-12 shrink-0 bg-amber-700 px-5 text-white hover:bg-amber-800"
+              aria-label="예약 확인번호 복사"
+            >
+              <Copy className="mr-2 h-4 w-4" aria-hidden="true" /> 복사
+            </Button>
+          </div>
+          <p className="mt-3 text-xs font-medium leading-5 text-amber-900">
+            확인번호를 잃어버리면 홈페이지에서 예약을 확인할 수 없습니다. 분실 시 기쁨의교회 사무국(054-270-1000)으로 문의해 주세요.
+          </p>
+        </section>
+      ) : isExternalReservation ? (
+        <div className="mx-auto mb-8 mt-6 max-w-xl rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold leading-6 text-red-800" role="alert">
+          예약 확인번호를 표시하지 못했습니다. 이 화면을 닫기 전에 기쁨의교회 사무국(054-270-1000)으로 문의해 주세요.
+        </div>
+      ) : (
+        <p className="mb-8 text-xs text-gray-400">내 예약 현황에서 승인 상태를 확인하실 수 있습니다.</p>
+      )}
       <div className="flex gap-3 justify-center flex-wrap">
-        <Link href={facilityListHref}>
-          <button className="px-5 py-2.5 rounded-lg border border-gray-200 text-gray-600 text-sm hover:bg-gray-50 transition-colors">
-            시설 목록으로
-          </button>
+        <Link
+          href={facilityListHref}
+          className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm text-gray-600 transition-colors hover:bg-gray-50"
+        >
+          시설 목록으로
         </Link>
         {showMyReservations && (
-          <Link href={getFacilityReservationsPath()}>
-            <button className="px-5 py-2.5 rounded-lg bg-[#1B5E20] text-white text-sm hover:bg-[#2E7D32] transition-colors">
-              내 예약 현황 보기
-            </button>
+          <Link
+            href={myReservationsHref}
+            className="rounded-lg bg-[#1B5E20] px-5 py-2.5 text-sm text-white transition-colors hover:bg-[#2E7D32]"
+          >
+            {myReservationsLabel}
           </Link>
         )}
         <button
@@ -238,6 +299,8 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
   const [form, setForm] = useState(() => ({
     reserverName: memberMe?.name ?? "",
     reserverPhone: "",
+    managePassword: "",
+    managePasswordConfirm: "",
     department: "",
     depositorName: "",
     purpose: "",
@@ -256,6 +319,7 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
   const [reservedStatus, setReservedStatus] = useState<string>("pending");
   const [reservedCount, setReservedCount] = useState(1);
   const [reservedRecurrenceLabel, setReservedRecurrenceLabel] = useState<string | null>(null);
+  const [reservedManageCode, setReservedManageCode] = useState<string | null>(null);
   const [reservationConflictMessage, setReservationConflictMessage] = useState<string | null>(null);
   const [showDateChangePicker, setShowDateChangePicker] = useState(!urlDate);
 
@@ -371,14 +435,25 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
   };
 
   const createMemberReservation = trpc.home.createReservation.useMutation({
-    onSuccess: onReservationCreated,
+    onSuccess: (data) => {
+      setReservedManageCode(null);
+      onReservationCreated(data);
+    },
     onError: (err) => {
       showReservationError(err.message || "예약 신청 중 오류가 발생했습니다.");
+      queueMicrotask(() => createExternalReservation.reset());
     },
   });
 
   const createExternalReservation = trpc.home.createExternalReservation.useMutation({
-    onSuccess: onReservationCreated,
+    gcTime: 0,
+    onSuccess: (data) => {
+      setReservedManageCode(
+        /^[A-Za-z0-9_-]{22}$/.test(data.manageCode) ? data.manageCode : null,
+      );
+      onReservationCreated(data);
+      queueMicrotask(() => createExternalReservation.reset());
+    },
     onError: (err) => {
       showReservationError(err.message || "예약 신청 중 오류가 발생했습니다.");
     },
@@ -518,6 +593,8 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     const applyPath = isExternal ? `${getExternalFacilityPath(facilityId)}/신청` : `${getFacilityPath(facilityId)}/신청`;
 
     setSubmitted(false);
+    setReservedManageCode(null);
+    createExternalReservation.reset();
     setShowDateChangePicker(true);
     setReservationConflictMessage(null);
     setForm(prev => ({
@@ -525,6 +602,8 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
       date: "",
       startTime: "",
       endTime: "",
+      managePassword: "",
+      managePasswordConfirm: "",
       repeatType: "none",
       repeatUntilDate: "",
     }));
@@ -548,6 +627,12 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     const resolvedPurpose = form.purpose.trim();
     if (!form.reserverName.trim()) return "신청자 이름을 입력해 주세요.";
     if (!form.reserverPhone.trim()) return "연락처를 입력해 주세요.";
+    if (isExternal && !/^\d{6}$/.test(form.managePassword)) {
+      return "예약 확인 비밀번호를 숫자 6자리로 입력해 주세요.";
+    }
+    if (isExternal && form.managePassword !== form.managePasswordConfirm) {
+      return "예약 확인 비밀번호가 서로 일치하지 않습니다.";
+    }
     if (!form.department.trim()) return isExternal ? "단체명을 입력해 주세요." : "소속 부서/단체를 입력해 주세요.";
     if (isExternal && !form.depositorName.trim()) return "입금자명을 입력해 주세요.";
     if (!form.purpose.trim()) return "사용 목적을 입력해 주세요.";
@@ -628,7 +713,10 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
     };
 
     if (isExternal) {
-      createExternalReservation.mutate(payload);
+      createExternalReservation.mutate({
+        ...payload,
+        managePassword: form.managePassword,
+      });
       return;
     }
 
@@ -730,7 +818,10 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                 count={reservedCount}
                 recurrenceLabel={reservedRecurrenceLabel}
                 facilityListHref={facilityListHref}
-                showMyReservations={!isExternal}
+                myReservationsHref={isExternal ? getExternalFacilityReservationsPath() : getFacilityReservationsPath()}
+                myReservationsLabel={isExternal ? "내 예약 확인·변경" : "내 예약 현황 보기"}
+                isExternalReservation={isExternal}
+                manageCode={isExternal ? reservedManageCode : null}
                 onReset={handleAdditionalReservation}
               />
             </div>
@@ -809,6 +900,52 @@ function FacilityApply({ audience = "member" }: { audience?: FacilityAudience })
                     <input type="tel" name="reserverPhone" value={form.reserverPhone} onChange={handleChange} placeholder="010-0000-0000" className={inputClass} />
                   </Field>
                 </div>
+
+                {isExternal && (
+                  <div className="rounded-xl border border-green-100 bg-green-50/60 p-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <Field label="예약 확인 비밀번호" required hint="예약 조회·수정·취소 때 사용할 숫자 6자리입니다." htmlFor="external-manage-password">
+                        <input
+                          id="external-manage-password"
+                          type="password"
+                          name="managePassword"
+                          value={form.managePassword}
+                          onChange={(event) => setForm(prev => ({
+                            ...prev,
+                            managePassword: event.target.value.replace(/\D/g, "").slice(0, 6),
+                          }))}
+                          inputMode="numeric"
+                          pattern="[0-9]{6}"
+                          maxLength={6}
+                          autoComplete="off"
+                          placeholder="숫자 6자리"
+                          className={inputClass}
+                        />
+                      </Field>
+                      <Field label="비밀번호 확인" required htmlFor="external-manage-password-confirm">
+                        <input
+                          id="external-manage-password-confirm"
+                          type="password"
+                          name="managePasswordConfirm"
+                          value={form.managePasswordConfirm}
+                          onChange={(event) => setForm(prev => ({
+                            ...prev,
+                            managePasswordConfirm: event.target.value.replace(/\D/g, "").slice(0, 6),
+                          }))}
+                          inputMode="numeric"
+                          pattern="[0-9]{6}"
+                          maxLength={6}
+                          autoComplete="off"
+                          placeholder="한 번 더 입력"
+                          className={inputClass}
+                        />
+                      </Field>
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-green-800">
+                      비밀번호는 홈페이지에 다시 표시되지 않습니다. 예약 확인을 위해 꼭 기억해 주세요.
+                    </p>
+                  </div>
+                )}
 
                 <Field label={isExternal ? "단체명" : "소속 부서/단체"} required>
                   <input

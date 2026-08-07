@@ -302,12 +302,16 @@ export function notifyFacilityReservation(params: {
   reservationId: number;
   status?: "pending" | "approved";
   extraCount?: number;
+  event?: "created" | "updated";
 }) {
   const typeLabel = params.reservationType === "external" ? "외부인" : "성도";
   const extraLabel = params.extraCount && params.extraCount > 0 ? ` 외 ${params.extraCount}건` : "";
   const statusLabel = params.status === "approved" ? "자동 승인" : "승인 대기";
+  const title = params.event === "updated"
+    ? `${typeLabel} 시설 예약 수정 · ${statusLabel}`
+    : `새 ${typeLabel} 시설 예약 ${statusLabel}`;
   return sendPushToPermissionHolders("content:reservations", {
-    title: `새 ${typeLabel} 시설 예약 ${statusLabel}`,
+    title,
     body: `[${params.reserverName}] ${params.facilityName}${extraLabel}\n${params.date} ${params.startTime}~${params.endTime}`,
     url: "/admin_joych_2026?tab=reservations",
     tag: `reservation-${params.reservationId}`,

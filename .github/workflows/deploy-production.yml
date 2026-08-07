@@ -91,6 +91,7 @@ jobs:
           node --check scripts/audit-upload-inventory.mjs
           node --check scripts/apply-0110-db-growth-indexes.mjs
           node --check scripts/apply-0111-member-admin-indexes.mjs
+          node --check scripts/apply-0112-external-reservation-self-service.mjs
           bash -n scripts/deploy-production-remote.sh
           bash -n scripts/deploy-retention.sh
           bash -n scripts/deploy-retention.test.sh
@@ -111,7 +112,7 @@ jobs:
       - name: Create deploy artifact
         run: |
           ARTIFACT="joych-homepage-${GITHUB_SHA}.tar.gz"
-          tar -czf "${ARTIFACT}" dist package.json pnpm-lock.yaml pnpm-workspace.yaml patches drizzle/*.sql scripts/backup-joych-production.mjs scripts/backup-joych-safety.mjs scripts/audit-upload-inventory.mjs scripts/apply-0110-db-growth-indexes.mjs scripts/apply-0111-member-admin-indexes.mjs scripts/deploy-retention.sh scripts/verify-pwa-domain-bridge.mjs
+          tar -czf "${ARTIFACT}" dist package.json pnpm-lock.yaml pnpm-workspace.yaml patches drizzle/*.sql scripts/backup-joych-production.mjs scripts/backup-joych-safety.mjs scripts/audit-upload-inventory.mjs scripts/apply-0110-db-growth-indexes.mjs scripts/apply-0111-member-admin-indexes.mjs scripts/apply-0112-external-reservation-self-service.mjs scripts/deploy-retention.sh scripts/verify-pwa-domain-bridge.mjs
           echo "ARTIFACT=${ARTIFACT}" >> "${GITHUB_ENV}"
 
       - name: Prepare SSH

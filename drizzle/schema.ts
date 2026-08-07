@@ -1065,6 +1065,10 @@ export const reservations = mysqlTable("reservations", {
   reserverName: varchar("reserverName", { length: 64 }).notNull(),
   /** 예약자 연락처 */
   reserverPhone: varchar("reserverPhone", { length: 32 }),
+  /** 외부인 예약 셀프서비스 비밀번호의 bcrypt 해시 (원문 저장 금지) */
+  managePasswordHash: varchar("managePasswordHash", { length: 256 }),
+  /** 외부인 예약별 128-bit 관리코드의 SHA-256 조회 해시 (원문 저장 금지) */
+  manageLookupKeyHash: varchar("manageLookupKeyHash", { length: 64 }),
   /** 예약 날짜 (YYYY-MM-DD) */
   reservationDate: varchar("reservationDate", { length: 10 }).notNull(),
   /** 시작 시간 (HH:MM) */
@@ -1107,6 +1111,9 @@ export const reservations = mysqlTable("reservations", {
   index("reservations_status_created_idx").on(table.status, table.createdAt),
   index("reservations_created_idx").on(table.createdAt),
   index("reservations_recurrence_group_idx").on(table.recurrenceGroupId),
+  uniqueIndex("reservations_external_manage_lookup_uq").on(
+    table.manageLookupKeyHash,
+  ),
 ]);
 
 export type Reservation = typeof reservations.$inferSelect;

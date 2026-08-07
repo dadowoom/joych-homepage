@@ -3,6 +3,7 @@ import type { TrpcContext } from "./context";
 import {
   PUBLIC_RATE_LIMIT_POLICIES,
   enforcePublicRateLimit,
+  enforcePublicRateLimitForHashedIdentifier,
 } from "./publicRateLimits";
 
 function createContext(
@@ -70,5 +71,59 @@ describe("public rate limits", () => {
     expect(() => enforcePublicRateLimit("globalSearch", ctx)).toThrowError(
       expect.objectContaining({ code: "TOO_MANY_REQUESTS" })
     );
+  });
+
+  it("separately limits external reservation lookup and management attempts", () => {
+    const ctx = createContext("203.0.113.214");
+    for (
+      let index = 0;
+      index < PUBLIC_RATE_LIMIT_POLICIES.externalFacilityReservationLookup.limit;
+      index += 1
+    ) {
+      expect(() =>
+        enforcePublicRateLimit("externalFacilityReservationLookup", ctx)
+      ).not.toThrow();
+    }
+    expect(() =>
+      enforcePublicRateLimit("externalFacilityReservationLookup", ctx)
+    ).toThrowError(expect.objectContaining({ code: "TOO_MANY_REQUESTS" }));
+    expect(() =>
+      enforcePublicRateLimit("externalFacilityReservationManagement", ctx)
+    ).not.toThrow();
+  });
+
+  it("limits external reservation credentials by SHA-256 digest without accepting raw identifiers", () => {
+    const firstDigest = "a".repeat(64);
+    const secondDigest = "b".repeat(64);
+    for (
+      let index = 0;
+      index < PUBLIC_RATE_LIMIT_POLICIES.externalFacilityReservationCredential.limit;
+      index += 1
+    ) {
+      expect(() =>
+        enforcePublicRateLimitForHashedIdentifier(
+          "externalFacilityReservationCredential",
+          firstDigest,
+        )
+      ).not.toThrow();
+    }
+    expect(() =>
+      enforcePublicRateLimitForHashedIdentifier(
+        "externalFacilityReservationCredential",
+        firstDigest,
+      )
+    ).toThrowError(expect.objectContaining({ code: "TOO_MANY_REQUESTS" }));
+    expect(() =>
+      enforcePublicRateLimitForHashedIdentifier(
+        "externalFacilityReservationCredential",
+        secondDigest,
+      )
+    ).not.toThrow();
+    expect(() =>
+      enforcePublicRateLimitForHashedIdentifier(
+        "externalFacilityReservationCredential",
+        "raw-manage-code",
+      )
+    ).toThrowError(TypeError);
   });
 });
