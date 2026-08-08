@@ -1,4 +1,5 @@
 import type { Express, NextFunction, Request, Response } from "express";
+import { COOKIE_NAME } from "../../shared/const";
 import {
   PRIMARY_SITE_ORIGIN,
   isSiteHostname,
@@ -11,6 +12,7 @@ import {
   listVisiblePastorBookSeoRows,
 } from "../db/seo";
 import { isSafeHref } from "./contentValidation";
+import { MEMBER_SESSION_COOKIE } from "./memberSession";
 
 type RequestWithCspNonce = Request & { cspNonce?: string };
 
@@ -435,6 +437,7 @@ const LEGACY_PWA_HOSTNAMES = new Set([
   "newjoych.co.kr",
   "www.newjoych.co.kr",
 ]);
+const LEGACY_SOCIAL_SIGNUP_COMPLETION_PATH = "/member/social-complete";
 
 const CANONICAL_PATH_ALIASES = new Map<string, string>([
   ["/about/pastor", "/page/교회소개-담임목사-소개-담임목사인사"],
@@ -532,6 +535,18 @@ function isHtmlDocumentRequest(req: Request) {
   );
 }
 
+function getRequestPathname(req: Request) {
+  return (req.originalUrl || req.url || "/").split("?")[0] || "/";
+}
+
+function hasLegacySessionTransition(req: Request) {
+  return Boolean(
+    req.cookies?.[COOKIE_NAME] ||
+      req.cookies?.[MEMBER_SESSION_COOKIE] ||
+      getRequestPathname(req) === LEGACY_SOCIAL_SIGNUP_COMPLETION_PATH
+  );
+}
+
 export function canonicalHostRedirect(
   req: Request,
   res: Response,
@@ -548,16 +563,23 @@ export function canonicalHostRedirect(
     return res.redirect(301, destination.toString());
   }
 
-  // newjoych.co.kr is intentionally kept alive for existing installed PWAs.
-  // Its browser navigation is handled by the client-side domain gate so that
-  // service workers, push endpoints and standalone mode keep working.
-  if (isSiteHostname(currentHostname)) {
-    if (
-      LEGACY_PWA_HOSTNAMES.has(currentHostname) &&
-      isHtmlDocumentRequest(req)
-    ) {
+  // Newjoych is no longer a public website. Move every HTML navigation to the
+  // canonical host so search engines replace the retired URLs, while leaving
+  // the legacy bridge/API/static paths available during the transition.
+  if (LEGACY_PWA_HOSTNAMES.has(currentHostname) && isHtmlDocumentRequest(req)) {
+    if (hasLegacySessionTransition(req)) {
       res.setHeader("X-Robots-Tag", "noindex, follow");
+      return next();
     }
+
+    const destination = new URL(
+      req.originalUrl || req.url || "/",
+      PRIMARY_SITE_ORIGIN
+    );
+    return res.redirect(301, destination.toString());
+  }
+
+  if (isSiteHostname(currentHostname)) {
     return next();
   }
 

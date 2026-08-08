@@ -101,12 +101,56 @@ describe("SEO meta injection", () => {
     });
   });
 
-  it("기존 newjoych 도메인은 서버에서 강제 이동시키지 않는다", () => {
-    withPublicUrlBase("https://newjoych.co.kr", () => {
+  it.each([
+    ["newjoych.co.kr", "GET"],
+    ["www.newjoych.co.kr", "HEAD"],
+  ])(
+    "사용을 종료한 %s %s HTML은 경로와 쿼리를 유지해 대표 주소로 301 이동한다",
+    (host, method) => {
       const req = {
+        method,
         originalUrl: "/about/directions?from=www",
         url: "/about/directions?from=www",
-        headers: { host: "www.newjoych.co.kr" },
+        headers: { host, accept: "text/html" },
+      } as unknown as Request;
+      const redirect = vi.fn();
+      const setHeader = vi.fn();
+      const res = { redirect, setHeader } as unknown as Response;
+      const next = vi.fn() as unknown as NextFunction;
+
+      canonicalHostRedirect(req, res, next);
+
+      expect(redirect).toHaveBeenCalledWith(
+        301,
+        "https://www.joych.org/about/directions?from=www"
+      );
+      expect(setHeader).not.toHaveBeenCalled();
+      expect(next).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([
+    {
+      pathname: "/member/social-complete?provider=kakao",
+      cookies: {},
+    },
+    {
+      pathname: "/",
+      cookies: { church_member_session: "legacy-member-session" },
+    },
+    {
+      pathname: "/admin_joych_2026",
+      cookies: { app_session_id: "legacy-admin-session" },
+    },
+  ])(
+    "기존 세션 이전 경로 $pathname 은 검색을 막고 직접 처리한다",
+    ({ pathname, cookies }) => {
+      const req = {
+        method: "GET",
+        originalUrl: pathname,
+        url: pathname,
+        headers: { host: "newjoych.co.kr", accept: "text/html" },
+        cookies,
       } as unknown as Request;
       const redirect = vi.fn();
       const setHeader = vi.fn();
@@ -121,8 +165,8 @@ describe("SEO meta injection", () => {
         "noindex, follow"
       );
       expect(next).toHaveBeenCalledOnce();
-    });
-  });
+    }
+  );
 
   it.each(["joych.org", "m.joych.org"])(
     "%s 요청은 경로와 쿼리를 유지해 www 대표 주소로 301 정리한다",
@@ -162,7 +206,7 @@ describe("SEO meta injection", () => {
     expect(next).toHaveBeenCalledOnce();
   });
 
-  it("기존 Newjoych HTML은 서비스는 유지하면서 검색 노출을 막는다", () => {
+  it("리다이렉트 전 방어선에서도 기존 Newjoych HTML은 검색 노출을 막는다", () => {
     const html = injectSeoMeta(baseHtml, {
       path: "/about/directions",
       originalUrl: "/about/directions",
@@ -229,6 +273,9 @@ describe("SEO meta injection", () => {
     "/manifest.webmanifest",
     "/pwa-icon-192.png",
     "/pwa-icon-512.png",
+    "/uploads/legacy-photo.jpg",
+    "/api/domain-session-bridge/start",
+    "/api/member-oauth/kakao/callback",
     "/api/trpc/home.getVapidPublicKey",
   ])("Newjoych의 기존 PWA 연결 경로 %s는 Joych로 리다이렉트하지 않는다", (pathname) => {
     withPublicUrlBase("https://www.joych.org", () => {
